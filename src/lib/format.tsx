@@ -61,6 +61,16 @@ export function optionsFrom(
   };
 }
 
+// Options for assigning a call to a field engineer / manager, sourced from the
+// users collection. Value is the user's full name so existing call records and
+// lookups keep working.
+export function engineerOptions(): FieldOption[] {
+  return db
+    .list('users')
+    .filter((u) => ['engineer', 'manager', 'admin'].includes(String(u.role)) && u.active !== false)
+    .map((u) => ({ value: String(u.fullName), label: `${u.fullName} · ${u.role}` }));
+}
+
 export function lookup(collection: string, id: unknown, key: string): string {
   if (!id) return '—';
   const r = db.get(collection, String(id));

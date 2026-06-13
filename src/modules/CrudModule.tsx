@@ -31,6 +31,9 @@ export interface CrudConfig<T extends BaseRecord> {
   userScoped?: boolean;
   extraToolbar?: ReactNode;
   defaultsForNew?: () => FormValues;
+  // Extra panels rendered under the form when viewing/editing a saved record
+  // (used by call modules for spares, attachments & signature).
+  renderDetail?: (row: T) => ReactNode;
 }
 
 export function CrudModule<T extends BaseRecord>({ config }: { config: CrudConfig<T> }) {
@@ -183,6 +186,12 @@ export function CrudModule<T extends BaseRecord>({ config }: { config: CrudConfi
                 ) : undefined
               }
             />
+            {drawer.mode === 'create' && config.renderDetail && (
+              <div className="detail-hint muted">
+                Save this {config.singular.toLowerCase()} first to add spares, attachments & customer signature.
+              </div>
+            )}
+            {drawer.mode !== 'create' && drawer.row && config.renderDetail?.(drawer.row)}
           </>
         )}
       </Drawer>
