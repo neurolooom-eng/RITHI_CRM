@@ -1,0 +1,127 @@
+/* Chart primitives for the Dashboard system. */
+
+.ch-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 16px 0;
+}
+
+/* horizontal bars */
+.ch-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ch-bar-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+}
+.ch-bar-label {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ch-bar-track {
+  background: var(--surface-alt);
+  border-radius: 999px;
+  height: 12px;
+  overflow: hidden;
+}
+.ch-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.ch-bar-value {
+  font-size: 12.5px;
+  font-weight: 650;
+  text-align: right;
+}
+
+/* vertical columns */
+.ch-cols {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  height: 200px;
+  padding-top: 18px;
+}
+.ch-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+.ch-col-track {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  position: relative;
+}
+.ch-col-fill {
+  width: 70%;
+  max-width: 46px;
+  border-radius: 6px 6px 0 0;
+  transition: height 0.4s ease;
+  min-height: 2px;
+}
+.ch-col-value-top {
+  font-size: 11.5px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.ch-col-label {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* donut */
+.ch-donut-wrap {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.ch-donut-total {
+  font-size: 22px;
+  font-weight: 720;
+  fill: var(--text);
+}
+.ch-donut-cap {
+  font-size: 10px;
+  fill: var(--text-muted);
+  text-transform: uppercase;
+}
+.ch-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ch-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.ch-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.ch-legend-label {
+  color: var(--text-muted);
+  min-width: 90px;
+}
+.ch-legend-val {
+  font-weight: 650;
+}
