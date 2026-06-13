@@ -1,8 +1,7 @@
 name: Deploy to GitHub Pages
 
 # Builds the Vite app and publishes it to GitHub Pages on every push.
-# One-time setup (you do this once in the repo): Settings → Pages →
-# "Build and deployment" → Source: GitHub Actions.
+# The repo is public, so the workflow token can enable Pages itself.
 
 on:
   push:
@@ -33,6 +32,10 @@ jobs:
       - run: npm ci
       - run: npm run build
       - uses: actions/configure-pages@v5
+        # Now that the repo is public, the workflow token can enable Pages itself
+        # (Source: GitHub Actions) — no manual settings toggle required.
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
