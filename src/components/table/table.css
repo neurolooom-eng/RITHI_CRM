@@ -1,0 +1,147 @@
+/* Table System styles — all driven by theme tokens. */
+
+.dt-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.dt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+}
+
+.dt-scroll {
+  overflow: auto;
+}
+
+.dt {
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.dt thead th {
+  position: relative;
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  font-weight: 650;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border);
+  user-select: none;
+  vertical-align: middle;
+}
+
+.dt thead th:last-child {
+  border-right: none;
+}
+
+.dt-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.dt-th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: grab;
+}
+.dt-th-label.dt-sortable {
+  cursor: pointer;
+}
+.dt-sort {
+  font-size: 9px;
+  color: var(--primary);
+}
+
+.dt-over {
+  background: var(--primary-soft) !important;
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+.dt-dragging {
+  opacity: 0.4;
+}
+
+.dt-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 6;
+}
+.dt-resizer:hover {
+  background: var(--primary);
+  opacity: 0.5;
+}
+
+.dt tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: top;
+}
+.dt tbody td:last-child {
+  border-right: none;
+}
+
+.dt-dense thead th {
+  padding: 6px 10px;
+}
+.dt-dense tbody td {
+  padding: 5px 10px;
+}
+
+/* Default: text wrap every cell */
+.dt-wrap-cell {
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.dt-nowrap-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--surface-alt) 45%, transparent);
+}
+.dt tbody tr:hover td {
+  background: var(--primary-soft);
+}
+.dt-clickable {
+  cursor: pointer;
+}
+
+.dt-empty {
+  text-align: center !important;
+  padding: 32px !important;
+  color: var(--text-muted);
+}
+
+.dt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-alt);
+  font-size: 12px;
+}
