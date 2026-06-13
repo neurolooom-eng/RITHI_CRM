@@ -21,7 +21,9 @@ import {
   lookup,
   statusBadge,
   todayISO,
+  engineerOptions,
 } from '../lib/format';
+import { CallExtras } from './CallExtras';
 
 // Helper to render a status pill column
 const statusCol = <T extends BaseRecord>(key = 'status', header = 'Status', width = 120): Column<T> => ({
@@ -282,6 +284,7 @@ const closureFields: FieldDef[] = [
 // ---------------------------------------------------------------------------
 export const installationConfig: CrudConfig<BaseRecord> = {
   collection: C.installations,
+  renderDetail: (row) => <CallExtras collection={C.installations} row={row} />,
   title: 'Installation Calls',
   subtitle: 'New equipment installation & commissioning',
   icon: '🔧',
@@ -307,7 +310,7 @@ export const installationConfig: CrudConfig<BaseRecord> = {
     { name: 'serialNo', label: 'Serial No.', section: 'Call' },
     { name: 'callDate', label: 'Call Date', type: 'date', required: true, section: 'Call' },
     { name: 'priority', label: 'Priority', type: 'select', options: toOptions(CALL_PRIORITY), section: 'Call', defaultValue: 'Medium' },
-    { name: 'engineer', label: 'Assigned Engineer', section: 'Assignment' },
+    { name: 'engineer', label: 'Assigned Engineer', type: 'select', options: engineerOptions, section: 'Assignment' },
     { name: 'scheduledDate', label: 'Scheduled Date', type: 'date', section: 'Assignment' },
     { name: 'siteReadiness', label: 'Site Readiness', type: 'select', section: 'Assignment',
       options: toOptions(['Ready', 'Pending Civil', 'Pending Electrical', 'Not Ready']) },
@@ -321,6 +324,7 @@ export const installationConfig: CrudConfig<BaseRecord> = {
 // ---------------------------------------------------------------------------
 export const pmConfig: CrudConfig<BaseRecord> = {
   collection: C.pmcalls,
+  renderDetail: (row) => <CallExtras collection={C.pmcalls} row={row} />,
   title: 'Preventive Maintenance',
   subtitle: 'Scheduled PM visits against contracts',
   icon: '🗓️',
@@ -348,7 +352,7 @@ export const pmConfig: CrudConfig<BaseRecord> = {
     { name: 'frequency', label: 'Frequency', type: 'select', section: 'Schedule',
       options: toOptions(['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly']) },
     { name: 'dueDate', label: 'Due Date', type: 'date', required: true, section: 'Schedule' },
-    { name: 'engineer', label: 'Assigned Engineer', section: 'Visit' },
+    { name: 'engineer', label: 'Assigned Engineer', type: 'select', options: engineerOptions, section: 'Visit' },
     { name: 'visitDate', label: 'Visit Date', type: 'date', section: 'Visit' },
     { name: 'status', label: 'Status', type: 'select', section: 'Visit',
       options: toOptions(['Scheduled', 'In Progress', 'Completed', 'Overdue', 'Cancelled']), defaultValue: 'Scheduled' },
@@ -362,6 +366,7 @@ export const pmConfig: CrudConfig<BaseRecord> = {
 // ---------------------------------------------------------------------------
 export const breakdownConfig: CrudConfig<BaseRecord> = {
   collection: C.breakdowns,
+  renderDetail: (row) => <CallExtras collection={C.breakdowns} row={row} />,
   title: 'Breakdown Calls',
   subtitle: 'Field service / breakdown complaints',
   icon: '⚠️',
@@ -392,7 +397,7 @@ export const breakdownConfig: CrudConfig<BaseRecord> = {
     { name: 'priority', label: 'Priority', type: 'select', options: toOptions(CALL_PRIORITY), section: 'Complaint', defaultValue: 'High' },
     { name: 'complaint', label: 'Complaint Description', type: 'textarea', span: 2, required: true, section: 'Complaint' },
     { name: 'underContract', label: 'Under Warranty / Contract', type: 'checkbox', section: 'Assignment' },
-    { name: 'engineer', label: 'Assigned Engineer', section: 'Assignment' },
+    { name: 'engineer', label: 'Assigned Engineer', type: 'select', options: engineerOptions, section: 'Assignment' },
     { name: 'scheduledDate', label: 'Scheduled Visit', type: 'date', section: 'Assignment' },
     { name: 'failureCategory', label: 'Failure Category', type: 'select', options: toOptions(FAILURE_CATEGORIES), section: 'Diagnosis' },
     { name: 'rootCause', label: 'Root Cause', type: 'textarea', span: 2, section: 'Diagnosis' },
