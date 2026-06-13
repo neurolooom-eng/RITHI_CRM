@@ -81,11 +81,25 @@ export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can } = useAuth();
   const { theme, themes, setThemeId } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 
+  // Close the mobile drawer whenever the route changes.
+  const closeMobile = () => setMobileOpen(false);
+
+  const toggleSidebar = () => {
+    // On phones the ☰ opens the off-canvas drawer; on desktop it collapses.
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      setMobileOpen((o) => !o);
+    } else {
+      setCollapsed((c) => !c);
+    }
+  };
+
   return (
-    <div className={`app-shell ${collapsed ? 'app-collapsed' : ''}`}>
+    <div className={`app-shell ${collapsed ? 'app-collapsed' : ''} ${mobileOpen ? 'app-mobile-open' : ''}`}>
+      {mobileOpen && <div className="sidebar-backdrop" onClick={closeMobile} />}
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="sidebar-logo">⚕️</span>
@@ -110,6 +124,7 @@ export function Layout({ children }: { children: ReactNode }) {
                     end={item.to === '/'}
                     className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
                     title={item.label}
+                    onClick={closeMobile}
                   >
                     <span className="nav-icon">{item.icon}</span>
                     {!collapsed && <span className="nav-label">{item.label}</span>}
@@ -123,7 +138,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <div className="app-main">
         <header className="app-header">
-          <button className="btn btn-ghost btn-sm" onClick={() => setCollapsed((c) => !c)} title="Toggle sidebar">
+          <button className="btn btn-ghost btn-sm" onClick={toggleSidebar} title="Toggle menu">
             ☰
           </button>
           <div className="header-crumb">{crumbFor(location.pathname)}</div>

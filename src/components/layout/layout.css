@@ -197,11 +197,55 @@
   padding: 22px 24px 60px;
 }
 
-@media (max-width: 720px) {
-  .app-shell {
-    grid-template-columns: 64px 1fr;
+/* ---- Mobile: off-canvas sidebar drawer ---------------------------------- */
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  /* content takes the full width; sidebar slides over it */
+  .app-shell,
+  .app-collapsed {
+    grid-template-columns: 1fr;
   }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 270px;
+    max-width: 84vw;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-lg);
+  }
+  .app-mobile-open .sidebar {
+    transform: translateX(0);
+  }
+  /* even when desktop-"collapsed", show full labels inside the mobile drawer */
+  .app-collapsed .sidebar .nav-item {
+    justify-content: flex-start;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 15, 22, 0.45);
+    z-index: 55;
+  }
+
   .user-meta { display: none; }
+  .header-crumb { display: none; }
+  .header-theme { min-width: 0; max-width: 120px; }
+  .app-content { padding: 16px 14px 64px; }
+  .app-header { padding: 0 12px; gap: 8px; }
+  .page-header { gap: 10px; }
+  .page-title { font-size: 18px; }
+}
+
+@media (max-width: 420px) {
+  .header-theme { display: none; }
 }
 
 /* theme swatches (settings) */
