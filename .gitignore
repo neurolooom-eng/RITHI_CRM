@@ -7,3 +7,8 @@ dist-ssr
 *.log
 .env
 .env.local
+
+# Supabase migration: never commit exported customer data or keys
+migration-data/*.csv
+.env
+.env.local

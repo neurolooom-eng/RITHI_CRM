@@ -32,11 +32,13 @@ import {
 } from './modules/schemas';
 
 function Shell() {
-  const { user } = useAuth();
+  const { user, booting } = useAuth();
   useEffect(() => {
     if (user) clearDemoData(); // live data only — no dummy records
   }, [user]);
 
+  // While a persisted Supabase session is being restored, don't flash the login.
+  if (booting) return <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', color: 'var(--muted, #888)' }}>Loading…</div>;
   if (!user) return <Login />;
 
   return (

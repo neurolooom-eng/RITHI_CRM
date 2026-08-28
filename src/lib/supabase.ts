@@ -187,6 +187,44 @@ export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: b
   return error ? { ok: false, error: error.message } : { ok: true };
 }
 
+// ---- auth (email + password) ----------------------------------------------
+export interface Profile {
+  id: string; email: string; full_name: string; role: string;
+  designation?: string; engineer_code?: string;
+  reporting_manager_email?: string; regional_manager_email?: string; active?: boolean;
+}
+
+export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().auth.signInWithPassword({ email: email.trim(), password });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+export async function sbSignOut(): Promise<void> {
+  const c = getSupabase(); if (c) await c.auth.signOut();
+}
+// The signed-in user's own profile row (or null if not signed in / no row yet).
+export async function sbCurrentProfile(): Promise<Profile | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data: { user } } = await c.auth.getUser();
+  if (!user) return null;
+  const { data } = await c.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (data) return data as Profile;
+  // No profile row yet — fall back to a minimal one from the auth identity.
+  return { id: user.id, email: user.email ?? '', full_name: user.email ?? '', role: 'engineer' };
+}
+// All profiles the current user may see (admins: everyone; others: themselves).
+export async function sbListProfiles(): Promise<Profile[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('profiles').select('*').order('full_name');
+  if (error) return [];
+  return (data ?? []) as Profile[];
+}
+// Notify on sign-in/sign-out (Supabase persists the session across reloads).
+export function sbOnAuthChange(cb: () => void): () => void {
+  const c = getSupabase(); if (!c) return () => {};
+  const { data } = c.auth.onAuthStateChange(() => cb());
+  return () => data.subscription.unsubscribe();
+}
+
 // ---- connectivity check ----------------------------------------------------
 export async function pingSupabase(): Promise<{ ok: boolean; error?: string; count?: number }> {
   try {
