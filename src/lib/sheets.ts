@@ -223,6 +223,13 @@ export async function authSetPassword(id: string, password: string): Promise<Aut
   return r as unknown as AuthResult;
 }
 
+// User Master directory (all users, regardless of Validity).
+export async function listUsers(q = '', limit = 300): Promise<Record<string, unknown>[]> {
+  const r = await getJson({ action: 'users', q, limit: String(limit) });
+  if (!r.ok) throw new Error(String(r.error ?? 'users failed'));
+  return (r.rows as Record<string, unknown>[]) ?? [];
+}
+
 // ---- Shared table views (admin "default for everyone") ---------------------
 export interface TableView {
   order?: string[];

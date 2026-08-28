@@ -81,6 +81,7 @@ function _dispatchGet(e) {
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
   if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter, Number(e.parameter.limit) || 100) };
   if (action === 'auth') return _auth(e.parameter.mode, e.parameter.id, e.parameter.password);
+  if (action === 'users') return { ok: true, rows: _users(e.parameter.q, Number(e.parameter.limit) || 300) };
   // Shared "default for everyone" table views (admin-set), stored in script props.
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
@@ -402,6 +403,37 @@ function _auth(mode, id, password) {
   if (!stored) return { ok: true, needsPassword: true, user: _userPublic(u) };
   if (_hash(String(password || '')) !== stored) return { ok: false, error: 'bad_password' };
   return { ok: true, user: _userPublic(u) };
+}
+
+// All User Master rows (irrespective of Validity), optionally filtered by q.
+function _users(q, limit) {
+  q = String(q || '').trim().toLowerCase();
+  limit = limit || 300;
+  var sheet = _userSheet();
+  var headers = _headers(sheet);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var ni = headers.indexOf(USER_NAME_HEADER);
+  var searchIdx = [USER_NAME_HEADER, USER_EMAIL_HEADER, USER_GMAIL_HEADER, 'REGION', 'Designation', 'RM', 'RGM']
+    .map(function (h) { return headers.indexOf(h); })
+    .filter(function (i) { return i >= 0; });
+  var vals = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+  var out = [];
+  for (var i = 0; i < vals.length; i++) {
+    if (ni >= 0 && !String(vals[i][ni]).trim()) continue; // skip blank rows
+    if (q) {
+      var hit = false;
+      for (var s = 0; s < searchIdx.length; s++) {
+        if (String(vals[i][searchIdx[s]]).toLowerCase().indexOf(q) !== -1) { hit = true; break; }
+      }
+      if (!hit) continue;
+    }
+    var o = {};
+    for (var c = 0; c < headers.length; c++) o[headers[c]] = _cell(vals[i][c]);
+    out.push(o);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 function _userSheet() {
