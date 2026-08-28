@@ -41,33 +41,59 @@ function hash(pw: string): string {
 }
 
 export function seedUsers() {
-  if (db.list(USERS).length > 0) return;
-  const now = new Date().toISOString();
-  const make = (u: Partial<User>): User =>
-    ({ id: genId(), createdAt: now, updatedAt: now, active: true, ...u }) as User;
-  db.seedIfEmpty(USERS, [
-    make({
-      username: 'admin',
-      fullName: 'Dr. Anita Rao',
-      email: 'admin@rithi.health',
-      role: 'admin',
-      passwordHash: hash('admin123'),
-    }),
-    make({
-      username: 'manager',
-      fullName: 'Suresh Kumar',
-      email: 'manager@rithi.health',
-      role: 'manager',
-      passwordHash: hash('manager123'),
-    }),
-    make({
-      username: 'engineer',
-      fullName: 'Ravi Menon',
-      email: 'ravi@rithi.health',
-      role: 'engineer',
-      passwordHash: hash('engineer123'),
-    }),
-  ]);
+  if (db.list(USERS).length === 0) {
+    const now = new Date().toISOString();
+    const make = (u: Partial<User>): User =>
+      ({ id: genId(), createdAt: now, updatedAt: now, active: true, ...u }) as User;
+    db.seedIfEmpty(USERS, [
+      make({
+        username: 'admin',
+        fullName: 'Dr. Anita Rao',
+        email: 'admin@rithi.health',
+        role: 'admin',
+        passwordHash: hash('admin123'),
+      }),
+      make({
+        username: 'manager',
+        fullName: 'Suresh Kumar',
+        email: 'manager@rithi.health',
+        role: 'manager',
+        passwordHash: hash('manager123'),
+      }),
+      make({
+        username: 'engineer',
+        fullName: 'Ravi Menon',
+        email: 'ravi@rithi.health',
+        role: 'engineer',
+        passwordHash: hash('engineer123'),
+      }),
+    ]);
+  }
+  // Ensure operational test logins exist even on browsers that already seeded
+  // the demo users. Passwords are stored only as hashes (never plaintext here);
+  // these will be superseded by the User Master login and can be reset anytime.
+  ensureUser({
+    username: 'service.almsind@gmail.com',
+    fullName: 'ALMS Service',
+    email: 'service.almsind@gmail.com',
+    role: 'admin',
+    passwordHash: '8c543c4f', // hash('Coxpass105!') — temporary test password, to be reset
+  });
+}
+
+// Insert a user if one with the same username doesn't already exist (idempotent).
+function ensureUser(u: {
+  username: string;
+  fullName: string;
+  email: string;
+  role: Role;
+  passwordHash: string;
+}) {
+  const exists = (db.list(USERS) as User[]).some(
+    (x) => x.username.toLowerCase() === u.username.toLowerCase(),
+  );
+  if (exists) return;
+  db.insert(USERS, { ...u, active: true });
 }
 
 interface AuthContextValue {
