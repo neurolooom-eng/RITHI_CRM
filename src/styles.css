@@ -185,3 +185,22 @@ h4 {
 .spacer { flex: 1; }
 .stack { display: flex; flex-direction: column; }
 .wrap { flex-wrap: wrap; }
+
+/* ---- Touch & mobile ergonomics ------------------------------------------ */
+/* Comfortable tap targets on touch devices. */
+@media (pointer: coarse) {
+  .btn { min-height: 40px; }
+  .btn.btn-sm { min-height: 32px; }
+  .input,
+  .select { min-height: 42px; }
+}
+/* 16px form controls stop iOS Safari from zooming in when a field is focused. */
+@media (max-width: 1024px) {
+  .input,
+  .select,
+  .textarea,
+  .call-search .input { font-size: 16px; }
+}
+/* Never let the page scroll sideways — wide content scrolls inside its own
+   container (tables use .dt-scroll). */
+html, body { max-width: 100%; overflow-x: hidden; }

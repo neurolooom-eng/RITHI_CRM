@@ -156,6 +156,7 @@
   bottom: 34px;
   z-index: 31;
   width: 280px;
+  max-width: calc(100vw - 24px);
   max-height: 60vh;
   overflow-y: auto;
   background: var(--surface);
@@ -185,7 +186,7 @@
 .dt-panel-down { top: 34px; bottom: auto; }
 
 /* Filters panel */
-.dt-filter-panel { width: 340px; }
+.dt-filter-panel { width: 340px; max-width: calc(100vw - 24px); }
 .dt-filter-list { display: flex; flex-direction: column; gap: 6px; }
 .dt-filter-row { display: flex; align-items: center; gap: 4px; }
 .dt-filter-row .select { flex: 0 0 auto; max-width: 110px; font-size: 12px; padding: 3px 4px; }
