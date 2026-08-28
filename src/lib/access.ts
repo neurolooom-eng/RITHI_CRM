@@ -51,26 +51,29 @@ function loadUserMaster(): Promise<Record<string, unknown>[]> {
 }
 
 export function useAccessScope(): AccessScope {
-  const { user, can } = useAuth();
+  const { user, can, viewAs } = useAuth();
   const [scope, setScope] = useState<AccessScope>(EMPTY);
 
   useEffect(() => {
     let cancelled = false;
-    if (!user) { setScope({ ...EMPTY, ready: true }); return; }
+    // While an admin is previewing "as" an engineer, scope to that identity.
+    const identity = viewAs ?? user;
+    if (!identity) { setScope({ ...EMPTY, ready: true }); return; }
 
-    // Administrators and super admins see every call.
-    if (can('manage-users')) {
-      setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: user.fullName });
+    // Administrators and super admins see every call — unless they are actively
+    // previewing as someone else, in which case we scope to that person.
+    if (!viewAs && can('manage-users')) {
+      setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: identity.fullName });
       return;
     }
 
-    const selfName0 = norm(user.fullName);
-    const emailNorm = norm(user.email);
-    const usernameNorm = norm(user.username);
+    const selfName0 = norm(identity.fullName);
+    const emailNorm = norm(identity.email);
+    const usernameNorm = norm(identity.username);
 
     // Offline / no sheet: fall back to the user's own name only.
     if (!sheetsConfigured()) {
-      setScope({ ready: true, all: false, names: new Set([selfName0].filter(Boolean)), isManager: false, reports: [], selfName: user.fullName });
+      setScope({ ready: true, all: false, names: new Set([selfName0].filter(Boolean)), isManager: false, reports: [], selfName: identity.fullName });
       return;
     }
 
@@ -82,7 +85,7 @@ export function useAccessScope(): AccessScope {
         const e = norm(pick(r, H_EMAIL)); const g = norm(pick(r, H_GMAIL));
         return (e && (e === emailNorm || e === usernameNorm)) || (g && (g === emailNorm || g === usernameNorm));
       });
-      const selfDisplay = myRow ? pick(myRow, H_NAME) : user.fullName;
+      const selfDisplay = myRow ? pick(myRow, H_NAME) : identity.fullName;
       const selfName = norm(selfDisplay) || selfName0;
 
       // 2) Build manager → reports adjacency from the RM / RGM columns.
@@ -116,12 +119,12 @@ export function useAccessScope(): AccessScope {
       const isManager = allowed.size > 0;
       if (selfName) allowed.add(selfName); // always include one's own calls
 
-      setScope({ ready: true, all: false, names: allowed, isManager, reports, selfName: selfDisplay || user.fullName });
+      setScope({ ready: true, all: false, names: allowed, isManager, reports, selfName: selfDisplay || identity.fullName });
     });
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, viewAs?.id, viewAs?.email]);
 
   return scope;
 }
