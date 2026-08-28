@@ -47,7 +47,14 @@ export interface DataTableProps<T> {
   toolbar?: ReactNode;
   storageKey?: string; // persists column order/width per table
   dense?: boolean;
+  // Full field list for the Columns picker (so any schema field can be added).
+  // If omitted, the field list is derived from the data rows' keys.
+  allFields?: { key: string; header?: string }[];
 }
+
+const INTERNAL_KEYS = new Set(['id', 'createdAt', 'updatedAt', 'ownerId', '_seedOrder', '_synced', '_pending']);
+const humanize = (k: string) =>
+  k.replace(/([A-Z])/g, ' $1').replace(/[_]+/g, ' ').replace(/^./, (c) => c.toUpperCase()).trim();
 
 const ROW_HEIGHT_DEFAULT = 44;
 const ROW_HEIGHT_DENSE = 34;
@@ -73,9 +80,45 @@ export function DataTable<T>({
   toolbar,
   storageKey,
   dense = false,
+  allFields,
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
   const { can } = useAuth();
+
+  // Base (curated) columns + every other schema/data field as an addable column
+  // (hidden by default). This makes the ⚙ Columns picker list all fields.
+  const baseKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns]);
+  const extraKeys = useMemo(() => {
+    const source =
+      allFields?.map((f) => f.key) ??
+      (() => {
+        const ks = new Set<string>();
+        rows.slice(0, 50).forEach((r) => Object.keys(r as Record<string, unknown>).forEach((k) => ks.add(k)));
+        return [...ks];
+      })();
+    const seen = new Set<string>();
+    const out: string[] = [];
+    source.forEach((k) => {
+      if (!baseKeys.has(k) && !INTERNAL_KEYS.has(k) && !k.startsWith('_') && !seen.has(k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    });
+    return out;
+  }, [allFields, rows, baseKeys]);
+  const labelFor = (k: string) => allFields?.find((f) => f.key === k)?.header ?? humanize(k);
+  const mergedColumns = useMemo<Column<T>[]>(() => {
+    const extra: Column<T>[] = extraKeys.map((k) => ({
+      key: k,
+      header: labelFor(k),
+      width: 140,
+      render: (r: T) => (((r as Record<string, unknown>)[k] ?? '') as ReactNode),
+    }));
+    return [...columns, ...extra];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columns, extraKeys]);
+  const defaultHidden = useMemo(() => new Set(extraKeys), [extraKeys]);
+  const viewActiveRef = useRef(false);
 
   const [order, setOrder] = useState<string[]>(() => columns.map((c) => c.key));
   const [widths, setWidths] = useState<Record<string, number>>(() =>
@@ -106,49 +149,62 @@ export function DataTable<T>({
     if (raw) {
       try {
         const p: Persisted = JSON.parse(raw);
-        const valid = p.order.filter((k) => columns.some((c) => c.key === k));
-        const missing = columns.map((c) => c.key).filter((k) => !valid.includes(k));
-        setOrder([...valid, ...missing]);
         setWidths((w) => ({ ...w, ...p.widths }));
-        if (Array.isArray(p.hidden)) setHidden(new Set(p.hidden));
+        if (p.order) applyView({ order: p.order });
+        setHidden(new Set(Array.isArray(p.hidden) ? p.hidden : [...defaultHidden]));
+        viewActiveRef.current = true;
       } catch { /* ignore corrupt layout */ }
       return;
     }
     // No personal view — load the shared "default for everyone" if present.
     if (!storageKey || !sheetsConfigured()) return;
-    if (globalViewCache[storageKey] !== undefined) { applyView(globalViewCache[storageKey]); return; }
+    if (globalViewCache[storageKey] !== undefined) {
+      const cached = globalViewCache[storageKey];
+      if (cached) { applyView(cached); viewActiveRef.current = true; }
+      return;
+    }
     let cancelled = false;
     void getView(storageKey).then((v) => {
       globalViewCache[storageKey] = v;
-      if (!cancelled) applyView(v);
+      if (!cancelled && v) { applyView(v); viewActiveRef.current = true; }
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
 
-  // keep order in sync if column set changes
+  // keep order/widths/hidden in sync when the column set (incl. schema fields) changes
   useEffect(() => {
+    const allKeys = mergedColumns.map((c) => c.key);
     setOrder((prev) => {
-      const known = prev.filter((k) => columns.some((c) => c.key === k));
-      const added = columns.map((c) => c.key).filter((k) => !known.includes(k));
+      const known = prev.filter((k) => allKeys.includes(k));
+      const added = allKeys.filter((k) => !known.includes(k));
       return [...known, ...added];
     });
     setWidths((prev) => {
       const next = { ...prev };
-      columns.forEach((c) => {
+      mergedColumns.forEach((c) => {
         if (next[c.key] == null) next[c.key] = c.width ?? 160;
       });
       return next;
     });
+    // Extra (schema) fields are hidden by default until a saved view says otherwise.
+    if (!viewActiveRef.current) {
+      setHidden((prev) => {
+        const next = new Set(prev);
+        allKeys.forEach((k) => { if (!baseKeys.has(k)) next.add(k); });
+        return next;
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns.map((c) => c.key).join('|')]);
+  }, [mergedColumns.map((c) => c.key).join('|')]);
 
   const persist = (nextOrder: string[], nextWidths: Record<string, number>, nextHidden: Set<string> = hidden) => {
+    viewActiveRef.current = true; // user has an explicit view now
     if (persistKey)
       localStorage.setItem(persistKey, JSON.stringify({ order: nextOrder, widths: nextWidths, hidden: [...nextHidden] }));
   };
 
-  const colMap = useMemo(() => Object.fromEntries(columns.map((c) => [c.key, c])), [columns]);
+  const colMap = useMemo(() => Object.fromEntries(mergedColumns.map((c) => [c.key, c])), [mergedColumns]);
   const orderedCols = order.map((k) => colMap[k]).filter(Boolean) as Column<T>[];
   const visibleCols = orderedCols.filter((c) => !hidden.has(c.key));
 
@@ -173,9 +229,10 @@ export function DataTable<T>({
 
   const resetLayout = () => {
     if (persistKey) localStorage.removeItem(persistKey);
-    setOrder(columns.map((c) => c.key));
-    setWidths(Object.fromEntries(columns.map((c) => [c.key, c.width ?? 160])));
-    setHidden(new Set());
+    setOrder(mergedColumns.map((c) => c.key));
+    setWidths(Object.fromEntries(mergedColumns.map((c) => [c.key, c.width ?? 160])));
+    setHidden(new Set(defaultHidden));
+    viewActiveRef.current = false;
     setViewMsg('Reset to default.');
   };
 
