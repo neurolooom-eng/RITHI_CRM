@@ -121,8 +121,9 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   const toggleSidebar = () => {
-    // On phones the ☰ opens the off-canvas drawer; on desktop it collapses.
-    if (window.matchMedia('(max-width: 760px)').matches) {
+    // On phones & tablets the ☰ opens the off-canvas drawer; on desktop it
+    // collapses the sidebar to the icon rail.
+    if (window.matchMedia('(max-width: 1024px)').matches) {
       setMobileOpen((o) => !o);
     } else {
       setCollapsed((c) => !c);

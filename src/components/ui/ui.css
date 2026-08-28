@@ -139,3 +139,19 @@
 .section-card-body {
   padding: 16px;
 }
+
+/* ---- Responsive: drawers, modals, search on tablets & phones ------------ */
+@media (min-width: 761px) and (max-width: 1024px) {
+  .drawer { max-width: 94vw; }
+}
+@media (max-width: 760px) {
+  /* Full-screen drawer on phones (overrides the inline width prop). */
+  .drawer { width: 100vw !important; max-width: 100vw; }
+  .drawer-head { padding: 12px 14px; }
+  .drawer-body { padding: 14px; }
+  .modal { width: 94vw !important; max-width: 94vw; }
+  .searchbox { min-width: 0; width: 100%; }
+  .toolbar { gap: 8px; }
+  .page-header-actions { width: 100%; }
+  .page-header-actions .btn { flex: 1 1 auto; justify-content: center; }
+}

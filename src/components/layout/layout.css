@@ -111,6 +111,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0; /* let inner scroll containers (tables) shrink instead of
+                   forcing the whole column — and the page — wider */
 }
 .app-header {
   height: var(--header-h);
@@ -214,6 +216,8 @@
   flex: 1;
   overflow-y: auto;
   padding: 22px 24px 60px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Sticky build-info footer (always visible at the bottom of the main column) */
@@ -247,8 +251,9 @@
   display: none;
 }
 
-@media (max-width: 760px) {
-  /* content takes the full width; sidebar slides over it */
+/* Tablets & phones (≤1024px): the sidebar becomes an off-canvas drawer so the
+   content gets the full width. The ☰ button opens it. */
+@media (max-width: 1024px) {
   .app-shell,
   .app-collapsed {
     grid-template-columns: 1fr;
@@ -258,7 +263,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    width: 270px;
+    width: 280px;
     max-width: 84vw;
     z-index: 60;
     transform: translateX(-100%);
@@ -268,7 +273,7 @@
   .app-mobile-open .sidebar {
     transform: translateX(0);
   }
-  /* even when desktop-"collapsed", show full labels inside the mobile drawer */
+  /* even when desktop-"collapsed", show full labels inside the drawer */
   .app-collapsed .sidebar .nav-item {
     justify-content: flex-start;
   }
@@ -279,12 +284,16 @@
     background: rgba(8, 15, 22, 0.45);
     z-index: 55;
   }
+  .app-content { padding: 18px 18px 64px; }
+}
 
+/* Phones (≤760px): tighten the top chrome so content gets maximum room. */
+@media (max-width: 760px) {
   .user-meta { display: none; }
   .header-crumb { display: none; }
   .header-theme { min-width: 0; max-width: 120px; }
-  .app-content { padding: 16px 14px 64px; }
-  .app-header { padding: 0 12px; gap: 8px; }
+  .app-content { padding: 14px 12px 64px; }
+  .app-header { padding: 0 10px; gap: 8px; }
   .page-header { gap: 10px; }
   .page-title { font-size: 18px; }
 }
