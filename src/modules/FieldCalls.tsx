@@ -20,6 +20,7 @@ import {
 import './fieldcalls.css';
 import {
   FC_CONTRACT_TYPE,
+  FIELD_HEADERS,
   ITEM_STATUS,
   MODE_OF_REPORTING,
   PERSON_CALLING,
@@ -28,6 +29,8 @@ import {
   productToCallPrefill,
   toSheetDate,
 } from '../lib/fieldcall';
+
+const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => ({ key: h.key, header: h.header }));
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -493,6 +496,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
 
       <DataTable<Rec>
         columns={[...COLUMNS, actionsColumn]}
+        allFields={CALL_ALL_FIELDS}
         rows={visibleRows}
         getRowId={(r) => r.id}
         storageKey={config.storageKey}
