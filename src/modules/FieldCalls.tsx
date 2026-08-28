@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
@@ -10,7 +11,9 @@ import { C } from './collections';
 import {
   addFieldCall,
   listFieldCalls,
-  searchProducts,
+  listParties,
+  listPartyItems,
+  listPartyProducts,
   sheetsConfigured,
   updateFieldCall,
 } from '../lib/sheets';
@@ -105,69 +108,115 @@ const COLUMNS: Column<Rec>[] = [
   { key: 'personCalling', header: 'Person Calling', width: 130 },
 ];
 
-// Search the Product Master and prefill the form from the chosen item.
-function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
-  const [q, setQ] = useState('');
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const [picked, setPicked] = useState('');
+// Session cache of party names (loaded once from Party Master).
+let cachedParties: string[] | null = null;
 
-  const run = async () => {
-    if (!q.trim()) return;
-    setBusy(true);
-    setErr('');
-    setPicked('');
-    try {
-      const r = await searchProducts(q.trim(), 10);
-      setRows(r);
-      if (r.length === 0) setErr('No products matched — check the serial / item code, or fill the fields manually.');
-    } catch (e) {
-      setErr(`Product lookup failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+// Cascade picker: Party → Product → Serial, prefilling the form from the item.
+function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
+  const [parties, setParties] = useState<string[]>(cachedParties ?? []);
+  const [party, setParty] = useState('');
+  const [products, setProducts] = useState<string[]>([]);
+  const [product, setProduct] = useState('');
+  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [serial, setSerial] = useState('');
+  const [busy, setBusy] = useState<'' | 'parties' | 'products' | 'items'>('');
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (cachedParties) return;
+    setBusy('parties');
+    listParties()
+      .then((p) => { cachedParties = p; setParties(p); })
+      .catch((e) => setErr(`Couldn't load parties: ${e instanceof Error ? e.message : String(e)}`))
+      .finally(() => setBusy(''));
+  }, []);
+
+  const pick = (row: Record<string, unknown>) => {
+    setSerial(String(row['Item Serial Number'] ?? ''));
+    onPick(row);
   };
+
+  const onParty = async (val: string) => {
+    setParty(val); setProduct(''); setProducts([]); setItems([]); setSerial('');
+    if (!val || !parties.includes(val)) return;
+    setBusy('products'); setErr('');
+    try {
+      const p = await listPartyProducts(val);
+      setProducts(p);
+      if (p.length === 0) setErr('No products found for this party in Product Master.');
+    } catch (e) {
+      setErr(`Products lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(''); }
+  };
+
+  const onProduct = async (val: string) => {
+    setProduct(val); setItems([]); setSerial('');
+    if (!val) return;
+    setBusy('items'); setErr('');
+    try {
+      const rows = await listPartyItems(party, val);
+      setItems(rows);
+      if (rows.length === 1) pick(rows[0]); // single serial → auto-select
+    } catch (e) {
+      setErr(`Serials lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setBusy(''); }
+  };
+
+  // Filter the party datalist to the current input (cap for performance).
+  const partyMatches = party.length >= 2
+    ? parties.filter((p) => p.toLowerCase().includes(party.toLowerCase())).slice(0, 50)
+    : [];
 
   return (
     <div className="prod-lookup">
-      <div className="prod-lookup-head">🔎 Fetch from Product Master</div>
-      <div className="call-add-row">
-        <input
-          className="input"
-          placeholder="Serial no., item code, product or party…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void run(); } }}
-        />
-        <button className="btn btn-sm" onClick={() => void run()} disabled={busy || !q.trim()}>
-          {busy ? '…' : 'Search'}
-        </button>
+      <div className="prod-lookup-head">🔎 Fetch from Product Master &nbsp;<span className="muted">Party → Product → Serial</span></div>
+
+      <div className="cascade-grid">
+        <label className="cascade-field">
+          <span>Party {busy === 'parties' && <span className="muted">loading…</span>}</span>
+          <input
+            className="input"
+            list="cascade-parties"
+            placeholder="Type to search party…"
+            value={party}
+            onChange={(e) => void onParty(e.target.value)}
+          />
+          <datalist id="cascade-parties">
+            {partyMatches.map((p) => <option key={p} value={p} />)}
+          </datalist>
+        </label>
+
+        <label className="cascade-field">
+          <span>Product {busy === 'products' && <span className="muted">loading…</span>}</span>
+          <select className="select" value={product} disabled={products.length === 0} onChange={(e) => void onProduct(e.target.value)}>
+            <option value="">{products.length ? '— Select product —' : '(pick a party first)'}</option>
+            {products.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+
+        <label className="cascade-field">
+          <span>Serial {busy === 'items' && <span className="muted">loading…</span>}</span>
+          <select
+            className="select"
+            value={serial}
+            disabled={items.length === 0}
+            onChange={(e) => {
+              const row = items.find((r) => String(r['Item Serial Number']) === e.target.value);
+              if (row) pick(row);
+            }}
+          >
+            <option value="">{items.length ? '— Select serial —' : '(pick a product first)'}</option>
+            {items.map((r, i) => (
+              <option key={i} value={String(r['Item Serial Number'] ?? '')}>
+                {String(r['Item Serial Number'] ?? '')}{r['Item Status'] ? ` · ${String(r['Item Status'])}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
+
       {err && <div className="muted prod-err">{err}</div>}
-      {picked && <div className="muted prod-picked">✓ Filled from {picked} — review & complete the complaint details below.</div>}
-      {rows.length > 0 && (
-        <div className="prod-results">
-          {rows.map((p, i) => (
-            <button
-              type="button"
-              className="prod-result"
-              key={i}
-              onClick={() => {
-                onPick(p);
-                setPicked(`${String(p['Item Name'] ?? '')} · ${String(p['Item Serial Number'] ?? '')}`);
-                setRows([]);
-              }}
-            >
-              <div><b>{String(p['Item Name'] ?? '—')}</b> · {String(p['Item Serial Number'] ?? '')}</div>
-              <div className="muted">
-                {String(p['Party Name'] ?? '')} — {String(p['City'] ?? '')}, {String(p['State'] ?? '')}
-                {p['Item Status'] ? ` · ${String(p['Item Status'])}` : ''}
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+      {serial && <div className="muted prod-picked">✓ Filled from serial {serial} — review & complete the complaint details below.</div>}
     </div>
   );
 }
@@ -239,6 +288,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
+  const location = useLocation();
 
   // Pull the register tab on first mount (and on manual refresh). Capped to the
   // most recent `limit` rows — the sheet holds thousands.
@@ -276,6 +326,19 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Arriving with a prefill (e.g. "Register Call" from Product Master) opens the
+  // create drawer pre-populated from the chosen item.
+  useEffect(() => {
+    const st = location.state as { prefill?: Record<string, unknown> } | null;
+    if (st?.prefill) {
+      setPrefill(st.prefill as FormValues);
+      setPrefillKey((k) => k + 1);
+      setDrawer({ mode: 'create' });
+      window.history.replaceState({}, ''); // consume so it doesn't re-trigger
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   const saveLocal = (rec: Record<string, unknown>, note: string) => {
     const existing = db.list(config.collection).map((r) => String((r as Rec).ucn ?? ''));

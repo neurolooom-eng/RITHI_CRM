@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../../lib/auth';
 import { useTheme } from '../../theme/ThemeProvider';
@@ -28,7 +28,7 @@ export const NAV: NavGroup[] = [
     title: 'Masters',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/products', label: 'Product Master', icon: '🩺' },
+      { to: '/product-master', label: 'Product Master', icon: '🩺' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
     ],
   },
@@ -45,7 +45,6 @@ export const NAV: NavGroup[] = [
       { to: '/field-calls', label: 'Field Call Register', icon: '📡' },
       { to: '/installations', label: 'Installation Calls', icon: '🔧' },
       { to: '/pm-calls', label: 'Preventive (PM)', icon: '🗓️' },
-      { to: '/breakdowns', label: 'Breakdown Calls', icon: '⚠️' },
     ],
   },
   {
@@ -82,8 +81,15 @@ export const NAV: NavGroup[] = [
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can } = useAuth();
   const { theme, themes, setThemeId } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('rithi.sidebarCollapsed') === '1'; } catch { return false; }
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Persist the desktop collapse so it sticks across sessions.
+  useEffect(() => {
+    try { localStorage.setItem('rithi.sidebarCollapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
+  }, [collapsed]);
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
 

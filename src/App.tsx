@@ -7,6 +7,7 @@ import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls } from './modules/FieldCalls';
+import { ProductMaster } from './modules/ProductMaster';
 import { BillingModule } from './modules/BillingModule';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
@@ -21,7 +22,6 @@ import {
   warrantyConfig,
   contractConfig,
   pmConfig,
-  breakdownConfig,
   spareRequestConfig,
   spareConsumptionConfig,
   feedbackConfig,
@@ -47,8 +47,10 @@ function Shell() {
         <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
         <Route path="/field-calls" element={<FieldCalls />} />
         <Route path="/installations" element={<InstallationCalls />} />
+        <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/pm-calls" element={<CrudModule config={pmConfig} />} />
-        <Route path="/breakdowns" element={<CrudModule config={breakdownConfig} />} />
+        {/* Breakdown calls are the same as the Field Call Register */}
+        <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<CrudModule config={spareRequestConfig} />} />
         <Route path="/spare-consumption" element={<CrudModule config={spareConsumptionConfig} />} />
         <Route path="/quotes" element={<BillingModule kind="quote" />} />
