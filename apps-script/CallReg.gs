@@ -53,6 +53,9 @@ var SPAREREQ_STATUS_TAB = 'v2_OR_Req';
 var CONSUMPTION_ID = '1j1IHT3PL4Ott19wbmKt59JPS-Z66CYYt1PSL2JgdG7o';
 var FEEDBACK_ID = '1Mi-b-JYebEnO7wlg8kgOVSgyN7g9-44hHDpplk-nqXc';
 
+// ITEM Master — the spare/part list (Item Details = "Code|Name"); Active only.
+var ITEMMASTER_ID = '1253ilQjQWUsy801PA2Jt6PQOX5dhJOU6BYrxhjOj6r8';
+
 // The User Master spreadsheet — source of app logins.
 var USERMASTER_ID = '1WUoxk_4hLlK4ZLP59SHQRSAxWqmutjcCIiFsul5r-mc';
 var USER_EMAIL_HEADER = 'Email ID';   // Air Liquide login id
@@ -399,8 +402,8 @@ function _masters() {
   if (!reg.calltype) reg.calltype = { id: ALLM, col: 'Call Type' };
   if (!reg.pendingreason) reg.pendingreason = { id: ALLM, col: 'Call Pending Reason Name' };
   if (!reg.cancelreason) reg.cancelreason = { id: ALLM, col: 'Call Cancel Reason Name' };
-  // Spare parts list (CODE|DESCRIPTION) from the Spare Request book's LookupValues.
-  if (!reg.spare) reg.spare = { book: 'sparereq', tab: 'LookupValues', col: 'SPARE' };
+  // Spare parts list from ITEM Master — "Item Details" (Code|Name), Active only.
+  if (!reg.spare) reg.spare = { book: 'itemmaster', tab: 'ITEM Master', col: 'Item Details', whereCol: 'Active/Inactive?', whereVal: 'Active' };
   // Customer feedback rating scale (Excellent / Good / Average / Poor).
   if (!reg.feedbackrating) reg.feedbackrating = { id: ALLM, tab: 'Feedback', col: 'Feedback' };
   return reg;
@@ -437,9 +440,24 @@ function _master(name, limit) {
     for (var i = 0; i < all.length; i++) { if (_headers(all[i]).indexOf(m.col) >= 0) { sheet = all[i]; break; } }
     if (!sheet) sheet = ss.getActiveSheet();
   }
-  var values = _distinctFrom(sheet, m.col);
-  if (limit && values.length > limit) values = values.slice(0, limit);
-  return { ok: true, values: values, col: m.col };
+  var headers = _headers(sheet);
+  var ci = headers.indexOf(m.col);
+  if (ci < 0) return { ok: false, error: 'Column "' + m.col + '" not found for master ' + name };
+  var last = sheet.getLastRow();
+  if (last < 2) return { ok: true, values: [], col: m.col };
+  // Optional filter: only rows where whereCol == whereVal (e.g. Active items).
+  var wi = m.whereCol ? headers.indexOf(m.whereCol) : -1;
+  var want = String(m.whereVal == null ? '' : m.whereVal).trim().toLowerCase();
+  var vals = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+  var seen = {}, out = [];
+  for (var r = 0; r < vals.length; r++) {
+    if (wi >= 0 && want && String(vals[r][wi]).trim().toLowerCase() !== want) continue;
+    var v = String(vals[r][ci]).trim();
+    if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+  }
+  out.sort();
+  if (limit && out.length > limit) out = out.slice(0, limit);
+  return { ok: true, values: out, col: m.col };
 }
 
 // ---------------------------------------------------------------------------
@@ -814,6 +832,7 @@ var CFG_KEYS = {
   sparereq: 'SPAREREQ_ID',
   consumption: 'CONSUMPTION_ID',
   feedback: 'FEEDBACK_ID',
+  itemmaster: 'ITEMMASTER_ID',
 };
 var CFG_DEFAULTS = {
   register: SPREADSHEET_ID,
@@ -824,6 +843,7 @@ var CFG_DEFAULTS = {
   sparereq: SPAREREQ_ID,
   consumption: CONSUMPTION_ID,
   feedback: FEEDBACK_ID,
+  itemmaster: ITEMMASTER_ID,
 };
 function _cfg(name) {
   var v = PropertiesService.getScriptProperties().getProperty('cfg_' + CFG_KEYS[name]);
