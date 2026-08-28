@@ -1,6 +1,32 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
+import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, supabaseConfigured, type Profile } from './supabase';
+
+// Map a profiles.role (admin | rm | rgm | engineer | viewer) to an app Role.
+function roleFromProfile(r: string): Role {
+  const v = (r || '').toLowerCase();
+  if (v === 'admin') return 'admin';
+  if (v === 'rm' || v === 'rgm' || v === 'manager') return 'manager';
+  if (v === 'viewer') return 'viewer';
+  return 'engineer';
+}
+function profileToUser(p: Profile): User {
+  return {
+    id: p.id,
+    username: p.email,
+    fullName: p.full_name || p.email,
+    email: p.email,
+    role: roleFromProfile(p.role),
+    passwordHash: '',
+    active: p.active !== false,
+    activated: true,
+    authSource: 'supabase',
+    designation: p.designation,
+    reportingManager: p.reporting_manager_email,
+    regionalManager: p.regional_manager_email,
+  } as User;
+}
 
 // Super admins (dev access — all rights), matched by any of their login ids.
 const SUPER_ADMINS = new Set([
@@ -28,7 +54,7 @@ export interface User extends BaseRecord {
   role: Role;
   passwordHash: string;
   active: boolean;
-  authSource?: 'local' | 'sheet'; // 'sheet' users authenticate via the User Master
+  authSource?: 'local' | 'sheet' | 'supabase'; // where the user authenticates
   region?: string;
   activated?: boolean; // has the user set a password / logged in at least once
   designation?: string; // from the User Master (e.g. Engineer, Regional Manager)
@@ -123,6 +149,7 @@ export interface LoginResult {
 interface AuthContextValue {
   user: User | null;
   users: User[];
+  booting: boolean; // true while restoring a persisted session (avoid login flash)
   login: (username: string, password: string) => Promise<LoginResult>;
   setPassword: (id: string, password: string) => Promise<LoginResult>;
   importSheetUsers: () => Promise<{ added: number; total: number }>;
@@ -157,11 +184,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { const r = localStorage.getItem(VIEWAS_KEY); return r ? (JSON.parse(r) as User) : null; } catch { return null; }
   });
 
+  // Supabase-backed identity (when a database is connected). supaUser is the
+  // signed-in profile; supaUsers is the visible profiles list (all for admins).
+  const supaMode = supabaseConfigured();
+  const [supaUser, setSupaUser] = useState<User | null>(null);
+  const [supaUsers, setSupaUsers] = useState<User[]>([]);
+  const [supaBooting, setSupaBooting] = useState<boolean>(supaMode);
+
   useEffect(() => seedUsers(), []);
   useEffect(() => db.subscribe(USERS, refresh), []);
 
-  const users = db.list(USERS) as User[];
-  const user = users.find((u) => u.id === userId && u.active) ?? null;
+  // Hydrate from the persisted Supabase session on load, and whenever auth changes.
+  useEffect(() => {
+    if (!supaMode) { setSupaBooting(false); return; }
+    let alive = true;
+    const hydrate = async () => {
+      const p = await sbCurrentProfile();
+      if (!alive) return;
+      setSupaUser(p ? profileToUser(p) : null);
+      if (p) { const list = await sbListProfiles(); if (alive) setSupaUsers(list.map(profileToUser)); }
+      else setSupaUsers([]);
+      if (alive) setSupaBooting(false);
+    };
+    void hydrate();
+    const off = sbOnAuthChange(() => { void hydrate(); });
+    return () => { alive = false; off(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supaMode]);
+
+  const localUsers = db.list(USERS) as User[];
+  const users = supaMode ? supaUsers : localUsers;
+  const user = supaMode ? supaUser : (localUsers.find((u) => u.id === userId && u.active) ?? null);
   void tick;
 
   // Real admin? (super admin or admin role). Impersonation is only offered to,
@@ -249,6 +302,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login: AuthContextValue['login'] = async (id, password) => {
     const idNorm = id.trim();
+    // 0) Supabase (email + password) — the primary path once a DB is connected.
+    if (supaMode) {
+      const res = await sbSignIn(idNorm, password);
+      if (!res.ok) {
+        const m = (res.error || '').toLowerCase();
+        if (m.includes('invalid login')) return { ok: false, error: 'Incorrect email or password.' };
+        if (m.includes('not confirmed')) return { ok: false, error: 'Email not confirmed — turn off "Confirm email" in Supabase, or confirm the address.' };
+        return { ok: false, error: res.error || 'Login failed.' };
+      }
+      const p = await sbCurrentProfile();
+      if (p) { setSupaUser(profileToUser(p)); const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); }
+      return { ok: true };
+    }
     // 1) Local demo/offline accounts (username or email), password-checked here.
     const local = (db.list(USERS) as User[]).find(
       (u) => u.authSource !== 'sheet' &&
@@ -290,6 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_KEY);
     setViewAs(null);
     setUserId(null);
+    if (supaMode) { setSupaUser(null); setSupaUsers([]); void sbSignOut(); }
   };
 
   const createUser: AuthContextValue['createUser'] = (input) => {
@@ -337,7 +404,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, realUser, isAdmin, viewAs, setViewAs }}
+      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, realUser, isAdmin, viewAs, setViewAs }}
     >
       {children}
     </AuthContext.Provider>
