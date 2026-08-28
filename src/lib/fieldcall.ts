@@ -119,6 +119,31 @@ export function makeLocalUcn(callType: string, when: Date, existing: string[]): 
   return prefix + String(max + 1).padStart(4, '0');
 }
 
+// Map a Product Master row (keyed by its own headers) onto the Field Call
+// form fields, so registering a call auto-fills customer / product / warranty
+// / contract from the selected item.
+export function productToCallPrefill(p: Record<string, unknown>): Record<string, unknown> {
+  const g = (h: string) => {
+    const v = p[h];
+    return v == null ? '' : String(v);
+  };
+  return {
+    partyName: g('Party Name'),
+    city: g('City'),
+    state: g('State'),
+    productName: g('Item Name'),
+    serial: g('Item Serial Number'),
+    itemStatus: g('Item Status'),
+    warrantyNumber: g('Warranty Number'),
+    warrantyStart: g('Warranty Start Date'),
+    warrantyEnd: g('Warranty End Date'),
+    contractNumber: g('Contract Number'),
+    contractStart: g('Contract Start Date'),
+    contractEnd: g('Contract End Date'),
+    contractType: g('Contract Type'),
+  };
+}
+
 // Format a yyyy-MM-dd (or Date) as the sheet's date style: "02-January-2026".
 export function toSheetDate(value: unknown): string {
   if (!value) return '';
