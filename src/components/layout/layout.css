@@ -197,6 +197,25 @@
   padding: 22px 24px 60px;
 }
 
+/* Sticky build-info footer (always visible at the bottom of the main column) */
+.app-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.app-footer b { color: var(--text); font-weight: 650; }
+.app-footer .foot-sep { opacity: 0.4; }
+
 /* ---- Mobile: off-canvas sidebar drawer ---------------------------------- */
 .sidebar-backdrop {
   display: none;

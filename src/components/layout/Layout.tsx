@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../../lib/auth';
 import { useTheme } from '../../theme/ThemeProvider';
+import { fmtDateTime } from '../../lib/format';
 import './layout.css';
 
 interface NavItem {
@@ -178,6 +179,16 @@ export function Layout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="app-content">{children}</main>
+
+        <footer className="app-footer" title={`Built ${__BUILD_TIME__}`}>
+          <span><b>RITHI CRM</b>&nbsp;v{__APP_VERSION__}</span>
+          <span className="foot-sep">·</span>
+          <span>build #{__BUILD_NUMBER__}</span>
+          <span className="foot-sep">·</span>
+          <span>ID {__BUILD_ID__}</span>
+          <span className="foot-sep">·</span>
+          <span>built {fmtDateTime(__BUILD_TIME__)}</span>
+        </footer>
       </div>
     </div>
   );
