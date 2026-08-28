@@ -181,6 +181,9 @@
 .dt-cols-actions { display: flex; align-items: center; gap: 6px; padding: 8px 6px 4px; border-top: 1px solid var(--border); margin-top: 6px; }
 .dt-cols-note { font-size: 11px; padding: 2px 6px 4px; }
 
+/* Panel opening downward (used for the top Filters control) */
+.dt-panel-down { top: 34px; bottom: auto; }
+
 /* Filters panel */
 .dt-filter-panel { width: 340px; }
 .dt-filter-list { display: flex; flex-direction: column; gap: 6px; }
