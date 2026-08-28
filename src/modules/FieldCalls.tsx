@@ -10,6 +10,7 @@ import { C } from './collections';
 import {
   addFieldCall,
   listFieldCalls,
+  searchProducts,
   sheetsConfigured,
   updateFieldCall,
 } from '../lib/sheets';
@@ -23,6 +24,7 @@ import {
   OPEN_CLOSE,
   REGIONS,
   makeLocalUcn,
+  productToCallPrefill,
   toSheetDate,
 } from '../lib/fieldcall';
 
@@ -97,6 +99,7 @@ const COLUMNS: Column<Rec>[] = [
     render: (r) => (r._pending ? <span title="Not yet in the sheet">⏳</span> : <span title="In the sheet" className="muted">✓</span>),
   },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  { key: 'callType', header: 'Type', width: 90, wrap: false },
   { key: 'callNumber', header: 'Call Number', width: 150 },
   { key: 'regDate', header: 'Registered', width: 130 },
   { key: 'partyName', header: 'Party Name', width: 200 },
@@ -110,6 +113,73 @@ const COLUMNS: Column<Rec>[] = [
   { key: 'callStatus', header: 'Status', width: 150, render: (r) => statusBadge(r.callStatus, FC_STATUS_TONES) },
   { key: 'openClose', header: 'Open/Close', width: 100, render: (r) => statusBadge(r.openClose, FC_STATUS_TONES) },
 ];
+
+// Search the Product Master and prefill the form from the chosen item.
+function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
+  const [q, setQ] = useState('');
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [picked, setPicked] = useState('');
+
+  const run = async () => {
+    if (!q.trim()) return;
+    setBusy(true);
+    setErr('');
+    setPicked('');
+    try {
+      const r = await searchProducts(q.trim(), 10);
+      setRows(r);
+      if (r.length === 0) setErr('No products matched — check the serial / item code, or fill the fields manually.');
+    } catch (e) {
+      setErr(`Product lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="prod-lookup">
+      <div className="prod-lookup-head">🔎 Fetch from Product Master</div>
+      <div className="call-add-row">
+        <input
+          className="input"
+          placeholder="Serial no., item code, product or party…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void run(); } }}
+        />
+        <button className="btn btn-sm" onClick={() => void run()} disabled={busy || !q.trim()}>
+          {busy ? '…' : 'Search'}
+        </button>
+      </div>
+      {err && <div className="muted prod-err">{err}</div>}
+      {picked && <div className="muted prod-picked">✓ Filled from {picked} — review & complete the complaint details below.</div>}
+      {rows.length > 0 && (
+        <div className="prod-results">
+          {rows.map((p, i) => (
+            <button
+              type="button"
+              className="prod-result"
+              key={i}
+              onClick={() => {
+                onPick(p);
+                setPicked(`${String(p['Item Name'] ?? '')} · ${String(p['Item Serial Number'] ?? '')}`);
+                setRows([]);
+              }}
+            >
+              <div><b>{String(p['Item Name'] ?? '—')}</b> · {String(p['Item Serial Number'] ?? '')}</div>
+              <div className="muted">
+                {String(p['Party Name'] ?? '')} — {String(p['City'] ?? '')}, {String(p['State'] ?? '')}
+                {p['Item Status'] ? ` · ${String(p['Item Status'])}` : ''}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DATE_KEYS_TO_SHEET = ['complaintDate']; // picker (ISO) → sheet style on save
 
@@ -129,21 +199,24 @@ export function FieldCalls() {
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadLimit, setLoadLimit] = useState(300);
+  const [typeFilter, setTypeFilter] = useState(''); // '' = all call types
+  const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
+  const [prefillKey, setPrefillKey] = useState(0);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
 
   // Pull the register from the sheet on first mount (and on manual refresh).
   // Capped to the most recent `limit` FIELD calls — the sheet holds thousands.
-  const refresh = async (limit = loadLimit) => {
+  const refresh = async (limit = loadLimit, type = typeFilter) => {
     if (!configured) {
       setBanner({ tone: 'info', text: 'Not connected to a Google Sheet. Add the Web App URL in Settings → Google Sheet Connection to load & publish calls. New calls are saved locally until then.' });
       return;
     }
     setBusy(true);
-    setBanner({ tone: 'info', text: 'Loading field calls from the Google Sheet…' });
+    setBanner({ tone: 'info', text: 'Loading calls from the Google Sheet…' });
     try {
-      const rows = await listFieldCalls('FIELD', limit);
+      const rows = await listFieldCalls(type, limit);
       // Replace the synced cache; keep locally-pending rows.
       db.list(C.fieldCalls)
         .filter((r) => (r as Rec)._synced)
@@ -154,9 +227,10 @@ export function FieldCalls() {
         .reverse()
         .forEach((r) => db.insert(C.fieldCalls, { ...r, id: String(r.ucn || genId()), _synced: true }));
       const capped = rows.length >= limit;
+      const label = type ? `${type.toLowerCase()} calls` : 'calls (all types)';
       setBanner({
         tone: 'ok',
-        text: `Loaded ${rows.length} field calls${capped ? ` (most recent ${limit} — sheet has more; use “Load more”)` : ''}.`,
+        text: `Loaded ${rows.length} ${label}${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
       });
     } catch (e) {
       setBanner({ tone: 'error', text: `Could not reach the sheet: ${e instanceof Error ? e.message : String(e)}` });
@@ -288,7 +362,10 @@ export function FieldCalls() {
         icon="📡"
         actions={
           can('edit') && (
-            <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>
+            <button
+              className="btn btn-primary"
+              onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setDrawer({ mode: 'create' }); }}
+            >
               + New Field Call
             </button>
           )
@@ -313,6 +390,16 @@ export function FieldCalls() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Search UCN, party, product, serial…" />
+            <select
+              className="select"
+              value={typeFilter}
+              onChange={(e) => { const t = e.target.value; setTypeFilter(t); void refresh(loadLimit, t); }}
+              title="Filter by call type"
+            >
+              <option value="">All call types</option>
+              <option value="FIELD">Field</option>
+              <option value="INSTALLATION CALL">Installation</option>
+            </select>
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>
@@ -364,9 +451,15 @@ export function FieldCalls() {
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
               </div>
             )}
+            {drawer.mode === 'create' && configured && (
+              <ProductLookup
+                onPick={(p) => { setPrefill(productToCallPrefill(p)); setPrefillKey((k) => k + 1); }}
+              />
+            )}
             <SchemaForm
+              key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               fields={FIELD_CALL_FIELDS}
-              initial={drawer.mode === 'create' ? undefined : (drawer.row as unknown as FormValues)}
+              initial={drawer.mode === 'create' ? prefill : (drawer.row as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}
               submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : 'Register Field Call'}
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}

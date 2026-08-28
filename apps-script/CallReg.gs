@@ -23,6 +23,17 @@
 // URL: https://docs.google.com/spreadsheets/d/<THIS IS THE ID>/edit
 var SPREADSHEET_ID = '1aMSnQV4TIWC2FuZfXxBIcLTxTk_I52wRr6AZgNIFv_I';
 
+// The Product Master ("ProdMaster") spreadsheet used to look up an item when
+// registering a call (party, product, warranty, contract auto-fill).
+var PRODMASTER_ID = '1mJvWGE7Ixn39vTfYm2RMYp52eGyvM98gRVkJ2ghBIXM';
+var PROD_SERIAL_HEADER = 'Item Serial Number';
+// Columns a product search query is matched against.
+var PROD_SEARCH_HEADERS = ['Item Serial Number', 'Item Code', 'Item Name', 'Party Name'];
+
+// The Party Master spreadsheet — source of the full party list for the cascade.
+var PARTYMASTER_ID = '1wdd2LpVTDbsYuxUdX5N3d_hKkIlMAiNq5hzvy8KWFrQ';
+var PARTY_NAME_HEADER = 'Party Name';
+
 // The column that holds the Unique Call Number, and the value written into the
 // Call Type column for calls raised from the Field Call screen.
 var UCN_HEADER = 'UC Number';
@@ -34,15 +45,33 @@ var REGDATE_HEADER = 'Call Registeration Date';
 // ---------------------------------------------------------------------------
 function doGet(e) {
   try {
-    var action = (e && e.parameter && e.parameter.action) || 'ping';
-    if (action === 'ping') return _json(_ping());
-    if (action === 'list') {
-      return _json({ ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0) });
-    }
-    return _json({ ok: false, error: 'Unknown action: ' + action });
+    if (!_authOk(e, null)) return _reply(e, { ok: false, error: 'unauthorized' });
+    return _reply(e, _dispatchGet(e));
   } catch (err) {
-    return _json({ ok: false, error: String(err) });
+    return _reply(e, { ok: false, error: String(err) });
   }
+}
+
+// Optional shared-secret gate. If a Script Property named ACCESS_TOKEN is set,
+// every request must carry a matching ?token= (or body.token). If it is not
+// set, the endpoint is open (URL acts as the secret). This lets the app gate
+// the data without a redeploy — just set the property and the token in Settings.
+function _authOk(e, body) {
+  var need = PropertiesService.getScriptProperties().getProperty('ACCESS_TOKEN');
+  if (!need) return true;
+  var got = (e && e.parameter && e.parameter.token) || (body && body.token) || '';
+  return String(got) === String(need);
+}
+
+function _dispatchGet(e) {
+  var action = (e && e.parameter && e.parameter.action) || 'ping';
+  if (action === 'ping') return _ping();
+  if (action === 'list') return { ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0) };
+  if (action === 'parties') return { ok: true, values: _distinctFrom(_partySheet(), PARTY_NAME_HEADER) };
+  if (action === 'products') return { ok: true, values: _distinctWhere('Item Name', 'Party Name', e.parameter.party) };
+  if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
+  if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter.q, Number(e.parameter.limit) || 100) };
+  return { ok: false, error: 'Unknown action: ' + action };
 }
 
 function doPost(e) {
@@ -134,6 +163,128 @@ function _updateCall(ucn, patch) {
 }
 
 // ---------------------------------------------------------------------------
+// Product Master lookup — match a query against serial / code / name / party
+// and return up to `limit` matching product rows (keyed by header).
+// ---------------------------------------------------------------------------
+function _searchProducts(q, limit) {
+  q = String(q || '').trim().toLowerCase();
+  if (!q) return [];
+  limit = limit || 10;
+  var sheet = _prodSheet();
+  var headers = _headers(sheet);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var nRows = last - 1;
+
+  // ProdMaster is large (tens of thousands of rows), so scan only the search
+  // columns to find matching rows, then read the full row for each match.
+  var searchCols = PROD_SEARCH_HEADERS
+    .map(function (h) { return headers.indexOf(h); })
+    .filter(function (i) { return i >= 0; });
+  var colData = {};
+  for (var s = 0; s < searchCols.length; s++) {
+    colData[searchCols[s]] = sheet.getRange(2, searchCols[s] + 1, nRows, 1).getValues();
+  }
+
+  var out = [];
+  for (var i = 0; i < nRows; i++) {
+    var hit = false;
+    for (var s2 = 0; s2 < searchCols.length; s2++) {
+      var ci = searchCols[s2];
+      if (String(colData[ci][i][0]).toLowerCase().indexOf(q) !== -1) { hit = true; break; }
+    }
+    if (!hit) continue;
+    var rowVals = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) obj[headers[c]] = _cell(rowVals[c]);
+    out.push(obj);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function _prodSheet() {
+  var ss = SpreadsheetApp.openById(PRODMASTER_ID);
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (_headers(sheets[i]).indexOf(PROD_SERIAL_HEADER) >= 0) return sheets[i];
+  }
+  return ss.getActiveSheet();
+}
+
+function _partySheet() {
+  var ss = SpreadsheetApp.openById(PARTYMASTER_ID);
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (_headers(sheets[i]).indexOf(PARTY_NAME_HEADER) >= 0) return sheets[i];
+  }
+  return ss.getActiveSheet();
+}
+
+// Distinct non-empty values of one column in the given sheet.
+function _distinctFrom(sheet, header) {
+  var headers = _headers(sheet);
+  var ci = headers.indexOf(header);
+  var last = sheet.getLastRow();
+  if (ci < 0 || last < 2) return [];
+  var col = sheet.getRange(2, ci + 1, last - 1, 1).getValues();
+  var seen = {}, out = [];
+  for (var i = 0; i < col.length; i++) {
+    var v = String(col[i][0]).trim();
+    if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+  }
+  out.sort();
+  return out;
+}
+
+// Distinct values of `header` where `whereHeader` == whereVal (Product for a Party).
+function _distinctWhere(header, whereHeader, whereVal) {
+  whereVal = String(whereVal || '').trim();
+  var sheet = _prodSheet();
+  var headers = _headers(sheet);
+  var ci = headers.indexOf(header), wi = headers.indexOf(whereHeader);
+  var last = sheet.getLastRow();
+  if (ci < 0 || wi < 0 || last < 2 || !whereVal) return [];
+  var n = last - 1;
+  var colV = sheet.getRange(2, ci + 1, n, 1).getValues();
+  var colW = sheet.getRange(2, wi + 1, n, 1).getValues();
+  var seen = {}, out = [];
+  for (var i = 0; i < n; i++) {
+    if (String(colW[i][0]).trim() !== whereVal) continue;
+    var v = String(colV[i][0]).trim();
+    if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+  }
+  out.sort();
+  return out;
+}
+
+// Full product rows for a Party (+ optional Product), for the Serial dropdown.
+function _items(party, product, limit) {
+  party = String(party || '').trim();
+  product = String(product || '').trim();
+  limit = limit || 200;
+  var sheet = _prodSheet();
+  var headers = _headers(sheet);
+  var pi = headers.indexOf('Party Name'), ni = headers.indexOf('Item Name');
+  var last = sheet.getLastRow();
+  if (pi < 0 || last < 2 || !party) return [];
+  var n = last - 1;
+  var colP = sheet.getRange(2, pi + 1, n, 1).getValues();
+  var colN = ni >= 0 ? sheet.getRange(2, ni + 1, n, 1).getValues() : null;
+  var out = [];
+  for (var i = 0; i < n; i++) {
+    if (String(colP[i][0]).trim() !== party) continue;
+    if (product && colN && String(colN[i][0]).trim() !== product) continue;
+    var rowVals = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) obj[headers[c]] = _cell(rowVals[c]);
+    out.push(obj);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // UCN — 26 + monthLetter(A=Jan..L=Dec) + DD + typeLetter(F/I) + 4-digit seq
 // The sequence resets per calendar day + call type, matching the existing sheet.
 // ---------------------------------------------------------------------------
@@ -204,4 +355,17 @@ function _pad(n, width) {
 
 function _json(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// GET reply that supports JSONP when a ?callback= is supplied. JSONP lets the
+// browser read the response cross-origin without CORS headers (which Apps
+// Script cannot set), so reads work reliably from the hosted app.
+function _reply(e, obj) {
+  var cb = e && e.parameter && e.parameter.callback;
+  if (cb) {
+    return ContentService
+      .createTextOutput(cb + '(' + JSON.stringify(obj) + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return _json(obj);
 }

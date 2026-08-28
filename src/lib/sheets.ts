@@ -40,9 +40,44 @@ async function getJson(params: Record<string, string>): Promise<Record<string, u
   const base = getSheetsUrl();
   if (!base) throw new Error('No Google Sheet URL configured (Settings → Google Sheet Connection).');
   const qs = new URLSearchParams(params).toString();
-  const res = await fetch(`${base}?${qs}`, { method: 'GET', redirect: 'follow' });
-  if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
-  return res.json();
+  const url = `${base}?${qs}`;
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
+    return await res.json();
+  } catch {
+    // Apps Script often can't satisfy the browser's CORS check on fetch reads;
+    // fall back to JSONP (a <script> load), which is not subject to CORS.
+    return jsonp(url);
+  }
+}
+
+// JSONP loader — CallReg wraps its GET reply in callback(...) when ?callback= is set.
+function jsonp(url: string, timeoutMs = 30000): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const cb = '__callreg_cb_' + Math.random().toString(36).slice(2);
+    const script = document.createElement('script');
+    const w = window as unknown as Record<string, unknown>;
+    const cleanup = () => {
+      clearTimeout(timer);
+      delete w[cb];
+      script.remove();
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Request timed out — check the CallReg deployment access is "Anyone".'));
+    }, timeoutMs);
+    w[cb] = (data: Record<string, unknown>) => {
+      cleanup();
+      resolve(data);
+    };
+    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Could not load from the sheet (network or deployment access).'));
+    };
+    document.body.appendChild(script);
+  });
 }
 
 async function postJson(body: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -88,6 +123,32 @@ export async function addFieldCall(record: Record<string, unknown>): Promise<Add
   const r = await postJson({ action: 'add', call });
   if (!r.ok) return { ok: false, error: String(r.error ?? 'add failed') };
   return { ok: true, ucn: String(r.ucn ?? ''), record: rowToRecord((r.row as Record<string, unknown>) ?? {}) };
+}
+
+// ---- Product Master lookup (cascade: Party -> Product -> Serial) ----------
+export async function listParties(): Promise<string[]> {
+  const r = await getJson({ action: 'parties' });
+  if (!r.ok) throw new Error(String(r.error ?? 'parties failed'));
+  return (r.values as string[]) ?? [];
+}
+
+export async function listPartyProducts(party: string): Promise<string[]> {
+  const r = await getJson({ action: 'products', party });
+  if (!r.ok) throw new Error(String(r.error ?? 'products failed'));
+  return (r.values as string[]) ?? [];
+}
+
+export async function listPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
+  const r = await getJson({ action: 'items', party, product });
+  if (!r.ok) throw new Error(String(r.error ?? 'items failed'));
+  return (r.rows as Record<string, unknown>[]) ?? [];
+}
+
+// Free-text product search for the Product Master browse view.
+export async function searchProducts(q: string, limit = 100): Promise<Record<string, unknown>[]> {
+  const r = await getJson({ action: 'prodsearch', q, limit: String(limit) });
+  if (!r.ok) throw new Error(String(r.error ?? 'product search failed'));
+  return (r.rows as Record<string, unknown>[]) ?? [];
 }
 
 // Patch an existing call by UCN (record keyed by app keys).
