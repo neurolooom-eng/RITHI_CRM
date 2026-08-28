@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { checkConfig, getConfig, getMasters, listMaster, setConfig, setMasters, type ConfigCheck, type MasterEntry, type SheetConfig } from '../lib/sheets';
 import { clearMasterCache } from '../lib/masters';
+import { DataImport } from './DataImport';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -107,6 +108,9 @@ export function AdminConfig() {
   return (
     <div>
       <PageHeader title="Admin Config" subtitle="Backend sheet links used by CallReg — edit and verify." icon="🛠️" />
+
+      <DataImport />
+      <div style={{ height: 16 }} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
