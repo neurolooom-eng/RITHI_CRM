@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { csvExport, engineerOptions, fmtDateTime, statusBadge } from '../lib/format';
+import { csvExport, engineerOptions, fmtDateTime } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -16,13 +16,11 @@ import {
 } from '../lib/sheets';
 import './fieldcalls.css';
 import {
-  CALL_ACCEPTANCE,
-  FC_CALL_STATUS,
   FC_CONTRACT_TYPE,
-  FC_STATUS_TONES,
   ITEM_STATUS,
-  OPEN_CLOSE,
-  REGIONS,
+  MODE_OF_REPORTING,
+  PERSON_CALLING,
+  YES_NO,
   makeLocalUcn,
   productToCallPrefill,
   toSheetDate,
@@ -41,12 +39,12 @@ type Rec = BaseRecord & { _synced?: boolean; _pending?: boolean };
 
 const OPT = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
 
-// ---- Add / edit form schema (mapped to the sheet columns) -----------------
+// ---- Add / edit form schema (mapped to the FIELD tab columns) -------------
 const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
-  { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet format (e.g. 26A02F0001).', span: 1 },
+  { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet format (e.g. 26H28F0001).', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
-  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. WI-ORION-G-2354', span: 1 },
+  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. R18447-MONNAL T75-7909', span: 1 },
   { name: 'complaintDate', label: 'Complaint Date', type: 'date', section: 'Registration', required: true, span: 1 },
 
   // Customer & product
@@ -66,31 +64,24 @@ const FIELD_CALL_FIELDS: FieldDef[] = [
   { name: 'contractEnd', label: 'Contract End', section: 'Warranty & Contract', span: 1 },
   { name: 'contractType', label: 'Contract Type', type: 'select', options: OPT(FC_CONTRACT_TYPE), section: 'Warranty & Contract', span: 1 },
 
-  // Complaint
+  // Complaint & allocation
   { name: 'standardComplaint', label: 'Standard Complaint', section: 'Complaint', span: 2 },
   { name: 'complaintReported', label: 'Complaint Reported', type: 'textarea', rows: 2, section: 'Complaint', required: true, span: 2 },
+  { name: 'allocatedTo', label: 'Call Allocated To', type: 'select', options: engineerOptions, section: 'Complaint', span: 1 },
+  { name: 'breakdownDate', label: 'Breakdown Date', type: 'date', section: 'Complaint', span: 1 },
 
-  // Allocation
-  { name: 'allocatedTo', label: 'Call Allocated To', type: 'select', options: engineerOptions, section: 'Allocation', span: 1 },
-  { name: 'engineerEmail', label: 'Engineer Email', type: 'email', section: 'Allocation', span: 1 },
-  { name: 'reportingManager', label: 'Reporting Manager', section: 'Allocation', span: 1 },
-  { name: 'regionalManager', label: 'Regional Manager', section: 'Allocation', span: 1 },
-  { name: 'region', label: 'Region', type: 'select', options: OPT(REGIONS), section: 'Allocation', span: 1 },
-  { name: 'callAcceptance', label: 'Call Acceptance', type: 'select', options: OPT(CALL_ACCEPTANCE), section: 'Allocation', span: 1 },
-  { name: 'openClose', label: 'Open / Close', type: 'select', options: OPT(OPEN_CLOSE), section: 'Allocation', span: 1 },
-  { name: 'callStatus', label: 'Call Status', type: 'select', options: OPT(FC_CALL_STATUS), section: 'Allocation', span: 1 },
+  // Reporting / risk
+  { name: 'personCalling', label: 'Person Calling', type: 'select', options: OPT(PERSON_CALLING), section: 'Reporting', span: 1 },
+  { name: 'modeOfReporting', label: 'Mode of Complaint Reporting', type: 'select', options: OPT(MODE_OF_REPORTING), section: 'Reporting', span: 1 },
+  { name: 'publicHealthThreat', label: 'Public Health Threat?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
+  { name: 'death', label: 'Death?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
+  { name: 'seriousIncident', label: 'Serious Incident?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
 
-  // Resolution (filled during / after the visit)
-  { name: 'visitingEngineer', label: 'Visiting Service Engineer', section: 'Resolution', span: 1 },
-  { name: 'visitDateTime', label: 'Visit Date & Time', section: 'Resolution', span: 1 },
-  { name: 'breakdownDate', label: 'Breakdown Date', section: 'Resolution', span: 1 },
-  { name: 'pendingReason', label: 'Call Pending Reason', section: 'Resolution', span: 1 },
-  { name: 'observation', label: 'Complaint Observation', type: 'textarea', rows: 2, section: 'Resolution', span: 2 },
-  { name: 'jobDone', label: 'Job Done', type: 'textarea', rows: 2, section: 'Resolution', span: 2 },
-  { name: 'serviceReport', label: 'Service Report (link)', section: 'Resolution', span: 2 },
-  { name: 'solvedDateTime', label: 'Call Solved Date & Time', section: 'Resolution', span: 1 },
-  { name: 'contractQuote', label: 'Contract Quote', section: 'Resolution', span: 1 },
-  { name: 'spareQuote', label: 'Spare Quote', section: 'Resolution', span: 1 },
+  // Customer contact
+  { name: 'customerName', label: 'Customer Name', section: 'Customer Contact', span: 1 },
+  { name: 'customerNumber', label: 'Customer Number', type: 'tel', section: 'Customer Contact', span: 1 },
+  { name: 'customerDesignation', label: 'Customer Designation', section: 'Customer Contact', span: 1 },
+  { name: 'emailAddress', label: 'Email address', type: 'email', section: 'Customer Contact', span: 1 },
 ];
 
 const COLUMNS: Column<Rec>[] = [
@@ -99,19 +90,19 @@ const COLUMNS: Column<Rec>[] = [
     render: (r) => (r._pending ? <span title="Not yet in the sheet">⏳</span> : <span title="In the sheet" className="muted">✓</span>),
   },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
-  { key: 'callType', header: 'Type', width: 90, wrap: false },
-  { key: 'callNumber', header: 'Call Number', width: 150 },
-  { key: 'regDate', header: 'Registered', width: 130 },
-  { key: 'partyName', header: 'Party Name', width: 200 },
-  { key: 'city', header: 'City', width: 100 },
-  { key: 'productName', header: 'Product', width: 120 },
+  { key: 'callNumber', header: 'Call Number', width: 170 },
+  { key: 'regDate', header: 'Registered', width: 140 },
+  { key: 'complaintDate', header: 'Complaint Date', width: 120 },
+  { key: 'partyName', header: 'Party Name', width: 220 },
+  { key: 'city', header: 'City', width: 110 },
+  { key: 'state', header: 'State', width: 110 },
+  { key: 'productName', header: 'Product', width: 130 },
   { key: 'serial', header: 'Serial', width: 90, wrap: false },
   { key: 'itemStatus', header: 'Item', width: 70, wrap: false },
-  { key: 'complaintReported', header: 'Complaint', width: 220 },
-  { key: 'allocatedTo', header: 'Allocated To', width: 140 },
-  { key: 'region', header: 'Region', width: 90, wrap: false },
-  { key: 'callStatus', header: 'Status', width: 150, render: (r) => statusBadge(r.callStatus, FC_STATUS_TONES) },
-  { key: 'openClose', header: 'Open/Close', width: 100, render: (r) => statusBadge(r.openClose, FC_STATUS_TONES) },
+  { key: 'standardComplaint', header: 'Standard Complaint', width: 220 },
+  { key: 'complaintReported', header: 'Complaint Reported', width: 200 },
+  { key: 'allocatedTo', header: 'Allocated To', width: 150 },
+  { key: 'personCalling', header: 'Person Calling', width: 130 },
 ];
 
 // Search the Product Master and prefill the form from the chosen item.
@@ -335,7 +326,7 @@ export function FieldCalls() {
     if (search.trim()) {
       const q = search.toLowerCase();
       r = r.filter((row) =>
-        ['ucn', 'callNumber', 'partyName', 'city', 'productName', 'serial', 'complaintReported', 'allocatedTo', 'region', 'callStatus'].some(
+        ['ucn', 'callNumber', 'partyName', 'city', 'state', 'productName', 'serial', 'standardComplaint', 'complaintReported', 'allocatedTo', 'customerName'].some(
           (k) => String(row[k] ?? '').toLowerCase().includes(q),
         ),
       );
@@ -390,16 +381,6 @@ export function FieldCalls() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Search UCN, party, product, serial…" />
-            <select
-              className="select"
-              value={typeFilter}
-              onChange={(e) => { const t = e.target.value; setTypeFilter(t); void refresh(loadLimit, t); }}
-              title="Filter by call type"
-            >
-              <option value="">All call types</option>
-              <option value="FIELD">Field</option>
-              <option value="INSTALLATION CALL">Installation</option>
-            </select>
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>

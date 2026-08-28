@@ -29,9 +29,10 @@ export function setSheetsUrl(url: string): void {
 // CallReg auto-detect the tab with a "UC Number" header.
 export function getSheetsTab(): string {
   try {
-    return localStorage.getItem(TAB_KEY) ?? '';
+    // Default to the FIELD intake tab when nothing is chosen yet.
+    return localStorage.getItem(TAB_KEY) ?? 'FIELD';
   } catch {
-    return '';
+    return 'FIELD';
   }
 }
 

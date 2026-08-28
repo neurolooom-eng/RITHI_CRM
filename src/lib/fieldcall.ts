@@ -6,7 +6,7 @@
 // connector (src/lib/sheets.ts) and the Field Call module UI.
 // ---------------------------------------------------------------------------
 
-// Ordered exactly as the columns appear in the sheet.
+// Ordered exactly as the columns appear in the FIELD tab of the register.
 export const FIELD_HEADERS: { header: string; key: string }[] = [
   { header: 'UC Number', key: 'ucn' },
   { header: 'Call Number', key: 'callNumber' },
@@ -30,23 +30,19 @@ export const FIELD_HEADERS: { header: string; key: string }[] = [
   { header: 'Complaint Reported', key: 'complaintReported' },
   { header: 'Call Allocated To', key: 'allocatedTo' },
   { header: 'Breakdown Date', key: 'breakdownDate' },
-  { header: 'Engineer Email', key: 'engineerEmail' },
-  { header: 'Reporting Manager', key: 'reportingManager' },
-  { header: 'Regional Manager', key: 'regionalManager' },
-  { header: 'Call Acceptance', key: 'callAcceptance' },
-  { header: 'Open/Close', key: 'openClose' },
-  { header: 'Call Status', key: 'callStatus' },
-  { header: 'Region', key: 'region' },
-  { header: 'Visiting Service Engineer', key: 'visitingEngineer' },
-  { header: 'Visit Date & Time', key: 'visitDateTime' },
-  { header: 'CALL PENDING REASON', key: 'pendingReason' },
-  { header: 'Complaint Observation', key: 'observation' },
-  { header: 'Job Done', key: 'jobDone' },
-  { header: 'Service Report', key: 'serviceReport' },
-  { header: 'Call Solved Date & Time', key: 'solvedDateTime' },
-  { header: 'Contract Quote', key: 'contractQuote' },
-  { header: 'Spare Quote', key: 'spareQuote' },
+  { header: 'Person Calling', key: 'personCalling' },
+  { header: 'Public Health Threat?', key: 'publicHealthThreat' },
+  { header: 'Death?', key: 'death' },
+  { header: 'Serious Incident?', key: 'seriousIncident' },
+  { header: 'Mode of Complaint Reporting', key: 'modeOfReporting' },
+  { header: 'Customer Name', key: 'customerName' },
+  { header: 'Customer Number', key: 'customerNumber' },
+  { header: 'Customer Designation', key: 'customerDesignation' },
+  { header: 'Email address', key: 'emailAddress' },
 ];
+
+// The register tab the Field Call screen reads/writes by default.
+export const FIELD_TAB = 'FIELD';
 
 export const HEADER_BY_KEY: Record<string, string> = Object.fromEntries(
   FIELD_HEADERS.map((f) => [f.key, f.header]),
@@ -71,9 +67,12 @@ export function recordToRow(rec: Record<string, unknown>): Record<string, unknow
   return out;
 }
 
-// Enum values observed in the live sheet.
+// Enum values observed in the live FIELD tab.
 export const ITEM_STATUS = ['WGP', 'OGP', 'CMC', 'AMC'];
 export const FC_CONTRACT_TYPE = ['CMC', 'AMC'];
+export const PERSON_CALLING = ['DIRECT CUSTOMER', 'DIRECT ENGINEER', 'DEALER', 'Other'];
+export const MODE_OF_REPORTING = ['EMAIL', 'Phone Call', 'Whatsapp', 'EXOTEL', 'Portal', 'Other'];
+export const YES_NO = ['NO', 'YES'];
 export const CALL_ACCEPTANCE = ['Allocated - Acceptance Pending', 'Accepted', 'Rejected'];
 export const OPEN_CLOSE = ['Open', 'Close'];
 export const FC_CALL_STATUS = [
