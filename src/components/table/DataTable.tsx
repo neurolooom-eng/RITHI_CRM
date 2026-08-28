@@ -53,6 +53,13 @@ export interface DataTableProps<T> {
 }
 
 const INTERNAL_KEYS = new Set(['id', 'createdAt', 'updatedAt', 'ownerId', '_seedOrder', '_synced', '_pending']);
+
+interface TableFilter {
+  key: string;
+  op: string; // contains | notcontains | eq | neq | gt | lt | between
+  value: string;
+  value2?: string;
+}
 const humanize = (k: string) =>
   k.replace(/([A-Z])/g, ' $1').replace(/[_]+/g, ' ').replace(/^./, (c) => c.toUpperCase()).trim();
 
@@ -130,6 +137,69 @@ export function DataTable<T>({
   const [overKey, setOverKey] = useState<string | null>(null);
   const [colPanel, setColPanel] = useState(false);
   const [viewMsg, setViewMsg] = useState('');
+
+  // ---- user-defined filters over the full field list ----
+  const filtersKey = persistKey ? `${persistKey}.filters` : null;
+  const [filters, setFilters] = useState<TableFilter[]>(() => {
+    try { return filtersKey ? JSON.parse(localStorage.getItem(filtersKey) || '[]') : []; } catch { return []; }
+  });
+  const [filterPanel, setFilterPanel] = useState(false);
+  const saveFilters = (fs: TableFilter[]) => {
+    setFilters(fs);
+    if (filtersKey) { try { localStorage.setItem(filtersKey, JSON.stringify(fs)); } catch { /* ignore */ } }
+  };
+
+  const fieldMeta = useMemo(() => {
+    const meta: Record<string, { type: 'text' | 'number' | 'enum'; values?: string[] }> = {};
+    const sample = rows.slice(0, 300);
+    mergedColumns.forEach((c) => {
+      if (c.key.startsWith('_')) return;
+      const vals = sample.map((r) => (r as Record<string, unknown>)[c.key]).filter((v) => v != null && v !== '');
+      if (vals.length === 0) { meta[c.key] = { type: 'text' }; return; }
+      const allNum = vals.every((v) => !isNaN(Number(v)));
+      const distinct = new Set(vals.map((v) => String(v)));
+      if (allNum && distinct.size > 8) meta[c.key] = { type: 'number' };
+      else if (distinct.size <= 20) meta[c.key] = { type: 'enum', values: [...distinct].sort() };
+      else meta[c.key] = { type: 'text' };
+    });
+    return meta;
+  }, [mergedColumns, rows]);
+
+  const opsFor = (key: string): [string, string][] => {
+    const t = fieldMeta[key]?.type;
+    if (t === 'number') return [['eq', '='], ['neq', '≠'], ['gt', '>'], ['lt', '<'], ['between', 'between']];
+    if (t === 'enum') return [['eq', 'is'], ['neq', 'is not']];
+    return [['contains', 'contains'], ['notcontains', 'not contains'], ['eq', 'equals']];
+  };
+
+  const matchFilter = (f: TableFilter, row: T) => {
+    const raw = (row as Record<string, unknown>)[f.key];
+    const s = String(raw ?? '').toLowerCase();
+    const v = String(f.value ?? '').toLowerCase();
+    if (fieldMeta[f.key]?.type === 'number') {
+      const n = Number(raw), a = Number(f.value), b = Number(f.value2);
+      switch (f.op) {
+        case 'eq': return n === a;
+        case 'neq': return n !== a;
+        case 'gt': return n > a;
+        case 'lt': return n < a;
+        case 'between': return n >= a && n <= b;
+        default: return s.includes(v);
+      }
+    }
+    switch (f.op) {
+      case 'eq': return s === v;
+      case 'neq': return s !== v;
+      case 'notcontains': return !s.includes(v);
+      default: return s.includes(v);
+    }
+  };
+  const activeFilters = filters.filter((f) => (f.op === 'between' ? f.value !== '' || (f.value2 ?? '') !== '' : f.value !== ''));
+  const filteredRows = useMemo(
+    () => (activeFilters.length ? rows.filter((r) => activeFilters.every((f) => matchFilter(f, r))) : rows),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, filters, fieldMeta],
+  );
 
   const applyView = (v: TableView | null | undefined) => {
     if (!v) return;
@@ -247,12 +317,12 @@ export function DataTable<T>({
 
   // ---- sorting ----
   const sortedRows = useMemo(() => {
-    if (!sort) return rows;
+    if (!sort) return filteredRows;
     const col = colMap[sort.key];
-    if (!col) return rows;
+    if (!col) return filteredRows;
     const get = (r: T) =>
       col.accessor ? col.accessor(r) : ((r as Record<string, unknown>)[col.key] as string | number);
-    return [...rows].sort((a, b) => {
+    return [...filteredRows].sort((a, b) => {
       const av = get(a);
       const bv = get(b);
       if (av == null) return 1;
@@ -262,7 +332,7 @@ export function DataTable<T>({
         : String(av).localeCompare(String(bv), undefined, { numeric: true });
       return sort.dir === 'asc' ? cmp : -cmp;
     });
-  }, [rows, sort, colMap]);
+  }, [filteredRows, sort, colMap]);
 
   const toggleSort = (col: Column<T>) => {
     if (col.sortable === false) return;
@@ -414,6 +484,56 @@ export function DataTable<T>({
         <span className="muted">{sortedRows.length} row{sortedRows.length === 1 ? '' : 's'}</span>
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />
+        {persistKey && (
+          <div className="dt-cols">
+            <button className="btn btn-ghost btn-sm" onClick={() => { setFilterPanel((o) => !o); setColPanel(false); }} title="Filter rows by any field">
+              ⚑ Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
+            </button>
+            {filterPanel && (
+              <>
+                <div className="dt-cols-backdrop" onClick={() => setFilterPanel(false)} />
+                <div className="dt-cols-panel dt-filter-panel">
+                  <div className="dt-cols-head">Filters</div>
+                  <div className="dt-filter-list">
+                    {filters.length === 0 && <div className="muted" style={{ padding: '2px 4px 8px' }}>No filters. Add one below.</div>}
+                    {filters.map((f, i) => {
+                      const meta = fieldMeta[f.key];
+                      return (
+                        <div className="dt-filter-row" key={i}>
+                          <select className="select" value={f.key} onChange={(e) => { const key = e.target.value; const ops = opsFor(key); saveFilters(filters.map((x, j) => j === i ? { ...x, key, op: ops[0][0] } : x)); }}>
+                            {orderedCols.filter((c) => !c.key.startsWith('_')).map((c) => <option key={c.key} value={c.key}>{c.header || c.key}</option>)}
+                          </select>
+                          <select className="select" value={f.op} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, op: e.target.value } : x))}>
+                            {opsFor(f.key).map(([op, lbl]) => <option key={op} value={op}>{lbl}</option>)}
+                          </select>
+                          {meta?.type === 'enum' ? (
+                            <select className="select" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}>
+                              <option value="">—</option>
+                              {meta.values?.map((v) => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          ) : f.op === 'between' ? (
+                            <span className="dt-filter-between">
+                              <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                              <input className="input" value={f.value2 ?? ''} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value2: e.target.value } : x))} />
+                            </span>
+                          ) : (
+                            <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                          )}
+                          <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => saveFilters(filters.filter((_, j) => j !== i))}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="dt-cols-actions">
+                    <button className="btn btn-sm" onClick={() => { const k = orderedCols.find((c) => !c.key.startsWith('_'))?.key ?? ''; saveFilters([...filters, { key: k, op: opsFor(k)[0][0], value: '' }]); }}>+ Add filter</button>
+                    <div className="spacer" />
+                    {filters.length > 0 && <button className="btn btn-sm" onClick={() => saveFilters([])}>Clear all</button>}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {persistKey && (
           <div className="dt-cols">
             <button className="btn btn-ghost btn-sm" onClick={() => { setColPanel((o) => !o); setViewMsg(''); }} title="Show / hide & reorder columns">

@@ -140,6 +140,7 @@ export function productToCallPrefill(p: Record<string, unknown>): Record<string,
     contractStart: g('Contract Start Date'),
     contractEnd: g('Contract End Date'),
     contractType: g('Contract Type'),
+    allocatedTo: g('Service Engineer'),
   };
 }
 

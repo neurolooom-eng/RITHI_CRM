@@ -258,22 +258,29 @@ function FieldControl({
           {...common}
         />
       );
-    case 'select':
+    case 'select': {
+      const opts = resolveOptions(field);
+      const cur = String(value ?? '');
+      // Show a prefilled value (e.g. mapped from Product Master) even if it is
+      // not one of the configured options.
+      const hasCur = cur === '' || opts.some((o) => String(o.value) === cur);
       return (
         <select
           className={`select ${error ? 'input-error' : ''}`}
-          value={String(value ?? '')}
+          value={cur}
           onChange={(e) => onChange(e.target.value)}
           {...common}
         >
           <option value="">— Select —</option>
-          {resolveOptions(field).map((o) => (
+          {!hasCur && <option value={cur}>{cur} (from sheet)</option>}
+          {opts.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
         </select>
       );
+    }
     case 'checkbox':
       return (
         <label className="sf-checkbox">
