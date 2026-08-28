@@ -12,6 +12,7 @@ import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
+import { SpareConsumption } from './modules/SpareConsumption';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
@@ -27,7 +28,6 @@ import {
   warrantyConfig,
   contractConfig,
   pmConfig,
-  spareConsumptionConfig,
   feedbackConfig,
 } from './modules/schemas';
 
@@ -62,7 +62,7 @@ function Shell() {
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />
-        <Route path="/spare-consumption" element={<CrudModule config={spareConsumptionConfig} />} />
+        <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
