@@ -57,13 +57,16 @@ _Last updated: 2026-08-28_
 
 ## 🔜 In progress / Next
 
-- **Standard Complaint Master** — mapped to *200 All Masters* → tab
-  "Standard Complaint", col "Standard Complaint" (baked as the `complaint`
-  master default). Live once CallReg is redeployed; the Standard Complaint field
-  fills from this list.
-- **Call Type Master** — form wiring done (Call Type select on the Request form
-  sources from it); **awaiting the sheet link/tab/column** for the `calltype`
-  master (defaults to FIELD / INSTALLATION CALL until then).
+- **Masters in 200 All Masters** — mapped (baked as defaults; live once CallReg
+  is redeployed). Each identified by its column header:
+  - `complaint` → tab "Standard Complaint", col **"Complaint Name"** → Standard
+    Complaint field on the call form.
+  - `calltype` → col **"Call Type"** → Call Type select on the Request form
+    (FIELD, INSTALLATION CALL, P M VISIT, SW UPGRADATION, FSCA, DEMO, ...).
+  - `pendingreason` → col **"Call Pending Reason Name"** → the pending-reason
+    field on the call report (Unsolved branch).
+  - `cancelreason` → col **"Call Cancel Reason Name"** → reserved for call
+    cancellation (no UI yet).
 
 ---
 

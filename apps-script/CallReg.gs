@@ -357,8 +357,13 @@ function _masters() {
   try { reg = raw ? JSON.parse(raw) : {}; } catch (e) { reg = {}; }
   if (!reg.party) reg.party = { book: 'partymaster', col: PARTY_NAME_HEADER };
   if (!reg.product) reg.product = { book: 'prodmaster', col: 'Item Name' };
-  // Standard Complaint Master — "Standard Complaint" tab/column of 200 All Masters.
-  if (!reg.complaint) reg.complaint = { id: '1bhpInqMlfmbsqtWm6s6CwOhTHdGruDAe672I275xGEE', tab: 'Standard Complaint', col: 'Standard Complaint' };
+  // Masters that live in "200 All Masters" (each identified by its column header;
+  // the tab is located automatically when no tab is given).
+  var ALLM = '1bhpInqMlfmbsqtWm6s6CwOhTHdGruDAe672I275xGEE';
+  if (!reg.complaint) reg.complaint = { id: ALLM, tab: 'Standard Complaint', col: 'Complaint Name' };
+  if (!reg.calltype) reg.calltype = { id: ALLM, col: 'Call Type' };
+  if (!reg.pendingreason) reg.pendingreason = { id: ALLM, col: 'Call Pending Reason Name' };
+  if (!reg.cancelreason) reg.cancelreason = { id: ALLM, col: 'Call Cancel Reason Name' };
   return reg;
 }
 
