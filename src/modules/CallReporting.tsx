@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { getReport, saveReport, sheetsConfigured, tabAppend, tabMeta, uploadManualReport } from '../lib/sheets';
+import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -45,6 +46,7 @@ export function CallReportDrawer({
   onSaved?: (mode: string, ucn: string) => void;
 }) {
   const ucn = String(call?.ucn ?? '');
+  const pendingReasons = useMaster('pendingreason'); // Call Pending Reason master
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -265,7 +267,12 @@ export function CallReportDrawer({
               {pendingH && (unsolved || pending) && (
                 <label className="rep-field rep-span2">
                   <span className="field-label">{pendingH}{unsolved ? ' *' : ''}</span>
-                  <input className="input" value={values[pendingH] ?? ''} readOnly={pending} onChange={(e) => set(pendingH, e.target.value)} />
+                  <input className="input" list="dl-pendingreason" value={values[pendingH] ?? ''} readOnly={pending} onChange={(e) => set(pendingH, e.target.value)} />
+                  {!pending && pendingReasons.values.length > 0 && (
+                    <datalist id="dl-pendingreason">
+                      {pendingReasons.values.slice(0, 1000).map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  )}
                   {pending && <span className="muted rep-hint">Set automatically for a pending report.</span>}
                 </label>
               )}
