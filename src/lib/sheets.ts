@@ -11,6 +11,7 @@
 import { recordToRow, rowToRecord } from './fieldcall';
 
 const URL_KEY = 'rithi.sheets.url';
+const TAB_KEY = 'rithi.sheets.tab';
 
 export function getSheetsUrl(): string {
   try {
@@ -24,6 +25,20 @@ export function setSheetsUrl(url: string): void {
   localStorage.setItem(URL_KEY, url.trim());
 }
 
+// The tab (worksheet) name the Field Call Register reads/writes. Empty = let
+// CallReg auto-detect the tab with a "UC Number" header.
+export function getSheetsTab(): string {
+  try {
+    return localStorage.getItem(TAB_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setSheetsTab(tab: string): void {
+  localStorage.setItem(TAB_KEY, tab.trim());
+}
+
 export function sheetsConfigured(): boolean {
   return /^https:\/\/script\.google(usercontent)?\.com\//.test(getSheetsUrl());
 }
@@ -33,12 +48,15 @@ export interface PingResult {
   sheet?: string;
   headers?: string[];
   count?: number;
+  tabs?: string[];
   error?: string;
 }
 
 async function getJson(params: Record<string, string>): Promise<Record<string, unknown>> {
   const base = getSheetsUrl();
   if (!base) throw new Error('No Google Sheet URL configured (Settings → Google Sheet Connection).');
+  const tab = getSheetsTab();
+  if (tab && !params.tab) params.tab = tab;
   const qs = new URLSearchParams(params).toString();
   const url = `${base}?${qs}`;
   try {
@@ -83,6 +101,8 @@ function jsonp(url: string, timeoutMs = 30000): Promise<Record<string, unknown>>
 async function postJson(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const base = getSheetsUrl();
   if (!base) throw new Error('No Google Sheet URL configured (Settings → Google Sheet Connection).');
+  const tab = getSheetsTab();
+  if (tab && body.tab === undefined) body = { ...body, tab };
   // Note: no custom Content-Type header -> browser sends text/plain -> no pre-flight.
   const res = await fetch(base, { method: 'POST', body: JSON.stringify(body), redirect: 'follow' });
   if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
