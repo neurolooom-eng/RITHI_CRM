@@ -39,14 +39,6 @@ export function Login() {
     if (!res.ok) setError(res.error ?? 'Could not set password');
   };
 
-  const quick = async (u: string, p: string) => {
-    setId(u); setPwd(p); setError('');
-    setBusy(true);
-    const res = await login(u, p);
-    setBusy(false);
-    if (!res.ok) setError(res.error ?? 'Login failed');
-  };
-
   return (
     <div className="login-page">
       <div className="login-card">
@@ -90,14 +82,6 @@ export function Login() {
           </form>
         )}
 
-        <div className="login-demo">
-          <div className="muted">Demo accounts — click to sign in:</div>
-          <div className="login-demo-row">
-            <button className="btn btn-sm" onClick={() => void quick('admin', 'admin123')}>Administrator</button>
-            <button className="btn btn-sm" onClick={() => void quick('manager', 'manager123')}>Service Manager</button>
-            <button className="btn btn-sm" onClick={() => void quick('engineer', 'engineer123')}>Field Engineer</button>
-          </div>
-        </div>
       </div>
       <div className="login-foot muted">User Master login (Air Liquide / Gmail ID) · set password on first sign-in · role-based access</div>
     </div>
