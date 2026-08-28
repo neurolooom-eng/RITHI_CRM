@@ -85,6 +85,11 @@ class Database {
     );
   }
 
+  // Replace an entire collection (updates cache + storage + notifies).
+  replaceAll(collection: string, data: BaseRecord[]): void {
+    this.write(collection, data);
+  }
+
   // Seed a collection only if it is currently empty (idempotent demo data).
   seedIfEmpty(collection: string, records: Partial<BaseRecord>[]) {
     if (this.read(collection).length > 0) return;

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeProvider';
-import { seedDemoData } from './lib/seed';
+import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
@@ -35,7 +35,7 @@ import {
 function Shell() {
   const { user } = useAuth();
   useEffect(() => {
-    if (user) seedDemoData();
+    if (user) clearDemoData(); // live data only — no dummy records
   }, [user]);
 
   if (!user) return <Login />;
