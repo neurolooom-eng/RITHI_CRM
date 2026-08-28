@@ -29,6 +29,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
       { to: '/product-master', label: 'Product Master', icon: '🩺' },
+      { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
     ],
   },
