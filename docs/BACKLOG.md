@@ -57,6 +57,26 @@ _Last updated: 2026-08-28_
 
 ## 🔜 In progress / Next
 
+- **Supabase cutover (Google Sheets → Postgres)** — in progress. Reads were
+  timing out on Apps Script; moving to Supabase (Postgres + auto REST + RLS +
+  Auth). Done: schema (`supabase/migrations/0001_init.sql`), data layer
+  (`src/lib/supabase.ts`), baked project defaults, **email/password login** via
+  `profiles` (role + RM/RGM hierarchy), connection panel, CSV transform + load
+  scripts. Data prepared: masters 567, parties 5,872, products 20,999, parts
+  1,324, calls (FIELD+INST+PM) 11,302, reports 17,392. **Next:** load into
+  Supabase, then switch each screen's reads/writes off `sheets.ts`.
+- **PM Reporting** — the PM Call Register has its own reporting columns (Call
+  Status, Visiting Service Engineer, Complaint Observation, Job Done, Service
+  Report, pending reason). Wire PM-call reporting like Field/Installation.
+- **Product Master derivation + Warranty/Contract registers** — Product Master
+  is *built from* Sale Entry + Warranty Sale + Contract Details/Entry +
+  Ownership Transfer. Add tables for these sources (warranties, contracts,
+  sales, ownership) and either import the materialized Product Master (done) or
+  recompute it. Feeds the Warranty Register / Contract Register screens.
+- **reports = one row per UCN** currently (unique). Reporting-N has multiple
+  visits per call (17,392 rows for 11,302 calls) — add visit history later;
+  the load keeps the latest visit per UCN.
+
 - **Customer feedback** — ✅ done. Mandatory on a solved call, with the **exact
   v2Feedback question set filtered by call type** (INSTALLATION-only, FIELD-only,
   PM/FIELD = not-installation, and all-types questions). Ratings use
