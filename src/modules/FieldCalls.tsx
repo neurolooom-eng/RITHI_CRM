@@ -38,8 +38,8 @@ import {
 const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => ({ key: h.key, header: h.header }));
 
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
-const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
-function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
+export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
+export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
   if (!prefill) return FIELD_CALL_FIELDS;
   return FIELD_CALL_FIELDS.map((f) =>
     FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== ''
@@ -62,7 +62,7 @@ type Rec = BaseRecord & { _synced?: boolean; _pending?: boolean };
 const OPT = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
 
 // ---- Add / edit form schema (mapped to the FIELD tab columns) -------------
-const FIELD_CALL_FIELDS: FieldDef[] = [
+export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
   { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet UCN format.', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
@@ -242,7 +242,7 @@ export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>)
 
 const DATE_KEYS_TO_SHEET = ['complaintDate']; // picker (ISO) → sheet style on save
 
-function buildPayload(values: FormValues, callType: string): Record<string, unknown> {
+export function buildPayload(values: FormValues, callType: string): Record<string, unknown> {
   const rec: Record<string, unknown> = { ...values };
   DATE_KEYS_TO_SHEET.forEach((k) => {
     if (rec[k]) rec[k] = toSheetDate(rec[k]);
