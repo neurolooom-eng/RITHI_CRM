@@ -100,3 +100,10 @@
 @media (max-width: 640px) {
   .cascade-grid { grid-template-columns: 1fr; }
 }
+
+/* Admin Config rows */
+.cfg-row { display: flex; flex-direction: column; gap: 4px; }
+.cfg-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.cfg-check { font-size: 12px; margin-top: 2px; }
+.cfg-ok { color: var(--success, #16a34a); }
+.cfg-bad { color: var(--danger, #dc2626); }

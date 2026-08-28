@@ -223,6 +223,49 @@ export async function authSetPassword(id: string, password: string): Promise<Aut
   return r as unknown as AuthResult;
 }
 
+// ---- Admin config: sheet links stored in the backend + verification -------
+export interface SheetConfig {
+  register?: string;
+  prodmaster?: string;
+  partymaster?: string;
+  usermaster?: string;
+  crn?: string;
+}
+export interface ConfigCheck {
+  ok: boolean;
+  name?: string;
+  tabs?: string[];
+  error?: string;
+}
+
+export async function getConfig(): Promise<SheetConfig> {
+  const r = await getJson({ action: 'config' });
+  return (r.config as SheetConfig) ?? {};
+}
+export async function setConfig(cfg: SheetConfig): Promise<SheetConfig> {
+  const r = await getJson({ action: 'setconfig', data: JSON.stringify(cfg) });
+  return (r.config as SheetConfig) ?? {};
+}
+export async function checkConfig(): Promise<Record<string, ConfigCheck>> {
+  const r = await getJson({ action: 'configcheck' });
+  return (r.checks as Record<string, ConfigCheck>) ?? {};
+}
+
+// ---- Call Registration Request workflow ------------------------------------
+export async function listPending(limit = 200): Promise<Record<string, unknown>[]> {
+  const r = await getJson({ action: 'pending', limit: String(limit) });
+  if (!r.ok) throw new Error(String(r.error ?? 'pending failed'));
+  return (r.rows as Record<string, unknown>[]) ?? [];
+}
+export async function addCrnRequest(data: Record<string, unknown>): Promise<boolean> {
+  const r = await getJson({ action: 'crnrequest', data: JSON.stringify(data) });
+  return !!r.ok;
+}
+export async function setPendingUcn(row: number, ucn: string): Promise<boolean> {
+  const r = await getJson({ action: 'setucn', uid: String(row), ucn });
+  return !!r.ok;
+}
+
 // User Master directory (all users, regardless of Validity).
 export async function listUsers(q = '', limit = 300): Promise<Record<string, unknown>[]> {
   const r = await getJson({ action: 'users', q, limit: String(limit) });

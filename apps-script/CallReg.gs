@@ -34,6 +34,13 @@ var PROD_SEARCH_HEADERS = ['Item Serial Number', 'Item Code', 'Item Name', 'Part
 var PARTYMASTER_ID = '1wdd2LpVTDbsYuxUdX5N3d_hKkIlMAiNq5hzvy8KWFrQ';
 var PARTY_NAME_HEADER = 'Party Name';
 
+// Call Registration Request workflow spreadsheet (engineer requests + the
+// transformed Data-2026 tab whose UCN-less rows are the Hotline pending list).
+var CRN_ID = '1U7GRICswNErdJjacQN45QZxOI0MFh4krL-fvMDRtP7s';
+var CRN_REQUEST_TAB = '2026-CRNRequest';
+var CRN_DATA_TAB = 'Data-2026';
+var CRN_UCN_HEADER = 'UC Number';
+
 // The User Master spreadsheet — source of app logins.
 var USERMASTER_ID = '1WUoxk_4hLlK4ZLP59SHQRSAxWqmutjcCIiFsul5r-mc';
 var USER_EMAIL_HEADER = 'Email ID';   // Air Liquide login id
@@ -82,6 +89,14 @@ function _dispatchGet(e) {
   if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter, Number(e.parameter.limit) || 100) };
   if (action === 'auth') return _auth(e.parameter.mode, e.parameter.id, e.parameter.password);
   if (action === 'users') return { ok: true, rows: _users(e.parameter.q, Number(e.parameter.limit) || 300) };
+  // Admin config — sheet links stored in the backend + verification.
+  if (action === 'config') return { ok: true, config: _getConfig() };
+  if (action === 'setconfig') return _setConfig(_parse(e.parameter.data));
+  if (action === 'configcheck') return { ok: true, checks: _configCheck() };
+  // Call Registration Request workflow (pending list + engineer requests).
+  if (action === 'pending') return { ok: true, rows: _pending(Number(e.parameter.limit) || 200) };
+  if (action === 'crnrequest') return _addCrn(_parse(e.parameter.data));
+  if (action === 'setucn') return _setUcn(e.parameter.uid, e.parameter.ucn);
   // Shared "default for everyone" table views (admin-set), stored in script props.
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
@@ -122,7 +137,7 @@ function _ping(tab) {
 
 // All tab names + headers + row counts (introspection, for picking the right tab).
 function _tabs() {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var ss = SpreadsheetApp.openById(_cfg('register'));
   var sheets = ss.getSheets();
   var out = [];
   for (var i = 0; i < sheets.length; i++) {
@@ -132,7 +147,7 @@ function _tabs() {
 }
 
 function _tabNames() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheets().map(function (s) { return s.getName(); });
+  return SpreadsheetApp.openById(_cfg('register')).getSheets().map(function (s) { return s.getName(); });
 }
 
 function _list(type, limit, tab) {
@@ -264,7 +279,7 @@ function _searchProducts(params, limit) {
 }
 
 function _prodSheet() {
-  var ss = SpreadsheetApp.openById(PRODMASTER_ID);
+  var ss = SpreadsheetApp.openById(_cfg('prodmaster'));
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if (_headers(sheets[i]).indexOf(PROD_SERIAL_HEADER) >= 0) return sheets[i];
@@ -273,7 +288,7 @@ function _prodSheet() {
 }
 
 function _partySheet() {
-  var ss = SpreadsheetApp.openById(PARTYMASTER_ID);
+  var ss = SpreadsheetApp.openById(_cfg('partymaster'));
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if (_headers(sheets[i]).indexOf(PARTY_NAME_HEADER) >= 0) return sheets[i];
@@ -437,7 +452,7 @@ function _users(q, limit) {
 }
 
 function _userSheet() {
-  var ss = SpreadsheetApp.openById(USERMASTER_ID);
+  var ss = SpreadsheetApp.openById(_cfg('usermaster'));
   var sheets = ss.getSheets();
   for (var i = 0; i < sheets.length; i++) {
     if (_headers(sheets[i]).indexOf(USER_EMAIL_HEADER) >= 0) return sheets[i];
@@ -493,7 +508,7 @@ function _hash(pw) {
 // ---------------------------------------------------------------------------
 function _registerSheet(tab) {
   // Standalone script: open the Call Register by ID (no active spreadsheet).
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var ss = SpreadsheetApp.openById(_cfg('register'));
   // If a specific tab is requested, use it.
   if (tab) {
     var named = ss.getSheetByName(tab);
@@ -531,6 +546,109 @@ function _pad(n, width) {
 
 function _parse(s) {
   try { return JSON.parse(s || '{}'); } catch (e) { return {}; }
+}
+
+// ---------------------------------------------------------------------------
+// Backend config — sheet links stored in script properties (cfg_*), with the
+// constants above as defaults. Editable + verifiable from the Admin Config UI.
+// ---------------------------------------------------------------------------
+var CFG_KEYS = {
+  register: 'SPREADSHEET_ID',
+  prodmaster: 'PRODMASTER_ID',
+  partymaster: 'PARTYMASTER_ID',
+  usermaster: 'USERMASTER_ID',
+  crn: 'CRN_ID',
+};
+var CFG_DEFAULTS = {
+  register: SPREADSHEET_ID,
+  prodmaster: PRODMASTER_ID,
+  partymaster: PARTYMASTER_ID,
+  usermaster: USERMASTER_ID,
+  crn: CRN_ID,
+};
+function _cfg(name) {
+  var v = PropertiesService.getScriptProperties().getProperty('cfg_' + CFG_KEYS[name]);
+  return v || CFG_DEFAULTS[name];
+}
+function _getConfig() {
+  var o = {};
+  for (var k in CFG_KEYS) o[k] = _cfg(k);
+  return o;
+}
+function _setConfig(data) {
+  var props = PropertiesService.getScriptProperties();
+  for (var k in CFG_KEYS) {
+    if (data[k] != null && String(data[k]).trim()) props.setProperty('cfg_' + CFG_KEYS[k], String(data[k]).trim());
+  }
+  return { ok: true, config: _getConfig() };
+}
+function _openName(id) {
+  try {
+    var ss = SpreadsheetApp.openById(id);
+    return { ok: true, name: ss.getName(), tabs: ss.getSheets().map(function (s) { return s.getName(); }) };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+function _configCheck() {
+  var c = _getConfig();
+  var out = {};
+  for (var k in c) out[k] = _openName(c[k]);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Call Registration Request workflow.
+// ---------------------------------------------------------------------------
+function _crnSheet(name) {
+  return SpreadsheetApp.openById(_cfg('crn')).getSheetByName(name);
+}
+
+// Data-2026 rows without a UC Number = the Hotline pending list.
+function _pending(limit) {
+  limit = limit || 200;
+  var sheet = _crnSheet(CRN_DATA_TAB);
+  if (!sheet) return [];
+  var headers = _headers(sheet);
+  var last = sheet.getLastRow();
+  if (last < 2) return [];
+  var ui = headers.indexOf(CRN_UCN_HEADER);
+  var vals = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+  var out = [];
+  for (var i = vals.length - 1; i >= 0; i--) {
+    if (ui >= 0 && String(vals[i][ui]).trim() !== '') continue; // already has a UCN
+    var hasData = false;
+    for (var c = 0; c < headers.length; c++) { if (String(vals[i][c]).trim()) { hasData = true; break; } }
+    if (!hasData) continue;
+    var o = { _row: i + 2 };
+    for (var c2 = 0; c2 < headers.length; c2++) o[headers[c2]] = _cell(vals[i][c2]);
+    out.push(o);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function _addCrn(data) {
+  var sheet = _crnSheet(CRN_REQUEST_TAB);
+  if (!sheet) return { ok: false, error: 'no request tab' };
+  var headers = _headers(sheet);
+  if (!data['Timestamp']) data['Timestamp'] = _fmt(new Date(), 'dd-MMM-yyyy HH:mm:ss');
+  var row = headers.map(function (h) { return data[h] != null ? data[h] : ''; });
+  sheet.appendRow(row);
+  return { ok: true };
+}
+
+// Back-fill a UC Number into a Data-2026 row (identified by its sheet row).
+function _setUcn(rowNum, ucn) {
+  var sheet = _crnSheet(CRN_DATA_TAB);
+  if (!sheet) return { ok: false, error: 'no Data tab' };
+  var headers = _headers(sheet);
+  var ui = headers.indexOf(CRN_UCN_HEADER);
+  if (ui < 0) return { ok: false, error: 'no UC Number column' };
+  var r = Number(rowNum);
+  if (!r || r < 2) return { ok: false, error: 'bad row' };
+  sheet.getRange(r, ui + 1).setValue(ucn);
+  return { ok: true };
 }
 
 function _getView(key) {
