@@ -355,6 +355,57 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
   return { ok: false, error: String(r.error ?? 'report failed') };
 }
 
+// ---- Generic tab helpers (call-report sub-forms: v2Consumption / v2Feedback)
+// A `book` selects the spreadsheet: '' / 'register' → the Call Register; any
+// other value resolves to a script-property cfg_<book> spreadsheet id if set.
+
+// Column headers of a tab (so the app can build the matching sub-form).
+export async function tabMeta(tab: string, book = ''): Promise<string[]> {
+  const p: Record<string, string> = { action: 'tabmeta', tab };
+  if (book) p.book = book;
+  const r = await getJson(p);
+  if (!r.ok) throw new Error(String(r.error ?? 'tabmeta failed'));
+  return (r.headers as string[]) ?? [];
+}
+
+// Append one header-mapped row to a tab.
+export async function tabAppend(tab: string, data: Record<string, unknown>, book = ''): Promise<{ ok: boolean; error?: string }> {
+  const p: Record<string, string> = { action: 'tabappend', tab, data: JSON.stringify(data) };
+  if (book) p.book = book;
+  const r = await getJson(p);
+  return r.ok ? { ok: true } : { ok: false, error: String(r.error ?? 'append failed') };
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => { const s = String(reader.result); const i = s.indexOf(','); resolve(i >= 0 ? s.slice(i + 1) : s); };
+    reader.onerror = () => reject(new Error('Could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload a manual report file: POSTs the file (base64) to CallReg, which stores
+// it in Drive and writes the link into the report's `column` on Reporting-N.
+// The POST response is opaque cross-origin, so the caller confirms by re-reading
+// the report (getReport) to pick up the stored link.
+export async function uploadManualReport(ucn: string, column: string, file: File): Promise<{ ok: boolean; error?: string }> {
+  const base = getSheetsUrl();
+  if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
+  try {
+    const dataBase64 = await fileToBase64(file);
+    await fetch(base, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'upload', ucn, column, filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
+      redirect: 'follow',
+    });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };

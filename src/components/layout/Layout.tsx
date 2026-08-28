@@ -104,6 +104,22 @@ export function Layout({ children }: { children: ReactNode }) {
   // Close the mobile drawer whenever the route changes.
   const closeMobile = () => setMobileOpen(false);
 
+  // Force update — the mobile equivalent of Ctrl/Win+Shift+R. Drops cached
+  // sheet-sync markers and any service-worker/HTTP caches, then hard-reloads
+  // with a cache-busting param so the freshest deployed build is fetched.
+  const [refreshing, setRefreshing] = useState(false);
+  const forceRefresh = async () => {
+    setRefreshing(true);
+    try {
+      Object.keys(localStorage).forEach((k) => { if (k.startsWith('rithi.sync.')) localStorage.removeItem(k); });
+      if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
+      if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
+    } catch { /* best-effort */ }
+    const url = new URL(window.location.href);
+    url.searchParams.set('_r', String(Date.now()));
+    window.location.replace(url.toString());
+  };
+
   const toggleSidebar = () => {
     // On phones the ☰ opens the off-canvas drawer; on desktop it collapses.
     if (window.matchMedia('(max-width: 760px)').matches) {
@@ -210,9 +226,18 @@ export function Layout({ children }: { children: ReactNode }) {
           <span className="foot-sep">·</span>
           <span>build #{__BUILD_NUMBER__}</span>
           <span className="foot-sep">·</span>
-          <span>ID {__BUILD_ID__}</span>
-          <span className="foot-sep">·</span>
-          <span>built {fmtDateTime(__BUILD_TIME__)}</span>
+          <span className="foot-hide-sm">ID {__BUILD_ID__}</span>
+          <span className="foot-sep foot-hide-sm">·</span>
+          <span className="foot-hide-sm">built {fmtDateTime(__BUILD_TIME__)}</span>
+          <span className="foot-spacer" />
+          <button
+            className="btn btn-sm foot-refresh"
+            onClick={() => void forceRefresh()}
+            disabled={refreshing}
+            title="Force update — reloads the latest build & re-syncs (like Ctrl/Win+Shift+R)"
+          >
+            {refreshing ? '…' : '⟳ Force update'}
+          </button>
         </footer>
       </div>
     </div>

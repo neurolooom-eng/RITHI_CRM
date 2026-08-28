@@ -110,6 +110,9 @@ function _dispatchGet(e) {
   // Call reporting (Reporting-N tab): fetch/upsert a report by UC Number.
   if (action === 'reportget') return _getReport(e.parameter.ucn);
   if (action === 'report') return _saveReport(e.parameter.ucn, _parse(e.parameter.patch));
+  // Generic tab helpers (spare consumption -> v2Consumption, feedback -> v2Feedback).
+  if (action === 'tabmeta') return _tabMeta(e.parameter.tab, e.parameter.book);
+  if (action === 'tabappend') return _tabAppend(e.parameter.tab, _parse(e.parameter.data), e.parameter.book);
   return { ok: false, error: 'Unknown action: ' + action };
 }
 
@@ -122,6 +125,9 @@ function doPost(e) {
     if (action === 'update') return _json(_updateCall(body.ucn, body.patch || {}, body.tab || ''));
     if (action === 'reportget') return _json(_getReport(body.ucn));
     if (action === 'report') return _json(_saveReport(body.ucn, body.patch || {}));
+    if (action === 'tabmeta') return _json(_tabMeta(body.tab, body.book));
+    if (action === 'tabappend') return _json(_tabAppend(body.tab, body.data || {}, body.book));
+    if (action === 'upload') return _json(_uploadReport(body));
     return _json({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -289,6 +295,69 @@ function _saveReport(ucn, patch) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Generic tab helpers — used by the call-report sub-forms: spare consumption
+// (v2Consumption) and customer feedback (v2Feedback). A `book` selects the
+// spreadsheet: '' / 'register' → the Call Register; any other value resolves to
+// a script-property cfg_<book> spreadsheet id if one has been set.
+// ---------------------------------------------------------------------------
+function _bookSheet(book, tab) {
+  var ss;
+  var propId = book ? PropertiesService.getScriptProperties().getProperty('cfg_' + book) : '';
+  ss = propId ? SpreadsheetApp.openById(propId) : SpreadsheetApp.openById(_cfg('register'));
+  var s = ss.getSheetByName(tab);
+  if (!s) throw new Error('Tab "' + tab + '" not found' + (propId ? '.' : ' in the Call Register.'));
+  return s;
+}
+
+function _tabMeta(tab, book) {
+  if (!tab) return { ok: false, error: 'tab required' };
+  return { ok: true, headers: _headers(_bookSheet(book, tab)) };
+}
+
+function _tabAppend(tab, data, book) {
+  if (!tab) return { ok: false, error: 'tab required' };
+  if (!data) return { ok: false, error: 'no data' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sheet = _bookSheet(book, tab);
+    var headers = _headers(sheet);
+    var row = headers.map(function (h) { return data[h] != null ? data[h] : ''; });
+    sheet.appendRow(row);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Manual report upload — store the file in Drive and write its link into the
+// report's column on Reporting-N (keyed by UCN). POSTed as base64 so the file
+// travels in the request body. The browser can't read this response (opaque
+// cross-origin), so the app confirms by re-reading the report afterwards.
+// ---------------------------------------------------------------------------
+function _reportFolder() {
+  var name = 'RITHI Manual Reports';
+  var it = DriveApp.getFoldersByName(name);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+}
+
+function _uploadReport(body) {
+  var ucn = body.ucn;
+  var column = body.column || 'Manual Report';
+  var b64 = body.dataBase64 || '';
+  if (!ucn || !b64) return { ok: false, error: 'ucn and file required' };
+  var bytes = Utilities.base64Decode(b64);
+  var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', body.filename || ('report-' + ucn));
+  var file = _reportFolder().createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy may forbid */ }
+  var url = file.getUrl();
+  var patch = {}; patch[column] = url;
+  _saveReport(ucn, patch); // link the file into the report row
+  return { ok: true, url: url };
 }
 
 // ---------------------------------------------------------------------------
