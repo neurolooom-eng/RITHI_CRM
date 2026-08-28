@@ -5,7 +5,7 @@ import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
-import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
 import { csvExport, engineerOptions, fmtDateTime } from '../lib/format';
 import { C } from './collections';
 import {
@@ -283,7 +283,8 @@ export function InstallationCalls() {
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
   const { user, can } = useAuth();
-  const [search, setSearch] = useState('');
+  const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
+  const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadLimit, setLoadLimit] = useState(300);
@@ -451,18 +452,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   };
 
   const visibleRows = useMemo(() => {
-    let r = cached;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      r = r.filter((row) =>
-        ['ucn', 'callNumber', 'partyName', 'city', 'state', 'productName', 'serial', 'standardComplaint', 'complaintReported', 'allocatedTo', 'customerName'].some(
-          (k) => String(row[k] ?? '').toLowerCase().includes(q),
-        ),
-      );
-    }
+    const has = (val: unknown, needle: string) => !needle.trim() || String(val ?? '').toLowerCase().includes(needle.trim().toLowerCase());
+    const q = srch.q.trim().toLowerCase();
+    const r = cached.filter((row) =>
+      has(row.ucn, srch.ucn) &&
+      has(row.productName, srch.productName) &&
+      has(row.serial, srch.serial) &&
+      has(row.partyName, srch.partyName) &&
+      (!q || ['ucn', 'callNumber', 'partyName', 'city', 'state', 'productName', 'serial', 'standardComplaint', 'complaintReported', 'allocatedTo', 'customerName'].some(
+        (k) => String(row[k] ?? '').toLowerCase().includes(q),
+      )),
+    );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, search]);
+  }, [cached, srch]);
 
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 150, sortable: false, wrap: false,
@@ -513,7 +516,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
         toolbar={
           <Toolbar>
-            <SearchBox value={search} onChange={setSearch} placeholder="Search UCN, party, product, serial…" />
+            <div className="call-search">
+              <input className="input" placeholder="UCN No" value={srch.ucn} onChange={(e) => setSrch1('ucn', e.target.value)} />
+              <input className="input" placeholder="Product" value={srch.productName} onChange={(e) => setSrch1('productName', e.target.value)} />
+              <input className="input" placeholder="Serial" value={srch.serial} onChange={(e) => setSrch1('serial', e.target.value)} />
+              <input className="input" placeholder="Party" value={srch.partyName} onChange={(e) => setSrch1('partyName', e.target.value)} />
+              <input className="input call-search-global" placeholder="🔎 Global" value={srch.q} onChange={(e) => setSrch1('q', e.target.value)} />
+            </div>
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>

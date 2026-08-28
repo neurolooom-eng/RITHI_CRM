@@ -107,3 +107,8 @@
 .cfg-check { font-size: 12px; margin-top: 2px; }
 .cfg-ok { color: var(--success, #16a34a); }
 .cfg-bad { color: var(--danger, #dc2626); }
+
+/* Minimalistic multi-field search on call registers */
+.call-search { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.call-search .input { flex: 0 1 110px; min-width: 90px; padding: 5px 8px; font-size: 12.5px; }
+.call-search .call-search-global { flex: 1 1 150px; min-width: 120px; }
