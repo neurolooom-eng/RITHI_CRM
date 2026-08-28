@@ -11,18 +11,32 @@
 import { recordToRow, rowToRecord } from './fieldcall';
 
 const URL_KEY = 'rithi.sheets.url';
+const VER_KEY = 'rithi.sheets.urlVersion';
 const TAB_KEY = 'rithi.sheets.tab';
+
+// Default CallReg Web App URL, shipped so every device/user is connected
+// out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
+// on an older version adopt the new default automatically (their stale saved
+// URL is superseded until they explicitly Save a new one in Settings).
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzKC7TL-7w3ooZzUYRAxojcErGiXHsrCkVdDw_UAmIgoBGAWlZnsfYL9wgWzPtEK421/exec';
+const DEFAULT_URL_VERSION = 3;
 
 export function getSheetsUrl(): string {
   try {
-    return localStorage.getItem(URL_KEY) ?? '';
+    const stored = localStorage.getItem(URL_KEY) ?? '';
+    const ver = Number(localStorage.getItem(VER_KEY) ?? '0');
+    if (!stored || ver < DEFAULT_URL_VERSION) return DEFAULT_SHEETS_URL;
+    return stored;
   } catch {
-    return '';
+    return DEFAULT_SHEETS_URL;
   }
 }
 
 export function setSheetsUrl(url: string): void {
-  localStorage.setItem(URL_KEY, url.trim());
+  try {
+    localStorage.setItem(URL_KEY, url.trim());
+    localStorage.setItem(VER_KEY, String(DEFAULT_URL_VERSION));
+  } catch { /* ignore */ }
 }
 
 // The tab (worksheet) name the Field Call Register reads/writes. Empty = let
