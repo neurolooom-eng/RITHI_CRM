@@ -57,12 +57,12 @@ _Last updated: 2026-08-28_
 
 ## 🔜 In progress / Next
 
-- **Customer feedback** — mandatory on a solved call; each question is answered
-  with the **Excellent / Good / Average / Poor** rating (from the `feedbackrating`
-  master → 200 All Masters "Feedback"), free-text columns (remarks etc.) stay
-  text, and every feedback row is tagged with the **Call Type**. The questions
-  themselves are the v2Feedback columns. If distinct question *sets* per call
-  type are needed, provide a Call Type → Question list and I'll render per type.
+- **Customer feedback** — ✅ done. Mandatory on a solved call, with the **exact
+  v2Feedback question set filtered by call type** (INSTALLATION-only, FIELD-only,
+  PM/FIELD = not-installation, and all-types questions). Ratings use
+  Excellent/Good/Average/Poor (`feedbackrating` master); "Advance PM Done?" is
+  Yes/No, "Warranty Start Date?" a date, "Remarks" free text. Saved as a
+  structured row to v2Feedback (identifying fields + answers + Call Type).
 
 - **Masters in 200 All Masters** — mapped (baked as defaults; live once CallReg
   is redeployed). Each identified by its column header:

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { getReport, saveReport, sheetsConfigured, tabAppend, tabMeta, uploadManualReport } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
+import { useAuth } from '../lib/auth';
+import { toSheetDate } from '../lib/fieldcall';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -27,9 +29,40 @@ const READONLY = ['UC Number', 'Call Number', 'UID', 'Email-ID'];
 const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Report Pending'];
 const LONG_MATCH = /job\s*done|observation|service\s*report|standard\s*complaint|pending\s*reason|remark|action\s*taken|description|comment/i;
 const CORE_SOLVED = [/job\s*done/i, /service\s*report/i, /complaint\s*observation/i];
-// Feedback columns that are free text rather than a rating question.
-const FB_TEXT = /remark|comment|name|email|phone|contact|mobile|date|time|reason|suggest|address|designation/i;
 const RATINGS_FALLBACK = ['Excellent', 'Good', 'Average', 'Poor'];
+
+// Customer-feedback questions (v2Feedback), each shown only for the applicable
+// call type. rule: ALL = every call; INSTALLATION = installation only;
+// FIELD = field only; NOT_INSTALLATION = any non-installation (PM / Field).
+// answer: rating (Excellent…Poor) | yesno | date | text.
+type FbRule = 'ALL' | 'INSTALLATION' | 'FIELD' | 'NOT_INSTALLATION';
+type FbAnswer = 'rating' | 'yesno' | 'date' | 'text';
+interface FbQuestion { col: string; rule: FbRule; answer: FbAnswer }
+const FEEDBACK_QUESTIONS: FbQuestion[] = [
+  { col: 'Warranty Start Date?', rule: 'INSTALLATION', answer: 'date' },
+  { col: 'Advance PM Done?', rule: 'FIELD', answer: 'yesno' },
+  { col: 'INSTALLATION-Startup, Training and Handing Over', rule: 'INSTALLATION', answer: 'rating' },
+  { col: 'INSTALLATION-Packing and Forwarding', rule: 'INSTALLATION', answer: 'rating' },
+  { col: 'INSTALLATION-Delivery adherence schedule', rule: 'INSTALLATION', answer: 'rating' },
+  { col: 'INSTALLATION/PM/FIELD-Operating Feasibility of the Equipment', rule: 'ALL', answer: 'rating' },
+  { col: 'INSTALLATION/PM/FIELD-In general, support of our company for your requirements', rule: 'ALL', answer: 'rating' },
+  { col: 'PM/FIELD-Ability of our Product to meet your requirement', rule: 'NOT_INSTALLATION', answer: 'rating' },
+  { col: 'PM/FIELD-Reliability of Product', rule: 'NOT_INSTALLATION', answer: 'rating' },
+  { col: 'PM/FIELD-Reliability of Service', rule: 'NOT_INSTALLATION', answer: 'rating' },
+  { col: 'PM/FIELD-Promptness for Service Calls', rule: 'NOT_INSTALLATION', answer: 'rating' },
+  { col: 'INSTALLATION/PM/FIELD-Remarks if any', rule: 'ALL', answer: 'text' },
+];
+function fbApplies(rule: FbRule, callType: string): boolean {
+  const t = callType.toUpperCase();
+  const isInstall = t.indexOf('INSTALL') >= 0;
+  switch (rule) {
+    case 'ALL': return true;
+    case 'INSTALLATION': return isInstall;
+    case 'FIELD': return t.indexOf('FIELD') >= 0 && !isInstall;
+    case 'NOT_INSTALLATION': return !isInstall;
+    default: return false;
+  }
+}
 
 const PREFILL_FROM_CALL: Record<string, string> = {
   'UC Number': 'ucn', 'Call Number': 'callNumber', 'Call Type': 'callType',
@@ -52,6 +85,7 @@ export function CallReportDrawer({
   onClose: () => void;
   onSaved?: (mode: string, ucn: string) => void;
 }) {
+  const { user } = useAuth();
   const ucn = String(call?.ucn ?? '');
   const pendingReasons = useMaster('pendingreason'); // Call Pending Reason master
   const ratings = useMaster('feedbackrating', RATINGS_FALLBACK); // Excellent/Good/Average/Poor
@@ -68,7 +102,7 @@ export function CallReportDrawer({
     if (!sheetsConfigured()) { setErr('Connect the Google Sheet in Settings to report calls.'); return; }
     let cancelled = false;
     setLoading(true); setErr(''); setHeaders([]); setExisting({}); setValues({});
-    setSpares([]); setSpareDraft({}); setFeedback({}); setConsHeaders(null); setFbHeaders(null); setSubNote('');
+    setSpares([]); setSpareDraft({}); setFeedback({}); setConsHeaders(null); setSubNote('');
     setManualLink(''); setManualFile(null);
     getReport(ucn)
       .then((r) => {
@@ -145,24 +179,20 @@ export function CallReportDrawer({
   const [spares, setSpares] = useState<Record<string, string>[]>([]);
   const [spareBusy, setSpareBusy] = useState(false);
 
-  // ---- Customer feedback (v2Feedback) ----
-  const [fbHeaders, setFbHeaders] = useState<string[] | null>(null);
+  // ---- Customer feedback (v2Feedback) — questions filtered by call type ----
   const [feedback, setFeedback] = useState<Record<string, string>>({});
-  const [subNote, setSubNote] = useState(''); // note if the v2 tabs aren't reachable
+  const [subNote, setSubNote] = useState(''); // note if the consumption tab isn't reachable
+  const callType = String(call?.callType ?? values['Call Type'] ?? '');
+  const fbQuestions = useMemo(() => FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType)), [callType]);
 
-  // Lazily load the sub-form schemas the first time a call is marked solved.
+  // Lazily load the spare-consumption schema the first time a call is solved.
   useEffect(() => {
     if (!solved || !open) return;
     let cancelled = false;
     if (consHeaders === null) {
       tabMeta('', CONSUMPTION_BOOK)
         .then((h) => { if (!cancelled) { setConsHeaders(h); setSpareDraft({ [ucnColOf(h)]: ucn }); } })
-        .catch(() => { if (!cancelled) { setConsHeaders([]); setSubNote(`Couldn't reach ${CONSUMPTION_TAB} / ${FEEDBACK_TAB} — check the links in Admin Config.`); } });
-    }
-    if (fbHeaders === null) {
-      tabMeta('', FEEDBACK_BOOK)
-        .then((h) => { if (!cancelled) { setFbHeaders(h); setFeedback((f) => ({ ...f, [ucnColOf(h)]: ucn })); } })
-        .catch(() => { if (!cancelled) setFbHeaders([]); });
+        .catch(() => { if (!cancelled) { setConsHeaders([]); setSubNote(`Couldn't reach ${CONSUMPTION_TAB} — check the link in Admin Config.`); } });
     }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,13 +221,10 @@ export function CallReportDrawer({
       const missing = detailHeaders.filter((h) => CORE_SOLVED.some((re) => re.test(h)) && !String(values[h] ?? '').trim());
       if (missing.length) return `Fill the report details: ${missing.join(', ')}.`;
       if (manualH && !manualLink) return 'Upload the manual report.';
-      // Customer feedback is mandatory for a solved call (when the feedback
-      // sheet is reachable — don't hard-block if it can't be loaded).
-      if (fbHeaders === null) return 'Loading the customer feedback form — please wait a moment.';
-      if (fbHeaders.length) {
-        const fbMissing = fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h) && !String(feedback[h] ?? '').trim());
-        if (fbMissing.length) return `Customer feedback is mandatory for a solved call. Fill: ${fbMissing.join(', ')}.`;
-      }
+      // Customer feedback is mandatory for a solved call — every rating / yes-no
+      // question that applies to this call type must be answered.
+      const fbMissing = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
+      if (fbMissing.length) return `Customer feedback is mandatory for a solved call. Answer: ${fbMissing.map((q) => q.col).join(', ')}.`;
     }
     return '';
   };
@@ -216,11 +243,30 @@ export function CallReportDrawer({
       const res = await saveReport(ucn, patch);
       if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
 
-      // Customer feedback (append once, if filled) → v2Feedback, tagged with the
-      // call type so feedback is recorded against the type of call.
-      if (solved && fbHeaders && fbHeaders.length) {
-        const filled = Object.entries(feedback).some(([k, val]) => !/uc\s*number|ucn/i.test(k) && String(val).trim() !== '');
-        if (filled) await tabAppend('', { ...feedback, [ucnColOf(fbHeaders)]: ucn, 'Call Type': String(call?.callType ?? '') }, FEEDBACK_BOOK);
+      // Customer feedback → v2Feedback: a structured row with the identifying
+      // fields + the answers to the questions that apply to this call type.
+      if (solved && fbQuestions.length) {
+        const now = new Date();
+        const fbRow: Record<string, unknown> = {
+          'UC Number': ucn,
+          'Call Number': String(call?.callNumber ?? values['Call Number'] ?? ''),
+          'Call Type': callType,
+          'Email-ID': user?.email ?? '',
+          'Visiting Service Engineer': String(values['Visiting Service Engineer'] ?? call?.allocatedTo ?? user?.fullName ?? ''),
+          'Visit Entry Date': toSheetDate(now),
+          'Visit Date & Time': String(values['Visit Date & Time'] ?? ''),
+          'Party Name': String(call?.partyName ?? ''),
+          'State': String(call?.state ?? ''),
+          'Product Name': String(call?.productName ?? ''),
+          'Product Serial Number': String(call?.serial ?? ''),
+          'Complaint Reported': String(call?.complaintReported ?? ''),
+        };
+        fbQuestions.forEach((q) => {
+          const val = feedback[q.col];
+          if (val != null && String(val).trim() !== '') fbRow[q.col] = q.answer === 'date' ? toSheetDate(val) : val;
+        });
+        const fbRes = await tabAppend('', fbRow, FEEDBACK_BOOK);
+        if (!fbRes.ok) { setErr(`Report saved, but the feedback wasn't sent: ${fbRes.error}. Try Save again.`); setBusy(false); return; }
       }
       onSaved?.(res.mode ?? 'saved', ucn);
       onClose();
@@ -350,24 +396,33 @@ export function CallReportDrawer({
             </section>
           )}
 
-          {/* Customer feedback (solved) */}
-          {solved && fbHeaders && fbHeaders.length > 0 && (
+          {/* Customer feedback (solved) — questions for this call's type */}
+          {solved && fbQuestions.length > 0 && (
             <section className="rep-sec">
-              <div className="rep-sec-title">Customer feedback * <span className="muted">→ {FEEDBACK_TAB} · required for a solved call</span></div>
+              <div className="rep-sec-title">Customer feedback * <span className="muted">→ {FEEDBACK_TAB} · {callType || 'call'} · required</span></div>
               <div className="rep-grid">
-                {fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h) && !/call\s*type/i.test(h)).map((h) => {
-                  const freeText = FB_TEXT.test(h);
+                {fbQuestions.map((q) => {
+                  const req = q.answer === 'rating' || q.answer === 'yesno';
+                  const onCh = (v: string) => setFeedback((f) => ({ ...f, [q.col]: v }));
                   return (
-                    <label className="rep-field" key={h}>
-                      <span className="field-label">{h}</span>
-                      {freeText ? (
-                        <input className="input" value={feedback[h] ?? ''} onChange={(e) => setFeedback((f) => ({ ...f, [h]: e.target.value }))} />
-                      ) : (
-                        <select className="select" value={feedback[h] ?? ''} onChange={(e) => setFeedback((f) => ({ ...f, [h]: e.target.value }))}>
+                    <label className={`rep-field ${q.answer === 'text' ? 'rep-span2' : ''}`} key={q.col}>
+                      <span className="field-label">{q.col}{req ? ' *' : ''}</span>
+                      {q.answer === 'rating' ? (
+                        <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
                           <option value="">— rate —</option>
                           {ratings.values.map((v) => <option key={v} value={v}>{v}</option>)}
-                          {feedback[h] && !ratings.values.includes(feedback[h]) && <option value={feedback[h]}>{feedback[h]}</option>}
+                          {feedback[q.col] && !ratings.values.includes(feedback[q.col]) && <option value={feedback[q.col]}>{feedback[q.col]}</option>}
                         </select>
+                      ) : q.answer === 'yesno' ? (
+                        <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
+                          <option value="">— select —</option>
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      ) : q.answer === 'date' ? (
+                        <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
+                      ) : (
+                        <input className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
                       )}
                     </label>
                   );
