@@ -169,6 +169,7 @@ export function CrudModule<T extends BaseRecord>({ config }: { config: CrudConfi
             )}
             <SchemaForm
               fields={config.fields}
+              sectionOrderKey={config.collection}
               initial={initial}
               readOnly={drawer.mode === 'view'}
               submitLabel={drawer.mode === 'edit' ? 'Save Changes' : `Create ${config.singular}`}
