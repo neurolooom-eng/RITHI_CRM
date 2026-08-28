@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
-import { csvExport, engineerOptions, fmtDateTime, timeAgo } from '../lib/format';
+import { csvExport, engineerOptions, fmtDateTime, timeAgo, todayISO } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -32,6 +32,17 @@ import {
 } from '../lib/fieldcall';
 
 const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => ({ key: h.key, header: h.header }));
+
+// Warranty/contract fields freeze (read-only) once loaded from Product Master.
+const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
+function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
+  if (!prefill) return FIELD_CALL_FIELDS;
+  return FIELD_CALL_FIELDS.map((f) =>
+    FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== ''
+      ? { ...f, readOnly: true, help: 'From Product Master (locked)' }
+      : f,
+  );
+}
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -617,8 +628,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             )}
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
-              fields={FIELD_CALL_FIELDS}
-              initial={drawer.mode === 'create' ? prefill : (drawer.row as unknown as FormValues)}
+              fields={drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS}
+              initial={drawer.mode === 'create' ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) } : (drawer.row as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}
               submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : `Register ${config.singular}`}
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}

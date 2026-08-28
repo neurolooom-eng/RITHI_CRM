@@ -1,6 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
-import { authLogin, authSetPassword, sheetsConfigured, type SheetUser } from './sheets';
+import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
+
+// Super admins (dev access — all rights), matched by any of their login ids.
+const SUPER_ADMINS = new Set([
+  'service.almsind@gmail.com',
+  'devika.m@airliquide.com',
+  'devikamunusamy@gmail.com',
+  'mmdev74@gmail.com',
+]);
+const isSuper = (...ids: (string | undefined)[]) =>
+  ids.some((id) => id && SUPER_ADMINS.has(String(id).trim().toLowerCase()));
 
 // ---------------------------------------------------------------------------
 // Authentication & user access.
@@ -20,6 +30,7 @@ export interface User extends BaseRecord {
   active: boolean;
   authSource?: 'local' | 'sheet'; // 'sheet' users authenticate via the User Master
   region?: string;
+  activated?: boolean; // has the user set a password / logged in at least once
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -110,6 +121,7 @@ interface AuthContextValue {
   users: User[];
   login: (username: string, password: string) => Promise<LoginResult>;
   setPassword: (id: string, password: string) => Promise<LoginResult>;
+  importSheetUsers: () => Promise<{ added: number; total: number }>;
   logout: () => void;
   createUser: (input: {
     username: string;
@@ -151,8 +163,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       username,
       fullName: su.name || id,
       email: su.email || id,
-      role: 'engineer',
+      role: isSuper(su.email, su.gmail, id) ? 'admin' : 'engineer',
       active: true,
+      activated: true, // they've just authenticated
       authSource: 'sheet',
       region: su.region,
     };
@@ -161,6 +174,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return existing.id;
     }
     return db.insert(USERS, { ...patch, passwordHash: '' }).id;
+  };
+
+  // Import every User Master user into the local users list (role engineer, or
+  // admin for super admins). Activation is preserved; new users start inactive.
+  const importSheetUsers = async (): Promise<{ added: number; total: number }> => {
+    const rows = await listUsers('', 1000);
+    let added = 0;
+    rows.forEach((u) => {
+      const email = String(u['Email ID'] ?? '').trim();
+      const gmail = String(u['GMAIL ID'] ?? '').trim();
+      const username = (email || gmail || String(u['User Name'] ?? '')).toLowerCase();
+      if (!username) return;
+      const existing = (db.list(USERS) as User[]).find((x) => x.username.toLowerCase() === username);
+      const patch: Partial<User> = {
+        username,
+        fullName: String(u['User Name'] ?? username),
+        email: email || gmail,
+        role: isSuper(email, gmail) ? 'admin' : 'engineer',
+        active: String(u['Validity'] ?? '').toUpperCase() === 'TRUE',
+        authSource: 'sheet',
+        region: String(u['REGION'] ?? ''),
+      };
+      if (existing) db.update(USERS, existing.id, patch);
+      else { db.insert(USERS, { ...patch, passwordHash: '', activated: false }); added++; }
+    });
+    return { added, total: rows.length };
   };
 
   const authError = (code?: string): string => {
@@ -183,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (local) {
       if (!local.active) return { ok: false, error: 'Account is disabled' };
       if (local.passwordHash !== hash(password)) return { ok: false, error: 'Incorrect password' };
+      if (!local.activated) db.update(USERS, local.id, { activated: true });
       setSession(local.id);
       return { ok: true };
     }
@@ -244,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can: AuthContextValue['can'] = (action) => {
     if (!user) return false;
+    if (isSuper(user.email, user.username)) return true; // dev access — all rights
     const r = user.role;
     switch (action) {
       case 'manage-users':
@@ -259,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, login, setPassword, logout, createUser, updateUser, removeUser, can }}
+      value={{ user, users, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can }}
     >
       {children}
     </AuthContext.Provider>

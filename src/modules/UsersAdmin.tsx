@@ -1,16 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth, ROLE_LABELS, type Role, type User } from '../lib/auth';
 import { PageHeader, Drawer } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { fmtDateTime } from '../lib/format';
+import { sheetsConfigured } from '../lib/sheets';
+import './fieldcalls.css';
 
 const ROLE_OPTS = (Object.keys(ROLE_LABELS) as Role[]).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
 
 export function UsersAdmin() {
-  const { users, user, createUser, updateUser, removeUser, can } = useAuth();
+  const { users, user, createUser, updateUser, removeUser, importSheetUsers, can } = useAuth();
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit'; row?: User } | null>(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const sync = async () => {
+    setBusy(true);
+    setMsg('Importing from User Master…');
+    try {
+      const res = await importSheetUsers();
+      setMsg(`Imported ${res.added} new of ${res.total} User Master users.`);
+    } catch (e) {
+      setMsg(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Import all User Master users by default (once per session).
+  useEffect(() => {
+    if (!can('manage-users') || !sheetsConfigured()) return;
+    try {
+      if (sessionStorage.getItem('rithi.usersImported')) return;
+      sessionStorage.setItem('rithi.usersImported', '1');
+    } catch { /* ignore */ }
+    void sync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!can('manage-users')) {
     return (
@@ -26,7 +54,9 @@ export function UsersAdmin() {
     { key: 'fullName', header: 'Full Name', width: 180 },
     { key: 'email', header: 'Email', width: 200, wrap: false },
     { key: 'role', header: 'Role', width: 150, wrap: false, render: (r) => <span className="badge badge-primary">{ROLE_LABELS[r.role]}</span> },
-    { key: 'active', header: 'Status', width: 100, wrap: false, render: (r) => (r.active ? <span className="badge badge-success">Active</span> : <span className="badge badge-neutral">Disabled</span>) },
+    { key: 'active', header: 'Status', width: 90, wrap: false, render: (r) => (r.active ? <span className="badge badge-success">Active</span> : <span className="badge badge-neutral">Disabled</span>) },
+    { key: 'activated', header: 'Activated', width: 90, wrap: false, render: (r) => (r.activated ? <span className="badge badge-success">Yes</span> : <span className="badge badge-warning">No</span>) },
+    { key: 'region', header: 'Region', width: 90, wrap: false },
     {
       key: '_actions', header: 'Actions', width: 160, sortable: false, wrap: false,
       render: (r) => (
@@ -85,8 +115,17 @@ export function UsersAdmin() {
         title="User Access"
         subtitle="Create users, assign roles & control access"
         icon="👥"
-        actions={<button className="btn btn-primary" onClick={() => { setError(''); setDrawer({ mode: 'create' }); }}>+ New User</button>}
+        actions={
+          <div className="row">
+            <button className="btn" onClick={() => void sync()} disabled={busy} title="Import all users from the User Master sheet">
+              {busy ? 'Syncing…' : '⇪ Sync from User Master'}
+            </button>
+            <button className="btn btn-primary" onClick={() => { setError(''); setDrawer({ mode: 'create' }); }}>+ New User</button>
+          </div>
+        }
       />
+
+      {msg && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 14 }}><span>{msg}</span><button className="btn btn-ghost btn-sm" onClick={() => setMsg('')}>✕</button></div>}
 
       <div className="card card-pad" style={{ marginBottom: 16 }}>
         <b>Role permissions</b>
