@@ -72,8 +72,16 @@ _Last updated: 2026-08-28_
 
 ## 📋 Queued (from the Service_CRM intent)
 
-- **Spare module** — 26-SpareRequestRegister linked to calls (spare request →
-  approval → consumption already partly covered by report-time v2Consumption).
+- **Spare module** — ✅ Phase 1 shipped: raise a Call-Based spare request from a
+  call (📦 Spare / Request Spares) → appended to `v2_ORReq-All` of
+  `26_SpareRequest`; **Spare Requests** register lists the exploded status view
+  (`v2_OR_Req`) with the approval/dispatch chain, role-scoped. Spare parts come
+  from the `spare` master (LookupValues → SPARE). **Next:** approvals
+  (RM/Admin/NSM) and stores/dispatch views.
+- **Fix v2Consumption / v2Feedback targets** — they are standalone spreadsheets
+  (`1j1IHT3P…dG7o` / `1Mi-b-JY…nqXc`), not tabs of the Call Register. Report-time
+  spare-consumption/feedback saves need their internal tab names + config
+  (cfg_consumption / cfg_feedback) to land correctly. **Awaiting tab names.**
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
   Entry, ITEM Master, "200 All Masters").
 - Preventive Maintenance (PM) schedule/calls.

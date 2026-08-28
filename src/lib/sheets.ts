@@ -244,6 +244,7 @@ export interface SheetConfig {
   partymaster?: string;
   usermaster?: string;
   crn?: string;
+  sparereq?: string;
 }
 export interface ConfigCheck {
   ok: boolean;
@@ -314,10 +315,11 @@ export async function setView(key: string, view: TableView): Promise<boolean> {
 
 // Read a tab's rows as raw header-keyed objects (schema-agnostic; used by Call
 // Updation over the Reporting-N tab and any other tab).
-export async function listTabRows(tab: string, limit = 300, type = ''): Promise<Record<string, unknown>[]> {
+export async function listTabRows(tab: string, limit = 300, type = '', book = ''): Promise<Record<string, unknown>[]> {
   const params: Record<string, string> = { action: 'list', tab };
   if (type) params.type = type;
   if (limit) params.limit = String(limit);
+  if (book) params.book = book;
   const r = await getJson(params);
   if (!r.ok) throw new Error(String(r.error ?? 'list failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
