@@ -1,0 +1,22 @@
+.vh-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.vh-table th,
+.vh-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.vh-table th {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  background: var(--surface-alt, rgba(0, 0, 0, 0.02));
+}
+.vh-nowrap { white-space: nowrap; }
+.vh-list { margin: 0; padding-left: 18px; }
+.vh-list li { margin-bottom: 4px; }

@@ -14,6 +14,7 @@ import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { UsersAdmin } from './modules/UsersAdmin';
 import { Settings } from './modules/Settings';
+import { VersionHistory } from './modules/VersionHistory';
 import {
   partyConfig,
   productConfig,
@@ -57,6 +58,7 @@ function Shell() {
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/users" element={<UsersAdmin />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/version-history" element={<VersionHistory />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
