@@ -15,6 +15,7 @@ const FIELDS: { key: keyof SheetConfig; label: string }[] = [
   { key: 'partymaster', label: 'Party Master' },
   { key: 'usermaster', label: 'User Master' },
   { key: 'crn', label: 'Call Registration Request (CRN)' },
+  { key: 'sparereq', label: 'Spare Request Register (26_SpareRequest)' },
 ];
 
 const MASTER_DEFS: { key: string; label: string }[] = [

@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
+import { SpareRequestDrawer } from './SpareRequests';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
@@ -310,6 +311,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Update Call" → Reporting-N
+  const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
   const [loadLimit, setLoadLimit] = useState(300);
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
@@ -528,13 +530,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   }, [cached, srch, scope, user?.id]);
 
   const actionsColumn: Column<Rec> = {
-    key: '_actions', header: 'Actions', width: 210, sortable: false, wrap: false,
+    key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,
     render: (row) => (
       <div className="row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'view', row })}>View</button>
         {can('edit') && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
         {can('edit') && !row._pending && (
           <button className="btn btn-sm btn-primary" title="Update / report this call (saved to Reporting-N)" onClick={() => setReport(row)}>📝 Update</button>
+        )}
+        {can('edit') && !row._pending && (
+          <button className="btn btn-sm" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦 Spare</button>
         )}
         {row._pending && can('edit') && (
           <button className="btn btn-sm btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
@@ -670,6 +675,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     {!drawer.row?._pending && (
                       <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
                     )}
+                    {!drawer.row?._pending && (
+                      <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
+                    )}
                   </>
                 ) : undefined
               }
@@ -683,6 +691,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         open={!!report}
         onClose={() => setReport(null)}
         onSaved={(mode, ucn) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.` })}
+      />
+
+      <SpareRequestDrawer
+        call={spareFor}
+        open={!!spareFor}
+        onClose={() => setSpareFor(null)}
+        onSaved={(ucn) => setBanner({ tone: 'ok', text: `Spare request submitted for ${ucn}. Track it under Spares → Spare Requests.` })}
       />
     </div>
   );

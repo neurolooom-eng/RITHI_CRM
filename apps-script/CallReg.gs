@@ -41,6 +41,13 @@ var CRN_REQUEST_TAB = '2026-CRNRequest';
 var CRN_DATA_TAB = 'Data-2026';
 var CRN_UCN_HEADER = 'UC Number';
 
+// Spare Request Register (26_SpareRequest) — engineers raise spare requests
+// (Call Based, linked to a UC Number). v2_ORReq-All is the intake; v2_OR_Req is
+// the exploded per-part status view (approval + dispatch chain).
+var SPAREREQ_ID = '1ABx7lfLGH24-btRauO56btlPLFMC0BQyUsdN5ss8uDU';
+var SPAREREQ_INTAKE_TAB = 'v2_ORReq-All';
+var SPAREREQ_STATUS_TAB = 'v2_OR_Req';
+
 // The User Master spreadsheet — source of app logins.
 var USERMASTER_ID = '1WUoxk_4hLlK4ZLP59SHQRSAxWqmutjcCIiFsul5r-mc';
 var USER_EMAIL_HEADER = 'Email ID';   // Air Liquide login id
@@ -85,7 +92,7 @@ function _dispatchGet(e) {
   var tab = e.parameter.tab || '';
   if (action === 'ping') return _ping(tab);
   if (action === 'tabs') return { ok: true, tabs: _tabs() };
-  if (action === 'list') return { ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0, tab) };
+  if (action === 'list') return { ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0, tab, e.parameter.book) };
   if (action === 'parties') return { ok: true, values: _distinctFrom(_partySheet(), PARTY_NAME_HEADER) };
   if (action === 'products') return { ok: true, values: _distinctWhere('Item Name', 'Party Name', e.parameter.party) };
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
@@ -172,8 +179,8 @@ function _tabNames() {
   return SpreadsheetApp.openById(_cfg('register')).getSheets().map(function (s) { return s.getName(); });
 }
 
-function _list(type, limit, tab) {
-  var sheet = _registerSheet(tab);
+function _list(type, limit, tab, book) {
+  var sheet = book ? _bookSheet(book, tab) : _registerSheet(tab);
   var headers = _headers(sheet);
   var last = sheet.getLastRow();
   if (last < 2) return [];
@@ -364,6 +371,8 @@ function _masters() {
   if (!reg.calltype) reg.calltype = { id: ALLM, col: 'Call Type' };
   if (!reg.pendingreason) reg.pendingreason = { id: ALLM, col: 'Call Pending Reason Name' };
   if (!reg.cancelreason) reg.cancelreason = { id: ALLM, col: 'Call Cancel Reason Name' };
+  // Spare parts list (CODE|DESCRIPTION) from the Spare Request book's LookupValues.
+  if (!reg.spare) reg.spare = { book: 'sparereq', tab: 'LookupValues', col: 'SPARE' };
   return reg;
 }
 
@@ -772,6 +781,7 @@ var CFG_KEYS = {
   partymaster: 'PARTYMASTER_ID',
   usermaster: 'USERMASTER_ID',
   crn: 'CRN_ID',
+  sparereq: 'SPAREREQ_ID',
 };
 var CFG_DEFAULTS = {
   register: SPREADSHEET_ID,
@@ -779,6 +789,7 @@ var CFG_DEFAULTS = {
   partymaster: PARTYMASTER_ID,
   usermaster: USERMASTER_ID,
   crn: CRN_ID,
+  sparereq: SPAREREQ_ID,
 };
 function _cfg(name) {
   var v = PropertiesService.getScriptProperties().getProperty('cfg_' + CFG_KEYS[name]);

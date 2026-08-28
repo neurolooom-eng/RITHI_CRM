@@ -129,3 +129,8 @@
 @media (max-width: 640px) {
   .rep-grid { grid-template-columns: 1fr; }
 }
+
+/* ---- Spare request rows ------------------------------------------------- */
+.spare-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.spare-row .spare-part { flex: 1 1 auto; min-width: 0; }
+.spare-row .spare-qty { flex: 0 0 80px; width: 80px; }
