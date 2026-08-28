@@ -18,6 +18,7 @@ const FIELDS: { key: keyof SheetConfig; label: string }[] = [
   { key: 'sparereq', label: 'Spare Request Register (26_SpareRequest)' },
   { key: 'consumption', label: 'Spare Consumption (v2Consumption)' },
   { key: 'feedback', label: 'Customer Feedback (v2Feedback)' },
+  { key: 'itemmaster', label: 'ITEM Master (spare parts list)' },
 ];
 
 const MASTER_DEFS: { key: string; label: string }[] = [
