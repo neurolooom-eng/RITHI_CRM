@@ -187,6 +187,13 @@ export function CallReportDrawer({
       const missing = detailHeaders.filter((h) => CORE_SOLVED.some((re) => re.test(h)) && !String(values[h] ?? '').trim());
       if (missing.length) return `Fill the report details: ${missing.join(', ')}.`;
       if (manualH && !manualLink) return 'Upload the manual report.';
+      // Customer feedback is mandatory for a solved call (when the feedback
+      // sheet is reachable — don't hard-block if it can't be loaded).
+      if (fbHeaders === null) return 'Loading the customer feedback form — please wait a moment.';
+      if (fbHeaders.length) {
+        const fbMissing = fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h) && !String(feedback[h] ?? '').trim());
+        if (fbMissing.length) return `Customer feedback is mandatory for a solved call. Fill: ${fbMissing.join(', ')}.`;
+      }
     }
     return '';
   };
@@ -341,7 +348,7 @@ export function CallReportDrawer({
           {/* Customer feedback (solved) */}
           {solved && fbHeaders && fbHeaders.length > 0 && (
             <section className="rep-sec">
-              <div className="rep-sec-title">Customer feedback <span className="muted">→ {FEEDBACK_TAB}</span></div>
+              <div className="rep-sec-title">Customer feedback * <span className="muted">→ {FEEDBACK_TAB} · required for a solved call</span></div>
               <div className="rep-grid">
                 {fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h)).map((h) => (
                   <label className="rep-field" key={h}>
