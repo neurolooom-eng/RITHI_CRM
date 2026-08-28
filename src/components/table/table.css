@@ -145,3 +145,38 @@
   background: var(--surface-alt);
   font-size: 12px;
 }
+
+/* Columns control (show/hide, reorder, saved views) */
+.dt-viewmsg { margin-left: 4px; }
+.dt-cols { position: relative; }
+.dt-cols-backdrop { position: fixed; inset: 0; z-index: 30; }
+.dt-cols-panel {
+  position: absolute;
+  right: 0;
+  bottom: 34px;
+  z-index: 31;
+  width: 280px;
+  max-height: 60vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+}
+.dt-cols-head { font-weight: 700; font-size: 12px; padding: 4px 6px 8px; }
+.dt-cols-list { display: flex; flex-direction: column; }
+.dt-cols-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.dt-cols-row:hover { background: var(--surface-alt, rgba(0,0,0,0.03)); }
+.dt-cols-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; flex: 1; min-width: 0; }
+.dt-cols-check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-cols-move { display: flex; gap: 2px; flex-shrink: 0; }
+.dt-cols-actions { display: flex; align-items: center; gap: 6px; padding: 8px 6px 4px; border-top: 1px solid var(--border); margin-top: 6px; }
+.dt-cols-note { font-size: 11px; padding: 2px 6px 4px; }

@@ -81,6 +81,9 @@ function _dispatchGet(e) {
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
   if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter, Number(e.parameter.limit) || 100) };
   if (action === 'auth') return _auth(e.parameter.mode, e.parameter.id, e.parameter.password);
+  // Shared "default for everyone" table views (admin-set), stored in script props.
+  if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
+  if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
   // Writes are also accepted over GET (JSONP) so they work when the browser
   // blocks reading a cross-origin POST response.
   if (action === 'add') return _addCall(_parse(e.parameter.data), e.parameter.tab || tab);
@@ -496,6 +499,18 @@ function _pad(n, width) {
 
 function _parse(s) {
   try { return JSON.parse(s || '{}'); } catch (e) { return {}; }
+}
+
+function _getView(key) {
+  if (!key) return null;
+  var v = PropertiesService.getScriptProperties().getProperty('view_' + key);
+  return v ? _parse(v) : null;
+}
+
+function _setView(key, data) {
+  if (!key) return { ok: false, error: 'key required' };
+  PropertiesService.getScriptProperties().setProperty('view_' + key, String(data || '{}'));
+  return { ok: true };
 }
 
 function _json(obj) {

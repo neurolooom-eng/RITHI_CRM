@@ -426,6 +426,19 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     setBanner({ tone: done === pend.length ? 'ok' : 'error', text: `Synced ${done}/${pend.length} pending calls to the sheet.` });
   };
 
+  // Discard unsynced local calls (all, or one) without writing to the sheet.
+  const discardPending = () => {
+    const pend = db.list(config.collection).filter((r) => (r as Rec)._pending) as Rec[];
+    if (pend.length === 0) return;
+    if (!confirm(`Discard ${pend.length} unsynced local ${pend.length === 1 ? 'call' : 'calls'}? This cannot be undone.`)) return;
+    pend.forEach((p) => db.remove(config.collection, p.id));
+    setBanner({ tone: 'info', text: `Discarded ${pend.length} pending call${pend.length === 1 ? '' : 's'}.` });
+  };
+  const discardOne = (row: Rec) => {
+    if (!confirm(`Discard local ${String(row.ucn ?? 'call')}? This cannot be undone.`)) return;
+    db.remove(config.collection, row.id);
+  };
+
   const visibleRows = useMemo(() => {
     let r = cached;
     if (search.trim()) {
@@ -446,6 +459,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       <div className="row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'view', row })}>View</button>
         {can('edit') && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
+        {row._pending && can('edit') && (
+          <button className="btn btn-sm btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
+        )}
       </div>
     ),
   };
@@ -502,6 +518,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {pendingCount > 0 && (
               <button className="btn btn-sm btn-primary" onClick={() => void syncPending()} disabled={busy || !configured}>
                 ⇪ Sync {pendingCount} pending
+              </button>
+            )}
+            {pendingCount > 0 && (
+              <button className="btn btn-sm" onClick={discardPending} disabled={busy} title="Discard unsynced local calls">
+                🗑 Discard {pendingCount}
               </button>
             )}
             <div className="spacer" />

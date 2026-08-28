@@ -223,6 +223,31 @@ export async function authSetPassword(id: string, password: string): Promise<Aut
   return r as unknown as AuthResult;
 }
 
+// ---- Shared table views (admin "default for everyone") ---------------------
+export interface TableView {
+  order?: string[];
+  widths?: Record<string, number>;
+  hidden?: string[];
+}
+
+export async function getView(key: string): Promise<TableView | null> {
+  try {
+    const r = await getJson({ action: 'getview', key });
+    return r.ok ? ((r.view as TableView) ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setView(key: string, view: TableView): Promise<boolean> {
+  try {
+    const r = await getJson({ action: 'setview', key, data: JSON.stringify(view) });
+    return !!r.ok;
+  } catch {
+    return false;
+  }
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
