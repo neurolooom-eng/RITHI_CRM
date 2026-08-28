@@ -65,8 +65,10 @@ function _authOk(e, body) {
 
 function _dispatchGet(e) {
   var action = (e && e.parameter && e.parameter.action) || 'ping';
-  if (action === 'ping') return _ping();
-  if (action === 'list') return { ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0) };
+  var tab = e.parameter.tab || '';
+  if (action === 'ping') return _ping(tab);
+  if (action === 'tabs') return { ok: true, tabs: _tabs() };
+  if (action === 'list') return { ok: true, rows: _list(e.parameter.type, Number(e.parameter.limit) || 0, tab) };
   if (action === 'parties') return { ok: true, values: _distinctFrom(_partySheet(), PARTY_NAME_HEADER) };
   if (action === 'products') return { ok: true, values: _distinctWhere('Item Name', 'Party Name', e.parameter.party) };
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
@@ -79,8 +81,8 @@ function doPost(e) {
     var body = {};
     if (e && e.postData && e.postData.contents) body = JSON.parse(e.postData.contents);
     var action = body.action || 'add';
-    if (action === 'add') return _json(_addCall(body.call || {}));
-    if (action === 'update') return _json(_updateCall(body.ucn, body.patch || {}));
+    if (action === 'add') return _json(_addCall(body.call || {}, body.tab || ''));
+    if (action === 'update') return _json(_updateCall(body.ucn, body.patch || {}, body.tab || ''));
     return _json({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -90,14 +92,35 @@ function doPost(e) {
 // ---------------------------------------------------------------------------
 // Core operations
 // ---------------------------------------------------------------------------
-function _ping() {
-  var sheet = _registerSheet();
+function _ping(tab) {
+  var sheet = _registerSheet(tab);
   var headers = _headers(sheet);
-  return { ok: true, sheet: sheet.getName(), headers: headers, count: Math.max(0, sheet.getLastRow() - 1) };
+  return {
+    ok: true,
+    sheet: sheet.getName(),
+    headers: headers,
+    count: Math.max(0, sheet.getLastRow() - 1),
+    tabs: _tabNames(),
+  };
 }
 
-function _list(type, limit) {
-  var sheet = _registerSheet();
+// All tab names + headers + row counts (introspection, for picking the right tab).
+function _tabs() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheets = ss.getSheets();
+  var out = [];
+  for (var i = 0; i < sheets.length; i++) {
+    out.push({ name: sheets[i].getName(), rows: Math.max(0, sheets[i].getLastRow() - 1), headers: _headers(sheets[i]) });
+  }
+  return out;
+}
+
+function _tabNames() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheets().map(function (s) { return s.getName(); });
+}
+
+function _list(type, limit, tab) {
+  var sheet = _registerSheet(tab);
   var headers = _headers(sheet);
   var last = sheet.getLastRow();
   if (last < 2) return [];
@@ -115,11 +138,11 @@ function _list(type, limit) {
   return out;
 }
 
-function _addCall(call) {
+function _addCall(call, tab) {
   var lock = LockService.getScriptLock();
   lock.waitLock(20000); // serialise UCN assignment
   try {
-    var sheet = _registerSheet();
+    var sheet = _registerSheet(tab);
     var headers = _headers(sheet);
     var now = new Date();
     var callType = call[CALLTYPE_HEADER] || 'FIELD';
@@ -142,9 +165,9 @@ function _addCall(call) {
   }
 }
 
-function _updateCall(ucn, patch) {
+function _updateCall(ucn, patch, tab) {
   if (!ucn) return { ok: false, error: 'ucn required' };
-  var sheet = _registerSheet();
+  var sheet = _registerSheet(tab);
   var headers = _headers(sheet);
   var ucnIdx = headers.indexOf(UCN_HEADER);
   var last = sheet.getLastRow();
@@ -320,11 +343,16 @@ function _typeLetter(callType) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function _registerSheet() {
+function _registerSheet(tab) {
   // Standalone script: open the Call Register by ID (no active spreadsheet).
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  // If a specific tab is requested, use it.
+  if (tab) {
+    var named = ss.getSheetByName(tab);
+    if (named) return named;
+  }
   var sheets = ss.getSheets();
-  // Prefer the tab whose header row contains the UCN column.
+  // Otherwise prefer the tab whose header row contains the UCN column.
   for (var i = 0; i < sheets.length; i++) {
     var h = _headers(sheets[i]);
     if (h.indexOf(UCN_HEADER) >= 0) return sheets[i];
