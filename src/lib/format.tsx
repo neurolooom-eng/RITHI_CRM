@@ -29,6 +29,20 @@ export const fmtDateTime = (s: unknown): string => {
 };
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Relative "x ago" for cache-age messaging.
+export function timeAgo(iso: unknown): string {
+  if (!iso) return 'never';
+  const t = new Date(String(iso)).getTime();
+  if (Number.isNaN(t)) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
+}
 export const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
