@@ -91,7 +91,7 @@ async function getJson(params: Record<string, string>): Promise<Record<string, u
 }
 
 // JSONP loader — CallReg wraps its GET reply in callback(...) when ?callback= is set.
-function jsonp(url: string, timeoutMs = 30000): Promise<Record<string, unknown>> {
+function jsonp(url: string, timeoutMs = 45000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const cb = '__callreg_cb_' + Math.random().toString(36).slice(2);
     const script = document.createElement('script');
