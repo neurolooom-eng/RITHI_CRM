@@ -466,10 +466,16 @@ function _master(name, limit) {
 // travels in the request body. The browser can't read this response (opaque
 // cross-origin), so the app confirms by re-reading the report afterwards.
 // ---------------------------------------------------------------------------
+// Reports are stored in this specific Drive folder. Falls back to a named
+// folder only if the id is unreachable (permissions / wrong account).
+var REPORT_FOLDER_ID = '1-46Ud9j3mXnInzlYr_zfFGEL-xx4z2La';
 function _reportFolder() {
-  var name = 'RITHI Manual Reports';
-  var it = DriveApp.getFoldersByName(name);
-  return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  try { return DriveApp.getFolderById(REPORT_FOLDER_ID); }
+  catch (e) {
+    var name = 'RITHI Manual Reports';
+    var it = DriveApp.getFoldersByName(name);
+    return it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  }
 }
 
 function _uploadReport(body) {
