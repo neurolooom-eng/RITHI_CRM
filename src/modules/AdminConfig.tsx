@@ -16,6 +16,8 @@ const FIELDS: { key: keyof SheetConfig; label: string }[] = [
   { key: 'usermaster', label: 'User Master' },
   { key: 'crn', label: 'Call Registration Request (CRN)' },
   { key: 'sparereq', label: 'Spare Request Register (26_SpareRequest)' },
+  { key: 'consumption', label: 'Spare Consumption (v2Consumption)' },
+  { key: 'feedback', label: 'Customer Feedback (v2Feedback)' },
 ];
 
 const MASTER_DEFS: { key: string; label: string }[] = [

@@ -78,10 +78,12 @@ _Last updated: 2026-08-28_
   (`v2_OR_Req`) with the approval/dispatch chain, role-scoped. Spare parts come
   from the `spare` master (LookupValues → SPARE). **Next:** approvals
   (RM/Admin/NSM) and stores/dispatch views.
-- **Fix v2Consumption / v2Feedback targets** — they are standalone spreadsheets
-  (`1j1IHT3P…dG7o` / `1Mi-b-JY…nqXc`), not tabs of the Call Register. Report-time
-  spare-consumption/feedback saves need their internal tab names + config
-  (cfg_consumption / cfg_feedback) to land correctly. **Awaiting tab names.**
+- **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
+  (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
+  their own books; the report-time spare-consumption / feedback saves target
+  each book's primary sheet (a tab whose name contains "consumption"/"feedback",
+  else the first sheet). Links editable in Admin Config. Confirm the landing tab
+  after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
   Entry, ITEM Master, "200 All Masters").
 - Preventive Maintenance (PM) schedule/calls.

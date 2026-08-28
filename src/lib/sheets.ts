@@ -245,6 +245,8 @@ export interface SheetConfig {
   usermaster?: string;
   crn?: string;
   sparereq?: string;
+  consumption?: string;
+  feedback?: string;
 }
 export interface ConfigCheck {
   ok: boolean;

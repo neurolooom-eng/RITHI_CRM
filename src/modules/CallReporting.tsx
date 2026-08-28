@@ -16,8 +16,12 @@ import './fieldcalls.css';
 //     the rest is optional.
 // ===========================================================================
 
-const CONSUMPTION_TAB = 'v2Consumption';
-const FEEDBACK_TAB = 'v2Feedback';
+// Spare consumption / customer feedback are standalone spreadsheets (books),
+// not tabs of the Call Register. We target each book's primary sheet (empty tab).
+const CONSUMPTION_TAB = 'v2Consumption'; // display label only
+const FEEDBACK_TAB = 'v2Feedback';       // display label only
+const CONSUMPTION_BOOK = 'consumption';
+const FEEDBACK_BOOK = 'feedback';
 
 const READONLY = ['UC Number', 'Call Number', 'UID', 'Email-ID'];
 const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Report Pending'];
@@ -147,12 +151,12 @@ export function CallReportDrawer({
     if (!solved || !open) return;
     let cancelled = false;
     if (consHeaders === null) {
-      tabMeta(CONSUMPTION_TAB)
+      tabMeta('', CONSUMPTION_BOOK)
         .then((h) => { if (!cancelled) { setConsHeaders(h); setSpareDraft({ [ucnColOf(h)]: ucn }); } })
-        .catch(() => { if (!cancelled) { setConsHeaders([]); setSubNote(`“${CONSUMPTION_TAB}” / “${FEEDBACK_TAB}” tabs not found in the Call Register — spare/feedback capture is disabled until they exist (or send me their sheet link).`); } });
+        .catch(() => { if (!cancelled) { setConsHeaders([]); setSubNote(`Couldn't reach ${CONSUMPTION_TAB} / ${FEEDBACK_TAB} — check the links in Admin Config.`); } });
     }
     if (fbHeaders === null) {
-      tabMeta(FEEDBACK_TAB)
+      tabMeta('', FEEDBACK_BOOK)
         .then((h) => { if (!cancelled) { setFbHeaders(h); setFeedback((f) => ({ ...f, [ucnColOf(h)]: ucn })); } })
         .catch(() => { if (!cancelled) setFbHeaders([]); });
     }
@@ -166,7 +170,7 @@ export function CallReportDrawer({
     if (!meaningful) { setErr('Enter the spare details before adding.'); return; }
     setSpareBusy(true); setErr('');
     const payload = { ...spareDraft, [ucnColOf(consHeaders)]: ucn };
-    const res = await tabAppend(CONSUMPTION_TAB, payload);
+    const res = await tabAppend('', payload, CONSUMPTION_BOOK);
     if (res.ok) {
       setSpares((s) => [...s, payload]);
       setSpareDraft({ [ucnColOf(consHeaders)]: ucn }); // reset for the next spare
@@ -204,7 +208,7 @@ export function CallReportDrawer({
       // Customer feedback (append once, if filled) → v2Feedback.
       if (solved && fbHeaders && fbHeaders.length) {
         const filled = Object.entries(feedback).some(([k, val]) => !/uc\s*number|ucn/i.test(k) && String(val).trim() !== '');
-        if (filled) await tabAppend(FEEDBACK_TAB, { ...feedback, [ucnColOf(fbHeaders)]: ucn });
+        if (filled) await tabAppend('', { ...feedback, [ucnColOf(fbHeaders)]: ucn }, FEEDBACK_BOOK);
       }
       onSaved?.(res.mode ?? 'saved', ucn);
       onClose();

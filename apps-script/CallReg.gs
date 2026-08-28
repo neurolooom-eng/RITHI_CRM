@@ -48,6 +48,11 @@ var SPAREREQ_ID = '1ABx7lfLGH24-btRauO56btlPLFMC0BQyUsdN5ss8uDU';
 var SPAREREQ_INTAKE_TAB = 'v2_ORReq-All';
 var SPAREREQ_STATUS_TAB = 'v2_OR_Req';
 
+// Report-time captures — standalone spreadsheets (NOT tabs of the Call Register).
+// Spare consumption and customer feedback from the call report land here.
+var CONSUMPTION_ID = '1j1IHT3PL4Ott19wbmKt59JPS-Z66CYYt1PSL2JgdG7o';
+var FEEDBACK_ID = '1Mi-b-JYebEnO7wlg8kgOVSgyN7g9-44hHDpplk-nqXc';
+
 // The User Master spreadsheet — source of app logins.
 var USERMASTER_ID = '1WUoxk_4hLlK4ZLP59SHQRSAxWqmutjcCIiFsul5r-mc';
 var USER_EMAIL_HEADER = 'Email ID';   // Air Liquide login id
@@ -318,22 +323,41 @@ function _saveReport(ucn, patch) {
 // spreadsheet: '' / 'register' → the Call Register; any other value resolves to
 // a script-property cfg_<book> spreadsheet id if one has been set.
 // ---------------------------------------------------------------------------
+// Resolve a book name to a spreadsheet: a CFG_KEYS entry (register / prodmaster /
+// partymaster / usermaster / crn / sparereq / consumption / feedback), else a
+// cfg_<book> script property, else the Call Register.
+function _bookSS(book) {
+  if (book && CFG_KEYS[book]) return SpreadsheetApp.openById(_cfg(book));
+  var pid = book ? PropertiesService.getScriptProperties().getProperty('cfg_' + book) : '';
+  return pid ? SpreadsheetApp.openById(pid) : SpreadsheetApp.openById(_cfg('register'));
+}
+
 function _bookSheet(book, tab) {
-  var ss;
-  var propId = book ? PropertiesService.getScriptProperties().getProperty('cfg_' + book) : '';
-  ss = propId ? SpreadsheetApp.openById(propId) : SpreadsheetApp.openById(_cfg('register'));
-  var s = ss.getSheetByName(tab);
-  if (!s) throw new Error('Tab "' + tab + '" not found' + (propId ? '.' : ' in the Call Register.'));
-  return s;
+  var ss = _bookSS(book);
+  if (tab) {
+    var s = ss.getSheetByName(tab);
+    if (!s) throw new Error('Tab "' + tab + '" not found in the ' + (book || 'register') + ' book.');
+    return s;
+  }
+  // No tab given: prefer a sheet whose name hints at the book (e.g. a
+  // "…Consumption…"/"…Feedback…" tab), else the first sheet.
+  var sheets = ss.getSheets();
+  if (book) {
+    var hint = String(book).toLowerCase();
+    for (var i = 0; i < sheets.length; i++) {
+      if (String(sheets[i].getName()).toLowerCase().indexOf(hint) >= 0) return sheets[i];
+    }
+  }
+  return sheets[0];
 }
 
 function _tabMeta(tab, book) {
-  if (!tab) return { ok: false, error: 'tab required' };
+  if (!tab && !book) return { ok: false, error: 'tab or book required' };
   return { ok: true, headers: _headers(_bookSheet(book, tab)) };
 }
 
 function _tabAppend(tab, data, book) {
-  if (!tab) return { ok: false, error: 'tab required' };
+  if (!tab && !book) return { ok: false, error: 'tab or book required' };
   if (!data) return { ok: false, error: 'no data' };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -782,6 +806,8 @@ var CFG_KEYS = {
   usermaster: 'USERMASTER_ID',
   crn: 'CRN_ID',
   sparereq: 'SPAREREQ_ID',
+  consumption: 'CONSUMPTION_ID',
+  feedback: 'FEEDBACK_ID',
 };
 var CFG_DEFAULTS = {
   register: SPREADSHEET_ID,
@@ -790,6 +816,8 @@ var CFG_DEFAULTS = {
   usermaster: USERMASTER_ID,
   crn: CRN_ID,
   sparereq: SPAREREQ_ID,
+  consumption: CONSUMPTION_ID,
+  feedback: FEEDBACK_ID,
 };
 function _cfg(name) {
   var v = PropertiesService.getScriptProperties().getProperty('cfg_' + CFG_KEYS[name]);
