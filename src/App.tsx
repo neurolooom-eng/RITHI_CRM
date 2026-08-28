@@ -11,7 +11,6 @@ import { ProductMaster } from './modules/ProductMaster';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
-import { CallUpdation } from './modules/CallUpdation';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
@@ -52,7 +51,9 @@ function Shell() {
         <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
         <Route path="/field-calls" element={<FieldCalls />} />
         <Route path="/installations" element={<InstallationCalls />} />
-        <Route path="/call-updation" element={<CallUpdation />} />
+        {/* Call updation is not a separate view — it's call reporting, done via
+            the "Update Call" action on each Field / Installation call. */}
+        <Route path="/call-updation" element={<Navigate to="/field-calls" replace />} />
         <Route path="/request-registration" element={<RequestCallRegistration />} />
         <Route path="/pending-registrations" element={<PendingRegistrations />} />
         <Route path="/product-master" element={<ProductMaster />} />

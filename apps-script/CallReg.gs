@@ -54,6 +54,9 @@ var UCN_HEADER = 'UC Number';
 var CALLTYPE_HEADER = 'Call Type';
 var REGDATE_HEADER = 'Call Registeration Date';
 
+// Call reporting tab — engineers report / update a call here (keyed by UCN).
+var REPORT_TAB = 'Reporting-N';
+
 // ---------------------------------------------------------------------------
 // HTTP entry points
 // ---------------------------------------------------------------------------
@@ -104,6 +107,9 @@ function _dispatchGet(e) {
   // blocks reading a cross-origin POST response.
   if (action === 'add') return _addCall(_parse(e.parameter.data), e.parameter.tab || tab);
   if (action === 'update') return _updateCall(e.parameter.ucn, _parse(e.parameter.patch), e.parameter.tab || tab);
+  // Call reporting (Reporting-N tab): fetch/upsert a report by UC Number.
+  if (action === 'reportget') return _getReport(e.parameter.ucn);
+  if (action === 'report') return _saveReport(e.parameter.ucn, _parse(e.parameter.patch));
   return { ok: false, error: 'Unknown action: ' + action };
 }
 
@@ -114,6 +120,8 @@ function doPost(e) {
     var action = body.action || 'add';
     if (action === 'add') return _json(_addCall(body.call || {}, body.tab || ''));
     if (action === 'update') return _json(_updateCall(body.ucn, body.patch || {}, body.tab || ''));
+    if (action === 'reportget') return _json(_getReport(body.ucn));
+    if (action === 'report') return _json(_saveReport(body.ucn, body.patch || {}));
     return _json({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -214,6 +222,73 @@ function _updateCall(ucn, patch, tab) {
     }
   }
   return { ok: false, error: 'UCN not found: ' + ucn };
+}
+
+// ---------------------------------------------------------------------------
+// Call reporting (Reporting-N tab). A report is stored per call, keyed by UC
+// Number. reportget returns the tab headers (so the app can build the form)
+// plus the existing report row for a UCN (empty if none yet). report upserts:
+// it updates the matching row in place, or appends a new row carrying the UCN.
+// ---------------------------------------------------------------------------
+function _reportSheet() {
+  var ss = SpreadsheetApp.openById(_cfg('register'));
+  var s = ss.getSheetByName(REPORT_TAB);
+  if (!s) throw new Error('Reporting tab "' + REPORT_TAB + '" not found in the Call Register.');
+  return s;
+}
+
+function _getReport(ucn) {
+  var sheet = _reportSheet();
+  var headers = _headers(sheet);
+  var row = {};
+  var ucnIdx = headers.indexOf(UCN_HEADER);
+  var last = sheet.getLastRow();
+  if (ucn && ucnIdx >= 0 && last >= 2) {
+    var col = sheet.getRange(2, ucnIdx + 1, last - 1, 1).getValues();
+    for (var i = 0; i < col.length; i++) {
+      if (String(col[i][0]) === String(ucn)) {
+        var vals = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
+        for (var c = 0; c < headers.length; c++) row[headers[c]] = _cell(vals[c]);
+        break;
+      }
+    }
+  }
+  return { ok: true, headers: headers, row: row };
+}
+
+function _saveReport(ucn, patch) {
+  if (!ucn) return { ok: false, error: 'ucn required' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sheet = _reportSheet();
+    var headers = _headers(sheet);
+    var ucnIdx = headers.indexOf(UCN_HEADER);
+    if (ucnIdx < 0) return { ok: false, error: 'Reporting tab has no "' + UCN_HEADER + '" column.' };
+    var last = sheet.getLastRow();
+    if (last >= 2) {
+      var col = sheet.getRange(2, ucnIdx + 1, last - 1, 1).getValues();
+      for (var i = 0; i < col.length; i++) {
+        if (String(col[i][0]) === String(ucn)) {
+          var rowNum = i + 2;
+          for (var h in patch) {
+            var ci = headers.indexOf(h);
+            if (ci >= 0) sheet.getRange(rowNum, ci + 1).setValue(patch[h]);
+          }
+          return { ok: true, ucn: ucn, mode: 'updated' };
+        }
+      }
+    }
+    // No existing report for this UCN — append a new row carrying the UCN.
+    var record = {};
+    for (var k in patch) record[k] = patch[k];
+    record[UCN_HEADER] = ucn;
+    var newRow = headers.map(function (h) { return record[h] != null ? record[h] : ''; });
+    sheet.appendRow(newRow);
+    return { ok: true, ucn: ucn, mode: 'appended' };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------------------------------------------------------------------------
