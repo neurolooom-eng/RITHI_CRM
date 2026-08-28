@@ -78,28 +78,40 @@ export function SchemaForm({
   columns = 2,
   footer,
 }: FormProps) {
-  const [values, setValues] = useState<FormValues>(() => {
+  const initValues = (): FormValues => {
     const v: FormValues = {};
     fields.forEach((f) => {
       v[f.name] = initial?.[f.name] ?? defaultFor(f);
     });
     return v;
-  });
+  };
+  const [values, setValues] = useState<FormValues>(initValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
-    setValues(() => {
-      const v: FormValues = {};
-      fields.forEach((f) => {
-        v[f.name] = initial?.[f.name] ?? defaultFor(f);
-      });
-      return v;
-    });
+    setValues(initValues());
     setErrors({});
     setTouched(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
+
+  // Whether any field differs from its initial/default value.
+  const dirty = useMemo(
+    () => fields.some((f) => String(values[f.name] ?? '') !== String((initial?.[f.name] ?? defaultFor(f)) ?? '')),
+    [values, fields, initial],
+  );
+
+  const reset = () => {
+    setValues(initValues());
+    setErrors({});
+    setTouched(false);
+  };
+
+  const handleCancel = () => {
+    if (dirty && !readOnly && !confirm('Discard unsaved changes?')) return;
+    onCancel?.();
+  };
 
   const sections = useMemo(() => {
     const map = new Map<string, FieldDef[]>();
@@ -198,9 +210,14 @@ export function SchemaForm({
       <div className="sf-actions">
         {footer}
         <div className="spacer" />
+        {!readOnly && dirty && (
+          <button type="button" className="btn" onClick={reset} title="Revert edits to the saved values">
+            Reset
+          </button>
+        )}
         {onCancel && (
-          <button type="button" className="btn" onClick={onCancel}>
-            Cancel
+          <button type="button" className="btn" onClick={handleCancel}>
+            {readOnly ? 'Close' : dirty ? 'Discard changes' : 'Cancel'}
           </button>
         )}
         {!readOnly && (
