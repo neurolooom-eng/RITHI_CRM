@@ -27,6 +27,9 @@ const READONLY = ['UC Number', 'Call Number', 'UID', 'Email-ID'];
 const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Report Pending'];
 const LONG_MATCH = /job\s*done|observation|service\s*report|standard\s*complaint|pending\s*reason|remark|action\s*taken|description|comment/i;
 const CORE_SOLVED = [/job\s*done/i, /service\s*report/i, /complaint\s*observation/i];
+// Feedback columns that are free text rather than a rating question.
+const FB_TEXT = /remark|comment|name|email|phone|contact|mobile|date|time|reason|suggest|address|designation/i;
+const RATINGS_FALLBACK = ['Excellent', 'Good', 'Average', 'Poor'];
 
 const PREFILL_FROM_CALL: Record<string, string> = {
   'UC Number': 'ucn', 'Call Number': 'callNumber', 'Call Type': 'callType',
@@ -51,6 +54,7 @@ export function CallReportDrawer({
 }) {
   const ucn = String(call?.ucn ?? '');
   const pendingReasons = useMaster('pendingreason'); // Call Pending Reason master
+  const ratings = useMaster('feedbackrating', RATINGS_FALLBACK); // Excellent/Good/Average/Poor
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -351,12 +355,23 @@ export function CallReportDrawer({
             <section className="rep-sec">
               <div className="rep-sec-title">Customer feedback * <span className="muted">→ {FEEDBACK_TAB} · required for a solved call</span></div>
               <div className="rep-grid">
-                {fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h)).map((h) => (
-                  <label className="rep-field" key={h}>
-                    <span className="field-label">{h}</span>
-                    <input className="input" value={feedback[h] ?? ''} onChange={(e) => setFeedback((f) => ({ ...f, [h]: e.target.value }))} />
-                  </label>
-                ))}
+                {fbHeaders.filter((h) => !/uc\s*number|ucn/i.test(h) && !/call\s*type/i.test(h)).map((h) => {
+                  const freeText = FB_TEXT.test(h);
+                  return (
+                    <label className="rep-field" key={h}>
+                      <span className="field-label">{h}</span>
+                      {freeText ? (
+                        <input className="input" value={feedback[h] ?? ''} onChange={(e) => setFeedback((f) => ({ ...f, [h]: e.target.value }))} />
+                      ) : (
+                        <select className="select" value={feedback[h] ?? ''} onChange={(e) => setFeedback((f) => ({ ...f, [h]: e.target.value }))}>
+                          <option value="">— rate —</option>
+                          {ratings.values.map((v) => <option key={v} value={v}>{v}</option>)}
+                          {feedback[h] && !ratings.values.includes(feedback[h]) && <option value={feedback[h]}>{feedback[h]}</option>}
+                        </select>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             </section>
           )}
