@@ -189,8 +189,12 @@ function _list(type, limit, tab, book) {
   var headers = _headers(sheet);
   var last = sheet.getLastRow();
   if (last < 2) return [];
-  var values = sheet.getRange(2, 1, last - 1, headers.length).getValues();
   var typeIdx = headers.indexOf(CALLTYPE_HEADER);
+  // Without a type filter, read only the newest `limit` rows instead of the
+  // whole tab — keeps reads fast when a register holds thousands of rows.
+  var startRow = 2, numRows = last - 1;
+  if (!type && limit && numRows > limit) { numRows = limit; startRow = last - limit + 1; }
+  var values = sheet.getRange(startRow, 1, numRows, headers.length).getValues();
   var out = [];
   for (var i = values.length - 1; i >= 0; i--) {
     var r = values[i];
