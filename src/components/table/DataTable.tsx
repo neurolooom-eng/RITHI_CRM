@@ -389,9 +389,71 @@ export function DataTable<T>({
   const maxBodyHeight = rowsBeforeScroll > 0 ? rowsBeforeScroll * rowH + 2 : undefined;
   const totalWidth = visibleCols.reduce((s, c) => s + (widths[c.key] ?? 160), 0);
 
+  // Filters control (rendered at the top, above the table). Panel opens downward.
+  const filtersControl = persistKey ? (
+    <div className="dt-cols">
+      <button className="btn btn-ghost btn-sm" onClick={() => { setFilterPanel((o) => !o); setColPanel(false); }} title="Filter rows by any field">
+        ⚑ Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
+      </button>
+      {filterPanel && (
+        <>
+          <div className="dt-cols-backdrop" onClick={() => setFilterPanel(false)} />
+          <div className="dt-cols-panel dt-filter-panel dt-panel-down">
+            <div className="dt-cols-head">Filters</div>
+            <div className="dt-filter-list">
+              {filters.length === 0 && <div className="muted" style={{ padding: '2px 4px 8px' }}>No filters. Add one below.</div>}
+              {filters.map((f, i) => {
+                const meta = fieldMeta[f.key];
+                return (
+                  <div className="dt-filter-row" key={i}>
+                    <select className="select" value={f.key} onChange={(e) => { const key = e.target.value; const ops = opsFor(key); saveFilters(filters.map((x, j) => j === i ? { ...x, key, op: ops[0][0] } : x)); }}>
+                      {orderedCols.filter((c) => !c.key.startsWith('_')).map((c) => <option key={c.key} value={c.key}>{c.header || c.key}</option>)}
+                    </select>
+                    <select className="select" value={f.op} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, op: e.target.value } : x))}>
+                      {opsFor(f.key).map(([op, lbl]) => <option key={op} value={op}>{lbl}</option>)}
+                    </select>
+                    {meta?.type === 'enum' ? (
+                      <select className="select" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}>
+                        <option value="">—</option>
+                        {meta.values?.map((v) => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    ) : f.op === 'between' ? (
+                      <span className="dt-filter-between">
+                        <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                        <input className="input" value={f.value2 ?? ''} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value2: e.target.value } : x))} />
+                      </span>
+                    ) : (
+                      <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
+                    )}
+                    <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => saveFilters(filters.filter((_, j) => j !== i))}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="dt-cols-actions">
+              <button className="btn btn-sm" onClick={() => { const k = orderedCols.find((c) => !c.key.startsWith('_'))?.key ?? ''; saveFilters([...filters, { key: k, op: opsFor(k)[0][0], value: '' }]); }}>+ Add filter</button>
+              <div className="spacer" />
+              {filters.length > 0 && <button className="btn btn-sm" onClick={() => saveFilters([])}>Clear all</button>}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="dt-wrap">
-      {toolbar && <div className="dt-toolbar">{toolbar}</div>}
+      {(toolbar || filtersControl) && (
+        <div className="dt-toolbar">
+          {toolbar}
+          {filtersControl && (
+            <>
+              <div className="spacer" />
+              {filtersControl}
+            </>
+          )}
+        </div>
+      )}
       <div
         className="dt-scroll"
         style={{
@@ -484,56 +546,6 @@ export function DataTable<T>({
         <span className="muted">{sortedRows.length} row{sortedRows.length === 1 ? '' : 's'}</span>
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />
-        {persistKey && (
-          <div className="dt-cols">
-            <button className="btn btn-ghost btn-sm" onClick={() => { setFilterPanel((o) => !o); setColPanel(false); }} title="Filter rows by any field">
-              ⚑ Filters{activeFilters.length ? ` (${activeFilters.length})` : ''}
-            </button>
-            {filterPanel && (
-              <>
-                <div className="dt-cols-backdrop" onClick={() => setFilterPanel(false)} />
-                <div className="dt-cols-panel dt-filter-panel">
-                  <div className="dt-cols-head">Filters</div>
-                  <div className="dt-filter-list">
-                    {filters.length === 0 && <div className="muted" style={{ padding: '2px 4px 8px' }}>No filters. Add one below.</div>}
-                    {filters.map((f, i) => {
-                      const meta = fieldMeta[f.key];
-                      return (
-                        <div className="dt-filter-row" key={i}>
-                          <select className="select" value={f.key} onChange={(e) => { const key = e.target.value; const ops = opsFor(key); saveFilters(filters.map((x, j) => j === i ? { ...x, key, op: ops[0][0] } : x)); }}>
-                            {orderedCols.filter((c) => !c.key.startsWith('_')).map((c) => <option key={c.key} value={c.key}>{c.header || c.key}</option>)}
-                          </select>
-                          <select className="select" value={f.op} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, op: e.target.value } : x))}>
-                            {opsFor(f.key).map(([op, lbl]) => <option key={op} value={op}>{lbl}</option>)}
-                          </select>
-                          {meta?.type === 'enum' ? (
-                            <select className="select" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}>
-                              <option value="">—</option>
-                              {meta.values?.map((v) => <option key={v} value={v}>{v}</option>)}
-                            </select>
-                          ) : f.op === 'between' ? (
-                            <span className="dt-filter-between">
-                              <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
-                              <input className="input" value={f.value2 ?? ''} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value2: e.target.value } : x))} />
-                            </span>
-                          ) : (
-                            <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
-                          )}
-                          <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => saveFilters(filters.filter((_, j) => j !== i))}>✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="dt-cols-actions">
-                    <button className="btn btn-sm" onClick={() => { const k = orderedCols.find((c) => !c.key.startsWith('_'))?.key ?? ''; saveFilters([...filters, { key: k, op: opsFor(k)[0][0], value: '' }]); }}>+ Add filter</button>
-                    <div className="spacer" />
-                    {filters.length > 0 && <button className="btn btn-sm" onClick={() => saveFilters([])}>Clear all</button>}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
         {persistKey && (
           <div className="dt-cols">
             <button className="btn btn-ghost btn-sm" onClick={() => { setColPanel((o) => !o); setViewMsg(''); }} title="Show / hide & reorder columns">
