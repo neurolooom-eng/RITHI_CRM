@@ -312,6 +312,23 @@ export async function setView(key: string, view: TableView): Promise<boolean> {
   }
 }
 
+// Read a tab's rows as raw header-keyed objects (schema-agnostic; used by Call
+// Updation over the Reporting-N tab and any other tab).
+export async function listTabRows(tab: string, limit = 300, type = ''): Promise<Record<string, unknown>[]> {
+  const params: Record<string, string> = { action: 'list', tab };
+  if (type) params.type = type;
+  if (limit) params.limit = String(limit);
+  const r = await getJson(params);
+  if (!r.ok) throw new Error(String(r.error ?? 'list failed'));
+  return (r.rows as Record<string, unknown>[]) ?? [];
+}
+
+// Update a row in a tab by UC Number; `patch` is already header-keyed (raw).
+export async function updateTabRow(ucn: string, patch: Record<string, unknown>, tab: string): Promise<boolean> {
+  const r = await getJson({ action: 'update', ucn, patch: JSON.stringify(patch), tab });
+  return !!r.ok;
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
