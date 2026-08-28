@@ -72,7 +72,7 @@ returns boolean language sql stable security definer set search_path = public as
   select public.is_admin()
       or coalesce(allottee,'') = ''
       or lower(trim(allottee)) in (
-           select lower(trim(n)) from public.visible_engineer_names()
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
          );
 $$;
 
@@ -334,7 +334,9 @@ alter table public.spare_consumption     enable row level security;
 alter table public.feedback              enable row level security;
 
 -- profiles: a user sees their own row; admins see/manage all.
+drop policy if exists profiles_self_read on public.profiles;
 create policy profiles_self_read on public.profiles for select using (id = auth.uid() or public.is_admin());
+drop policy if exists profiles_admin_write on public.profiles;
 create policy profiles_admin_write on public.profiles for all using (public.is_admin()) with check (public.is_admin());
 
 -- Masters & catalog: any authenticated user reads; admins write.
@@ -342,47 +344,65 @@ do $$
 declare t text;
 begin
   foreach t in array array['parties','products','parts','masters'] loop
+    execute format('drop policy if exists %1$s_read on public.%1$s;', t);
     execute format('create policy %1$s_read on public.%1$s for select using (auth.role() = ''authenticated'');', t);
+    execute format('drop policy if exists %1$s_admin_write on public.%1$s;', t);
     execute format('create policy %1$s_admin_write on public.%1$s for all using (public.is_admin()) with check (public.is_admin());', t);
   end loop;
 end $$;
 
 -- calls: scoped read; engineers/admins can insert/update within their scope.
+drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls
   for select using (public.can_see_call(allocated_to));
+drop policy if exists calls_insert on public.calls;
 create policy calls_insert on public.calls
   for insert with check (auth.role() = 'authenticated');
+drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls
   for update using (public.can_see_call(allocated_to)) with check (public.can_see_call(allocated_to));
 
 -- pending registrations: creator or scope by engineer; any auth can insert.
+drop policy if exists pend_read on public.pending_registrations;
 create policy pend_read on public.pending_registrations
   for select using (public.is_admin() or created_by = auth.uid()
-    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names()));
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists pend_insert on public.pending_registrations;
 create policy pend_insert on public.pending_registrations for insert with check (auth.role() = 'authenticated');
+drop policy if exists pend_update on public.pending_registrations;
 create policy pend_update on public.pending_registrations for update using (auth.role() = 'authenticated');
 
 -- reports / consumption / feedback: readable when the parent call is visible;
 -- any authenticated engineer may add their own.
+drop policy if exists reports_read on public.reports;
 create policy reports_read on public.reports for select
   using (public.is_admin() or exists (select 1 from public.calls c where c.ucn = reports.ucn and public.can_see_call(c.allocated_to)));
+drop policy if exists reports_write on public.reports;
 create policy reports_write on public.reports for all
   using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
+drop policy if exists cons_read on public.spare_consumption;
 create policy cons_read on public.spare_consumption for select using (auth.role() = 'authenticated');
+drop policy if exists cons_write on public.spare_consumption;
 create policy cons_write on public.spare_consumption for insert with check (auth.role() = 'authenticated');
 
+drop policy if exists fb_read on public.feedback;
 create policy fb_read on public.feedback for select using (auth.role() = 'authenticated');
+drop policy if exists fb_write on public.feedback;
 create policy fb_write on public.feedback for insert with check (auth.role() = 'authenticated');
 
 -- spare requests: creator/engineer scope reads; any auth inserts; managers approve.
+drop policy if exists sr_read on public.spare_requests;
 create policy sr_read on public.spare_requests for select
   using (public.is_admin() or created_by = auth.uid() or lower(engineer_email) = lower(auth.email())
-    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names()));
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists sr_insert on public.spare_requests;
 create policy sr_insert on public.spare_requests for insert with check (auth.role() = 'authenticated');
+drop policy if exists srl_read on public.spare_request_lines;
 create policy srl_read on public.spare_request_lines for select
   using (public.is_admin() or exists (select 1 from public.spare_requests r where r.uid = spare_request_lines.request_uid
     and (r.created_by = auth.uid() or lower(r.engineer_email) = lower(auth.email())
-      or lower(trim(r.engineer)) in (select lower(trim(n)) from public.visible_engineer_names()))));
+      or lower(trim(r.engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)))));
+drop policy if exists srl_write on public.spare_request_lines;
 create policy srl_write on public.spare_request_lines for all
   using (public.is_admin()) with check (public.is_admin());
