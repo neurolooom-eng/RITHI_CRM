@@ -5,6 +5,7 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured, updateTabRow } from '../lib/sheets';
 import { useAuth } from '../lib/auth';
+import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -21,11 +22,14 @@ const PREFERRED = [
 ];
 const LONG = ['Job Done', 'Complaint Observation', 'Service Report', 'Standard Complaint', 'CALL PENDING REASON'];
 const READONLY = ['UC Number', 'Call Number', 'UID', 'Email-ID'];
+// Columns that may hold the engineer a call is allotted to (for role scoping).
+const ALLOTTEE_COLS = ['Visiting Service Engineer', 'Call Allocated To', 'Call Allotted To', 'Service Engineer', 'Allocated To', 'Engineer'];
 
 type Row = Record<string, unknown> & { id: string };
 
 export function CallUpdation() {
   const { can } = useAuth();
+  const scope = useAccessScope();
   const [rows, setRows] = useState<Row[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -111,9 +115,19 @@ export function CallUpdation() {
     }
   };
 
+  // Which column holds the allotted engineer on this tab (if any).
+  const allotteeCol = useMemo(() => ALLOTTEE_COLS.find((c) => headerKeys.includes(c)), [headerKeys]);
+
+  // Role-based visibility: engineers see only their calls; RMs see their team;
+  // admins see all. Falls back to showing all if the tab has no engineer column.
+  const scoped = useMemo(() => {
+    if (scope.all || !allotteeCol) return rows;
+    return rows.filter((r) => allowsAllottee(scope, r[allotteeCol]));
+  }, [rows, scope, allotteeCol]);
+
   const visible = search.trim()
-    ? rows.filter((r) => headerKeys.some((k) => String(r[k] ?? '').toLowerCase().includes(search.toLowerCase())))
-    : rows;
+    ? scoped.filter((r) => headerKeys.some((k) => String(r[k] ?? '').toLowerCase().includes(search.toLowerCase())))
+    : scoped;
 
   return (
     <div>
@@ -141,6 +155,12 @@ export function CallUpdation() {
             <SearchBox value={search} onChange={setSearch} placeholder="Search UCN, call number, engineer…" />
             <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
+            <span
+              className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}
+              title={scope.all ? 'You can view all calls' : scope.isManager ? `Your team: ${scope.reports.join(', ')}` : 'You see only calls allotted to you'}
+            >
+              {scopeLabel(scope)}
+            </span>
             {lastSync && <span className="conn-dot conn-off">⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('reporting-n.csv', headerKeys.map((k) => ({ key: k, header: k })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>

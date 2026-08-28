@@ -31,6 +31,9 @@ export interface User extends BaseRecord {
   authSource?: 'local' | 'sheet'; // 'sheet' users authenticate via the User Master
   region?: string;
   activated?: boolean; // has the user set a password / logged in at least once
+  designation?: string; // from the User Master (e.g. Engineer, Regional Manager)
+  reportingManager?: string; // RM — the name this user reports to
+  regionalManager?: string; // RGM — the regional (general) manager
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -168,6 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activated: true, // they've just authenticated
       authSource: 'sheet',
       region: su.region,
+      designation: su.designation,
+      reportingManager: su.rm,
+      regionalManager: su.rgm,
     };
     if (existing) {
       db.update(USERS, existing.id, patch);
@@ -195,6 +201,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         active: String(u['Validity'] ?? '').toUpperCase() === 'TRUE',
         authSource: 'sheet',
         region: String(u['REGION'] ?? ''),
+        designation: String(u['Designation'] ?? ''),
+        reportingManager: String(u['RM'] ?? ''),
+        regionalManager: String(u['RGM'] ?? ''),
       };
       if (existing) db.update(USERS, existing.id, patch);
       else { db.insert(USERS, { ...patch, passwordHash: '', activated: false }); added++; }
