@@ -128,12 +128,14 @@ export function FieldCalls() {
   const [search, setSearch] = useState('');
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loadLimit, setLoadLimit] = useState(300);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
 
   // Pull the register from the sheet on first mount (and on manual refresh).
-  const refresh = async () => {
+  // Capped to the most recent `limit` FIELD calls — the sheet holds thousands.
+  const refresh = async (limit = loadLimit) => {
     if (!configured) {
       setBanner({ tone: 'info', text: 'Not connected to a Google Sheet. Add the Web App URL in Settings → Google Sheet Connection to load & publish calls. New calls are saved locally until then.' });
       return;
@@ -141,15 +143,21 @@ export function FieldCalls() {
     setBusy(true);
     setBanner({ tone: 'info', text: 'Loading field calls from the Google Sheet…' });
     try {
-      const rows = await listFieldCalls('FIELD');
+      const rows = await listFieldCalls('FIELD', limit);
       // Replace the synced cache; keep locally-pending rows.
       db.list(C.fieldCalls)
         .filter((r) => (r as Rec)._synced)
         .forEach((r) => db.remove(C.fieldCalls, r.id));
-      rows.forEach((r) =>
-        db.insert(C.fieldCalls, { ...r, id: String(r.ucn || genId()), _synced: true }),
-      );
-      setBanner({ tone: 'ok', text: `Connected — ${rows.length} field calls loaded from the sheet.` });
+      // Insert oldest-first so the newest sit on top after the reverse in
+      // visibleRows, and freshly-added calls also appear at the top.
+      [...rows]
+        .reverse()
+        .forEach((r) => db.insert(C.fieldCalls, { ...r, id: String(r.ucn || genId()), _synced: true }));
+      const capped = rows.length >= limit;
+      setBanner({
+        tone: 'ok',
+        text: `Loaded ${rows.length} field calls${capped ? ` (most recent ${limit} — sheet has more; use “Load more”)` : ''}.`,
+      });
     } catch (e) {
       setBanner({ tone: 'error', text: `Could not reach the sheet: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -308,6 +316,16 @@ export function FieldCalls() {
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>
+            {configured && cached.filter((r) => r._synced).length >= loadLimit && (
+              <button
+                className="btn btn-sm"
+                onClick={() => { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); }}
+                disabled={busy}
+                title="Load older field calls"
+              >
+                ↓ Load more
+              </button>
+            )}
             {pendingCount > 0 && (
               <button className="btn btn-sm btn-primary" onClick={() => void syncPending()} disabled={busy || !configured}>
                 ⇪ Sync {pendingCount} pending
