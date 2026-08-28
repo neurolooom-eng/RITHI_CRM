@@ -397,6 +397,8 @@ function _masters() {
   if (!reg.cancelreason) reg.cancelreason = { id: ALLM, col: 'Call Cancel Reason Name' };
   // Spare parts list (CODE|DESCRIPTION) from the Spare Request book's LookupValues.
   if (!reg.spare) reg.spare = { book: 'sparereq', tab: 'LookupValues', col: 'SPARE' };
+  // Customer feedback rating scale (Excellent / Good / Average / Poor).
+  if (!reg.feedbackrating) reg.feedbackrating = { id: ALLM, tab: 'Feedback', col: 'Feedback' };
   return reg;
 }
 
