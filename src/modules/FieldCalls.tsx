@@ -628,6 +628,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             )}
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
+              sectionOrderKey="callform"
               fields={drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS}
               initial={drawer.mode === 'create' ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) } : (drawer.row as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}

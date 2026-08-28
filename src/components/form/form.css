@@ -80,3 +80,8 @@
     grid-column: span 1 / span 1 !important;
   }
 }
+
+/* Section reorder controls */
+.sf-section-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sf-section-move { display: inline-flex; gap: 2px; opacity: 0.5; }
+.sf-section-move:hover { opacity: 1; }

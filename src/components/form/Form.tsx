@@ -56,6 +56,8 @@ interface FormProps {
   readOnly?: boolean;
   columns?: 1 | 2 | 3;
   footer?: ReactNode;
+  // When set, users can reorder the form's sections and the order persists.
+  sectionOrderKey?: string;
 }
 
 const resolveOptions = (f: FieldDef): FieldOption[] =>
@@ -77,6 +79,7 @@ export function SchemaForm({
   readOnly = false,
   columns = 2,
   footer,
+  sectionOrderKey,
 }: FormProps) {
   const initValues = (): FormValues => {
     const v: FormValues = {};
@@ -122,6 +125,29 @@ export function SchemaForm({
     });
     return [...map.entries()];
   }, [fields]);
+
+  // Optional user-defined section order (persisted).
+  const storeKey = sectionOrderKey ? `rithi.formSections.${sectionOrderKey}` : null;
+  const [sectionOrder, setSectionOrder] = useState<string[]>(() => {
+    try { return storeKey ? JSON.parse(localStorage.getItem(storeKey) || '[]') : []; } catch { return []; }
+  });
+  const orderedSections = useMemo(() => {
+    if (!storeKey) return sections;
+    const byKey = new Map(sections);
+    const ordered = sectionOrder.filter((k) => byKey.has(k)).map((k) => [k, byKey.get(k)!] as [string, FieldDef[]]);
+    const rest = sections.filter(([k]) => !sectionOrder.includes(k));
+    return [...ordered, ...rest];
+  }, [sections, sectionOrder, storeKey]);
+  const moveSection = (key: string, dir: -1 | 1) => {
+    const cur = orderedSections.map(([k]) => k);
+    const i = cur.indexOf(key);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= cur.length) return;
+    const next = [...cur];
+    next.splice(j, 0, next.splice(i, 1)[0]);
+    setSectionOrder(next);
+    if (storeKey) { try { localStorage.setItem(storeKey, JSON.stringify(next)); } catch { /* ignore */ } }
+  };
 
   const setValue = (name: string, value: unknown) => {
     setValues((v) => ({ ...v, [name]: value }));
@@ -172,9 +198,19 @@ export function SchemaForm({
 
   return (
     <form className="sf" onSubmit={submit}>
-      {sections.map(([section, secFields]) => (
+      {orderedSections.map(([section, secFields], si) => (
         <div className="sf-section" key={section || '_'}>
-          {section && <div className="sf-section-title">{section}</div>}
+          {section && (
+            <div className="sf-section-title">
+              <span>{section}</span>
+              {storeKey && orderedSections.length > 1 && (
+                <span className="sf-section-move">
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={si === 0} title="Move section up" onClick={() => moveSection(section, -1)}>↑</button>
+                  <button type="button" className="btn btn-ghost btn-sm" disabled={si === orderedSections.length - 1} title="Move section down" onClick={() => moveSection(section, 1)}>↓</button>
+                </span>
+              )}
+            </div>
+          )}
           <div className="sf-grid" style={gridStyle}>
             {secFields.map((f) => {
               const span = Math.min(f.span ?? 1, columns);
