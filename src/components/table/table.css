@@ -180,3 +180,12 @@
 .dt-cols-move { display: flex; gap: 2px; flex-shrink: 0; }
 .dt-cols-actions { display: flex; align-items: center; gap: 6px; padding: 8px 6px 4px; border-top: 1px solid var(--border); margin-top: 6px; }
 .dt-cols-note { font-size: 11px; padding: 2px 6px 4px; }
+
+/* Filters panel */
+.dt-filter-panel { width: 340px; }
+.dt-filter-list { display: flex; flex-direction: column; gap: 6px; }
+.dt-filter-row { display: flex; align-items: center; gap: 4px; }
+.dt-filter-row .select { flex: 0 0 auto; max-width: 110px; font-size: 12px; padding: 3px 4px; }
+.dt-filter-row .input { flex: 1; min-width: 50px; font-size: 12px; padding: 3px 6px; }
+.dt-filter-between { display: flex; gap: 4px; flex: 1; }
+.dt-filter-between .input { width: 50%; }
