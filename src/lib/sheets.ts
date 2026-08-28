@@ -329,6 +329,32 @@ export async function updateTabRow(ucn: string, patch: Record<string, unknown>, 
   return !!r.ok;
 }
 
+// ---- Call reporting (Reporting-N tab) -------------------------------------
+export interface CallReport {
+  headers: string[]; // Reporting-N column headers (to build the form)
+  row: Record<string, unknown>; // existing report for this UCN ({} if none yet)
+}
+
+// Fetch the Reporting-N schema + the existing report row for a UCN.
+export async function getReport(ucn: string): Promise<CallReport> {
+  const r = await getJson({ action: 'reportget', ucn });
+  if (!r.ok) throw new Error(String(r.error ?? 'reportget failed'));
+  return { headers: (r.headers as string[]) ?? [], row: (r.row as Record<string, unknown>) ?? {} };
+}
+
+// Upsert a call report into Reporting-N by UC Number (update in place, else
+// append). Falls back to the raw tab update on older deployments that don't yet
+// expose the 'report' action.
+export async function saveReport(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; mode?: string; error?: string }> {
+  const r = await getJson({ action: 'report', ucn, patch: JSON.stringify(patch) });
+  if (r.ok) return { ok: true, mode: String(r.mode ?? '') };
+  if (String(r.error ?? '').toLowerCase().includes('unknown action')) {
+    const ok = await updateTabRow(ucn, patch, 'Reporting-N');
+    return ok ? { ok: true, mode: 'updated' } : { ok: false, error: 'Update failed — the call may not have a Reporting-N row yet (redeploy CallReg to enable appends).' };
+  }
+  return { ok: false, error: String(r.error ?? 'report failed') };
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
