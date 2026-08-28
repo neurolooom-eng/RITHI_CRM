@@ -16,6 +16,7 @@ import { KpiAnalytics } from './modules/KpiAnalytics';
 import { UsersAdmin } from './modules/UsersAdmin';
 import { Settings } from './modules/Settings';
 import { VersionHistory } from './modules/VersionHistory';
+import { AdminConfig } from './modules/AdminConfig';
 import {
   partyConfig,
   productConfig,
@@ -61,6 +62,7 @@ function Shell() {
         <Route path="/users" element={<UsersAdmin />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/version-history" element={<VersionHistory />} />
+        <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

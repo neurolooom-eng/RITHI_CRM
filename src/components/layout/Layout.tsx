@@ -67,6 +67,7 @@ export const NAV: NavGroup[] = [
     title: 'Administration',
     items: [
       { to: '/users', label: 'User Access', icon: '👥', adminOnly: true },
+      { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️' },
       { to: '/version-history', label: 'Version History', icon: '🗂️' },
     ],
