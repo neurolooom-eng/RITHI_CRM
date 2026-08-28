@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
+import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
@@ -294,6 +295,7 @@ export function InstallationCalls() {
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
   const { user, can } = useAuth();
+  const scope = useAccessScope();
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
@@ -495,7 +497,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const visibleRows = useMemo(() => {
     const has = (val: unknown, needle: string) => !needle.trim() || String(val ?? '').toLowerCase().includes(needle.trim().toLowerCase());
     const q = srch.q.trim().toLowerCase();
+    // Role-based visibility: engineers see only calls allotted to them; RMs see
+    // their reporting sub-tree; admins see all. A user's own unsynced local
+    // calls always stay visible so they can finish/sync them.
+    const scopeOk = (row: Rec) =>
+      scope.all || allowsAllottee(scope, row.allocatedTo) || (row._pending === true && row.ownerId === user?.id);
     const r = cached.filter((row) =>
+      scopeOk(row) &&
       has(row.ucn, srch.ucn) &&
       has(row.productName, srch.productName) &&
       has(row.serial, srch.serial) &&
@@ -506,7 +514,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, srch]);
+  }, [cached, srch, scope, user?.id]);
 
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 150, sortable: false, wrap: false,
@@ -588,6 +596,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               </button>
             )}
             <div className="spacer" />
+            <span
+              className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}
+              title={scope.all ? 'You can view all calls' : scope.isManager ? `Your team: ${scope.reports.join(', ')}` : 'You see only calls allotted to you'}
+            >
+              {scopeLabel(scope)}
+            </span>
             {configured && lastSync && <span className="conn-dot conn-off" title="Last synced from the sheet">⟳ {timeAgo(lastSync)}</span>}
             <span className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`} title={configured ? 'Connected to Google Sheet' : 'Not connected'}>
               {configured ? '● Sheet connected' : '○ Not connected'}
