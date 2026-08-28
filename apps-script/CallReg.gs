@@ -113,6 +113,11 @@ function _dispatchGet(e) {
   // Generic tab helpers (spare consumption -> v2Consumption, feedback -> v2Feedback).
   if (action === 'tabmeta') return _tabMeta(e.parameter.tab, e.parameter.book);
   if (action === 'tabappend') return _tabAppend(e.parameter.tab, _parse(e.parameter.data), e.parameter.book);
+  // Master lists (Party / Product / Standard Complaint / Call Type ...): the
+  // distinct values of a configured master column, for form dropdowns.
+  if (action === 'master') return _master(e.parameter.name, Number(e.parameter.limit) || 0);
+  if (action === 'masters') return { ok: true, registry: _masters() };
+  if (action === 'setmasters') return _setMasters(_parse(e.parameter.data));
   return { ok: false, error: 'Unknown action: ' + action };
 }
 
@@ -128,6 +133,9 @@ function doPost(e) {
     if (action === 'tabmeta') return _json(_tabMeta(body.tab, body.book));
     if (action === 'tabappend') return _json(_tabAppend(body.tab, body.data || {}, body.book));
     if (action === 'upload') return _json(_uploadReport(body));
+    if (action === 'master') return _json(_master(body.name, Number(body.limit) || 0));
+    if (action === 'masters') return _json({ ok: true, registry: _masters() });
+    if (action === 'setmasters') return _json(_setMasters(body.data || {}));
     return _json({ ok: false, error: 'Unknown action: ' + action });
   } catch (err) {
     return _json({ ok: false, error: String(err) });
@@ -331,6 +339,61 @@ function _tabAppend(tab, data, book) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Master value lists — the distinct values of a configured column, used to fill
+// form dropdowns (Party, Product, Standard Complaint, Call Type, ...). The
+// registry lives in a single script property `cfg_MASTERS` (JSON) so masters
+// can be pointed at any sheet/tab/column from Admin Config without a redeploy:
+//   { "complaint": { "id":"<sheetId>", "tab":"...", "col":"Standard Complaint" },
+//     "calltype":  { "id":"<sheetId>", "tab":"...", "col":"Call Type" } }
+// Each entry may use `id` (explicit spreadsheet id) or `book` (a cfg key such as
+// partymaster / prodmaster / register). Party & Product work by default.
+// ---------------------------------------------------------------------------
+function _masters() {
+  var raw = PropertiesService.getScriptProperties().getProperty('cfg_MASTERS');
+  var reg = {};
+  try { reg = raw ? JSON.parse(raw) : {}; } catch (e) { reg = {}; }
+  if (!reg.party) reg.party = { book: 'partymaster', col: PARTY_NAME_HEADER };
+  if (!reg.product) reg.product = { book: 'prodmaster', col: 'Item Name' };
+  return reg;
+}
+
+function _setMasters(data) {
+  // Merge the provided entries into the registry (empty/absent entries kept).
+  var reg = _masters();
+  for (var k in data) { if (data[k]) reg[k] = data[k]; }
+  PropertiesService.getScriptProperties().setProperty('cfg_MASTERS', JSON.stringify(reg));
+  return { ok: true, registry: reg };
+}
+
+function _masterSS(m) {
+  if (m.id) return SpreadsheetApp.openById(m.id);
+  if (m.book) {
+    if (CFG_KEYS[m.book]) return SpreadsheetApp.openById(_cfg(m.book));
+    var pid = PropertiesService.getScriptProperties().getProperty('cfg_' + m.book);
+    if (pid) return SpreadsheetApp.openById(pid);
+  }
+  return SpreadsheetApp.openById(_cfg('register'));
+}
+
+function _master(name, limit) {
+  if (!name) return { ok: false, error: 'name required' };
+  var m = _masters()[name];
+  if (!m || !m.col) return { ok: false, error: 'Master not configured: ' + name };
+  var ss = _masterSS(m);
+  var sheet = m.tab ? ss.getSheetByName(m.tab) : null;
+  if (m.tab && !sheet) return { ok: false, error: 'Tab "' + m.tab + '" not found for master ' + name };
+  if (!sheet) {
+    // No tab given: pick the first sheet that has the column.
+    var all = ss.getSheets();
+    for (var i = 0; i < all.length; i++) { if (_headers(all[i]).indexOf(m.col) >= 0) { sheet = all[i]; break; } }
+    if (!sheet) sheet = ss.getActiveSheet();
+  }
+  var values = _distinctFrom(sheet, m.col);
+  if (limit && values.length > limit) values = values.slice(0, limit);
+  return { ok: true, values: values, col: m.col };
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import { ProductLookup } from './FieldCalls';
 import { addCrnRequest, sheetsConfigured } from '../lib/sheets';
 import { productToCallPrefill, toSheetDate } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
+import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -33,6 +34,13 @@ const FIELDS: FieldDef[] = [
 
 export function RequestCallRegistration() {
   const { user } = useAuth();
+  // Call Type + Party sourced from the live masters (fallback to defaults).
+  const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
+  const partyMaster = useMaster('party');
+  const fields: FieldDef[] = FIELDS.map((f) =>
+    f.name === 'callType' ? { ...f, options: OPT(callTypeMaster.values) }
+      : f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
+        : f);
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -93,7 +101,7 @@ export function RequestCallRegistration() {
         )}
         <SchemaForm
           key={`req-${prefillKey}`}
-          fields={FIELDS}
+          fields={fields}
           initial={prefill}
           submitLabel={busy ? 'Submitting…' : 'Submit Request'}
           onSubmit={submit}

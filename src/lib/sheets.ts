@@ -376,6 +376,24 @@ export async function tabAppend(tab: string, data: Record<string, unknown>, book
   return r.ok ? { ok: true } : { ok: false, error: String(r.error ?? 'append failed') };
 }
 
+// ---- Master value lists (Party / Product / Standard Complaint / Call Type) --
+// Distinct values of a configured master column, for form dropdowns.
+export async function listMaster(name: string, limit = 3000): Promise<string[]> {
+  const r = await getJson({ action: 'master', name, limit: String(limit) });
+  if (!r.ok) throw new Error(String(r.error ?? 'master failed'));
+  return (r.values as string[]) ?? [];
+}
+
+export interface MasterEntry { id?: string; book?: string; tab?: string; col?: string }
+export async function getMasters(): Promise<Record<string, MasterEntry>> {
+  const r = await getJson({ action: 'masters' });
+  return r.ok ? ((r.registry as Record<string, MasterEntry>) ?? {}) : {};
+}
+export async function setMasters(data: Record<string, MasterEntry>): Promise<boolean> {
+  const r = await getJson({ action: 'setmasters', data: JSON.stringify(data) });
+  return !!r.ok;
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

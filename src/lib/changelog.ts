@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.3.0',
+    date: '2026-08-28',
+    title: 'Reporting workflow, role-based access, mobile & masters',
+    changes: [
+      'Role-based call visibility: engineers see only calls allotted to them (mail id → User Master name → Call Allocated To); a Regional Manager sees their whole reporting sub-tree; admins see all.',
+      'Admin "View as": preview the app exactly as any engineer sees it, with a persistent banner and one-tap exit.',
+      'Call reporting replaces the standalone Call Updation view: an "Update Call" action on every Field/Installation call saves to the Reporting-N tab, keyed by UCN.',
+      'Reporting is sectioned by Call Status — Solved shows full report + manual report upload + spare consumption (v2Consumption, added one by one) + customer feedback (v2Feedback); Unsolved needs only the pending reason; Report Pending sets the reason automatically.',
+      'Mobile & tablet friendly: off-canvas sidebar on tablets, full-screen drawers on phones, no sideways page scroll, bigger touch targets.',
+      'Force-update button in the footer (clears caches and reloads the latest build).',
+      'Table Filters moved to the top toolbar.',
+      'Masters feed the forms: Party & Product from their masters, plus configurable Standard Complaint and Call Type masters (Admin Config → Master Value Lists).',
+    ],
+  },
+  {
     version: '0.2.0',
     date: '2026-08-28',
     title: 'Operational, Google-Sheet-backed service module',
