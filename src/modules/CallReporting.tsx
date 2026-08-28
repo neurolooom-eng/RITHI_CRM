@@ -4,6 +4,9 @@ import { getReport, saveReport, sheetsConfigured, tabAppend, tabMeta, uploadManu
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { toSheetDate } from '../lib/fieldcall';
+import { todayISO } from '../lib/format';
+
+const WARRANTY_Q = 'Warranty Start Date?';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -184,6 +187,16 @@ export function CallReportDrawer({
   const [subNote, setSubNote] = useState(''); // note if the consumption tab isn't reachable
   const callType = String(call?.callType ?? values['Call Type'] ?? '');
   const fbQuestions = useMemo(() => FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType)), [callType]);
+
+  // For an installation call, the warranty starts on the solved date — default
+  // it to today (the report-completion date); the engineer can change it to the
+  // invoice date.
+  useEffect(() => {
+    if (solved && fbQuestions.some((q) => q.col === WARRANTY_Q) && feedback[WARRANTY_Q] === undefined) {
+      setFeedback((f) => ({ ...f, [WARRANTY_Q]: todayISO() }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solved, fbQuestions]);
 
   // Lazily load the spare-consumption schema the first time a call is solved.
   useEffect(() => {
@@ -420,7 +433,10 @@ export function CallReportDrawer({
                           <option value="No">No</option>
                         </select>
                       ) : q.answer === 'date' ? (
-                        <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
+                        <>
+                          <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
+                          {q.col === WARRANTY_Q && <span className="muted rep-hint">Installation solved date (default) or the invoice date.</span>}
+                        </>
                       ) : (
                         <input className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
                       )}
