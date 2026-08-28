@@ -6,7 +6,7 @@ import { seedDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
-import { FieldCalls } from './modules/FieldCalls';
+import { FieldCalls, InstallationCalls } from './modules/FieldCalls';
 import { BillingModule } from './modules/BillingModule';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
@@ -20,7 +20,6 @@ import {
   partConfig,
   warrantyConfig,
   contractConfig,
-  installationConfig,
   pmConfig,
   breakdownConfig,
   spareRequestConfig,
@@ -47,7 +46,7 @@ function Shell() {
         <Route path="/warranties" element={<CrudModule config={warrantyConfig} />} />
         <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
         <Route path="/field-calls" element={<FieldCalls />} />
-        <Route path="/installations" element={<CrudModule config={installationConfig} />} />
+        <Route path="/installations" element={<InstallationCalls />} />
         <Route path="/pm-calls" element={<CrudModule config={pmConfig} />} />
         <Route path="/breakdowns" element={<CrudModule config={breakdownConfig} />} />
         <Route path="/spare-requests" element={<CrudModule config={spareRequestConfig} />} />

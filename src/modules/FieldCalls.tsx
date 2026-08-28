@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
@@ -42,7 +42,7 @@ const OPT = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
 // ---- Add / edit form schema (mapped to the FIELD tab columns) -------------
 const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
-  { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet format (e.g. 26H28F0001).', span: 1 },
+  { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet UCN format.', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
   { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. R18447-MONNAL T75-7909', span: 1 },
   { name: 'complaintDate', label: 'Complaint Date', type: 'date', section: 'Registration', required: true, span: 1 },
@@ -174,32 +174,75 @@ function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => voi
 
 const DATE_KEYS_TO_SHEET = ['complaintDate']; // picker (ISO) → sheet style on save
 
-function buildPayload(values: FormValues): Record<string, unknown> {
+function buildPayload(values: FormValues, callType: string): Record<string, unknown> {
   const rec: Record<string, unknown> = { ...values };
   DATE_KEYS_TO_SHEET.forEach((k) => {
     if (rec[k]) rec[k] = toSheetDate(rec[k]);
   });
-  rec.callType = 'FIELD';
+  rec.callType = callType;
   return rec;
 }
 
+// Configuration for one call register screen (FIELD tab or INST tab).
+export interface CallSheetConfig {
+  tab: string;          // sheet tab name, e.g. 'FIELD' / 'INST'
+  callType: string;     // written into Call Type, e.g. 'FIELD' / 'INSTALLATION CALL'
+  singular: string;     // 'Field Call' / 'Installation Call'
+  title: string;
+  subtitle: string;
+  icon: ReactNode;
+  collection: string;   // cache collection name
+  storageKey: string;   // table layout key
+  csvName: string;
+}
+
+export const FIELD_CONFIG: CallSheetConfig = {
+  tab: 'FIELD',
+  callType: 'FIELD',
+  singular: 'Field Call',
+  title: 'Field Call Register',
+  subtitle: 'Live against the FIELD tab of the Call Register — new calls get a UCN and are written back.',
+  icon: '📡',
+  collection: C.fieldCalls,
+  storageKey: 'fieldCalls',
+  csvName: 'field-calls.csv',
+};
+
+export const INST_CONFIG: CallSheetConfig = {
+  tab: 'INST',
+  callType: 'INSTALLATION CALL',
+  singular: 'Installation Call',
+  title: 'Installation Call Register',
+  subtitle: 'Live against the INST tab of the Call Register — new calls get a UCN and are written back.',
+  icon: '🔧',
+  collection: C.instCalls,
+  storageKey: 'instCalls',
+  csvName: 'installation-calls.csv',
+};
+
 export function FieldCalls() {
-  const cached = useCollection<Rec>(C.fieldCalls);
+  return <CallSheetModule config={FIELD_CONFIG} />;
+}
+export function InstallationCalls() {
+  return <CallSheetModule config={INST_CONFIG} />;
+}
+
+function CallSheetModule({ config }: { config: CallSheetConfig }) {
+  const cached = useCollection<Rec>(config.collection);
   const { user, can } = useAuth();
   const [search, setSearch] = useState('');
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadLimit, setLoadLimit] = useState(300);
-  const [typeFilter, setTypeFilter] = useState(''); // '' = all call types
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
 
-  // Pull the register from the sheet on first mount (and on manual refresh).
-  // Capped to the most recent `limit` FIELD calls — the sheet holds thousands.
-  const refresh = async (limit = loadLimit, type = typeFilter) => {
+  // Pull the register tab on first mount (and on manual refresh). Capped to the
+  // most recent `limit` rows — the sheet holds thousands.
+  const refresh = async (limit = loadLimit) => {
     if (!configured) {
       setBanner({ tone: 'info', text: 'Not connected to a Google Sheet. Add the Web App URL in Settings → Google Sheet Connection to load & publish calls. New calls are saved locally until then.' });
       return;
@@ -207,21 +250,20 @@ export function FieldCalls() {
     setBusy(true);
     setBanner({ tone: 'info', text: 'Loading calls from the Google Sheet…' });
     try {
-      const rows = await listFieldCalls(type, limit);
+      const rows = await listFieldCalls('', limit, config.tab);
       // Replace the synced cache; keep locally-pending rows.
-      db.list(C.fieldCalls)
+      db.list(config.collection)
         .filter((r) => (r as Rec)._synced)
-        .forEach((r) => db.remove(C.fieldCalls, r.id));
+        .forEach((r) => db.remove(config.collection, r.id));
       // Insert oldest-first so the newest sit on top after the reverse in
       // visibleRows, and freshly-added calls also appear at the top.
       [...rows]
         .reverse()
-        .forEach((r) => db.insert(C.fieldCalls, { ...r, id: String(r.ucn || genId()), _synced: true }));
+        .forEach((r) => db.insert(config.collection, { ...r, id: String(r.ucn || genId()), _synced: true }));
       const capped = rows.length >= limit;
-      const label = type ? `${type.toLowerCase()} calls` : 'calls (all types)';
       setBanner({
         tone: 'ok',
-        text: `Loaded ${rows.length} ${label}${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
+        text: `Loaded ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
       });
     } catch (e) {
       setBanner({ tone: 'error', text: `Could not reach the sheet: ${e instanceof Error ? e.message : String(e)}` });
@@ -236,14 +278,14 @@ export function FieldCalls() {
   }, []);
 
   const saveLocal = (rec: Record<string, unknown>, note: string) => {
-    const existing = db.list(C.fieldCalls).map((r) => String((r as Rec).ucn ?? ''));
-    const ucn = makeLocalUcn('FIELD', new Date(), existing);
-    db.insert(C.fieldCalls, {
+    const existing = db.list(config.collection).map((r) => String((r as Rec).ucn ?? ''));
+    const ucn = makeLocalUcn(config.callType, new Date(), existing);
+    db.insert(config.collection, {
       ...rec,
       id: genId(),
       ucn,
       regDate: fmtDateTime(new Date().toISOString()),
-      callType: 'FIELD',
+      callType: config.callType,
       _pending: true,
       ownerId: user?.id,
     });
@@ -251,14 +293,14 @@ export function FieldCalls() {
   };
 
   const handleCreate = async (values: FormValues) => {
-    const rec = buildPayload(values);
+    const rec = buildPayload(values, config.callType);
     setBusy(true);
     try {
       if (configured) {
-        const res = await addFieldCall(rec);
+        const res = await addFieldCall(rec, config.tab);
         if (res.ok && res.record) {
-          db.insert(C.fieldCalls, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
-          setBanner({ tone: 'ok', text: `Field call registered in the sheet as ${res.ucn}.` });
+          db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
+          setBanner({ tone: 'ok', text: `${config.singular} registered in the sheet as ${res.ucn}.` });
         } else {
           saveLocal(rec, `Sheet write failed (${res.error}).`);
         }
@@ -277,18 +319,18 @@ export function FieldCalls() {
   const handleEdit = async (values: FormValues) => {
     const row = drawer?.row;
     if (!row) return;
-    const patch = buildPayload(values);
+    const patch = buildPayload(values, config.callType);
     setBusy(true);
     try {
       if (row._synced && configured) {
-        const res = await updateFieldCall(String(row.ucn), patch);
+        const res = await updateFieldCall(String(row.ucn), patch, config.tab);
         if (!res.ok) {
           setBanner({ tone: 'error', text: `Sheet update failed: ${res.error}` });
           setBusy(false);
           return;
         }
       }
-      db.update(C.fieldCalls, row.id, patch);
+      db.update(config.collection, row.id, patch);
       setBanner({ tone: 'ok', text: `Call ${row.ucn} updated${row._synced ? ' in the sheet' : ''}.` });
       setDrawer(null);
     } finally {
@@ -298,7 +340,7 @@ export function FieldCalls() {
 
   const syncPending = async () => {
     if (!configured) return;
-    const pend = db.list(C.fieldCalls).filter((r) => (r as Rec)._pending) as Rec[];
+    const pend = db.list(config.collection).filter((r) => (r as Rec)._pending) as Rec[];
     if (pend.length === 0) return;
     setBusy(true);
     let done = 0;
@@ -307,10 +349,10 @@ export function FieldCalls() {
       const { id, ucn, _pending, _synced, regDate, ...rest } = p;
       void id; void ucn; void _pending; void _synced; void regDate;
       try {
-        const res = await addFieldCall(rest);
+        const res = await addFieldCall(rest, config.tab);
         if (res.ok && res.record) {
-          db.remove(C.fieldCalls, p.id);
-          db.insert(C.fieldCalls, { ...res.record, id: String(res.ucn), _synced: true, ownerId: p.ownerId });
+          db.remove(config.collection, p.id);
+          db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: p.ownerId });
           done++;
         }
       } catch {
@@ -348,16 +390,16 @@ export function FieldCalls() {
   return (
     <div>
       <PageHeader
-        title="Field Call Register"
-        subtitle="Live against the F_I Call Register Google Sheet — new calls get a UCN and are written back."
-        icon="📡"
+        title={config.title}
+        subtitle={config.subtitle}
+        icon={config.icon}
         actions={
           can('edit') && (
             <button
               className="btn btn-primary"
               onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setDrawer({ mode: 'create' }); }}
             >
-              + New Field Call
+              + New {config.singular}
             </button>
           )
         }
@@ -374,10 +416,10 @@ export function FieldCalls() {
         columns={[...COLUMNS, actionsColumn]}
         rows={visibleRows}
         getRowId={(r) => r.id}
-        storageKey="fieldCalls"
+        storageKey={config.storageKey}
         rowsBeforeScroll={12}
         onRowClick={(r) => setDrawer({ mode: 'view', row: r })}
-        emptyText={configured ? 'No field calls yet. Click “New Field Call”.' : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
+        emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Search UCN, party, product, serial…" />
@@ -406,7 +448,7 @@ export function FieldCalls() {
             <button
               className="btn btn-sm"
               onClick={() =>
-                csvExport('field-calls.csv', COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[])
+                csvExport(config.csvName, COLUMNS.filter((c) => c.key[0] !== '_').map((c) => ({ key: c.key, header: c.header })), visibleRows as unknown as Record<string, unknown>[])
               }
             >
               ⭳ Export CSV
@@ -419,9 +461,9 @@ export function FieldCalls() {
         open={!!drawer}
         onClose={() => setDrawer(null)}
         title={
-          drawer?.mode === 'create' ? 'New Field Call'
+          drawer?.mode === 'create' ? `New ${config.singular}`
             : drawer?.mode === 'edit' ? `Edit ${String(drawer.row?.ucn ?? 'Call')}`
-              : `Field Call ${String(drawer?.row?.ucn ?? '')}`
+              : `${config.singular} ${String(drawer?.row?.ucn ?? '')}`
         }
         width={760}
       >
@@ -442,7 +484,7 @@ export function FieldCalls() {
               fields={FIELD_CALL_FIELDS}
               initial={drawer.mode === 'create' ? prefill : (drawer.row as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}
-              submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : 'Register Field Call'}
+              submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : `Register ${config.singular}`}
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
