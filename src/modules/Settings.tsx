@@ -3,6 +3,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useCollection } from '../lib/hooks';
 import { TemplatePlaceholder } from './TemplatePlaceholder';
 import { SheetConnection } from './SheetConnection';
+import { DbConnection } from './DbConnection';
 import { useAuth } from '../lib/auth';
 
 export function Settings() {
@@ -21,6 +22,10 @@ export function Settings() {
   return (
     <div>
       <PageHeader title="Settings" subtitle="Appearance, design-system defaults & templates" icon="⚙️" />
+
+      <DbConnection />
+
+      <div style={{ height: 16 }} />
 
       <SheetConnection />
 
