@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { checkConfig, getConfig, setConfig, type ConfigCheck, type SheetConfig } from '../lib/sheets';
+import { checkConfig, getConfig, getMasters, listMaster, setConfig, setMasters, type ConfigCheck, type MasterEntry, type SheetConfig } from '../lib/sheets';
+import { clearMasterCache } from '../lib/masters';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -16,9 +17,16 @@ const FIELDS: { key: keyof SheetConfig; label: string }[] = [
   { key: 'crn', label: 'Call Registration Request (CRN)' },
 ];
 
+const MASTER_DEFS: { key: string; label: string }[] = [
+  { key: 'complaint', label: 'Standard Complaint Master' },
+  { key: 'calltype', label: 'Call Type Master' },
+];
+
 export function AdminConfig() {
   const [cfg, setCfg] = useState<SheetConfig>({});
   const [checks, setChecks] = useState<Record<string, ConfigCheck>>({});
+  const [masters, setMastersState] = useState<Record<string, MasterEntry>>({});
+  const [mMsg, setMMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
 
@@ -26,6 +34,7 @@ export function AdminConfig() {
     setBusy(true);
     try {
       setCfg(await getConfig());
+      try { setMastersState(await getMasters()); } catch { /* older deployment */ }
       setMsg(null);
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not load config: ${e instanceof Error ? e.message : String(e)}. Redeploy CallReg with the latest script.` });
@@ -34,6 +43,28 @@ export function AdminConfig() {
     }
   };
   useEffect(() => { void load(); }, []);
+
+  const setM = (name: string, field: keyof MasterEntry, v: string) =>
+    setMastersState((m) => ({ ...m, [name]: { ...(m[name] ?? {}), [field]: v } }));
+
+  const saveMasters = async () => {
+    setBusy(true); setMMsg('Saving masters…');
+    try {
+      const payload: Record<string, MasterEntry> = {};
+      MASTER_DEFS.forEach((d) => { if (masters[d.key]) payload[d.key] = masters[d.key]; });
+      const ok = await setMasters(payload);
+      clearMasterCache();
+      setMMsg(ok ? 'Saved. Reopen a call form to see the new lists.' : 'Save failed — redeploy CallReg with the latest script.');
+    } catch (e) { setMMsg(`Save failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setBusy(false); }
+  };
+
+  const testMaster = async (name: string) => {
+    setBusy(true); setMMsg(`Testing “${name}”…`);
+    try { const v = await listMaster(name); setMMsg(`“${name}”: ${v.length} value${v.length === 1 ? '' : 's'}${v.length ? ` (e.g. ${v.slice(0, 3).join(', ')})` : ''}.`); }
+    catch (e) { setMMsg(`“${name}” failed: ${e instanceof Error ? e.message : String(e)}`); }
+    finally { setBusy(false); }
+  };
 
   const set = (k: keyof SheetConfig, v: string) => setCfg((c) => ({ ...c, [k]: v }));
 
@@ -111,6 +142,39 @@ export function AdminConfig() {
           <div className="spacer" />
           <button className="btn" onClick={() => void verify()} disabled={busy}>Verify all</button>
           <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>Save</button>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Master Value Lists">
+        <div className="muted" style={{ marginBottom: 12 }}>
+          Point form dropdowns at their master sheets. Give a Sheet URL/ID, the tab, and the column to read.
+          <b> Party</b> and <b>Product</b> masters are wired by default (from the links above).
+        </div>
+        {mMsg && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 10 }}><span>{mMsg}</span><button className="btn btn-ghost btn-sm" onClick={() => setMMsg('')}>✕</button></div>}
+        <div className="stack" style={{ gap: 14 }}>
+          {MASTER_DEFS.map((d) => {
+            const m = masters[d.key] ?? {};
+            return (
+              <div key={d.key} className="cfg-row">
+                <label className="cfg-label">{d.label}</label>
+                <div className="row wrap" style={{ gap: 8 }}>
+                  <input className="input" style={{ flex: '2 1 220px' }} value={m.id ?? ''} placeholder="Sheet URL or ID"
+                    onChange={(e) => setM(d.key, 'id', e.target.value)} onBlur={(e) => setM(d.key, 'id', idFromInput(e.target.value))} />
+                  <input className="input" style={{ flex: '1 1 120px' }} value={m.tab ?? ''} placeholder="Tab name"
+                    onChange={(e) => setM(d.key, 'tab', e.target.value)} />
+                  <input className="input" style={{ flex: '1 1 140px' }} value={m.col ?? ''} placeholder="Column header"
+                    onChange={(e) => setM(d.key, 'col', e.target.value)} />
+                  <button className="btn btn-sm" onClick={() => void testMaster(d.key)} disabled={busy}>Test</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="row" style={{ marginTop: 14, gap: 8 }}>
+          <button className="btn btn-sm" onClick={() => void testMaster('party')} disabled={busy}>Test Party</button>
+          <button className="btn btn-sm" onClick={() => void testMaster('product')} disabled={busy}>Test Product</button>
+          <div className="spacer" />
+          <button className="btn btn-primary" onClick={() => void saveMasters()} disabled={busy}>Save Masters</button>
         </div>
       </SectionCard>
     </div>

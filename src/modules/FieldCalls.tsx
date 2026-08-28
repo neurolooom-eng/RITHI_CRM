@@ -4,6 +4,7 @@ import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
+import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
@@ -297,6 +298,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
   const { user, can } = useAuth();
   const scope = useAccessScope();
+  // Master-driven suggestions for the intake form (live from the sheets).
+  const partyMaster = useMaster('party');
+  const complaintMaster = useMaster('complaint');
+  const injectMasters = (fs: FieldDef[]) =>
+    fs.map((f) =>
+      f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
+        : f.name === 'standardComplaint' ? { ...f, datalist: complaintMaster.values }
+          : f);
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
@@ -648,7 +657,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
-              fields={drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS}
+              fields={injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS)}
               initial={drawer.mode === 'create' ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) } : (drawer.row as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}
               submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : `Register ${config.singular}`}

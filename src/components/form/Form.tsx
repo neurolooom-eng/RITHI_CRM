@@ -42,6 +42,8 @@ export interface FieldDef {
   max?: number;
   rows?: number;
   readOnly?: boolean;
+  // Free-text field with autocomplete suggestions (e.g. from a Master sheet).
+  datalist?: string[];
   validate?: (value: unknown, values: Record<string, unknown>) => string | null;
 }
 
@@ -380,16 +382,26 @@ function FieldControl({
           {...common}
         />
       );
-    default:
+    default: {
+      const listId = field.datalist && field.datalist.length ? `dl-${field.name}` : undefined;
       return (
-        <input
-          type={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
-          className={cls}
-          value={String(value ?? '')}
-          placeholder={field.placeholder}
-          onChange={(e) => onChange(e.target.value)}
-          {...common}
-        />
+        <>
+          <input
+            type={field.type === 'email' ? 'email' : field.type === 'tel' ? 'tel' : 'text'}
+            className={cls}
+            value={String(value ?? '')}
+            placeholder={field.placeholder}
+            list={listId}
+            onChange={(e) => onChange(e.target.value)}
+            {...common}
+          />
+          {listId && (
+            <datalist id={listId}>
+              {field.datalist!.slice(0, 1000).map((v) => <option key={v} value={v} />)}
+            </datalist>
+          )}
+        </>
       );
+    }
   }
 }
