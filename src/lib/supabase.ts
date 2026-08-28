@@ -24,14 +24,19 @@ const DEFAULT_SUPABASE_ANON = 'sb_publishable_E9UsR_cIVIyP26h4B9pXOw_Dhprs63w';
 const ENV_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? '';
 const ENV_ANON = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
 
+// The client wants the BASE project URL, not the REST endpoint. Strip a
+// trailing /rest/v1 (and any trailing slashes) so a pasted REST URL still works.
+function normUrl(u: string): string {
+  return (u || '').trim().replace(/\/+$/, '').replace(/\/rest\/v1$/i, '');
+}
 export function getSupabaseCreds(): { url: string; anon: string } {
   try {
     return {
-      url: (localStorage.getItem(URL_KEY) || ENV_URL || DEFAULT_SUPABASE_URL).trim(),
+      url: normUrl(localStorage.getItem(URL_KEY) || ENV_URL || DEFAULT_SUPABASE_URL),
       anon: (localStorage.getItem(KEY_KEY) || ENV_ANON || DEFAULT_SUPABASE_ANON).trim(),
     };
   } catch {
-    return { url: ENV_URL || DEFAULT_SUPABASE_URL, anon: ENV_ANON || DEFAULT_SUPABASE_ANON };
+    return { url: normUrl(ENV_URL || DEFAULT_SUPABASE_URL), anon: ENV_ANON || DEFAULT_SUPABASE_ANON };
   }
 }
 
