@@ -81,6 +81,10 @@ function _dispatchGet(e) {
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
   if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter, Number(e.parameter.limit) || 100) };
   if (action === 'auth') return _auth(e.parameter.mode, e.parameter.id, e.parameter.password);
+  // Writes are also accepted over GET (JSONP) so they work when the browser
+  // blocks reading a cross-origin POST response.
+  if (action === 'add') return _addCall(_parse(e.parameter.data), e.parameter.tab || tab);
+  if (action === 'update') return _updateCall(e.parameter.ucn, _parse(e.parameter.patch), e.parameter.tab || tab);
   return { ok: false, error: 'Unknown action: ' + action };
 }
 
@@ -488,6 +492,10 @@ function _pad(n, width) {
   var s = String(n);
   while (s.length < width) s = '0' + s;
   return s;
+}
+
+function _parse(s) {
+  try { return JSON.parse(s || '{}'); } catch (e) { return {}; }
 }
 
 function _json(obj) {

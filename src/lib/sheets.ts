@@ -142,7 +142,11 @@ export interface AddResult {
 // by the server so the number is unique against the live sheet.
 export async function addFieldCall(record: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const call = recordToRow(record);
-  const r = await postJson({ action: 'add', call, ...(tab ? { tab } : {}) });
+  // Sent over GET (JSONP-capable) so writes work even when the browser blocks
+  // reading a cross-origin POST response.
+  const params: Record<string, string> = { action: 'add', data: JSON.stringify(call) };
+  if (tab) params.tab = tab;
+  const r = await getJson(params);
   if (!r.ok) return { ok: false, error: String(r.error ?? 'add failed') };
   return { ok: true, ucn: String(r.ucn ?? ''), record: rowToRecord((r.row as Record<string, unknown>) ?? {}) };
 }
@@ -216,7 +220,9 @@ export async function authSetPassword(id: string, password: string): Promise<Aut
 
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
-  const r = await postJson({ action: 'update', ucn, patch: recordToRow(patch), ...(tab ? { tab } : {}) });
+  const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
+  if (tab) params.tab = tab;
+  const r = await getJson(params);
   if (!r.ok) return { ok: false, error: String(r.error ?? 'update failed') };
   return { ok: true, ucn };
 }
