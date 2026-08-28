@@ -15,18 +15,23 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
 
-// Optional build-time defaults (Vite env). Settings values take precedence.
+// Baked defaults so every device is connected out-of-the-box. The publishable
+// key is safe to ship publicly — access is enforced by Row-Level Security.
+const DEFAULT_SUPABASE_URL = 'https://issxxmgsffszqbxugqis.supabase.co';
+const DEFAULT_SUPABASE_ANON = 'sb_publishable_E9UsR_cIVIyP26h4B9pXOw_Dhprs63w';
+
+// Optional build-time overrides (Vite env). Settings values take precedence.
 const ENV_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? '';
 const ENV_ANON = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
 
 export function getSupabaseCreds(): { url: string; anon: string } {
   try {
     return {
-      url: (localStorage.getItem(URL_KEY) || ENV_URL || '').trim(),
-      anon: (localStorage.getItem(KEY_KEY) || ENV_ANON || '').trim(),
+      url: (localStorage.getItem(URL_KEY) || ENV_URL || DEFAULT_SUPABASE_URL).trim(),
+      anon: (localStorage.getItem(KEY_KEY) || ENV_ANON || DEFAULT_SUPABASE_ANON).trim(),
     };
   } catch {
-    return { url: ENV_URL, anon: ENV_ANON };
+    return { url: ENV_URL || DEFAULT_SUPABASE_URL, anon: ENV_ANON || DEFAULT_SUPABASE_ANON };
   }
 }
 
