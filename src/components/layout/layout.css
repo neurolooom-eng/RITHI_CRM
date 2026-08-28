@@ -234,6 +234,13 @@
 }
 .app-footer b { color: var(--text); font-weight: 650; }
 .app-footer .foot-sep { opacity: 0.4; }
+.app-footer .foot-spacer { flex: 1 1 auto; min-width: 8px; }
+.app-footer .foot-refresh { flex-shrink: 0; padding: 3px 10px; font-size: 11px; }
+@media (max-width: 760px) {
+  /* Keep the footer compact on phones; hide the long build metadata so the
+     Force update button always stays reachable. */
+  .app-footer .foot-hide-sm { display: none; }
+}
 
 /* ---- Mobile: off-canvas sidebar drawer ---------------------------------- */
 .sidebar-backdrop {
