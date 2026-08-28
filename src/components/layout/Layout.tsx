@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../../lib/auth';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
@@ -77,9 +77,74 @@ export const NAV: NavGroup[] = [
   },
 ];
 
+// Global search across all modules (nav items). Jump straight to any screen.
+function ModuleSearch() {
+  const navigate = useNavigate();
+  const { can } = useAuth();
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const items = useMemo(
+    () => NAV.flatMap((g) => g.items.filter((it) => !it.adminOnly || can('manage-users')).map((it) => ({ ...it, group: g.title }))),
+    [can],
+  );
+  const results = q.trim()
+    ? items.filter((it) => `${it.label} ${it.group}`.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+    : [];
+  const go = (to: string) => { navigate(to); setQ(''); setOpen(false); };
+  return (
+    <div className="mod-search">
+      <span className="mod-search-icon">🔎</span>
+      <input
+        className="input mod-search-input"
+        placeholder="Search modules…"
+        value={q}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && results[0]) go(results[0].to); if (e.key === 'Escape') setOpen(false); }}
+      />
+      {open && q.trim() && (
+        <>
+          <div className="mod-search-backdrop" onClick={() => setOpen(false)} />
+          <div className="mod-search-menu">
+            {results.length === 0 && <div className="muted mod-search-empty">No modules match.</div>}
+            {results.map((it) => (
+              <button key={it.to} className="mod-search-item" onMouseDown={(e) => { e.preventDefault(); go(it.to); }}>
+                <span className="mod-search-item-ic">{it.icon}</span>
+                <span className="mod-search-item-tx"><b>{it.label}</b><span className="muted"> · {it.group}</span></span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// Compact theme picker — a small 🎨 button with a dropdown of themes.
+function ThemeMenu() {
+  const { theme, themes, setThemeId } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="theme-mini">
+      <button className="btn btn-ghost btn-sm theme-mini-btn" title={`Theme: ${theme.name}`} onClick={() => setOpen((o) => !o)}>🎨</button>
+      {open && (
+        <>
+          <div className="theme-mini-backdrop" onClick={() => setOpen(false)} />
+          <div className="theme-mini-menu">
+            {themes.map((t) => (
+              <button key={t.id} className={`theme-mini-item ${t.id === theme.id ? 'active' : ''}`} onClick={() => { setThemeId(t.id); setOpen(false); }}>
+                {t.id === theme.id ? '✓ ' : ''}{t.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can } = useAuth();
-  const { theme, themes, setThemeId } = useTheme();
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('rithi.sidebarCollapsed') === '1'; } catch { return false; }
   });
@@ -187,20 +252,9 @@ export function Layout({ children }: { children: ReactNode }) {
             ☰
           </button>
           <div className="header-crumb">{crumbFor(location.pathname)}</div>
-          <div className="spacer" />
-
+          <ModuleSearch />
           <ViewAsControl />
-
-          <select
-            className="select header-theme"
-            value={theme.id}
-            onChange={(e) => setThemeId(e.target.value)}
-            title="Theme"
-          >
-            {themes.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
+          <ThemeMenu />
 
           <div className="header-user">
             <button className="user-chip" onClick={() => setMenuOpen((o) => !o)}>

@@ -129,12 +129,72 @@
   color: var(--text-muted);
   font-weight: 500;
 }
-.header-theme {
-  width: auto;
-  min-width: 140px;
-  padding: 5px 8px;
-  font-size: 12.5px;
+/* Global module search */
+.mod-search {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 380px;
+  min-width: 0;
 }
+.mod-search-icon {
+  position: absolute;
+  left: 10px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.mod-search-input { padding: 6px 10px 6px 30px; font-size: 13px; width: 100%; }
+.mod-search-backdrop { position: fixed; inset: 0; z-index: 40; }
+.mod-search-menu {
+  position: absolute;
+  top: 38px; left: 0; right: 0;
+  z-index: 41;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.mod-search-empty { padding: 8px; font-size: 13px; }
+.mod-search-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  background: transparent; border: none; cursor: pointer;
+  padding: 8px 10px; border-radius: var(--radius-sm);
+  color: var(--text); font-family: inherit; font-size: 13.5px;
+}
+.mod-search-item:hover { background: var(--surface-alt); }
+.mod-search-item-ic { width: 20px; text-align: center; flex-shrink: 0; }
+.mod-search-item-tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Compact theme picker */
+.theme-mini { position: relative; display: inline-flex; }
+.theme-mini-btn { font-size: 15px; padding: 4px 8px; }
+.theme-mini-backdrop { position: fixed; inset: 0; z-index: 40; }
+.theme-mini-menu {
+  position: absolute;
+  top: 36px; right: 0;
+  z-index: 41;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  min-width: 150px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.theme-mini-item {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: none; cursor: pointer;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  color: var(--text); font-family: inherit; font-size: 13px;
+}
+.theme-mini-item:hover { background: var(--surface-alt); }
+.theme-mini-item.active { font-weight: 650; color: var(--primary); }
 
 .header-user {
   position: relative;
