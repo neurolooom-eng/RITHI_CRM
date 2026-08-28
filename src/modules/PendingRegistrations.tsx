@@ -4,6 +4,8 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { listPending, searchProducts, sheetsConfigured } from '../lib/sheets';
 import { productToCallPrefill } from '../lib/fieldcall';
+import { db } from '../lib/db';
+import { C } from './collections';
 import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
 
@@ -59,28 +61,60 @@ export function PendingRegistrations() {
     setMsg({ tone: 'info', text: 'Fetching product warranty / contract…' });
     try {
       const serial = String(row['SERIAL NO'] ?? '').trim();
+
+      // (a) Validate against Product Master — party/product/serial map only when validated.
       let prod: Record<string, unknown> = {};
+      let validated = false;
       if (serial) {
         const found = await searchProducts({ serial }, 1);
-        if (found[0]) prod = productToCallPrefill(found[0]);
+        if (found[0]) { prod = productToCallPrefill(found[0]); validated = true; }
+      }
+
+      // (b) Open-call check — if a call already exists for this serial, don't
+      //     create a new one; offer to edit the existing call instead.
+      const existing = serial
+        ? [...db.list(C.fieldCalls), ...db.list(C.instCalls)].find(
+            (c) => String(c.serial ?? '').trim().toLowerCase() === serial.toLowerCase(),
+          )
+        : undefined;
+      if (existing) {
+        const open = confirm(
+          `An open call already exists for serial ${serial} (UCN ${existing.ucn}). ` +
+          `A new call can't be created for the same product — open the existing call to edit it?`,
+        );
+        if (open) {
+          const p = /install/i.test(String(existing.callType ?? '')) ? '/installations' : '/field-calls';
+          navigate(p, { state: { editUcn: String(existing.ucn) } });
+        }
+        setBusy(false);
+        return;
+      }
+      if (serial && !validated) {
+        if (!confirm(`Serial ${serial} was not found in Product Master (warranty / contract not verified). Register anyway with the request details?`)) {
+          setBusy(false);
+          return;
+        }
       }
       const base: Record<string, unknown> = {
+        callNumber: row['UNIQUE ID'] ?? row['ID'] ?? row['REQID'] ?? '', // Call Number ← Req ID
         partyName: row['PARTY NAME'],
         state: row['State'],
         city: row['City'],
         productName: row['PRODUCT'],
         serial,
         standardComplaint: row['Standard Complaint'],
-        complaintReported: row['Reported Problem'],
+        complaintReported: row['Reported Problem'], // Complaint Reported ← Reported Problem
         allocatedTo: row['ENGINEER'],
         customerName: row['CUSTOMER CONTACT DETAILS'],
         customerNumber: row['CUSTOMER CONTACT Number'],
         emailAddress: row['E-Mail ID'],
         personCalling: 'DIRECT ENGINEER',
-        complaintDate: row['Complaint Date'],
+        complaintDate: row['Complaint Date'], // Complaint Date ← Complaint Date
       };
-      // Product Master is authoritative for party/product/warranty/contract.
-      const prefill = { ...base, ...prod };
+      // Product Master fills warranty/contract/engineer/item status where it has
+      // a value, without wiping the request's own fields.
+      const prefill: Record<string, unknown> = { ...base };
+      Object.entries(prod).forEach(([k, v]) => { if (v !== '' && v != null) prefill[k] = v; });
       const ct = String(row['CALL TYPE'] ?? '');
       const path = /install/i.test(ct) ? '/installations' : '/field-calls';
       navigate(path, { state: { prefill, pendingRow: Number(row.id) } });

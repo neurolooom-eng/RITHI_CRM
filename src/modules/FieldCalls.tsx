@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
-import { csvExport, engineerOptions, fmtDateTime } from '../lib/format';
+import { csvExport, engineerOptions, fmtDateTime, timeAgo } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -291,6 +291,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
   const [pendingRow, setPendingRow] = useState<number | null>(null); // Data-2026 row to back-fill
+  const [editUcnTarget, setEditUcnTarget] = useState<string | null>(null);
+  const syncKey = `rithi.sync.${config.collection}`;
+  const [lastSync, setLastSync] = useState<string>(() => { try { return localStorage.getItem(syncKey) ?? ''; } catch { return ''; } });
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
@@ -316,10 +319,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       [...rows]
         .reverse()
         .forEach((r) => db.insert(config.collection, { ...r, id: String(r.ucn || genId()), _synced: true }));
+      const now = new Date().toISOString();
+      try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
+      setLastSync(now);
       const capped = rows.length >= limit;
       setBanner({
         tone: 'ok',
-        text: `Loaded ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
+        text: `Synced ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
       });
     } catch (e) {
       setBanner({ tone: 'error', text: `Could not reach the sheet: ${e instanceof Error ? e.message : String(e)}` });
@@ -328,15 +334,31 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     }
   };
 
+  // Use the cached data when it's fresh (< 30 min); only auto-sync when the
+  // cache is stale or empty. A 30-minute timer force-syncs in the background.
   useEffect(() => {
-    void refresh();
+    if (!configured) { void refresh(); return; }
+    const ageMs = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
+    const hasCache = cached.some((r) => r._synced);
+    if (!hasCache || ageMs > 30 * 60 * 1000) {
+      void refresh();
+    } else {
+      setBanner({ tone: 'info', text: `Showing cached data — last synced ${timeAgo(lastSync)}. Tap ↻ Refresh to update.` });
+    }
+    const id = window.setInterval(() => { if (sheetsConfigured()) void refresh(); }, 30 * 60 * 1000);
+    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Arriving with a prefill (e.g. "Register Call" from Product Master) opens the
-  // create drawer pre-populated from the chosen item.
+  // Arriving with a prefill (Product Master / pending) opens the create drawer;
+  // arriving with editUcn opens the existing call in edit mode.
   useEffect(() => {
-    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number } | null;
+    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string } | null;
+    if (st?.editUcn) {
+      setEditUcnTarget(String(st.editUcn));
+      window.history.replaceState({}, '');
+      return;
+    }
     if (st?.prefill) {
       setPrefill(st.prefill as FormValues);
       setPrefillKey((k) => k + 1);
@@ -346,6 +368,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
+
+  // Open the edit drawer once the targeted call is present in the cache.
+  useEffect(() => {
+    if (!editUcnTarget) return;
+    const row = cached.find((r) => String(r.ucn) === editUcnTarget) as Rec | undefined;
+    if (row) { setDrawer({ mode: 'edit', row }); setEditUcnTarget(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cached, editUcnTarget]);
 
   const saveLocal = (rec: Record<string, unknown>, note: string) => {
     const existing = db.list(config.collection).map((r) => String((r as Rec).ucn ?? ''));
@@ -547,6 +577,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               </button>
             )}
             <div className="spacer" />
+            {configured && lastSync && <span className="conn-dot conn-off" title="Last synced from the sheet">⟳ {timeAgo(lastSync)}</span>}
             <span className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`} title={configured ? 'Connected to Google Sheet' : 'Not connected'}>
               {configured ? '● Sheet connected' : '○ Not connected'}
             </span>
