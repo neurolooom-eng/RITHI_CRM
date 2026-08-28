@@ -34,6 +34,13 @@ var PROD_SEARCH_HEADERS = ['Item Serial Number', 'Item Code', 'Item Name', 'Part
 var PARTYMASTER_ID = '1wdd2LpVTDbsYuxUdX5N3d_hKkIlMAiNq5hzvy8KWFrQ';
 var PARTY_NAME_HEADER = 'Party Name';
 
+// The User Master spreadsheet — source of app logins.
+var USERMASTER_ID = '1WUoxk_4hLlK4ZLP59SHQRSAxWqmutjcCIiFsul5r-mc';
+var USER_EMAIL_HEADER = 'Email ID';   // Air Liquide login id
+var USER_GMAIL_HEADER = 'GMAIL ID';   // Gmail login id
+var USER_NAME_HEADER = 'User Name';
+var USER_VALIDITY_HEADER = 'Validity'; // TRUE = may log in
+
 // The column that holds the Unique Call Number, and the value written into the
 // Call Type column for calls raised from the Field Call screen.
 var UCN_HEADER = 'UC Number';
@@ -72,7 +79,8 @@ function _dispatchGet(e) {
   if (action === 'parties') return { ok: true, values: _distinctFrom(_partySheet(), PARTY_NAME_HEADER) };
   if (action === 'products') return { ok: true, values: _distinctWhere('Item Name', 'Party Name', e.parameter.party) };
   if (action === 'items') return { ok: true, rows: _items(e.parameter.party, e.parameter.product, Number(e.parameter.limit) || 200) };
-  if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter.q, Number(e.parameter.limit) || 100) };
+  if (action === 'prodsearch') return { ok: true, rows: _searchProducts(e.parameter, Number(e.parameter.limit) || 100) };
+  if (action === 'auth') return _auth(e.parameter.mode, e.parameter.id, e.parameter.password);
   return { ok: false, error: 'Unknown action: ' + action };
 }
 
@@ -189,34 +197,55 @@ function _updateCall(ucn, patch, tab) {
 // Product Master lookup — match a query against serial / code / name / party
 // and return up to `limit` matching product rows (keyed by header).
 // ---------------------------------------------------------------------------
-function _searchProducts(q, limit) {
-  q = String(q || '').trim().toLowerCase();
-  if (!q) return [];
-  limit = limit || 10;
+function _searchProducts(params, limit) {
+  // Accept a legacy string (global q) or a params object with explicit fields.
+  if (typeof params === 'string') params = { q: params };
+  params = params || {};
+  limit = limit || 100;
+  var q = String(params.q || '').trim().toLowerCase();
+  var fParty = String(params.party || '').trim().toLowerCase();
+  var fProduct = String(params.product || '').trim().toLowerCase();
+  var fSerial = String(params.serial || '').trim().toLowerCase();
+  var fStatus = String(params.status || '').trim().toLowerCase();
+
   var sheet = _prodSheet();
   var headers = _headers(sheet);
   var last = sheet.getLastRow();
   if (last < 2) return [];
   var nRows = last - 1;
 
-  // ProdMaster is large (tens of thousands of rows), so scan only the search
-  // columns to find matching rows, then read the full row for each match.
-  var searchCols = PROD_SEARCH_HEADERS
-    .map(function (h) { return headers.indexOf(h); })
-    .filter(function (i) { return i >= 0; });
-  var colData = {};
-  for (var s = 0; s < searchCols.length; s++) {
-    colData[searchCols[s]] = sheet.getRange(2, searchCols[s] + 1, nRows, 1).getValues();
+  var anyFilter = q || fParty || fProduct || fSerial || fStatus;
+
+  // No filter -> browse the first `limit` products (so the view isn't blank).
+  if (!anyFilter) {
+    var head = sheet.getRange(2, 1, Math.min(limit, nRows), headers.length).getValues();
+    var browse = [];
+    for (var b = 0; b < head.length; b++) {
+      var ob = {};
+      for (var bc = 0; bc < headers.length; bc++) ob[headers[bc]] = _cell(head[b][bc]);
+      browse.push(ob);
+    }
+    return browse;
   }
+
+  // Read only the columns we need to test (ProdMaster is large).
+  var col = function (h) { var i = headers.indexOf(h); return i >= 0 ? sheet.getRange(2, i + 1, nRows, 1).getValues() : null; };
+  var cParty = col('Party Name'), cName = col('Item Name'), cSerial = col('Item Serial Number'), cCode = col('Item Code'), cStatus = col('Item Status');
 
   var out = [];
   for (var i = 0; i < nRows; i++) {
-    var hit = false;
-    for (var s2 = 0; s2 < searchCols.length; s2++) {
-      var ci = searchCols[s2];
-      if (String(colData[ci][i][0]).toLowerCase().indexOf(q) !== -1) { hit = true; break; }
+    if (fParty && !(cParty && String(cParty[i][0]).toLowerCase().indexOf(fParty) !== -1)) continue;
+    if (fProduct && !(cName && String(cName[i][0]).toLowerCase().indexOf(fProduct) !== -1)) continue;
+    if (fSerial && !(cSerial && String(cSerial[i][0]).toLowerCase().indexOf(fSerial) !== -1)) continue;
+    if (fStatus && !(cStatus && String(cStatus[i][0]).toLowerCase() === fStatus)) continue;
+    if (q) {
+      var hit = false;
+      var scan = [cParty, cName, cSerial, cCode];
+      for (var s = 0; s < scan.length; s++) {
+        if (scan[s] && String(scan[s][i][0]).toLowerCase().indexOf(q) !== -1) { hit = true; break; }
+      }
+      if (!hit) continue;
     }
-    if (!hit) continue;
     var rowVals = sheet.getRange(i + 2, 1, 1, headers.length).getValues()[0];
     var obj = {};
     for (var c = 0; c < headers.length; c++) obj[headers[c]] = _cell(rowVals[c]);
@@ -338,6 +367,86 @@ function _typeLetter(callType) {
   if (t.indexOf('INSTALL') === 0) return 'I';
   if (t.indexOf('FIELD') === 0) return 'F';
   return t.charAt(0) || 'F';
+}
+
+// ---------------------------------------------------------------------------
+// User Master login. Passwords are stored as salted SHA-256 hashes in the
+// script's private properties (never written into the sheet). Only users with
+// Validity = TRUE may log in. First login (no password yet) returns
+// needsPassword so the app can prompt to set one.
+// ---------------------------------------------------------------------------
+function _auth(mode, id, password) {
+  mode = mode || 'login';
+  id = String(id || '').trim().toLowerCase();
+  if (!id) return { ok: false, error: 'id required' };
+  var u = _findUser(id);
+  if (!u) return { ok: false, error: 'not_found' };
+  if (String(u[USER_VALIDITY_HEADER]).toUpperCase() !== 'TRUE') return { ok: false, error: 'inactive' };
+
+  var props = PropertiesService.getScriptProperties();
+  var key = 'pw_' + _userKey(u);
+  if (mode === 'setpassword') {
+    var pw = String(password || '');
+    if (pw.length < 5) return { ok: false, error: 'weak' };
+    props.setProperty(key, _hash(pw));
+    return { ok: true, user: _userPublic(u) };
+  }
+  var stored = props.getProperty(key);
+  if (!stored) return { ok: true, needsPassword: true, user: _userPublic(u) };
+  if (_hash(String(password || '')) !== stored) return { ok: false, error: 'bad_password' };
+  return { ok: true, user: _userPublic(u) };
+}
+
+function _userSheet() {
+  var ss = SpreadsheetApp.openById(USERMASTER_ID);
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (_headers(sheets[i]).indexOf(USER_EMAIL_HEADER) >= 0) return sheets[i];
+  }
+  return ss.getActiveSheet();
+}
+
+function _findUser(id) {
+  var sheet = _userSheet();
+  var headers = _headers(sheet);
+  var ei = headers.indexOf(USER_EMAIL_HEADER), gi = headers.indexOf(USER_GMAIL_HEADER);
+  var last = sheet.getLastRow();
+  if (last < 2) return null;
+  var vals = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+  for (var i = 0; i < vals.length; i++) {
+    var em = ei >= 0 ? String(vals[i][ei]).trim().toLowerCase() : '';
+    var gm = gi >= 0 ? String(vals[i][gi]).trim().toLowerCase() : '';
+    if (em === id || gm === id) {
+      var o = {};
+      for (var c = 0; c < headers.length; c++) o[headers[c]] = _cell(vals[i][c]);
+      return o;
+    }
+  }
+  return null;
+}
+
+function _userKey(u) {
+  return String(u[USER_EMAIL_HEADER] || u[USER_GMAIL_HEADER] || '').trim().toLowerCase();
+}
+
+function _userPublic(u) {
+  return {
+    name: u[USER_NAME_HEADER] || '',
+    email: u[USER_EMAIL_HEADER] || '',
+    gmail: u[USER_GMAIL_HEADER] || '',
+    designation: u['Designation'] || '',
+    region: u['REGION'] || '',
+    rm: u['RM'] || '',
+    rgm: u['RGM'] || '',
+  };
+}
+
+function _hash(pw) {
+  var raw = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'rithi$' + pw, Utilities.Charset.UTF_8);
+  return raw.map(function (b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
 }
 
 // ---------------------------------------------------------------------------

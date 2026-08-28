@@ -76,6 +76,18 @@
 .prod-result:hover { border-color: var(--primary, #0ea5a4); background: color-mix(in srgb, var(--primary, #0ea5a4) 8%, var(--surface)); }
 .prod-result .muted { font-size: 11.5px; }
 
+/* Product Master explicit filter row */
+.prod-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.prod-filters .input { flex: 1 1 130px; min-width: 110px; }
+.prod-filters .select { flex: 0 0 auto; min-width: 120px; }
+.prod-filters .prod-global { flex: 2 1 200px; }
+
 /* Cascade Party → Product → Serial */
 .cascade-grid {
   display: grid;

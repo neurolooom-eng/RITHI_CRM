@@ -25,6 +25,8 @@ export const CHANGELOG: ChangeEntry[] = [
       'Removed Billing (Quotations & Invoices); Breakdown Calls merged into the Field Call Register.',
       'Collapsible sidebar now persists across sessions.',
       'Added in-app Version History.',
+      'User Master login: sign in with Air Liquide / Gmail ID, set a password on first sign-in (only Validity = TRUE users); passwords stored as salted hashes, never in the repo.',
+      'Product Master: explicit Party / Product / Serial / Item Status filters plus a global search, and auto-load so the view is never blank.',
     ],
   },
   {

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
-import { searchProducts, sheetsConfigured } from '../lib/sheets';
-import { productToCallPrefill } from '../lib/fieldcall';
+import { searchProducts, sheetsConfigured, type ProdFilters } from '../lib/sheets';
+import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
 
@@ -33,27 +33,43 @@ const COLUMNS: Column<Row>[] = [
 export function ProductMaster() {
   const navigate = useNavigate();
   const { can } = useAuth();
-  const [q, setQ] = useState('');
+  const [f, setF] = useState<ProdFilters>({ q: '', party: '', product: '', serial: '', status: '' });
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to search the Product Master.' },
   );
 
-  const run = async () => {
-    if (!q.trim()) return;
+  const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
+
+  const run = async (filters: ProdFilters = f) => {
+    if (!sheetsConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Searching Product Master…' });
     try {
-      const r = await searchProducts(q.trim(), 200);
+      const r = await searchProducts(filters, 200);
       setRows(r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` })));
-      setMsg({ tone: r.length ? 'ok' : 'info', text: r.length ? `${r.length} products matched${r.length >= 200 ? ' (showing first 200 — refine your search)' : ''}.` : 'No products matched.' });
+      const anyFilter = Object.values(filters).some((v) => v && String(v).trim());
+      setMsg({
+        tone: r.length ? 'ok' : 'info',
+        text: r.length
+          ? `${r.length} products${anyFilter ? ' matched' : ' (browse — refine with the filters)'}${r.length >= 200 ? ' — showing first 200' : ''}.`
+          : 'No products matched.',
+      });
     } catch (e) {
       setMsg({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(false);
     }
   };
+
+  const clear = () => { const empty = { q: '', party: '', product: '', serial: '', status: '' }; setF(empty); void run(empty); };
+
+  // Auto-load a first page on mount so the view isn't blank.
+  useEffect(() => {
+    void run({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const register = (row: Row, path: string) =>
     navigate(path, { state: { prefill: productToCallPrefill(row) } });
@@ -83,19 +99,29 @@ export function ProductMaster() {
         </div>
       )}
 
+      <div className="prod-filters">
+        <input className="input" placeholder="Party" value={f.party} onChange={(e) => set('party', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
+        <input className="input" placeholder="Product" value={f.product} onChange={(e) => set('product', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
+        <input className="input" placeholder="Serial Number" value={f.serial} onChange={(e) => set('serial', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
+        <select className="select" value={f.status} onChange={(e) => { const v = e.target.value; set('status', v); void run({ ...f, status: v }); }}>
+          <option value="">Any status</option>
+          {ITEM_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <input className="input prod-global" placeholder="🔎 Global search…" value={f.q} onChange={(e) => set('q', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
+        <button className="btn btn-primary" onClick={() => void run()} disabled={busy}>{busy ? '…' : 'Search'}</button>
+        <button className="btn" onClick={clear} disabled={busy}>Clear</button>
+      </div>
+
       <DataTable<Row>
         columns={can('edit') ? [...COLUMNS, actionsColumn] : COLUMNS}
         rows={rows}
         getRowId={(r) => r.id}
         storageKey="productMaster"
         rowsBeforeScroll={14}
-        emptyText="Search by serial, item code, product or party to list products."
+        emptyText="No products — adjust the filters or global search."
         toolbar={
           <Toolbar>
-            <SearchBox value={q} onChange={setQ} placeholder="Serial, item code, product or party…" />
-            <button className="btn btn-sm btn-primary" onClick={() => void run()} disabled={busy || !q.trim()}>
-              {busy ? '…' : 'Search'}
-            </button>
+            <span className="muted">{rows.length ? `${rows.length} shown` : ''}</span>
             <div className="spacer" />
             {rows.length > 0 && (
               <button
