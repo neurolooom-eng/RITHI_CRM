@@ -6,6 +6,7 @@ import { seedDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
+import { FieldCalls } from './modules/FieldCalls';
 import { BillingModule } from './modules/BillingModule';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
@@ -45,6 +46,7 @@ function Shell() {
         <Route path="/parts" element={<CrudModule config={partConfig} />} />
         <Route path="/warranties" element={<CrudModule config={warrantyConfig} />} />
         <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
+        <Route path="/field-calls" element={<FieldCalls />} />
         <Route path="/installations" element={<CrudModule config={installationConfig} />} />
         <Route path="/pm-calls" element={<CrudModule config={pmConfig} />} />
         <Route path="/breakdowns" element={<CrudModule config={breakdownConfig} />} />

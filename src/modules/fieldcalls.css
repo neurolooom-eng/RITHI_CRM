@@ -1,0 +1,52 @@
+/* Field Call Register — connection banner & status pills */
+
+.sheet-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  font-size: 13.5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+.sheet-banner-ok {
+  border-color: color-mix(in srgb, var(--success, #16a34a) 45%, transparent);
+  background: color-mix(in srgb, var(--success, #16a34a) 12%, var(--surface));
+}
+.sheet-banner-error {
+  border-color: color-mix(in srgb, var(--danger, #dc2626) 45%, transparent);
+  background: color-mix(in srgb, var(--danger, #dc2626) 12%, var(--surface));
+}
+.sheet-banner-info {
+  border-color: color-mix(in srgb, var(--primary, #0ea5a4) 40%, transparent);
+  background: color-mix(in srgb, var(--primary, #0ea5a4) 10%, var(--surface));
+}
+
+.conn-dot {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.conn-on { color: var(--success, #16a34a); }
+.conn-off { color: var(--text-muted, #6b7280); }
+
+/* Google Sheet connection panel in Settings */
+.sheet-conn-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.sheet-conn-row .input { flex: 1 1 320px; min-width: 240px; }
+.sheet-conn-status {
+  font-size: 13px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
+}
