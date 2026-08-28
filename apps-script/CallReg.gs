@@ -1,9 +1,13 @@
 /**
- * RITHI CRM — Google Sheet bridge for the Field / Installation Call Register.
+ * CallReg — RITHI CRM bridge for the Field / Installation Call Register.
  *
- * Deploy this bound to the "F_I Call Register" spreadsheet as a Web App
- * (see DEPLOY.md). The RITHI CRM web app then reads and writes calls through
- * the single Web App URL — the Sheet stays the one source of truth.
+ * This is a STANDALONE Google Apps Script project (named "CallReg"), pasted
+ * separately — it is NOT bound to the spreadsheet. Because there is no "active
+ * spreadsheet", it opens the Call Register by ID (SPREADSHEET_ID below).
+ *
+ * Deploy it as a Web App (see DEPLOY.md). The RITHI CRM web app then reads and
+ * writes calls through the single Web App URL — the Sheet stays the one source
+ * of truth.
  *
  * Endpoints (all on the same /exec URL):
  *   GET  ?action=ping                       -> { ok, sheet, headers, count }
@@ -14,6 +18,10 @@
  * The POST body is sent as text/plain (JSON string) so browsers treat it as a
  * "simple" request and skip the CORS pre-flight that Apps Script cannot answer.
  */
+
+// The Call Register spreadsheet this bridge talks to. Take it from the sheet
+// URL: https://docs.google.com/spreadsheets/d/<THIS IS THE ID>/edit
+var SPREADSHEET_ID = '1aMSnQV4TIWC2FuZfXxBIcLTxTk_I52wRr6AZgNIFv_I';
 
 // The column that holds the Unique Call Number, and the value written into the
 // Call Type column for calls raised from the Field Call screen.
@@ -162,9 +170,10 @@ function _typeLetter(callType) {
 // Helpers
 // ---------------------------------------------------------------------------
 function _registerSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Standalone script: open the Call Register by ID (no active spreadsheet).
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var sheets = ss.getSheets();
-  // Prefer the sheet whose header row contains the UCN column.
+  // Prefer the tab whose header row contains the UCN column.
   for (var i = 0; i < sheets.length; i++) {
     var h = _headers(sheets[i]);
     if (h.indexOf(UCN_HEADER) >= 0) return sheets[i];

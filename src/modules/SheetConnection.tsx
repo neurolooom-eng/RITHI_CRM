@@ -30,9 +30,10 @@ export function SheetConnection() {
   return (
     <SectionCard title="Google Sheet Connection">
       <div className="muted" style={{ marginBottom: 12 }}>
-        Paste the Apps Script <b>Web app URL</b> (ends in <code>/exec</code>) from your
-        <b> F_I Call Register</b> sheet. Setup steps are in <code>apps-script/DEPLOY.md</code>.
-        The Field Call Register then reads and writes this sheet directly.
+        Paste the <b>CallReg</b> Web app URL (ends in <code>/exec</code>) — the standalone
+        Apps Script that bridges to your Call Register sheet. Setup steps are in
+        <code>apps-script/DEPLOY.md</code>. The Field Call Register then reads and writes
+        the sheet directly.
       </div>
       <div className="sheet-conn-row">
         <input
