@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useAuth } from '../../lib/auth';
+import { getView, setView, sheetsConfigured, type TableView } from '../../lib/sheets';
 import './table.css';
+
+// Cache of shared (admin-set) views per table key, so we fetch each once.
+const globalViewCache: Record<string, TableView | null | undefined> = {};
 
 // ===========================================================================
 // TABLE SYSTEM — shared across every module.
@@ -50,6 +55,7 @@ const ROW_HEIGHT_DENSE = 34;
 interface Persisted {
   order: string[];
   widths: Record<string, number>;
+  hidden?: string[];
 }
 
 export function DataTable<T>({
@@ -69,29 +75,54 @@ export function DataTable<T>({
   dense = false,
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
+  const { can } = useAuth();
 
   const [order, setOrder] = useState<string[]>(() => columns.map((c) => c.key));
   const [widths, setWidths] = useState<Record<string, number>>(() =>
     Object.fromEntries(columns.map((c) => [c.key, c.width ?? 160])),
   );
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' } | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+  const [colPanel, setColPanel] = useState(false);
+  const [viewMsg, setViewMsg] = useState('');
 
-  // restore persisted layout once
+  const applyView = (v: TableView | null | undefined) => {
+    if (!v) return;
+    if (v.order) {
+      const valid = v.order.filter((k) => columns.some((c) => c.key === k));
+      const missing = columns.map((c) => c.key).filter((k) => !valid.includes(k));
+      setOrder([...valid, ...missing]);
+    }
+    if (v.widths) setWidths((w) => ({ ...w, ...v.widths }));
+    if (Array.isArray(v.hidden)) setHidden(new Set(v.hidden));
+  };
+
+  // Restore this user's saved layout; else fall back to the shared default.
   useEffect(() => {
     if (!persistKey) return;
     const raw = localStorage.getItem(persistKey);
-    if (!raw) return;
-    try {
-      const p: Persisted = JSON.parse(raw);
-      const valid = p.order.filter((k) => columns.some((c) => c.key === k));
-      const missing = columns.map((c) => c.key).filter((k) => !valid.includes(k));
-      setOrder([...valid, ...missing]);
-      setWidths((w) => ({ ...w, ...p.widths }));
-    } catch {
-      /* ignore corrupt layout */
+    if (raw) {
+      try {
+        const p: Persisted = JSON.parse(raw);
+        const valid = p.order.filter((k) => columns.some((c) => c.key === k));
+        const missing = columns.map((c) => c.key).filter((k) => !valid.includes(k));
+        setOrder([...valid, ...missing]);
+        setWidths((w) => ({ ...w, ...p.widths }));
+        if (Array.isArray(p.hidden)) setHidden(new Set(p.hidden));
+      } catch { /* ignore corrupt layout */ }
+      return;
     }
+    // No personal view — load the shared "default for everyone" if present.
+    if (!storageKey || !sheetsConfigured()) return;
+    if (globalViewCache[storageKey] !== undefined) { applyView(globalViewCache[storageKey]); return; }
+    let cancelled = false;
+    void getView(storageKey).then((v) => {
+      globalViewCache[storageKey] = v;
+      if (!cancelled) applyView(v);
+    });
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
 
@@ -112,13 +143,50 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columns.map((c) => c.key).join('|')]);
 
-  const persist = (nextOrder: string[], nextWidths: Record<string, number>) => {
+  const persist = (nextOrder: string[], nextWidths: Record<string, number>, nextHidden: Set<string> = hidden) => {
     if (persistKey)
-      localStorage.setItem(persistKey, JSON.stringify({ order: nextOrder, widths: nextWidths }));
+      localStorage.setItem(persistKey, JSON.stringify({ order: nextOrder, widths: nextWidths, hidden: [...nextHidden] }));
   };
 
   const colMap = useMemo(() => Object.fromEntries(columns.map((c) => [c.key, c])), [columns]);
   const orderedCols = order.map((k) => colMap[k]).filter(Boolean) as Column<T>[];
+  const visibleCols = orderedCols.filter((c) => !hidden.has(c.key));
+
+  const toggleHidden = (key: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      persist(order, widths, next);
+      return next;
+    });
+  };
+
+  const moveCol = (key: string, dir: -1 | 1) => {
+    const idx = order.indexOf(key);
+    const j = idx + dir;
+    if (idx < 0 || j < 0 || j >= order.length) return;
+    const next = [...order];
+    next.splice(j, 0, next.splice(idx, 1)[0]);
+    setOrder(next);
+    persist(next, widths);
+  };
+
+  const resetLayout = () => {
+    if (persistKey) localStorage.removeItem(persistKey);
+    setOrder(columns.map((c) => c.key));
+    setWidths(Object.fromEntries(columns.map((c) => [c.key, c.width ?? 160])));
+    setHidden(new Set());
+    setViewMsg('Reset to default.');
+  };
+
+  const saveForEveryone = async () => {
+    if (!storageKey) return;
+    setViewMsg('Saving…');
+    const view: TableView = { order, widths, hidden: [...hidden] };
+    const ok = await setView(storageKey, view);
+    globalViewCache[storageKey] = ok ? view : globalViewCache[storageKey];
+    setViewMsg(ok ? 'Saved as default for everyone.' : 'Save failed — check the sheet connection.');
+  };
 
   // ---- sorting ----
   const sortedRows = useMemo(() => {
@@ -192,7 +260,7 @@ export function DataTable<T>({
 
   const rowH = dense ? ROW_HEIGHT_DENSE : ROW_HEIGHT_DEFAULT;
   const maxBodyHeight = rowsBeforeScroll > 0 ? rowsBeforeScroll * rowH + 2 : undefined;
-  const totalWidth = orderedCols.reduce((s, c) => s + (widths[c.key] ?? 160), 0);
+  const totalWidth = visibleCols.reduce((s, c) => s + (widths[c.key] ?? 160), 0);
 
   return (
     <div className="dt-wrap">
@@ -209,13 +277,13 @@ export function DataTable<T>({
           style={{ width: tableWidth === 'auto' ? Math.max(totalWidth, 100) : totalWidth }}
         >
           <colgroup>
-            {orderedCols.map((c) => (
+            {visibleCols.map((c) => (
               <col key={c.key} style={{ width: widths[c.key] }} />
             ))}
           </colgroup>
           <thead className={stickyHeader ? 'dt-sticky' : ''}>
             <tr>
-              {orderedCols.map((c) => {
+              {visibleCols.map((c) => {
                 const isSorted = sort?.key === c.key;
                 return (
                   <th
@@ -252,7 +320,7 @@ export function DataTable<T>({
           <tbody>
             {sortedRows.length === 0 && (
               <tr>
-                <td colSpan={orderedCols.length} className="dt-empty">
+                <td colSpan={Math.max(1, visibleCols.length)} className="dt-empty">
                   {emptyText}
                 </td>
               </tr>
@@ -263,7 +331,7 @@ export function DataTable<T>({
                 className={onRowClick ? 'dt-clickable' : ''}
                 onClick={() => onRowClick?.(row)}
               >
-                {orderedCols.map((c) => {
+                {visibleCols.map((c) => {
                   const wrap = c.wrap ?? wrapCells;
                   const content = c.render
                     ? c.render(row)
@@ -287,18 +355,46 @@ export function DataTable<T>({
       </div>
       <div className="dt-footer">
         <span className="muted">{sortedRows.length} row{sortedRows.length === 1 ? '' : 's'}</span>
+        {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
+        <div className="spacer" />
         {persistKey && (
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => {
-              localStorage.removeItem(persistKey);
-              setOrder(columns.map((c) => c.key));
-              setWidths(Object.fromEntries(columns.map((c) => [c.key, c.width ?? 160])));
-            }}
-            title="Reset column order & widths"
-          >
-            Reset layout
-          </button>
+          <div className="dt-cols">
+            <button className="btn btn-ghost btn-sm" onClick={() => { setColPanel((o) => !o); setViewMsg(''); }} title="Show / hide & reorder columns">
+              ⚙ Columns{hidden.size ? ` (${visibleCols.length}/${orderedCols.length})` : ''}
+            </button>
+            {colPanel && (
+              <>
+                <div className="dt-cols-backdrop" onClick={() => setColPanel(false)} />
+                <div className="dt-cols-panel">
+                  <div className="dt-cols-head">Columns</div>
+                  <div className="dt-cols-list">
+                    {orderedCols.map((c, i) => (
+                      <div className="dt-cols-row" key={c.key}>
+                        <label className="dt-cols-check">
+                          <input type="checkbox" checked={!hidden.has(c.key)} onChange={() => toggleHidden(c.key)} />
+                          <span>{c.header || c.key}</span>
+                        </label>
+                        <span className="dt-cols-move">
+                          <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => moveCol(c.key, -1)} title="Move up">↑</button>
+                          <button className="btn btn-ghost btn-sm" disabled={i === orderedCols.length - 1} onClick={() => moveCol(c.key, 1)} title="Move down">↓</button>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="dt-cols-actions">
+                    <button className="btn btn-sm" onClick={resetLayout}>Reset</button>
+                    <div className="spacer" />
+                    {can('manage-users') && (
+                      <button className="btn btn-sm btn-primary" onClick={() => void saveForEveryone()} title="Save this layout as the default for all users">
+                        Save for everyone
+                      </button>
+                    )}
+                  </div>
+                  <div className="dt-cols-note muted">Your changes are saved for you automatically.</div>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -27,6 +27,8 @@ export const CHANGELOG: ChangeEntry[] = [
       'Added in-app Version History.',
       'User Master login: sign in with Air Liquide / Gmail ID, set a password on first sign-in (only Validity = TRUE users); passwords stored as salted hashes, never in the repo.',
       'Product Master: explicit Party / Product / Serial / Item Status filters plus a global search, and auto-load so the view is never blank.',
+      'All tables: show/hide, reorder and resize columns; your layout is saved automatically, and admins can "Save for everyone" as the shared default.',
+      'Collapsible sidebar groups (click a group heading); Discard changes / Reset on forms; discard unsynced pending calls (all or one).',
     ],
   },
   {

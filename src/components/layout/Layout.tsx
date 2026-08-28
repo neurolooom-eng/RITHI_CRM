@@ -85,7 +85,17 @@ export function Layout({ children }: { children: ReactNode }) {
     try { localStorage.setItem('rithi.sidebarCollapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
   }, [collapsed]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('rithi.navGroups') ?? '{}'); } catch { return {}; }
+  });
   const location = useLocation();
+
+  const toggleGroup = (title: string) =>
+    setOpenGroups((g) => {
+      const next = { ...g, [title]: g[title] === false ? true : false };
+      try { localStorage.setItem('rithi.navGroups', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
 
   // Close the mobile drawer whenever the route changes.
   const closeMobile = () => setMobileOpen(false);
@@ -116,22 +126,33 @@ export function Layout({ children }: { children: ReactNode }) {
           {NAV.map((group) => {
             const items = group.items.filter((i) => !i.adminOnly || can('manage-users'));
             if (items.length === 0) return null;
+            const open = openGroups[group.title] !== false; // default open
             return (
               <div className="nav-group" key={group.title}>
-                {!collapsed && <div className="nav-group-title">{group.title}</div>}
-                {items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/'}
-                    className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
-                    title={item.label}
-                    onClick={closeMobile}
+                {!collapsed && (
+                  <button
+                    className="nav-group-title nav-group-toggle"
+                    onClick={() => toggleGroup(group.title)}
+                    title={open ? 'Collapse' : 'Expand'}
                   >
-                    <span className="nav-icon">{item.icon}</span>
-                    {!collapsed && <span className="nav-label">{item.label}</span>}
-                  </NavLink>
-                ))}
+                    <span className={`nav-group-caret ${open ? 'open' : ''}`}>▸</span>
+                    {group.title}
+                  </button>
+                )}
+                {(collapsed || open) &&
+                  items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/'}
+                      className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
+                      title={item.label}
+                      onClick={closeMobile}
+                    >
+                      <span className="nav-icon">{item.icon}</span>
+                      {!collapsed && <span className="nav-label">{item.label}</span>}
+                    </NavLink>
+                  ))}
               </div>
             );
           })}
