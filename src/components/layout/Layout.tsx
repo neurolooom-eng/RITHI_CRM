@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../../lib/auth';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
+import { ViewAsControl, ViewAsBanner } from './ViewAs';
 import './layout.css';
 
 interface NavItem {
@@ -188,6 +189,8 @@ export function Layout({ children }: { children: ReactNode }) {
           <div className="header-crumb">{crumbFor(location.pathname)}</div>
           <div className="spacer" />
 
+          <ViewAsControl />
+
           <select
             className="select header-theme"
             value={theme.id}
@@ -220,6 +223,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
+        <ViewAsBanner />
         <main className="app-content">{children}</main>
 
         <footer className="app-footer" title={`Built ${__BUILD_TIME__}`}>

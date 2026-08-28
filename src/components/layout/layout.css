@@ -353,3 +353,61 @@
 .settings-defaults li {
   margin-bottom: 4px;
 }
+
+/* ---- "View as" admin preview -------------------------------------------- */
+.viewas { position: relative; display: inline-flex; }
+.viewas-active { color: var(--primary); font-weight: 650; }
+.viewas-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 560px) { .viewas-label { display: none; } }
+.viewas-backdrop { position: fixed; inset: 0; z-index: 45; }
+.viewas-panel {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  z-index: 46;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.viewas-head { font-weight: 700; font-size: 13px; }
+.viewas-note { font-size: 12px; padding: 2px; }
+.viewas-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; gap: 2px; }
+.viewas-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-family: inherit;
+}
+.viewas-item:hover { background: var(--surface-alt); }
+.viewas-item-active { background: var(--primary-soft); }
+.viewas-item-name { font-size: 13px; font-weight: 600; }
+.viewas-item-id { font-size: 11px; color: var(--text-muted); }
+.viewas-exit { align-self: flex-start; }
+
+.viewas-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--warning-soft, #fef3c7);
+  color: var(--warning, #92400e);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}

@@ -45,6 +45,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 const USERS = 'users';
 const SESSION_KEY = 'rithi.session';
+const VIEWAS_KEY = 'rithi.viewAs'; // admin "View as engineer" preview identity
 
 // Deterministic, lightweight hash — sufficient to demonstrate password-gating.
 function hash(pw: string): string {
@@ -136,6 +137,14 @@ interface AuthContextValue {
   updateUser: (id: string, patch: Partial<User> & { password?: string }) => void;
   removeUser: (id: string) => void;
   can: (action: 'manage-users' | 'edit' | 'delete' | 'view') => boolean;
+  // The actual logged-in user (never the impersonated one) and whether they are
+  // a real administrator — used to gate the "View as" control itself.
+  realUser: User | null;
+  isAdmin: boolean;
+  // Admin preview: act as another (engineer) identity so every page shows what
+  // that user would see. null when not previewing.
+  viewAs: User | null;
+  setViewAs: (u: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -144,6 +153,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tick, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const [userId, setUserId] = useState<string | null>(() => localStorage.getItem(SESSION_KEY));
+  const [viewAsRaw, setViewAsRaw] = useState<User | null>(() => {
+    try { const r = localStorage.getItem(VIEWAS_KEY); return r ? (JSON.parse(r) as User) : null; } catch { return null; }
+  });
 
   useEffect(() => seedUsers(), []);
   useEffect(() => db.subscribe(USERS, refresh), []);
@@ -151,6 +163,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const users = db.list(USERS) as User[];
   const user = users.find((u) => u.id === userId && u.active) ?? null;
   void tick;
+
+  // Real admin? (super admin or admin role). Impersonation is only offered to,
+  // and only honoured for, real admins.
+  const realUser = user;
+  const isAdmin = !!realUser && (isSuper(realUser.email, realUser.username) || realUser.role === 'admin');
+  const viewAs = isAdmin ? viewAsRaw : null;
+  // Identity the app should behave as (permissions + data scope).
+  const effectiveUser = viewAs ?? user;
+
+  const setViewAs = (u: User | null) => {
+    if (u && !isAdmin) return; // only real admins may preview as someone else
+    setViewAsRaw(u);
+    try { u ? localStorage.setItem(VIEWAS_KEY, JSON.stringify(u)) : localStorage.removeItem(VIEWAS_KEY); } catch { /* ignore */ }
+  };
 
   const setSession = (id: string) => {
     localStorage.setItem(SESSION_KEY, id);
@@ -262,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem(SESSION_KEY);
+    setViewAs(null);
     setUserId(null);
   };
 
@@ -292,9 +319,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const removeUser: AuthContextValue['removeUser'] = (id) => db.remove(USERS, id);
 
   const can: AuthContextValue['can'] = (action) => {
-    if (!user) return false;
-    if (isSuper(user.email, user.username)) return true; // dev access — all rights
-    const r = user.role;
+    const u = effectiveUser; // reflects the impersonated engineer while previewing
+    if (!u) return false;
+    if (isSuper(u.email, u.username)) return true; // dev access — all rights
+    const r = u.role;
     switch (action) {
       case 'manage-users':
         return r === 'admin';
@@ -309,7 +337,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can }}
+      value={{ user, users, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, realUser, isAdmin, viewAs, setViewAs }}
     >
       {children}
     </AuthContext.Provider>
