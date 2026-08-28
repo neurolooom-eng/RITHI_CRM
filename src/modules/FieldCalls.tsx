@@ -14,6 +14,7 @@ import {
   listParties,
   listPartyItems,
   listPartyProducts,
+  setPendingUcn,
   sheetsConfigured,
   updateFieldCall,
 } from '../lib/sheets';
@@ -115,7 +116,7 @@ const COLUMNS: Column<Rec>[] = [
 let cachedParties: string[] | null = null;
 
 // Cascade picker: Party → Product → Serial, prefilling the form from the item.
-function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
+export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
   const [parties, setParties] = useState<string[]>(cachedParties ?? []);
   const [party, setParty] = useState('');
   const [products, setProducts] = useState<string[]>([]);
@@ -288,6 +289,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [loadLimit, setLoadLimit] = useState(300);
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
+  const [pendingRow, setPendingRow] = useState<number | null>(null); // Data-2026 row to back-fill
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const configured = sheetsConfigured();
   const pendingCount = cached.filter((r) => r._pending).length;
@@ -333,10 +335,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Arriving with a prefill (e.g. "Register Call" from Product Master) opens the
   // create drawer pre-populated from the chosen item.
   useEffect(() => {
-    const st = location.state as { prefill?: Record<string, unknown> } | null;
+    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number } | null;
     if (st?.prefill) {
       setPrefill(st.prefill as FormValues);
       setPrefillKey((k) => k + 1);
+      setPendingRow(typeof st.pendingRow === 'number' ? st.pendingRow : null);
       setDrawer({ mode: 'create' });
       window.history.replaceState({}, ''); // consume so it doesn't re-trigger
     }
@@ -366,7 +369,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         const res = await addFieldCall(rec, config.tab);
         if (res.ok && res.record) {
           db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
-          setBanner({ tone: 'ok', text: `${config.singular} registered in the sheet as ${res.ucn}.` });
+          // If this came from a pending CRN request, back-fill the UCN there.
+          if (pendingRow != null && res.ucn) {
+            void setPendingUcn(pendingRow, String(res.ucn));
+            setPendingRow(null);
+          }
+          setBanner({ tone: 'ok', text: `${config.singular} registered in the sheet as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
         } else {
           saveLocal(rec, `Sheet write failed (${res.error}).`);
         }
@@ -479,7 +487,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           can('edit') && (
             <button
               className="btn btn-primary"
-              onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setDrawer({ mode: 'create' }); }}
+              onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setPendingRow(null); setDrawer({ mode: 'create' }); }}
             >
               + New {config.singular}
             </button>
