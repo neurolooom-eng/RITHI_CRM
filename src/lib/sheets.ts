@@ -166,11 +166,52 @@ export async function listPartyItems(party: string, product = ''): Promise<Recor
   return (r.rows as Record<string, unknown>[]) ?? [];
 }
 
-// Free-text product search for the Product Master browse view.
-export async function searchProducts(q: string, limit = 100): Promise<Record<string, unknown>[]> {
-  const r = await getJson({ action: 'prodsearch', q, limit: String(limit) });
+export interface ProdFilters {
+  q?: string;       // global (party / product / serial / code)
+  party?: string;
+  product?: string;
+  serial?: string;
+  status?: string;  // exact Item Status (WGP/OGP/CMC/AMC)
+}
+
+// Product Master search. Explicit fields + optional global q; empty = browse.
+export async function searchProducts(filters: ProdFilters | string = {}, limit = 100): Promise<Record<string, unknown>[]> {
+  const f: ProdFilters = typeof filters === 'string' ? { q: filters } : filters;
+  const params: Record<string, string> = { action: 'prodsearch', limit: String(limit) };
+  (['q', 'party', 'product', 'serial', 'status'] as const).forEach((k) => {
+    const v = f[k];
+    if (v && String(v).trim()) params[k] = String(v).trim();
+  });
+  const r = await getJson(params);
   if (!r.ok) throw new Error(String(r.error ?? 'product search failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
+}
+
+// ---- User Master auth (via CallReg; GET so the JSONP fallback covers CORS) --
+export interface SheetUser {
+  name: string;
+  email: string;
+  gmail: string;
+  designation: string;
+  region: string;
+  rm: string;
+  rgm: string;
+}
+export interface AuthResult {
+  ok: boolean;
+  needsPassword?: boolean;
+  user?: SheetUser;
+  error?: string;
+}
+
+export async function authLogin(id: string, password: string): Promise<AuthResult> {
+  const r = await getJson({ action: 'auth', mode: 'login', id, password });
+  return r as unknown as AuthResult;
+}
+
+export async function authSetPassword(id: string, password: string): Promise<AuthResult> {
+  const r = await getJson({ action: 'auth', mode: 'setpassword', id, password });
+  return r as unknown as AuthResult;
 }
 
 // Patch an existing call by UCN (record keyed by app keys).

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
+import { authLogin, authSetPassword, sheetsConfigured, type SheetUser } from './sheets';
 
 // ---------------------------------------------------------------------------
 // Authentication & user access.
@@ -17,6 +18,8 @@ export interface User extends BaseRecord {
   role: Role;
   passwordHash: string;
   active: boolean;
+  authSource?: 'local' | 'sheet'; // 'sheet' users authenticate via the User Master
+  region?: string;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -96,10 +99,17 @@ function ensureUser(u: {
   db.insert(USERS, { ...u, active: true });
 }
 
+export interface LoginResult {
+  ok: boolean;
+  error?: string;
+  needsPassword?: boolean; // first login: must set a password
+}
+
 interface AuthContextValue {
   user: User | null;
   users: User[];
-  login: (username: string, password: string) => { ok: boolean; error?: string };
+  login: (username: string, password: string) => Promise<LoginResult>;
+  setPassword: (id: string, password: string) => Promise<LoginResult>;
   logout: () => void;
   createUser: (input: {
     username: string;
@@ -127,16 +137,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const user = users.find((u) => u.id === userId && u.active) ?? null;
   void tick;
 
-  const login: AuthContextValue['login'] = (username, password) => {
-    const match = (db.list(USERS) as User[]).find(
-      (u) => u.username.toLowerCase() === username.trim().toLowerCase(),
+  const setSession = (id: string) => {
+    localStorage.setItem(SESSION_KEY, id);
+    setUserId(id);
+  };
+
+  // Create/refresh a local record for a User-Master-authenticated user so the
+  // rest of the app (roles, context, engineer lists) works. Role: engineer.
+  const upsertSheetUser = (su: SheetUser, id: string): string => {
+    const username = String(su.email || su.gmail || id).toLowerCase();
+    const existing = (db.list(USERS) as User[]).find((u) => u.username.toLowerCase() === username);
+    const patch: Partial<User> = {
+      username,
+      fullName: su.name || id,
+      email: su.email || id,
+      role: 'engineer',
+      active: true,
+      authSource: 'sheet',
+      region: su.region,
+    };
+    if (existing) {
+      db.update(USERS, existing.id, patch);
+      return existing.id;
+    }
+    return db.insert(USERS, { ...patch, passwordHash: '' }).id;
+  };
+
+  const authError = (code?: string): string => {
+    switch (code) {
+      case 'not_found': return 'ID not found in the User Master.';
+      case 'inactive': return 'Your account is not active (Validity is not TRUE).';
+      case 'bad_password': return 'Incorrect password.';
+      case 'weak': return 'Password too short (minimum 5 characters).';
+      default: return code || 'Login failed.';
+    }
+  };
+
+  const login: AuthContextValue['login'] = async (id, password) => {
+    const idNorm = id.trim();
+    // 1) Local demo/offline accounts (username or email), password-checked here.
+    const local = (db.list(USERS) as User[]).find(
+      (u) => u.authSource !== 'sheet' &&
+        (u.username.toLowerCase() === idNorm.toLowerCase() || String(u.email).toLowerCase() === idNorm.toLowerCase()),
     );
-    if (!match) return { ok: false, error: 'User not found' };
-    if (!match.active) return { ok: false, error: 'Account is disabled' };
-    if (match.passwordHash !== hash(password)) return { ok: false, error: 'Incorrect password' };
-    localStorage.setItem(SESSION_KEY, match.id);
-    setUserId(match.id);
-    return { ok: true };
+    if (local) {
+      if (!local.active) return { ok: false, error: 'Account is disabled' };
+      if (local.passwordHash !== hash(password)) return { ok: false, error: 'Incorrect password' };
+      setSession(local.id);
+      return { ok: true };
+    }
+    // 2) User Master via CallReg.
+    if (sheetsConfigured()) {
+      try {
+        const res = await authLogin(idNorm, password);
+        if (res.ok && res.needsPassword) return { ok: false, needsPassword: true };
+        if (res.ok && res.user) { setSession(upsertSheetUser(res.user, idNorm)); return { ok: true }; }
+        return { ok: false, error: authError(res.error) };
+      } catch {
+        return { ok: false, error: 'Could not reach the login service. Check the connection in Settings.' };
+      }
+    }
+    return { ok: false, error: 'User not found' };
+  };
+
+  const setPassword: AuthContextValue['setPassword'] = async (id, password) => {
+    if (!sheetsConfigured()) return { ok: false, error: 'No sheet connected.' };
+    try {
+      const res = await authSetPassword(id.trim(), password);
+      if (res.ok && res.user) { setSession(upsertSheetUser(res.user, id.trim())); return { ok: true }; }
+      return { ok: false, error: authError(res.error) };
+    } catch {
+      return { ok: false, error: 'Could not reach the login service.' };
+    }
   };
 
   const logout = () => {
@@ -187,7 +259,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, login, logout, createUser, updateUser, removeUser, can }}
+      value={{ user, users, login, setPassword, logout, createUser, updateUser, removeUser, can }}
     >
       {children}
     </AuthContext.Provider>
