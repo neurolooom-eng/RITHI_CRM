@@ -57,12 +57,13 @@ _Last updated: 2026-08-28_
 
 ## 🔜 In progress / Next
 
-- **Standard Complaint Master** — form wiring done (Standard Complaint field is a
-  live suggestion list); **awaiting the sheet link/tab/column** to point the
-  `complaint` master (set in Admin Config → Master Value Lists).
+- **Standard Complaint Master** — mapped to *200 All Masters* → tab
+  "Standard Complaint", col "Standard Complaint" (baked as the `complaint`
+  master default). Live once CallReg is redeployed; the Standard Complaint field
+  fills from this list.
 - **Call Type Master** — form wiring done (Call Type select on the Request form
   sources from it); **awaiting the sheet link/tab/column** for the `calltype`
-  master.
+  master (defaults to FIELD / INSTALLATION CALL until then).
 
 ---
 

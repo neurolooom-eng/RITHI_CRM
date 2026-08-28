@@ -357,6 +357,8 @@ function _masters() {
   try { reg = raw ? JSON.parse(raw) : {}; } catch (e) { reg = {}; }
   if (!reg.party) reg.party = { book: 'partymaster', col: PARTY_NAME_HEADER };
   if (!reg.product) reg.product = { book: 'prodmaster', col: 'Item Name' };
+  // Standard Complaint Master — "Standard Complaint" tab/column of 200 All Masters.
+  if (!reg.complaint) reg.complaint = { id: '1bhpInqMlfmbsqtWm6s6CwOhTHdGruDAe672I275xGEE', tab: 'Standard Complaint', col: 'Standard Complaint' };
   return reg;
 }
 
