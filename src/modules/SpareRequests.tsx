@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { csvExport, timeAgo } from '../lib/format';
+import { csvExport, makeRequestUID, timeAgo } from '../lib/format';
 import { toSheetDate } from '../lib/fieldcall';
 import { listTabRows, sheetsConfigured, tabAppend } from '../lib/sheets';
 import { useAuth } from '../lib/auth';
@@ -48,7 +48,7 @@ export function SpareRequestDrawer({
   call: CallLike | null;
   open: boolean;
   onClose: () => void;
-  onSaved?: (ucn: string) => void;
+  onSaved?: (ucn: string, uid?: string) => void;
 }) {
   const { user } = useAuth();
   const spareMaster = useMaster('spare');
@@ -56,11 +56,14 @@ export function SpareRequestDrawer({
   const [remarks, setRemarks] = useState('');
   const [handstockReason, setHandstockReason] = useState('');
   const [spares, setSpares] = useState<{ spare: string; qty: string }[]>([{ spare: '', qty: '1' }]);
+  const [uid, setUid] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // A fresh UID (WA-yyyymmdd-xxxx) is minted each time the drawer opens, so the
+  // engineer can see/quote the reference for the request they're about to raise.
   useEffect(() => {
-    if (open) { setReqType('Call Based'); setRemarks(''); setHandstockReason(''); setSpares([{ spare: '', qty: '1' }]); setErr(''); }
+    if (open) { setReqType('Call Based'); setRemarks(''); setHandstockReason(''); setSpares([{ spare: '', qty: '1' }]); setUid(makeRequestUID()); setErr(''); }
   }, [open, call]);
 
   const c = (k: string) => String(call?.[k] ?? '');
@@ -76,6 +79,7 @@ export function SpareRequestDrawer({
     if (reqType === 'HandStock' && !handstockReason.trim()) { setErr('Enter the reason for the HandStock request.'); return; }
 
     const data: Record<string, unknown> = {
+      'UID': uid,
       'Engineer Email': user?.email ?? '',
       'Req Type': reqType,
       'OR Req Date': toSheetDate(new Date()),
@@ -98,7 +102,7 @@ export function SpareRequestDrawer({
     setBusy(true); setErr('');
     try {
       const res = await tabAppend(INTAKE_TAB, data, BOOK);
-      if (res.ok) { onSaved?.(c('ucn')); onClose(); }
+      if (res.ok) { onSaved?.(c('ucn'), uid); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
       setErr(`Submit failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -122,8 +126,12 @@ export function SpareRequestDrawer({
         )}
 
         <section className="rep-sec">
-          <div className="rep-sec-title">Request</div>
+          <div className="rep-sec-title">Request <span className="muted">· UID {uid}</span></div>
           <div className="rep-grid">
+            <label className="rep-field">
+              <span className="field-label">Request UID</span>
+              <input className="input" value={uid} readOnly />
+            </label>
             <label className="rep-field">
               <span className="field-label">Request Type</span>
               <select className="select" value={reqType} onChange={(e) => setReqType(e.target.value)}>
@@ -171,6 +179,7 @@ export function SpareRequestDrawer({
 // Spare Requests register (status view from v2_OR_Req).
 // ---------------------------------------------------------------------------
 const COLUMNS: Column<Row>[] = [
+  { key: 'UID', header: 'UID', width: 150, wrap: false },
   { key: 'OR NO', header: 'OR No', width: 110, wrap: false },
   { key: 'OR Date', header: 'Date', width: 150, wrap: false },
   { key: 'UC Number', header: 'UCN', width: 110, wrap: false },
@@ -201,10 +210,18 @@ export function SpareRequests() {
     if (!sheetsConfigured()) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading spare requests…' });
     try {
-      const r = await listTabRows(STATUS_TAB, 600, '', BOOK);
-      setRows(r.map((x, i) => ({ ...x, id: `${g(x, 'OR NO')}-${g(x, 'Part Number')}-${i}` })));
+      // Primary: the exploded/approval view (one row per part). If it's empty or
+      // unavailable, fall back to the raw intake tab so freshly-raised requests
+      // (which the sheet hasn't exploded yet) are still visible.
+      let r = await listTabRows(STATUS_TAB, 600, '', BOOK).catch(() => [] as Record<string, unknown>[]);
+      let from = STATUS_TAB;
+      if (r.length === 0) {
+        const intake = await listTabRows(INTAKE_TAB, 600, '', BOOK).catch(() => [] as Record<string, unknown>[]);
+        if (intake.length > 0) { r = intake; from = INTAKE_TAB; }
+      }
+      setRows(r.map((x, i) => ({ ...x, id: `${g(x, 'UID') || g(x, 'OR NO')}-${g(x, 'Part Number')}-${i}` })));
       setLastSync(new Date().toISOString());
-      setMsg({ tone: 'ok', text: `Loaded ${r.length} spare-request lines.` });
+      setMsg({ tone: 'ok', text: `Loaded ${r.length} spare-request line${r.length === 1 ? '' : 's'} from ${from}.` });
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -279,7 +296,7 @@ export function SpareRequests() {
         call={null}
         open={drawer}
         onClose={() => setDrawer(false)}
-        onSaved={() => { setMsg({ tone: 'ok', text: 'Spare request submitted. It will appear here once the sheet processes it.' }); }}
+        onSaved={(_ucn, uid) => { setMsg({ tone: 'ok', text: `Spare request ${uid ?? ''} submitted.` }); void load(); }}
       />
     </div>
   );

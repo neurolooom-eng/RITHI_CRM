@@ -30,6 +30,16 @@ export const fmtDateTime = (s: unknown): string => {
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
+// Request UID: WA-<yyyymmdd>-<short unique>. Used to stamp every spare request
+// with a human-scannable, unique reference (WA = Web App origin).
+export function makeRequestUID(prefix = 'WA'): string {
+  const d = new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const rand = Math.random().toString(36).slice(2, 7).toUpperCase();
+  const t = d.getTime().toString(36).slice(-4).toUpperCase();
+  return `${prefix}-${ymd}-${t}${rand}`;
+}
+
 // Relative "x ago" for cache-age messaging.
 export function timeAgo(iso: unknown): string {
   if (!iso) return 'never';
