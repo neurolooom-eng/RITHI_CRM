@@ -212,10 +212,11 @@ export function CallReportDrawer({
       const res = await saveReport(ucn, patch);
       if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
 
-      // Customer feedback (append once, if filled) → v2Feedback.
+      // Customer feedback (append once, if filled) → v2Feedback, tagged with the
+      // call type so feedback is recorded against the type of call.
       if (solved && fbHeaders && fbHeaders.length) {
         const filled = Object.entries(feedback).some(([k, val]) => !/uc\s*number|ucn/i.test(k) && String(val).trim() !== '');
-        if (filled) await tabAppend('', { ...feedback, [ucnColOf(fbHeaders)]: ucn }, FEEDBACK_BOOK);
+        if (filled) await tabAppend('', { ...feedback, [ucnColOf(fbHeaders)]: ucn, 'Call Type': String(call?.callType ?? '') }, FEEDBACK_BOOK);
       }
       onSaved?.(res.mode ?? 'saved', ucn);
       onClose();
