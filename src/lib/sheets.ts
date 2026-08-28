@@ -60,13 +60,18 @@ async function getJson(params: Record<string, string>): Promise<Record<string, u
   if (tab && !params.tab) params.tab = tab;
   const qs = new URLSearchParams(params).toString();
   const url = `${base}?${qs}`;
+  // Try fetch with a short timeout; Apps Script frequently can't satisfy the
+  // browser's CORS check, in which case fetch may hang or throw. Either way we
+  // fall back to JSONP (a <script> load), which is not subject to CORS.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
+    clearTimeout(timer);
     if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
     return await res.json();
   } catch {
-    // Apps Script often can't satisfy the browser's CORS check on fetch reads;
-    // fall back to JSONP (a <script> load), which is not subject to CORS.
+    clearTimeout(timer);
     return jsonp(url);
   }
 }
