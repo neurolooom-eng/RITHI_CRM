@@ -7,6 +7,7 @@ export const C = {
   warranties: 'warranties',
   contracts: 'contracts',
   fieldCalls: 'fieldCalls',
+  instCalls: 'instCalls',
   installations: 'installations',
   pmcalls: 'pmcalls',
   breakdowns: 'breakdowns',

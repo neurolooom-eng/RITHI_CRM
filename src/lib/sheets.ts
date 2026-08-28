@@ -119,11 +119,12 @@ export async function pingSheet(): Promise<PingResult> {
   }
 }
 
-// List calls (default: only FIELD type). Returns records keyed by app keys.
-export async function listFieldCalls(type = 'FIELD', limit = 0): Promise<Record<string, unknown>[]> {
+// List calls from a tab. Returns records keyed by app keys.
+export async function listFieldCalls(type = '', limit = 0, tab = ''): Promise<Record<string, unknown>[]> {
   const params: Record<string, string> = { action: 'list' };
   if (type) params.type = type;
   if (limit) params.limit = String(limit);
+  if (tab) params.tab = tab;
   const r = await getJson(params);
   if (!r.ok) throw new Error(String(r.error ?? 'list failed'));
   const rows = (r.rows as Record<string, unknown>[]) ?? [];
@@ -139,9 +140,9 @@ export interface AddResult {
 
 // Add a new call. `record` is keyed by app keys; UCN + reg date are assigned
 // by the server so the number is unique against the live sheet.
-export async function addFieldCall(record: Record<string, unknown>): Promise<AddResult> {
+export async function addFieldCall(record: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const call = recordToRow(record);
-  const r = await postJson({ action: 'add', call });
+  const r = await postJson({ action: 'add', call, ...(tab ? { tab } : {}) });
   if (!r.ok) return { ok: false, error: String(r.error ?? 'add failed') };
   return { ok: true, ucn: String(r.ucn ?? ''), record: rowToRecord((r.row as Record<string, unknown>) ?? {}) };
 }
@@ -173,8 +174,8 @@ export async function searchProducts(q: string, limit = 100): Promise<Record<str
 }
 
 // Patch an existing call by UCN (record keyed by app keys).
-export async function updateFieldCall(ucn: string, patch: Record<string, unknown>): Promise<AddResult> {
-  const r = await postJson({ action: 'update', ucn, patch: recordToRow(patch) });
+export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
+  const r = await postJson({ action: 'update', ucn, patch: recordToRow(patch), ...(tab ? { tab } : {}) });
   if (!r.ok) return { ok: false, error: String(r.error ?? 'update failed') };
   return { ok: true, ucn };
 }
