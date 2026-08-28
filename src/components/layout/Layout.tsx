@@ -47,6 +47,7 @@ export const NAV: NavGroup[] = [
       { to: '/pending-registrations', label: 'Pending Registrations', icon: '⏳' },
       { to: '/field-calls', label: 'Field Call Register', icon: '📡' },
       { to: '/installations', label: 'Installation Calls', icon: '🔧' },
+      { to: '/call-updation', label: 'Call Updation', icon: '🛠️' },
       { to: '/pm-calls', label: 'Preventive (PM)', icon: '🗓️' },
     ],
   },
