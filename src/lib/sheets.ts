@@ -341,10 +341,19 @@ export interface CallReport {
 }
 
 // Fetch the Reporting-N schema + the existing report row for a UCN.
+// Resilient: if `reportget` is slow/unsupported (e.g. an older CallReg
+// deployment), fall back to reading just the Reporting-N headers so the report
+// form still opens (with an empty existing row) instead of hanging on load.
 export async function getReport(ucn: string): Promise<CallReport> {
-  const r = await getJson({ action: 'reportget', ucn });
-  if (!r.ok) throw new Error(String(r.error ?? 'reportget failed'));
-  return { headers: (r.headers as string[]) ?? [], row: (r.row as Record<string, unknown>) ?? {} };
+  try {
+    const r = await getJson({ action: 'reportget', ucn });
+    const headers = (r.headers as string[]) ?? [];
+    if (r.ok && headers.length) return { headers, row: (r.row as Record<string, unknown>) ?? {} };
+    // Backend answered but without the reportget action / empty schema — fall
+    // through to reading the tab schema directly.
+  } catch { /* network/timeout — fall through to schema-only */ }
+  const headers = await tabMeta('Reporting-N');
+  return { headers, row: {} };
 }
 
 // Upsert a call report into Reporting-N by UC Number (update in place, else
