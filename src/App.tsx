@@ -8,7 +8,6 @@ import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
-import { BillingModule } from './modules/BillingModule';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
@@ -53,8 +52,6 @@ function Shell() {
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<CrudModule config={spareRequestConfig} />} />
         <Route path="/spare-consumption" element={<CrudModule config={spareConsumptionConfig} />} />
-        <Route path="/quotes" element={<BillingModule kind="quote" />} />
-        <Route path="/invoices" element={<BillingModule kind="invoice" />} />
         <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />

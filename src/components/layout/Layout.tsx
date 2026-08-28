@@ -55,13 +55,6 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    title: 'Billing',
-    items: [
-      { to: '/quotes', label: 'Quotations', icon: '🧮' },
-      { to: '/invoices', label: 'Invoices', icon: '💳' },
-    ],
-  },
-  {
     title: 'Quality & Analytics',
     items: [
       { to: '/feedback', label: 'Customer Feedback', icon: '⭐' },
