@@ -2,6 +2,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useCollection } from '../lib/hooks';
 import { TemplatePlaceholder } from './TemplatePlaceholder';
+import { SheetConnection } from './SheetConnection';
 import { useAuth } from '../lib/auth';
 
 export function Settings() {
@@ -20,6 +21,10 @@ export function Settings() {
   return (
     <div>
       <PageHeader title="Settings" subtitle="Appearance, design-system defaults & templates" icon="⚙️" />
+
+      <SheetConnection />
+
+      <div style={{ height: 16 }} />
 
       <SectionCard title="Color Theme">
         <div className="muted" style={{ marginBottom: 12 }}>
