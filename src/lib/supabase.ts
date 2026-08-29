@@ -338,6 +338,19 @@ export async function getReport(ucn: string): Promise<{ row: Record<string, unkn
   if (error) throw new Error(error.message);
   return { row: data ?? null };
 }
+// Reports register — field filters + paging (Load more), like Party Master.
+export interface ReportFilter { ucn?: string; callNumber?: string; engineer?: string; status?: string }
+export async function queryReports(filter: ReportFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
+  let q = must().from('reports').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  if (filter.ucn) q = q.ilike('ucn', `%${_san(filter.ucn)}%`);
+  if (filter.callNumber) q = q.ilike('call_number', `%${_san(filter.callNumber)}%`);
+  if (filter.engineer) q = q.ilike('engineer', `%${_san(filter.engineer)}%`);
+  if (filter.status) q = q.ilike('call_status', `%${_san(filter.status)}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
