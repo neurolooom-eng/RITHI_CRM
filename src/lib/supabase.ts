@@ -221,6 +221,43 @@ export function callTypeForTab(tab: string): string {
   return tab; // already a call_type, or empty (= all)
 }
 
+// ---- call requests (Request Registration) ----------------------------------
+// Party details for autofill (state / city / address).
+export async function sbPartyInfo(party: string): Promise<{ state: string; city: string; address: string } | null> {
+  const { data } = await must().from('parties').select('state,city,address,extra').ilike('party_name', party).limit(1).maybeSingle();
+  if (!data) return null;
+  const ex = (data.extra as Record<string, unknown>) ?? {};
+  return { state: String(data.state ?? ''), city: String(data.city ?? ''), address: String(data.address ?? ex['Address'] ?? '') };
+}
+
+export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok: boolean; reqid?: string; unique_key?: string; error?: string }> {
+  const { data, error } = await must().from('call_requests').insert(rec).select('reqid,unique_key').single();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
+}
+
+// Pending call registrations (no UCN yet), mapped to the header keys the
+// Pending Registrations screen already reads.
+export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('call_requests').select('*')
+    .or('ucn.is.null,ucn.eq.').order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => ({
+    _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
+    'Timestamp': r.submitted_at, 'ENGINEER': r.engineer, 'E-Mail ID': r.email, 'CALL TYPE': r.call_type,
+    'PARTY NAME': r.party_name, 'State': r.state, 'City': r.city, 'Address': r.address,
+    'PRODUCT': r.product, 'SERIAL NO': r.serial_no, 'Standard Complaint': r.standard_complaint,
+    'Reported Problem': r.reported_problem, 'CUSTOMER CONTACT DETAILS': r.customer_contact_details,
+    'CUSTOMER CONTACT Number': r.customer_contact_number, 'Call Attended?': r.call_attended,
+    'Attended Date': r.attended_date, 'PLAN DATE (Visit Planned Date)': r.plan_date,
+    'Additional Comments': r.additional_comments,
+  }));
+}
+export async function setCallRequestUcn(id: number, ucn: string): Promise<boolean> {
+  const { error } = await must().from('call_requests').update({ ucn, status: 'Registered' }).eq('id', id);
+  return !error;
+}
+
 // ---- pending registrations -------------------------------------------------
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')

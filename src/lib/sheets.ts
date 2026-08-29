@@ -282,6 +282,7 @@ export async function checkConfig(): Promise<Record<string, ConfigCheck>> {
 
 // ---- Call Registration Request workflow ------------------------------------
 export async function listPending(limit = 200): Promise<Record<string, unknown>[]> {
+  if (sb.supabaseConfigured()) return sb.listCallRequestsAsPending(limit);
   const r = await getJson({ action: 'pending', limit: String(limit) });
   if (!r.ok) throw new Error(String(r.error ?? 'pending failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
@@ -291,6 +292,7 @@ export async function addCrnRequest(data: Record<string, unknown>): Promise<bool
   return !!r.ok;
 }
 export async function setPendingUcn(row: number, ucn: string): Promise<boolean> {
+  if (sb.supabaseConfigured()) return sb.setCallRequestUcn(row, ucn);
   const r = await getJson({ action: 'setucn', uid: String(row), ucn });
   return !!r.ok;
 }
