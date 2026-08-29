@@ -190,3 +190,14 @@
   white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis;
 }
 .assoc-table th { color: var(--muted, #64748b); font-weight: 600; background: var(--surface-2, #f7f9fb); position: sticky; top: 0; }
+
+/* RBAC permission matrix */
+.rbac-scroll { overflow-x: auto; }
+.rbac-table { border-collapse: collapse; font-size: 13px; min-width: 720px; }
+.rbac-table th, .rbac-table td { border: 1px solid var(--border, #e2e8f0); padding: 6px 10px; text-align: center; }
+.rbac-table thead th { position: sticky; top: 0; background: var(--surface-2, #f7f9fb); font-weight: 600; }
+.rbac-action { text-align: left !important; white-space: nowrap; }
+.rbac-action span { display: block; }
+.rbac-action code { font-size: 10.5px; }
+.rbac-group td { text-align: left !important; background: var(--surface-2, #f4f6f8); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; color: var(--muted, #64748b); }
+.rbac-cell input { width: 16px; height: 16px; cursor: pointer; }

@@ -340,6 +340,23 @@ export async function sbDirectoryNames(): Promise<string[]> {
   return distinctColumn('user_directory', 'name');
 }
 
+// ---- RBAC (role → permissions) ---------------------------------------------
+export async function getRolePerms(): Promise<Record<string, string[]>> {
+  const c = getSupabase(); if (!c) return {};
+  const { data, error } = await c.from('app_roles').select('role,permissions');
+  if (error) return {};
+  const out: Record<string, string[]> = {};
+  (data ?? []).forEach((r) => { out[String(r.role)] = Array.isArray(r.permissions) ? (r.permissions as string[]) : []; });
+  return out;
+}
+export async function setRolePerms(role: string, permissions: string[], label?: string): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const row: Record<string, unknown> = { role, permissions, updated_at: new Date().toISOString() };
+  if (label != null) row.label = label;
+  const { error } = await c.from('app_roles').upsert(row, { onConflict: 'role' });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
 // Distinct engineer names seen on calls (fallback source for the reporting
 // engineer dropdown when the directory isn't populated yet).
 export async function sbEngineerNames(): Promise<string[]> {
