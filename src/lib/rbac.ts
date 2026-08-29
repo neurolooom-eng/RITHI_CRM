@@ -71,6 +71,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.approve_nsm', label: 'Approve spare — NSM' },
   { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / DC (Stores)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
+  { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand stock' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
@@ -103,14 +104,14 @@ export const legacyToRbac = (role: string): string =>
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
   nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm'],
-  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
-  rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
+  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
+  rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
-  engineer: ['calls.view', 'calls.report', 'request.create', 'consumption.view', 'reports.view', 'dashboard.view'],
+  engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests.
   hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
-  spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
-  stores_incharge: ['spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
+  spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
+  stores_incharge: ['spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
 };

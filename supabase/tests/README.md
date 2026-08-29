@@ -14,10 +14,12 @@ guards. It caught a live bug (an RM's approval of a non-AMC item being refused
 by the stage guard, fixed in `0012_spare_auto_approval.sql`), so it is worth
 re-running whenever a migration touches `spare_requests`.
 
-`handstock_test.sql` exercises the hand-stock views (`0020_handstock.sql`) — a
-receipt entering hand stock only once it is acknowledged, consumption taking it
-back out, the name/part-code matching the two sides are joined on, and a
-negative balance where parts were consumed that no receipt covers.
+`handstock_test.sql` exercises hand stock (`0020_handstock.sql`) — the four
+terms of the stock level (a Stores dispatch in, consumption out, a transfer out
+of one engineer and into another), the name/part-code matching the movements
+are joined on, the guards on a transfer (no overdrawing, no transfer to
+yourself, no editing one afterwards), and a negative level where spares were
+consumed that no stock out covers.
 
 These are plain `psql` scripts, not a test framework: each step prints what it
 did, and the steps that must fail are labelled `expect ERROR`. Read the output.

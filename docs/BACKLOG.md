@@ -108,7 +108,7 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
-- **`0020_handstock.sql`** — the hand-stock views (in the `spare_requests`
+- **`0020_handstock.sql`** — `stock_transfers` + the hand-stock views (in the `spare_requests`
   bundle). Until it is run, the Hand Stock module says so and stays empty.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
@@ -277,27 +277,37 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     running sequence; numbers already issued keep the old `OR47042` form, since
     they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
     `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
-  - *Phase 7* (`0020_handstock.sql`): **Hand Stock** (`/handstock`) — what an
-    engineer is actually carrying. An acknowledged receipt puts parts in (per
-    SPARE, since phase 5, so a part-received OR only counts what arrived); a
-    spare consumed on a call report takes them out; Postgres nets the two per
-    engineer + part in the `handstock_movements` / `handstock_balance` views.
-    One line per engineer and part with received / consumed / in hand, a
-    movement trail behind each line (OR number in, call number out), an
-    in-hand / short / settled filter, per-engineer filter, search and CSV.
-    Both views are `security_invoker`, so scoping is the underlying tables'.
-    The two sides are matched on the engineer's **name** (case- and
-    space-insensitive) and the part **CODE** — consumption never carried an
-    email, so the report form now writes one for future rows.
-    A **negative** balance is shown, not hidden: it means parts were consumed
-    that no acknowledged receipt covers (stock carried from before the receipt
-    step, or a dispatch nobody acknowledged).
-    `supabase/tests/handstock_test.sql` covers it.
-  - **Next:** warehouse-side stock — decrement on dispatch (needs
-    `parts.on_hand`/price columns first; the ITEM Master import carries only
-    code, description and Active) and a stores pick/pack view. Hand stock now
-    covers the field side, so consumption reconciliation is a filter over it
-    (a received part still sitting in hand long after the call closed). Also worth a smoke test
+  - *Phase 7* (`0020_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
+    level an engineer is carrying, per spare:
+    **stock out (Stores) − consumption − transfer out + transfer in**.
+    Three of the four movements already existed (a Stores dispatch on a spare
+    request line, a spare consumed on a call report); the fourth, an engineer
+    **transferring** a spare to another, is the one thing the module records
+    (`stock_transfers`, numbered `ST-YY/MM/N`). Postgres nets them in
+    `handstock_movements` / `handstock_balance`; both are `security_invoker`,
+    so scoping is the underlying tables'.
+    A spare is in hand from the **dispatch**, not the acknowledgement — it left
+    Stores on a DC and is the engineer's from that moment.
+    The register shows every term beside the level, with a movement trail per
+    line (DC in, call out, the other engineer on a transfer), in-hand / short /
+    settled filters, per-engineer filter, search and CSV.
+    A transfer cannot overdraw the giving engineer, go to whoever already holds
+    the spare, or be edited afterwards (record the return transfer). New
+    permission `stock.transfer`.
+    **Reporting → Spare consumption now offers only what that engineer holds**,
+    with the quantity in hand, and refuses more — so a report can no longer
+    consume a spare nobody issued. The two sides are matched on the engineer's
+    **name** (case- and space-insensitive) and the part **CODE**; consumption
+    never carried an email, so the report form now writes one for future rows.
+    A **negative** level is shown, not hidden: more consumed or handed on than
+    Stores ever issued. `supabase/tests/handstock_test.sql` covers all of it.
+  - **Next:** warehouse-side stock — the *Stores* balance, decremented on
+    dispatch (needs `parts.on_hand`/price columns first; the ITEM Master import
+    carries only code, description and Active) and a stores pick/pack view.
+    Engineer-side stock is now live, so consumption reconciliation is a filter
+    over it (a spare still in hand long after the call closed). A transfer is
+    deliberately immediate — if hand-overs need the receiving engineer to
+    accept them, that is an acknowledgement step on `stock_transfers`. Also worth a smoke test
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.

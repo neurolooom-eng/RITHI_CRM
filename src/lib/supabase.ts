@@ -757,10 +757,10 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- hand stock ------------------------------------------------------------
-// Netted per engineer + part by Postgres (views from 0020_handstock.sql), so
-// the register never has to pull every receipt and every consumption line to
-// work out a balance. Both views are security_invoker, so the rows a user gets
-// are exactly the ones they may already see in Spare Requests / Consumption.
+// Netted per engineer + spare by Postgres (views from 0020_handstock.sql):
+// Stock Out (Stores) − Consumption − Transfer From + Transfer To. Both views
+// are security_invoker, so the rows a user gets are exactly the ones they may
+// already see in Spare Requests / Consumption.
 export async function listHandstockBalance(limit = 5000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('handstock_balance').select('*')
     .order('engineer', { ascending: true }).order('part_code', { ascending: true })
@@ -768,12 +768,41 @@ export async function listHandstockBalance(limit = 5000): Promise<Record<string,
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
-// The movement history behind one engineer's line — every receipt and every
-// consumption for that part, newest first.
+// One engineer's stock, for the pickers that may only offer what is in hand
+// (the report form's consumption list, the transfer form).
+export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
+  const key = engineer.trim().toLowerCase();
+  if (!key) return [];
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .eq('engineer_key', key).gt('on_hand', 0)
+    .order('part_code', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// The movement history behind one line — every stock-out, consumption and
+// transfer for that engineer and spare, newest first.
 export async function listHandstockMovements(engineerKey: string, partCode = '', limit = 500): Promise<Record<string, unknown>[]> {
   let q = must().from('handstock_movements').select('*').eq('engineer_key', engineerKey);
   if (partCode) q = q.eq('part_code', partCode);
   const { data, error } = await q.order('moved_at', { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// Hand a spare from one engineer to another. The transfer number, the stock
+// check (you cannot hand over what you do not hold) and who may record it are
+// all enforced in Postgres.
+export async function addStockTransfer(t: {
+  from_engineer: string; from_engineer_email?: string;
+  to_engineer: string; to_engineer_email?: string;
+  part: string; qty: number; reason?: string; remarks?: string;
+}): Promise<{ ok: boolean; transferNo?: string; error?: string }> {
+  const { data, error } = await must().from('stock_transfers').insert(t).select('transfer_no').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, transferNo: String(data?.transfer_no ?? '') };
+}
+export async function listStockTransfers(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('stock_transfers').select('*')
+    .order('transferred_at', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }

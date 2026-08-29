@@ -61,9 +61,10 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
     (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
         to_regprocedure('public.next_direct_call_number(text)') is not null),
-    (14, 'spare_requests: hand stock', 'handstock_balance + handstock_movements views (0020)',
+    (14, 'spare_requests: hand stock', 'handstock_balance + handstock_movements + stock_transfers (0020)',
         (to_regclass('public.handstock_balance')   is not null
-     and to_regclass('public.handstock_movements') is not null)),
+     and to_regclass('public.handstock_movements') is not null
+     and to_regclass('public.stock_transfers')     is not null)),
     (15, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles

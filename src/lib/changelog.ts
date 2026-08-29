@@ -12,14 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.11',
+    version: '0.6.12',
     date: '2026-08-29',
-    title: 'Hand Stock \u2014 what an engineer is carrying',
+    title: 'Hand Stock \u2014 the stock level every engineer is carrying',
     changes: [
-      'Spares an engineer acknowledges as received went into a black hole: the request closed, and nothing anywhere said what the field was holding. The new \u201cHand Stock\u201d register (Spares \u2192 Hand Stock) shows it \u2014 one line per engineer and part, with received, consumed and in-hand.',
-      'Nothing extra is entered for it. A receipt on a spare request adds to hand stock; a spare consumed on a call report takes it away. Postgres nets the two, so the register is the ledger, not a second place to keep books.',
-      'Click a line for its movement trail \u2014 every receipt (with its OR number) and every consumption (with its call), so a disputed balance can be read back to where it came from.',
-      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed than received, which means stock carried from before receipts were acknowledged or a dispatch nobody acknowledged. Search, per-engineer filter and CSV export as everywhere else.',
+      'Spares issued to an engineer went into a black hole: Stores dispatched them, the request closed, and nothing said what the field was holding. \u201cHand Stock\u201d (Spares \u2192 Hand Stock) is one line per engineer and spare with the stock level: stock out from Stores \u2212 consumption \u2212 transfers out + transfers in, each term shown beside it so a figure can be argued with.',
+      'Nothing extra is entered for three of those four. A spare is in hand from the moment Stores dispatches it on a DC \u2014 acknowledged or not \u2014 and leaves hand stock when it is consumed on a call.',
+      'The fourth is new: an engineer can transfer a spare to another engineer, which takes it off one stock level and puts it on the other. A transfer cannot hand over more than is actually in hand, cannot go to the person who already holds it, and cannot be edited afterwards \u2014 correct one with the return transfer.',
+      'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses a quantity larger than that \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
+      'Click a line for its movement trail \u2014 every stock out with its DC, every consumption with its call, every transfer with the engineer on the other side.',
+      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC. Search, per-engineer filter and CSV export as everywhere else.',
       'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0020_handstock.sql (apply bundle: spare_requests).',
     ],
   },

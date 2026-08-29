@@ -87,7 +87,8 @@ const MODULES = {
       '→ NSM → Stores), the engineer receipt that closes it, the OR/RowNo',
       'numbering (OR-YYMM-NNNN, restarting each month), per-SPARE approvals — the',
       'RM decides each line on its own, so one OR can go forward partly approved —',
-      'and the hand-stock views (receipts in, consumption out, netted per engineer).',
+      'and hand stock — stock out from Stores, less consumption, less transfers',
+      'out, plus transfers in, netted per engineer and spare.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers'],
     files: [
