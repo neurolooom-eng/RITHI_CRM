@@ -236,10 +236,13 @@ export function SpareRequests() {
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
+  const PAGE = 1000;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
+  const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [drawer, setDrawer] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare requests.' },
@@ -249,9 +252,9 @@ export function SpareRequests() {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare requests…' });
       try {
-        const r = await listSpareRequestLines(1000);
+        const r = await listSpareRequestLines(PAGE, 0);
         const mapped = r.map((x, i) => ({ ...x, id: String(`${g(x as Row, 'uid')}-${g(x as Row, 'part')}-${i}`) } as Row));
-        setRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+        setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
         setMsg({ tone: 'ok', text: `Synced ${mapped.length} spare-request line${mapped.length === 1 ? '' : 's'}.` });
       } catch (e) {
         setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -296,6 +299,15 @@ export function SpareRequests() {
     );
   }, [rows, scope, email, onDb]);
 
+  const loadMore = async () => {
+    setBusy(true);
+    try {
+      const r = await listSpareRequestLines(PAGE, offset);
+      const mapped = r.map((x, i) => ({ ...x, id: String(`${g(x as Row, 'uid')}-${g(x as Row, 'part')}-${offset + i}`) } as Row));
+      const merged = [...rows, ...mapped];
+      setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, merged));
+    } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
+  };
   const actor = user?.fullName || user?.email || 'user';
   const act = async (row: Row, decision: 'approve' | 'reject') => {
     const res = await updateSpareRequest(String(row.uid), buildPatch(row, decision, actor));
@@ -362,6 +374,9 @@ export function SpareRequests() {
         storageKey="spareRequests"
         rowsBeforeScroll={14}
         dense
+        onLoadMore={onDb ? loadMore : undefined}
+        moreAvailable={onDb && more}
+        loadingMore={busy}
         emptyText="No spare requests — Refresh to load."
         toolbar={
           <Toolbar>

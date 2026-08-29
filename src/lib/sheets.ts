@@ -208,9 +208,9 @@ export interface ProdFilters {
 }
 
 // Product Master search. Explicit fields + optional global q; empty = browse.
-export async function searchProducts(filters: ProdFilters | string = {}, limit = 100): Promise<Record<string, unknown>[]> {
+export async function searchProducts(filters: ProdFilters | string = {}, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   const f: ProdFilters = typeof filters === 'string' ? { q: filters } : filters;
-  if (sb.supabaseConfigured()) return sb.sbSearchProducts(f, limit);
+  if (sb.supabaseConfigured()) return sb.sbSearchProducts(f, limit, offset);
   const params: Record<string, string> = { action: 'prodsearch', limit: String(limit) };
   (['q', 'party', 'product', 'serial', 'status'] as const).forEach((k) => {
     const v = f[k];

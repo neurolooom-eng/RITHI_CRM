@@ -229,8 +229,8 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   if (error) throw new Error(error.message);
   return (data ?? []).map(productRowToSheet);
 }
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').limit(limit);
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+  let q = must().from('products').select('*').range(offset, offset + limit - 1);
   if (filters.serial) q = q.ilike('serial_number', `%${filters.serial}%`);
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
   if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
@@ -438,10 +438,10 @@ export async function addSpareRequest(req: Record<string, unknown>, lines: { par
   }
   return { ok: true, uid };
 }
-export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
+export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
-    .order('created_at', { ascending: false }).limit(limit);
+    .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
@@ -487,8 +487,8 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- consumption / feedback ------------------------------------------------
-export async function listConsumptionRows(limit = 1000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).limit(limit);
+export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return data ?? [];
 }
