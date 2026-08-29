@@ -12,11 +12,11 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.8',
+    version: '0.6.9',
     date: '2026-08-29',
     title: 'OR numbers are per month',
     changes: [
-      'OR numbers now read OR-YY/MM/N \u2014 OR-26/08/1, OR-26/08/2 \u2014 and the count restarts at 1 on the first of each month.',
+      'OR numbers now read OR-YY/MM/NNN \u2014 OR-26/08/001, OR-26/08/002 \u2014 and the count restarts at 001 on the first of each month. Three digits keeps them in order when a month passes nine requests.',
       'A back-dated request is numbered in the month it is dated, not the month it is entered.',
       'Numbers already issued keep their old form: they are quoted on DCs and in Tally, so the old series stays as history and the new format starts from here.',
     ],

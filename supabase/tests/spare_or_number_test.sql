@@ -1,6 +1,6 @@
 -- ===========================================================================
--- OR numbering: OR-YY/MM/N, restarting at 1 each month
--- (0017_spare_or_number_monthly.sql).
+-- OR numbering: OR-YY/MM/NNN, restarting at 001 each month
+-- (0017_spare_or_number_monthly.sql + 0018_spare_or_number_padded.sql).
 -- Run after _stub.sql + every migration. Lines marked "expect ERROR" must fail.
 -- Note: it seeds a pre-0017 row to show old numbers are kept as history.
 -- ===========================================================================
@@ -9,7 +9,7 @@
 
 insert into public.spare_requests (uid, engineer, item_status, or_no)
   values ('T1','E','WARRANTY','OR47042');   -- a number from the old running series
-\echo '--- new requests use OR-YY/MM/N ---'
+\echo '--- new requests use OR-YY/MM/NNN ---'
 insert into public.spare_requests (uid, engineer, item_status) values ('N1','E','WARRANTY'),('N2','E','WARRANTY'),('N3','E','WARRANTY');
 select uid, or_no, or_req_date from public.spare_requests where uid like 'N%' order by uid;
 
@@ -34,5 +34,11 @@ select uid, or_no from public.spare_requests where uid='N4';
 select period, last_no from public.spare_or_counters order by period;
 
 \echo '--- uniqueness still enforced ---'
+\echo '--- three digits: the tenth of a month sorts after the second ---'
+insert into public.spare_requests (uid, engineer, item_status)
+  select 'P'||g, 'E', 'WARRANTY' from generate_series(1,8) g;
+select or_no from public.spare_requests where or_no ~ '^OR-\d\d/08/' order by or_no;
+
+\echo '--- uniqueness still enforced ---'
 \echo 'expect ERROR: duplicate or_no'
-insert into public.spare_requests (uid, engineer, item_status, or_no) values ('D1','E','WARRANTY','OR-26/08/1');
+insert into public.spare_requests (uid, engineer, item_status, or_no) values ('D1','E','WARRANTY','OR-26/08/001');
