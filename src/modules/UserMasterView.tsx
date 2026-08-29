@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, statusBadge } from '../lib/format';
-import { listUsers, sheetsConfigured } from '../lib/sheets';
+import { listUsers, dataConfigured } from '../lib/sheets';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -32,11 +32,11 @@ export function UserMasterView() {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to load the User Master.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the User Master.' },
   );
 
   const run = async (query = q) => {
-    if (!sheetsConfigured()) return;
+    if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Loading users…' });
     try {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth, type User } from '../../lib/auth';
-import { listUsers, sheetsConfigured } from '../../lib/sheets';
+import { listUsers, dataConfigured } from '../../lib/sheets';
 
 // ===========================================================================
 // "View as" — lets a real admin preview the app exactly as an engineer sees it.
@@ -41,7 +41,7 @@ export function ViewAsControl() {
 
   const load = async () => {
     if (rows) return;
-    if (!sheetsConfigured()) { setErr('Connect the Google Sheet to list engineers.'); return; }
+    if (!dataConfigured()) { setErr('Connect the database to list engineers.'); return; }
     setBusy(true); setErr('');
     try { setRows(await listUsers('', 1000)); }
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }

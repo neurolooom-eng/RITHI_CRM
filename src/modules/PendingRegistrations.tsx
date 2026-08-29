@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { addFieldCall, listPending, searchProducts, setPendingUcn, sheetsConfigured } from '../lib/sheets';
+import { addFieldCall, listPending, searchProducts, setPendingUcn, dataConfigured } from '../lib/sheets';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { todayISO } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
@@ -47,11 +47,11 @@ export function PendingRegistrations() {
   const [busy, setBusy] = useState(false);
   const [panel, setPanel] = useState<{ row: Row; prefill: FormValues; config: CallSheetConfig } | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to load pending registrations.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load pending registrations.' },
   );
 
   const load = async () => {
-    if (!sheetsConfigured()) return;
+    if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Loading pending registrations…' });
     try {

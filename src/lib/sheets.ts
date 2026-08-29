@@ -59,6 +59,20 @@ export function sheetsConfigured(): boolean {
   return /^https:\/\/script\.google(usercontent)?\.com\//.test(getSheetsUrl());
 }
 
+// Where the registers actually read from. Supabase wins when it is connected —
+// every list/search helper below delegates to it — and the Apps Script bridge
+// is the fallback. NOTE: a default Web App URL is baked in, so
+// `sheetsConfigured()` is true even on a Supabase-only deployment; use these
+// two for anything user-facing or for gating a load.
+export type DataSource = 'db' | 'sheet' | 'none';
+export function dataSource(): DataSource {
+  if (sb.supabaseConfigured()) return 'db';
+  return sheetsConfigured() ? 'sheet' : 'none';
+}
+export function dataConfigured(): boolean {
+  return dataSource() !== 'none';
+}
+
 export interface PingResult {
   ok: boolean;
   sheet?: string;
