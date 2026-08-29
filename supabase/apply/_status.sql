@@ -32,7 +32,17 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='spare_requests' and column_name='or_no')
      and to_regclass('public.spare_or_no_seq')          is not null)),
     (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
-        to_regprocedure('public.spare_needs_review(text)')   is not null)
+        to_regprocedure('public.spare_needs_review(text)')   is not null),
+    (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
+        (to_regprocedure('public.next_call_reqid()')   is not null
+     and not exists (select 1 from pg_constraint
+                      where conname = 'call_requests_reqid_key'))),
+    (9, 'call_requests: actions',  'call_requests.cancel_reason (0011)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='call_requests' and column_name='cancel_reason')),
+    (10, 'call_requests: state',   'call_state + pending_calls views (0012)',
+        (to_regclass('public.call_state')    is not null
+     and to_regclass('public.pending_calls') is not null))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

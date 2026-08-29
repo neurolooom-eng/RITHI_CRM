@@ -1,5 +1,13 @@
 # Migration tests
 
+`call_requests_test.sql` exercises the call-request and call-state migrations —
+one REQID across a request's calls, the `unique_key` identity, the Hotline
+outcomes (mapped / registered / cancelled), and how a call's latest visit
+decides its open state. It caught a live bug: `pending_calls` selected `c.*`
+alongside the state column, and `calls` already has a `state` column (the
+geographic one), so the view would not create at all — the status is now
+`open_state`.
+
 `spare_workflow_test.sql` exercises the spare-request workflow triggers against
 a throwaway Postgres — the approval chain, the OR/RowNo numbering, and the RBAC
 guards. It caught a live bug (an RM's approval of a non-AMC item being refused
@@ -25,6 +33,7 @@ psql -h /tmp/pgt -p 55432 -U postgres -v ON_ERROR_STOP=1 \
   $(for f in supabase/migrations/*.sql; do echo -n " -f $f"; done)
 
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/spare_workflow_test.sql
+psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/call_requests_test.sql
 ```
 
 Note the harness connects as superuser, which bypasses RLS — it exercises the
