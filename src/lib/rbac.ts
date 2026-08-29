@@ -49,6 +49,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/kpi', label: 'KPI & Failure Analysis' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
+  { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
   { path: '/settings', label: 'Settings' },
   { path: '/version-history', label: 'Version History' },
@@ -89,6 +90,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'users.manage', label: 'Manage users' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
+  { group: 'Admin', key: 'audit.view', label: 'View audit log' },
 ];
 export const ACTIONS: ActionDef[] = [
   ...FUNCTIONAL_ACTIONS,
