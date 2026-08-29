@@ -287,7 +287,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     `handstock_movements` / `handstock_balance`; both are `security_invoker`,
     so scoping is the underlying tables'.
     A spare is in hand from the **dispatch**, not the acknowledgement — it left
-    Stores on a DC and is the engineer's from that moment.
+    Stores on a DC and is the engineer's from that moment. What makes it a
+    stock out is the *status*, not a timestamp: sheet-era and imported
+    dispatches carry a DC but no `dispatched_at`, and they are every bit as
+    much stock in the engineer's hands, so they count, dated by the best
+    timestamp the row has.
     The register shows every term beside the level, with a movement trail per
     line (DC in, call out, the other engineer on a transfer), in-hand / short /
     settled filters, per-engineer filter, search and CSV.

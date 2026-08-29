@@ -1918,6 +1918,7 @@ alter table public.spare_consumption
 
 create index if not exists spare_consumption_engineer_idx     on public.spare_consumption (lower(btrim(engineer)));
 create index if not exists spare_consumption_created_at_idx   on public.spare_consumption (created_at desc);
+create index if not exists spare_request_lines_stores_idx     on public.spare_request_lines (lower(coalesce(stores_status, '')));
 create index if not exists spare_request_lines_dispatched_idx on public.spare_request_lines (dispatched_at) where dispatched_at is not null;
 
 -- ---------------------------------------------------------------------------
@@ -1984,6 +1985,12 @@ grant execute on function public.next_stock_transfer_no(date) to authenticated;
 -- Stores and is the engineer's from that moment, whether or not they have got
 -- round to acknowledging it. Since 0016_spare_line_approvals.sql dispatch is
 -- per SPARE, so a partly dispatched OR moves only what actually went out.
+--
+-- What makes it a stock out is the STATUS, not the timestamp. Dispatches from
+-- before this module — sheet-era history, imports, anything dispatched before
+-- 0009 added dispatched_at — carry a DC and a status but no date, and they are
+-- every bit as much stock in the engineer's hands. They count, dated by the
+-- best timestamp the row has.
 -- ---------------------------------------------------------------------------
 create or replace view public.handstock_movements as
 -- 1. Stock out from Stores (+)
@@ -1996,7 +2003,8 @@ select
   public.part_code(l.part)                          as part_code,
   coalesce(l.part, '')                              as part,
   coalesce(l.qty, 0)                                as qty,
-  l.dispatched_at                                   as moved_at,
+  coalesce(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at)
+                                                    as moved_at,
   coalesce(nullif(l.dc_number, ''), r.or_no, '')    as ref,
   'Stores DC'::text                                 as ref_type,
   coalesce(r.uid, '')                               as ref_uid,
@@ -2006,7 +2014,7 @@ select
   coalesce(nullif(l.dispatch_remarks, ''), '')      as remarks
 from public.spare_request_lines l
 join public.spare_requests r on r.uid = l.request_uid
-where l.dispatched_at is not null and coalesce(l.stores_status, '') ~* 'dispatch'
+where coalesce(l.stores_status, '') ~* 'dispatch'
 union all
 -- 2. Consumption on a call (−)
 select

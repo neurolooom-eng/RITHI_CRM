@@ -142,3 +142,16 @@ select role,
        permissions ? 'mod:/handstock' as handstock_module,
        permissions ? 'stock.transfer' as can_transfer
   from public.app_roles order by role;
+
+\echo '--- 16. a dispatch from before this module (a DC, no date) is still stock ---'
+call public.be('eng@x.com');
+insert into public.spare_requests (uid, engineer, engineer_email, item_status)
+  values ('HS-3','Eng Elan','eng@x.com','WARRANTY');
+insert into public.spare_request_lines (request_uid, row_no, part, qty)
+  values ('HS-3',1,'SP-500|Legacy board',2);
+-- what a sheet-era row looks like: Stores said Dispatched, nobody stamped when.
+call public.be('stores@x.com');
+update public.spare_request_lines set stores_status = 'Dispatched', dc_number = 'DC-OLD'
+ where request_uid = 'HS-3';
+select part_code, stock_out, on_hand, last_in is not null as dated
+  from public.handstock_balance where part_code = 'SP-500';
