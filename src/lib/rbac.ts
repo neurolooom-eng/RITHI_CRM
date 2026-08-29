@@ -103,10 +103,10 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   engineer: ['calls.view', 'calls.report', 'request.create', 'spare.request', 'consumption.view', 'reports.view', 'dashboard.view'],
   hotline: ['calls.view', 'calls.create', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
-  spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
-  stores_incharge: ['spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
-  tally_coordinator: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
+  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
+  stores_incharge: ['calls.view', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
+  tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
+  commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
 };
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
