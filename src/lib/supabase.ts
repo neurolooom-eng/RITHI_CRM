@@ -227,8 +227,22 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
 }
 
 // ---- masters (dropdown value-lists) ----------------------------------------
+// App master keys map to different sources: party -> parties, spare -> parts,
+// product -> products, complaint -> the 'standardComplaint' list; the rest are
+// plain masters rows.
 export async function listMaster(name: string, limit = 3000): Promise<string[]> {
-  const { data, error } = await must().from('masters').select('value').eq('name', name).limit(limit);
+  const c = must();
+  if (name === 'party') return sbListParties();
+  if (name === 'product') {
+    const { data } = await c.from('products').select('item_name').limit(20000);
+    return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))].sort();
+  }
+  if (name === 'spare') {
+    const { data } = await c.from('parts').select('item_detail,description,code').eq('active', true).limit(5000);
+    return [...new Set((data ?? []).map((r) => String(r.item_detail || `${r.code}|${r.description}`)).filter((v) => v && v !== '|'))];
+  }
+  const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
+  const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
   if (error) throw new Error(error.message);
   return [...new Set((data ?? []).map((r) => String(r.value)).filter(Boolean))];
 }
