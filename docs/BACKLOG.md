@@ -79,6 +79,14 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 - **All Masters** (`/masters`) — one view over every master: the registers
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
+  a `master_lists` registry (label, what one row is called, extra columns) plus
+  the `masters` rows; All Masters opens each list as its own table with Add /
+  Remove, gated on `masters.edit`, and clears the dropdown cache on every edit.
+  Seeded from the **200 All Masters** workbook: calltype 8, complaint 507,
+  pendingreason 21, cancelreason 27, feedbackrating 4, **orapproval** 13 (that
+  one carries Stage + Status columns in `masters.extra`). A new list needs a
+  registry row, not a release.
 - In-call **Spares Consumed** picker reads the live `spare` master too (it used
   to list the same cleared demo collection). A consumed part is stored by its
   `CODE|Description` catalogue string; the old Amount/Total column and the stock
@@ -215,8 +223,8 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   Yes/No, "Warranty Start Date?" a date, "Remarks" free text. Saved as a
   structured row to v2Feedback (identifying fields + answers + Call Type).
 
-- **Masters in 200 All Masters** — mapped (baked as defaults; live once CallReg
-  is redeployed). Each identified by its column header:
+- **Masters in 200 All Masters** — ✅ loaded into `masters` and editable in All
+  Masters (see Masters above). Each identified by its column header:
   - `complaint` → tab "Standard Complaint", col **"Complaint Name"** → Standard
     Complaint field on the call form.
   - `calltype` → col **"Call Type"** → Call Type select on the Request form
@@ -225,6 +233,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     field on the call report (Unsolved branch).
   - `cancelreason` → col **"Call Cancel Reason Name"** → the reason on the
     Hotline's **Cancel request** action (Pending Registrations).
+  - `feedbackrating` → col **"Feedback"** → the rating answers on the feedback
+    form.
+  - `orapproval` → cols **"Approval Stage" / "Status" / "Reason for Approval /
+    Rejection"** → the reason list behind a spare approval or rejection; not yet
+    wired into the Spare Requests dialogs (the reasons are free text there).
 
 ---
 
@@ -301,8 +314,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   else the first sheet). Links editable in Admin Config. Confirm the landing tab
   after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
-  Entry, "200 All Masters"). ITEM Master is done — it backs Part Master, the
-  spare-request picker and the in-call consumption picker.
+  Entry). ITEM Master is done — it backs Part Master, the spare-request picker
+  and the in-call consumption picker; "200 All Masters" is done — every list is
+  a maintained table in All Masters.
+- **Next on masters:** point the Spare Requests approve/reject dialogs at the
+  `orapproval` list instead of free-text reasons.
 - Preventive Maintenance (PM) schedule/calls.
 - Sale Entry, Reports, Dashboard/KPI, Indoor Activity, other misc (to be placed).
 

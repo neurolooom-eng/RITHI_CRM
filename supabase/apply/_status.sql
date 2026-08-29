@@ -70,7 +70,11 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles
                       where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
-                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters')))
+                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters'))),
+    (15, 'masters: value lists',   'master_lists registry + masters.added_on (0021)',
+        (to_regclass('public.master_lists') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='masters' and column_name='added_on')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

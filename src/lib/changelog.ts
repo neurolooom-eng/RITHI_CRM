@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.1',
+    date: '2026-08-29',
+    title: 'Every master value list is its own editable table',
+    changes: [
+      'All Masters now opens each value list as its own table \u2014 Call Type, Standard Complaint, Call Pending Reason, Call Cancel Reason, Feedback Rating and the new Spare Approval Reason \u2014 with Add and Remove on each. Changes take effect in the forms straight away (the dropdown cache is cleared on every edit).',
+      'Seeded from the 200 All Masters workbook: 8 call types, 507 standard complaints, 21 pending reasons, 27 cancel reasons, 4 feedback ratings and 13 spare approval reasons, each with the Added On / Added By it came with.',
+      'Spare Approval Reason carries its own Stage and Status columns \u2014 a list can have more than one column, and the registry says which.',
+      'Adding a list no longer needs a release: a row in the new `master_lists` registry gives it a table, a label and its columns.',
+      'A duplicate entry is refused rather than silently doubling a dropdown, and editing needs the \u201cEdit masters\u201d permission.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-08-29',
     title: 'Stock Transfer',

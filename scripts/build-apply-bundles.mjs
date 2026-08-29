@@ -74,6 +74,14 @@ const MODULES = {
       '0015_call_number.sql',
     ],
   },
+  masters: {
+    title: 'Master Value Lists',
+    blurb: ['The master lists registry — each value list (Call Type, Standard Complaint,',
+            'Pending Reason, Cancel Reason, Feedback, Spare Approval Reason) as its own',
+            'maintained table, seeded from the "200 All Masters" workbook.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0021_master_lists.sql'],
+  },
   reports: {
     title: 'Reports',
     blurb: ['The visit history: the indexes behind its newest-first ordering.'],

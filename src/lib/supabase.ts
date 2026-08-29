@@ -628,6 +628,53 @@ export async function listAllMasterValues(max = 20000): Promise<{ name: string; 
   return out;
 }
 
+// ---- master lists (each value list as its own maintained table) ------------
+// `master_lists` (0014) is the registry: one row per list with its label, what
+// one entry is called, and the extra columns that list carries in
+// `masters.extra` (Spare Approval Reason has Stage + Status).
+export interface MasterList { key: string; label: string; value_label: string; columns: { key: string; label: string }[]; sort_order: number; active: boolean }
+export interface MasterItem { id: number; name: string; value: string; extra: Record<string, string>; added_on: string | null; added_by: string }
+
+export async function listMasterLists(): Promise<MasterList[]> {
+  const { data, error } = await must().from('master_lists').select('*').eq('active', true).order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    key: String(r.key), label: String(r.label), value_label: String(r.value_label ?? 'Value'),
+    columns: Array.isArray(r.columns) ? (r.columns as { key: string; label: string }[]) : [],
+    sort_order: Number(r.sort_order ?? 100), active: r.active !== false,
+  }));
+}
+
+// Every row of one list, as the list's own table.
+export async function listMasterItems(key: string, limit = 5000): Promise<MasterItem[]> {
+  const names = key === 'complaint' ? ['complaint', 'standardComplaint'] : [key];
+  const { data, error } = await must().from('masters').select('*').in('name', names).order('value').limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
+    extra: (r.extra ?? {}) as Record<string, string>,
+    added_on: (r.added_on as string) ?? null, added_by: String(r.added_by ?? ''),
+  }));
+}
+
+export async function addMasterItem(key: string, value: string, extra: Record<string, string> = {}, addedBy = ''): Promise<{ ok: boolean; error?: string }> {
+  const row = { name: key, value, extra, added_on: new Date().toISOString().slice(0, 10), added_by: addedBy };
+  const { error } = await must().from('masters').insert(row);
+  // The unique index is what stops a duplicate; say so in words the screen can show.
+  if (error) return { ok: false, error: /duplicate key/i.test(errMsg(error)) ? 'That entry is already in this list.' : errMsg(error) };
+  return { ok: true };
+}
+
+export async function updateMasterItem(id: number, patch: { value?: string; extra?: Record<string, string> }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('masters').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('masters').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // Row count of a master table (head request — no rows transferred).
 export async function countRows(table: string, eq?: [string, unknown]): Promise<number> {
   let q = must().from(table).select('id', { count: 'exact', head: true });
