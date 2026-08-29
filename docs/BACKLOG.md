@@ -329,6 +329,8 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     Movements are matched on the engineer's **name** (case- and
     space-insensitive) and the part **CODE**; consumption never carried an
     email, so the report form now writes one for future rows.
+    Requirements are written up in **`HandStock_Req.md`** (repo root), numbered
+    HS-1…HS-40 with the check that proves each one.
     A **negative** level is shown, not hidden. `supabase/tests/handstock_test.sql`
     covers it, and `stock_transfer_test.sql` still passes against the
     redefined view.
