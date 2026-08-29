@@ -1,68 +1,76 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SectionCard } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { csvExport, timeAgo } from '../lib/format';
+import { useAuth } from '../lib/auth';
+import { csvExport, fmtDate, timeAgo } from '../lib/format';
 import { dataConfigured, listMaster } from '../lib/sheets';
-import { countRows, listAllMasterValues, supabaseConfigured } from '../lib/supabase';
+import { countRows, listMasterItems, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { clearMasterCache } from '../lib/masters';
+import { fallbackRegistry, masterListPath, usedBy } from './masterLists';
+import { MasterListTable } from './MasterListTable';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 
 // ===========================================================================
-// ALL MASTERS — one screen for every master the app reads: the entity masters
-// (Party / Product / Part / User, each with its own register) and the generic
-// value lists behind the form dropdowns (Standard Complaint, Call Type,
-// Pending Reason, Cancel Reason, Feedback Rating, …).
-// Each row shows where the master comes from, how many values it currently
-// holds and when it was last synced; picking one lists its values.
+// ALL MASTERS — every master the app reads, in one screen.
+//   • Registers (Party / Product / Part / User) — counted here, opened on
+//     their own screens.
+//   • Value lists (the "200 All Masters" workbook: Call Type, Standard
+//     Complaint, Pending Reason, Cancel Reason, Feedback, Spare Approval
+//     Reason) — each gets its own table, added to and removed from here.
+// The lists and the shape of each list's table come from `master_lists`
+// (0014_master_lists.sql), so a new list needs a registry row, not a release.
+// Editing needs `masters.edit`; a change clears the dropdown cache so the
+// forms pick it up without a reload.
 // ===========================================================================
 
-const CACHE_KEY = 'allMasters';
+// Versioned: the previous release cached rows in a different shape (no `key`),
+// and those rows render but cannot be opened. A new key retires them.
+const CACHE_KEY = 'allMasters.v2';
 
-// Entity masters — big registers with their own screens; only counted here.
-// `sheetKey` is the master key the Apps Script `master` endpoint answers to;
-// a master without one is only countable on the database source.
-const ENTITY_MASTERS: { key: string; label: string; table: string; icon: string; route?: string; sheetKey?: string }[] = [
+// Registers — their own screens; only counted here. `sheetKey` is the key the
+// Apps Script `master` endpoint answers to (a master without one is
+// database-only).
+const REGISTERS: { key: string; label: string; table: string; icon: string; route: string; sheetKey?: string }[] = [
   { key: 'party', label: 'Party Master', table: 'parties', icon: '🏥', route: '/parties', sheetKey: 'party' },
   { key: 'product', label: 'Product Master', table: 'products', icon: '🩺', route: '/product-master', sheetKey: 'product' },
   { key: 'spare', label: 'Part Master (ITEM Master)', table: 'parts', icon: '🔩', route: '/parts', sheetKey: 'spare' },
   { key: 'user', label: 'User Master', table: 'user_directory', icon: '👤', route: '/user-master' },
 ];
 
-// Generic value lists (masters table / the `master` endpoint).
-const VALUE_MASTERS: { key: string; label: string; usedBy: string }[] = [
-  { key: 'complaint', label: 'Standard Complaint', usedBy: 'Call report — Standard Complaint' },
-  { key: 'calltype', label: 'Call Type', usedBy: 'Request form — Call Type' },
-  { key: 'pendingreason', label: 'Call Pending Reason', usedBy: 'Call report — Unsolved branch' },
-  { key: 'cancelreason', label: 'Call Cancel Reason', usedBy: 'Call cancellation' },
-  { key: 'feedbackrating', label: 'Feedback Rating', usedBy: 'Customer feedback — ratings' },
-];
-
-interface MasterRow extends Record<string, unknown> {
+// Lists the sheet-only fallback can still read (there is no registry there, so
+// the labels are carried here).
+interface SummaryRow extends Record<string, unknown> {
   id: string;
-  master: string;
+  key: string;
   label: string;
   kind: 'Register' | 'Value list';
   source: string;
   count: number;
-  sample: string;
+  usedBy: string;
   status: string;
   route?: string;
-  values: string[];
 }
 
 export function AllMasters() {
   const navigate = useNavigate();
-  const cached = loadCache<MasterRow>(CACHE_KEY);
-  const [rows, setRows] = useState<MasterRow[]>(cached?.rows ?? []);
+  const { can } = useAuth();
+  const live = supabaseConfigured();
+  const editable = live && can('masters.edit');
+  const cached = loadCache<SummaryRow>(CACHE_KEY);
+
+  const [rows, setRows] = useState<SummaryRow[]>(cached?.rows ?? []);
+  const [lists, setLists] = useState<MasterList[]>([]);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState<MasterRow | null>(null);
-  const [valueSearch, setValueSearch] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the masters.' },
   );
+
+  // The list opened below the summary (MasterListTable owns its rows).
+  const [open, setOpen] = useState<MasterList | null>(null);
+  const [openCount, setOpenCount] = useState(0);
 
   const refresh = async () => {
     if (!dataConfigured()) return;
@@ -70,59 +78,59 @@ export function AllMasters() {
     setMsg({ tone: 'info', text: 'Reading every master…' });
     clearMasterCache(); // a force-sync must not read back this session's cached values
     try {
-      const live = supabaseConfigured();
-      const out: MasterRow[] = [];
+      const out: SummaryRow[] = [];
 
-      // Entity masters: a count is enough — each has its own register screen.
-      for (const e of ENTITY_MASTERS) {
-        let count = 0; let status = 'Loaded'; let sample = '';
+      for (const r of REGISTERS) {
+        let count = 0; let status = 'Loaded';
         try {
-          if (live) count = await countRows(e.table);
-          else if (e.sheetKey) { const v = await listMaster(e.sheetKey); count = v.length; sample = v.slice(0, 3).join(', '); }
+          if (live) count = await countRows(r.table);
+          else if (r.sheetKey) count = (await listMaster(r.sheetKey)).length;
           else status = 'Database only';
         } catch (err) { status = `Error: ${err instanceof Error ? err.message : String(err)}`; }
         if (status === 'Loaded' && !count) status = 'Empty';
         out.push({
-          id: e.key, master: e.key, label: `${e.icon} ${e.label}`, kind: 'Register',
-          source: live ? `Supabase · ${e.table}` : 'Google Sheet', count, sample,
-          status, route: e.route, values: [],
+          id: r.key, key: r.key, label: `${r.icon} ${r.label}`, kind: 'Register',
+          source: live ? `Supabase · ${r.table}` : 'Google Sheet', count,
+          usedBy: 'Its own register', status, route: r.route,
         });
       }
 
-      // Value lists: read every value so the screen can list them.
-      const grouped = new Map<string, string[]>();
+      let registry: MasterList[] = [];
+      let registryMissing = false;
       if (live) {
-        const all = await listAllMasterValues();
-        all.forEach(({ name, value }) => {
-          const k = name === 'standardComplaint' ? 'complaint' : name;
-          const cur = grouped.get(k) ?? [];
-          if (!cur.includes(value)) cur.push(value);
-          grouped.set(k, cur);
-        });
-      }
-      const keys = [...new Set([...VALUE_MASTERS.map((v) => v.key), ...grouped.keys()])];
-      for (const key of keys) {
-        const def = VALUE_MASTERS.find((v) => v.key === key);
-        let values = grouped.get(key) ?? [];
-        let status = 'Loaded';
-        if (!live || !values.length) {
-          try { values = await listMaster(key); }
-          catch (err) { status = `Error: ${err instanceof Error ? err.message : String(err)}`; }
+        try {
+          registry = await listMasterLists();
+        } catch (err) {
+          // No `master_lists` table — 0021_master_lists.sql has not been applied
+          // to this project. Fall back to the known lists so the screen still
+          // works, and say what to run.
+          registryMissing = true;
+          registry = fallbackRegistry();
+          void err;
         }
-        values = [...values].sort((a, b) => a.localeCompare(b));
-        if (status === 'Loaded' && !values.length) status = 'Not configured';
+      } else {
+        registry = fallbackRegistry();
+      }
+      for (const l of registry) {
+        let count = 0; let status = 'Loaded';
+        try {
+          count = live ? (await listMasterItems(l.key)).length : (await listMaster(l.key)).length;
+        } catch (err) { status = `Error: ${err instanceof Error ? err.message : String(err)}`; }
+        if (status === 'Loaded' && !count) status = 'Empty';
         out.push({
-          id: `list:${key}`, master: key, label: def?.label ?? key, kind: 'Value list',
+          id: `list:${l.key}`, key: l.key, label: l.label, kind: 'Value list',
           source: live ? 'Supabase · masters' : 'Google Sheet · master registry',
-          count: values.length, sample: values.slice(0, 4).join(', '),
-          status, values,
+          count, usedBy: usedBy(l.key), status,
         });
       }
 
+      setLists(registry);
       setRows(out);
       setLastSync(saveCache(CACHE_KEY, out));
-      const empty = out.filter((r) => r.status !== 'Loaded').length;
-      setMsg({ tone: empty ? 'info' : 'ok', text: `${out.length} masters read${empty ? ` — ${empty} not populated yet.` : '.'}` });
+      const gaps = out.filter((r) => r.status !== 'Loaded').length;
+      setMsg(registryMissing
+        ? { tone: 'info', text: 'The master lists registry is not in the database yet — showing the lists this app knows by name. Apply supabase/apply/masters.sql to get each list its own table, labels and extra columns.' }
+        : { tone: gaps ? 'info' : 'ok', text: `${out.length} masters read${gaps ? ` — ${gaps} not populated yet.` : '.'}` });
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -133,49 +141,61 @@ export function AllMasters() {
     if (mounted.current) return; mounted.current = true;
     if (!dataConfigured()) return;
     if (!rows.length || isStale(lastSync)) void refresh();
-    else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    else { setMsg({ tone: 'info', text: `Showing cached counts — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` }); void refresh(); }
     const id = window.setInterval(() => void refresh(), SYNC_TTL_MS);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const registers = rows.filter((r) => r.kind === 'Register');
-  const lists = rows.filter((r) => r.kind === 'Value list');
-  const listValues = lists.reduce((n, r) => n + r.count, 0);
+  const openList = (list: MasterList) => { setOpen(list); setOpenCount(0); };
 
-  const COLUMNS: Column<MasterRow>[] = [
+  // Keep the summary's count honest while the open list is edited.
+  const noteCount = (n: number) => {
+    setOpenCount(n);
+    if (open) setRows((rs) => rs.map((r) => (r.id === `list:${open.key}` ? { ...r, count: n, status: n ? 'Loaded' : 'Empty' } : r)));
+  };
+
+  // A summary row back to its registry entry. The id is the fallback so a row
+  // from an older cache (which carried no `key`) still opens.
+  const listFor = (r: SummaryRow): MasterList | undefined => {
+    const key = r.key || String(r.id).replace(/^list:/, '');
+    return lists.find((x) => x.key === key);
+  };
+
+  const registers = rows.filter((r) => r.kind === 'Register');
+  const valueLists = rows.filter((r) => r.kind === 'Value list');
+  const listValues = valueLists.reduce((n, r) => n + r.count, 0);
+
+  const SUMMARY_COLUMNS: Column<SummaryRow>[] = [
     { key: 'label', header: 'Master', width: 220 },
     { key: 'kind', header: 'Kind', width: 100, wrap: false },
     { key: 'source', header: 'Source', width: 180 },
-    { key: 'count', header: 'Values', width: 90, align: 'right', wrap: false, render: (r) => r.count.toLocaleString() },
-    { key: 'status', header: 'Status', width: 130 },
-    { key: 'sample', header: 'Sample values', width: 320 },
+    { key: 'count', header: 'Entries', width: 90, align: 'right', wrap: false, render: (r) => r.count.toLocaleString() },
+    { key: 'status', header: 'Status', width: 120 },
+    { key: 'usedBy', header: 'Used by', width: 300 },
     {
-      key: '_open', header: '', width: 110, sortable: false, wrap: false,
+      key: '_open', header: '', width: 120, sortable: false, wrap: false,
       render: (r) => (
         <button
           className="btn btn-sm"
-          onClick={(e) => { e.stopPropagation(); if (r.route) navigate(r.route); else { setOpen(r); setValueSearch(''); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (r.route) { navigate(r.route); return; }
+            const l = listFor(r);
+            if (l) openList(l);
+          }}
         >
-          {r.route ? 'Open' : 'Values'}
+          {r.route ? 'Open' : editable ? 'Edit list' : 'View list'}
         </button>
       ),
     },
   ];
 
-  const openValues = useMemo(() => {
-    if (!open) return [] as { id: string; value: string }[];
-    const q = valueSearch.trim().toLowerCase();
-    return open.values
-      .filter((v) => !q || v.toLowerCase().includes(q))
-      .map((v, i) => ({ id: `${open.master}-${i}`, value: v }));
-  }, [open, valueSearch]);
-
   return (
     <div>
       <PageHeader
         title="All Masters"
-        subtitle="Every master the app reads — registers and dropdown value lists — with its source, size and last sync."
+        subtitle="Every master the app reads. Each value list is its own table — add and remove entries here."
         icon="🗂️"
         actions={<button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh all'}</button>}
       />
@@ -188,63 +208,43 @@ export function AllMasters() {
 
       <KpiGrid>
         {registers.map((r) => (
-          <KpiCard
-            key={r.id}
-            label={r.label}
-            value={r.count.toLocaleString()}
+          <KpiCard key={r.id} label={r.label} value={r.count.toLocaleString()}
             sub={r.status === 'Loaded' ? r.source : r.status}
-            tone={r.status === 'Loaded' ? 'primary' : 'warning'}
-          />
+            tone={r.status === 'Loaded' ? 'primary' : 'warning'} />
         ))}
-        <KpiCard label="Value lists" value={String(lists.length)} sub={`${listValues.toLocaleString()} values`} tone="info" />
+        <KpiCard label="Value lists" value={String(valueLists.length)} sub={`${listValues.toLocaleString()} entries`} tone="info" />
       </KpiGrid>
 
-      <DataTable<MasterRow>
-        columns={COLUMNS}
+      <DataTable<SummaryRow>
+        columns={SUMMARY_COLUMNS}
         rows={rows}
         getRowId={(r) => r.id}
         storageKey="allMasters"
-        rowsBeforeScroll={14}
+        rowsBeforeScroll={12}
         dense
-        onRowClick={(r) => { if (!r.route) { setOpen(r); setValueSearch(''); } }}
+        onRowClick={(r) => { if (!r.route) { const l = listFor(r); if (l) openList(l); } }}
         emptyText={busy ? 'Loading…' : 'No masters loaded yet — ↻ Refresh all.'}
         toolbar={
           <Toolbar>
             <div className="spacer" />
             {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
-              <button
-                className="btn btn-sm"
-                onClick={() => csvExport('all-masters.csv',
-                  [{ key: 'label', header: 'Master' }, { key: 'kind', header: 'Kind' }, { key: 'source', header: 'Source' }, { key: 'count', header: 'Values' }, { key: 'status', header: 'Status' }, { key: 'sample', header: 'Sample values' }],
-                  rows as unknown as Record<string, unknown>[])}
-              >⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('all-masters.csv',
+                [{ key: 'label', header: 'Master' }, { key: 'kind', header: 'Kind' }, { key: 'source', header: 'Source' }, { key: 'count', header: 'Entries' }, { key: 'status', header: 'Status' }, { key: 'usedBy', header: 'Used by' }],
+                rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }
       />
 
       {open && (
-        <SectionCard title={`${open.label} — ${open.count.toLocaleString()} value${open.count === 1 ? '' : 's'}`}>
+        <SectionCard title={`${open.label}${openCount ? ` — ${openCount.toLocaleString()} ${openCount === 1 ? 'entry' : 'entries'}` : ''}`}>
           <Toolbar>
-            <input className="input" placeholder="Search values" value={valueSearch} onChange={(e) => setValueSearch(e.target.value)} />
+            <button className="btn btn-sm" onClick={() => navigate(masterListPath(open.key))}>↗ Open its own screen</button>
             <div className="spacer" />
-            {open.values.length > 0 && (
-              <button
-                className="btn btn-sm"
-                onClick={() => csvExport(`${open.master}-master.csv`, [{ key: 'value', header: open.label }], openValues as unknown as Record<string, unknown>[])}
-              >⭳ Export CSV</button>
-            )}
             <button className="btn btn-sm btn-ghost" onClick={() => setOpen(null)}>✕ Close</button>
           </Toolbar>
-          <DataTable<{ id: string; value: string }>
-            columns={[{ key: 'value', header: open.label, width: 420 }]}
-            rows={openValues}
-            getRowId={(r) => r.id}
-            rowsBeforeScroll={12}
-            dense
-            emptyText="No values."
-          />
+          <MasterListTable list={open} onCountChange={noteCount} />
         </SectionCard>
       )}
     </div>

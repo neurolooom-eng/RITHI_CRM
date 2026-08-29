@@ -12,6 +12,16 @@ node scripts/build-apply-bundles.mjs            # all bundles
 node scripts/build-apply-bundles.mjs spare_requests
 ```
 
+The spare bundle is written to **`Spare_1.sql` at the repo root** rather than
+into this directory — it is the file handed round for that module. The number
+is a **revision**: bump it (`Spare_2.sql`, …) when handing over a new
+consolidated SQL, so it never overwrites one already applied somewhere.
+Everything else lives here.
+
+Adding a module? Put it in `MODULES` **and** in `ALL_ORDER`. The generator
+refuses to run otherwise — a module missing from the order would be left out
+of `all.sql`, which is how the `masters` module briefly went unbundled.
+
 Re-run it whenever a migration is added or edited, and commit the result. One
 file per module, regenerated in place, so bundles never duplicate or overwrite
 each other.
@@ -30,10 +40,13 @@ each other.
 | `_status.sql` | read-only report of what is applied | — |
 | `user_directory.sql` | `0004` — engineer directory, reporting-tree helpers | base `0001` |
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
-| `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
+| `../Spare_X.sql` | `0006`, `0009`, `0011`, `0012`, `0016`–`0019` — the whole spare workflow (repo root) | `rbac` |
+| `stock_transfer.sql` | `0020` — engineer → engineer hand-overs, and the derived stock balance | `Spare_X.sql` |
+| `../HandStock_X.sql` | `0022` — the stock level per engineer & spare, its movements, and `engineer_stock` redefined over them (repo root) | `stock_transfer` |
 | `call_requests.sql` | `0003`, `0010`, `0011`, `0012`, `0014`, `0015` — call requests, the Hotline actions, call state, Call Number | `user_directory` |
+| `masters.sql` | `0021` — master value lists registry + the "200 All Masters" seed | `rbac` |
 | `reports.sql` | `0010_reports_ordering` — visit-history ordering indexes | base `0001` |
-| `all.sql` | the five above, in dependency order | base `0001` |
+| `all.sql` | every module above, in dependency order | base `0001` |
 
 Use `all.sql` when a project is behind on more than one module; use a
 per-module bundle when you only need that one.

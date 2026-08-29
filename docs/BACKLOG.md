@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped; go-live data reset queued)_
+_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped; go-live data reset queued)_
 
 ---
 
@@ -79,6 +79,18 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped; go-
 - **All Masters** (`/masters`) — one view over every master: the registers
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- **Each value list has its own screen** (`/masters/<key>`, Master Lists in the
+  sidebar) — one table per master with Add / Remove, shared with the All Masters
+  overview. All `/masters/*` screens are gated by the one `mod:/masters` action,
+  so a new list needs no permission row.
+- **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
+  a `master_lists` registry (label, what one row is called, extra columns) plus
+  the `masters` rows; All Masters opens each list as its own table with Add /
+  Remove, gated on `masters.edit`, and clears the dropdown cache on every edit.
+  Seeded from the **200 All Masters** workbook: calltype 8, complaint 507,
+  pendingreason 21, cancelreason 27, feedbackrating 4, **orapproval** 13 (that
+  one carries Stage + Status columns in `masters.extra`). A new list needs a
+  registry row, not a release.
 - In-call **Spares Consumed** picker reads the live `spare` master too (it used
   to list the same cleared demo collection). A consumed part is stored by its
   `CODE|Description` catalogue string; the old Amount/Total column and the stock
@@ -108,6 +120,11 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
+- **`0023_handstock.sql`** — the hand-stock views, and `engineer_stock`
+  redefined over them (bundle: **`HandStock_X.sql`**, at the repo root; needs
+  `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
+  module says so and stays empty, and the report form has no stock to consume
+  from.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.
@@ -215,8 +232,8 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   Yes/No, "Warranty Start Date?" a date, "Remarks" free text. Saved as a
   structured row to v2Feedback (identifying fields + answers + Call Type).
 
-- **Masters in 200 All Masters** — mapped (baked as defaults; live once CallReg
-  is redeployed). Each identified by its column header:
+- **Masters in 200 All Masters** — ✅ loaded into `masters` and editable in All
+  Masters (see Masters above). Each identified by its column header:
   - `complaint` → tab "Standard Complaint", col **"Complaint Name"** → Standard
     Complaint field on the call form.
   - `calltype` → col **"Call Type"** → Call Type select on the Request form
@@ -225,6 +242,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     field on the call report (Unsolved branch).
   - `cancelreason` → col **"Call Cancel Reason Name"** → the reason on the
     Hotline's **Cancel request** action (Pending Registrations).
+  - `feedbackrating` → col **"Feedback"** → the rating answers on the feedback
+    form.
+  - `orapproval` → cols **"Approval Stage" / "Status" / "Reason for Approval /
+    Rejection"** → the reason list behind a spare approval or rejection; not yet
+    wired into the Spare Requests dialogs (the reasons are free text there).
 
 ---
 
@@ -275,13 +297,63 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     running sequence; numbers already issued keep the old `OR47042` form, since
     they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
     `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
-  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
-    first; the ITEM Master import carries only code, description and Active), a
-    stores-side pick/pack view, and consumption reconciliation — flag a received
-    request whose parts were never consumed against the call. Also worth a smoke test
+  - *Phase 7* (`0022_spare_line_uid.sql`): **every spare has its own ID** —
+    `<OR number>-<RowNo>`, e.g. `OR-2608-0001-01`. It leads the register, the RM
+    approves against it and Stores dispatches against it, so two spares on one
+    OR can be dispatched on different days with different DCs (the per-line
+    columns for that have existed since 0016; this adds the reference to quote).
+    Fixed once issued, unique across the register.
+  - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
+    level an engineer is carrying, per spare:
+    **stock out (Stores) − consumption − transfer out + transfer in**.
+    Two tabs: **Stock Level**, one line per engineer and spare with every term
+    as its own column (in-hand / short / settled filters, per-engineer filter,
+    search, CSV, and a per-line movement trail in a drawer); and
+    **Movements**, the ledger those levels are made of — every stock out,
+    consumption and transfer, newest first, filtered by kind and engineer,
+    paged and exportable.
+    It does **not** add a second stock system: `0020_stock_transfer.sql` owns
+    the transfer tables and the `/stock-transfer` screen, and `engineer_stock`
+    — which that screen and its overdraw guard read — is redefined as a view
+    over `handstock_balance`, so the two can never disagree.
+    That consolidation fixed two ways a balance was wrong: only
+    `req_type = 'HandStock'` requests counted as stock in, so a spare
+    dispatched against a **call** was consumed out of a balance it had never
+    been added to (engineer goes negative, transfers refused); and a dispatch
+    carrying a DC but **no `dispatched_at`** — sheet-era rows, imports —
+    counted for nothing. Stock out is now every dispatched line, decided by the
+    *status*, dated by the best timestamp the row has.
+    **Reporting → Spare consumption offers only what that engineer holds**,
+    with the quantity in hand, and refuses more — so a report can no longer
+    consume a spare nobody issued.
+    Movements are matched on the engineer's **name** (case- and
+    space-insensitive) and the part **CODE**; consumption never carried an
+    email, so the report form now writes one for future rows.
+    A **negative** level is shown, not hidden. `supabase/tests/handstock_test.sql`
+    covers it, and `stock_transfer_test.sql` still passes against the
+    redefined view.
+  - **Next:** warehouse-side stock — the *Stores* balance, decremented on
+    dispatch (needs `parts.on_hand`/price columns first; the ITEM Master import
+    carries only code, description and Active) and a stores pick/pack view.
+    Engineer-side stock is now live, so consumption reconciliation is a filter
+    over it (a spare still in hand long after the call closed). A transfer is
+    deliberately immediate — if hand-overs need the receiving engineer to
+    accept them, that is an acknowledgement step on `stock_transfers`. Also worth a smoke test
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
+- **Stock Transfer** — ✅ shipped (`0020_stock_transfer.sql`). Engineer-to-engineer
+  hand-stock transfers, numbered `ST-YYMM-NNNN`. **Stock is derived, not stored:**
+  the `engineer_stock` view sums hand-stock dispatched to an engineer, less
+  consumption, plus/minus transfers — so a balance cannot drift from its history.
+  A transfer only offers parts the sender holds and caps the qty at what is
+  left, enforced by trigger as well as in the form (an AFTER trigger, so a
+  multi-row insert that individually passes but together over-draws is caught).
+  **Note:** inflow keys off *dispatch*, not the engineer's acknowledgement —
+  acknowledgement needs `spare.receive`, which the role defaults no longer give
+  engineers, so keying off it would leave every balance at zero.
+  **Next:** store-level stock (this is engineer hand-stock only), and stock
+  decrement straight from a Call-Based dispatch.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target
@@ -289,8 +361,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   else the first sheet). Links editable in Admin Config. Confirm the landing tab
   after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
-  Entry, "200 All Masters"). ITEM Master is done — it backs Part Master, the
-  spare-request picker and the in-call consumption picker.
+  Entry). ITEM Master is done — it backs Part Master, the spare-request picker
+  and the in-call consumption picker; "200 All Masters" is done — every list is
+  a maintained table in All Masters.
+- **Next on masters:** point the Spare Requests approve/reject dialogs at the
+  `orapproval` list instead of free-text reasons.
 - Preventive Maintenance (PM) schedule/calls.
 - Sale Entry, Reports, Dashboard/KPI, Indoor Activity, other misc (to be placed).
 
@@ -307,7 +382,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   - **Purge, then load in dependency order:** masters / value lists → parties →
     products → parts (ITEM Master) → user directory → calls (FIELD + INST + PM)
     → reports (per-visit) → spare requests + lines → consumption → feedback →
-    call requests. Children reference parents, so the order matters.
+    call requests → stock transfers + lines. Children reference parents, so the
+    order matters. **Hand Stock needs nothing of its own** — a balance is
+    derived (stock out − consumption − transfer out + transfer in), and
+    `engineer_stock` is a view over it, so both come back correct once the
+    ledgers underneath are loaded.
   - **Keep, do not purge:** Supabase Auth users, `profiles`, `app_roles` /
     Roles & Permissions, per-user extra access, saved table views, and Admin
     Config. Those are configuration, not data.
@@ -317,7 +396,10 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     seeded from the existing series); `next_call_reqid()` for REQID; and the
     **OR NO** per-month counter table (`0017`–`0019`, `OR-YYMM-NNNN` restarting
     at 0001 each month) — a fresh load of historical spares must not leave the
-    current month's counter behind the numbers it just imported.
+    current month's counter behind the numbers it just imported — and
+    `stock_transfer_counters` (`0020`) for the same reason. Spare line UIDs
+    (`0022`, `<OR number>-<RowNo>`) follow the OR number, so they need no
+    counter of their own.
   - **Verify against the sheet before opening it up:** row counts per table,
     a spot-check of back-dated `reg_date` values, call status derivation
     (`call_state`), and that role scoping still resolves — it matches on exact
@@ -336,5 +418,26 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.
+- ⚠️ **A merge on main reverted four modules** (2026-08-29). The audit-log
+  branch was cut from a much older tree, and merging it took its stale hunks:
+  `SpareRequests.tsx` lost per-spare approvals (leaving calls to `wfButtons` /
+  `runPending` that no longer existed), `FieldCalls.tsx` lost `StateBadge`,
+  `RequestCallRegistration.tsx` lost its product rows, `UserAccess.tsx` lost
+  `sbSendPasswordReset`. **`npm run build` failed on main**, so the Pages
+  deploy was broken too. Repaired here by restoring each file from the commit
+  before that merge and re-applying the audit calls on top. Worth checking a
+  long-lived branch against main before merging it.
+- `0009_audit_log.sql` arrived with no apply bundle, which the generator's
+  coverage check refuses (rightly) — it now has one (`supabase/apply/audit.sql`),
+  and `_status.sql` reports it.
 - Role/visibility matching relies on exact `User Name` ⇄ `Call Allocated To`
   strings (case/space-insensitive). Flag any spelling mismatches.
+- **`supabase/apply/all.sql` is not re-runnable** (the per-module bundles are).
+  On a second run `0012_call_state.sql` recreates `pending_calls` as
+  `select c.*, s.state as open_state`, and by then `0014` has added a real
+  `open_state` column to `calls` — so the view has the name twice and the
+  bundle stops with *“column open_state of relation pending_calls already
+  exists”*. Pre-existing, harmless on a first apply; fix by qualifying that
+  select when `0012` is next touched.
+- **`CallReporting.tsx` was missing its `uploadToDrive` / `MAX_UPLOAD_BYTES`
+  import** — `npm run build` failed on the branch tip. Import added.

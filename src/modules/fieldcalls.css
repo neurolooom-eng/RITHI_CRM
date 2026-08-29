@@ -271,3 +271,12 @@
 .rep-upload > .btn { cursor: pointer; }
 .rep-upload > .btn.is-busy { opacity: .7; pointer-events: none; }
 .rep-upload-file { font-size: 12px; word-break: break-all; }
+
+/* Hand Stock: the tab row reads as tabs, not as another filter chip row —
+   slightly larger, and separated from the filters underneath it. */
+.hs-tabs { margin: 12px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.hs-tabs .chip { font-size: 13px; padding: 6px 14px; font-weight: 600; }
+
+/* A movement's sign: what came in, what went out. */
+.wf-in  { color: var(--success, #16a34a); font-weight: 600; }
+.wf-out { color: var(--text-muted); font-weight: 600; }

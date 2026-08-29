@@ -26,6 +26,7 @@ import {
 } from '../lib/sheets';
 import { supabaseConfigured, searchCalls } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
+import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 import {
   FC_CONTRACT_TYPE,
@@ -502,10 +503,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const handleCreate = async (values: FormValues) => {
     const rec = buildPayload(values, config.callType);
     setBusy(true);
+    const t0 = performance.now();
+    const dur = () => Math.round(performance.now() - t0);
     try {
       if (configured) {
         const res = await addFieldCall(rec, config.tab);
         if (res.ok && res.record) {
+          logAudit({ action: 'call.create', target: String(res.ucn), status: 'ok', duration_ms: dur(), meta: { callType: config.callType } });
           db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
           // If this came from a pending CRN request, back-fill the UCN there.
           if (pendingRow != null && res.ucn) {
@@ -514,14 +518,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           }
           setBanner({ tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
         } else {
-          saveLocal(rec, `Sheet write failed (${res.error}).`);
+          logAudit({ action: 'call.create', status: 'error', error: res.error, duration_ms: dur(), meta: { callType: config.callType } });
+          saveLocal(rec, `Write failed (${res.error}).`);
         }
       } else {
-        saveLocal(rec, 'No sheet connected.');
+        saveLocal(rec, 'No database connected.');
       }
       setDrawer(null);
     } catch (e) {
-      saveLocal(rec, `Sheet write failed (${e instanceof Error ? e.message : String(e)}).`);
+      logAudit({ action: 'call.create', status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: dur() });
+      saveLocal(rec, `Write failed (${e instanceof Error ? e.message : String(e)}).`);
       setDrawer(null);
     } finally {
       setBusy(false);
@@ -534,17 +540,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     if (!canEditRow(row)) { setBanner({ tone: 'error', text: isSolved(row) ? 'This call is Solved and read-only.' : 'You don’t have permission to edit calls.' }); setDrawer(null); return; }
     const patch = buildPayload(values, config.callType);
     setBusy(true);
+    const t0 = performance.now();
     try {
       if (row._synced && configured) {
         const res = await updateFieldCall(String(row.ucn), patch, config.tab);
         if (!res.ok) {
-          setBanner({ tone: 'error', text: `Sheet update failed: ${res.error}` });
+          logAudit({ action: 'call.edit', target: String(row.ucn), status: 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+          setBanner({ tone: 'error', text: `Update failed: ${res.error}` });
           setBusy(false);
           return;
         }
       }
       db.update(config.collection, row.id, patch);
-      setBanner({ tone: 'ok', text: `Call ${row.ucn} updated${row._synced ? ' in the sheet' : ''}.` });
+      logAudit({ action: 'call.edit', target: String(row.ucn), status: 'ok', duration_ms: Math.round(performance.now() - t0) });
+      setBanner({ tone: 'ok', text: `Call ${row.ucn} updated.` });
       setDrawer(null);
     } finally {
       setBusy(false);

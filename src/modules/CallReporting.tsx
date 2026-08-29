@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
+import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
+import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { todayISO } from '../lib/format';
@@ -117,8 +119,14 @@ export function CallReportDrawer({
   const unsolved = /unsolved/i.test(status);
   const fbQuestions = useMemo(() => FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType)), [callType]);
 
-  // Spare consumption + feedback
-  const spareMaster = useMaster('spare');
+  // Spare consumption + feedback.
+  // A spare can only be consumed out of the engineer's HAND STOCK — what
+  // Stores issued them, less what they have already used or handed on (view
+  // `handstock_balance`, migration 0020). The picker offers exactly that, with
+  // the quantity in hand, so a report cannot consume a part nobody gave them.
+  const [stock, setStock] = useState<HandstockBalance[]>([]);
+  const [stockErr, setStockErr] = useState('');
+  const [stockBusy, setStockBusy] = useState(false);
   const [spares, setSpares] = useState<{ part: string; qty: string }[]>([]);
   const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1' });
   const [feedback, setFeedback] = useState<Record<string, string>>({});
@@ -154,10 +162,45 @@ export function CallReportDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solved, fbQuestions]);
 
+  // The stock belongs to whoever made the visit, so it reloads with the
+  // engineer picker (an admin reporting for someone else sees THEIR stock).
+  useEffect(() => {
+    if (!open || !solved || !engineer.trim() || !supabaseConfigured()) { setStock([]); return; }
+    let alive = true;
+    setStockBusy(true); setStockErr('');
+    handstockForEngineer(engineer)
+      .then((r) => { if (alive) setStock(r as unknown as HandstockBalance[]); })
+      .catch((e) => {
+        if (!alive) return;
+        const t = e instanceof Error ? e.message : String(e);
+        setStock([]);
+        setStockErr(/handstock|does not exist|schema cache/i.test(t)
+          ? 'Hand stock needs migration 0023_handstock.sql — until it is run there is no stock to pick from.'
+          : t);
+      })
+      .finally(() => { if (alive) setStockBusy(false); });
+    return () => { alive = false; };
+  }, [open, solved, engineer]);
+
+  // What is left of a spare once the lines already added to this visit are
+  // taken off it — adding the same part twice must not exceed the stock.
+  const remainingOf = (part: string): number => {
+    const held = num(stock.find((r) => r.part === part)?.on_hand);
+    const taken = spares.filter((s) => s.part === part).reduce((n, s) => n + (Number(s.qty) || 0), 0);
+    return held - taken;
+  };
+
   const addSpare = () => {
-    if (!spareDraft.part.trim()) { setErr('Pick a spare before adding.'); return; }
-    setSpares((s) => [...s, { ...spareDraft }]);
+    const part = spareDraft.part.trim();
+    if (!part) { setErr('Pick a spare before adding.'); return; }
+    const n = Math.floor(Number(spareDraft.qty) || 0);
+    if (n < 1) { setErr('Quantity must be at least 1.'); return; }
+    const left = remainingOf(part);
+    if (left <= 0) { setErr(`${part} is not in ${engineer || 'the engineer'}'s hand stock.`); return; }
+    if (n > left) { setErr(`Only ${left} of that spare left in hand stock.`); return; }
+    setSpares((s) => [...s, { part, qty: String(n) }]);
     setSpareDraft({ part: '', qty: '1' });
+    setErr('');
   };
 
   // The manual report filed on the most recent visit, so it is one click away.
@@ -197,6 +240,7 @@ export function CallReportDrawer({
     const v = validate();
     if (v) { setErr(v); return; }
     setBusy(true); setErr('');
+    const t0 = performance.now();
     try {
       const data: Record<string, unknown> = {
         'Visit Entry Date': visitEntry,
@@ -222,7 +266,7 @@ export function CallReportDrawer({
 
       // Spare consumption → spare_consumption (one row per part).
       for (const s of spares) {
-        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, data: {} });
+        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, engineer_email: user?.email ?? '', data: {} });
       }
       // Customer feedback → feedback (structured answers).
       if (solved && fbQuestions.length) {
@@ -235,9 +279,11 @@ export function CallReportDrawer({
           answers, visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
         });
       }
+      logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: spares.length } });
       onSaved?.('saved', ucn);
       onClose();
     } catch (e) {
+      logAudit({ action: 'call.report', target: ucn, status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: Math.round(performance.now() - t0) });
       setErr(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
   };
@@ -361,11 +407,32 @@ export function CallReportDrawer({
                 </ul>
               )}
               <div className="spare-row">
-                <input className="input spare-part" list="dl-spares" placeholder="Search part…" value={spareDraft.part} onChange={(e) => setSpareDraft((d) => ({ ...d, part: e.target.value }))} />
-                <input className="input spare-qty" type="number" min={1} value={spareDraft.qty} onChange={(e) => setSpareDraft((d) => ({ ...d, qty: e.target.value }))} />
-                <button className="btn btn-sm" onClick={addSpare}>＋ Add</button>
+                <select
+                  className="select spare-part" value={spareDraft.part}
+                  onChange={(e) => setSpareDraft({ part: e.target.value, qty: '1' })}
+                  disabled={stockBusy || stock.length === 0}
+                >
+                  <option value="">
+                    {stockBusy ? 'Loading hand stock…' : stock.length ? 'Pick a spare in hand…' : 'Nothing in hand stock'}
+                  </option>
+                  {stock.map((r) => (
+                    <option key={r.part_code} value={r.part} disabled={remainingOf(r.part) <= 0}>{stockOptionLabel(r)}</option>
+                  ))}
+                </select>
+                <input
+                  className="input spare-qty" type="number" min={1}
+                  max={spareDraft.part ? Math.max(1, remainingOf(spareDraft.part)) : 1}
+                  value={spareDraft.qty} onChange={(e) => setSpareDraft((d) => ({ ...d, qty: e.target.value }))}
+                  disabled={!spareDraft.part}
+                />
+                <button className="btn btn-sm" onClick={addSpare} disabled={!spareDraft.part}>＋ Add</button>
               </div>
-              <datalist id="dl-spares">{spareMaster.values.slice(0, 2000).map((v) => <option key={v} value={v} />)}</datalist>
+              {stockErr
+                ? <span className="muted rep-hint">{stockErr}</span>
+                : <span className="muted rep-hint">
+                    Only spares in {engineer || 'the engineer'}&rsquo;s hand stock can be consumed — issued by Stores on a DC,
+                    less what has already been used or transferred. Raise a spare request for anything else.
+                  </span>}
             </section>
           )}
 

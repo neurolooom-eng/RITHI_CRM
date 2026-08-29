@@ -42,16 +42,25 @@ export const MODULES: ModuleDef[] = [
   { path: '/reports', label: 'Reports' },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
+  { path: '/handstock', label: 'Hand Stock' },
+  { path: '/stock-transfer', label: 'Stock Transfer' },
   { path: '/feedback', label: 'Customer Feedback' },
   { path: '/failure-report', label: 'Field Failure Report' },
   { path: '/kpi', label: 'KPI & Failure Analysis' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
+  { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
   { path: '/settings', label: 'Settings' },
   { path: '/version-history', label: 'Version History' },
 ];
 export const moduleAction = (path: string): string => `mod:${path}`;
+
+// Each master value list has its own screen (/masters/<key>), but they are one
+// module: whoever may open All Masters may open any of its lists. Keeps the
+// role matrix from growing a row per list.
+export const actionForPath = (path: string): string =>
+  moduleAction(path.startsWith('/masters/') ? '/masters' : path);
 const ADMIN_MODULES = MODULES.filter((m) => m.admin).map((m) => moduleAction(m.path));
 const NON_ADMIN_MODULES = MODULES.filter((m) => !m.admin).map((m) => moduleAction(m.path));
 const ALL_MODULES = MODULES.map((m) => moduleAction(m.path));
@@ -70,7 +79,9 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.approve_nsm', label: 'Approve spare — NSM' },
   { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / DC (Stores)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
+  { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand stock' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
+  { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
@@ -79,6 +90,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'users.manage', label: 'Manage users' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
+  { group: 'Admin', key: 'audit.view', label: 'View audit log' },
 ];
 export const ACTIONS: ActionDef[] = [
   ...FUNCTIONAL_ACTIONS,
@@ -102,16 +114,16 @@ export const legacyToRbac = (role: string): string =>
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
   nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm'],
-  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
-  rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
+  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
+  rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
-  engineer: ['calls.view', 'calls.report', 'request.create', 'consumption.view', 'reports.view', 'dashboard.view'],
+  engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests.
   hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
-  spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
-  stores_incharge: ['spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
-  tally_coordinator: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
+  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
+  stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
+  tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
+  commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
 };
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [

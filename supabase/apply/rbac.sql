@@ -27,6 +27,9 @@ begin
   if to_regprocedure('public.visible_engineer_names()') is null then
     missing := array_append(missing, 'visible_engineer_names() — 0004_user_directory.sql (apply bundle: user_directory)');
   end if;
+  if to_regclass('public.call_requests') is null then
+    missing := array_append(missing, 'the call_requests table — 0003_call_requests.sql (apply bundle: base)');
+  end if;
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
       array_to_string(missing, E'\n  - ');

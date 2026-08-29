@@ -11,7 +11,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0003_call_requests.sql
+--   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
 --   0012_call_state.sql
@@ -47,74 +47,23 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0003_call_requests.sql
+-- 0008_calls_creator_read.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- Call Requests (Request Registration) — engineers raise a request; it becomes
--- a Pending Registration until a UCN is assigned. REQID starts at 20000 (R…),
--- UniqueID = REQID-Product-SerialNo.
+-- Let a creator read back the call they just inserted (so insert...returning
+-- works for everyone, not only admins). Fixes "new call saved locally / pending"
+-- when the register is on Supabase.
 -- ===========================================================================
 
-create sequence if not exists public.call_req_seq start 20000;
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls for select
+  using (public.can_see_call(allocated_to) or created_by = auth.uid());
 
-create table if not exists public.call_requests (
-  id                       bigint generated always as identity primary key,
-  reqid                    text unique,                 -- R20000, R20001, …
-  unique_key               text,                        -- REQID-Product-SerialNo
-  submitted_at             timestamptz not null default now(),
-  email                    text default '',
-  engineer                 text default '',
-  call_type                text default '',
-  party_name               text default '',
-  state                    text default '',
-  city                     text default '',
-  address                  text default '',
-  customer_contact_details text default '',
-  customer_contact_number  text default '',
-  product                  text default '',
-  serial_no                text default '',
-  standard_complaint       text default '',
-  reported_problem         text default '',
-  installation_report      text default '',
-  kyc                      text default '',
-  call_attended            text default '',             -- Yes / No
-  attended_date            date,
-  plan_date                date,
-  additional_comments      text default '',
-  ucn                      text default '',             -- back-filled on registration
-  status                   text default 'Pending',
-  created_by               uuid references auth.users (id),
-  created_at               timestamptz not null default now()
-);
-create index if not exists call_requests_pending_idx on public.call_requests (ucn);
-
--- Assign REQID + UniqueID + submitter on insert.
-create or replace function public.call_requests_biu()
-returns trigger language plpgsql set search_path = public as $$
-begin
-  if new.reqid is null or new.reqid = '' then
-    new.reqid := 'R' || nextval('public.call_req_seq')::text;
-  end if;
-  new.unique_key := new.reqid || '-' || coalesce(nullif(new.product,''),'NA') || '-' || coalesce(nullif(new.serial_no,''),'NA');
-  if new.created_by is null then new.created_by := auth.uid(); end if;
-  if coalesce(new.email,'') = '' then new.email := auth.email(); end if;
-  return new;
-end $$;
-drop trigger if exists call_requests_biu on public.call_requests;
-create trigger call_requests_biu before insert on public.call_requests
-  for each row execute function public.call_requests_biu();
-
-alter table public.call_requests enable row level security;
-drop policy if exists cr_read on public.call_requests;
-create policy cr_read on public.call_requests for select using (
-  public.is_admin() or created_by = auth.uid() or lower(email) = lower(auth.email())
-  or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n))
-);
-drop policy if exists cr_insert on public.call_requests;
-create policy cr_insert on public.call_requests for insert with check (auth.role() = 'authenticated');
-drop policy if exists cr_update on public.call_requests;
-create policy cr_update on public.call_requests for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls for update
+  using (public.can_see_call(allocated_to) or created_by = auth.uid())
+  with check (public.can_see_call(allocated_to) or created_by = auth.uid());
 
 -- ------------------------------------------------------------------------
 -- 0010_call_request_items.sql
@@ -220,14 +169,31 @@ left join lateral (
 
 -- NB: `calls` already has a `state` column (the geographic one), so the call's
 -- open state is exposed here as `open_state`.
-create or replace view public.pending_calls as
-select c.*, s.state as open_state, s.last_status, s.last_visit_at
-from public.calls c
-join public.call_state s on s.ucn = c.ucn
-where s.state <> 'Solved';
+--
+-- Skipped once 0014_call_state_denorm.sql has run: that migration denormalises
+-- open_state onto `calls` itself and rebuilds this view against it. After that,
+-- `c.*` here already carries open_state and aliasing s.state to the same name
+-- collides ("column open_state ... already exists"), which broke re-running
+-- this file. 0014's definition supersedes this one, so skipping is a no-op.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
 
-alter view public.call_state    set (security_invoker = on);
-alter view public.pending_calls set (security_invoker = on);
+  create or replace view public.pending_calls as
+  select c.*, s.state as open_state, s.last_status, s.last_visit_at
+  from public.calls c
+  join public.call_state s on s.ucn = c.ucn
+  where s.state <> 'Solved';
+
+  execute 'alter view public.pending_calls set (security_invoker = on)';
+  execute 'grant select on public.pending_calls to authenticated';
+end $$;
+
+alter view public.call_state set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
 grant select on public.pending_calls to authenticated;
