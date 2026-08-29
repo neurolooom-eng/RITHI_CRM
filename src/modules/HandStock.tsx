@@ -21,7 +21,7 @@ import './fieldcalls.css';
 // Nothing is entered here: the movements are the Stores dispatch on a spare
 // request, the consumption on a call report, and the hand-overs recorded on
 // Stock Transfer. Reads `handstock_balance` / `handstock_movements` (migration
-// 0022_handstock.sql), which run with the caller's rights — so an engineer
+// 0023_handstock.sql), which run with the caller's rights — so an engineer
 // sees their own stock, an RM their sub-tree, an admin everyone's.
 //
 // Stock Transfer (/stock-transfer) is where a hand-over is recorded, and it
@@ -30,7 +30,7 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const CACHE_KEY = 'handstock';
-const MIGRATION_HINT = 'Hand stock needs migration 0022_handstock.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
+const MIGRATION_HINT = 'Hand stock needs migration 0023_handstock.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
 type Row = HandstockBalance & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';

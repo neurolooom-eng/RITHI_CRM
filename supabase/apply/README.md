@@ -12,9 +12,15 @@ node scripts/build-apply-bundles.mjs            # all bundles
 node scripts/build-apply-bundles.mjs spare_requests
 ```
 
-The spare bundle is written to **`Spare_X.sql` at the repo root** rather than
-into this directory — it is the file handed round for that module. Everything
-else lives here.
+The spare bundle is written to **`Spare_1.sql` at the repo root** rather than
+into this directory — it is the file handed round for that module. The number
+is a **revision**: bump it (`Spare_2.sql`, …) when handing over a new
+consolidated SQL, so it never overwrites one already applied somewhere.
+Everything else lives here.
+
+Adding a module? Put it in `MODULES` **and** in `ALL_ORDER`. The generator
+refuses to run otherwise — a module missing from the order would be left out
+of `all.sql`, which is how the `masters` module briefly went unbundled.
 
 Re-run it whenever a migration is added or edited, and commit the result. One
 file per module, regenerated in place, so bundles never duplicate or overwrite

@@ -18,7 +18,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0022_handstock.sql
+--   0023_handstock.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -55,7 +55,7 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0022_handstock.sql
+-- 0023_handstock.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================

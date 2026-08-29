@@ -66,7 +66,7 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
     (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
         to_regprocedure('public.next_direct_call_number(text)') is not null),
-    (14, 'handstock', 'handstock_balance + handstock_movements, and engineer_stock over them (0022)',
+    (14, 'handstock', 'handstock_balance + handstock_movements, and engineer_stock over them (0023)',
         (to_regclass('public.handstock_balance')   is not null
      and to_regclass('public.handstock_movements') is not null)),
     (15, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',

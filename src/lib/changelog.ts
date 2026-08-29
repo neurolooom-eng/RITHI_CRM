@@ -21,7 +21,29 @@ export const CHANGELOG: ChangeEntry[] = [
       'Both screens now read the same derivation, so they cannot disagree. That fixed two ways a balance could be wrong: a spare dispatched against a CALL counted when it was consumed but never when it was issued, leaving the engineer negative and blocking their transfers; and a dispatch from the sheet era, carrying a DC but no date, did not count at all.',
       'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses more \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
       'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC.',
-      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0022_handstock.sql (apply bundle: HandStock_X.sql).',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0023_handstock.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
+    version: '0.7.1',
+    date: '2026-08-29',
+    title: 'Every spare has its own ID',
+    changes: [
+      'Each spare on a request now carries its own reference \u2014 OR-2608-0001-01, OR-2608-0001-02 \u2014 shown as the first column of the register.',
+      'That ID is what the RM approves against and what Stores dispatches against, so two spares on the same OR can go out on different days, each with its own DC number.',
+      'The request view lists every spare by its ID with its own stage, DC and dispatch date, so you can see at a glance which part is where.',
+      'The ID is fixed once issued and unique across the register \u2014 it is what gets quoted on the DC.',
+    ],
+  },
+  {
+    version: '0.7.2',
+    date: '2026-08-29',
+    title: 'Each master list has its own screen',
+    changes: [
+      'New Master Lists group in the sidebar: Call Type, Standard Complaint, Call Pending Reason, Call Cancel Reason, Feedback Rating and Spare Approval Reason each open their own screen, with that list\u2019s own table, Add and Remove.',
+      'All Masters stays the overview \u2014 counts, sources and status for every master \u2014 and opening a list from there shows the same table, with a link through to its own screen.',
+      'Fixed: the value lists could look like they never arrived. The previous release\u2019s cached rows were still being shown, and clicking one did nothing; and if the master-lists tables were not in the database yet, the whole screen failed instead of falling back to the lists the app knows and saying which SQL bundle to apply.',
+      'The list screens need no new permission \u2014 whoever can open All Masters can open any of them.',
     ],
   },
   {

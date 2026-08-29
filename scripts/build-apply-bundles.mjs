@@ -122,7 +122,7 @@ const MODULES = {
       'tables; _status.sql says which of those are missing.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
-    files: ['0022_handstock.sql'],
+    files: ['0023_handstock.sql'],
     tail: () => cookbook(),
   },
   stock_transfer: {
@@ -133,9 +133,11 @@ const MODULES = {
     files: ['0020_stock_transfer.sql'],
   },
   spare_requests: {
-    // Written to the repo root as Spare_X.sql rather than supabase/apply/,
-    // by request — it is the file handed round for the spare module.
-    out: 'Spare_X.sql',
+    // Handed round as a NUMBERED consolidated file at the repo root rather
+    // than from supabase/apply/. The number is a revision: bump it when
+    // handing over a new consolidated SQL, so it never overwrites one that
+    // has already been applied somewhere.
+    out: 'Spare_1.sql',
     title: 'Spare Requests',
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
@@ -153,6 +155,7 @@ const MODULES = {
       '0017_spare_or_number_monthly.sql',
       '0018_spare_or_number_padded.sql',
       '0019_spare_or_number_format.sql',
+      '0022_spare_line_uid.sql',
     ],
   },
 };
@@ -271,7 +274,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'call_requests', 'masters', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
@@ -287,11 +290,16 @@ MODULES.all = {
 // meaning all — which is how 0002 and 0008_calls_creator_read went unbundled.
 {
   const onDisk = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
-  const inBundles = ALL_ORDER.flatMap((m) => MODULES[m].files);
+  // Every module, not just the ordered ones — a module missing from ALL_ORDER
+  // used to be invisible here as well as absent from all.sql.
+  const modules = Object.keys(MODULES).filter((m) => m !== 'all');
+  const unordered = modules.filter((m) => !ALL_ORDER.includes(m));
+  const inBundles = modules.flatMap((m) => MODULES[m].files);
   const missing = onDisk.filter((f) => !inBundles.includes(f));
   const unknown = inBundles.filter((f) => !onDisk.includes(f));
   const dupes = inBundles.filter((f, i) => inBundles.indexOf(f) !== i);
   const problems = [
+    ...unordered.map((m) => `module "${m}" is missing from ALL_ORDER, so all.sql would omit it`),
     ...missing.map((f) => `${f} is in no module`),
     ...unknown.map((f) => `${f} is bundled but not on disk`),
     ...dupes.map((f) => `${f} is in more than one module`),

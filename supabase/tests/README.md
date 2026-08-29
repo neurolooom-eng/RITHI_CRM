@@ -14,7 +14,7 @@ guards. It caught a live bug (an RM's approval of a non-AMC item being refused
 by the stage guard, fixed in `0012_spare_auto_approval.sql`), so it is worth
 re-running whenever a migration touches `spare_requests`.
 
-`handstock_test.sql` exercises hand stock (`0022_handstock.sql`) — the four
+`handstock_test.sql` exercises hand stock (`0023_handstock.sql`) — the four
 terms of the stock level (a Stores dispatch in, consumption out, a transfer out
 of one engineer and into another), the name/part-code matching the movements
 are joined on, and a negative level where spares were consumed that no stock

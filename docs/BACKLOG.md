@@ -79,6 +79,10 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock
 - **All Masters** (`/masters`) — one view over every master: the registers
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- **Each value list has its own screen** (`/masters/<key>`, Master Lists in the
+  sidebar) — one table per master with Add / Remove, shared with the All Masters
+  overview. All `/masters/*` screens are gated by the one `mod:/masters` action,
+  so a new list needs no permission row.
 - **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
   a `master_lists` registry (label, what one row is called, extra columns) plus
   the `masters` rows; All Masters opens each list as its own table with Add /
@@ -116,7 +120,7 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
-- **`0022_handstock.sql`** — the hand-stock views, and `engineer_stock`
+- **`0023_handstock.sql`** — the hand-stock views, and `engineer_stock`
   redefined over them (bundle: **`HandStock_X.sql`**, at the repo root; needs
   `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
   module says so and stays empty, and the report form has no stock to consume
@@ -293,7 +297,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     running sequence; numbers already issued keep the old `OR47042` form, since
     they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
     `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
-  - *Phase 7* (`0022_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
+  - *Phase 7* (`0022_spare_line_uid.sql`): **every spare has its own ID** —
+    `<OR number>-<RowNo>`, e.g. `OR-2608-0001-01`. It leads the register, the RM
+    approves against it and Stores dispatches against it, so two spares on one
+    OR can be dispatched on different days with different DCs (the per-line
+    columns for that have existed since 0016; this adds the reference to quote).
+    Fixed once issued, unique across the register.
+  - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
     level an engineer is carrying, per spare:
     **stock out (Stores) − consumption − transfer out + transfer in**, with
     every term as its own column and the movement behind each figure (the DC,

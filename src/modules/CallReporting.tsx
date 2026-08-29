@@ -174,7 +174,7 @@ export function CallReportDrawer({
         const t = e instanceof Error ? e.message : String(e);
         setStock([]);
         setStockErr(/handstock|does not exist|schema cache/i.test(t)
-          ? 'Hand stock needs migration 0022_handstock.sql — until it is run there is no stock to pick from.'
+          ? 'Hand stock needs migration 0023_handstock.sql — until it is run there is no stock to pick from.'
           : t);
       })
       .finally(() => { if (alive) setStockBusy(false); });

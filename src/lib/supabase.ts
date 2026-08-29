@@ -859,7 +859,7 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- hand stock ------------------------------------------------------------
-// Netted per engineer + spare by Postgres (views from 0022_handstock.sql):
+// Netted per engineer + spare by Postgres (views from 0023_handstock.sql):
 // Stock Out (Stores) − Consumption − Transfer From + Transfer To. Both views
 // are security_invoker, so the rows a user gets are exactly the ones they may
 // already see in Spare Requests / Consumption. `engineer_stock`, which the
