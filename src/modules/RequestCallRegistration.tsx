@@ -1,31 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { addCallRequest, sbPartyInfo, supabaseConfigured } from '../lib/supabase';
-import { listPartyProducts, listPartyItems } from '../lib/sheets';
+import { addCallRequestBatch, sbPartyInfo, supabaseConfigured } from '../lib/supabase';
+import { listPartyItems } from '../lib/sheets';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 
 // ===========================================================================
-// REQUEST CALL REGISTRATION → Supabase `call_requests`. The form adapts to the
-// call type (Installation Call vs everything else) per the field spec:
-//   • REQID (R20000…) + UniqueID (REQID-Product-SerialNo) assigned server-side.
-//   • Installation: Party free-type, Product from Product Master, Serial free
-//     text, Standard Complaint / Reported Problem auto = "INSTALLATION CALL",
-//     Installation Report + KYC optional.
-//   • Other: Party/Product/Serial cascade from the masters, Standard Complaint
-//     from master, Reported Problem free text; Installation Report + KYC hidden.
-// Requests appear in Pending Registrations until a UCN is assigned.
+// REQUEST CALL REGISTRATION → Supabase `call_requests`. Adapts to call type
+// (Installation vs Other). Up to 5 Product/Serial pairs per request — each pair
+// becomes its own row sharing the REQID (UniqueID = REQID-Product-SerialNo).
 // ===========================================================================
 
+const MAX_PRODUCTS = 5;
 const blank = {
   callType: 'FIELD', partyName: '', state: '', city: '', address: '',
-  customerContactDetails: '', customerContactNumber: '', product: '', serialNo: '',
+  customerContactDetails: '', customerContactNumber: '',
   standardComplaint: '', reportedProblem: '', installationReport: '', kyc: '',
   callAttended: '', attendedDate: '', planDate: '', additionalComments: '',
 };
 type Form = typeof blank;
+type Pair = { product: string; serial: string };
 
 export function RequestCallRegistration() {
   const { user } = useAuth();
@@ -35,45 +31,46 @@ export function RequestCallRegistration() {
   const productMaster = useMaster('product');
 
   const [f, setF] = useState<Form>(blank);
+  const [products, setProducts] = useState<Pair[]>([{ product: '', serial: '' }]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to submit requests.' },
   );
   const set = (k: keyof Form, v: string) => setF((c) => ({ ...c, [k]: v }));
-
   const isInstall = /install/i.test(f.callType);
+  const attended = /^yes$/i.test(f.callAttended);
 
-  // Installation → complaint/problem auto = "INSTALLATION CALL".
   useEffect(() => {
     if (isInstall) setF((c) => ({ ...c, standardComplaint: 'INSTALLATION CALL', reportedProblem: c.reportedProblem || 'INSTALLATION CALL' }));
   }, [isInstall]);
 
-  // Party autofill (state / city / address) from Party Master.
   const fillParty = async (party: string) => {
     if (!party.trim() || !supabaseConfigured()) return;
     const info = await sbPartyInfo(party).catch(() => null);
     if (info) setF((c) => ({ ...c, state: info.state || c.state, city: info.city || c.city, address: info.address || c.address }));
   };
 
-  // Product cascade for non-installation calls (filtered by party, then serial).
-  const [partyProducts, setPartyProducts] = useState<string[]>([]);
-  const [serialOptions, setSerialOptions] = useState<string[]>([]);
+  // For non-installation calls, the products + serials are filtered by the party.
+  const [partyItems, setPartyItems] = useState<Record<string, unknown>[]>([]);
   useEffect(() => {
-    if (isInstall || !f.partyName.trim()) { setPartyProducts([]); return; }
-    listPartyProducts(f.partyName).then(setPartyProducts).catch(() => setPartyProducts([]));
+    if (isInstall || !f.partyName.trim()) { setPartyItems([]); return; }
+    listPartyItems(f.partyName).then(setPartyItems).catch(() => setPartyItems([]));
   }, [isInstall, f.partyName]);
-  useEffect(() => {
-    if (isInstall || !f.partyName.trim() || !f.product.trim()) { setSerialOptions([]); return; }
-    listPartyItems(f.partyName, f.product).then((rows) => setSerialOptions(rows.map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean))).catch(() => setSerialOptions([]));
-  }, [isInstall, f.partyName, f.product]);
 
-  const productOptions = useMemo(() => (isInstall ? productMaster.values : partyProducts), [isInstall, productMaster.values, partyProducts]);
-  const attended = /^yes$/i.test(f.callAttended);
+  const productOptions = useMemo(
+    () => (isInstall ? productMaster.values : [...new Set(partyItems.map((r) => String(r['Item Name'] ?? '')).filter(Boolean))]),
+    [isInstall, productMaster.values, partyItems],
+  );
+  const serialsFor = (product: string) => (isInstall ? [] : partyItems.filter((r) => String(r['Item Name'] ?? '') === product).map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean));
+
+  const setPair = (i: number, k: keyof Pair, v: string) => setProducts((s) => s.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
+  const addPair = () => setProducts((s) => (s.length < MAX_PRODUCTS ? [...s, { product: '', serial: '' }] : s));
+  const removePair = (i: number) => setProducts((s) => (s.length > 1 ? s.filter((_, j) => j !== i) : s));
 
   const validate = (): string => {
     if (!f.callType) return 'Choose a Call Type.';
     if (!f.partyName.trim()) return 'Enter the Party Name.';
-    if (!f.product.trim()) return 'Enter the Product.';
+    if (!products.some((p) => p.product.trim())) return 'Add at least one Product.';
     if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
     return '';
   };
@@ -82,20 +79,21 @@ export function RequestCallRegistration() {
     const v = validate();
     if (v) { setMsg({ tone: 'error', text: v }); return; }
     setBusy(true); setMsg({ tone: 'info', text: 'Submitting request…' });
-    const rec: Record<string, unknown> = {
+    const base: Record<string, unknown> = {
       email: user?.email ?? '', engineer: user?.fullName ?? '', call_type: f.callType,
       party_name: f.partyName, state: f.state, city: f.city, address: f.address,
       customer_contact_details: f.customerContactDetails, customer_contact_number: f.customerContactNumber,
-      product: f.product, serial_no: f.serialNo, standard_complaint: f.standardComplaint, reported_problem: f.reportedProblem,
+      standard_complaint: f.standardComplaint, reported_problem: f.reportedProblem,
       installation_report: isInstall ? f.installationReport : '', kyc: isInstall ? f.kyc : '',
       call_attended: f.callAttended, attended_date: f.attendedDate || null, plan_date: f.planDate || null,
       additional_comments: f.additionalComments,
     };
+    const pairs = products.filter((p) => p.product.trim());
     try {
-      const res = await addCallRequest(rec);
+      const res = await addCallRequestBatch(base, pairs);
       if (res.ok) {
-        setMsg({ tone: 'ok', text: `Request ${res.reqid} submitted (${res.unique_key}). It's now in Pending Registrations.` });
-        setF(blank);
+        setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} product${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
+        if (!res.error) { setF(blank); setProducts([{ product: '', serial: '' }]); }
       } else setMsg({ tone: 'error', text: `Submit failed: ${res.error}` });
     } catch (e) {
       setMsg({ tone: 'error', text: `Submit failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -103,10 +101,7 @@ export function RequestCallRegistration() {
   };
 
   const field = (label: string, node: React.ReactNode, span2 = false) => (
-    <label className={`rep-field ${span2 ? 'rep-span2' : ''}`}>
-      <span className="field-label">{label}</span>
-      {node}
-    </label>
+    <label className={`rep-field ${span2 ? 'rep-span2' : ''}`}><span className="field-label">{label}</span>{node}</label>
   );
 
   return (
@@ -141,7 +136,7 @@ export function RequestCallRegistration() {
                   <input className="input" list="dl-party" value={f.partyName}
                     onChange={(e) => set('partyName', e.target.value)} onBlur={() => void fillParty(f.partyName)}
                     placeholder={isInstall ? 'Existing customer or type a new one' : 'Pick from Party Master'} />
-                  <datalist id="dl-party">{partyMaster.values.slice(0, 3000).map((v) => <option key={v} value={v} />)}</datalist>
+                  <datalist id="dl-party">{partyMaster.values.slice(0, 8000).map((v) => <option key={v} value={v} />)}</datalist>
                 </>
               ), true)}
               {field('State', <input className="input" value={f.state} onChange={(e) => set('state', e.target.value)} />)}
@@ -153,29 +148,34 @@ export function RequestCallRegistration() {
           </section>
 
           <section className="rep-sec">
-            <div className="rep-sec-title">Equipment & complaint</div>
-            <div className="rep-grid">
-              {field('Product *', (
-                <>
-                  <input className="input" list="dl-product" value={f.product} onChange={(e) => set('product', e.target.value)}
-                    placeholder={isInstall ? 'Product Master' : 'Filtered by party'} />
-                  <datalist id="dl-product">{productOptions.slice(0, 3000).map((v) => <option key={v} value={v} />)}</datalist>
-                </>
-              ))}
-              {field('Serial No', (
-                isInstall
-                  ? <input className="input" value={f.serialNo} onChange={(e) => set('serialNo', e.target.value)} placeholder="Free text" />
-                  : <>
-                    <input className="input" list="dl-serial" value={f.serialNo} onChange={(e) => set('serialNo', e.target.value)} placeholder="Filtered by party + product" />
-                    <datalist id="dl-serial">{serialOptions.slice(0, 2000).map((v) => <option key={v} value={v} />)}</datalist>
+            <div className="rep-sec-title">Products <span className="muted">(up to {MAX_PRODUCTS} — each becomes its own UniqueID)</span></div>
+            <datalist id="dl-product">{productOptions.slice(0, 8000).map((v) => <option key={v} value={v} />)}</datalist>
+            {products.map((p, i) => (
+              <div className="spare-row" key={i}>
+                <input className="input spare-part" list="dl-product" placeholder={`Product ${i + 1}${isInstall ? ' (Product Master)' : ' (filtered by party)'}`} value={p.product} onChange={(e) => setPair(i, 'product', e.target.value)} />
+                {isInstall ? (
+                  <input className="input spare-part" placeholder="Serial (free text)" value={p.serial} onChange={(e) => setPair(i, 'serial', e.target.value)} />
+                ) : (
+                  <>
+                    <input className="input spare-part" list={`dl-serial-${i}`} placeholder="Serial (filtered)" value={p.serial} onChange={(e) => setPair(i, 'serial', e.target.value)} />
+                    <datalist id={`dl-serial-${i}`}>{serialsFor(p.product).slice(0, 2000).map((v) => <option key={v} value={v} />)}</datalist>
                   </>
-              ))}
+                )}
+                <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => removePair(i)} disabled={products.length === 1}>✕</button>
+              </div>
+            ))}
+            {products.length < MAX_PRODUCTS && <button className="btn btn-sm" onClick={addPair}>＋ Add product</button>}
+          </section>
+
+          <section className="rep-sec">
+            <div className="rep-sec-title">Complaint</div>
+            <div className="rep-grid">
               {field('Standard Complaint', (
                 isInstall
                   ? <input className="input" value={f.standardComplaint} readOnly />
                   : <>
                     <input className="input" list="dl-complaint" value={f.standardComplaint} onChange={(e) => set('standardComplaint', e.target.value)} />
-                    <datalist id="dl-complaint">{complaintMaster.values.slice(0, 3000).map((v) => <option key={v} value={v} />)}</datalist>
+                    <datalist id="dl-complaint">{complaintMaster.values.slice(0, 5000).map((v) => <option key={v} value={v} />)}</datalist>
                   </>
               ))}
               {field('Reported Problem', (
@@ -203,7 +203,7 @@ export function RequestCallRegistration() {
           </section>
 
           <div className="rep-actions">
-            <button className="btn" onClick={() => setF(blank)} disabled={busy}>Clear</button>
+            <button className="btn" onClick={() => { setF(blank); setProducts([{ product: '', serial: '' }]); }} disabled={busy}>Clear</button>
             <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !supabaseConfigured()}>{busy ? 'Submitting…' : 'Submit Request'}</button>
           </div>
         </div>
