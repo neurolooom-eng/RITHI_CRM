@@ -53,6 +53,17 @@ export function supabaseConfigured(): boolean {
   return /^https:\/\/.+\.supabase\.co/.test(url) && anon.length > 20;
 }
 
+// Postgres rejects a write blocked by Row-Level Security with a terse
+// "new row violates row-level security policy" (code 42501), and the RBAC
+// triggers raise "RBAC: <reason>". Turn both into something a user can read.
+export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
+  const m = String(e?.message ?? 'Unknown error');
+  if (m.startsWith('RBAC: ')) return m.slice(6).replace(/^./, (c) => c.toUpperCase()) + '.';
+  if (e?.code === '42501' || /row-level security/i.test(m))
+    return 'Your role does not have permission for this action.';
+  return m;
+}
+
 let _client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient | null {
   if (_client) return _client;
@@ -142,7 +153,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
     let q = must().from('calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
     if (callType) q = q.eq('call_type', callType);
     const { data, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     out.push(...rows.map(dbToCall));
     if (rows.length < PAGE) break;
@@ -165,7 +176,7 @@ export async function searchCalls(callType: string, terms: CallSearch, limit = 1
   const g = _san(terms.q ?? '');
   if (g) q = q.or(['ucn', 'call_number', 'party_name', 'serial', 'product_name', 'allocated_to', 'city', 'state', 'standard_complaint', 'complaint_reported', 'customer_name'].map((c) => `${c}.ilike.%${g}%`).join(','));
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(dbToCall);
 }
 
@@ -174,13 +185,13 @@ export async function addCall(rec: Record<string, unknown>): Promise<AddResult> 
   const payload = callToDb(rec);
   delete payload.ucn; // server assigns via trigger
   const { data, error } = await must().from('calls').insert(payload).select('*').single();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, ucn: String(data.ucn ?? ''), record: dbToCall(data) };
 }
 
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('calls').update(callToDb(patch)).eq('ucn', ucn);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // ---- Product Master (cascade + search) -------------------------------------
@@ -214,19 +225,19 @@ export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000
   if (filter.state) q = q.ilike('state', `%${_san(filter.state)}%`);
   if (filter.type) q = q.ilike('party_type', `%${_san(filter.type)}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function sbListPartyProducts(party: string): Promise<string[]> {
   const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').eq('party_name', party).limit(2000);
   if (product) q = q.eq('item_name', product);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100): Promise<Record<string, unknown>[]> {
@@ -236,7 +247,7 @@ export async function sbSearchProducts(filters: { q?: string; party?: string; pr
   if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
 
@@ -260,7 +271,7 @@ export async function sbPartyInfo(party: string): Promise<{ state: string; city:
 
 export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok: boolean; reqid?: string; unique_key?: string; error?: string }> {
   const { data, error } = await must().from('call_requests').insert(rec).select('reqid,unique_key').single();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
 }
 
@@ -272,12 +283,12 @@ export async function addCallRequestBatch(base: Record<string, unknown>, pairs: 
   if (pairs.length === 0) return { ok: false, error: 'Add at least one product.' };
   const first = { ...base, product: pairs[0].product, serial_no: pairs[0].serial };
   const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: errMsg(error) };
   const reqid = String(data.reqid ?? '');
   if (pairs.length > 1) {
     const rest = pairs.slice(1).map((p) => ({ ...base, reqid, product: p.product, serial_no: p.serial }));
     const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${e2.message}` };
+    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${errMsg(e2)}` };
   }
   return { ok: true, reqid, count: pairs.length };
 }
@@ -287,7 +298,7 @@ export async function addCallRequestBatch(base: Record<string, unknown>, pairs: 
 export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('call_requests').select('*')
     .or('ucn.is.null,ucn.eq.').order('submitted_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => ({
     _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
     'Timestamp': r.submitted_at, 'ENGINEER': r.engineer, 'E-Mail ID': r.email, 'CALL TYPE': r.call_type,
@@ -308,7 +319,7 @@ export async function setCallRequestUcn(id: number, ucn: string): Promise<boolea
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')
     .select('*').is('ucn', null).order('requested_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function setPendingUcn(id: number, ucn: string): Promise<boolean> {
@@ -354,7 +365,7 @@ export async function setRolePerms(role: string, permissions: string[], label?: 
   const row: Record<string, unknown> = { role, permissions, updated_at: new Date().toISOString() };
   if (label != null) row.label = label;
   const { error } = await c.from('app_roles').upsert(row, { onConflict: 'role' });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // Distinct engineer names seen on calls (fallback source for the reporting
@@ -376,7 +387,7 @@ export async function sbEngineerNames(): Promise<string[]> {
 // Latest visit for a UCN (reports is history; ucn is no longer unique).
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
   const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return { row: data ?? null };
 }
 // Reports register — field filters + paging (Load more), like Party Master.
@@ -388,14 +399,14 @@ export async function queryReports(filter: ReportFilter, offset = 0, limit = 100
   if (filter.engineer) q = q.ilike('engineer', `%${_san(filter.engineer)}%`);
   if (filter.status) q = q.ilike('call_status', `%${_san(filter.status)}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 // Each Update Call is a new VISIT row (reports = history), keyed by a fresh uid.
@@ -403,7 +414,7 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
   const uid = `WEB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
   const row = { uid, ucn, ...patch, updated_at: new Date().toISOString() };
   const { error } = await must().from('reports').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
@@ -422,7 +433,7 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
   const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.value)).filter(Boolean))];
 }
 
@@ -430,11 +441,11 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
 export async function addSpareRequest(req: Record<string, unknown>, lines: { part: string; qty: number }[]): Promise<{ ok: boolean; uid?: string; error?: string }> {
   const c = must();
   const { data, error } = await c.from('spare_requests').insert(req).select('uid').single();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
   if (lines.length) {
     const { error: le } = await c.from('spare_request_lines').insert(lines.map((l) => ({ request_uid: uid, part: l.part, qty: l.qty })));
-    if (le) return { ok: false, uid, error: le.message };
+    if (le) return { ok: false, uid, error: errMsg(le) };
   }
   return { ok: true, uid };
 }
@@ -442,7 +453,7 @@ export async function listSpareRequestLines(limit = 1000): Promise<Record<string
   const { data, error } = await must().from('spare_request_lines')
     .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
     .order('created_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
     const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
     return {
@@ -456,7 +467,7 @@ export async function listSpareRequestLines(limit = 1000): Promise<Record<string
 }
 export async function updateSpareRequest(uid: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_requests').update(patch).eq('uid', uid);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
@@ -489,16 +500,16 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('feedback').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // ---- auth (email + password) ----------------------------------------------
@@ -510,7 +521,7 @@ export interface Profile {
 
 export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().auth.signInWithPassword({ email: email.trim(), password });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function sbSignOut(): Promise<void> {
   const c = getSupabase(); if (c) await c.auth.signOut();
@@ -543,7 +554,7 @@ export function sbOnAuthChange(cb: () => void): () => void {
 export async function pingSupabase(): Promise<{ ok: boolean; error?: string; count?: number }> {
   try {
     const { count, error } = await must().from('calls').select('*', { count: 'exact', head: true });
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: errMsg(error) };
     return { ok: true, count: count ?? 0 };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
