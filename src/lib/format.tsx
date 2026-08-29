@@ -8,42 +8,40 @@ export const fmtCurrency = (n: unknown): string => {
   return '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 };
 
-export const fmtDate = (s: unknown): string => {
-  if (!s) return '—';
-  const d = new Date(String(s));
-  if (Number.isNaN(d.getTime())) return String(s);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-};
+// ---------------------------------------------------------------------------
+// GLOBAL date formats — the single source of truth for how dates render across
+// the whole app. Change them here and every screen follows.
+//   Short date  → dd-mmm-yyyy            (e.g. 29-Aug-2026)
+//   Long date   → dd-mmm-yyyy hh:mm:ss   (e.g. 29-Aug-2026 08:49:32)
+// ---------------------------------------------------------------------------
+export const DATE_FORMATS = { short: 'dd-mmm-yyyy', long: 'dd-mmm-yyyy hh:mm:ss' } as const;
+const _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const _pad = (n: number) => String(n).padStart(2, '0');
+const _parse = (s: unknown): Date | null => { if (!s) return null; const d = new Date(String(s)); return Number.isNaN(d.getTime()) ? null : d; };
 
-export const fmtDateTime = (s: unknown): string => {
-  if (!s) return '—';
-  const d = new Date(String(s));
-  if (Number.isNaN(d.getTime())) return String(s);
-  return d.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-// Long forms: full month name, e.g. "29 August 2026" / "29 August 2026, 08:49".
-export const fmtLongDate = (s: unknown): string => {
-  if (!s) return '';
-  const d = new Date(String(s));
-  if (Number.isNaN(d.getTime())) return String(s);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
-};
-export const fmtLongDateTime = (s: unknown): string => {
-  if (!s) return '';
-  const d = new Date(String(s));
-  if (Number.isNaN(d.getTime())) return String(s);
-  return d.toLocaleString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-};
-// Show Long DateTime when the value carries a time, else Long Date.
+// Short date — dd-mmm-yyyy.
+export function formatShortDate(s: unknown, empty = ''): string {
+  const d = _parse(s); if (!d) return s ? String(s) : empty;
+  return `${_pad(d.getDate())}-${_MON[d.getMonth()]}-${d.getFullYear()}`;
+}
+// Long date — dd-mmm-yyyy hh:mm:ss.
+export function formatLongDate(s: unknown, empty = ''): string {
+  const d = _parse(s); if (!d) return s ? String(s) : empty;
+  return `${_pad(d.getDate())}-${_MON[d.getMonth()]}-${d.getFullYear()} ${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
+}
+// Long (with time) when the value carries a time, else short.
 const HAS_TIME = /[T ]\d{1,2}:\d{2}/;
-export const fmtLongSmart = (s: unknown): string => (HAS_TIME.test(String(s ?? '')) ? fmtLongDateTime(s) : fmtLongDate(s));
+export function formatSmartDate(s: unknown, empty = ''): string {
+  return HAS_TIME.test(String(s ?? '')) ? formatLongDate(s, empty) : formatShortDate(s, empty);
+}
+
+// App-wide aliases (kept for existing call-sites). fmtDate/fmtDateTime show '—'
+// when empty (cards/tables); the fmtLong* variants show blank (dense tables).
+export const fmtDate = (s: unknown): string => formatShortDate(s, '—');
+export const fmtDateTime = (s: unknown): string => formatLongDate(s, '—');
+export const fmtLongDate = (s: unknown): string => formatShortDate(s, '');
+export const fmtLongDateTime = (s: unknown): string => formatLongDate(s, '');
+export const fmtLongSmart = (s: unknown): string => formatSmartDate(s, '');
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
