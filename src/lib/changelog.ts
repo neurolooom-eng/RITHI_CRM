@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.0',
+    date: '2026-08-29',
+    title: 'Call status everywhere, and a Hotline desk for requests',
+    changes: [
+      'Every register now shows a colour-coded Call Status \u2014 Solved (green), Unsolved (red), Report pending (amber), Unattended (blue) \u2014 taken from the call\u2019s latest visit.',
+      'New Pending Calls module: every call nobody has closed, across Field, Installation and PM, with status tiles you can click to filter and a CSV export.',
+      'Pending Registrations is now a desk: click a request to see it in full and either map it to an existing call, create a new one, or cancel it with a reason. Any of the three takes it off the pending list.',
+      'Requests list an Open Calls column \u2014 how many calls on that machine are still open \u2014 so a duplicate call is obvious before you create one.',
+      'UCN Number (Mapped) column: type a UCN straight into the row to map a request to a call that already exists.',
+      'Hotline can act on requests again \u2014 the screen now honours the \u201cRegister pending\u201d permission, not just call editing.',
+    ],
+  },
+  {
     version: '0.5.1',
     date: '2026-08-29',
     title: 'Registers say where they actually read from',
