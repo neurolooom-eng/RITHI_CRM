@@ -73,12 +73,14 @@ auto REST + RLS + Auth).
   feedback).
 
 ### Open items & questions (moved here from chat)
-- **User Master → Supabase** *(biggest gap)*. Not yet exported/migrated. Blocks:
-  engineer **logins** for everyone, the exact **RM→reporting-engineer dropdown**
-  in reporting, the **admin full engineer list**, and correct **who-sees-what**
-  scoping. Plan: a `user_master`/directory table (name, email, gmail, designation,
-  RM, RGM, region, validity); rework `access.ts` to read it from Supabase (it
-  still calls the sheet `listUsers`); resolve role/hierarchy by email on login.
+- **User Master → Supabase** — infra DONE, awaiting data + logins. Built:
+  `0004_user_directory.sql` (directory table + RLS; `visible_engineer_names()` /
+  `my_dir_name()` rewritten so `can_see_call()` scopes by directory), `listUsers`
+  delegates to it (access.ts scoping is DB-driven), reporting dropdown prefers
+  directory names, importer + transform support `user_directory`. **Pending:**
+  (1) run `0004`; (2) send/import the User Master CSV; (3) **engineer logins** —
+  create Supabase Auth accounts for active directory users (bulk-create script
+  with the secret key, or add via Authentication → Users).
 - **Spare request WRITES still hit the sheet.** `SpareRequestDrawer` appends to
   `v2_ORReq-All` via `tabAppend`. Move to Supabase `spare_requests` +
   `spare_request_lines` (`addSpareRequest` already exists); then the Spare

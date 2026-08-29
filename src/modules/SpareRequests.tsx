@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { csvExport, makeRequestUID, timeAgo } from '../lib/format';
+import { csvExport, fmtLongDate, makeRequestUID, timeAgo } from '../lib/format';
 import { toSheetDate } from '../lib/fieldcall';
 import { listTabRows, sheetsConfigured, tabAppend } from '../lib/sheets';
+import { addSpareRequest, listSpareRequestLines, supabaseConfigured } from '../lib/supabase';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -101,6 +103,19 @@ export function SpareRequestDrawer({
 
     setBusy(true); setErr('');
     try {
+      if (supabaseConfigured()) {
+        // Supabase: one spare_requests row + a spare_request_lines row per part.
+        const req: Record<string, unknown> = {
+          uid, req_type: reqType, engineer: user?.fullName ?? '', engineer_email: user?.email ?? '',
+          ucn: c('ucn'), call_number: c('callNumber'), party_name: c('partyName'), product_name: c('productName'),
+          serial: c('serial'), complaint: c('complaintReported') || c('standardComplaint'), item_status: c('itemStatus'),
+          handstock_reason: reqType === 'HandStock' ? handstockReason : '', remarks, status: 'Pending',
+        };
+        const res = await addSpareRequest(req, picked.map((s) => ({ part: s.spare, qty: Number(s.qty) || 1 })));
+        if (res.ok) { onSaved?.(c('ucn'), res.uid ?? uid); onClose(); }
+        else setErr(res.error ?? 'Could not submit the request.');
+        setBusy(false); return;
+      }
       const res = await tabAppend(INTAKE_TAB, data, BOOK);
       if (res.ok) { onSaved?.(c('ucn'), uid); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
@@ -111,7 +126,7 @@ export function SpareRequestDrawer({
 
   return (
     <Drawer open={open} onClose={onClose} title={call?.ucn ? `Request Spares — ${String(call.ucn)}` : 'New Spare Request'} width={780}>
-      {!sheetsConfigured() && <div className="sheet-banner sheet-banner-info"><span>Connect the Google Sheet in Settings to raise spare requests.</span></div>}
+      {!(supabaseConfigured() || sheetsConfigured()) && <div className="sheet-banner sheet-banner-info"><span>Connect the database in Settings to raise spare requests.</span></div>}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
 
       <div className="rep-form">
@@ -168,7 +183,7 @@ export function SpareRequestDrawer({
 
         <div className="rep-actions">
           <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !sheetsConfigured()}>{busy ? 'Submitting…' : 'Submit Request'}</button>
+          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !(supabaseConfigured() || sheetsConfigured())}>{busy ? 'Submitting…' : 'Submit Request'}</button>
         </div>
       </div>
     </Drawer>
@@ -194,25 +209,54 @@ const COLUMNS: Column<Row>[] = [
   { key: 'Status', header: 'Status', width: 140, render: (r) => badge(g(r, 'Status')) },
 ];
 
+// Supabase shape (spare_request_lines joined with spare_requests).
+const SUPA_COLUMNS: Column<Row>[] = [
+  { key: 'uid', header: 'UID', width: 150, wrap: false },
+  { key: 'requested_at', header: 'Date', width: 130, wrap: false, render: (r) => fmtLongDate(r.requested_at) },
+  { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  { key: 'party_name', header: 'Party', width: 200 },
+  { key: 'product_name', header: 'Product', width: 130 },
+  { key: 'part', header: 'Part', width: 200 },
+  { key: 'qty', header: 'Qty', width: 60, align: 'right', wrap: false },
+  { key: 'req_engineer', header: 'Engineer', width: 150 },
+  { key: 'rm_approval', header: 'RM', width: 110, render: (r) => badge(g(r, 'rm_approval')) },
+  { key: 'admin_approval', header: 'Admin', width: 120, render: (r) => badge(g(r, 'admin_approval')) },
+  { key: 'stores_status', header: 'Stores', width: 120, render: (r) => badge(g(r, 'stores_status')) },
+  { key: 'status', header: 'Status', width: 130, render: (r) => badge(g(r, 'status')) },
+];
+
+const CACHE_KEY = 'spareRequests';
+
 export function SpareRequests() {
   const { user, can } = useAuth();
   const scope = useAccessScope();
-  const [rows, setRows] = useState<Row[]>([]);
+  const onDb = supabaseConfigured();
+  const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
+  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
-  const [lastSync, setLastSync] = useState('');
+  const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [drawer, setDrawer] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to load spare requests.' },
+    (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare requests.' },
   );
 
   const load = async () => {
+    if (onDb) {
+      setBusy(true); setMsg({ tone: 'info', text: 'Loading spare requests…' });
+      try {
+        const r = await listSpareRequestLines(1000);
+        const mapped = r.map((x, i) => ({ ...x, id: String(`${g(x as Row, 'uid')}-${g(x as Row, 'part')}-${i}`) } as Row));
+        setRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+        setMsg({ tone: 'ok', text: `Synced ${mapped.length} spare-request line${mapped.length === 1 ? '' : 's'}.` });
+      } catch (e) {
+        setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
+      } finally { setBusy(false); }
+      return;
+    }
     if (!sheetsConfigured()) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading spare requests…' });
     try {
-      // Primary: the exploded/approval view (one row per part). If it's empty or
-      // unavailable, fall back to the raw intake tab so freshly-raised requests
-      // (which the sheet hasn't exploded yet) are still visible.
       let r = await listTabRows(STATUS_TAB, 600, '', BOOK).catch(() => [] as Record<string, unknown>[]);
       let from = STATUS_TAB;
       if (r.length === 0) {
@@ -226,12 +270,19 @@ export function SpareRequests() {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (onDb && rows.length && !isStale(lastSync)) { setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` }); }
+    else void load();
+    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
+    return () => { if (id) window.clearInterval(id); };
+    // eslint-disable-next-line
+  }, []);
 
   const email = String(user?.email ?? '').trim().toLowerCase();
-  // Role scope: engineer sees own requests; RM/RGM sees their team; admin all.
+  // Role scope: engineer sees own; RM/RGM their team; admin all. On Supabase the
+  // rows are already RLS-scoped by the directory, so no extra client filter.
   const scoped = useMemo(() => {
-    if (scope.all) return rows;
+    if (scope.all || onDb) return rows;
     const inTeam = (name: string) => scope.names.has(name.trim().toLowerCase());
     return rows.filter((r) =>
       inTeam(g(r, 'ENGINEER NAME')) ||
@@ -239,14 +290,17 @@ export function SpareRequests() {
       g(r, 'Reporting Manager').toLowerCase() === email ||
       g(r, 'Regional Manager').toLowerCase() === email,
     );
-  }, [rows, scope, email]);
+  }, [rows, scope, email, onDb]);
 
+  const columns = onDb ? SUPA_COLUMNS : COLUMNS;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return scoped;
-    const keys = ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
+    const keys = onDb
+      ? ['uid', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'status']
+      : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return scoped.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
-  }, [scoped, search]);
+  }, [scoped, search, onDb]);
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
@@ -271,7 +325,7 @@ export function SpareRequests() {
       )}
 
       <DataTable<Row>
-        columns={COLUMNS}
+        columns={columns}
         allFields={allFields}
         rows={visible}
         getRowId={(r) => r.id}
@@ -281,12 +335,12 @@ export function SpareRequests() {
         emptyText="No spare requests — Refresh to load."
         toolbar={
           <Toolbar>
-            <SearchBox value={search} onChange={setSearch} placeholder="OR no, UCN, party, part, status…" />
+            <SearchBox value={search} onChange={setSearch} placeholder="UID, UCN, party, part, engineer, status…" />
             <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off">⟳ {timeAgo(lastSync)}</span>}
+            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }
