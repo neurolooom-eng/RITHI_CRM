@@ -32,6 +32,12 @@ _Last updated: 2026-08-29_
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Call status everywhere** — a call is **Solved / Unsolved / Report pending /
+  Unattended** by its LATEST visit, derived once in Postgres (`call_state` /
+  `pending_calls` views, `0012`). Colour-coded column on the Field /
+  Installation / PM registers, and a **Pending Calls** module (`/pending-calls`)
+  listing every call nobody has closed, with clickable status tiles, type
+  filter, search, CSV export and the registers' role scoping.
 - **Call reporting** (replaces the standalone Call Updation view): "Update Call"
   on every Field/Installation call → Reporting-N tab, keyed by UCN.
   - Sectioned by Call Status: Solved (full report + manual report upload + spare
@@ -69,10 +75,13 @@ _Last updated: 2026-08-29_
 
 ## 🔜 In progress / Next
 
-### Migrations to run (Supabase SQL editor)
-- `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
-- `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
-  run, the Call Status column stays blank and Pending Calls says so.
+### Migrations — applied
+`0010_call_request_items` / `0011_call_request_actions` / `0012_call_state` are
+applied. New SQL goes in `supabase/migrations/` **and** into an apply bundle
+(`node scripts/build-apply-bundles.mjs`) — `supabase/apply/call_requests.sql`
+carries the call-request module, `all.sql` everything; `_status.sql` reports
+what a project is missing. Numbers are per-module and collide
+(`0011_spare_intake` vs `0011_call_request_actions`), so go by file name.
 
 
 ### Supabase cutover — status
@@ -115,8 +124,15 @@ auto REST + RLS + Auth).
   item status onto the request, an **Engineer Name** every role except Engineer
   may repoint, and free-text remarks. Reads still fall back to the sheet when
   Supabase isn't connected.
-- **Pending Registrations** — the UCN-less request list wasn't migrated; still on
-  the sheet path. Migrate or wire a Supabase intake table.
+- **Pending Registrations** — ✅ done, and now the **Hotline desk**. Reads
+  `call_requests` from Supabase; clicking a request opens it in full and closes
+  it out one of three ways — **map** it to an existing call (its UCN goes into
+  the editable **UCN Number (Mapped)** column), **create** a new call (UCN
+  assigned and back-filled), or **cancel** it with a reason from the
+  `cancelreason` master. Each takes it off the pending list. Column 2 shows
+  **Open Calls** — calls on that machine nobody has closed — so a duplicate is
+  visible before another is created. Gated on `pending.register`, so the
+  Hotline role can act without call-edit rights.
 - **Raw monthly PM bulk import** *(user use-case)* — accept the **raw PM tab
   export** directly in Bulk Data Import (auto-map headers, preserve back-dated
   `reg_date`), so the monthly load is one drop. Back-dating already works via the
@@ -126,6 +142,15 @@ auto REST + RLS + Auth).
 - **Manual Report** — currently a Drive-link paste field. The generic
   `driveupload` endpoint added for the request form can back a file-upload flow
   here too (folder `1-46Ud9j…z2La`) (question).
+- **Installation Report / KYC uploads need a CallReg redeploy** — the request
+  form uploads both to the Drive folder through the new `driveupload` /
+  `driveref` actions, which only exist in `apps-script/CallReg.gs`, not on the
+  deployed Web App. Redeploy (re-authorising the Drive scope) and send the new
+  `/exec` URL to bump the baked-in default; until then an upload times out.
+- **Pending Calls noise** *(watch)* — an old call with no visit reported counts
+  as Unattended, with no age cut-off. If the historical import leaves the list
+  noisy, add a date filter. "Report pending" is counted as open (visited, not
+  closed) — say so if it should be hidden instead.
 - **Reporting solved-branch fields** — confirm which are required and whether
   "Add Consumption?" / "Maintenance Done?" / "Recomended Filter Changed?" should
   be Yes/No dropdowns (question).
@@ -165,8 +190,8 @@ auto REST + RLS + Auth).
     (FIELD, INSTALLATION CALL, P M VISIT, SW UPGRADATION, FSCA, DEMO, ...).
   - `pendingreason` → col **"Call Pending Reason Name"** → the pending-reason
     field on the call report (Unsolved branch).
-  - `cancelreason` → col **"Call Cancel Reason Name"** → reserved for call
-    cancellation (no UI yet).
+  - `cancelreason` → col **"Call Cancel Reason Name"** → the reason on the
+    Hotline's **Cancel request** action (Pending Registrations).
 
 ---
 
