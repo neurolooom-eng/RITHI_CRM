@@ -421,12 +421,19 @@ export async function addSpareRequest(req: Record<string, unknown>, lines: { par
   }
   return { ok: true, uid };
 }
-export async function listSpareRequestLines(limit = 600): Promise<Record<string, unknown>[]> {
+export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, party_name, product_name, serial, status, created_at)')
+    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, status, created_at)')
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []).map((r) => {
+    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
+    return {
+      ...r, uid: req?.uid, req_type: req?.req_type, req_engineer: req?.engineer, requested_at: req?.created_at,
+      ucn: req?.ucn, call_number: req?.call_number, party_name: req?.party_name, product_name: req?.product_name,
+      serial: req?.serial, req_status: req?.status,
+    };
+  });
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
