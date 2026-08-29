@@ -266,8 +266,8 @@ export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok
 
 // One request, several call items (up to 5). An item is a Product + Serial No +
 // Standard Complaint + Reported Problem group — each becomes its own row. All
-// rows share one REQID; the DB trigger gives each its own UniqueID
-// (REQID-Product-SerialNo). The first insert mints the REQID, the rest reuse it.
+// rows share one REQID (so REQID is NOT unique — see 0007); each row's identity
+// is its UniqueID (REQID-Product-SerialNo), assigned by the DB trigger.
 export interface CallRequestItem {
   product: string;
   serial: string;
@@ -282,7 +282,22 @@ const itemCols = (it: CallRequestItem) => ({
 });
 export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();
-  if (items.length === 0) return { ok: false, error: 'Add at least one product.' };
+  if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
+
+  // Mint the REQID first, then write every item in ONE insert — a request is
+  // never half-saved. `next_call_reqid` ships in migration 0007; without it we
+  // fall back to the older per-row path below.
+  const { data: minted, error: mintErr } = await c.rpc('next_call_reqid');
+  if (!mintErr && minted) {
+    const reqid = String(minted);
+    const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
+    const { error } = await c.from('call_requests').insert(rows);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, reqid, count: rows.length };
+  }
+
+  // Fallback: the first insert mints the REQID (DB trigger), the rest reuse it.
+  // This needs 0007's dropped `reqid` unique constraint for more than one item.
   const first = { ...base, ...itemCols(items[0]) };
   const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
   if (error) return { ok: false, error: error.message };
@@ -290,7 +305,12 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
   if (items.length > 1) {
     const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
     const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${e2.message}` };
+    if (e2) {
+      const hint = /call_requests_reqid_key/.test(e2.message)
+        ? ' Run migration 0007_call_request_items.sql — REQID must not be unique, a request has one row per call.'
+        : '';
+      return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${e2.message}.${hint}` };
+    }
   }
   return { ok: true, reqid, count: items.length };
 }
