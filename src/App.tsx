@@ -6,6 +6,7 @@ import { ThemeProvider } from './theme/ThemeProvider';
 import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
+import { ResetPassword } from './modules/ResetPassword';
 import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
@@ -36,7 +37,7 @@ import {
 } from './modules/schemas';
 
 function Shell() {
-  const { user, booting, can } = useAuth();
+  const { user, booting, can, recovering } = useAuth();
   const location = useLocation();
   useEffect(() => {
     if (user) clearDemoData(); // live data only — no dummy records
@@ -44,6 +45,9 @@ function Shell() {
 
   // While a persisted Supabase session is being restored, don't flash the login.
   if (booting) return <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', color: 'var(--muted, #888)' }}>Loading…</div>;
+  // Arrived on a password-reset link: choose the new password before anything
+  // else (the recovery session is signed in, so this comes before the app).
+  if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
 
   // RBAC route guard: a known module the role can't open is blocked (nav hides

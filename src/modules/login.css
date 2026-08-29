@@ -62,3 +62,9 @@
 .login-foot {
   font-size: 12px;
 }
+
+/* "Forgot password?" — a quiet link under the sign-in button. */
+.login-link {
+  align-self: center;
+  margin-top: -2px;
+}
