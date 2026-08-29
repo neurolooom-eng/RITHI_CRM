@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { csvExport, timeAgo } from '../lib/format';
+import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
+import { listConsumptionRows, supabaseConfigured } from '../lib/supabase';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
+
+const CACHE_KEY = 'spareConsumption';
 
 // ===========================================================================
 // SPARE CONSUMPTION — monitor the spares consumed against every call report.
@@ -16,13 +20,15 @@ import './fieldcalls.css';
 
 const BOOK = 'consumption';
 const UCN_KEYS = ['UC Number', 'UCN', 'UC No'];
-const ENGINEER_KEYS = ['Visiting Service Engineer', 'ENGINEER NAME', 'Engineer', 'Service Engineer', 'Allocated To', 'Call Allocated To'];
+const ENGINEER_KEYS = ['Visiting Service Engineer', 'ENGINEER NAME', 'Engineer', 'engineer', 'Service Engineer', 'Allocated To', 'Call Allocated To'];
 const EMAIL_KEYS = ['Engineer Email', 'Email address', 'Email-ID', 'Email ID'];
 const PREFERRED = [
+  'ucn', 'call_number', 'part', 'qty', 'engineer', 'created_at', // Supabase shape
   'UC Number', 'Call Number', 'Party Name', 'Product Name', 'Product Serial Number',
   'Spare', 'Part Number', 'Part Description', 'Qty', 'Quantity', 'Consumption Date', 'Date', 'Timestamp',
   'Visiting Service Engineer', 'ENGINEER NAME',
 ];
+const DATEISH = /date|created_at|timestamp/i;
 
 type Row = Record<string, unknown> & { id: string };
 const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
@@ -31,15 +37,29 @@ const pick = (r: Record<string, unknown>, keys: string[]) => { for (const k of k
 export function SpareConsumption() {
   const { user } = useAuth();
   const scope = useAccessScope();
-  const [rows, setRows] = useState<Row[]>([]);
+  const onDb = supabaseConfigured();
+  const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
+  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
-  const [lastSync, setLastSync] = useState('');
+  const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to load spare consumption.' },
+    (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare consumption.' },
   );
 
   const load = async () => {
+    if (onDb) {
+      setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
+      try {
+        const r = await listConsumptionRows(1000);
+        const mapped = r.map((x, i) => ({ ...x, id: `${pick(x, UCN_KEYS)}-${i}` } as Row));
+        setRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+        setMsg({ tone: 'ok', text: `Synced ${mapped.length} consumption lines.` });
+      } catch (e) {
+        setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
+      } finally { setBusy(false); }
+      return;
+    }
     if (!sheetsConfigured()) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
     try {
@@ -51,11 +71,17 @@ export function SpareConsumption() {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    else void load();
+    const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
+    return () => { if (id) window.clearInterval(id); };
+    // eslint-disable-next-line
+  }, []);
 
   const headerKeys = useMemo(() => {
     const ks = new Set<string>();
-    rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && !/^Page.*Header$/i.test(k)) ks.add(k); }));
+    rows.slice(0, 60).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'data' && !/^Page.*Header$/i.test(k)) ks.add(k); }));
     return [...ks];
   }, [rows]);
 
@@ -80,7 +106,10 @@ export function SpareConsumption() {
   }, [scoped, search, headerKeys]);
 
   const baseCols = PREFERRED.filter((k) => headerKeys.includes(k)).concat(headerKeys.filter((k) => !PREFERRED.includes(k))).slice(0, 9);
-  const columns: Column<Row>[] = baseCols.map((k) => ({ key: k, header: k, width: UCN_KEYS.includes(k) ? 110 : 150, wrap: !UCN_KEYS.includes(k) }));
+  const columns: Column<Row>[] = baseCols.map((k) => ({
+    key: k, header: k, width: UCN_KEYS.includes(k) ? 120 : 150, wrap: !UCN_KEYS.includes(k),
+    ...(DATEISH.test(k) ? { render: (r: Row) => fmtLongDate(r[k]) } : {}),
+  }));
   const allFields = headerKeys.map((k) => ({ key: k, header: k }));
 
   return (
