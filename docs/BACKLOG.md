@@ -173,11 +173,6 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **Product Master derivation + Warranty/Contract registers** — build from Sale
   Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
   received); add warranties/contracts/sales/ownership tables + screens.
-- **Installation Report / KYC uploads need a CallReg redeploy** — the request
-  form uploads both to the Drive folder through the new `driveupload` /
-  `driveref` actions, which exist only in `apps-script/CallReg.gs`, not on the
-  deployed Web App. Redeploy (re-authorising the Drive scope) and send the new
-  `/exec` URL to bump the baked-in default; until then an upload times out.
 - **Pending Calls noise** *(watch)* — a call with no visit reported counts as
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
@@ -187,10 +182,10 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   `driveupload` / `driveref` endpoints the request form uses (folder
   `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
   ordinary Drive link. The previous visit's report is linked from the drawer.
-  **Blocked on the same CallReg redeploy as the request-form uploads** — until
-  it ships, uploading times out and pasting a link is the working path.
-  **Queued:** surface the link as a 📎 column in the Reports register and the
-  call-view mini-table.
+  Live: CallReg was redeployed with the Drive scope (`driveupload` / `driveref`),
+  and the new `/exec` is baked in as URL version 8 — which also unblocks the
+  request form's Installation Report / KYC uploads. **Queued:** surface the link
+  as a 📎 column in the Reports register and the call-view mini-table.
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
@@ -279,9 +274,9 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ## 🔧 Operational notes / blockers
 
-- **Redeploy CallReg** after backend changes (latest adds report/reportget,
-  tabmeta/tabappend, upload, master/masters/setmasters). Upload needs the Drive
-  scope → re-authorise on redeploy. Send the new /exec URL to bump the default.
+- **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
+  and send the new /exec URL so the baked-in default can be bumped. Done for the
+  upload endpoints (`driveupload` / `driveref`) — URL version **8**, 2026-08-29.
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.

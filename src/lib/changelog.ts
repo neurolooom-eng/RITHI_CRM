@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.3',
+    date: '2026-08-29',
+    title: 'File uploads are live',
+    changes: [
+      'The CallReg backend was redeployed with the Drive permission the uploads need, and the app now points at it \u2014 every device picks up the new address on its own.',
+      'Manual Report on a call, and Installation Report / KYC on a registration request, can now actually be uploaded rather than only linked.',
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-08-29',
     title: 'Reporting loads again, and the manual report can be uploaded',
