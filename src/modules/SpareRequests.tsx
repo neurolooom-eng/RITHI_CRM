@@ -7,6 +7,7 @@ import { listTabRows, sheetsConfigured, tabAppend } from '../lib/sheets';
 import { addSpareRequest, listSpareRequestLines, updateSpareRequest, supabaseConfigured } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { deriveStage, stageAction, buildPatch, dispatchPatch } from '../lib/spareflow';
+import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -112,7 +113,9 @@ export function SpareRequestDrawer({
           serial: c('serial'), complaint: c('complaintReported') || c('standardComplaint'), item_status: c('itemStatus'),
           handstock_reason: reqType === 'HandStock' ? handstockReason : '', remarks, status: 'Pending',
         };
+        const t0 = performance.now();
         const res = await addSpareRequest(req, picked.map((s) => ({ part: s.spare, qty: Number(s.qty) || 1 })));
+        logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: c('ucn'), parts: picked.length } });
         if (res.ok) { onSaved?.(c('ucn'), res.uid ?? uid); onClose(); }
         else setErr(res.error ?? 'Could not submit the request.');
         setBusy(false); return;
@@ -310,13 +313,17 @@ export function SpareRequests() {
   };
   const actor = user?.fullName || user?.email || 'user';
   const act = async (row: Row, decision: 'approve' | 'reject') => {
+    const t0 = performance.now();
     const res = await updateSpareRequest(String(row.uid), buildPatch(row, decision, actor));
+    logAudit({ action: `spare.${decision}`, target: String(row.uid), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { stage: deriveStage(row) } });
     if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Update failed.' });
   };
   const doDispatch = async (row: Row) => {
     const dc = window.prompt('DC / Stock-out number for dispatch:', String(row.dc_number ?? ''));
     if (dc == null) return;
+    const t0 = performance.now();
     const res = await updateSpareRequest(String(row.uid), dispatchPatch(dc.trim(), actor));
+    logAudit({ action: 'spare.dispatch', target: String(row.uid), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { dc: dc.trim() } });
     if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' });
   };
   const wfColumn: Column<Row> = {

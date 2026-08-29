@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
+import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { todayISO } from '../lib/format';
@@ -175,6 +176,7 @@ export function CallReportDrawer({
     const v = validate();
     if (v) { setErr(v); return; }
     setBusy(true); setErr('');
+    const t0 = performance.now();
     try {
       const data: Record<string, unknown> = {
         'Visit Entry Date': visitEntry,
@@ -212,9 +214,11 @@ export function CallReportDrawer({
           answers, visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
         });
       }
+      logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: spares.length } });
       onSaved?.('saved', ucn);
       onClose();
     } catch (e) {
+      logAudit({ action: 'call.report', target: ucn, status: 'error', error: e instanceof Error ? e.message : String(e), duration_ms: Math.round(performance.now() - t0) });
       setErr(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
   };

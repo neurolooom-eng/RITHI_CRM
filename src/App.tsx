@@ -12,6 +12,7 @@ import { ProductMaster } from './modules/ProductMaster';
 import { PartyMaster } from './modules/PartyMaster';
 import { Reports } from './modules/Reports';
 import { RolePermissions } from './modules/RolePermissions';
+import { AuditLog } from './modules/AuditLog';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -90,6 +91,7 @@ function Shell() {
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
+        <Route path="/audit" element={<AuditLog />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

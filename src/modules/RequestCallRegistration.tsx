@@ -5,6 +5,7 @@ import { listPartyItems } from '../lib/sheets';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import { todayISO } from '../lib/format';
+import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -89,8 +90,10 @@ export function RequestCallRegistration() {
       additional_comments: f.additionalComments,
     };
     const pairs = products.filter((p) => p.product.trim());
+    const t0 = performance.now();
     try {
       const res = await addCallRequestBatch(base, pairs);
+      logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: pairs.length, callType: f.callType } });
       if (res.ok) {
         setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} product${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
         if (!res.error) { setF(blank); setProducts([{ product: '', serial: '' }]); }
