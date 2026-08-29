@@ -427,7 +427,7 @@ export const spareConsumptionConfig: CrudConfig<BaseRecord> = {
   columns: [
     codeCol(),
     { key: 'callId', header: 'Against Call', width: 130, render: (r) => lookup(C.breakdowns, (r as Record<string, unknown>).callId, 'code') },
-    { key: 'partId', header: 'Part', width: 180, render: (r) => lookup(C.parts, (r as Record<string, unknown>).partId, 'name') },
+    { key: 'part', header: 'Part', width: 180, render: (r) => { const c = r as Record<string, unknown>; return String(c.part ?? '') || lookup(C.parts, c.partId, 'name'); } },
     { key: 'qty', header: 'Qty', width: 70, align: 'right', wrap: false },
     { key: 'engineer', header: 'Engineer', width: 130 },
     dateCol('consumeDate', 'Date'),
@@ -436,8 +436,9 @@ export const spareConsumptionConfig: CrudConfig<BaseRecord> = {
   fields: [
     { name: 'callId', label: 'Against Call', type: 'select', section: 'Consumption',
       options: optionsFrom(C.breakdowns, 'complaint', { codeKey: 'code' }) },
-    { name: 'partId', label: 'Spare Part', type: 'select', required: true, section: 'Consumption',
-      options: optionsFrom(C.parts, 'name', { codeKey: 'code' }) },
+    // The catalogue is the live ITEM Master, not a local collection — the part is
+    // stored as its "CODE|Description" string (see CallExtras' picker).
+    { name: 'part', label: 'Spare Part', required: true, section: 'Consumption', placeholder: 'CODE|Description' },
     { name: 'qty', label: 'Quantity Consumed', type: 'number', required: true, min: 1, section: 'Consumption', defaultValue: 1 },
     { name: 'engineer', label: 'Engineer', required: true, section: 'Consumption' },
     { name: 'consumeDate', label: 'Consumption Date', type: 'date', required: true, section: 'Consumption' },
