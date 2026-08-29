@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-28_
+_Last updated: 2026-08-29_
 
 ---
 
@@ -57,25 +57,65 @@ _Last updated: 2026-08-28_
 
 ## 🔜 In progress / Next
 
-- **Supabase cutover (Google Sheets → Postgres)** — in progress. Reads were
-  timing out on Apps Script; moving to Supabase (Postgres + auto REST + RLS +
-  Auth). Done: schema (`supabase/migrations/0001_init.sql`), data layer
-  (`src/lib/supabase.ts`), baked project defaults, **email/password login** via
-  `profiles` (role + RM/RGM hierarchy), connection panel, CSV transform + load
-  scripts. Data prepared: masters 567, parties 5,872, products 20,999, parts
-  1,324, calls (FIELD+INST+PM) 11,302, reports 17,392. **Next:** load into
-  Supabase, then switch each screen's reads/writes off `sheets.ts`.
-- **PM Reporting** — the PM Call Register has its own reporting columns (Call
-  Status, Visiting Service Engineer, Complaint Observation, Job Done, Service
-  Report, pending reason). Wire PM-call reporting like Field/Installation.
+### Supabase cutover — status
+Reads were timing out on Apps Script; the app now runs on Supabase (Postgres +
+auto REST + RLS + Auth).
+- ✅ Schema (`0001_init.sql`) + reports-as-history (`0002_reports_history.sql`).
+- ✅ Data layer (`src/lib/supabase.ts`); `sheets.ts` delegates to it when connected.
+- ✅ Baked project URL + publishable key; **email/password login** via `profiles`.
+- ✅ Loaded: masters 567, parties 5,872, products 20,999, parts 1,324, calls
+  (FIELD+INST+PM) 11,299, reports 16,838 visits (by UID).
+- ✅ Live on Supabase: Field / Installation / **PM** registers (full load, no
+  300-cap, full-register search), Dashboard, product cascade + Product Master
+  search, master dropdowns, **Update Call reporting** (visit history by UID),
+  spare consumption + feedback, in-app **Bulk Data Import**, unified **call view**
+  (actions at top + mini-tables: visit history / spares requested / consumed /
+  feedback).
+
+### Open items & questions (moved here from chat)
+- **User Master → Supabase** *(biggest gap)*. Not yet exported/migrated. Blocks:
+  engineer **logins** for everyone, the exact **RM→reporting-engineer dropdown**
+  in reporting, the **admin full engineer list**, and correct **who-sees-what**
+  scoping. Plan: a `user_master`/directory table (name, email, gmail, designation,
+  RM, RGM, region, validity); rework `access.ts` to read it from Supabase (it
+  still calls the sheet `listUsers`); resolve role/hierarchy by email on login.
+- **Spare request WRITES still hit the sheet.** `SpareRequestDrawer` appends to
+  `v2_ORReq-All` via `tabAppend`. Move to Supabase `spare_requests` +
+  `spare_request_lines` (`addSpareRequest` already exists); then the Spare
+  Requests register reads from Supabase too.
+- **Pending Registrations** — the UCN-less request list wasn't migrated; still on
+  the sheet path. Migrate or wire a Supabase intake table.
+- **Raw monthly PM bulk import** *(user use-case)* — accept the **raw PM tab
+  export** directly in Bulk Data Import (auto-map headers, preserve back-dated
+  `reg_date`), so the monthly load is one drop. Back-dating already works via the
+  clean-CSV importer (dates are preserved; UCN only auto-assigned when blank).
+- **Editable Registration Date on the single-call PM form?** — for one-off
+  back-dated entries (question — confirm if wanted).
+- **Manual Report** — currently a Drive-link paste field. Option to restore the
+  **file-upload-to-Drive-folder** (folder `1-46Ud9j…z2La`) flow (question).
+- **Reporting solved-branch fields** — confirm which are required and whether
+  "Add Consumption?" / "Maintenance Done?" / "Recomended Filter Changed?" should
+  be Yes/No dropdowns (question).
+- **Server-side search** — registers currently load fully and search client-side
+  (fine at a few thousand rows). If it feels heavy on low-end phones, switch to
+  Supabase-side search + paging (offered).
+- **Product Master gaps** — the migration dropped **City / State / Service
+  Engineer** columns; the cascade prefill leaves those blank. Re-map from
+  ProdMaster if needed.
+- **User management** — `createUser` / `updateUser` still write the local list;
+  wire to Supabase (invite via Auth + `profiles`).
+- **Rotate the Supabase secret key** — it was pasted in chat during setup.
+
+### Other in-flight
+- **PM Reporting** — PM calls now load; PM-specific reporting columns
+  (Complaint Observation, Job Done, Service Report, pending reason) to be
+  surfaced in the report form for PM.
 - **Product Master derivation + Warranty/Contract registers** — Product Master
   is *built from* Sale Entry + Warranty Sale + Contract Details/Entry +
-  Ownership Transfer. Add tables for these sources (warranties, contracts,
-  sales, ownership) and either import the materialized Product Master (done) or
-  recompute it. Feeds the Warranty Register / Contract Register screens.
-- **reports = one row per UCN** currently (unique). Reporting-N has multiple
-  visits per call (17,392 rows for 11,302 calls) — add visit history later;
-  the load keeps the latest visit per UCN.
+  Ownership Transfer (CSVs received). Add tables (warranties, contracts, sales,
+  ownership); feed the Warranty / Contract Register screens.
+- **reports history view** — data is now per-visit (by UID); add a full
+  visit-history screen/report beyond the mini-table in the call view.
 
 - **Customer feedback** — ✅ done. Mandatory on a solved call, with the **exact
   v2Feedback question set filtered by call type** (INSTALLATION-only, FIELD-only,
