@@ -265,3 +265,9 @@
 .map-cell .input { min-width: 0; }
 .linklike { background: none; border: 0; padding: 0; color: var(--primary); font-weight: 650; cursor: pointer; }
 .linklike:hover { text-decoration: underline; }
+
+/* Manual report — paste a link or upload the signed report to storage. */
+.rep-upload { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.rep-upload > .btn { cursor: pointer; }
+.rep-upload > .btn.is-busy { opacity: .7; pointer-events: none; }
+.rep-upload-file { font-size: 12px; word-break: break-all; }

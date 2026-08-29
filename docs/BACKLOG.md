@@ -116,9 +116,11 @@ auto REST + RLS + Auth).
   clean-CSV importer (dates are preserved; UCN only auto-assigned when blank).
 - **Editable Registration Date on the single-call PM form?** — for one-off
   back-dated entries (question — confirm if wanted).
-- **Manual Report** — currently a Drive-link paste field. The generic
-  `driveupload` endpoint added for the request form can back a file-upload flow
-  here too (folder `1-46Ud9j…z2La`) (question).
+- **Manual Report** — ✅ upload restored. The report form takes either a pasted
+  Drive link or a file (PDF/photo, ≤10 MB) uploaded through the same
+  `driveupload` / `driveref` endpoints the request form uses (folder
+  `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
+  ordinary Drive link. The previous visit's report is linked from the drawer.
 - **Reporting solved-branch fields** — confirm which are required and whether
   "Add Consumption?" / "Maintenance Done?" / "Recomended Filter Changed?" should
   be Yes/No dropdowns (question).

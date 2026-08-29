@@ -52,6 +52,12 @@ const MODULES = {
     needs: ['profiles', 'visibleEngineers'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql'],
   },
+  reports: {
+    title: 'Reports',
+    blurb: ['The visit history: the indexes behind its newest-first ordering.'],
+    needs: ['profiles'],
+    files: ['0010_reports_ordering.sql'],
+  },
   spare_requests: {
     title: 'Spare Requests',
     blurb: [
@@ -135,6 +141,7 @@ MODULES.all = {
   files: [
     ...MODULES.user_directory.files,
     ...MODULES.rbac.files,
+    ...MODULES.reports.files,
     ...MODULES.spare_requests.files,
   ],
 };

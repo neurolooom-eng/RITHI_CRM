@@ -20,18 +20,21 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.has_perm(text)')            is not null
      and to_regprocedure('public.is_admin()')                is not null
      and to_regprocedure('public.can_approve_spares()')      is not null)),
-    (4, 'spare_requests: workflow','spare_requests.stage (0006)',
+    (4, 'reports: ordering',       'reports_visit_at_idx (0010)',
+        exists (select 1 from pg_indexes
+                 where schemaname='public' and tablename='reports' and indexname='reports_visit_at_idx')),
+    (5, 'spare_requests: workflow','spare_requests.stage (0006)',
         exists (select 1 from information_schema.columns
                  where table_schema='public' and table_name='spare_requests' and column_name='stage')),
-    (5, 'spare_requests: receipt', 'spare_requests.received_at + is_spare_requester() (0009)',
+    (6, 'spare_requests: receipt', 'spare_requests.received_at + is_spare_requester() (0009)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_requests' and column_name='received_at')
      and to_regprocedure('public.is_spare_requester(public.spare_requests)') is not null)),
-    (6, 'spare_requests: intake',  'spare_requests.or_no + the OR sequence (0011)',
+    (7, 'spare_requests: intake',  'spare_requests.or_no + the OR sequence (0011)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_requests' and column_name='or_no')
      and to_regclass('public.spare_or_no_seq')          is not null)),
-    (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
+    (8, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
         to_regprocedure('public.spare_needs_review(text)')   is not null)
 )
 select bundle,

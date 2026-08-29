@@ -14,6 +14,7 @@
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
+--   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
 --   0011_spare_intake.sql
@@ -531,6 +532,21 @@ drop trigger if exists profiles_role_guard on public.profiles;
 create trigger profiles_role_guard
   before update on public.profiles
   for each row execute function public.profiles_role_guard();
+
+-- ------------------------------------------------------------------------
+-- 0010_reports_ordering.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Reports ordering. `public.reports` has no `created_at` column — the visit
+-- history is ordered by `visit_at` (newest visit first), with the identity
+-- `id` as the tiebreaker for rows that share a date or have none. These
+-- indexes back that sort so the register and the per-call/per-UCN lookups
+-- stay fast. Run in the Supabase SQL Editor as postgres.
+-- ===========================================================================
+
+create index if not exists reports_visit_at_idx on public.reports (visit_at desc nulls last, id desc);
+create index if not exists reports_call_number_idx on public.reports (call_number);
 
 -- ------------------------------------------------------------------------
 -- 0006_spare_workflow.sql

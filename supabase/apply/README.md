@@ -30,8 +30,9 @@ each other.
 | `_status.sql` | read-only report of what is applied | — |
 | `user_directory.sql` | `0004` — engineer directory, reporting-tree helpers | base `0001` |
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
+| `reports.sql` | `0010` — visit-history ordering indexes | base `0001` |
 | `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
-| `all.sql` | the three above, in dependency order | base `0001` |
+| `all.sql` | the four above, in dependency order | base `0001` |
 
 Use `all.sql` when a project is behind on more than one module; use a
 per-module bundle when you only need that one.
