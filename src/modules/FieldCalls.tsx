@@ -492,7 +492,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             void setPendingUcn(pendingRow, String(res.ucn));
             setPendingRow(null);
           }
-          setBanner({ tone: 'ok', text: `${config.singular} registered in the sheet as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
+          setBanner({ tone: 'ok', text: `${config.singular} registered as ${res.ucn}${pendingRow != null ? ' — pending request cleared' : ''}.` });
         } else {
           saveLocal(rec, `Sheet write failed (${res.error}).`);
         }
@@ -552,7 +552,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       }
     }
     setBusy(false);
-    setBanner({ tone: done === pend.length ? 'ok' : 'error', text: `Synced ${done}/${pend.length} pending calls to the sheet.` });
+    setBanner({ tone: done === pend.length ? 'ok' : 'error', text: `Synced ${done}/${pend.length} pending calls to the ${onDb ? 'database' : 'sheet'}.` });
   };
 
   // Discard unsynced local calls (all, or one) without writing to the sheet.

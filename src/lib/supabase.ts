@@ -171,11 +171,26 @@ export async function searchCalls(callType: string, terms: CallSearch, limit = 1
 
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
+  const c = must();
   const payload = callToDb(rec);
   delete payload.ucn; // server assigns via trigger
-  const { data, error } = await must().from('calls').insert(payload).select('*').single();
+  // Insert without .single(): a genuine failure sets `error`; an RLS-hidden
+  // returning just yields an empty array (the row was still inserted).
+  const { data, error } = await c.from('calls').insert(payload).select('*');
   if (error) return { ok: false, error: error.message };
-  return { ok: true, ucn: String(data.ucn ?? ''), record: dbToCall(data) };
+  const row = data?.[0];
+  if (row) return { ok: true, ucn: String(row.ucn ?? ''), record: dbToCall(row) };
+  // Returning hidden by RLS — read back the row we just created.
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u.user?.id;
+    if (uid) {
+      const { data: back } = await c.from('calls').select('*').eq('created_by', uid).order('id', { ascending: false }).limit(1);
+      const r2 = back?.[0];
+      if (r2) return { ok: true, ucn: String(r2.ucn ?? ''), record: dbToCall(r2) };
+    }
+  } catch { /* fall through */ }
+  return { ok: true, ucn: '', record: dbToCall({ ...payload }) };
 }
 
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
