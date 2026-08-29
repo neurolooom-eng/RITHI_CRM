@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.7',
+    date: '2026-08-29',
+    title: 'Spare approvals are per spare, not per request',
+    changes: [
+      'The RM now approves or rejects each spare on its own, so a request for five parts can go forward with three \u2014 the rejected ones stop, the rest carry on to Stores.',
+      'Commercial, NSM, Stores and the engineer\u2019s receipt work the same way, and can be actioned either one spare at a time or, with the \u201call N\u201d button, for every spare of an OR still at that stage. The RM stage deliberately has no bulk button.',
+      'Each spare carries its own approval trail, DC number and rejection reason; the request shows the stage of whichever spare is furthest behind.',
+      'The database now refuses an approval written against the request instead of the spare, so the two can never disagree.',
+    ],
+  },
+  {
     version: '0.6.6',
     date: '2026-08-29',
     title: 'Request Call Registration is a register',

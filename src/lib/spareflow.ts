@@ -1,6 +1,13 @@
 // ---------------------------------------------------------------------------
 // Spare approval workflow state machine.
 //   RM → Commercial → NSM → Stores (dispatch / DC) → Received (engineer ack).
+//
+// The state belongs to ONE SPARE, not to the request: the RM approves or
+// rejects each part separately, so a request for five parts can go forward
+// with three. The later stages read the same per-line state, which is what
+// lets them be actioned either spare by spare or for a whole OR at once.
+// `stage` and `status` are computed by the database from these columns
+// (0016_spare_line_approvals.sql), so the patches below never set them.
 // RM approval: RM / RGM / Hotline / Spare Coordinator (spare.approve_rm).
 // Commercial & NSM only need a manual approval when the item is AMC or OGP;
 // otherwise they auto-approve. Stores Incharge dispatches and records a DC;
@@ -32,6 +39,11 @@ export function deriveStage(r: SpareReq): Stage {
   if (review && !isApproved(r.nsm_approval)) return 'NSM';
   return 'Stores';
 }
+
+// The RM decides each spare on its own — never in bulk over a whole OR. Every
+// later stage may be actioned either way.
+export const canBulkApprove = (stage: Stage): boolean =>
+  stage === 'Commercial' || stage === 'NSM' || stage === 'Stores' || stage === 'Dispatched';
 
 // Stage order for filter chips / KPI tiles (terminal stages last).
 export const STAGES: Stage[] = ['RM Approval', 'Commercial', 'NSM', 'Stores', 'Dispatched', 'Received', 'Rejected'];
@@ -79,7 +91,7 @@ export function buildPatch(r: SpareReq, decision: Decision, actor: string, reaso
     if (stage === 'RM Approval') Object.assign(patch, { rm_approval: 'Rejected', rm_by: actor, rm_at: now });
     else if (stage === 'Commercial') Object.assign(patch, { commercial_approval: 'Rejected', commercial_by: actor, commercial_at: now });
     else if (stage === 'NSM') Object.assign(patch, { nsm_approval: 'Rejected', nsm_by: actor, nsm_at: now });
-    Object.assign(patch, { stage: 'Rejected', status: 'Rejected', rejected_stage: stage, reject_reason: reason });
+    Object.assign(patch, { rejected_stage: stage, reject_reason: reason });
     return patch;
   }
   if (stage === 'RM Approval') {
@@ -90,9 +102,6 @@ export function buildPatch(r: SpareReq, decision: Decision, actor: string, reaso
   } else if (stage === 'NSM') {
     Object.assign(patch, { nsm_approval: 'Approved', nsm_by: actor, nsm_at: now });
   }
-  const next = deriveStage({ ...r, ...patch });
-  patch.stage = next;
-  patch.status = next === 'Stores' ? 'Awaiting Dispatch' : next;
   return patch;
 }
 
@@ -101,14 +110,14 @@ export function dispatchPatch(dcNumber: string, actor: string, courier = '', rem
   const now = new Date().toISOString();
   return {
     stores_status: 'Dispatched', dc_number: dcNumber, courier, dispatch_remarks: remarks,
-    dispatched_by: actor, dispatched_at: now, stage: 'Dispatched', status: 'Dispatched',
+    dispatched_by: actor, dispatched_at: now,
   };
 }
 
 // Engineer acknowledgement — the parts reached the field; the request closes.
 export function receivePatch(actor: string, remarks = ''): Record<string, unknown> {
   const now = new Date().toISOString();
-  return { received_by: actor, received_at: now, receipt_remarks: remarks, stage: 'Received', status: 'Received' };
+  return { received_by: actor, received_at: now, receipt_remarks: remarks };
 }
 
 // ---------------------------------------------------------------------------

@@ -362,6 +362,9 @@ create table if not exists public.call_number_seq (
 );
 alter table public.call_number_seq enable row level security;  -- only the definer function touches it
 
+-- Next CL number for a year. The counter is seeded once, from the numbers
+-- already in `calls` — so import historical CL numbers BEFORE this runs (or
+-- delete that year's `call_number_seq` row afterwards to re-seed).
 -- Next CL number for this year. The year's counter is seeded from the highest
 -- CLYY##### already in `calls`, so it continues the series instead of
 -- colliding with imported history.
