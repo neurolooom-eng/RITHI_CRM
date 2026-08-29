@@ -214,6 +214,21 @@ export async function setPendingUcn(id: number, ucn: string): Promise<boolean> {
   return !error;
 }
 
+// Distinct engineer names seen on calls (source for the reporting engineer
+// dropdown until the User Master directory is migrated).
+export async function sbEngineerNames(): Promise<string[]> {
+  const names = new Set<string>();
+  const PAGE = 1000;
+  for (let from = 0; from < 20000; from += PAGE) {
+    const { data, error } = await must().from('calls').select('allocated_to').range(from, from + PAGE - 1);
+    if (error) break;
+    const rows = data ?? [];
+    rows.forEach((r) => { const v = String(r.allocated_to ?? '').trim(); if (v) names.add(v); });
+    if (rows.length < PAGE) break;
+  }
+  return [...names].sort();
+}
+
 // ---- reports (Reporting-N equivalent) --------------------------------------
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
   const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).maybeSingle();
