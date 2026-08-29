@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { reportHistory, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -76,6 +76,7 @@ export function CallReportDrawer({
   const { user, isAdmin } = useAuth();
   const scope = useAccessScope();
   const ucn = String(call?.ucn ?? '');
+  const callNumber = String(call?.callNumber ?? call?.['call_number'] ?? '');
   const callType = String(call?.callType ?? call?.['call_type'] ?? '');
   const pendingReasons = useMaster('pendingreason');
   const ratings = useMaster('feedbackrating', RATINGS_FALLBACK);
@@ -128,7 +129,7 @@ export function CallReportDrawer({
     setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setWork({});
     setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
     setEngineer(String(call?.allocatedTo ?? selfName ?? ''));
-    reportHistory(ucn).then((rows) => {
+    reportsByCall(callNumber || ucn).then((rows) => {
       if (cancelled) return;
       setPriorVisits(rows);
       if (rows[0]?.engineer) setEngineer(String(rows[0].engineer)); // default to who visited last

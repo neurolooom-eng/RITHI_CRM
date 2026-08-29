@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { reportHistory, spareRequestsByUcn, spareConsumptionByUcn, feedbackByUcn, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured } from '../lib/supabase';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -36,7 +36,8 @@ function MiniTable({ title, icon, cols, rows, empty }: {
   );
 }
 
-export function CallAssociations({ ucn }: { ucn: string }) {
+// Keyed by CALL NUMBER — every visit/spare/feedback tied to this call.
+export function CallAssociations({ callNumber }: { callNumber: string }) {
   const [visits, setVisits] = useState<Row[]>([]);
   const [requested, setRequested] = useState<Row[]>([]);
   const [consumed, setConsumed] = useState<Row[]>([]);
@@ -44,14 +45,14 @@ export function CallAssociations({ ucn }: { ucn: string }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!ucn || !supabaseConfigured()) return;
+    if (!callNumber || !supabaseConfigured()) return;
     let alive = true;
     setLoading(true);
-    Promise.all([reportHistory(ucn), spareRequestsByUcn(ucn), spareConsumptionByUcn(ucn), feedbackByUcn(ucn)])
+    Promise.all([reportsByCall(callNumber), spareRequestsByCall(callNumber), spareConsumptionByCall(callNumber), feedbackByCall(callNumber)])
       .then(([v, rq, cs, fb]) => { if (!alive) return; setVisits(v); setRequested(rq); setConsumed(cs); setFeedback(fb); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [ucn]);
+  }, [callNumber]);
 
   if (!supabaseConfigured()) return null;
 

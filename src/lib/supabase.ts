@@ -150,6 +150,25 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
   return out;
 }
 
+// Server-side register search. Field-specific terms AND together (each an
+// ilike on its column); the global term ORs across the common columns. RLS
+// already scopes the result to what the user may see.
+export interface CallSearch { q?: string; ucn?: string; serial?: string; partyName?: string; productName?: string }
+const _san = (t: string) => t.replace(/[%,()]/g, ' ').trim();
+export async function searchCalls(callType: string, terms: CallSearch, limit = 1000): Promise<Record<string, unknown>[]> {
+  let q = must().from('calls').select('*').order('id', { ascending: false }).limit(limit);
+  if (callType) q = q.eq('call_type', callType);
+  if (terms.ucn) q = q.ilike('ucn', `%${_san(terms.ucn)}%`);
+  if (terms.serial) q = q.ilike('serial', `%${_san(terms.serial)}%`);
+  if (terms.partyName) q = q.ilike('party_name', `%${_san(terms.partyName)}%`);
+  if (terms.productName) q = q.ilike('product_name', `%${_san(terms.productName)}%`);
+  const g = _san(terms.q ?? '');
+  if (g) q = q.or(['ucn', 'call_number', 'party_name', 'serial', 'product_name', 'allocated_to', 'city', 'state', 'standard_complaint', 'complaint_reported', 'customer_name'].map((c) => `${c}.ilike.%${g}%`).join(','));
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(dbToCall);
+}
+
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
   const payload = callToDb(rec);
@@ -296,24 +315,29 @@ export async function listSpareRequestLines(limit = 600): Promise<Record<string,
   return data ?? [];
 }
 
-// Everything associated with one call (for the unified call view).
-export async function spareRequestsByUcn(ucn: string): Promise<Record<string, unknown>[]> {
+// Everything associated with one call — keyed by CALL NUMBER (server-side).
+export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
+  if (error) return [];
+  return data ?? [];
+}
+export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, ucn, req_type, status, engineer, created_at)')
-    .eq('spare_requests.ucn', ucn).order('created_at', { ascending: false }).limit(200);
+    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, created_at)')
+    .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
   if (error) return [];
   return (data ?? []).map((r) => {
     const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
     return { ...r, uid: req?.uid, req_type: req?.req_type, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at };
   });
 }
-export async function spareConsumptionByUcn(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_consumption').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
+export async function spareConsumptionByCall(callNumber: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_consumption').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
   if (error) return [];
   return data ?? [];
 }
-export async function feedbackByUcn(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('feedback').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(50);
+export async function feedbackByCall(callNumber: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('feedback').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(50);
   if (error) return [];
   return data ?? [];
 }
