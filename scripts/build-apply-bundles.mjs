@@ -37,6 +37,9 @@ const NEEDS = {
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   callTables: [`to_regclass('public.calls')`, 'the calls table', '0001_init.sql'],
   reportTables: [`to_regclass('public.reports')`, 'the reports table', '0001_init.sql'],
+  spareLineStages: [`to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)')`,
+                    'per-spare approvals (spare_request_lines.dispatched_at)',
+                    '0016_spare_line_approvals.sql (apply bundle: spare_requests)'],
 };
 
 const MODULES = {
@@ -103,7 +106,78 @@ const MODULES = {
       '0020_handstock.sql',
     ],
   },
+  handstock: {
+    title: 'Hand Stock',
+    outName: 'HandStock_X.sql',
+    blurb: [
+      'The stock level an engineer is carrying, per spare:',
+      '',
+      '  Stock Level = Stock Out (Stores) - Consumption',
+      '              - Stock Transfer From + Stock Transfer To',
+      '',
+      'Engineer-to-engineer transfers (the only new entry), the two views that',
+      'net the four movements, their guards and grants — and, at the end, the',
+      'queries for reading a stock level back.',
+      '',
+      'Needs the spare workflow through per-spare approvals; run the',
+      'spare_requests bundle first if _status.sql says that is missing.',
+    ],
+    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages'],
+    files: ['0020_handstock.sql'],
+    tail: () => cookbook(),
+  },
 };
+
+// Read queries for the objects above, kept with them so whoever applies the
+// module also has the queries to check it. Commented out: pasting the file
+// applies the module and nothing else.
+function cookbook() {
+  const bar = '='.repeat(75);
+  return [
+    `-- ${bar}`,
+    `-- Reading a stock level back. Uncomment one and run it on its own.`,
+    `-- ${bar}`,
+    `--`,
+    `-- 1. What is the field holding right now?`,
+    `-- select engineer, part_code, part, stock_out, consumed,`,
+    `--        transferred_in, transferred_out, on_hand`,
+    `--   from public.handstock_balance`,
+    `--  where on_hand > 0`,
+    `--  order by engineer, part_code;`,
+    `--`,
+    `-- 2. One engineer's stock — what the report form's consumption picker offers.`,
+    `-- select part, on_hand from public.handstock_balance`,
+    `--  where engineer_key = lower(btrim('Engineer Name')) and on_hand > 0`,
+    `--  order by part_code;`,
+    `--`,
+    `-- 3. Where a disputed level came from: every movement behind one line.`,
+    `-- select moved_at, movement, qty, ref, ref_type, ucn, party_name, remarks`,
+    `--   from public.handstock_movements`,
+    `--  where engineer_key = lower(btrim('Engineer Name')) and part_code = 'SP-100'`,
+    `--  order by moved_at desc;`,
+    `--`,
+    `-- 4. Short lines — consumed or handed on more than Stores ever issued.`,
+    `-- select engineer, part_code, stock_out, consumed, transferred_out, on_hand`,
+    `--   from public.handstock_balance where on_hand < 0 order by on_hand;`,
+    `--`,
+    `-- 5. Transfers, newest first.`,
+    `-- select transfer_no, transferred_at, from_engineer, to_engineer, part, qty, reason`,
+    `--   from public.stock_transfers order by transferred_at desc;`,
+    `--`,
+    `-- 6. Spares dispatched to an engineer and never consumed or handed on`,
+    `--    (a spare sitting in a car long after the call closed).`,
+    `-- select engineer, part_code, part, stock_out, on_hand, last_in`,
+    `--   from public.handstock_balance`,
+    `--  where on_hand > 0 and last_in < now() - interval '30 days'`,
+    `--  order by last_in;`,
+    `--`,
+    `-- 7. Did the module land? (the same check _status.sql makes)`,
+    `-- select to_regclass('public.handstock_balance')   is not null as balance_view,`,
+    `--        to_regclass('public.handstock_movements') is not null as movements_view,`,
+    `--        to_regclass('public.stock_transfers')     is not null as transfers_table;`,
+    ``,
+  ].join('\n');
+}
 
 function preflight(needs) {
   const checks = needs.map((k) => {
@@ -152,8 +226,9 @@ function build(name) {
     parts.push(readFileSync(join(MIGRATIONS, f), 'utf8').trimEnd(), ``);
   }
   parts.push(`commit;`, ``);
+  if (m.tail) parts.push(m.tail());
   mkdirSync(OUT, { recursive: true });
-  const out = join(OUT, `${name}.sql`);
+  const out = join(OUT, m.outName ?? `${name}.sql`);
   writeFileSync(out, parts.join('\n'));
   return out;
 }
