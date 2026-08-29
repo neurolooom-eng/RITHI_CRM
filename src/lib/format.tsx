@@ -28,6 +28,23 @@ export const fmtDateTime = (s: unknown): string => {
   });
 };
 
+// Long forms: full month name, e.g. "29 August 2026" / "29 August 2026, 08:49".
+export const fmtLongDate = (s: unknown): string => {
+  if (!s) return '';
+  const d = new Date(String(s));
+  if (Number.isNaN(d.getTime())) return String(s);
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+};
+export const fmtLongDateTime = (s: unknown): string => {
+  if (!s) return '';
+  const d = new Date(String(s));
+  if (Number.isNaN(d.getTime())) return String(s);
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+// Show Long DateTime when the value carries a time, else Long Date.
+const HAS_TIME = /[T ]\d{1,2}:\d{2}/;
+export const fmtLongSmart = (s: unknown): string => (HAS_TIME.test(String(s ?? '')) ? fmtLongDateTime(s) : fmtLongDate(s));
+
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
 // Request UID: WA-<yyyymmdd>-<short unique>. Used to stamp every spare request

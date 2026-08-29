@@ -11,7 +11,7 @@ import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
-import { csvExport, engineerOptions, fmtDateTime, timeAgo, todayISO } from '../lib/format';
+import { csvExport, engineerOptions, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -37,7 +37,13 @@ import {
   toSheetDate,
 } from '../lib/fieldcall';
 
-const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => ({ key: h.key, header: h.header }));
+// Date fields render as Long Date (Reg. Date shows time when present). Others plain.
+const DATE_KEYS = new Set(['regDate', 'complaintDate', 'breakdownDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd']);
+const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
+  DATE_KEYS.has(h.key)
+    ? { key: h.key, header: h.header, render: (r: Rec) => (h.key === 'regDate' ? fmtLongSmart(r[h.key]) : fmtLongDate(r[h.key])) }
+    : { key: h.key, header: h.header }
+));
 
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
 export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
@@ -115,8 +121,8 @@ const COLUMNS: Column<Rec>[] = [
   },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
   { key: 'callNumber', header: 'Call Number', width: 170 },
-  { key: 'regDate', header: 'Registered', width: 140 },
-  { key: 'complaintDate', header: 'Complaint Date', width: 120 },
+  { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
+  { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
   { key: 'state', header: 'State', width: 110 },

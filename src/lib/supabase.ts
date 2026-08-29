@@ -184,10 +184,26 @@ export async function updateCall(ucn: string, patch: Record<string, unknown>): P
 }
 
 // ---- Product Master (cascade + search) -------------------------------------
+// Page through a single column past PostgREST's 1000-row response cap and return
+// the distinct, sorted values. Used for the party / product / spare pick-lists,
+// which have thousands of rows.
+async function distinctColumn(table: string, column: string, opts?: { eq?: [string, unknown]; max?: number }): Promise<string[]> {
+  const c = must();
+  const set = new Set<string>();
+  const PAGE = 1000; const max = opts?.max ?? 40000;
+  for (let from = 0; from < max; from += PAGE) {
+    let q = c.from(table).select(column).range(from, from + PAGE - 1);
+    if (opts?.eq) q = q.eq(opts.eq[0], opts.eq[1] as never);
+    const { data, error } = await q;
+    if (error) break;
+    const rows = data ?? [];
+    rows.forEach((r) => { const v = String((r as unknown as Record<string, unknown>)[column] ?? '').trim(); if (v) set.add(v); });
+    if (rows.length < PAGE) break;
+  }
+  return [...set].sort();
+}
 export async function sbListParties(): Promise<string[]> {
-  const { data, error } = await must().from('parties').select('party_name').order('party_name').limit(10000);
-  if (error) throw new Error(error.message);
-  return [...new Set((data ?? []).map((r) => String(r.party_name)).filter(Boolean))];
+  return distinctColumn('parties', 'party_name');
 }
 export async function sbListPartyProducts(party: string): Promise<string[]> {
   const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
@@ -234,6 +250,24 @@ export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok
   const { data, error } = await must().from('call_requests').insert(rec).select('reqid,unique_key').single();
   if (error) return { ok: false, error: error.message };
   return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
+}
+
+// One request, several product/serial pairs (up to 5). All share one REQID; the
+// DB trigger gives each row its own UniqueID (REQID-Product-SerialNo). The first
+// insert mints the REQID (trigger), the rest reuse it.
+export async function addCallRequestBatch(base: Record<string, unknown>, pairs: { product: string; serial: string }[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
+  const c = must();
+  if (pairs.length === 0) return { ok: false, error: 'Add at least one product.' };
+  const first = { ...base, product: pairs[0].product, serial_no: pairs[0].serial };
+  const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
+  if (error) return { ok: false, error: error.message };
+  const reqid = String(data.reqid ?? '');
+  if (pairs.length > 1) {
+    const rest = pairs.slice(1).map((p) => ({ ...base, reqid, product: p.product, serial_no: p.serial }));
+    const { error: e2 } = await c.from('call_requests').insert(rest);
+    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${e2.message}` };
+  }
+  return { ok: true, reqid, count: pairs.length };
 }
 
 // Pending call registrations (no UCN yet), mapped to the header keys the
@@ -318,14 +352,8 @@ export async function latestReport(ucn: string): Promise<Record<string, unknown>
 export async function listMaster(name: string, limit = 3000): Promise<string[]> {
   const c = must();
   if (name === 'party') return sbListParties();
-  if (name === 'product') {
-    const { data } = await c.from('products').select('item_name').limit(20000);
-    return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))].sort();
-  }
-  if (name === 'spare') {
-    const { data } = await c.from('parts').select('item_detail,description,code').eq('active', true).limit(5000);
-    return [...new Set((data ?? []).map((r) => String(r.item_detail || `${r.code}|${r.description}`)).filter((v) => v && v !== '|'))];
-  }
+  if (name === 'product') return distinctColumn('products', 'item_name');
+  if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
   const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
   if (error) throw new Error(error.message);
