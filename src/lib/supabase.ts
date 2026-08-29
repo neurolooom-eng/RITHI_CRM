@@ -440,7 +440,7 @@ export async function addSpareRequest(req: Record<string, unknown>, lines: { par
 }
 export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, status, created_at)')
+    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
@@ -448,9 +448,15 @@ export async function listSpareRequestLines(limit = 1000): Promise<Record<string
     return {
       ...r, uid: req?.uid, req_type: req?.req_type, req_engineer: req?.engineer, requested_at: req?.created_at,
       ucn: req?.ucn, call_number: req?.call_number, party_name: req?.party_name, product_name: req?.product_name,
-      serial: req?.serial, req_status: req?.status,
+      serial: req?.serial, item_status: req?.item_status, req_status: req?.status, stage: req?.stage,
+      rm_approval: req?.rm_approval, commercial_approval: req?.commercial_approval, nsm_approval: req?.nsm_approval,
+      stores_status: req?.stores_status, dc_number: req?.dc_number,
     };
   });
+}
+export async function updateSpareRequest(uid: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('spare_requests').update(patch).eq('uid', uid);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).

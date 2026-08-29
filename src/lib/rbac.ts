@@ -63,9 +63,10 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },
-  { group: 'Spares', key: 'spare.approve_rm', label: 'Approve spare — RM' },
-  { group: 'Spares', key: 'spare.approve_admin', label: 'Approve spare — Admin' },
-  { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / stores' },
+  { group: 'Spares', key: 'spare.approve_rm', label: 'Approve spare — RM stage' },
+  { group: 'Spares', key: 'spare.approve_commercial', label: 'Approve spare — Commercial' },
+  { group: 'Spares', key: 'spare.approve_nsm', label: 'Approve spare — NSM' },
+  { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / DC (Stores)' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
@@ -97,15 +98,15 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
-  nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view'],
-  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'spare.approve_admin', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
+  nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm'],
+  rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   engineer: ['calls.view', 'calls.report', 'request.create', 'spare.request', 'consumption.view', 'reports.view', 'dashboard.view'],
-  hotline: ['calls.view', 'calls.create', 'request.create', 'pending.register', 'masters.view', 'dashboard.view'],
-  spare_coordinator: ['spare.request', 'spare.approve_admin', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
+  hotline: ['calls.view', 'calls.create', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
+  spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
   stores_incharge: ['spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view'],
+  commercial: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
 };
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
