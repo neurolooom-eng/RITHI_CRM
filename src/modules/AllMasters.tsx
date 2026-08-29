@@ -26,7 +26,9 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 // forms pick it up without a reload.
 // ===========================================================================
 
-const CACHE_KEY = 'allMasters';
+// Versioned: the previous release cached rows in a different shape (no `key`),
+// and those rows render but cannot be opened. A new key retires them.
+const CACHE_KEY = 'allMasters.v2';
 
 // Registers — their own screens; only counted here. `sheetKey` is the key the
 // Apps Script `master` endpoint answers to (a master without one is
@@ -50,7 +52,10 @@ const USED_BY: Record<string, string> = {
 
 // Lists the sheet-only fallback can still read (there is no registry there, so
 // the labels are carried here).
-const SHEET_LISTS: { key: string; label: string }[] = [
+// The lists the app knows by name. Used by the sheet fallback, and when the
+// database has no `master_lists` yet (0021 not applied) — the screen still
+// opens every list rather than showing nothing.
+const KNOWN_LISTS: { key: string; label: string }[] = [
   { key: 'complaint', label: 'Standard Complaint' },
   { key: 'calltype', label: 'Call Type' },
   { key: 'pendingreason', label: 'Call Pending Reason' },
@@ -116,10 +121,22 @@ export function AllMasters() {
       }
 
       let registry: MasterList[] = [];
+      let registryMissing = false;
       if (live) {
-        registry = await listMasterLists();
+        try {
+          registry = await listMasterLists();
+        } catch (err) {
+          // No `master_lists` table — 0021_master_lists.sql has not been applied
+          // to this project. Fall back to the known lists so the screen still
+          // works, and say what to run.
+          registryMissing = true;
+          registry = KNOWN_LISTS.map((l, i) => ({
+            key: l.key, label: l.label, value_label: 'Value', columns: [], sort_order: (i + 1) * 10, active: true,
+          }));
+          void err;
+        }
       } else {
-        registry = SHEET_LISTS.map((l, i) => ({
+        registry = KNOWN_LISTS.map((l, i) => ({
           key: l.key, label: l.label, value_label: 'Value', columns: [], sort_order: (i + 1) * 10, active: true,
         }));
       }
@@ -140,7 +157,9 @@ export function AllMasters() {
       setRows(out);
       setLastSync(saveCache(CACHE_KEY, out));
       const gaps = out.filter((r) => r.status !== 'Loaded').length;
-      setMsg({ tone: gaps ? 'info' : 'ok', text: `${out.length} masters read${gaps ? ` — ${gaps} not populated yet.` : '.'}` });
+      setMsg(registryMissing
+        ? { tone: 'info', text: 'The master lists registry is not in the database yet — showing the lists this app knows by name. Apply supabase/apply/masters.sql to get each list its own table, labels and extra columns.' }
+        : { tone: gaps ? 'info' : 'ok', text: `${out.length} masters read${gaps ? ` — ${gaps} not populated yet.` : '.'}` });
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -200,6 +219,13 @@ export function AllMasters() {
     setItemBusy(false);
   };
 
+  // A summary row back to its registry entry. The id is the fallback so a row
+  // from an older cache (which carried no `key`) still opens.
+  const listFor = (r: SummaryRow): MasterList | undefined => {
+    const key = r.key || String(r.id).replace(/^list:/, '');
+    return lists.find((x) => x.key === key);
+  };
+
   const registers = rows.filter((r) => r.kind === 'Register');
   const valueLists = rows.filter((r) => r.kind === 'Value list');
   const listValues = valueLists.reduce((n, r) => n + r.count, 0);
@@ -219,7 +245,7 @@ export function AllMasters() {
           onClick={(e) => {
             e.stopPropagation();
             if (r.route) { navigate(r.route); return; }
-            const l = lists.find((x) => x.key === r.key);
+            const l = listFor(r);
             if (l) void openList(l);
           }}
         >
@@ -290,7 +316,7 @@ export function AllMasters() {
         storageKey="allMasters"
         rowsBeforeScroll={12}
         dense
-        onRowClick={(r) => { if (!r.route) { const l = lists.find((x) => x.key === r.key); if (l) void openList(l); } }}
+        onRowClick={(r) => { if (!r.route) { const l = listFor(r); if (l) void openList(l); } }}
         emptyText={busy ? 'Loading…' : 'No masters loaded yet — ↻ Refresh all.'}
         toolbar={
           <Toolbar>
