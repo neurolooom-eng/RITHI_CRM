@@ -27,6 +27,20 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Call requests** — Request Call Registration is a **register** (every request
+  with its outcome + UCN, status filter, search, CSV, New Request in a drawer).
+  A request is one row per call (Product + Serial + Standard Complaint +
+  Reported Problem, ≤5 per REQID); Installation Report / KYC upload to Drive.
+  **Pending Registrations is the Hotline desk** — map to an existing call,
+  create a new one, or cancel with a reason; an **Open Calls** column flags a
+  machine that already has an unclosed call. SQL: `0010`–`0013`, or
+  `supabase/call_requests.sql` in one paste.
+- **Call status everywhere** — Solved / Unsolved / Report pending / Unattended
+  from the call's latest visit, kept on the call by a trigger (deriving it per
+  read timed out under the visit-table RLS). Colour-coded column on every
+  register plus a **Pending Calls** module.
+- **Call Number is assigned, not typed** — the request's UniqueID, else
+  **CLYY#####** per year, seeded from the existing series; blanks back-filled.
 - **Call reporting** (replaces the standalone Call Updation view): "Update Call"
   on every Field/Installation call → Reporting-N tab, keyed by UCN.
   - Sectioned by Call Status: Solved (full report + manual report upload + spare

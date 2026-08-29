@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { addFieldCall, listPending, searchProducts, setPendingUcn, sheetsConfigured } from '../lib/sheets';
+import { addFieldCall, listPending, searchProducts, setPendingUcn, dataConfigured } from '../lib/sheets';
+import { cancelCallRequest, callByUcn, openCallsFor, supabaseConfigured, type OpenCall } from '../lib/supabase';
+import { StateBadge } from '../lib/callstate';
+import { useMaster } from '../lib/masters';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { todayISO } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
@@ -13,11 +16,18 @@ import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
 
 // ===========================================================================
-// PENDING CALL REGISTRATIONS — Data-2026 rows without a UC Number.
-// Clicking Register opens a split view: the request details on the left, the
-// call registration form on the right. Party / Product / Serial come from the
-// REQUEST (authoritative); Product Master only fills warranty/contract/status
-// on an EXACT serial match, so nothing is overwritten with a wrong item.
+// PENDING CALL REGISTRATIONS — requests with no UC Number yet.
+// Clicking a row opens the request, where the Hotline engineer picks one of:
+//   • Map to an existing call — its UCN goes into UCN (Mapped)
+//   • Create a new call       — registered, UCN assigned and back-filled
+//   • Cancel the request      — with a reason
+// Any of the three takes the request off this list. The Open Calls column
+// flags requests whose machine already has a call nobody has closed
+// (Unattended / Unsolved / Report pending).
+//
+// On the register form, Party / Product / Serial come from the REQUEST
+// (authoritative); Product Master only fills warranty/contract/status on an
+// EXACT serial match, so nothing is overwritten with a wrong item.
 // ===========================================================================
 
 type Row = Record<string, unknown> & { id: string };
@@ -27,37 +37,91 @@ type Row = Record<string, unknown> & { id: string };
 const PRODMASTER_FILL = ['itemStatus', 'warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 const g = (r: Record<string, unknown>, ...keys: string[]) => { for (const k of keys) { const v = r[k]; if (v != null && String(v).trim() !== '') return String(v); } return ''; };
 
-const COLUMNS: Column<Row>[] = [
-  { key: 'Timestamp', header: 'Requested', width: 140, wrap: false },
-  { key: 'ENGINEER', header: 'Engineer', width: 150 },
-  { key: 'CALL TYPE', header: 'Type', width: 100, wrap: false },
-  { key: 'PARTY NAME', header: 'Party', width: 210 },
-  { key: 'City', header: 'City', width: 100 },
-  { key: 'PRODUCT', header: 'Product', width: 120 },
-  { key: 'SERIAL NO', header: 'Serial', width: 90, wrap: false },
-  { key: 'Reported Problem', header: 'Reported Problem', width: 220 },
-  { key: 'PLAN DATE (Visit Planned Date)', header: 'Plan Date', width: 110, wrap: false },
-];
+// Requests whose machine already has an open call are the ones the Hotline must
+// look at before creating another. Match on serial when the request has one,
+// otherwise fall back to the party.
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+
+function buildColumns(
+  openCalls: Record<string, OpenCall[]>,
+  canAct: boolean,
+  onMapUcn: (row: Row, ucn: string) => void,
+): Column<Row>[] {
+  return [
+    { key: 'Timestamp', header: 'Requested', width: 140, wrap: false },
+    {
+      key: '_open', header: 'Open Calls', width: 130, sortable: false,
+      render: (row) => {
+        const list = openCalls[row.id] ?? [];
+        if (!list.length) return <span className="muted">—</span>;
+        const worst = list.find((c) => c.state !== 'Report pending') ?? list[0];
+        return (
+          <span
+            className={`badge ${worst.state === 'Report pending' ? 'badge-warning' : worst.state === 'Unsolved' ? 'badge-danger' : 'badge-info'}`}
+            title={list.map((c) => `${c.ucn} · ${c.state} · ${c.allocatedTo || 'unallocated'}`).join('\n')}
+          >
+            {list.length} open
+          </span>
+        );
+      },
+    },
+    { key: 'REQID', header: 'REQID', width: 90, wrap: false },
+    { key: 'ENGINEER', header: 'Engineer', width: 150 },
+    { key: 'CALL TYPE', header: 'Type', width: 100, wrap: false },
+    { key: 'PARTY NAME', header: 'Party', width: 210 },
+    { key: 'City', header: 'City', width: 100 },
+    { key: 'PRODUCT', header: 'Product', width: 120 },
+    { key: 'SERIAL NO', header: 'Serial', width: 90, wrap: false },
+    { key: 'Reported Problem', header: 'Reported Problem', width: 220 },
+    { key: 'PLAN DATE (Visit Planned Date)', header: 'Plan Date', width: 110, wrap: false },
+    {
+      key: '_mapped', header: 'UCN Number (Mapped)', width: 170, sortable: false, wrap: false,
+      render: (row) => <MappedUcnCell row={row} canAct={canAct} onSave={onMapUcn} />,
+    },
+  ];
+}
+
+// Editable UCN (Mapped) cell — type a UCN here to map the request to a call
+// that already exists. Saving takes the request off the pending list.
+function MappedUcnCell({ row, canAct, onSave }: { row: Row; canAct: boolean; onSave: (row: Row, ucn: string) => void }) {
+  const [v, setV] = useState('');
+  if (!canAct) return <span className="muted">—</span>;
+  return (
+    <div className="row map-cell" onClick={(e) => e.stopPropagation()}>
+      <input
+        className="input" value={v} placeholder="UCN…"
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter' && v.trim()) { onSave(row, v.trim()); setV(''); } }}
+      />
+      <button className="btn btn-sm" disabled={!v.trim()} onClick={() => { onSave(row, v.trim()); setV(''); }}>Map</button>
+    </div>
+  );
+}
 
 export function PendingRegistrations() {
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
+  const canAct = can('pending.register') || can('edit');
   const [rows, setRows] = useState<Row[]>([]);
+  const [openCalls, setOpenCalls] = useState<Record<string, OpenCall[]>>({});
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [detail, setDetail] = useState<Row | null>(null);
   const [panel, setPanel] = useState<{ row: Row; prefill: FormValues; config: CallSheetConfig } | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to load pending registrations.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load pending registrations.' },
   );
 
   const load = async () => {
-    if (!sheetsConfigured()) return;
+    if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Loading pending registrations…' });
     try {
       const r = await listPending(300);
-      setRows(r.map((p, i) => ({ ...p, id: String((p as { _row?: number })._row ?? i) })));
+      const mapped = r.map((p, i) => ({ ...p, id: String((p as { _row?: number })._row ?? i) })) as Row[];
+      setRows(mapped);
       setMsg({ tone: 'ok', text: `${r.length} pending call registration${r.length === 1 ? '' : 's'} (no UCN yet).` });
+      void loadOpenCalls(mapped);
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
@@ -65,6 +129,64 @@ export function PendingRegistrations() {
     }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+
+  // Open calls for the machines on this list — one lookup for the whole page.
+  const loadOpenCalls = async (list: Row[]) => {
+    if (!supabaseConfigured() || !list.length) return;
+    try {
+      const found = await openCallsFor(
+        list.map((r) => g(r, 'SERIAL NO', 'Serial')),
+        list.map((r) => g(r, 'PARTY NAME')),
+      );
+      const bySerial = new Map<string, OpenCall[]>();
+      const byParty = new Map<string, OpenCall[]>();
+      found.forEach((c) => {
+        if (c.serial) bySerial.set(norm(c.serial), [...(bySerial.get(norm(c.serial)) ?? []), c]);
+        byParty.set(norm(c.partyName), [...(byParty.get(norm(c.partyName)) ?? []), c]);
+      });
+      const out: Record<string, OpenCall[]> = {};
+      list.forEach((r) => {
+        const serial = norm(g(r, 'SERIAL NO', 'Serial'));
+        const hit = serial ? bySerial.get(serial) : byParty.get(norm(g(r, 'PARTY NAME')));
+        if (hit?.length) out[r.id] = hit;
+      });
+      setOpenCalls(out);
+    } catch { /* the column just stays empty */ }
+  };
+
+  // Map the request to a call that already exists (picked from the list or
+  // typed in). The UCN is written back and the request leaves this list.
+  const mapToUcn = async (row: Row, ucn: string, checkExists = true) => {
+    setBusy(true); setMsg({ tone: 'info', text: `Mapping to ${ucn}…` });
+    try {
+      if (checkExists && supabaseConfigured()) {
+        const found = await callByUcn(ucn).catch(() => null);
+        if (!found && !confirm(`No call found with UCN ${ucn}. Map the request to it anyway?`)) {
+          setBusy(false); setMsg(null); return;
+        }
+      }
+      const ok = await setPendingUcn(Number(row.id), ucn, 'Mapped', user?.fullName ?? '');
+      if (!ok) { setMsg({ tone: 'error', text: 'Could not save the mapped UCN.' }); return; }
+      setDetail(null);
+      setMsg({ tone: 'ok', text: `${g(row, 'REQID') || 'Request'} mapped to ${ucn} — removed from pending.` });
+      await load();
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Mapping failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+
+  const cancelRequest = async (row: Row, reason: string) => {
+    setBusy(true); setMsg({ tone: 'info', text: 'Cancelling request…' });
+    try {
+      const res = await cancelCallRequest(Number(row.id), reason, user?.fullName ?? '');
+      if (!res.ok) { setMsg({ tone: 'error', text: `Cancel failed: ${res.error}` }); return; }
+      setDetail(null);
+      setMsg({ tone: 'ok', text: `${g(row, 'REQID') || 'Request'} cancelled — removed from pending.` });
+      await load();
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Cancel failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
 
   const register = async (row: Row) => {
     setBusy(true);
@@ -84,19 +206,6 @@ export function PendingRegistrations() {
           PRODMASTER_FILL.forEach((k) => { if (full[k] != null && String(full[k]) !== '') prodFill[k] = full[k]; });
           validated = true;
         }
-      }
-
-      // (b) Open-call check — don't duplicate an existing call for this serial.
-      const existing = serial
-        ? [...db.list(C.fieldCalls), ...db.list(C.instCalls)].find((c) => String(c.serial ?? '').trim().toLowerCase() === serial.toLowerCase())
-        : undefined;
-      if (existing) {
-        if (confirm(`An open call already exists for serial ${serial} (UCN ${existing.ucn}). Open it to edit instead of creating a duplicate?`)) {
-          const p = /install/i.test(String(existing.callType ?? '')) ? '/installations' : '/field-calls';
-          navigate(p, { state: { editUcn: String(existing.ucn) } });
-        }
-        setBusy(false); setMsg(null);
-        return;
       }
       if (serial && !validated) {
         setMsg({ tone: 'info', text: `Serial ${serial} not found in Product Master — warranty/contract not auto-filled. Verify on the right.` });
@@ -123,6 +232,7 @@ export function PendingRegistrations() {
         ...prodFill,
       };
       const config = /install/i.test(g(row, 'CALL TYPE')) ? INST_CONFIG : FIELD_CONFIG;
+      setDetail(null);
       setPanel({ row, prefill, config });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not prepare registration: ${e instanceof Error ? e.message : String(e)}` });
@@ -131,22 +241,13 @@ export function PendingRegistrations() {
     }
   };
 
-  const actionsColumn: Column<Row> = {
-    key: '_actions', header: 'Register', width: 110, sortable: false, wrap: false,
-    render: (row) => (
-      <div className="row" onClick={(e) => e.stopPropagation()}>
-        <button className="btn btn-sm btn-primary" onClick={() => void register(row)} disabled={busy}>Register</button>
-      </div>
-    ),
-  };
-
   const visible = search.trim()
-    ? rows.filter((r) => ['PARTY NAME', 'PRODUCT', 'SERIAL NO', 'ENGINEER', 'Reported Problem', 'City'].some((k) => String(r[k] ?? '').toLowerCase().includes(search.toLowerCase())))
+    ? rows.filter((r) => ['PARTY NAME', 'PRODUCT', 'SERIAL NO', 'ENGINEER', 'Reported Problem', 'City', 'REQID'].some((k) => String(r[k] ?? '').toLowerCase().includes(search.toLowerCase())))
     : rows;
 
   return (
     <div>
-      <PageHeader title="Pending Call Registrations" subtitle="Engineer requests awaiting a UCN — register from here." icon="⏳" />
+      <PageHeader title="Pending Call Registrations" subtitle="Engineer requests awaiting action — map to an existing call, register a new one, or cancel." icon="⏳" />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -156,13 +257,13 @@ export function PendingRegistrations() {
       )}
 
       <DataTable<Row>
-        columns={can('edit') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        columns={buildColumns(openCalls, canAct, (row, ucn) => void mapToUcn(row, ucn))}
         rows={visible}
         getRowId={(r) => r.id}
         storageKey="pendingRegistrations"
         rowsBeforeScroll={16}
         dense
-        onRowClick={(r) => can('edit') && void register(r)}
+        onRowClick={(r) => setDetail(r)}
         emptyText="No pending registrations."
         toolbar={
           <Toolbar>
@@ -171,6 +272,20 @@ export function PendingRegistrations() {
           </Toolbar>
         }
       />
+
+      {detail && (
+        <RequestActions
+          row={detail}
+          openCalls={openCalls[detail.id] ?? []}
+          canAct={canAct}
+          busy={busy}
+          onClose={() => setDetail(null)}
+          onMap={(ucn) => void mapToUcn(detail, ucn)}
+          onCreate={() => void register(detail)}
+          onCancel={(reason) => void cancelRequest(detail, reason)}
+          onOpenCall={(c) => { setDetail(null); navigate(/install/i.test(c.callType) ? '/installations' : '/field-calls', { state: { editUcn: c.ucn } }); }}
+        />
+      )}
 
       {panel && (
         <RegisterPanel
@@ -181,6 +296,124 @@ export function PendingRegistrations() {
           onDone={(ucn) => { setPanel(null); setMsg({ tone: 'ok', text: `Registered as ${ucn} — UCN back-filled into the request.` }); void load(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Request detail + the three ways to close it out: map to an existing call,
+// create a new one, or cancel.
+// ---------------------------------------------------------------------------
+function RequestActions({
+  row, openCalls, canAct, busy, onClose, onMap, onCreate, onCancel, onOpenCall,
+}: {
+  row: Row;
+  openCalls: OpenCall[];
+  canAct: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onMap: (ucn: string) => void;
+  onCreate: () => void;
+  onCancel: (reason: string) => void;
+  onOpenCall: (c: OpenCall) => void;
+}) {
+  const cancelMaster = useMaster('cancelreason', ['Duplicate request', 'Raised in error', 'Customer withdrew', 'Not a service call']);
+  const [manualUcn, setManualUcn] = useState('');
+  const [mode, setMode] = useState<'actions' | 'cancel'>('actions');
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+
+  const detailKeys = Object.keys(row).filter((k) => k !== 'id' && !k.startsWith('_') && !/^Page.*Header$/i.test(k) && row[k] != null && String(row[k]).trim() !== '');
+
+  return (
+    <div className="reg-overlay" onMouseDown={onClose}>
+      <div className="reg-split" onMouseDown={(e) => e.stopPropagation()}>
+        <aside className="reg-split-left">
+          <div className="reg-split-head"><span>📄 Request details</span></div>
+          <div className="reg-detail-list">
+            {detailKeys.map((k) => (
+              <div className="reg-detail-row" key={k}>
+                <div className="reg-detail-k">{k}</div>
+                <div className="reg-detail-v">{String(row[k])}</div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <section className="reg-split-right">
+          <div className="reg-split-head">
+            <span>⚙️ Action this request</span>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+          </div>
+          <div className="reg-split-body">
+            {!canAct && <div className="sheet-banner sheet-banner-info"><span>Your role can view requests but not action them.</span></div>}
+
+            {mode === 'actions' ? (
+              <>
+                <div className="req-act-sec">
+                  <div className="rep-sec-title">Open calls for this machine</div>
+                  {openCalls.length === 0 ? (
+                    <div className="detail-hint">No open call found — nothing is pending on this serial/party.</div>
+                  ) : (
+                    <div className="req-open-list">
+                      {openCalls.map((c) => (
+                        <div className="req-open-row" key={c.ucn}>
+                          <div className="req-open-main">
+                            <button className="linklike" onClick={() => onOpenCall(c)}>{c.ucn}</button>
+                            <StateBadge state={c.state} />
+                            <span className="muted">{c.callType} · {c.regDate || '—'} · {c.allocatedTo || 'unallocated'}</span>
+                            {c.complaint && <div className="muted req-open-cmp">{c.complaint}</div>}
+                          </div>
+                          <button className="btn btn-sm btn-primary" disabled={!canAct || busy} onClick={() => onMap(c.ucn)}>Map</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="req-act-sec">
+                  <div className="rep-sec-title">Map another UCN</div>
+                  <div className="row map-cell">
+                    <input className="input" value={manualUcn} placeholder="Type a UC Number…" onChange={(e) => setManualUcn(e.target.value)} />
+                    <button className="btn btn-sm" disabled={!canAct || busy || !manualUcn.trim()} onClick={() => onMap(manualUcn.trim())}>Map this UCN</button>
+                  </div>
+                  <div className="detail-hint">Mapping fills UCN (Mapped) and takes the request off the pending list.</div>
+                </div>
+
+                <div className="rep-actions">
+                  <button className="btn btn-danger" disabled={!canAct || busy} onClick={() => setMode('cancel')}>✕ Cancel request</button>
+                  <button className="btn btn-primary" disabled={!canAct || busy} onClick={onCreate}>＋ Create new call</button>
+                </div>
+              </>
+            ) : (
+              <div className="req-act-sec">
+                <div className="rep-sec-title">Cancel this request</div>
+                <label className="rep-field">
+                  <span className="field-label">Cancel reason *</span>
+                  <select className="select" value={reason} onChange={(e) => setReason(e.target.value)}>
+                    <option value="">—</option>
+                    {cancelMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                </label>
+                <label className="rep-field">
+                  <span className="field-label">Note</span>
+                  <textarea className="input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+                </label>
+                <div className="rep-actions">
+                  <button className="btn" disabled={busy} onClick={() => setMode('actions')}>Back</button>
+                  <button
+                    className="btn btn-danger"
+                    disabled={busy || !reason}
+                    onClick={() => onCancel(note.trim() ? `${reason} — ${note.trim()}` : reason)}
+                  >
+                    Cancel request
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

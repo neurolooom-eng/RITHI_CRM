@@ -87,6 +87,14 @@ const CALL_COLS: Record<string, string> = {
 const DATE_KEYS = new Set(['regDate', 'complaintDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd', 'breakdownDate']);
 const CALL_COLS_INV: Record<string, string> = Object.fromEntries(Object.entries(CALL_COLS).map(([k, v]) => [v, k]));
 
+// Postgres/RLS errors reach the UI verbatim otherwise; make the common ones read.
+export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
+  const m = String(e?.message ?? 'Unknown error');
+  if (e?.code === '42501' || /row-level security/i.test(m))
+    return 'Your role does not have permission for this action.';
+  return m;
+}
+
 function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [col, val] of Object.entries(row)) {
@@ -94,6 +102,11 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
     if (key) out[key] = val ?? '';
   }
   out._id = row.id;
+  // Denormalised call state (0012) — rides along with every call the register
+  // already loads, so no second query is needed to colour the list.
+  out.callState = row.open_state ?? '';
+  out.lastStatus = row.last_status ?? '';
+  out.lastVisitAt = row.last_visit_at ?? '';
   return out;
 }
 function callToDb(rec: Record<string, unknown>): Record<string, unknown> {
@@ -279,30 +292,86 @@ export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok
   return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
 }
 
-// One request, several product/serial pairs (up to 5). All share one REQID; the
-// DB trigger gives each row its own UniqueID (REQID-Product-SerialNo). The first
-// insert mints the REQID (trigger), the rest reuse it.
-export async function addCallRequestBatch(base: Record<string, unknown>, pairs: { product: string; serial: string }[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
+// One request, several call items (up to 5). An item is a Product + Serial No +
+// Standard Complaint + Reported Problem group — each becomes its own row. All
+// rows share one REQID (so REQID is NOT unique — see 0007); each row's identity
+// is its UniqueID (REQID-Product-SerialNo), assigned by the DB trigger.
+export interface CallRequestItem {
+  product: string;
+  serial: string;
+  standardComplaint: string;
+  reportedProblem: string;
+}
+const itemCols = (it: CallRequestItem) => ({
+  product: it.product,
+  serial_no: it.serial,
+  standard_complaint: it.standardComplaint,
+  reported_problem: it.reportedProblem,
+});
+export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();
-  if (pairs.length === 0) return { ok: false, error: 'Add at least one product.' };
-  const first = { ...base, product: pairs[0].product, serial_no: pairs[0].serial };
+  if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
+
+  // Mint the REQID first, then write every item in ONE insert — a request is
+  // never half-saved. `next_call_reqid` ships in migration 0007; without it we
+  // fall back to the older per-row path below.
+  const { data: minted, error: mintErr } = await c.rpc('next_call_reqid');
+  if (!mintErr && minted) {
+    const reqid = String(minted);
+    const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
+    const { error } = await c.from('call_requests').insert(rows);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, reqid, count: rows.length };
+  }
+
+  // Fallback: the first insert mints the REQID (DB trigger), the rest reuse it.
+  // This needs 0007's dropped `reqid` unique constraint for more than one item.
+  const first = { ...base, ...itemCols(items[0]) };
   const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
   if (error) return { ok: false, error: error.message };
   const reqid = String(data.reqid ?? '');
-  if (pairs.length > 1) {
-    const rest = pairs.slice(1).map((p) => ({ ...base, reqid, product: p.product, serial_no: p.serial }));
+  if (items.length > 1) {
+    const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
     const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${e2.message}` };
+    if (e2) {
+      const hint = /call_requests_reqid_key/.test(e2.message)
+        ? ' Run migration 0007_call_request_items.sql — REQID must not be unique, a request has one row per call.'
+        : '';
+      return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${e2.message}.${hint}` };
+    }
   }
-  return { ok: true, reqid, count: pairs.length };
+  return { ok: true, reqid, count: items.length };
+}
+
+// Every call request, whatever its outcome — the Request Registration register.
+// Rows keep the app's camelCase shape; `status` is Pending / Mapped /
+// Registered / Cancelled.
+export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('call_requests').select('*')
+    .order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    id: r.id, reqid: r.reqid, uniqueKey: r.unique_key, submittedAt: r.submitted_at,
+    engineer: r.engineer, email: r.email, callType: r.call_type,
+    partyName: r.party_name, state: r.state, city: r.city, address: r.address,
+    product: r.product, serial: r.serial_no,
+    standardComplaint: r.standard_complaint, reportedProblem: r.reported_problem,
+    customerContactDetails: r.customer_contact_details, customerContactNumber: r.customer_contact_number,
+    installationReport: r.installation_report, kyc: r.kyc,
+    callAttended: r.call_attended, attendedDate: r.attended_date, planDate: r.plan_date,
+    additionalComments: r.additional_comments,
+    ucn: r.ucn ?? '', status: r.status ?? 'Pending',
+    cancelReason: r.cancel_reason ?? '', actionedBy: r.actioned_by ?? '', actionedAt: r.actioned_at ?? '',
+  }));
 }
 
 // Pending call registrations (no UCN yet), mapped to the header keys the
 // Pending Registrations screen already reads.
 export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('call_requests').select('*')
-    .or('ucn.is.null,ucn.eq.').order('submitted_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+    .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
+    .order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => ({
     _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
     'Timestamp': r.submitted_at, 'ENGINEER': r.engineer, 'E-Mail ID': r.email, 'CALL TYPE': r.call_type,
@@ -314,9 +383,101 @@ export async function listCallRequestsAsPending(limit = 500): Promise<Record<str
     'Additional Comments': r.additional_comments,
   }));
 }
-export async function setCallRequestUcn(id: number, ucn: string): Promise<boolean> {
-  const { error } = await must().from('call_requests').update({ ucn, status: 'Registered' }).eq('id', id);
-  return !error;
+// Close a request out with a UCN: 'Registered' (a new call was created from it)
+// or 'Mapped' (it belongs to a call that already existed). Either way it leaves
+// the pending list, which only lists requests with no UCN.
+export async function setCallRequestUcn(id: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('call_requests')
+    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Cancel a request — it stops being pending without ever becoming a call.
+export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const { error } = await must().from('call_requests')
+    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- call state / open calls ------------------------------------------------
+// A call's state comes from its LATEST visit (view `call_state`, migration
+// 0012): Unattended (no visit yet), Unsolved, Report pending, or Solved.
+// Everything but Solved counts as OPEN.
+export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved';
+export const OPEN_STATES: CallState[] = ['Unattended', 'Unsolved', 'Report pending'];
+
+export interface OpenCall {
+  ucn: string; callType: string; partyName: string; productName: string; serial: string;
+  allocatedTo: string; regDate: string; complaint: string;
+  state: Exclude<CallState, 'Solved'>;
+}
+const CHUNK = 150;
+const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+// Pending (not solved) calls, optionally for one call type — the Pending Calls
+// register. Rows come back in the app's call shape plus `state`.
+export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    let q = must().from('pending_calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    if (callType) q = q.eq('call_type', callType);
+    const { data, error } = await q;
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? '') })));
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// Open calls on any of these serials (or parties, when a request has no
+// serial) — the Hotline's "is there already a call for this?" check.
+export async function openCallsFor(serials: string[], parties: string[] = []): Promise<OpenCall[]> {
+  const c = must();
+  const ser = [...new Set(serials.map((s) => s.trim()).filter(Boolean))];
+  const par = [...new Set(parties.map((s) => s.trim()).filter(Boolean))];
+  if (!ser.length && !par.length) return [];
+
+  const rows: Record<string, unknown>[] = [];
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state';
+  for (const part of chunked(ser)) {
+    const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
+    if (error) throw new Error(errMsg(error));
+    rows.push(...(data ?? []));
+  }
+  if (!ser.length) {
+    for (const part of chunked(par)) {
+      const { data, error } = await c.from('pending_calls').select(cols).in('party_name', part).limit(1000);
+      if (error) throw new Error(errMsg(error));
+      rows.push(...(data ?? []));
+    }
+  }
+
+  const byUcn = new Map<string, OpenCall>();
+  rows.forEach((r) => {
+    const ucn = String(r.ucn ?? '');
+    if (!ucn || byUcn.has(ucn)) return;
+    byUcn.set(ucn, {
+      ucn, callType: String(r.call_type ?? ''), partyName: String(r.party_name ?? ''),
+      productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
+      allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
+      complaint: String(r.complaint_reported ?? ''),
+      state: (String(r.open_state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+    });
+  });
+  return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+}
+
+// Does this UCN exist? (manual mapping is free text, so it is worth checking.)
+export async function callByUcn(ucn: string): Promise<Record<string, unknown> | null> {
+  const { data } = await must().from('calls').select('*').eq('ucn', ucn).maybeSingle();
+  return data ? dbToCall(data) : null;
 }
 
 // ---- pending registrations -------------------------------------------------

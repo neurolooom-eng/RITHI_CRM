@@ -116,6 +116,8 @@ function _dispatchGet(e) {
   if (action === 'crnrequest') return _addCrn(_parse(e.parameter.data));
   if (action === 'setucn') return _setUcn(e.parameter.uid, e.parameter.ucn);
   // Shared "default for everyone" table views (admin-set), stored in script props.
+  // Drive upload hand-off: read back the link for a POSTed file by its ref.
+  if (action === 'driveref') return _getRef(e.parameter.ref);
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
   // Writes are also accepted over GET (JSONP) so they work when the browser
@@ -148,6 +150,7 @@ function doPost(e) {
     if (action === 'tabmeta') return _json(_tabMeta(body.tab, body.book));
     if (action === 'tabappend') return _json(_tabAppend(body.tab, body.data || {}, body.book));
     if (action === 'upload') return _json(_uploadReport(body));
+    if (action === 'driveupload') return _json(_driveUpload(body));
     if (action === 'master') return _json(_master(body.name, Number(body.limit) || 0));
     if (action === 'masters') return _json({ ok: true, registry: _masters() });
     if (action === 'setmasters') return _json(_setMasters(body.data || {}));
@@ -490,6 +493,53 @@ function _uploadReport(body) {
   var url = file.getUrl();
   var patch = {}; patch[column] = url;
   _saveReport(ucn, patch); // link the file into the report row
+  return { ok: true, url: url };
+}
+
+// ---------------------------------------------------------------------------
+// Generic Drive upload — stores a file and returns its link WITHOUT writing to
+// a sheet. Used by Request Call Registration (Installation Report / KYC), which
+// has no UCN yet. The browser can't read the POST response, so the client sends
+// a `ref` and picks the link up afterwards with the `driveref` GET action.
+// ---------------------------------------------------------------------------
+var REQUEST_DOC_FOLDER_ID = ''; // optional; empty = share the report folder
+
+function _requestDocFolder() {
+  if (REQUEST_DOC_FOLDER_ID) {
+    try { return DriveApp.getFolderById(REQUEST_DOC_FOLDER_ID); } catch (e) { /* fall through */ }
+  }
+  return _reportFolder();
+}
+
+function _driveUpload(body) {
+  var b64 = body.dataBase64 || '';
+  if (!b64) return { ok: false, error: 'file required' };
+  var name = body.filename || ('upload-' + Date.now());
+  if (body.prefix) name = String(body.prefix).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) + ' - ' + name;
+  var bytes = Utilities.base64Decode(b64);
+  var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', name);
+  var file = _requestDocFolder().createFile(blob);
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy may forbid */ }
+  var url = file.getUrl();
+  if (body.ref) _putRef(String(body.ref), url);
+  return { ok: true, url: url, name: name };
+}
+
+// ref -> url hand-off. Cached for 15 min; the property copy is the fallback and
+// is deleted once the client has read it, so nothing accumulates.
+function _putRef(ref, url) {
+  try { CacheService.getScriptCache().put('ref_' + ref, url, 900); } catch (e) { /* cache optional */ }
+  try { PropertiesService.getScriptProperties().setProperty('ref_' + ref, url); } catch (e) { /* props optional */ }
+}
+
+function _getRef(ref) {
+  if (!ref) return { ok: false, error: 'ref required' };
+  var url = null;
+  try { url = CacheService.getScriptCache().get('ref_' + ref); } catch (e) { /* cache optional */ }
+  var props = PropertiesService.getScriptProperties();
+  if (!url) { try { url = props.getProperty('ref_' + ref); } catch (e) { /* props optional */ } }
+  if (!url) return { ok: false, error: 'pending' };
+  try { props.deleteProperty('ref_' + ref); } catch (e) { /* best effort */ }
   return { ok: true, url: url };
 }
 

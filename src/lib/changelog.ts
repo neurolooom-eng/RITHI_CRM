@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-08-29',
+    title: 'Call requests: a register, a Hotline desk, and call status',
+    changes: [
+      'Request Call Registration is a register: every request raised, newest first, with what became of it \u2014 Pending, Registered, Mapped or Cancelled \u2014 and the UCN once it has one. Status filter, search, CSV export, and New Request in a drawer.',
+      'A request is one row per call: Product + Serial No + Standard Complaint + Reported Problem, up to 5 per request, all under one REQID. Installation Report and KYC are file uploads to the Drive folder.',
+      'Pending Registrations is the Hotline desk: open a request and either map it to a call that already exists, create a new one, or cancel it with a reason. An Open Calls column flags machines that already have a call nobody has closed.',
+      'Every register shows a colour-coded Call Status \u2014 Solved, Unsolved, Report pending, Unattended \u2014 from the call\u2019s latest visit, and a new Pending Calls screen lists every call nobody has closed across Field, Installation and PM.',
+      'Call Number is assigned rather than typed: the request\u2019s UniqueID, or CLYY##### for a direct customer call.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-08-28',
     title: 'Reporting workflow, role-based access, mobile & masters',

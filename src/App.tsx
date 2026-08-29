@@ -15,6 +15,7 @@ import { RolePermissions } from './modules/RolePermissions';
 import { AuditLog } from './modules/AuditLog';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
+import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
 import { SpareConsumption } from './modules/SpareConsumption';
@@ -78,6 +79,7 @@ function Shell() {
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/user-master" element={<UserMasterView />} />
         <Route path="/pm-calls" element={<PMCalls />} />
+        <Route path="/pending-calls" element={<PendingCalls />} />
         <Route path="/reports" element={<Reports />} />
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />

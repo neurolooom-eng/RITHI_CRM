@@ -4,7 +4,7 @@ import { PageHeader, Drawer } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { fmtDateTime } from '../lib/format';
-import { sheetsConfigured } from '../lib/sheets';
+import { dataConfigured } from '../lib/sheets';
 import './fieldcalls.css';
 
 const ROLE_OPTS = (Object.keys(ROLE_LABELS) as Role[]).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
@@ -31,7 +31,7 @@ export function UsersAdmin() {
 
   // Import all User Master users by default (once per session).
   useEffect(() => {
-    if (!can('manage-users') || !sheetsConfigured()) return;
+    if (!can('manage-users') || !dataConfigured()) return;
     try {
       if (sessionStorage.getItem('rithi.usersImported')) return;
       sessionStorage.setItem('rithi.usersImported', '1');

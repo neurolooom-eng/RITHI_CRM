@@ -37,6 +37,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/field-calls', label: 'Field Call Register' },
   { path: '/installations', label: 'Installation Calls' },
   { path: '/pm-calls', label: 'Preventive (PM)' },
+  { path: '/pending-calls', label: 'Pending Calls' },
   { path: '/reports', label: 'Reports' },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
