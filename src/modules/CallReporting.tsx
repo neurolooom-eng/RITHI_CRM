@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -98,7 +98,11 @@ export function CallReportDrawer({
   // Engineer dropdown: admin → everyone; manager → their reports; else self.
   const selfName = user?.fullName ?? '';
   const [allEngineers, setAllEngineers] = useState<string[]>([]);
-  useEffect(() => { if (open && isAdmin) sbEngineerNames().then(setAllEngineers).catch(() => {}); }, [open, isAdmin]);
+  useEffect(() => {
+    if (!open || !isAdmin) return;
+    // Prefer the User Master directory; fall back to names seen on calls.
+    sbDirectoryNames().then((d) => { if (d.length) setAllEngineers(d); else sbEngineerNames().then(setAllEngineers).catch(() => {}); }).catch(() => sbEngineerNames().then(setAllEngineers).catch(() => {}));
+  }, [open, isAdmin]);
   const engineerOptions = useMemo(() => {
     const base = isAdmin ? allEngineers : scope.isManager ? [selfName, ...scope.reports] : [selfName];
     const set = new Set(base.filter(Boolean));

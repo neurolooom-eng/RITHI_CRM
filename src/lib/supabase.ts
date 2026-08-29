@@ -316,8 +316,32 @@ export async function setPendingUcn(id: number, ucn: string): Promise<boolean> {
   return !error;
 }
 
-// Distinct engineer names seen on calls (source for the reporting engineer
-// dropdown until the User Master directory is migrated).
+// ---- User directory (User Master) ------------------------------------------
+// All directory rows, keyed with the header names access.ts / auth already use,
+// so those consumers work unchanged.
+export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  const out: Record<string, unknown>[] = [];
+  const PAGE = 1000;
+  for (let from = 0; from < 20000; from += PAGE) {
+    const { data, error } = await c.from('user_directory').select('*').range(from, from + PAGE - 1);
+    if (error) break;
+    const rows = data ?? [];
+    rows.forEach((r) => out.push({
+      'User Name': r.name, 'Email ID': r.email, 'GMAIL ID': r.gmail, 'Designation': r.designation,
+      'RM': r.reporting_manager, 'RGM': r.regional_manager, 'REGION': r.region,
+      'Validity': r.validity ? 'TRUE' : 'FALSE',
+    }));
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+export async function sbDirectoryNames(): Promise<string[]> {
+  return distinctColumn('user_directory', 'name');
+}
+
+// Distinct engineer names seen on calls (fallback source for the reporting
+// engineer dropdown when the directory isn't populated yet).
 export async function sbEngineerNames(): Promise<string[]> {
   const names = new Set<string>();
   const PAGE = 1000;

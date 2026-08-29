@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports';
+export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory';
 
 // Minimal CSV parser (quotes, commas, newlines).
 export function parseCSV(text: string): Record<string, string>[] {
@@ -33,6 +33,7 @@ export function parseCSV(text: string): Record<string, string>[] {
 export function detectTable(headers: string[]): ImportTable | null {
   const H = new Set(headers.map((h) => h.trim()));
   if (H.has('name') && H.has('value')) return 'masters';
+  if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   if (H.has('ucn') && H.has('data')) return 'reports';
   if (H.has('ucn') && H.has('call_type')) return 'calls';
   if (H.has('serial_number') && H.has('item_name')) return 'products';
@@ -67,6 +68,7 @@ function dedupe(rows: Record<string, unknown>[], key: string): Record<string, un
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
     case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
+    case 'user_directory': return raw.map((r) => ({ ...r, validity: !/^(false|no|0|inactive)$/i.test(String(r.validity ?? 'true')) } as Record<string, unknown>)).filter((r) => r.name);
     case 'parties': return raw.filter((r) => r.party_name);
     case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
     case 'products': return raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of PROD_DATES) o[d] = toDate(r[d]); return o; });
