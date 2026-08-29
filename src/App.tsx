@@ -6,7 +6,7 @@ import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
-import { FieldCalls, InstallationCalls } from './modules/FieldCalls';
+import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
@@ -27,7 +27,6 @@ import {
   partConfig,
   warrantyConfig,
   contractConfig,
-  pmConfig,
   feedbackConfig,
 } from './modules/schemas';
 
@@ -60,7 +59,7 @@ function Shell() {
         <Route path="/pending-registrations" element={<PendingRegistrations />} />
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/user-master" element={<UserMasterView />} />
-        <Route path="/pm-calls" element={<CrudModule config={pmConfig} />} />
+        <Route path="/pm-calls" element={<PMCalls />} />
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />

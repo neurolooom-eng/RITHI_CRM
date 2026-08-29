@@ -288,11 +288,26 @@ export const INST_CONFIG: CallSheetConfig = {
   csvName: 'installation-calls.csv',
 };
 
+export const PM_CONFIG: CallSheetConfig = {
+  tab: 'PM',
+  callType: 'P M VISIT',
+  singular: 'PM Call',
+  title: 'Preventive (PM) Calls',
+  subtitle: 'Preventive-maintenance visits (call_type = P M VISIT). Bulk-load monthly; back-dating supported.',
+  icon: '🗓️',
+  collection: C.pmcalls,
+  storageKey: 'pmCalls',
+  csvName: 'pm-calls.csv',
+};
+
 export function FieldCalls() {
   return <CallSheetModule config={FIELD_CONFIG} />;
 }
 export function InstallationCalls() {
   return <CallSheetModule config={INST_CONFIG} />;
+}
+export function PMCalls() {
+  return <CallSheetModule config={PM_CONFIG} />;
 }
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
