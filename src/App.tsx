@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { MODULES, moduleAction } from './lib/rbac';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { clearDemoData } from './lib/seed';
@@ -33,7 +34,8 @@ import {
 } from './modules/schemas';
 
 function Shell() {
-  const { user, booting } = useAuth();
+  const { user, booting, can } = useAuth();
+  const location = useLocation();
   useEffect(() => {
     if (user) clearDemoData(); // live data only — no dummy records
   }, [user]);
@@ -41,6 +43,19 @@ function Shell() {
   // While a persisted Supabase session is being restored, don't flash the login.
   if (booting) return <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', color: 'var(--muted, #888)' }}>Loading…</div>;
   if (!user) return <Login />;
+
+  // RBAC route guard: a known module the role can't open is blocked (nav hides
+  // it too). Unknown paths fall through to the routes / not-found.
+  const known = MODULES.some((m) => m.path === location.pathname);
+  if (known && !can(moduleAction(location.pathname))) {
+    return (
+      <Layout>
+        <div style={{ padding: 32 }} className="muted">
+          🔒 You don’t have access to this module. Ask an administrator to grant it in <b>Roles &amp; Permissions</b>.
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
