@@ -108,6 +108,11 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
     if (key) out[key] = val ?? '';
   }
   out._id = row.id;
+  // Denormalised call state (0014) — rides along with every call the register
+  // already loads, so no second query is needed to colour the list.
+  out.callState = row.open_state ?? '';
+  out.lastStatus = row.last_status ?? '';
+  out.lastVisitAt = row.last_visit_at ?? '';
   return out;
 }
 function callToDb(rec: Record<string, unknown>): Record<string, unknown> {
@@ -398,34 +403,6 @@ const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
   return out;
 };
 
-// State of specific calls, keyed by UCN. Unknown UCNs are simply absent.
-export async function callStates(ucns: string[]): Promise<Record<string, CallState>> {
-  const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
-  const out: Record<string, CallState> = {};
-  for (const part of chunked(list)) {
-    const { data, error } = await must().from('call_state').select('ucn,state').in('ucn', part);
-    if (error) throw new Error(errMsg(error));
-    (data ?? []).forEach((r) => { out[String(r.ucn)] = String(r.state) as CallState; });
-  }
-  return out;
-}
-
-// Every call that is NOT solved, keyed by UCN — one paged query, so a whole
-// register can be colour-coded without asking about each call.
-export async function openCallStates(limit = 20000): Promise<Record<string, CallState>> {
-  const PAGE = 1000;
-  const out: Record<string, CallState> = {};
-  for (let from = 0; from < limit; from += PAGE) {
-    const { data, error } = await must().from('call_state').select('ucn,state')
-      .neq('state', 'Solved').range(from, Math.min(from + PAGE, limit) - 1);
-    if (error) throw new Error(errMsg(error));
-    const rows = data ?? [];
-    rows.forEach((r) => { out[String(r.ucn)] = String(r.state) as CallState; });
-    if (rows.length < PAGE) break;
-  }
-  return out;
-}
-
 // Pending (not solved) calls, optionally for one call type — the Pending Calls
 // register. Rows come back in the app's call shape plus `state`.
 export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
@@ -437,7 +414,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? '') })));
     if (rows.length < PAGE) break;
   }
   return out;

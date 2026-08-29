@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, openCallStates } from '../lib/supabase';
+import { supabaseConfigured, searchCalls } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import './fieldcalls.css';
 import {
@@ -328,14 +328,6 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  // Which calls are still open (Unattended / Unsolved / Report pending). One
-  // query for the whole register; every other call is Solved.
-  const [callStates, setCallStates] = useState<Record<string, string>>({});
-  const loadStates = () => {
-    if (!supabaseConfigured()) return;
-    openCallStates().then(setCallStates).catch(() => { /* column stays blank until 0012 is run */ });
-  };
-  useEffect(() => { loadStates(); /* eslint-disable-next-line */ }, []);
   const { user, can } = useAuth();
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
@@ -405,7 +397,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     } finally {
       setBusy(false);
     }
-    loadStates();
   };
 
   // Use the cached data when it's fresh (< 30 min); only auto-sync when the
@@ -610,13 +601,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       )),
     );
     // Newest first: cache already appends in load order; reverse for recency.
-    // Call Status comes from the open-call map — anything not listed there is
-    // closed, and a local (unsynced) call has no state yet.
-    return [...r].reverse().map((row) => ({
-      ...row,
-      callState: row._pending || !row.ucn ? '' : callStates[String(row.ucn)] ?? 'Solved',
-    }));
-  }, [cached, srch, scope, user?.id, onDb, callStates]);
+    return [...r].reverse();
+  }, [cached, srch, scope, user?.id, onDb]);
 
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,

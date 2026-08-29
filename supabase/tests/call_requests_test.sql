@@ -78,3 +78,12 @@ select ucn, open_state, party_name, state as geographic_state from public.pendin
 \echo '--- 7. RBAC policies survive re-applying 0003 (the apply bundle does) ---'
 select polname, pg_get_expr(polwithcheck, polrelid) as with_check
   from pg_policy where polrelid = 'public.call_requests'::regclass and polname = 'cr_insert';
+
+\echo '--- 8. Call state lives on the call and the trigger keeps it current (0014) ---'
+select ucn, open_state from public.calls where ucn like 'U-%' order by ucn;
+\echo 'a new unsolved visit flips a solved call without any view re-deriving it'
+insert into public.reports (uid, ucn, call_status, visit_at) values ('V6','U-PENDING','Solved - Report Completed', now());
+select ucn, last_status, open_state from public.calls where ucn = 'U-PENDING';
+\echo 'deleting the last visit puts the call back to Unattended'
+delete from public.reports where ucn = 'U-UNSOLVED';
+select ucn, last_status, open_state from public.calls where ucn = 'U-UNSOLVED';

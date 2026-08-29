@@ -46,7 +46,11 @@ with checks(sort_order, bundle, provides, present) as (
     (11, 'reports: ordering',      'reports_visit_at_idx (0010_reports_ordering)',
         exists (select 1 from pg_indexes
                  where schemaname='public' and tablename='reports' and indexname='reports_visit_at_idx')),
-    (12, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
+    (12, 'call_requests: state (fast)', 'calls.open_state + the reports trigger (0014)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='calls' and column_name='open_state')
+     and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
+    (13, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles
                       where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'

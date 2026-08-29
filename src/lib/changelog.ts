@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.4',
+    date: '2026-08-29',
+    title: 'Call status no longer times out',
+    changes: [
+      'Loading a register or Pending Calls could fail with \u201ccanceling statement due to statement timeout\u201d. The call\u2019s status was re-derived from the whole visit history on every read, and the per-row security checks on visits made that ~140\u00d7 more expensive than the same query without them.',
+      'A call now carries its own latest-visit status, kept current as visits are saved. The registers get it with the rows they already load \u2014 one query instead of two \u2014 and Pending Calls reads an indexed column.',
+    ],
+  },
+  {
     version: '0.6.3',
     date: '2026-08-29',
     title: 'File uploads are live',
