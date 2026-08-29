@@ -32,7 +32,8 @@ each other.
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
 | `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
 | `call_requests.sql` | `0003`, `0010`, `0011`, `0012` — call requests, the Hotline actions, and the call-state views | `user_directory` |
-| `all.sql` | the four above, in dependency order | base `0001` |
+| `reports.sql` | `0010_reports_ordering` — visit-history ordering indexes | base `0001` |
+| `all.sql` | the five above, in dependency order | base `0001` |
 
 Use `all.sql` when a project is behind on more than one module; use a
 per-module bundle when you only need that one.

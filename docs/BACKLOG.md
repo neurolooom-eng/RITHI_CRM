@@ -149,6 +149,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - ✅ **Spare approval workflow** — RM → Commercial → NSM → Stores(DC); Commercial
   & NSM auto-approve unless item is AMC/OGP; RBAC-gated stage actions.
 - ✅ New-call create fix (`0008`: creator can read back the inserted row).
+- ✅ **Reporting reads fixed** — every `reports` query ordered by a `created_at`
+  column the table never had, so the Reporting page failed with *“column
+  reports.created_at does not exist”*. Ordering is now `visit_at` (newest visit
+  first, nulls last) tie-broken by `id`. **Run the `reports` apply bundle**
+  (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
+  without it, large loads are just slower.
 
 ### Open items & questions
 - **User Master data + engineer logins** — directory infra is done and `0004`
@@ -176,9 +182,15 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
   — say so if it should be hidden instead.
-- **Manual Report** — currently a Drive-link paste; the `driveupload` endpoint
-  added for the request form can back a file-upload flow here too (folder
-  `1-46Ud9j…z2La`) (question).
+- **Manual Report** — ✅ upload restored. The report form takes either a pasted
+  Drive link or a file (PDF/photo, ≤10 MB) uploaded through the same
+  `driveupload` / `driveref` endpoints the request form uses (folder
+  `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
+  ordinary Drive link. The previous visit's report is linked from the drawer.
+  **Blocked on the same CallReg redeploy as the request-form uploads** — until
+  it ships, uploading times out and pasting a link is the working path.
+  **Queued:** surface the link as a 📎 column in the Reports register and the
+  call-view mini-table.
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;

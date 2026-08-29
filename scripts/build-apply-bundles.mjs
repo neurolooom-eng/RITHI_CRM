@@ -71,6 +71,12 @@ const MODULES = {
       '0012_call_state.sql',
     ],
   },
+  reports: {
+    title: 'Reports',
+    blurb: ['The visit history: the indexes behind its newest-first ordering.'],
+    needs: ['profiles'],
+    files: ['0010_reports_ordering.sql'],
+  },
   spare_requests: {
     title: 'Spare Requests',
     blurb: [
@@ -156,6 +162,7 @@ MODULES.all = {
     ...MODULES.user_directory.files,
     ...MODULES.call_requests.files,
     ...MODULES.rbac.files,
+    ...MODULES.reports.files,
     ...MODULES.spare_requests.files,
   ],
 };

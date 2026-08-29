@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.2',
+    date: '2026-08-29',
+    title: 'Reporting loads again, and the manual report can be uploaded',
+    changes: [
+      'Fixed the Reporting page failing to sync \u2014 it asked the database to sort by a column the reports table does not have. Visits now come back newest first, by visit date.',
+      'Manual Report takes a file, not just a link: upload the signed report (PDF or photo, up to 10 MB) straight from the report form and it goes to the CallReg Drive folder, filling the link for you. Pasting a link still works.',
+      'The report filed on the previous visit is now one click away from the Update Call drawer.',
+    ],
+  },
+  {
     version: '0.6.1',
     date: '2026-08-29',
     title: 'All Masters view; Part Master reads the live catalogue',
