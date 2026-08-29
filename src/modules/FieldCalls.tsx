@@ -20,10 +20,12 @@ import {
   listPartyItems,
   listPartyProducts,
   setPendingUcn,
-  sheetsConfigured,
+  dataSource,
+  dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
 import { supabaseConfigured, searchCalls } from '../lib/supabase';
+import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 import {
@@ -49,12 +51,20 @@ const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
 export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
-  if (!prefill) return FIELD_CALL_FIELDS;
-  return FIELD_CALL_FIELDS.map((f) =>
-    FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== ''
-      ? { ...f, readOnly: true, help: 'From Product Master (locked)' }
-      : f,
-  );
+  // Call Number is never typed: a call registered from a request carries the
+  // request's UniqueID (REQID-Product-Serial); a direct call is assigned
+  // CLYY##### by the database on save.
+  const callNumberField = (f: FieldDef): FieldDef =>
+    String(prefill?.callNumber ?? '') !== ''
+      ? { ...f, readOnly: true, help: 'From the call request (UniqueID)' }
+      : { ...f, readOnly: true, help: 'Assigned on save — CLYY##### for a direct customer call' };
+
+  return FIELD_CALL_FIELDS.map((f) => {
+    if (f.name === 'callNumber') return callNumberField(f);
+    if (prefill && FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== '')
+      return { ...f, readOnly: true, help: 'From Product Master (locked)' };
+    return f;
+  });
 }
 
 // ===========================================================================
@@ -75,7 +85,7 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
   { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet UCN format.', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
-  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. R18447-MONNAL T75-7909', span: 1 },
+  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'Assigned on save', span: 1 },
   { name: 'complaintDate', label: 'Complaint Date', type: 'date', section: 'Registration', required: true, span: 1 },
 
   // Customer & product
@@ -121,6 +131,12 @@ const COLUMNS: Column<Rec>[] = [
     render: (r) => (r._pending ? <span title="Not yet in the sheet">⏳</span> : <span title="In the sheet" className="muted">✓</span>),
   },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  {
+    // Filled from the `call_state` view after the register loads — a call is
+    // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
+    key: 'callState', header: 'Call Status', width: 130, wrap: false,
+    render: (r) => <StateBadge state={String(r.callState ?? '')} />,
+  },
   { key: 'callNumber', header: 'Call Number', width: 170 },
   { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
@@ -278,7 +294,7 @@ export const FIELD_CONFIG: CallSheetConfig = {
   callType: 'FIELD',
   singular: 'Field Call',
   title: 'Field Call Register',
-  subtitle: 'Live against the FIELD tab of the Call Register — new calls get a UCN and are written back.',
+  subtitle: 'Live Field Call register — new calls get a UCN and are written back.',
   icon: '📡',
   collection: C.fieldCalls,
   storageKey: 'fieldCalls',
@@ -290,7 +306,7 @@ export const INST_CONFIG: CallSheetConfig = {
   callType: 'INSTALLATION CALL',
   singular: 'Installation Call',
   title: 'Installation Call Register',
-  subtitle: 'Live against the INST tab of the Call Register — new calls get a UCN and are written back.',
+  subtitle: 'Live Installation Call register — new calls get a UCN and are written back.',
   icon: '🔧',
   collection: C.instCalls,
   storageKey: 'instCalls',
@@ -353,7 +369,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const syncKey = `rithi.sync.${config.collection}`;
   const [lastSync, setLastSync] = useState<string>(() => { try { return localStorage.getItem(syncKey) ?? ''; } catch { return ''; } });
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
-  const configured = sheetsConfigured();
+  const source = dataSource();
+  const configured = source !== 'none';
   const pendingCount = cached.filter((r) => r._pending).length;
   const location = useLocation();
 
@@ -361,7 +378,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // most recent `limit` rows — the sheet holds thousands.
   const refresh = async (limit = loadLimit) => {
     if (!configured) {
-      setBanner({ tone: 'info', text: 'Not connected to a Google Sheet. Add the Web App URL in Settings → Google Sheet Connection to load & publish calls. New calls are saved locally until then.' });
+      setBanner({ tone: 'info', text: 'No data source connected. Connect the database (or the Google Sheet Web App URL) in Settings to load & publish calls. New calls are saved locally until then.' });
       return;
     }
     setBusy(true);
@@ -406,7 +423,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     } else {
       setBanner({ tone: 'info', text: `Showing cached data — last synced ${timeAgo(lastSync)}. Tap ↻ Refresh to update.` });
     }
-    const id = window.setInterval(() => { if (sheetsConfigured()) void refresh(); }, 30 * 60 * 1000);
+    const id = window.setInterval(() => { if (dataConfigured()) void refresh(); }, 30 * 60 * 1000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -693,9 +710,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             >
               {scopeLabel(scope)}
             </span>
-            {configured && lastSync && <span className="conn-dot conn-off" title="Last synced from the sheet">⟳ {timeAgo(lastSync)}</span>}
-            <span className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`} title={configured ? 'Connected to Google Sheet' : 'Not connected'}>
-              {configured ? '● Sheet connected' : '○ Not connected'}
+            {configured && lastSync && <span className="conn-dot conn-off" title={`Last synced from the ${source === 'db' ? 'database' : 'sheet'}`}>⟳ {timeAgo(lastSync)}</span>}
+            <span
+              className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`}
+              title={source === 'db' ? 'Reading from the Supabase database' : source === 'sheet' ? 'Reading from the Google Sheet' : 'Not connected'}
+            >
+              {source === 'db' ? '● Database connected' : source === 'sheet' ? '● Sheet connected' : '○ Not connected'}
             </span>
             <button
               className="btn btn-sm"

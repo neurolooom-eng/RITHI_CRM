@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
-import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, type Profile } from './supabase';
+import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 
@@ -175,6 +175,11 @@ interface AuthContextValue {
   rolePerms: Record<string, string[]>; // role → allowed actions (admin-editable)
   reloadRoles: () => Promise<void>;
   reloadUsers: () => Promise<void>; // refresh the profiles list after admin edits
+  // Password reset: true while the user arrived on a recovery link and still
+  // has to choose a new password. finishRecovery() sets it and clears the flag.
+  recovering: boolean;
+  finishRecovery: (password: string) => Promise<{ ok: boolean; error?: string }>;
+  cancelRecovery: () => void;
   // The actual logged-in user (never the impersonated one) and whether they are
   // a real administrator — used to gate the "View as" control itself.
   realUser: User | null;
@@ -202,8 +207,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supaUsers, setSupaUsers] = useState<User[]>([]);
   const [supaBooting, setSupaBooting] = useState<boolean>(supaMode);
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(DEFAULT_PERMS);
+  // A recovery link was captured at boot (see takeRecoveryFromUrl): exchange it
+  // for a session so the user can set a new password.
+  const [recovering, setRecovering] = useState(false);
   const reloadRoles = async () => { if (supaMode) { const p = await getRolePerms(); if (Object.keys(p).length) setRolePerms((cur) => ({ ...cur, ...p })); } };
   const reloadUsers = async () => { if (supaMode) { const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); } };
+
+  useEffect(() => {
+    if (!supaMode || !hasPendingRecovery()) return;
+    void sbConsumeRecovery().then((r) => setRecovering(r.ok));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supaMode]);
+
+  const finishRecovery: AuthContextValue['finishRecovery'] = async (password) => {
+    const res = await sbUpdatePassword(password);
+    if (res.ok) setRecovering(false);
+    return res;
+  };
+  const cancelRecovery = () => { setRecovering(false); void sbSignOut(); };
 
   useEffect(() => seedUsers(), []);
   useEffect(() => db.subscribe(USERS, refresh), []);
@@ -419,7 +440,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, realUser, isAdmin, viewAs, setViewAs }}
+      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, recovering, finishRecovery, cancelRecovery, realUser, isAdmin, viewAs, setViewAs }}
     >
       {children}
     </AuthContext.Provider>

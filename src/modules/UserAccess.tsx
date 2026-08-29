@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Drawer } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ACTIONS, ROLES, permsForRole } from '../lib/rbac';
-import { updateProfile, supabaseConfigured } from '../lib/supabase';
+import { updateProfile, sbSendPasswordReset, supabaseConfigured } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
@@ -19,6 +19,20 @@ export function UserAccess() {
   const [q, setQ] = useState('');
   const [edit, setEdit] = useState<User | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
+  const [resetting, setResetting] = useState<string | null>(null);
+
+  // Email the user a reset link. Admins never see or set someone else's
+  // password — only the account holder chooses it, from the link.
+  const sendReset = async (u: User) => {
+    if (!supabaseConfigured()) { setMsg({ tone: 'error', text: 'Connect the database first.' }); return; }
+    if (!confirm(`Email a password-reset link to ${u.email}?`)) return;
+    setResetting(u.id); setMsg(null);
+    const res = await sbSendPasswordReset(u.email);
+    setResetting(null);
+    setMsg(res.ok
+      ? { tone: 'ok', text: `Reset link sent to ${u.email}. It expires after a short while and can be used once.` }
+      : { tone: 'error', text: res.error ?? 'Could not send the reset link.' });
+  };
 
   if (!can('users.manage')) return <div style={{ padding: 24 }} className="muted">You don’t have permission to manage users.</div>;
 
@@ -41,7 +55,7 @@ export function UserAccess() {
         <input className="input" placeholder="Search name / email / role…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 12, maxWidth: 360 }} />
         <div className="assoc-scroll">
           <table className="assoc-table" style={{ minWidth: 640 }}>
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Extra access</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Extra access</th><th></th><th></th></tr></thead>
             <tbody>
               {visible.map((u) => (
                 <tr key={u.id}>
@@ -50,14 +64,21 @@ export function UserAccess() {
                   <td><span className="badge badge-neutral">{roleLabel(u.rbacRole)}</span></td>
                   <td>{u.extraPermissions?.length ? `${u.extraPermissions.length} extra` : '—'}</td>
                   <td><button className="btn btn-sm" onClick={() => setEdit(u)}>Edit</button></td>
+                  <td>
+                    <button className="btn btn-sm" disabled={resetting === u.id || !u.email}
+                      onClick={() => void sendReset(u)}>
+                      {resetting === u.id ? 'Sending…' : 'Reset password'}
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {visible.length === 0 && <tr><td colSpan={5} className="muted">No users match.</td></tr>}
+              {visible.length === 0 && <tr><td colSpan={6} className="muted">No users match.</td></tr>}
             </tbody>
           </table>
         </div>
         <div className="muted rep-hint" style={{ marginTop: 8 }}>
           Users appear here once they’ve signed in (a Supabase Auth account exists). Role permissions are set in <b>Roles &amp; Permissions</b>.
+          <b> Reset password</b> emails the user a one-time link — nobody, admins included, can read or set another person’s password.
         </div>
       </SectionCard>
 

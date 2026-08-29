@@ -22,11 +22,39 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 ### Calls
 - Field Call Register — live against the FIELD tab; new calls get a UCN written
   back. Installation Calls — live against INST (same schema, I-type UCN).
+- Call Registration Request: the repeatable unit is a **call** —
+  Product + Serial No + Standard Complaint + Reported Problem — up to 5 per
+  request, each written as its own `call_requests` row under one REQID.
+  **Installation Report / KYC are file uploads** to the CallReg Drive folder
+  (`driveupload` / `driveref` endpoints); the request stores the Drive link.
 - Party → Product → Serial cascade picker (Party + Product Master) auto-fills.
 - Add Field Call: today's dates defaulted; warranty/contract freeze once loaded
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Request Call Registration is a register** — a table of every request with
+  its outcome (Pending / Registered / Mapped / Cancelled) and UCN, status
+  filter, search, CSV export and a row-detail drawer; **New Request** raises one
+  in a drawer. It used to be a form with no way to see what you had raised.
+- **Call Number is assigned, not typed** (`0015_call_number.sql`) — from a
+  request it is the request's **UniqueID** (REQID-Product-Serial); a direct
+  customer call gets **CLYY#####** (five-digit running number, per year,
+  seeded from the existing series). Blank ones are back-filled. It matters
+  because reports / spare requests / consumption / feedback are keyed by it.
+- **Call status everywhere** — a call is **Solved / Unsolved / Report pending /
+  Unattended** by its LATEST visit, derived once in Postgres (`call_state` /
+  `pending_calls` views, `0012_call_state.sql`). Colour-coded column on the
+  Field / Installation / PM registers, and a **Pending Calls** module
+  (`/pending-calls`): every call nobody has closed, with clickable status tiles,
+  type filter, search, CSV export and the registers' role scoping.
+- **Pending Registrations = the Hotline desk** — clicking a request opens it in
+  full and closes it out one of three ways: **map** it to an existing call (its
+  UCN goes into the editable **UCN Number (Mapped)** column), **create** a new
+  call (UCN assigned and back-filled), or **cancel** it with a reason from the
+  `cancelreason` master. Each takes it off the pending list. Column 2 shows
+  **Open Calls** — calls on that machine nobody has closed — so a duplicate is
+  visible before another is created. Gated on `pending.register`, so the Hotline
+  role can act without call-edit rights.
 - **Call reporting** (replaces the standalone Call Updation view): "Update Call"
   on every Field/Installation call → Reporting-N tab, keyed by UCN.
   - Sectioned by Call Status: Solved (full report + manual report upload + spare
@@ -44,6 +72,29 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 - **Product Master** — wired (cascade + Product Master view + register-from-row).
 - Generic master-value layer: `master` endpoint + `useMaster` hook + Admin Config
   → **Master Value Lists** editor (id / tab / column per master).
+- **Part Master** — wired to the live ITEM Master (`parts`); search on code /
+  description, active filter, Load more, CSV export. (It used to render the
+  local demo collection, which `clearDemoData()` empties — hence the blank
+  screen.)
+- **All Masters** (`/masters`) — one view over every master: the registers
+  (Party / Product / Part / User) with row counts, and each value list with its
+  values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- **Each value list has its own screen** (`/masters/<key>`, Master Lists in the
+  sidebar) — one table per master with Add / Remove, shared with the All Masters
+  overview. All `/masters/*` screens are gated by the one `mod:/masters` action,
+  so a new list needs no permission row.
+- **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
+  a `master_lists` registry (label, what one row is called, extra columns) plus
+  the `masters` rows; All Masters opens each list as its own table with Add /
+  Remove, gated on `masters.edit`, and clears the dropdown cache on every edit.
+  Seeded from the **200 All Masters** workbook: calltype 8, complaint 507,
+  pendingreason 21, cancelreason 27, feedbackrating 4, **orapproval** 13 (that
+  one carries Stage + Status columns in `masters.extra`). A new list needs a
+  registry row, not a release.
+- In-call **Spares Consumed** picker reads the live `spare` master too (it used
+  to list the same cleared demo collection). A consumed part is stored by its
+  `CODE|Description` catalogue string; the old Amount/Total column and the stock
+  decrement are gone — the live `parts` table carries neither price nor on-hand.
 
 ### UX
 - All tables: column show/hide/reorder/resize (⚙ lists every schema field),
@@ -57,10 +108,34 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 
 ## 🔜 In progress / Next
 
+### Migrations to run (Supabase SQL editor)
+Apply with the bundles in `supabase/apply/` rather than the numbered files —
+run `_status.sql` first to see what the project is missing, then the bundle(s)
+it flags. They are generated from the migrations by
+`scripts/build-apply-bundles.mjs`, carry their module's migrations in order,
+preflight their prerequisites, and are idempotent.
+
+- ✅ **`all.sql` applied (2026-08-29)** — `user_directory` (`0004`), `rbac`
+  (`0005`, `0007`, `0008_rbac_enforcement`) and the whole spare module
+  (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
+  live on the project. None of these had ever been run: the spare tables were
+  still at `0001`, which is why the spare register only ever half-worked.
+- `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
+- `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
+  run, the Call Status column stays blank and Pending Calls says so.
+- ⚠️ **Migration numbers have collided repeatedly** (two `0008`s, two `0010`s,
+  two `0011`s, two `0012`s) because parallel branches each claimed the next
+  number. Ordering between a pair that shares a number is undefined. Worth
+  moving to timestamp-prefixed names.
+
+
+
 ### Supabase cutover — DONE (app now runs on Postgres)
 Reads were timing out on Apps Script; the app is now on Supabase (Postgres + auto
-REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
-`supabase/full_schema.sql`).
+REST + RLS + Auth). Migrations `0001`–`0013`, applied per module from
+`supabase/apply/`. ⚠️ `supabase/full_schema.sql` is a **stale** snapshot — it
+predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
+`spare_needs_review`), so use the apply bundles, not that file.
 - ✅ Schema + reports-as-history (per-visit, keyed by UID); data layer
   (`src/lib/supabase.ts`), `sheets.ts` delegates when connected.
 - ✅ Baked project URL + publishable key; **email/password login** via `profiles`.
@@ -71,10 +146,23 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
   **Party Master** view, master dropdowns (paginated past the 1000 cap),
   **Reports** view, **Update Call reporting** (per-visit history, engineer picker),
   **spare consumption + feedback**, **Request Registration** (→ `call_requests`,
-  multi-product ≤5, REQID/UniqueID), **Pending Registrations** (reads
-  `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
+  multi-product ≤5, REQID/UniqueID), **Pending Registrations** (the Hotline
+  desk over `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
   Data Import**, unified **call view** (actions on top + mini-tables keyed by Call
   Number).
+- ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
+  row per call sharing its REQID; `unique_key` is the identity; atomic insert
+  via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
+  `0012_call_state` (the two views) and `0014_call_state_denorm` — the state is
+  kept ON the call by a trigger on `reports`, because deriving it per read cost
+  >5s under the visit-table RLS (statement timeout). Applied.
+- ✅ **Apply bundles** — new SQL goes in `supabase/migrations/` **and** a bundle
+  (`node scripts/build-apply-bundles.mjs`): `supabase/apply/call_requests.sql`
+  for this module, `all.sql` for everything, `_status.sql` to see what a project
+  is missing. Migration numbers are per-module and collide
+  (`0011_spare_intake` vs `0011_call_request_actions`) — go by file name.
+  `supabase/tests/call_requests_test.sql` exercises the whole set against a
+  throwaway Postgres.
 - ✅ **Local browser cache + "synced X ago" + 30-min auto/force sync** on masters,
   Reports, and spare tables; **Load more** in every table footer.
 - ✅ **Global date formats** (Short `dd-mmm-yyyy`, Long `dd-mmm-yyyy hh:mm:ss`).
@@ -84,15 +172,23 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 - ✅ **Spare approval workflow** — RM → Commercial → NSM → Stores(DC); Commercial
   & NSM auto-approve unless item is AMC/OGP; RBAC-gated stage actions.
 - ✅ New-call create fix (`0008`: creator can read back the inserted row).
+- ✅ **Reporting reads fixed** — every `reports` query ordered by a `created_at`
+  column the table never had, so the Reporting page failed with *“column
+  reports.created_at does not exist”*. Ordering is now `visit_at` (newest visit
+  first, nulls last) tie-broken by `id`. **Run the `reports` apply bundle**
+  (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
+  without it, large loads are just slower.
 
 ### Open items & questions
-- **User Master data + engineer logins** — directory infra is done (`0004`);
+- **User Master data + engineer logins** — directory infra is done and `0004`
+  is now **applied** (via the `user_directory` bundle);
   **pending:** import the **User Master CSV** (turns on directory-based scoping +
   the RM→engineer reporting dropdown), then **bulk-create Supabase Auth logins**
   for active directory users (script with the secret key, or add in Auth → Users).
-- **Tighten approval / consumption / feedback RLS** to the specific roles
-  (buttons are RBAC-gated client-side; DB `sr_update` / `cons` / `fb` currently
-  allow any authenticated write).
+- **Tighten consumption / feedback RLS** to the specific roles — `cons` / `fb`
+  still allow any authenticated write. **Spare approvals are done:**
+  `0008_rbac_enforcement` scoped `sr_update` and added a per-stage guard, which
+  `0009` and `0012` extended to the receipt and auto-approval paths.
 - **Raw monthly PM bulk import** — accept the raw PM tab export directly in Bulk
   Data Import (auto-map, preserve back-dated `reg_date`). Back-dating already
   works via the clean-CSV importer.
@@ -100,8 +196,19 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 - **Product Master derivation + Warranty/Contract registers** — build from Sale
   Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
   received); add warranties/contracts/sales/ownership tables + screens.
-- **Manual Report** — currently a Drive-link paste; option to restore file
-  upload to the Drive folder `1-46Ud9j…z2La` (question).
+- **Pending Calls noise** *(watch)* — a call with no visit reported counts as
+  Unattended, with no age cut-off, so an old import can crowd the list; add a
+  date filter if it does. "Report pending" counts as open (visited, not closed)
+  — say so if it should be hidden instead.
+- **Manual Report** — ✅ upload restored. The report form takes either a pasted
+  Drive link or a file (PDF/photo, ≤10 MB) uploaded through the same
+  `driveupload` / `driveref` endpoints the request form uses (folder
+  `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
+  ordinary Drive link. The previous visit's report is linked from the drawer.
+  Live: CallReg was redeployed with the Drive scope (`driveupload` / `driveref`),
+  and the new `/exec` is baked in as URL version 8 — which also unblocks the
+  request form's Installation Report / KYC uploads. **Queued:** surface the link
+  as a 📎 column in the Reports register and the call-view mini-table.
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
@@ -120,27 +227,96 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
   Yes/No, "Warranty Start Date?" a date, "Remarks" free text. Saved as a
   structured row to v2Feedback (identifying fields + answers + Call Type).
 
-- **Masters in 200 All Masters** — mapped (baked as defaults; live once CallReg
-  is redeployed). Each identified by its column header:
+- **Masters in 200 All Masters** — ✅ loaded into `masters` and editable in All
+  Masters (see Masters above). Each identified by its column header:
   - `complaint` → tab "Standard Complaint", col **"Complaint Name"** → Standard
     Complaint field on the call form.
   - `calltype` → col **"Call Type"** → Call Type select on the Request form
     (FIELD, INSTALLATION CALL, P M VISIT, SW UPGRADATION, FSCA, DEMO, ...).
   - `pendingreason` → col **"Call Pending Reason Name"** → the pending-reason
     field on the call report (Unsolved branch).
-  - `cancelreason` → col **"Call Cancel Reason Name"** → reserved for call
-    cancellation (no UI yet).
+  - `cancelreason` → col **"Call Cancel Reason Name"** → the reason on the
+    Hotline's **Cancel request** action (Pending Registrations).
+  - `feedbackrating` → col **"Feedback"** → the rating answers on the feedback
+    form.
+  - `orapproval` → cols **"Approval Stage" / "Status" / "Reason for Approval /
+    Rejection"** → the reason list behind a spare approval or rejection; not yet
+    wired into the Spare Requests dialogs (the reasons are free text there).
 
 ---
 
 ## 📋 Queued (from the Service_CRM intent)
 
-- **Spare module** — ✅ Phase 1 shipped: raise a Call-Based spare request from a
-  call (📦 Spare / Request Spares) → appended to `v2_ORReq-All` of
-  `26_SpareRequest`; **Spare Requests** register lists the exploded status view
-  (`v2_OR_Req`) with the approval/dispatch chain, role-scoped. Spare parts come
-  from the `spare` master (LookupValues → SPARE). **Next:** approvals
-  (RM/Admin/NSM) and stores/dispatch views.
+- **Spare module** — ✅ Phases 1–4 shipped, and **live on Supabase since
+  2026-08-29** (applied with the `all.sql` bundle).
+  - *Phase 1:* raise a Call-Based spare request from a call (📦 Spare /
+    Request Spares); **Spare Requests** register lists one row per part with the
+    approval/dispatch chain, role-scoped. Parts come from the `spare` master.
+  - *Phase 2:* approval chain RM → Commercial → NSM → Stores (DC dispatch);
+    Commercial + NSM auto-approve unless the item is AMC or OGP.
+  - *Phase 3* (`0009_spare_receipt.sql`): engineer **acknowledgement** closes the
+    loop (Dispatched → Received, raiser only); reject **reasons** and dispatch
+    details (DC, courier, remarks) captured in confirmation dialogs; stage KPI
+    tiles + stage chips with a **"Needs my action"** queue; a request **detail
+    drawer** with every part and the full approval trail; new `spare.receive`
+    permission. The migration extends `0008_rbac_enforcement.sql`'s stage guard
+    to cover the receipt columns (the raiser holds no approval permission, so
+    the guard would otherwise reject the acknowledgement) and grants
+    `spare.receive` in `app_roles` additively.
+  - *Phase 4* (`0011_spare_intake.sql`): the intake spec — OR NO / RowNo / OR
+    Req Date assigned by the database, UCN picker, engineer selection, 20 parts
+    per request — and Supabase-only writes (the `v2_ORReq-All` append is gone).
+  - *Phase 4 fix* (`0012_spare_auto_approval.sql`): an RM approving a non-AMC
+    item was **refused by the database**. `buildPatch` writes the Commercial and
+    NSM auto-approvals in the same update as the RM's approval, and 0008's stage
+    guard demanded permissions the RM does not hold — so the common path could
+    not be approved at all. The guard now allows exactly that case; a manual
+    approval still needs its own action and AMC/OGP still cannot be auto-cleared.
+  - **Verified:** `supabase/tests/` applies every migration to a throwaway
+    Postgres and exercises the triggers (12 scenarios: OR numbering from 47042,
+    RowNo per OR, qty/20-part limits, the non-AMC fast path, receipt restricted
+    to the raiser and to dispatched requests, the AMC review rule). It is what
+    caught the 0012 bug — the build and the TypeScript tests could not see it.
+    The harness runs as superuser, so it covers **triggers, not RLS policies**;
+    the policies still want a check against the live project.
+  - *Phase 5* (`0016_spare_line_approvals.sql`): **approvals moved from the
+    request to the spare.** The RM decides each line on its own, so one OR can
+    go forward partly approved. Every later stage reads the same per-line
+    state, which is what lets it be actioned per spare *or* per OR (an "all N"
+    button; the RM stage deliberately has none). The request keeps a rolled-up
+    stage — the least-advanced surviving line — maintained by trigger, and the
+    header's own approval columns are frozen so the two cannot disagree.
+  - *Phase 6* (`0017_spare_or_number_monthly.sql`): OR numbers become
+    **`OR-YYMM-NNNN`, restarting at 0001 each month** (a back-dated request is
+    numbered in its own month). A per-month counter table replaces the single
+    running sequence; numbers already issued keep the old `OR47042` form, since
+    they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
+    `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
+  - *Phase 7* (`0022_spare_line_uid.sql`): **every spare has its own ID** —
+    `<OR number>-<RowNo>`, e.g. `OR-2608-0001-01`. It leads the register, the RM
+    approves against it and Stores dispatches against it, so two spares on one
+    OR can be dispatched on different days with different DCs (the per-line
+    columns for that have existed since 0016; this adds the reference to quote).
+    Fixed once issued, unique across the register.
+  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
+    first; the ITEM Master import carries only code, description and Active), a
+    stores-side pick/pack view, and consumption reconciliation — flag a received
+    request whose parts were never consumed against the call. Also worth a smoke test
+    on the live project now that the migrations are applied: raise a request,
+    approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
+    the new `sr_delete`) are the part the trigger harness cannot cover.
+- **Stock Transfer** — ✅ shipped (`0020_stock_transfer.sql`). Engineer-to-engineer
+  hand-stock transfers, numbered `ST-YYMM-NNNN`. **Stock is derived, not stored:**
+  the `engineer_stock` view sums hand-stock dispatched to an engineer, less
+  consumption, plus/minus transfers — so a balance cannot drift from its history.
+  A transfer only offers parts the sender holds and caps the qty at what is
+  left, enforced by trigger as well as in the form (an AFTER trigger, so a
+  multi-row insert that individually passes but together over-draws is caught).
+  **Note:** inflow keys off *dispatch*, not the engineer's acknowledgement —
+  acknowledgement needs `spare.receive`, which the role defaults no longer give
+  engineers, so keying off it would leave every balance at zero.
+  **Next:** store-level stock (this is engineer hand-stock only), and stock
+  decrement straight from a Call-Based dispatch.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target
@@ -148,7 +324,11 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
   else the first sheet). Links editable in Admin Config. Confirm the landing tab
   after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
-  Entry, ITEM Master, "200 All Masters").
+  Entry). ITEM Master is done — it backs Part Master, the spare-request picker
+  and the in-call consumption picker; "200 All Masters" is done — every list is
+  a maintained table in All Masters.
+- **Next on masters:** point the Spare Requests approve/reject dialogs at the
+  `orapproval` list instead of free-text reasons.
 - Preventive Maintenance (PM) schedule/calls.
 - Sale Entry, Reports, Dashboard/KPI, Indoor Activity, other misc (to be placed).
 
@@ -156,9 +336,9 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 
 ## 🔧 Operational notes / blockers
 
-- **Redeploy CallReg** after backend changes (latest adds report/reportget,
-  tabmeta/tabappend, upload, master/masters/setmasters). Upload needs the Drive
-  scope → re-authorise on redeploy. Send the new /exec URL to bump the default.
+- **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
+  and send the new /exec URL so the baked-in default can be bumped. Done for the
+  upload endpoints (`driveupload` / `driveref`) — URL version **8**, 2026-08-29.
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.

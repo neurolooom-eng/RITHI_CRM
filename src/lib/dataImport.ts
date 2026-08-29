@@ -34,6 +34,8 @@ export function detectTable(headers: string[]): ImportTable | null {
   const H = new Set(headers.map((h) => h.trim()));
   if (H.has('name') && H.has('value')) return 'masters';
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
+  // Raw User Master export (sheet headers, not the clean file).
+  if (H.has('User Name') && (H.has('RM') || H.has('Email ID'))) return 'user_directory';
   if (H.has('ucn') && H.has('data')) return 'reports';
   if (H.has('ucn') && H.has('call_type')) return 'calls';
   if (H.has('serial_number') && H.has('item_name')) return 'products';
@@ -64,11 +66,40 @@ function dedupe(rows: Record<string, unknown>[], key: string): Record<string, un
   return out;
 }
 
+// The User Master arrives either as the clean file (snake_case columns) or as
+// the raw sheet export ("User Name", "RM", "GMAIL ID", …). Map both onto the
+// user_directory columns; anything else (contact, address, city…) is kept in
+// the `extra` jsonb rather than failing the insert on an unknown column.
+const DIR_ALIASES: Record<string, string> = {
+  name: 'name', 'user name': 'name', username: 'name', 'engineer name': 'name',
+  email: 'email', 'email id': 'email', 'email-id': 'email',
+  gmail: 'gmail', 'gmail id': 'gmail',
+  designation: 'designation',
+  reporting_manager: 'reporting_manager', rm: 'reporting_manager', 'reporting manager': 'reporting_manager',
+  regional_manager: 'regional_manager', rgm: 'regional_manager', 'regional manager': 'regional_manager',
+  region: 'region',
+  validity: 'validity', active: 'validity',
+};
+function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
+  const out: Record<string, unknown> = { name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '' };
+  const extra: Record<string, string> = {};
+  let validity = 'true';
+  for (const [k, v] of Object.entries(r)) {
+    const col = DIR_ALIASES[k.trim().toLowerCase().replace(/\s+/g, ' ')];
+    if (col === 'validity') validity = String(v ?? '');
+    else if (col) out[col] = String(v ?? '').trim();
+    else if (String(v ?? '').trim() !== '') extra[k.trim()] = String(v).trim();
+  }
+  out.validity = !/^(false|no|0|inactive)$/i.test(validity.trim() || 'true');
+  out.extra = extra;
+  return out;
+}
+
 // Shape raw CSV rows into insert-ready records for a given table.
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
     case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
-    case 'user_directory': return raw.map((r) => ({ ...r, validity: !/^(false|no|0|inactive)$/i.test(String(r.validity ?? 'true')) } as Record<string, unknown>)).filter((r) => r.name);
+    case 'user_directory': return raw.map(shapeDirectoryRow).filter((r) => r.name);
     case 'parties': return raw.filter((r) => r.party_name);
     case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
     case 'products': return raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of PROD_DATES) o[d] = toDate(r[d]); return o; });

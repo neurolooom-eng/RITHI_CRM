@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
+import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
@@ -94,6 +95,7 @@ export function CallReportDrawer({
   const [status, setStatus] = useState('');
   const [pendingReason, setPendingReason] = useState('');
   const [manualLink, setManualLink] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [work, setWork] = useState<Record<string, string>>({});
 
   // Engineer dropdown: admin → everyone; manager → their reports; else self.
@@ -131,7 +133,7 @@ export function CallReportDrawer({
     let cancelled = false;
     setLoading(true); setErr('');
     // reset to a blank new visit
-    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setWork({});
+    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setWork({});
     setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
     setEngineer(String(call?.allocatedTo ?? selfName ?? ''));
     reportsByCall(callNumber || ucn).then((rows) => {
@@ -157,6 +159,26 @@ export function CallReportDrawer({
     if (!spareDraft.part.trim()) { setErr('Pick a spare before adding.'); return; }
     setSpares((s) => [...s, { ...spareDraft }]);
     setSpareDraft({ part: '', qty: '1' });
+  };
+
+  // The manual report filed on the most recent visit, so it is one click away.
+  const lastManualReport = ((): string => {
+    const v = priorVisits[0];
+    const link = String(v?.manual_report ?? (v?.data as Record<string, unknown> | undefined)?.['Manual Report'] ?? '');
+    return /^https?:\/\//i.test(link) ? link : '';
+  })();
+
+  // Manual report: paste a Drive link, or upload the signed report to the same
+  // CallReg Drive folder the request-form documents go to — the returned link
+  // fills the field, so both paths store the same thing.
+  const uploadReport = async (file?: File) => {
+    if (!file) return;
+    if (file.size > MAX_UPLOAD_BYTES) { setErr(`${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`); return; }
+    setUploading(true); setErr('');
+    const res = await uploadToDrive(file, `${ucn || 'Report'} - Manual Report`);
+    setUploading(false);
+    if (!res.ok || !res.url) { setErr(res.error ?? 'Upload failed.'); return; }
+    setManualLink(res.url);
   };
 
   const validate = (): string => {
@@ -187,6 +209,7 @@ export function CallReportDrawer({
       };
       const patch = {
         call_number: String(call?.callNumber ?? ''),
+        manual_report: manualLink,
         call_status: status,
         pending_reason: pendingReason,
         engineer,
@@ -229,6 +252,7 @@ export function CallReportDrawer({
       {priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
           🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {String(priorVisits[0].visit_at ?? '').slice(0, 10) || '—'}
+          {!!lastManualReport && <> · <a href={lastManualReport} target="_blank" rel="noopener noreferrer">📎 Manual report ↗</a></>}
         </div>
       )}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
@@ -309,10 +333,24 @@ export function CallReportDrawer({
                       : <input className="input" value={work[f.key] ?? ''} onChange={(e) => setWork((w) => ({ ...w, [f.key]: e.target.value }))} />}
                   </label>
                 ))}
-                <label className="rep-field rep-span2">
+                <div className="rep-field rep-span2">
                   <span className="field-label">Manual Report (Drive link)</span>
                   <input className="input" placeholder="Paste the Drive link to the signed report" value={manualLink} onChange={(e) => setManualLink(e.target.value)} />
-                </label>
+                  <div className="rep-upload">
+                    <label className={`btn btn-sm ${uploading ? 'is-busy' : ''}`}>
+                      {uploading ? 'Uploading…' : '⭱ Upload file'}
+                      <input type="file" hidden accept=".pdf,image/*" disabled={uploading}
+                        onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; void uploadReport(f); }} />
+                    </label>
+                    {uploading ? (
+                      <span className="muted rep-hint">Sending to Drive — this takes a few seconds.</span>
+                    ) : manualLink ? (
+                      <a className="rep-upload-file" href={manualLink} target="_blank" rel="noopener noreferrer">Open the linked report ↗</a>
+                    ) : (
+                      <span className="muted rep-hint">…or upload the signed report (PDF/photo, up to 10 MB) — it goes to the CallReg Drive folder and fills the link.</span>
+                    )}
+                  </div>
+                </div>
               </div>
             </section>
           )}
@@ -369,7 +407,7 @@ export function CallReportDrawer({
 
           <div className="rep-actions">
             <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || !status}>{busy ? 'Saving…' : 'Save Report'}</button>
+            <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : 'Save Report'}</button>
           </div>
         </div>
       )}

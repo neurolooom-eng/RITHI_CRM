@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { listMaster, sheetsConfigured } from './sheets';
+import { listMaster, dataConfigured } from './sheets';
 
 // ===========================================================================
 // Master value lists for form dropdowns (Party, Product, Standard Complaint,
@@ -29,11 +29,11 @@ export function clearMasterCache(name?: string) {
 
 export function useMaster(name: string, fallback: string[] = []): { values: string[]; ready: boolean } {
   const [values, setValues] = useState<string[]>(() => cache.get(name) ?? fallback);
-  const [ready, setReady] = useState<boolean>(() => cache.has(name) || !sheetsConfigured());
+  const [ready, setReady] = useState<boolean>(() => cache.has(name) || !dataConfigured());
 
   useEffect(() => {
     let cancelled = false;
-    if (!sheetsConfigured()) { setValues(fallback); setReady(true); return; }
+    if (!dataConfigured()) { setValues(fallback); setReady(true); return; }
     if (cache.has(name)) { setValues(cache.get(name)!.length ? cache.get(name)! : fallback); setReady(true); return; }
     void load(name).then((v) => {
       if (cancelled) return;

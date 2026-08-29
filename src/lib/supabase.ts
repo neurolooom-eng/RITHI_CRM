@@ -53,13 +53,27 @@ export function supabaseConfigured(): boolean {
   return /^https:\/\/.+\.supabase\.co/.test(url) && anon.length > 20;
 }
 
+// Postgres rejects a write blocked by Row-Level Security with a terse
+// "new row violates row-level security policy" (code 42501), and the RBAC
+// triggers raise "RBAC: <reason>". Turn both into something a user can read.
+export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
+  const m = String(e?.message ?? 'Unknown error');
+  if (m.startsWith('RBAC: ')) return m.slice(6).replace(/^./, (c) => c.toUpperCase()) + '.';
+  if (e?.code === '42501' || /row-level security/i.test(m))
+    return 'Your role does not have permission for this action.';
+  return m;
+}
+
 let _client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient | null {
   if (_client) return _client;
   const { url, anon } = getSupabaseCreds();
   if (!supabaseConfigured()) return null;
   _client = createClient(url, anon, {
-    auth: { persistSession: true, autoRefreshToken: true },
+    // Recovery links are handled by takeRecoveryFromUrl() below (the app uses a
+    // HashRouter, which would otherwise swallow the token fragment), so the
+    // client is told not to race us for it.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   });
   return _client;
 }
@@ -94,6 +108,11 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
     if (key) out[key] = val ?? '';
   }
   out._id = row.id;
+  // Denormalised call state (0014) — rides along with every call the register
+  // already loads, so no second query is needed to colour the list.
+  out.callState = row.open_state ?? '';
+  out.lastStatus = row.last_status ?? '';
+  out.lastVisitAt = row.last_visit_at ?? '';
   return out;
 }
 function callToDb(rec: Record<string, unknown>): Record<string, unknown> {
@@ -142,7 +161,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
     let q = must().from('calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
     if (callType) q = q.eq('call_type', callType);
     const { data, error } = await q;
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     out.push(...rows.map(dbToCall));
     if (rows.length < PAGE) break;
@@ -165,7 +184,7 @@ export async function searchCalls(callType: string, terms: CallSearch, limit = 1
   const g = _san(terms.q ?? '');
   if (g) q = q.or(['ucn', 'call_number', 'party_name', 'serial', 'product_name', 'allocated_to', 'city', 'state', 'standard_complaint', 'complaint_reported', 'customer_name'].map((c) => `${c}.ilike.%${g}%`).join(','));
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(dbToCall);
 }
 
@@ -195,7 +214,7 @@ export async function addCall(rec: Record<string, unknown>): Promise<AddResult> 
 
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('calls').update(callToDb(patch)).eq('ucn', ucn);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // ---- Product Master (cascade + search) -------------------------------------
@@ -229,19 +248,19 @@ export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000
   if (filter.state) q = q.ilike('state', `%${_san(filter.state)}%`);
   if (filter.type) q = q.ilike('party_type', `%${_san(filter.type)}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function sbListPartyProducts(party: string): Promise<string[]> {
   const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').eq('party_name', party).limit(2000);
   if (product) q = q.eq('item_name', product);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
@@ -251,7 +270,7 @@ export async function sbSearchProducts(filters: { q?: string; party?: string; pr
   if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
 
@@ -275,34 +294,90 @@ export async function sbPartyInfo(party: string): Promise<{ state: string; city:
 
 export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok: boolean; reqid?: string; unique_key?: string; error?: string }> {
   const { data, error } = await must().from('call_requests').insert(rec).select('reqid,unique_key').single();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
 }
 
-// One request, several product/serial pairs (up to 5). All share one REQID; the
-// DB trigger gives each row its own UniqueID (REQID-Product-SerialNo). The first
-// insert mints the REQID (trigger), the rest reuse it.
-export async function addCallRequestBatch(base: Record<string, unknown>, pairs: { product: string; serial: string }[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
+// One request, several call items (up to 5). An item is a Product + Serial No +
+// Standard Complaint + Reported Problem group — each becomes its own row. All
+// rows share one REQID (so REQID is NOT unique — see 0007); each row's identity
+// is its UniqueID (REQID-Product-SerialNo), assigned by the DB trigger.
+export interface CallRequestItem {
+  product: string;
+  serial: string;
+  standardComplaint: string;
+  reportedProblem: string;
+}
+const itemCols = (it: CallRequestItem) => ({
+  product: it.product,
+  serial_no: it.serial,
+  standard_complaint: it.standardComplaint,
+  reported_problem: it.reportedProblem,
+});
+export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();
-  if (pairs.length === 0) return { ok: false, error: 'Add at least one product.' };
-  const first = { ...base, product: pairs[0].product, serial_no: pairs[0].serial };
-  const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
-  if (error) return { ok: false, error: error.message };
-  const reqid = String(data.reqid ?? '');
-  if (pairs.length > 1) {
-    const rest = pairs.slice(1).map((p) => ({ ...base, reqid, product: p.product, serial_no: p.serial }));
-    const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${e2.message}` };
+  if (items.length === 0) return { ok: false, error: 'Add at least one call.' };
+
+  // Mint the REQID first, then write every item in ONE insert — a request is
+  // never half-saved. `next_call_reqid` ships in migration 0007; without it we
+  // fall back to the older per-row path below.
+  const { data: minted, error: mintErr } = await c.rpc('next_call_reqid');
+  if (!mintErr && minted) {
+    const reqid = String(minted);
+    const rows = items.map((it) => ({ ...base, reqid, ...itemCols(it) }));
+    const { error } = await c.from('call_requests').insert(rows);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, reqid, count: rows.length };
   }
-  return { ok: true, reqid, count: pairs.length };
+
+  // Fallback: the first insert mints the REQID (DB trigger), the rest reuse it.
+  // This needs 0007's dropped `reqid` unique constraint for more than one item.
+  const first = { ...base, ...itemCols(items[0]) };
+  const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const reqid = String(data.reqid ?? '');
+  if (items.length > 1) {
+    const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
+    const { error: e2 } = await c.from('call_requests').insert(rest);
+    if (e2) {
+      const hint = /call_requests_reqid_key/.test(e2.message ?? '')
+        ? ' Run migration 0010_call_request_items.sql — REQID must not be unique, a request has one row per call.'
+        : '';
+      return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${errMsg(e2)}.${hint}` };
+    }
+  }
+  return { ok: true, reqid, count: items.length };
+}
+
+// Every call request, whatever its outcome — the Request Registration register.
+// Rows keep the app's camelCase shape; `status` is Pending / Mapped /
+// Registered / Cancelled.
+export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('call_requests').select('*')
+    .order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    id: r.id, reqid: r.reqid, uniqueKey: r.unique_key, submittedAt: r.submitted_at,
+    engineer: r.engineer, email: r.email, callType: r.call_type,
+    partyName: r.party_name, state: r.state, city: r.city, address: r.address,
+    product: r.product, serial: r.serial_no,
+    standardComplaint: r.standard_complaint, reportedProblem: r.reported_problem,
+    customerContactDetails: r.customer_contact_details, customerContactNumber: r.customer_contact_number,
+    installationReport: r.installation_report, kyc: r.kyc,
+    callAttended: r.call_attended, attendedDate: r.attended_date, planDate: r.plan_date,
+    additionalComments: r.additional_comments,
+    ucn: r.ucn ?? '', status: r.status ?? 'Pending',
+    cancelReason: r.cancel_reason ?? '', actionedBy: r.actioned_by ?? '', actionedAt: r.actioned_at ?? '',
+  }));
 }
 
 // Pending call registrations (no UCN yet), mapped to the header keys the
 // Pending Registrations screen already reads.
 export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('call_requests').select('*')
-    .or('ucn.is.null,ucn.eq.').order('submitted_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+    .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
+    .order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => ({
     _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
     'Timestamp': r.submitted_at, 'ENGINEER': r.engineer, 'E-Mail ID': r.email, 'CALL TYPE': r.call_type,
@@ -314,16 +389,108 @@ export async function listCallRequestsAsPending(limit = 500): Promise<Record<str
     'Additional Comments': r.additional_comments,
   }));
 }
-export async function setCallRequestUcn(id: number, ucn: string): Promise<boolean> {
-  const { error } = await must().from('call_requests').update({ ucn, status: 'Registered' }).eq('id', id);
-  return !error;
+// Close a request out with a UCN: 'Registered' (a new call was created from it)
+// or 'Mapped' (it belongs to a call that already existed). Either way it leaves
+// the pending list, which only lists requests with no UCN.
+export async function setCallRequestUcn(id: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('call_requests')
+    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Cancel a request — it stops being pending without ever becoming a call.
+export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const { error } = await must().from('call_requests')
+    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- call state / open calls ------------------------------------------------
+// A call's state comes from its LATEST visit (view `call_state`, migration
+// 0012): Unattended (no visit yet), Unsolved, Report pending, or Solved.
+// Everything but Solved counts as OPEN.
+export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved';
+export const OPEN_STATES: CallState[] = ['Unattended', 'Unsolved', 'Report pending'];
+
+export interface OpenCall {
+  ucn: string; callType: string; partyName: string; productName: string; serial: string;
+  allocatedTo: string; regDate: string; complaint: string;
+  state: Exclude<CallState, 'Solved'>;
+}
+const CHUNK = 150;
+const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+// Pending (not solved) calls, optionally for one call type — the Pending Calls
+// register. Rows come back in the app's call shape plus `state`.
+export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    let q = must().from('pending_calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    if (callType) q = q.eq('call_type', callType);
+    const { data, error } = await q;
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? '') })));
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// Open calls on any of these serials (or parties, when a request has no
+// serial) — the Hotline's "is there already a call for this?" check.
+export async function openCallsFor(serials: string[], parties: string[] = []): Promise<OpenCall[]> {
+  const c = must();
+  const ser = [...new Set(serials.map((s) => s.trim()).filter(Boolean))];
+  const par = [...new Set(parties.map((s) => s.trim()).filter(Boolean))];
+  if (!ser.length && !par.length) return [];
+
+  const rows: Record<string, unknown>[] = [];
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state';
+  for (const part of chunked(ser)) {
+    const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
+    if (error) throw new Error(errMsg(error));
+    rows.push(...(data ?? []));
+  }
+  if (!ser.length) {
+    for (const part of chunked(par)) {
+      const { data, error } = await c.from('pending_calls').select(cols).in('party_name', part).limit(1000);
+      if (error) throw new Error(errMsg(error));
+      rows.push(...(data ?? []));
+    }
+  }
+
+  const byUcn = new Map<string, OpenCall>();
+  rows.forEach((r) => {
+    const ucn = String(r.ucn ?? '');
+    if (!ucn || byUcn.has(ucn)) return;
+    byUcn.set(ucn, {
+      ucn, callType: String(r.call_type ?? ''), partyName: String(r.party_name ?? ''),
+      productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
+      allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
+      complaint: String(r.complaint_reported ?? ''),
+      state: (String(r.open_state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+    });
+  });
+  return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+}
+
+// Does this UCN exist? (manual mapping is free text, so it is worth checking.)
+export async function callByUcn(ucn: string): Promise<Record<string, unknown> | null> {
+  const { data } = await must().from('calls').select('*').eq('ucn', ucn).maybeSingle();
+  return data ? dbToCall(data) : null;
 }
 
 // ---- pending registrations -------------------------------------------------
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')
     .select('*').is('ucn', null).order('requested_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 export async function setPendingUcn(id: number, ucn: string): Promise<boolean> {
@@ -381,7 +548,7 @@ export async function setRolePerms(role: string, permissions: string[], label?: 
   const row: Record<string, unknown> = { role, permissions, updated_at: new Date().toISOString() };
   if (label != null) row.label = label;
   const { error } = await c.from('app_roles').upsert(row, { onConflict: 'role' });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // Distinct engineer names seen on calls (fallback source for the reporting
@@ -402,27 +569,27 @@ export async function sbEngineerNames(): Promise<string[]> {
 // ---- reports (Reporting-N equivalent) --------------------------------------
 // Latest visit for a UCN (reports is history; ucn is no longer unique).
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(errMsg(error));
   return { row: data ?? null };
 }
 // Reports register — field filters + paging (Load more), like Party Master.
 export interface ReportFilter { ucn?: string; callNumber?: string; engineer?: string; status?: string }
 export async function queryReports(filter: ReportFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from('reports').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  let q = must().from('reports').select('*').order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (filter.ucn) q = q.ilike('ucn', `%${_san(filter.ucn)}%`);
   if (filter.callNumber) q = q.ilike('call_number', `%${_san(filter.callNumber)}%`);
   if (filter.engineer) q = q.ilike('engineer', `%${_san(filter.engineer)}%`);
   if (filter.status) q = q.ilike('call_status', `%${_san(filter.status)}%`);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
-  if (error) throw new Error(error.message);
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
 // Each Update Call is a new VISIT row (reports = history), keyed by a fresh uid.
@@ -430,11 +597,11 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
   const uid = `WEB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
   const row = { uid, ucn, ...patch, updated_at: new Date().toISOString() };
   const { error } = await must().from('reports').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
-  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   return data ?? null;
 }
 
@@ -449,57 +616,247 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
   const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.value)).filter(Boolean))];
 }
 
-// ---- spare requests --------------------------------------------------------
-export async function addSpareRequest(req: Record<string, unknown>, lines: { part: string; qty: number }[]): Promise<{ ok: boolean; uid?: string; error?: string }> {
+// Every value of every generic master list (masters table), for the All
+// Masters view. Paged so a large registry still comes back whole.
+export async function listAllMasterValues(max = 20000): Promise<{ name: string; value: string }[]> {
   const c = must();
-  const { data, error } = await c.from('spare_requests').insert(req).select('uid').single();
-  if (error) return { ok: false, error: error.message };
-  const uid = String(data.uid);
-  if (lines.length) {
-    const { error: le } = await c.from('spare_request_lines').insert(lines.map((l) => ({ request_uid: uid, part: l.part, qty: l.qty })));
-    if (le) return { ok: false, uid, error: le.message };
+  const out: { name: string; value: string }[] = [];
+  const PAGE = 1000;
+  for (let from = 0; from < max; from += PAGE) {
+    const { data, error } = await c.from('masters').select('name,value').order('name').range(from, from + PAGE - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    rows.forEach((r) => {
+      const name = String(r.name ?? '').trim();
+      const value = String(r.value ?? '').trim();
+      if (name && value) out.push({ name, value });
+    });
+    if (rows.length < PAGE) break;
   }
-  return { ok: true, uid };
+  return out;
 }
+
+// ---- master lists (each value list as its own maintained table) ------------
+// `master_lists` (0014) is the registry: one row per list with its label, what
+// one entry is called, and the extra columns that list carries in
+// `masters.extra` (Spare Approval Reason has Stage + Status).
+export interface MasterList { key: string; label: string; value_label: string; columns: { key: string; label: string }[]; sort_order: number; active: boolean }
+export interface MasterItem { id: number; name: string; value: string; extra: Record<string, string>; added_on: string | null; added_by: string }
+
+export async function listMasterLists(): Promise<MasterList[]> {
+  const { data, error } = await must().from('master_lists').select('*').eq('active', true).order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    key: String(r.key), label: String(r.label), value_label: String(r.value_label ?? 'Value'),
+    columns: Array.isArray(r.columns) ? (r.columns as { key: string; label: string }[]) : [],
+    sort_order: Number(r.sort_order ?? 100), active: r.active !== false,
+  }));
+}
+
+// Every row of one list, as the list's own table.
+export async function listMasterItems(key: string, limit = 5000): Promise<MasterItem[]> {
+  const names = key === 'complaint' ? ['complaint', 'standardComplaint'] : [key];
+  const { data, error } = await must().from('masters').select('*').in('name', names).order('value').limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
+    extra: (r.extra ?? {}) as Record<string, string>,
+    added_on: (r.added_on as string) ?? null, added_by: String(r.added_by ?? ''),
+  }));
+}
+
+export async function addMasterItem(key: string, value: string, extra: Record<string, string> = {}, addedBy = ''): Promise<{ ok: boolean; error?: string }> {
+  const row = { name: key, value, extra, added_on: new Date().toISOString().slice(0, 10), added_by: addedBy };
+  const { error } = await must().from('masters').insert(row);
+  // The unique index is what stops a duplicate; say so in words the screen can show.
+  if (error) return { ok: false, error: /duplicate key/i.test(errMsg(error)) ? 'That entry is already in this list.' : errMsg(error) };
+  return { ok: true };
+}
+
+export async function updateMasterItem(id: number, patch: { value?: string; extra?: Record<string, string> }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('masters').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('masters').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Row count of a master table (head request — no rows transferred).
+export async function countRows(table: string, eq?: [string, unknown]): Promise<number> {
+  let q = must().from(table).select('id', { count: 'exact', head: true });
+  if (eq) q = q.eq(eq[0], eq[1] as never);
+  const { count, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+// ---- part master (ITEM Master rows) ----------------------------------------
+// The spare-parts catalogue lives in `parts`; the pickers show `item_detail`
+// ("CODE|Description"). This is the register behind the Part Master view.
+export interface PartFilter { q?: string; code?: string; description?: string; active?: string }
+export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
+  let q = must().from('parts').select('*').order('code').range(offset, offset + limit - 1);
+  if (filter.code) q = q.ilike('code', `%${_san(filter.code)}%`);
+  if (filter.description) q = q.ilike('description', `%${_san(filter.description)}%`);
+  if (filter.active === 'yes') q = q.eq('active', true);
+  if (filter.active === 'no') q = q.eq('active', false);
+  if (filter.q) {
+    const s = _san(filter.q);
+    q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,item_detail.ilike.%${s}%`);
+  }
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// ---- spare requests --------------------------------------------------------
+export async function addSpareRequest(
+  req: Record<string, unknown>,
+  lines: { part: string; qty: number }[],
+): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string }> {
+  const c = must();
+  // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
+  const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const uid = String(data.uid);
+  const orNo = String(data.or_no ?? '');
+  if (lines.length) {
+    // RowNo is sent explicitly: every row of one multi-row insert fires the
+    // trigger against the same snapshot, so a max()+1 default would hand the
+    // whole batch the same number. The trigger stays as the fallback.
+    const { error: le } = await c.from('spare_request_lines')
+      .insert(lines.map((l, i) => ({ request_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+    if (le) {
+      // The lines are the request; a header with none is not a usable record.
+      await c.from('spare_requests').delete().eq('uid', uid);
+      return { ok: false, error: errMsg(le) };
+    }
+  }
+  return { ok: true, uid, orNo };
+}
+// Only the request's IDENTIFYING fields are pulled from the header. Its
+// approval columns are deliberately not: since 0016 every decision lives on
+// the line (the RM approves each spare separately) and the request carries
+// only a rolled-up stage.
 export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
+    .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, stage, status, created_at)')
     .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
-    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
+    // One row per part: the request's identity, the line's own workflow state.
+    // The line is spread last, so it wins on every column both tables carry.
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
     return {
-      ...r, uid: req?.uid, req_type: req?.req_type, req_engineer: req?.engineer, requested_at: req?.created_at,
-      ucn: req?.ucn, call_number: req?.call_number, party_name: req?.party_name, product_name: req?.product_name,
-      serial: req?.serial, item_status: req?.item_status, req_status: req?.status, stage: req?.stage,
-      rm_approval: req?.rm_approval, commercial_approval: req?.commercial_approval, nsm_approval: req?.nsm_approval,
-      stores_status: req?.stores_status, dc_number: req?.dc_number,
+      ...req, ...line,
+      uid: req?.uid, line_id: line.id,
+      req_engineer: req?.engineer, requested_at: req?.created_at,
+      req_stage: req?.stage, req_status: req?.status,
     };
   });
 }
+
+// One spare. This is the RM path: each line is approved or rejected on its own.
+export async function updateSpareRequestLine(lineId: unknown, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('spare_request_lines').update(patch).eq('id', lineId);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Every line of one request that currently sits at `stages` — the per-OR path
+// the later stages may use instead of acting spare by spare. Lines rejected
+// earlier, or already past this stage, are left alone.
+export async function updateSpareRequestLinesAtStage(
+  uid: string, stages: string[], patch: Record<string, unknown>,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const { data, error } = await must().from('spare_request_lines')
+    .update(patch).eq('request_uid', uid).in('stage', stages).select('id');
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, count: (data ?? []).length };
+}
+
 export async function updateSpareRequest(uid: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_requests').update(patch).eq('uid', uid);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- stock transfer -------------------------------------------------------
+// Stock is not stored; engineer_stock derives it from hand-stock received,
+// consumption, and transfers (0020_stock_transfer.sql).
+export interface StockRow { engineer: string; part: string; qty: number }
+
+// What one engineer is holding — only parts with something left.
+export async function listEngineerStock(engineer: string): Promise<StockRow[]> {
+  const key = engineer.trim().toLowerCase();
+  if (!key) return [];
+  const { data, error } = await must().from('engineer_stock')
+    .select('*').eq('engineer', key).gt('qty', 0).order('part');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
+}
+
+// Every engineer's holding, for the stock-on-hand view.
+export async function listAllStock(limit = 5000): Promise<StockRow[]> {
+  const { data, error } = await must().from('engineer_stock')
+    .select('*').gt('qty', 0).order('engineer').limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
+}
+
+export async function addStockTransfer(
+  from: string, to: string, lines: { part: string; qty: number }[], remarks = '', on?: string,
+): Promise<{ ok: boolean; uid?: string; error?: string }> {
+  const c = must();
+  // uid / row_no are assigned by the database.
+  const { data, error } = await c.from('stock_transfers')
+    .insert({ from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) })
+    .select('uid').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const uid = String(data.uid);
+  const { error: le } = await c.from('stock_transfer_lines')
+    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+  if (le) {
+    // The lines are the transfer; a header alone is not a usable record. The
+    // stock check rejects the whole insert, so nothing moved.
+    await c.from('stock_transfers').delete().eq('uid', uid);
+    return { ok: false, error: errMsg(le) };
+  }
+  return { ok: true, uid };
+}
+
+export async function listStockTransfers(limit = 1000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('stock_transfer_lines')
+    .select('*, stock_transfers!inner(uid, from_engineer, to_engineer, transfer_date, remarks, status, created_at)')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const { stock_transfers: h, ...line } = r as Record<string, unknown> & { stock_transfers?: Record<string, unknown> };
+    return { ...h, ...line, uid: h?.uid, transferred_at: h?.created_at };
+  });
 }
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
 export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) return [];
   return data ?? [];
 }
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, created_at)')
+    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
     .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
   if (error) return [];
   return (data ?? []).map((r) => {
-    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
-    return { ...r, uid: req?.uid, req_type: req?.req_type, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at };
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    // Same flattening as the register: the request owns the workflow columns.
+    return {
+      ...line, ...req, part: line.part, qty: line.qty,
+      uid: req?.uid, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at,
+    };
   });
 }
 export async function spareConsumptionByCall(callNumber: string): Promise<Record<string, unknown>[]> {
@@ -521,11 +878,11 @@ export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Rec
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('feedback').insert(row);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // ---- auth (email + password) ----------------------------------------------
@@ -540,12 +897,82 @@ export interface Profile {
 export async function updateProfile(id: string, patch: { role?: string; extra_permissions?: string[] }): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { error } = await c.from('profiles').update(patch).eq('id', id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- password reset --------------------------------------------------------
+// A Supabase recovery link comes back as an implicit-flow fragment:
+//   https://app/#access_token=…&refresh_token=…&type=recovery
+// The app routes on the hash, so the tokens are grabbed synchronously at boot
+// (before React or the router runs) and the URL is put back to "#/".
+let pendingRecovery: { access: string; refresh: string } | null = null;
+// An expired or already-used link comes back as #error=…&error_description=…
+let recoveryError = '';
+
+export function takeRecoveryFromUrl(): boolean {
+  try {
+    const raw = window.location.hash.replace(/^#\/?/, '');
+    if (!raw.includes('access_token') && !raw.includes('error')) return false;
+    const p = new URLSearchParams(raw);
+    const access = p.get('access_token') ?? '';
+    const refresh = p.get('refresh_token') ?? '';
+    const isRecovery = (p.get('type') ?? '') === 'recovery';
+    const err = p.get('error_description') ?? p.get('error') ?? '';
+    window.location.hash = '#/';
+    if (err) {
+      recoveryError = /expired|invalid/i.test(err)
+        ? 'That password-reset link has expired or was already used. Request a new one below.'
+        : err.replace(/\+/g, ' ');
+      return false;
+    }
+    if (!isRecovery || !access || !refresh) return false;
+    pendingRecovery = { access, refresh };
+    return true;
+  } catch { return false; }
+}
+export const hasPendingRecovery = (): boolean => pendingRecovery !== null;
+// Read (and clear) the message from a failed reset link, for the login screen.
+export function takeRecoveryError(): string { const e = recoveryError; recoveryError = ''; return e; }
+
+// Exchange the recovery tokens for a session, so updateUser() can set the new
+// password. The session is a normal signed-in session afterwards.
+export async function sbConsumeRecovery(): Promise<{ ok: boolean; error?: string }> {
+  const r = pendingRecovery; pendingRecovery = null;
+  if (!r) return { ok: false, error: 'No recovery link.' };
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.auth.setSession({ access_token: r.access, refresh_token: r.refresh });
+  return error ? { ok: false, error: 'This reset link has expired. Request a new one.' } : { ok: true };
+}
+
+// Email a reset link. Always reports success: whether an address has an account
+// is not something an unauthenticated form should reveal.
+export async function sbSendPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected to the database.' };
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await c.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+  if (error && /rate|too many/i.test(error.message)) return { ok: false, error: 'Too many attempts — wait a minute and try again.' };
+  return { ok: true };
+}
+
+// Set a new password for the signed-in (or just-recovered) user.
+export async function sbUpdatePassword(password: string): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.auth.updateUser({ password });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Confirm the user's current password before changing it (Supabase's
+// updateUser doesn't ask for it). A correct password simply re-signs the same
+// user in; a wrong one leaves the existing session untouched.
+export async function sbVerifyPassword(email: string, password: string): Promise<boolean> {
+  const c = getSupabase(); if (!c) return false;
+  const { error } = await c.auth.signInWithPassword({ email: email.trim(), password });
+  return !error;
 }
 
 export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().auth.signInWithPassword({ email: email.trim(), password });
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function sbSignOut(): Promise<void> {
   const c = getSupabase(); if (c) await c.auth.signOut();
@@ -578,7 +1005,7 @@ export function sbOnAuthChange(cb: () => void): () => void {
 export async function pingSupabase(): Promise<{ ok: boolean; error?: string; count?: number }> {
   try {
     const { count, error } = await must().from('calls').select('*', { count: 'exact', head: true });
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: errMsg(error) };
     return { ok: true, count: count ?? 0 };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };

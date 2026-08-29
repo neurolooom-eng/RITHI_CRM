@@ -201,3 +201,73 @@
 .rbac-action code { font-size: 10.5px; }
 .rbac-group td { text-align: left !important; background: var(--surface-2, #f4f6f8); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; color: var(--muted, #64748b); }
 .rbac-cell input { width: 16px; height: 16px; cursor: pointer; }
+
+/* Request Call Registration — one card per call (Product + Serial +
+   Standard Complaint + Reported Problem), up to 5 per request. */
+.req-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 8px; background: var(--bg); }
+.req-item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.req-item-title { font-weight: 650; font-size: 12px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.req-doc { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.req-doc-link { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-doc-hint { font-size: 11px; }
+
+/* ---- Spare request workflow (stage chips + approval trail) --------------- */
+.stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; line-height: 1.6;
+}
+.chip:hover { border-color: var(--primary); }
+.chip b { font-weight: 700; margin-left: 4px; color: var(--text-muted); }
+.chip-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chip-on b { color: #fff; }
+
+.wf-trail { list-style: none; margin: 0; padding: 0 0 0 14px; font-size: 12.5px; border-left: 2px solid var(--border); }
+.wf-trail li { position: relative; padding: 3px 0 8px 10px; }
+.wf-trail li::before {
+  content: ''; position: absolute; left: -19px; top: 9px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);
+}
+.wf-trail li.wf-ok::before { background: var(--success, #2e9e5b); }
+.wf-trail li.wf-bad::before { background: var(--danger, #d64545); }
+
+/* ---- Spare request intake (UCN picker + numbered spare rows) ------------- */
+.spare-row .spare-no { flex: 0 0 18px; font-size: 12px; text-align: right; }
+.spare-row .spare-qty { flex: 0 0 80px; width: 80px; }
+
+.call-hits { list-style: none; margin: 6px 0 0; padding: 0; max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.call-hits li + li { border-top: 1px solid var(--border); }
+.call-hit {
+  display: block; width: 100%; text-align: left; padding: 7px 10px; font-size: 12.5px;
+  background: none; border: 0; color: var(--text); cursor: pointer;
+}
+.call-hit:hover { background: var(--surface-2, rgba(127, 127, 127, .09)); }
+.call-hit .muted { font-size: 12px; }
+
+/* Pending Calls — status tiles above the register (click to filter). */
+.pc-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.pc-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  min-width: 120px; padding: 8px 12px; cursor: pointer; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.pc-tile:hover { border-color: var(--primary); }
+.pc-tile-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.pc-tile-n { font-size: 20px; font-weight: 700; line-height: 1.1; }
+
+/* Pending Registrations — Hotline actions on a request. */
+.req-act-sec { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; background: var(--surface); }
+.req-open-list { display: flex; flex-direction: column; gap: 6px; }
+.req-open-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.req-open-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.req-open-cmp { flex-basis: 100%; font-size: 12px; }
+.map-cell { display: flex; align-items: center; gap: 6px; }
+.map-cell .input { min-width: 0; }
+.linklike { background: none; border: 0; padding: 0; color: var(--primary); font-weight: 650; cursor: pointer; }
+.linklike:hover { text-decoration: underline; }
+
+/* Manual report — paste a link or upload the signed report to storage. */
+.rep-upload { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.rep-upload > .btn { cursor: pointer; }
+.rep-upload > .btn.is-busy { opacity: .7; pointer-events: none; }
+.rep-upload-file { font-size: 12px; word-break: break-all; }
