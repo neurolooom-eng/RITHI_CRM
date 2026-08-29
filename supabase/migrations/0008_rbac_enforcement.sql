@@ -62,10 +62,18 @@ returns text language sql stable security definer set search_path = public as $$
     from public.profiles p where p.id = auth.uid();
 $$;
 
+-- The extra actions granted to this user directly, on top of their role
+-- (profiles.extra_permissions — see 0007_user_access.sql).
+create or replace function public.my_extra_perms()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select coalesce(p.extra_permissions, '[]'::jsonb) from public.profiles p where p.id = auth.uid();
+$$;
+
 -- Does the signed-in user hold `action`? Admins and super admins hold every
 -- action. Otherwise the action must appear in app_roles.permissions for their
--- role; a role with no row (or an empty array) falls back to 'engineer' so a
--- half-configured matrix degrades to least privilege rather than lock-out.
+-- role, or in their own extra_permissions; a role with no row (or an empty
+-- array) falls back to 'engineer' so a half-configured matrix degrades to
+-- least privilege rather than lock-out.
 create or replace function public.has_perm(action text)
 returns boolean language sql stable security definer set search_path = public as $$
   with role_row as (
@@ -81,11 +89,13 @@ returns boolean language sql stable security definer set search_path = public as
     select permissions from fallback where not exists (select 1 from role_row)
   )
   select public.is_admin()
-      or exists (select 1 from perms p where p.permissions ? action);
+      or exists (select 1 from perms p where p.permissions ? action)
+      or public.my_extra_perms() ? action;
 $$;
 
 grant execute on function public.is_super_admin()  to authenticated;
 grant execute on function public.my_role()         to authenticated;
+grant execute on function public.my_extra_perms()  to authenticated;
 grant execute on function public.has_perm(text)    to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -338,19 +348,20 @@ create trigger spare_requests_stage_guard
   for each row execute function public.spare_requests_stage_guard();
 
 -- ---------------------------------------------------------------------------
--- Nobody edits their own role (privilege escalation) — only users.manage may,
--- and never to grant themselves admin unless they already are one.
+-- Nobody edits their own role or extra permissions (privilege escalation) —
+-- only users.manage may, and never to grant admin unless already an admin.
 -- ---------------------------------------------------------------------------
 create or replace function public.profiles_role_guard()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if new.role is distinct from old.role then
+  if new.role is distinct from old.role or new.extra_permissions is distinct from old.extra_permissions then
     if new.id = auth.uid() and not public.is_super_admin() then
-      raise exception 'RBAC: you cannot change your own role';
+      raise exception 'RBAC: you cannot change your own role or permissions';
     end if;
-    if lower(new.role) = 'admin' and not public.is_admin() then
-      raise exception 'RBAC: granting admin requires an administrator';
-    end if;
+  end if;
+  if new.role is distinct from old.role
+     and lower(new.role) = 'admin' and not public.is_admin() then
+    raise exception 'RBAC: granting admin requires an administrator';
   end if;
   return new;
 end $$;

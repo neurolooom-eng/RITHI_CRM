@@ -275,22 +275,35 @@ export async function addCallRequest(rec: Record<string, unknown>): Promise<{ ok
   return { ok: true, reqid: String(data.reqid ?? ''), unique_key: String(data.unique_key ?? '') };
 }
 
-// One request, several product/serial pairs (up to 5). All share one REQID; the
-// DB trigger gives each row its own UniqueID (REQID-Product-SerialNo). The first
-// insert mints the REQID (trigger), the rest reuse it.
-export async function addCallRequestBatch(base: Record<string, unknown>, pairs: { product: string; serial: string }[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
+// One request, several call items (up to 5). An item is a Product + Serial No +
+// Standard Complaint + Reported Problem group — each becomes its own row. All
+// rows share one REQID; the DB trigger gives each its own UniqueID
+// (REQID-Product-SerialNo). The first insert mints the REQID, the rest reuse it.
+export interface CallRequestItem {
+  product: string;
+  serial: string;
+  standardComplaint: string;
+  reportedProblem: string;
+}
+const itemCols = (it: CallRequestItem) => ({
+  product: it.product,
+  serial_no: it.serial,
+  standard_complaint: it.standardComplaint,
+  reported_problem: it.reportedProblem,
+});
+export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();
-  if (pairs.length === 0) return { ok: false, error: 'Add at least one product.' };
-  const first = { ...base, product: pairs[0].product, serial_no: pairs[0].serial };
+  if (items.length === 0) return { ok: false, error: 'Add at least one product.' };
+  const first = { ...base, ...itemCols(items[0]) };
   const { data, error } = await c.from('call_requests').insert(first).select('reqid').single();
   if (error) return { ok: false, error: errMsg(error) };
   const reqid = String(data.reqid ?? '');
-  if (pairs.length > 1) {
-    const rest = pairs.slice(1).map((p) => ({ ...base, reqid, product: p.product, serial_no: p.serial }));
+  if (items.length > 1) {
+    const rest = items.slice(1).map((it) => ({ ...base, reqid, ...itemCols(it) }));
     const { error: e2 } = await c.from('call_requests').insert(rest);
-    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 product); the other pairs failed: ${errMsg(e2)}` };
+    if (e2) return { ok: true, reqid, count: 1, error: `Saved ${reqid} (1 call); the other items failed: ${errMsg(e2)}` };
   }
-  return { ok: true, reqid, count: pairs.length };
+  return { ok: true, reqid, count: items.length };
 }
 
 // Pending call registrations (no UCN yet), mapped to the header keys the
@@ -517,6 +530,14 @@ export interface Profile {
   id: string; email: string; full_name: string; role: string;
   designation?: string; engineer_code?: string;
   reporting_manager_email?: string; regional_manager_email?: string; active?: boolean;
+  extra_permissions?: string[];
+}
+
+// Admin: set a user's role and/or extra per-user permissions.
+export async function updateProfile(id: string, patch: { role?: string; extra_permissions?: string[] }): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.from('profiles').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
