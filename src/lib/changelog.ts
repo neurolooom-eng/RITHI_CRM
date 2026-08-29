@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.6',
+    version: '0.6.7',
     date: '2026-08-29',
     title: 'Every master value list is its own editable table',
     changes: [
@@ -21,6 +21,16 @@ export const CHANGELOG: ChangeEntry[] = [
       'Spare Approval Reason carries its own Stage and Status columns \u2014 a list can have more than one column, and the registry says which.',
       'Adding a list no longer needs a release: a row in the new `master_lists` registry gives it a table, a label and its columns.',
       'A duplicate entry is refused rather than silently doubling a dropdown, and editing needs the \u201cEdit masters\u201d permission.',
+    ],
+  },
+  {
+    version: '0.6.6',
+    date: '2026-08-29',
+    title: 'Request Call Registration is a register',
+    changes: [
+      'The screen was a bare form \u2014 you could raise a request but never see one again. It is now a table of every request raised, newest first, with what became of it: Pending, Registered, Mapped (to a call that already existed) or Cancelled, and the UCN once it has one.',
+      'Filter by status, search across REQID / UCN / party / product / serial / engineer, export to CSV, and click a row to read the full request.',
+      '\u201cNew Request\u201d opens the same form as before, in a drawer; the list refreshes as soon as a request is saved.',
     ],
   },
   {
