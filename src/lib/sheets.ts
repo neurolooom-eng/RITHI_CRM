@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { recordToRow, rowToRecord } from './fieldcall';
+import * as sb from './supabase';
 
 const URL_KEY = 'rithi.sheets.url';
 const VER_KEY = 'rithi.sheets.urlVersion';
@@ -140,6 +141,7 @@ export async function pingSheet(): Promise<PingResult> {
 
 // List calls from a tab. Returns records keyed by app keys.
 export async function listFieldCalls(type = '', limit = 0, tab = ''): Promise<Record<string, unknown>[]> {
+  if (sb.supabaseConfigured()) return sb.listCalls(sb.callTypeForTab(tab), limit || 2000);
   const params: Record<string, string> = { action: 'list' };
   if (type) params.type = type;
   if (limit) params.limit = String(limit);
@@ -160,6 +162,11 @@ export interface AddResult {
 // Add a new call. `record` is keyed by app keys; UCN + reg date are assigned
 // by the server so the number is unique against the live sheet.
 export async function addFieldCall(record: Record<string, unknown>, tab = ''): Promise<AddResult> {
+  if (sb.supabaseConfigured()) {
+    const rec = { ...record };
+    if (!rec.callType && tab) rec.callType = sb.callTypeForTab(tab);
+    return sb.addCall(rec);
+  }
   const call = recordToRow(record);
   // Sent over GET (JSONP-capable) so writes work even when the browser blocks
   // reading a cross-origin POST response.
@@ -172,18 +179,21 @@ export async function addFieldCall(record: Record<string, unknown>, tab = ''): P
 
 // ---- Product Master lookup (cascade: Party -> Product -> Serial) ----------
 export async function listParties(): Promise<string[]> {
+  if (sb.supabaseConfigured()) return sb.sbListParties();
   const r = await getJson({ action: 'parties' });
   if (!r.ok) throw new Error(String(r.error ?? 'parties failed'));
   return (r.values as string[]) ?? [];
 }
 
 export async function listPartyProducts(party: string): Promise<string[]> {
+  if (sb.supabaseConfigured()) return sb.sbListPartyProducts(party);
   const r = await getJson({ action: 'products', party });
   if (!r.ok) throw new Error(String(r.error ?? 'products failed'));
   return (r.values as string[]) ?? [];
 }
 
 export async function listPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
+  if (sb.supabaseConfigured()) return sb.sbListPartyItems(party, product);
   const r = await getJson({ action: 'items', party, product });
   if (!r.ok) throw new Error(String(r.error ?? 'items failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
@@ -200,6 +210,7 @@ export interface ProdFilters {
 // Product Master search. Explicit fields + optional global q; empty = browse.
 export async function searchProducts(filters: ProdFilters | string = {}, limit = 100): Promise<Record<string, unknown>[]> {
   const f: ProdFilters = typeof filters === 'string' ? { q: filters } : filters;
+  if (sb.supabaseConfigured()) return sb.sbSearchProducts(f, limit);
   const params: Record<string, string> = { action: 'prodsearch', limit: String(limit) };
   (['q', 'party', 'product', 'serial', 'status'] as const).forEach((k) => {
     const v = f[k];
@@ -393,6 +404,7 @@ export async function tabAppend(tab: string, data: Record<string, unknown>, book
 // ---- Master value lists (Party / Product / Standard Complaint / Call Type) --
 // Distinct values of a configured master column, for form dropdowns.
 export async function listMaster(name: string, limit = 3000): Promise<string[]> {
+  if (sb.supabaseConfigured()) return sb.listMaster(name, limit);
   const r = await getJson({ action: 'master', name, limit: String(limit) });
   if (!r.ok) throw new Error(String(r.error ?? 'master failed'));
   return (r.values as string[]) ?? [];
