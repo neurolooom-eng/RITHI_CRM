@@ -33,6 +33,7 @@ export const NAV: NavGroup[] = [
       { to: '/product-master', label: 'Product Master', icon: '🩺' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
+      { to: '/masters', label: 'All Masters', icon: '🗂️' },
     ],
   },
   {

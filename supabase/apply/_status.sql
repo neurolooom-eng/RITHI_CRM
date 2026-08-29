@@ -20,22 +20,37 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regprocedure('public.has_perm(text)')            is not null
      and to_regprocedure('public.is_admin()')                is not null
      and to_regprocedure('public.can_approve_spares()')      is not null)),
-    (4, 'reports: ordering',       'reports_visit_at_idx (0010)',
-        exists (select 1 from pg_indexes
-                 where schemaname='public' and tablename='reports' and indexname='reports_visit_at_idx')),
-    (5, 'spare_requests: workflow','spare_requests.stage (0006)',
+    (4, 'spare_requests: workflow','spare_requests.stage (0006)',
         exists (select 1 from information_schema.columns
                  where table_schema='public' and table_name='spare_requests' and column_name='stage')),
-    (6, 'spare_requests: receipt', 'spare_requests.received_at + is_spare_requester() (0009)',
+    (5, 'spare_requests: receipt', 'spare_requests.received_at + is_spare_requester() (0009)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_requests' and column_name='received_at')
      and to_regprocedure('public.is_spare_requester(public.spare_requests)') is not null)),
-    (7, 'spare_requests: intake',  'spare_requests.or_no + the OR sequence (0011)',
+    (6, 'spare_requests: intake',  'spare_requests.or_no + the OR sequence (0011)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_requests' and column_name='or_no')
      and to_regclass('public.spare_or_no_seq')          is not null)),
-    (8, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
-        to_regprocedure('public.spare_needs_review(text)')   is not null)
+    (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
+        to_regprocedure('public.spare_needs_review(text)')   is not null),
+    (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
+        (to_regprocedure('public.next_call_reqid()')   is not null
+     and not exists (select 1 from pg_constraint
+                      where conname = 'call_requests_reqid_key'))),
+    (9, 'call_requests: actions',  'call_requests.cancel_reason (0011)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='call_requests' and column_name='cancel_reason')),
+    (10, 'call_requests: state',   'call_state + pending_calls views (0012)',
+        (to_regclass('public.call_state')    is not null
+     and to_regclass('public.pending_calls') is not null)),
+    (11, 'reports: ordering',      'reports_visit_at_idx (0010_reports_ordering)',
+        exists (select 1 from pg_indexes
+                 where schemaname='public' and tablename='reports' and indexname='reports_visit_at_idx')),
+    (12, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
+        (to_regclass('public.app_roles') is not null
+     and not exists (select 1 from public.app_roles
+                      where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
+                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

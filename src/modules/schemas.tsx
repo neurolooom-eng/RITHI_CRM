@@ -154,42 +154,10 @@ export const productConfig: CrudConfig<BaseRecord> = {
 };
 
 // ---------------------------------------------------------------------------
-// 3. PART MASTER (spare parts)
+// 3. PART MASTER — see modules/PartMaster.tsx. The parts catalogue is the live
+// ITEM Master (Supabase `parts`), not a local CRUD collection, so it has no
+// config here.
 // ---------------------------------------------------------------------------
-export const partConfig: CrudConfig<BaseRecord> = {
-  collection: C.parts,
-  title: 'Part Master',
-  subtitle: 'Spare parts catalogue & stock',
-  icon: '🔩',
-  singular: 'Part',
-  storageKey: 'parts',
-  searchKeys: ['code', 'name', 'partNo', 'category'],
-  onBeforeCreate: (v) => ({ ...v, code: nextCode(C.parts, 'SPR') }),
-  columns: [
-    codeCol(),
-    { key: 'name', header: 'Part Name', width: 200 },
-    { key: 'partNo', header: 'Part No.', width: 130, wrap: false },
-    { key: 'category', header: 'Category', width: 130 },
-    { key: 'stockQty', header: 'In Stock', width: 90, align: 'right', wrap: false },
-    { key: 'reorderLevel', header: 'Reorder', width: 90, align: 'right', wrap: false },
-    currencyCol('unitPrice', 'Unit Price'),
-  ],
-  fields: [
-    { name: 'name', label: 'Part Name', required: true, span: 2, section: 'Identity', placeholder: 'e.g. SpO2 Sensor Cable' },
-    { name: 'partNo', label: 'Part No. / SKU', required: true, section: 'Identity' },
-    { name: 'category', label: 'Category', type: 'select', section: 'Identity',
-      options: toOptions(['Cable', 'Sensor', 'PCB / Board', 'Battery', 'Display', 'Mechanical', 'Consumable', 'Filter', 'Other']) },
-    { name: 'compatibleProductId', label: 'Compatible Product', type: 'select', section: 'Identity',
-      options: optionsFrom(C.products, 'name', { codeKey: 'code' }) },
-    { name: 'unitPrice', label: 'Unit Price', type: 'currency', section: 'Commercial', required: true },
-    { name: 'gstRate', label: 'GST %', type: 'number', section: 'Commercial', defaultValue: 18 },
-    { name: 'uom', label: 'Unit of Measure', type: 'select', section: 'Stock',
-      options: toOptions(['Nos', 'Set', 'Mtr', 'Pair', 'Pack']), defaultValue: 'Nos' },
-    { name: 'stockQty', label: 'Stock Quantity', type: 'number', section: 'Stock', defaultValue: 0, min: 0 },
-    { name: 'reorderLevel', label: 'Reorder Level', type: 'number', section: 'Stock', defaultValue: 2, min: 0 },
-    { name: 'binLocation', label: 'Bin / Location', section: 'Stock' },
-  ],
-};
 
 // ---------------------------------------------------------------------------
 // 4. WARRANTY REGISTRATION
@@ -459,7 +427,7 @@ export const spareConsumptionConfig: CrudConfig<BaseRecord> = {
   columns: [
     codeCol(),
     { key: 'callId', header: 'Against Call', width: 130, render: (r) => lookup(C.breakdowns, (r as Record<string, unknown>).callId, 'code') },
-    { key: 'partId', header: 'Part', width: 180, render: (r) => lookup(C.parts, (r as Record<string, unknown>).partId, 'name') },
+    { key: 'part', header: 'Part', width: 180, render: (r) => { const c = r as Record<string, unknown>; return String(c.part ?? '') || lookup(C.parts, c.partId, 'name'); } },
     { key: 'qty', header: 'Qty', width: 70, align: 'right', wrap: false },
     { key: 'engineer', header: 'Engineer', width: 130 },
     dateCol('consumeDate', 'Date'),
@@ -468,8 +436,9 @@ export const spareConsumptionConfig: CrudConfig<BaseRecord> = {
   fields: [
     { name: 'callId', label: 'Against Call', type: 'select', section: 'Consumption',
       options: optionsFrom(C.breakdowns, 'complaint', { codeKey: 'code' }) },
-    { name: 'partId', label: 'Spare Part', type: 'select', required: true, section: 'Consumption',
-      options: optionsFrom(C.parts, 'name', { codeKey: 'code' }) },
+    // The catalogue is the live ITEM Master, not a local collection — the part is
+    // stored as its "CODE|Description" string (see CallExtras' picker).
+    { name: 'part', label: 'Spare Part', required: true, section: 'Consumption', placeholder: 'CODE|Description' },
     { name: 'qty', label: 'Quantity Consumed', type: 'number', required: true, min: 1, section: 'Consumption', defaultValue: 1 },
     { name: 'engineer', label: 'Engineer', required: true, section: 'Consumption' },
     { name: 'consumeDate', label: 'Consumption Date', type: 'date', required: true, section: 'Consumption' },

@@ -182,11 +182,26 @@ export async function searchCalls(callType: string, terms: CallSearch, limit = 1
 
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
 export async function addCall(rec: Record<string, unknown>): Promise<AddResult> {
+  const c = must();
   const payload = callToDb(rec);
   delete payload.ucn; // server assigns via trigger
-  const { data, error } = await must().from('calls').insert(payload).select('*').single();
-  if (error) return { ok: false, error: errMsg(error) };
-  return { ok: true, ucn: String(data.ucn ?? ''), record: dbToCall(data) };
+  // Insert without .single(): a genuine failure sets `error`; an RLS-hidden
+  // returning just yields an empty array (the row was still inserted).
+  const { data, error } = await c.from('calls').insert(payload).select('*');
+  if (error) return { ok: false, error: error.message };
+  const row = data?.[0];
+  if (row) return { ok: true, ucn: String(row.ucn ?? ''), record: dbToCall(row) };
+  // Returning hidden by RLS — read back the row we just created.
+  try {
+    const { data: u } = await c.auth.getUser();
+    const uid = u.user?.id;
+    if (uid) {
+      const { data: back } = await c.from('calls').select('*').eq('created_by', uid).order('id', { ascending: false }).limit(1);
+      const r2 = back?.[0];
+      if (r2) return { ok: true, ucn: String(r2.ucn ?? ''), record: dbToCall(r2) };
+    }
+  } catch { /* fall through */ }
+  return { ok: true, ucn: '', record: dbToCall({ ...payload }) };
 }
 
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
@@ -419,7 +434,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
     if (rows.length < PAGE) break;
   }
   return out;
@@ -434,7 +449,7 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
   if (!ser.length && !par.length) return [];
 
   const rows: Record<string, unknown>[] = [];
-  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,state';
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state';
   for (const part of chunked(ser)) {
     const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
     if (error) throw new Error(errMsg(error));
@@ -457,7 +472,7 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
       productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
       allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
       complaint: String(r.complaint_reported ?? ''),
-      state: (String(r.state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+      state: (String(r.open_state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
     });
   });
   return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
@@ -589,6 +604,54 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
   const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.value)).filter(Boolean))];
+}
+
+// Every value of every generic master list (masters table), for the All
+// Masters view. Paged so a large registry still comes back whole.
+export async function listAllMasterValues(max = 20000): Promise<{ name: string; value: string }[]> {
+  const c = must();
+  const out: { name: string; value: string }[] = [];
+  const PAGE = 1000;
+  for (let from = 0; from < max; from += PAGE) {
+    const { data, error } = await c.from('masters').select('name,value').order('name').range(from, from + PAGE - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    rows.forEach((r) => {
+      const name = String(r.name ?? '').trim();
+      const value = String(r.value ?? '').trim();
+      if (name && value) out.push({ name, value });
+    });
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// Row count of a master table (head request — no rows transferred).
+export async function countRows(table: string, eq?: [string, unknown]): Promise<number> {
+  let q = must().from(table).select('id', { count: 'exact', head: true });
+  if (eq) q = q.eq(eq[0], eq[1] as never);
+  const { count, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+// ---- part master (ITEM Master rows) ----------------------------------------
+// The spare-parts catalogue lives in `parts`; the pickers show `item_detail`
+// ("CODE|Description"). This is the register behind the Part Master view.
+export interface PartFilter { q?: string; code?: string; description?: string; active?: string }
+export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
+  let q = must().from('parts').select('*').order('code').range(offset, offset + limit - 1);
+  if (filter.code) q = q.ilike('code', `%${_san(filter.code)}%`);
+  if (filter.description) q = q.ilike('description', `%${_san(filter.description)}%`);
+  if (filter.active === 'yes') q = q.eq('active', true);
+  if (filter.active === 'no') q = q.eq('active', false);
+  if (filter.q) {
+    const s = _san(filter.q);
+    q = q.or(`code.ilike.%${s}%,description.ilike.%${s}%,item_detail.ilike.%${s}%`);
+  }
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
 }
 
 // ---- spare requests --------------------------------------------------------
