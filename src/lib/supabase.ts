@@ -419,7 +419,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
     if (rows.length < PAGE) break;
   }
   return out;
@@ -434,7 +434,7 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
   if (!ser.length && !par.length) return [];
 
   const rows: Record<string, unknown>[] = [];
-  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,state';
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state';
   for (const part of chunked(ser)) {
     const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
     if (error) throw new Error(errMsg(error));
@@ -457,7 +457,7 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
       productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
       allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
       complaint: String(r.complaint_reported ?? ''),
-      state: (String(r.state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+      state: (String(r.open_state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
     });
   });
   return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
