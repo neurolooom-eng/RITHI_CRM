@@ -56,9 +56,54 @@ RM/RGM sees the reporting sub-tree (recursive over
 ## What's already in the repo
 
 - `supabase/migrations/0001_init.sql` — schema + RLS + UCN generator.
+- `supabase/migrations/0008_rbac_enforcement.sql` — RBAC enforced in Postgres
+  (see below).
+- `supabase/migrations/0009_spare_receipt.sql` — spare-request receipt stage:
+  acknowledgement columns, and the stage guard extended to cover them.
 - `src/lib/supabase.ts` — client, connection config, and a data API whose
   function shapes mirror the old `sheets.ts` so modules switch mechanically.
 - `@supabase/supabase-js` installed.
+
+## RBAC — server-side enforcement (`0008_rbac_enforcement.sql`)
+
+The role → action matrix that admins edit in **Admin → Roles & Permissions**
+(`app_roles`) is now enforced by Postgres, not only by the browser. Before
+this, `can(action)` hid buttons and blocked routes, but anyone holding the
+(public) anon key and any login could write rows the UI would never offer.
+
+How it works:
+
+- `public.has_perm('<action>')` resolves the signed-in user's `profiles.role`
+  against `app_roles.permissions` — the same rows the admin matrix edits.
+  Admins and super admins hold every action; a role with no row (or an empty
+  permission list) falls back to `engineer`, so a half-configured matrix
+  degrades to least privilege instead of locking everyone out.
+- `public.app_super_admins` holds the dev/support logins that always have full
+  rights (mirrors `SUPER_ADMINS` in `src/lib/auth.tsx`). Maintained in SQL —
+  there is deliberately no write policy.
+- Every RLS policy now names the action it needs: `calls.create` to insert a
+  call, `calls.report` to file a report, `masters.edit` to change a master,
+  `spare.request` to raise a spare request, `users.manage` for profiles,
+  `rbac.manage` for the matrix itself. Reference data (parties / products /
+  parts / value lists) stays readable to any signed-in user — engineers need
+  it to fill a call in.
+- The reporting-tree scope (`can_see_call`) still applies on top of the
+  action, so `calls.view` widens *what kind of* access a role has, never
+  *whose* calls it sees.
+- Approval stages can't be expressed in RLS (it grants whole rows), so a
+  `before update` trigger on `spare_requests` guards them column by column:
+  the RM / Commercial / NSM / Stores columns each require their own action,
+  and moving `stage` requires at least one of them.
+- A trigger on `profiles` blocks self-promotion: nobody edits their own role,
+  and granting `admin` requires already being an administrator.
+
+The seeded matrix mirrors `DEFAULT_PERMS` in `src/lib/rbac.ts`; existing rows
+with a non-empty permission list are left untouched, so admin edits win.
+**Keep the two in sync when actions or roles change.**
+
+Rejections surface in the UI through `errMsg()` in `src/lib/supabase.ts`,
+which turns `42501` / row-level-security errors and the triggers' `RBAC: …`
+messages into a readable sentence.
 
 ## Open items to confirm before go-live
 

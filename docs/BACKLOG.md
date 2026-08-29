@@ -153,12 +153,15 @@ auto REST + RLS + Auth).
     approval/dispatch chain, role-scoped. Parts come from the `spare` master.
   - *Phase 2:* approval chain RM → Commercial → NSM → Stores (DC dispatch);
     Commercial + NSM auto-approve unless the item is AMC or OGP.
-  - *Phase 3* (`0008_spare_receipt.sql`): engineer **acknowledgement** closes the
+  - *Phase 3* (`0009_spare_receipt.sql`): engineer **acknowledgement** closes the
     loop (Dispatched → Received, raiser only); reject **reasons** and dispatch
     details (DC, courier, remarks) captured in confirmation dialogs; stage KPI
     tiles + stage chips with a **"Needs my action"** queue; a request **detail
     drawer** with every part and the full approval trail; new `spare.receive`
-    permission.
+    permission. The migration extends `0008_rbac_enforcement.sql`'s stage guard
+    to cover the receipt columns (the raiser holds no approval permission, so
+    the guard would otherwise reject the acknowledgement) and grants
+    `spare.receive` in `app_roles` additively.
   - **Next:** stock decrement on dispatch (Part Master on-hand), a stores-side
     pick/pack view, and consumption reconciliation — flag a received request
     whose parts were never consumed against the call.
