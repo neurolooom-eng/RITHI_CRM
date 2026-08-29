@@ -87,10 +87,34 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 
 ## 🔜 In progress / Next
 
+### Migrations to run (Supabase SQL editor)
+Apply with the bundles in `supabase/apply/` rather than the numbered files —
+run `_status.sql` first to see what the project is missing, then the bundle(s)
+it flags. They are generated from the migrations by
+`scripts/build-apply-bundles.mjs`, carry their module's migrations in order,
+preflight their prerequisites, and are idempotent.
+
+- ✅ **`all.sql` applied (2026-08-29)** — `user_directory` (`0004`), `rbac`
+  (`0005`, `0007`, `0008_rbac_enforcement`) and the whole spare module
+  (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
+  live on the project. None of these had ever been run: the spare tables were
+  still at `0001`, which is why the spare register only ever half-worked.
+- `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
+- `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
+  run, the Call Status column stays blank and Pending Calls says so.
+- ⚠️ **Migration numbers have collided repeatedly** (two `0008`s, two `0010`s,
+  two `0011`s, two `0012`s) because parallel branches each claimed the next
+  number. Ordering between a pair that shares a number is undefined. Worth
+  moving to timestamp-prefixed names.
+
+
+
 ### Supabase cutover — DONE (app now runs on Postgres)
 Reads were timing out on Apps Script; the app is now on Supabase (Postgres + auto
-REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
-`supabase/full_schema.sql`).
+REST + RLS + Auth). Migrations `0001`–`0013`, applied per module from
+`supabase/apply/`. ⚠️ `supabase/full_schema.sql` is a **stale** snapshot — it
+predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
+`spare_needs_review`), so use the apply bundles, not that file.
 - ✅ Schema + reports-as-history (per-visit, keyed by UID); data layer
   (`src/lib/supabase.ts`), `sheets.ts` delegates when connected.
 - ✅ Baked project URL + publishable key; **email/password login** via `profiles`.
@@ -127,13 +151,15 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 - ✅ New-call create fix (`0008`: creator can read back the inserted row).
 
 ### Open items & questions
-- **User Master data + engineer logins** — directory infra is done (`0004`);
+- **User Master data + engineer logins** — directory infra is done and `0004`
+  is now **applied** (via the `user_directory` bundle);
   **pending:** import the **User Master CSV** (turns on directory-based scoping +
   the RM→engineer reporting dropdown), then **bulk-create Supabase Auth logins**
   for active directory users (script with the secret key, or add in Auth → Users).
-- **Tighten approval / consumption / feedback RLS** to the specific roles
-  (buttons are RBAC-gated client-side; DB `sr_update` / `cons` / `fb` currently
-  allow any authenticated write).
+- **Tighten consumption / feedback RLS** to the specific roles — `cons` / `fb`
+  still allow any authenticated write. **Spare approvals are done:**
+  `0008_rbac_enforcement` scoped `sr_update` and added a per-stage guard, which
+  `0009` and `0012` extended to the receipt and auto-approval paths.
 - **Raw monthly PM bulk import** — accept the raw PM tab export directly in Bulk
   Data Import (auto-map, preserve back-dated `reg_date`). Back-dating already
   works via the clean-CSV importer.
@@ -186,7 +212,8 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 
 ## 📋 Queued (from the Service_CRM intent)
 
-- **Spare module** — ✅ Phases 1–3 shipped.
+- **Spare module** — ✅ Phases 1–4 shipped, and **live on Supabase since
+  2026-08-29** (applied with the `all.sql` bundle).
   - *Phase 1:* raise a Call-Based spare request from a call (📦 Spare /
     Request Spares); **Spare Requests** register lists one row per part with the
     approval/dispatch chain, role-scoped. Parts come from the `spare` master.
@@ -201,17 +228,29 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
     to cover the receipt columns (the raiser holds no approval permission, so
     the guard would otherwise reject the acknowledgement) and grants
     `spare.receive` in `app_roles` additively.
-  - *Phase 4* (`0011_spare_intake.sql`, `0012_spare_auto_approval.sql`): the
-    intake spec — OR NO / RowNo / OR Req Date assigned by the database, UCN
-    picker, engineer selection, 20 parts per request — and Supabase-only
-    writes. 0011 fixes the RM's approval of a non-AMC item being refused by
-    0008's stage guard (the auto-approval of Commercial/NSM rode along in the
-    same update and tripped their permission checks).
-  - **Next:** stock decrement on dispatch (Part Master on-hand — needs
-    `parts.on_hand`/price columns first; the ITEM Master import carries only
-    code, description and Active), a stores-side pick/pack view, and consumption
-    reconciliation — flag a received request whose parts were never consumed
-    against the call.
+  - *Phase 4* (`0011_spare_intake.sql`): the intake spec — OR NO / RowNo / OR
+    Req Date assigned by the database, UCN picker, engineer selection, 20 parts
+    per request — and Supabase-only writes (the `v2_ORReq-All` append is gone).
+  - *Phase 4 fix* (`0012_spare_auto_approval.sql`): an RM approving a non-AMC
+    item was **refused by the database**. `buildPatch` writes the Commercial and
+    NSM auto-approvals in the same update as the RM's approval, and 0008's stage
+    guard demanded permissions the RM does not hold — so the common path could
+    not be approved at all. The guard now allows exactly that case; a manual
+    approval still needs its own action and AMC/OGP still cannot be auto-cleared.
+  - **Verified:** `supabase/tests/` applies every migration to a throwaway
+    Postgres and exercises the triggers (12 scenarios: OR numbering from 47042,
+    RowNo per OR, qty/20-part limits, the non-AMC fast path, receipt restricted
+    to the raiser and to dispatched requests, the AMC review rule). It is what
+    caught the 0012 bug — the build and the TypeScript tests could not see it.
+    The harness runs as superuser, so it covers **triggers, not RLS policies**;
+    the policies still want a check against the live project.
+  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
+    first; the ITEM Master import carries only code, description and Active), a
+    stores-side pick/pack view, and consumption reconciliation — flag a received
+    request whose parts were never consumed against the call. Also worth a smoke test
+    on the live project now that the migrations are applied: raise a request,
+    approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
+    the new `sr_delete`) are the part the trigger harness cannot cover.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target
