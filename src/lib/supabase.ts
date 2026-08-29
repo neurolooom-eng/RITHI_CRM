@@ -296,6 +296,28 @@ export async function listSpareRequestLines(limit = 600): Promise<Record<string,
   return data ?? [];
 }
 
+// Everything associated with one call (for the unified call view).
+export async function spareRequestsByUcn(ucn: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_request_lines')
+    .select('*, spare_requests!inner(uid, ucn, req_type, status, engineer, created_at)')
+    .eq('spare_requests.ucn', ucn).order('created_at', { ascending: false }).limit(200);
+  if (error) return [];
+  return (data ?? []).map((r) => {
+    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
+    return { ...r, uid: req?.uid, req_type: req?.req_type, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at };
+  });
+}
+export async function spareConsumptionByUcn(ucn: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_consumption').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
+  if (error) return [];
+  return data ?? [];
+}
+export async function feedbackByUcn(ucn: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('feedback').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(50);
+  if (error) return [];
+  return data ?? [];
+}
+
 // ---- consumption / feedback ------------------------------------------------
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);

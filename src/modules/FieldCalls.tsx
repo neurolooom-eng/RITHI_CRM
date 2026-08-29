@@ -7,6 +7,7 @@ import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
 import { SpareRequestDrawer } from './SpareRequests';
+import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
@@ -589,7 +590,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       )}
 
       <DataTable<Rec>
-        columns={[...COLUMNS, actionsColumn]}
+        columns={[actionsColumn, ...COLUMNS]}
         allFields={CALL_ALL_FIELDS}
         rows={visibleRows}
         getRowId={(r) => r.id}
@@ -669,6 +670,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
               </div>
             )}
+            {/* Actions at the top of a call's view */}
+            {drawer.mode === 'view' && !drawer.row?._pending && can('edit') && (
+              <div className="call-actions-top">
+                <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
+                <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
+                <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>
+              </div>
+            )}
             {drawer.mode === 'create' && configured && (
               <ProductLookup
                 onPick={(p) => { setPrefill(productToCallPrefill(p)); setPrefillKey((k) => k + 1); }}
@@ -697,6 +706,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ) : undefined
               }
             />
+            {drawer.mode === 'view' && !drawer.row?._pending && drawer.row?.ucn && (
+              <CallAssociations ucn={String(drawer.row.ucn)} />
+            )}
           </>
         )}
       </Drawer>
