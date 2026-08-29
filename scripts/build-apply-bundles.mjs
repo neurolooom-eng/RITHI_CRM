@@ -61,7 +61,8 @@ const MODULES = {
       'The Hotline request desk: a request is one row per call (Product + Serial +',
       'Complaint + Reported Problem), closed out by mapping it to an existing call,',
       'registering a new one, or cancelling it. Plus the call_state / pending_calls',
-      'views the Call Status column and the Pending Calls module read.',
+      'views the Call Status column and the Pending Calls module read, and Call',
+      'Number assignment (the request UniqueID, or CLYY##### for a direct call).',
     ],
     needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
     files: [
@@ -70,6 +71,7 @@ const MODULES = {
       '0011_call_request_actions.sql',
       '0012_call_state.sql',
       '0014_call_state_denorm.sql',
+      '0015_call_number.sql',
     ],
   },
   reports: {

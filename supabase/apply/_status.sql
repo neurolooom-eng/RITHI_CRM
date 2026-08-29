@@ -50,7 +50,9 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='calls' and column_name='open_state')
      and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
-    (13, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
+    (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
+        to_regprocedure('public.next_direct_call_number(text)') is not null),
+    (14, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles
                       where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'

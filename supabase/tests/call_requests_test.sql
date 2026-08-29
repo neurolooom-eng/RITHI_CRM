@@ -43,10 +43,10 @@ select count(distinct reqid) as distinct_reqids from public.call_requests;
 \echo '--- 4. Hotline maps one, registers one, cancels one (0011) ---'
 call public.be('hot@x.com');
 insert into public.calls (ucn, call_type, party_name, product_name, serial, allocated_to)
-  values ('26H29F0002','FIELD','KAMALAKAR','ORION-G','2137','Venkat');
-update public.call_requests set ucn='26H29F0002', status='Mapped', actioned_by='Hot Hema', actioned_at=now()
+  values ('MAP-UCN-1','FIELD','KAMALAKAR','ORION-G','2137','Venkat');
+update public.call_requests set ucn='MAP-UCN-1', status='Mapped', actioned_by='Hot Hema', actioned_at=now()
  where unique_key = :'reqid' || '-ORION-G-2137';
-update public.call_requests set ucn='26H29F0099', status='Registered', actioned_by='Hot Hema', actioned_at=now()
+update public.call_requests set ucn='REG-UCN-1', status='Registered', actioned_by='Hot Hema', actioned_at=now()
  where unique_key = :'reqid' || '-ORION-G-2138';
 update public.call_requests set status='Cancelled', cancel_reason='Duplicate request', cancelled_at=now(), actioned_by='Hot Hema'
  where unique_key = :'reqid' || '-CPX CARE-4306';
@@ -87,3 +87,22 @@ select ucn, last_status, open_state from public.calls where ucn = 'U-PENDING';
 \echo 'deleting the last visit puts the call back to Unattended'
 delete from public.reports where ucn = 'U-UNSOLVED';
 select ucn, last_status, open_state from public.calls where ucn = 'U-UNSOLVED';
+
+\echo '--- 9. Call Number: request UniqueID, else CLYY##### (0015) ---'
+insert into public.calls (call_type, party_name, product_name, serial, reg_date)
+  values ('FIELD','Direct One','ORION-G','7001', current_date);
+insert into public.calls (call_number, call_type, party_name, product_name, serial, reg_date)
+  values ('R20005-ORION-G-601','FIELD','From Request','ORION-G','601', current_date);
+select call_number, party_name from public.calls
+ where party_name in ('Direct One','From Request') order by party_name;
+
+\echo 'the year counter seeds from the numbers already in the register'
+delete from public.call_number_seq;                       -- as if seeding for the first time
+insert into public.calls (ucn, call_number, call_type, party_name, reg_date)
+  values ('CN-OLD','CL' || to_char(current_date,'YY') || '00200-ORION-G-842','FIELD','Imported', current_date);
+insert into public.calls (call_type, party_name, reg_date) values ('FIELD','After Import', current_date);
+select call_number, party_name from public.calls where party_name = 'After Import';
+
+\echo 'a call registered a year ago gets that years series'
+insert into public.calls (call_type, party_name, reg_date) values ('FIELD','Last Year', current_date - interval '1 year');
+select call_number, party_name from public.calls where party_name = 'Last Year';

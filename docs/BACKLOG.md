@@ -32,6 +32,11 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Call Number is assigned, not typed** (`0015_call_number.sql`) — from a
+  request it is the request's **UniqueID** (REQID-Product-Serial); a direct
+  customer call gets **CLYY#####** (five-digit running number, per year,
+  seeded from the existing series). Blank ones are back-filled. It matters
+  because reports / spare requests / consumption / feedback are keyed by it.
 - **Call status everywhere** — a call is **Solved / Unsolved / Report pending /
   Unattended** by its LATEST visit, derived once in Postgres (`call_state` /
   `pending_calls` views, `0012_call_state.sql`). Colour-coded column on the

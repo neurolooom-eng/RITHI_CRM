@@ -50,12 +50,20 @@ const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
 export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
-  if (!prefill) return FIELD_CALL_FIELDS;
-  return FIELD_CALL_FIELDS.map((f) =>
-    FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== ''
-      ? { ...f, readOnly: true, help: 'From Product Master (locked)' }
-      : f,
-  );
+  // Call Number is never typed: a call registered from a request carries the
+  // request's UniqueID (REQID-Product-Serial); a direct call is assigned
+  // CLYY##### by the database on save.
+  const callNumberField = (f: FieldDef): FieldDef =>
+    String(prefill?.callNumber ?? '') !== ''
+      ? { ...f, readOnly: true, help: 'From the call request (UniqueID)' }
+      : { ...f, readOnly: true, help: 'Assigned on save — CLYY##### for a direct customer call' };
+
+  return FIELD_CALL_FIELDS.map((f) => {
+    if (f.name === 'callNumber') return callNumberField(f);
+    if (prefill && FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== '')
+      return { ...f, readOnly: true, help: 'From Product Master (locked)' };
+    return f;
+  });
 }
 
 // ===========================================================================
@@ -76,7 +84,7 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
   { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet UCN format.', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
-  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. R18447-MONNAL T75-7909', span: 1 },
+  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'Assigned on save', span: 1 },
   { name: 'complaintDate', label: 'Complaint Date', type: 'date', section: 'Registration', required: true, span: 1 },
 
   // Customer & product
