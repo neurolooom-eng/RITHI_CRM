@@ -22,6 +22,11 @@ _Last updated: 2026-08-29_
 ### Calls
 - Field Call Register — live against the FIELD tab; new calls get a UCN written
   back. Installation Calls — live against INST (same schema, I-type UCN).
+- Call Registration Request: the repeatable unit is a **call** —
+  Product + Serial No + Standard Complaint + Reported Problem — up to 5 per
+  request, each written as its own `call_requests` row under one REQID.
+  **Installation Report / KYC are file uploads** to the CallReg Drive folder
+  (`driveupload` / `driveref` endpoints); the request stores the Drive link.
 - Party → Product → Serial cascade picker (Party + Product Master) auto-fills.
 - Add Field Call: today's dates defaulted; warranty/contract freeze once loaded
   from Product Master; section reorder persists.
@@ -93,8 +98,9 @@ auto REST + RLS + Auth).
   clean-CSV importer (dates are preserved; UCN only auto-assigned when blank).
 - **Editable Registration Date on the single-call PM form?** — for one-off
   back-dated entries (question — confirm if wanted).
-- **Manual Report** — currently a Drive-link paste field. Option to restore the
-  **file-upload-to-Drive-folder** (folder `1-46Ud9j…z2La`) flow (question).
+- **Manual Report** — currently a Drive-link paste field. The generic
+  `driveupload` endpoint added for the request form can back a file-upload flow
+  here too (folder `1-46Ud9j…z2La`) (question).
 - **Reporting solved-branch fields** — confirm which are required and whether
   "Add Consumption?" / "Maintenance Done?" / "Recomended Filter Changed?" should
   be Yes/No dropdowns (question).
@@ -147,7 +153,7 @@ auto REST + RLS + Auth).
     approval/dispatch chain, role-scoped. Parts come from the `spare` master.
   - *Phase 2:* approval chain RM → Commercial → NSM → Stores (DC dispatch);
     Commercial + NSM auto-approve unless the item is AMC or OGP.
-  - *Phase 3* (`0007_spare_receipt.sql`): engineer **acknowledgement** closes the
+  - *Phase 3* (`0008_spare_receipt.sql`): engineer **acknowledgement** closes the
     loop (Dispatched → Received, raiser only); reject **reasons** and dispatch
     details (DC, courier, remarks) captured in confirmation dialogs; stage KPI
     tiles + stage chips with a **"Needs my action"** queue; a request **detail

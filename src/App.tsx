@@ -21,7 +21,7 @@ import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
-import { UsersAdmin } from './modules/UsersAdmin';
+import { UserAccess } from './modules/UserAccess';
 import { Settings } from './modules/Settings';
 import { VersionHistory } from './modules/VersionHistory';
 import { AdminConfig } from './modules/AdminConfig';
@@ -85,7 +85,7 @@ function Shell() {
         <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
-        <Route path="/users" element={<UsersAdmin />} />
+        <Route path="/users" element={<UserAccess />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/admin-config" element={<AdminConfig />} />

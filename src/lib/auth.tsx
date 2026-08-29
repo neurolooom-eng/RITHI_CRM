@@ -27,6 +27,7 @@ function profileToUser(p: Profile): User {
     reportingManager: p.reporting_manager_email,
     regionalManager: p.regional_manager_email,
     rbacRole: (p.role || 'engineer').toLowerCase(),
+    extraPermissions: Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
   } as User;
 }
 
@@ -62,7 +63,8 @@ export interface User extends BaseRecord {
   designation?: string; // from the User Master (e.g. Engineer, Regional Manager)
   reportingManager?: string; // RM — the name this user reports to
   regionalManager?: string; // RGM — the regional (general) manager
-  rbacRole?: string; // raw role key for RBAC (admin|rgm|rm|engineer|hotline|spare_coordinator|tally_coordinator)
+  rbacRole?: string; // raw role key for RBAC (admin|rgm|rm|engineer|hotline|spare_coordinator|tally_coordinator|...)
+  extraPermissions?: string[]; // per-user actions granted beyond the role
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -169,6 +171,7 @@ interface AuthContextValue {
   can: (action: string) => boolean; // RBAC: legacy keys + canonical action keys
   rolePerms: Record<string, string[]>; // role → allowed actions (admin-editable)
   reloadRoles: () => Promise<void>;
+  reloadUsers: () => Promise<void>; // refresh the profiles list after admin edits
   // The actual logged-in user (never the impersonated one) and whether they are
   // a real administrator — used to gate the "View as" control itself.
   realUser: User | null;
@@ -197,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supaBooting, setSupaBooting] = useState<boolean>(supaMode);
   const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(DEFAULT_PERMS);
   const reloadRoles = async () => { if (supaMode) { const p = await getRolePerms(); if (Object.keys(p).length) setRolePerms((cur) => ({ ...cur, ...p })); } };
+  const reloadUsers = async () => { if (supaMode) { const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); } };
 
   useEffect(() => seedUsers(), []);
   useEffect(() => db.subscribe(USERS, refresh), []);
@@ -400,12 +404,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isSuper(u.email, u.username)) return true; // super admins — all rights
     const roleKey = u.rbacRole || legacyToRbac(u.role);
     if (roleKey === 'admin') return true;
-    return permsForRole(roleKey, rolePerms).includes(toCanonical(action));
+    const canonical = toCanonical(action);
+    return permsForRole(roleKey, rolePerms).includes(canonical) || (u.extraPermissions?.includes(canonical) ?? false);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, realUser, isAdmin, viewAs, setViewAs }}
+      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, realUser, isAdmin, viewAs, setViewAs }}
     >
       {children}
     </AuthContext.Provider>

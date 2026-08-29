@@ -202,6 +202,15 @@
 .rbac-group td { text-align: left !important; background: var(--surface-2, #f4f6f8); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; font-size: 11px; color: var(--muted, #64748b); }
 .rbac-cell input { width: 16px; height: 16px; cursor: pointer; }
 
+/* Request Call Registration — one card per call (Product + Serial +
+   Standard Complaint + Reported Problem), up to 5 per request. */
+.req-item { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 8px; background: var(--bg); }
+.req-item-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.req-item-title { font-weight: 650; font-size: 12px; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.req-doc { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.req-doc-link { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-doc-hint { font-size: 11px; }
+
 /* ---- Spare request workflow (stage chips + approval trail) --------------- */
 .stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
 .chip {
