@@ -14,6 +14,11 @@ guards. It caught a live bug (an RM's approval of a non-AMC item being refused
 by the stage guard, fixed in `0012_spare_auto_approval.sql`), so it is worth
 re-running whenever a migration touches `spare_requests`.
 
+`handstock_test.sql` exercises the hand-stock views (`0016_handstock.sql`) — a
+receipt entering hand stock only once it is acknowledged, consumption taking it
+back out, the name/part-code matching the two sides are joined on, and a
+negative balance where parts were consumed that no receipt covers.
+
 These are plain `psql` scripts, not a test framework: each step prints what it
 did, and the steps that must fail are labelled `expect ERROR`. Read the output.
 
@@ -34,6 +39,7 @@ psql -h /tmp/pgt -p 55432 -U postgres -v ON_ERROR_STOP=1 \
 
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/spare_workflow_test.sql
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/call_requests_test.sql
+psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/handstock_test.sql
 ```
 
 Note the harness connects as superuser, which bypasses RLS — it exercises the

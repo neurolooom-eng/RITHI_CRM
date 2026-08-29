@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
+import { uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -221,7 +222,7 @@ export function CallReportDrawer({
 
       // Spare consumption → spare_consumption (one row per part).
       for (const s of spares) {
-        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, data: {} });
+        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, engineer_email: user?.email ?? '', data: {} });
       }
       // Customer feedback → feedback (structured answers).
       if (solved && fbQuestions.length) {

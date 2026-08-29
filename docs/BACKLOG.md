@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
+_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped)_
 
 ---
 
@@ -108,6 +108,8 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
+- **`0016_handstock.sql`** — the hand-stock views (in the `spare_requests`
+  bundle). Until it is run, the Hand Stock module says so and stays empty.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.
@@ -262,10 +264,25 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     caught the 0012 bug — the build and the TypeScript tests could not see it.
     The harness runs as superuser, so it covers **triggers, not RLS policies**;
     the policies still want a check against the live project.
-  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
-    first; the ITEM Master import carries only code, description and Active), a
-    stores-side pick/pack view, and consumption reconciliation — flag a received
-    request whose parts were never consumed against the call. Also worth a smoke test
+  - *Phase 5* (`0016_handstock.sql`): **Hand Stock** (`/handstock`) — what an
+    engineer is actually carrying. A receipt (Dispatched → Received) puts parts
+    in; a spare consumed on a call report takes them out; Postgres nets the two
+    per engineer + part in the `handstock_movements` / `handstock_balance`
+    views. One line per engineer and part with received / consumed / in hand,
+    a movement trail behind each line (OR number in, call number out), an
+    in-hand / short / settled filter, per-engineer filter, search and CSV.
+    Both views are `security_invoker`, so scoping is the underlying tables'.
+    The two sides are matched on the engineer's **name** (case- and
+    space-insensitive) and the part **CODE** — consumption never carried an
+    email, so the report form now writes one for future rows.
+    A **negative** balance is shown, not hidden: it means parts were consumed
+    that no acknowledged receipt covers (stock carried from before the receipt
+    step, or a dispatch nobody acknowledged).
+  - **Next:** warehouse-side stock — decrement on dispatch (needs
+    `parts.on_hand`/price columns first; the ITEM Master import carries only
+    code, description and Active) and a stores pick/pack view. Hand stock now
+    covers the field side, so consumption reconciliation is a filter over it
+    (a received part still sitting in hand long after the call closed). Also worth a smoke test
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
@@ -293,3 +310,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   share the sheet.
 - Role/visibility matching relies on exact `User Name` ⇄ `Call Allocated To`
   strings (case/space-insensitive). Flag any spelling mismatches.
+- **`supabase/apply/all.sql` is not re-runnable** (the per-module bundles are).
+  On a second run `0012_call_state.sql` recreates `pending_calls` as
+  `select c.*, s.state as open_state`, and by then `0014` has added a real
+  `open_state` column to `calls` — so the view has the name twice and the
+  bundle stops with *“column open_state of relation pending_calls already
+  exists”*. Pre-existing, harmless on a first apply; fix by qualifying that
+  select when `0012` is next touched.
+- **`CallReporting.tsx` was missing its `uploadToDrive` / `MAX_UPLOAD_BYTES`
+  import** — `npm run build` failed on the branch tip. Import added.

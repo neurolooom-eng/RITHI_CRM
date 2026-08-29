@@ -42,6 +42,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/reports', label: 'Reports' },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
+  { path: '/handstock', label: 'Hand Stock' },
   { path: '/feedback', label: 'Customer Feedback' },
   { path: '/failure-report', label: 'Field Failure Report' },
   { path: '/kpi', label: 'KPI & Failure Analysis' },

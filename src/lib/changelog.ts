@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.7',
+    date: '2026-08-29',
+    title: 'Hand Stock \u2014 what an engineer is carrying',
+    changes: [
+      'Spares an engineer acknowledges as received went into a black hole: the request closed, and nothing anywhere said what the field was holding. The new \u201cHand Stock\u201d register (Spares \u2192 Hand Stock) shows it \u2014 one line per engineer and part, with received, consumed and in-hand.',
+      'Nothing extra is entered for it. A receipt on a spare request adds to hand stock; a spare consumed on a call report takes it away. Postgres nets the two, so the register is the ledger, not a second place to keep books.',
+      'Click a line for its movement trail \u2014 every receipt (with its OR number) and every consumption (with its call), so a disputed balance can be read back to where it came from.',
+      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed than received, which means stock carried from before receipts were acknowledged or a dispatch nobody acknowledged. Search, per-engineer filter and CSV export as everywhere else.',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0016_handstock.sql (apply bundle: spare_requests).',
+    ],
+  },
+  {
     version: '0.6.6',
     date: '2026-08-29',
     title: 'Request Call Registration is a register',

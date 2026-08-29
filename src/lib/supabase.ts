@@ -734,6 +734,28 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
   return data ?? [];
 }
 
+// ---- hand stock ------------------------------------------------------------
+// Netted per engineer + part by Postgres (views from 0016_handstock.sql), so
+// the register never has to pull every receipt and every consumption line to
+// work out a balance. Both views are security_invoker, so the rows a user gets
+// are exactly the ones they may already see in Spare Requests / Consumption.
+export async function listHandstockBalance(limit = 5000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .order('engineer', { ascending: true }).order('part_code', { ascending: true })
+    .range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// The movement history behind one engineer's line — every receipt and every
+// consumption for that part, newest first.
+export async function listHandstockMovements(engineerKey: string, partCode = '', limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*').eq('engineer_key', engineerKey);
+  if (partCode) q = q.eq('part_code', partCode);
+  const { data, error } = await q.order('moved_at', { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
