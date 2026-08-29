@@ -299,6 +299,7 @@ export async function setPendingUcn(row: number, ucn: string): Promise<boolean> 
 
 // User Master directory (all users, regardless of Validity).
 export async function listUsers(q = '', limit = 300): Promise<Record<string, unknown>[]> {
+  if (sb.supabaseConfigured()) return sb.listDirectoryAsUsers();
   const r = await getJson({ action: 'users', q, limit: String(limit) });
   if (!r.ok) throw new Error(String(r.error ?? 'users failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
