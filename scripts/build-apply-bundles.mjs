@@ -96,6 +96,14 @@ const MODULES = {
     needs: ['profiles', 'rbac'],
     files: ['0021_master_lists.sql'],
   },
+  audit: {
+    title: 'Audit Log',
+    blurb: ['The audit trail: who did what, when, whether it worked and how long it',
+            'took. Clients insert their own events; the identity is stamped by the',
+            'database so it cannot be forged, and only admins can read it.'],
+    needs: ['profiles', 'isAdmin'],
+    files: ['0009_audit_log.sql'],
+  },
   reports: {
     title: 'Reports',
     blurb: ['The visit history: the indexes behind its newest-first ordering.'],
@@ -274,7 +282,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'masters', 'call_requests', 'audit', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

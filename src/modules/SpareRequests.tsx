@@ -9,7 +9,10 @@ import {
   searchCalls, supabaseConfigured,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
-import { deriveStage, stageAction, buildPatch, dispatchPatch } from '../lib/spareflow';
+import {
+  deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
+  canBulkApprove, STAGES, stageTone, type Stage,
+} from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -169,24 +172,15 @@ export function SpareRequestDrawer({
     };
 
     setBusy(true); setErr('');
+    const t0 = performance.now();
     try {
-      if (supabaseConfigured()) {
-        // Supabase: one spare_requests row + a spare_request_lines row per part.
-        const req: Record<string, unknown> = {
-          uid, req_type: reqType, engineer: user?.fullName ?? '', engineer_email: user?.email ?? '',
-          ucn: c('ucn'), call_number: c('callNumber'), party_name: c('partyName'), product_name: c('productName'),
-          serial: c('serial'), complaint: c('complaintReported') || c('standardComplaint'), item_status: c('itemStatus'),
-          handstock_reason: reqType === 'HandStock' ? handstockReason : '', remarks, status: 'Pending',
-        };
-        const t0 = performance.now();
-        const res = await addSpareRequest(req, picked.map((s) => ({ part: s.spare, qty: Number(s.qty) || 1 })));
-        logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: c('ucn'), parts: picked.length } });
-        if (res.ok) { onSaved?.(c('ucn'), res.uid ?? uid); onClose(); }
-        else setErr(res.error ?? 'Could not submit the request.');
-        setBusy(false); return;
-      }
-      const res = await tabAppend(INTAKE_TAB, data, BOOK);
-      if (res.ok) { onSaved?.(c('ucn'), uid); onClose(); }
+      const res = await addSpareRequest(req, picks);
+      logAudit({
+        action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error',
+        error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0),
+        meta: { ucn: callFields.ucn, parts: picks.length, req_type: reqType },
+      });
+      if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
       setErr(`Submit failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -505,19 +499,87 @@ export function SpareRequests() {
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
   };
   const actor = user?.fullName || user?.email || 'user';
-  const act = async (row: Row, decision: 'approve' | 'reject') => {
-    const t0 = performance.now();
-    const res = await updateSpareRequest(String(row.uid), buildPatch(row, decision, actor));
-    logAudit({ action: `spare.${decision}`, target: String(row.uid), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { stage: deriveStage(row) } });
-    if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Update failed.' });
+  // How many lines of this request sit at the same stage and are mine to act on
+  // — the size of a per-OR decision.
+  const sameStageLines = (row: Row): Row[] => {
+    const stage = deriveStage(row);
+    return rows.filter((r) => String(r.uid) === String(row.uid)
+      && deriveStage(r) === stage && actionable(r, can, email));
   };
-  const doDispatch = async (row: Row) => {
-    const dc = window.prompt('DC / Stock-out number for dispatch:', String(row.dc_number ?? ''));
-    if (dc == null) return;
+
+  const runPending = async (p: Pending, input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => {
+    setPending(null);
+    const { row, scope } = p;
+    const stage = deriveStage(row);
+    const patch =
+      p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
+      : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
+      : buildPatch(row, p.kind, actor, input.reason ?? '');
+    const what = p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
+      : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
+
+    setBusy(true);
     const t0 = performance.now();
-    const res = await updateSpareRequest(String(row.uid), dispatchPatch(dc.trim(), actor));
-    logAudit({ action: 'spare.dispatch', target: String(row.uid), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { dc: dc.trim() } });
-    if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' });
+    // One audit entry per decision, whether it covered one spare or the OR.
+    const audit = (res: { ok: boolean; error?: string; count?: number }) => logAudit({
+      action: `spare.${p.kind}`,
+      target: scope === 'or' ? String(row.or_no ?? row.uid) : String(row.line_uid ?? row.uid),
+      status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+      duration_ms: Math.round(performance.now() - t0),
+      meta: { stage, scope, spares: scope === 'or' ? res.count ?? 0 : 1, ...(input.dc ? { dc: input.dc } : {}) },
+    });
+
+    try {
+      if (scope === 'or') {
+        const res = await updateSpareRequestLinesAtStage(String(row.uid), [stage], patch);
+        audit(res);
+        if (res.ok) setMsg({ tone: 'ok', text: `${res.count ?? 0} spare${res.count === 1 ? '' : 's'} on ${String(row.or_no ?? row.uid)} ${what}.` });
+        else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
+      } else {
+        const res = await updateSpareRequestLine(row.line_id ?? row.id, patch);
+        audit(res);
+        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.line_uid ?? row.part ?? 'Spare')} ${what}.` });
+        else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
+      }
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  // Action cell — the buttons for this SPARE's current stage, RBAC-gated.
+  // Every decision here is per line. Where the stage allows a whole-OR
+  // decision, an extra "all N" button appears once more than one line of the
+  // request is sitting at the same stage; the RM stage never offers it.
+  const wfButtons = (row: Row, size = 'btn-sm') => {
+    const stage = deriveStage(row);
+    if (!actionable(row, can, email)) {
+      return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : '—'}</span>;
+    }
+    const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
+    const bulk = (kind: 'approve' | 'dispatch' | 'receive') => siblings > 1 && (
+      <button className={`btn ${size}`} title={`Apply to all ${siblings} spares of this OR at this stage`}
+        onClick={() => setPending({ kind, row, scope: 'or', lines: siblings })}>
+        ⇉ all {siblings}
+      </button>
+    );
+    if (stage === 'Stores') return (
+      <div className="row">
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'dispatch', row, scope: 'line', lines: 1 })}>🚚 Dispatch + DC</button>
+        {bulk('dispatch')}
+      </div>
+    );
+    if (stage === 'Dispatched') return (
+      <div className="row">
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'receive', row, scope: 'line', lines: 1 })}>📥 Mark received</button>
+        {bulk('receive')}
+      </div>
+    );
+    return (
+      <div className="row">
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'approve', row, scope: 'line', lines: 1 })}>✔ Approve</button>
+        <button className={`btn ${size}`} onClick={() => setPending({ kind: 'reject', row, scope: 'line', lines: 1 })}>✖ Reject</button>
+        {bulk('approve')}
+      </div>
+    );
   };
   const wfColumn: Column<Row> = {
     key: '_wf', header: 'Action', width: 210, sortable: false, wrap: false,

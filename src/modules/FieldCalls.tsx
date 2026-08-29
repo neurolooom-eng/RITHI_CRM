@@ -25,6 +25,7 @@ import {
   updateFieldCall,
 } from '../lib/sheets';
 import { supabaseConfigured, searchCalls } from '../lib/supabase';
+import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 import {

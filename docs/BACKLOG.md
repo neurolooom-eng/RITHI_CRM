@@ -379,6 +379,18 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.
+- ⚠️ **A merge on main reverted four modules** (2026-08-29). The audit-log
+  branch was cut from a much older tree, and merging it took its stale hunks:
+  `SpareRequests.tsx` lost per-spare approvals (leaving calls to `wfButtons` /
+  `runPending` that no longer existed), `FieldCalls.tsx` lost `StateBadge`,
+  `RequestCallRegistration.tsx` lost its product rows, `UserAccess.tsx` lost
+  `sbSendPasswordReset`. **`npm run build` failed on main**, so the Pages
+  deploy was broken too. Repaired here by restoring each file from the commit
+  before that merge and re-applying the audit calls on top. Worth checking a
+  long-lived branch against main before merging it.
+- `0009_audit_log.sql` arrived with no apply bundle, which the generator's
+  coverage check refuses (rightly) — it now has one (`supabase/apply/audit.sql`),
+  and `_status.sql` reports it.
 - Role/visibility matching relies on exact `User Name` ⇄ `Call Allocated To`
   strings (case/space-insensitive). Flag any spelling mismatches.
 - **`supabase/apply/all.sql` is not re-runnable** (the per-module bundles are).

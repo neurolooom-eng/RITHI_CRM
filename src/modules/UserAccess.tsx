@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Drawer } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ACTIONS, ROLES, permsForRole } from '../lib/rbac';
-import { updateProfile, supabaseConfigured } from '../lib/supabase';
+import { updateProfile, sbSendPasswordReset, supabaseConfigured } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
