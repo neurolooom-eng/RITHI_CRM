@@ -8,6 +8,7 @@ import { Login } from './modules/Login';
 import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
+import { PartyMaster } from './modules/PartyMaster';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -22,7 +23,6 @@ import { Settings } from './modules/Settings';
 import { VersionHistory } from './modules/VersionHistory';
 import { AdminConfig } from './modules/AdminConfig';
 import {
-  partyConfig,
   productConfig,
   partConfig,
   warrantyConfig,
@@ -45,7 +45,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
-        <Route path="/parties" element={<CrudModule config={partyConfig} />} />
+        <Route path="/parties" element={<PartyMaster />} />
         <Route path="/products" element={<CrudModule config={productConfig} />} />
         <Route path="/parts" element={<CrudModule config={partConfig} />} />
         <Route path="/warranties" element={<CrudModule config={warrantyConfig} />} />

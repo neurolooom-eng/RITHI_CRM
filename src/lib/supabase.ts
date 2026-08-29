@@ -205,6 +205,20 @@ async function distinctColumn(table: string, column: string, opts?: { eq?: [stri
 export async function sbListParties(): Promise<string[]> {
   return distinctColumn('parties', 'party_name');
 }
+// Full party rows for the Party Master view (recent set + server-side search).
+export async function listPartyRows(limit = 1000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('parties').select('*').order('party_name').limit(limit);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+export async function searchPartyRows(term: string, limit = 1000): Promise<Record<string, unknown>[]> {
+  const t = _san(term);
+  let q = must().from('parties').select('*').order('party_name').limit(limit);
+  if (t) q = q.or(['party_name', 'city', 'state', 'party_type'].map((c) => `${c}.ilike.%${t}%`).join(','));
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
 export async function sbListPartyProducts(party: string): Promise<string[]> {
   const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
   if (error) throw new Error(error.message);
