@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
-import { csvExport } from '../lib/format';
+import { csvExport, timeAgo } from '../lib/format';
 import { searchProducts, sheetsConfigured, type ProdFilters } from '../lib/sheets';
 import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import './fieldcalls.css';
+
+const CACHE_KEY = 'productMasterRows';
 
 // ===========================================================================
 // PRODUCT MASTER view — browse/search the ProdMaster sheet (via CallReg) and
@@ -33,8 +36,10 @@ const COLUMNS: Column<Row>[] = [
 export function ProductMaster() {
   const navigate = useNavigate();
   const { can } = useAuth();
+  const cached = loadCache<Row>(CACHE_KEY);
   const [f, setF] = useState<ProdFilters>({ q: '', party: '', product: '', serial: '', status: '' });
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
+  const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to search the Product Master.' },
@@ -48,8 +53,10 @@ export function ProductMaster() {
     setMsg({ tone: 'info', text: 'Searching Product Master…' });
     try {
       const r = await searchProducts(filters, 200);
-      setRows(r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` })));
+      const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
+      setRows(mapped);
       const anyFilter = Object.values(filters).some((v) => v && String(v).trim());
+      if (!anyFilter) setLastSync(saveCache(CACHE_KEY, mapped)); // cache the browse set
       setMsg({
         tone: r.length ? 'ok' : 'info',
         text: r.length
@@ -65,9 +72,15 @@ export function ProductMaster() {
 
   const clear = () => { const empty = { q: '', party: '', product: '', serial: '', status: '' }; setF(empty); void run(empty); };
 
-  // Auto-load a first page on mount so the view isn't blank.
+  // Mount: show cache, refresh the browse set if stale/empty. 30-min auto-sync.
   useEffect(() => {
-    void run({});
+    if (!rows.length || isStale(lastSync)) void run({});
+    else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    const id = window.setInterval(() => {
+      const anyFilter = Object.values(f).some((v) => v && String(v).trim());
+      if (!anyFilter) void run({});
+    }, SYNC_TTL_MS);
+    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -122,6 +135,8 @@ export function ProductMaster() {
         toolbar={
           <Toolbar>
             <span className="muted">{rows.length ? `${rows.length} shown` : ''}</span>
+            <button className="btn btn-sm" onClick={() => void run({})} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             <div className="spacer" />
             {rows.length > 0 && (
               <button
