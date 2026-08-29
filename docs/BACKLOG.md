@@ -77,6 +77,12 @@ auto REST + RLS + Auth).
   the unique identity, and adds `next_call_reqid()` so a multi-call request is
   written as one atomic insert. Without it only the first call of a request
   saves.
+- ✅ **Reporting reads fixed** — every `reports` query ordered by a `created_at`
+  column the table never had, so the Reporting page failed with *“column
+  reports.created_at does not exist”*. Ordering is now `visit_at` (newest visit
+  first, nulls last) tie-broken by `id`. **Run the `reports` apply bundle**
+  (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
+  without it, large loads are just slower.
 - ✅ Data layer (`src/lib/supabase.ts`); `sheets.ts` delegates to it when connected.
 - ✅ Baked project URL + publishable key; **email/password login** via `profiles`.
 - ✅ Loaded: masters 567, parties 5,872, products 20,999, parts 1,324, calls
@@ -121,6 +127,9 @@ auto REST + RLS + Auth).
   `driveupload` / `driveref` endpoints the request form uses (folder
   `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
   ordinary Drive link. The previous visit's report is linked from the drawer.
+- **Manual report retrieval** — the link is on the visit row and in the report
+  drawer (previous visit). Surface it in the Reports register and the call view
+  mini-table as a 📎 column (queued).
 - **Reporting solved-branch fields** — confirm which are required and whether
   "Add Consumption?" / "Maintenance Done?" / "Recomended Filter Changed?" should
   be Yes/No dropdowns (question).
