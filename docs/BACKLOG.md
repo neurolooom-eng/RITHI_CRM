@@ -151,6 +151,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - ✅ **Spare approval workflow** — RM → Commercial → NSM → Stores(DC); Commercial
   & NSM auto-approve unless item is AMC/OGP; RBAC-gated stage actions.
 - ✅ New-call create fix (`0008`: creator can read back the inserted row).
+- ✅ **Reporting reads fixed** — every `reports` query ordered by a `created_at`
+  column the table never had, so the Reporting page failed with *“column
+  reports.created_at does not exist”*. Ordering is now `visit_at` (newest visit
+  first, nulls last) tie-broken by `id`. **Run the `reports` apply bundle**
+  (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
+  without it, large loads are just slower.
 
 ### Open items & questions
 - **User Master data + engineer logins** — directory infra is done and `0004`
@@ -169,18 +175,19 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **Product Master derivation + Warranty/Contract registers** — build from Sale
   Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
   received); add warranties/contracts/sales/ownership tables + screens.
-- **Installation Report / KYC uploads need a CallReg redeploy** — the request
-  form uploads both to the Drive folder through the new `driveupload` /
-  `driveref` actions, which exist only in `apps-script/CallReg.gs`, not on the
-  deployed Web App. Redeploy (re-authorising the Drive scope) and send the new
-  `/exec` URL to bump the baked-in default; until then an upload times out.
 - **Pending Calls noise** *(watch)* — a call with no visit reported counts as
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
   — say so if it should be hidden instead.
-- **Manual Report** — currently a Drive-link paste; the `driveupload` endpoint
-  added for the request form can back a file-upload flow here too (folder
-  `1-46Ud9j…z2La`) (question).
+- **Manual Report** — ✅ upload restored. The report form takes either a pasted
+  Drive link or a file (PDF/photo, ≤10 MB) uploaded through the same
+  `driveupload` / `driveref` endpoints the request form uses (folder
+  `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
+  ordinary Drive link. The previous visit's report is linked from the drawer.
+  Live: CallReg was redeployed with the Drive scope (`driveupload` / `driveref`),
+  and the new `/exec` is baked in as URL version 8 — which also unblocks the
+  request form's Installation Report / KYC uploads. **Queued:** surface the link
+  as a 📎 column in the Reports register and the call-view mini-table.
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
@@ -269,9 +276,9 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ## 🔧 Operational notes / blockers
 
-- **Redeploy CallReg** after backend changes (latest adds report/reportget,
-  tabmeta/tabappend, upload, master/masters/setmasters). Upload needs the Drive
-  scope → re-authorise on redeploy. Send the new /exec URL to bump the default.
+- **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
+  and send the new /exec URL so the baked-in default can be bumped. Done for the
+  upload endpoints (`driveupload` / `driveref`) — URL version **8**, 2026-08-29.
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.

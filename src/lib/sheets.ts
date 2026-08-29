@@ -19,8 +19,8 @@ const TAB_KEY = 'rithi.sheets.tab';
 // out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
 // on an older version adopt the new default automatically (their stale saved
 // URL is superseded until they explicitly Save a new one in Settings).
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwyUqmnGQWf33pYcGeoKTUZo09saJearX53Qeyb7wOira2XTayZO5rjWloP9y1B1FQN/exec';
-const DEFAULT_URL_VERSION = 7;
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyajCYoUu8j4iNyMT1fzf4heevxR5X8eYBNFkcOAaLDaYplKnsIJDYz_dGCqco2SRCu/exec';
+const DEFAULT_URL_VERSION = 8;
 
 export function getSheetsUrl(): string {
   try {
