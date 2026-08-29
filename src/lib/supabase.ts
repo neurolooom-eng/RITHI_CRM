@@ -230,15 +230,29 @@ export async function sbEngineerNames(): Promise<string[]> {
 }
 
 // ---- reports (Reporting-N equivalent) --------------------------------------
+// Latest visit for a UCN (reports is history; ucn is no longer unique).
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).maybeSingle();
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(error.message);
   return { row: data ?? null };
 }
+// All visits for a UCN (newest first) — for a report history view.
+export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+// Each Update Call is a new VISIT row (reports = history), keyed by a fresh uid.
 export async function saveReport(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
-  const row = { ucn, ...patch, updated_at: new Date().toISOString() };
-  const { error } = await must().from('reports').upsert(row, { onConflict: 'ucn' });
+  const uid = `WEB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
+  const row = { uid, ucn, ...patch, updated_at: new Date().toISOString() };
+  const { error } = await must().from('reports').insert(row);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+// The latest visit row for a UCN (most recent report), for history/context.
+export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
+  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  return data ?? null;
 }
 
 // ---- masters (dropdown value-lists) ----------------------------------------

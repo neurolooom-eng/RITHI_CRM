@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { getReport, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
+import { reportHistory, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -116,26 +116,23 @@ export function CallReportDrawer({
   const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1' });
   const [feedback, setFeedback] = useState<Record<string, string>>({});
 
-  // Load any existing report for this UCN.
+  // Reports are a HISTORY (one row per visit). Each Update Call starts a fresh
+  // visit; we only load prior visits for context and to default the engineer.
+  const [priorVisits, setPriorVisits] = useState<Record<string, unknown>[]>([]);
   useEffect(() => {
     if (!open || !ucn) return;
     if (!supabaseConfigured()) { setErr('Connect the database in Settings to report calls.'); return; }
     let cancelled = false;
-    setLoading(true); setErr(''); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
-    getReport(ucn).then((r) => {
+    setLoading(true); setErr('');
+    // reset to a blank new visit
+    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setWork({});
+    setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
+    setEngineer(String(call?.allocatedTo ?? selfName ?? ''));
+    reportHistory(ucn).then((rows) => {
       if (cancelled) return;
-      const row = r.row ?? {};
-      const data = (row.data as Record<string, unknown>) ?? {};
-      setStatus(String(row.call_status ?? ''));
-      setPendingReason(String(row.pending_reason ?? ''));
-      setEngineer(String(row.engineer ?? call?.allocatedTo ?? selfName ?? ''));
-      setVisitDate(String(data['Visit Date & Time'] ?? '').slice(0, 10) || todayISO());
-      setUpdateWork(String(data['Update Visit Work Details?'] ?? 'Yes'));
-      setManualLink(String(data['Manual Report'] ?? ''));
-      const w: Record<string, string> = {};
-      WORK_FIELDS.forEach((f) => { w[f.key] = String(data[f.key] ?? ''); });
-      setWork(w);
-    }).catch((e) => { if (!cancelled) setErr(`Couldn't load the report: ${e instanceof Error ? e.message : String(e)}`); })
+      setPriorVisits(rows);
+      if (rows[0]?.engineer) setEngineer(String(rows[0].engineer)); // default to who visited last
+    }).catch(() => { /* history is best-effort */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,7 +214,12 @@ export function CallReportDrawer({
 
   return (
     <Drawer open={open} onClose={onClose} title={ucn ? `Update Call — ${ucn}` : 'Update Call'} width={820}>
-      <div className="detail-hint">📝 Saved to the <b>reports</b> table; spares to <b>spare_consumption</b>, feedback to <b>feedback</b>.</div>
+      <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
+      {priorVisits.length > 0 && (
+        <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
+          🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {String(priorVisits[0].visit_at ?? '').slice(0, 10) || '—'}
+        </div>
+      )}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
 
       {loading ? (
