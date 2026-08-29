@@ -12,17 +12,39 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.12',
+    version: '0.7.2',
     date: '2026-08-29',
     title: 'Hand Stock \u2014 the stock level every engineer is carrying',
     changes: [
-      'Spares issued to an engineer went into a black hole: Stores dispatched them, the request closed, and nothing said what the field was holding. \u201cHand Stock\u201d (Spares \u2192 Hand Stock) is one line per engineer and spare with the stock level: stock out from Stores \u2212 consumption \u2212 transfers out + transfers in, each term shown beside it so a figure can be argued with.',
-      'Nothing extra is entered for three of those four. A spare is in hand from the moment Stores dispatches it on a DC \u2014 acknowledged or not \u2014 and leaves hand stock when it is consumed on a call.',
-      'The fourth is new: an engineer can transfer a spare to another engineer, which takes it off one stock level and puts it on the other. A transfer cannot hand over more than is actually in hand, cannot go to the person who already holds it, and cannot be edited afterwards \u2014 correct one with the return transfer.',
-      'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses a quantity larger than that \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
-      'Click a line for its movement trail \u2014 every stock out with its DC, every consumption with its call, every transfer with the engineer on the other side.',
-      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC. Search, per-engineer filter and CSV export as everywhere else.',
-      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0020_handstock.sql (apply bundle: spare_requests).',
+      'Stock Transfer showed what each engineer holds; Hand Stock shows how they came to hold it. One line per engineer and spare with the stock level and every term beside it: stock out from Stores \u2212 consumption \u2212 transfers out + transfers in \u2014 so a figure can be argued with instead of taken on faith.',
+      'Click a line for its movement trail: every stock out with its DC, every consumption with its call, every transfer with the engineer on the other side.',
+      'Both screens now read the same derivation, so they cannot disagree. That fixed two ways a balance could be wrong: a spare dispatched against a CALL counted when it was consumed but never when it was issued, leaving the engineer negative and blocking their transfers; and a dispatch from the sheet era, carrying a DC but no date, did not count at all.',
+      'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses more \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
+      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC.',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0022_handstock.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
+    version: '0.7.1',
+    date: '2026-08-29',
+    title: 'Every master value list is its own editable table',
+    changes: [
+      'All Masters now opens each value list as its own table \u2014 Call Type, Standard Complaint, Call Pending Reason, Call Cancel Reason, Feedback Rating and the new Spare Approval Reason \u2014 with Add and Remove on each. Changes take effect in the forms straight away (the dropdown cache is cleared on every edit).',
+      'Seeded from the 200 All Masters workbook: 8 call types, 507 standard complaints, 21 pending reasons, 27 cancel reasons, 4 feedback ratings and 13 spare approval reasons, each with the Added On / Added By it came with.',
+      'Spare Approval Reason carries its own Stage and Status columns \u2014 a list can have more than one column, and the registry says which.',
+      'Adding a list no longer needs a release: a row in the new `master_lists` registry gives it a table, a label and its columns.',
+      'A duplicate entry is refused rather than silently doubling a dropdown, and editing needs the \u201cEdit masters\u201d permission.',
+    ],
+  },
+  {
+    version: '0.7.0',
+    date: '2026-08-29',
+    title: 'Stock Transfer',
+    changes: [
+      'New Stock Transfer screen: move hand-stock from one engineer to another, with a transfer number (ST-YYMM-NNNN) and remarks.',
+      'Stock on hand is worked out from what has actually happened \u2014 hand-stock dispatched to the engineer, less what they consumed on calls, plus or minus transfers \u2014 so the figure can never disagree with the history behind it.',
+      'A transfer only offers parts the sender is holding, and the quantity box will not go above what is left of that part. The database enforces the same limit, so a stale screen cannot overdraw.',
+      'A \u201cStock on hand\u201d tab shows every engineer\u2019s holding, searchable and exportable to CSV.',
     ],
   },
   {

@@ -31,9 +31,10 @@ The app seeds realistic medical-domain demo data on first login.
 - **Masters** — Party Master · Product Master · Part (spare) Master
 - **Contracts & Warranty** — Warranty Register · Contract Register (AMC/CMC)
 - **Service Calls** — Installation · Preventive (PM) · Breakdown/Field (with **call closure**)
-- **Spares** — Spare Requests · Spare Consumption · **Hand Stock** (stock level per
-  engineer & spare: stock out − consumption − transfers out + transfers in, with
-  engineer-to-engineer transfers; call reporting consumes only from it)
+- **Spares** — Spare Requests · Spare Consumption · **Stock Transfer**
+  (engineer → engineer hand-overs) · **Hand Stock** (the stock level per engineer
+  & spare: stock out − consumption − transfers out + transfers in, with the
+  movement behind every figure; call reporting consumes only from it)
 - **Billing** — Quotations · Invoices (line items for **products & spares**, GST, totals, print)
 - **Quality & Analytics** — Customer Feedback · Daily Call Review · Field Failure Report · KPI & Failure-rate Analysis (product-wise)
 - **Administration** — User Access · Settings (themes, design-system defaults, templates)

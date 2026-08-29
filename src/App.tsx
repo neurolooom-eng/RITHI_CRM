@@ -22,6 +22,7 @@ import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
+import { StockTransfer } from './modules/StockTransfer';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
@@ -92,6 +93,7 @@ function Shell() {
         <Route path="/spare-requests" element={<SpareRequests />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
+        <Route path="/stock-transfer" element={<StockTransfer />} />
         <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />

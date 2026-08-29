@@ -1,9 +1,8 @@
 -- ===========================================================================
 -- RITHI CRM — Everything, in dependency order: apply bundle
 --
--- For a project that is behind on more than one module. Runs the user
--- directory, then call requests (RBAC tightens their policies next),
--- then RBAC, then the whole spare-request workflow.
+-- Every module below, in dependency order — enough to bring an empty
+-- database, or one behind on several modules, fully up to date.
 -- 
 -- Prefer a per-module bundle when you only need that one module.
 --
@@ -11,17 +10,21 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0004_user_directory.sql
+--   0001_init.sql
+--   0002_reports_history.sql
 --   0003_call_requests.sql
+--   0004_user_directory.sql
+--   0005_rbac.sql
+--   0007_user_access.sql
+--   0008_rbac_enforcement.sql
+--   0013_all_masters_module.sql
+--   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
 --   0012_call_state.sql
 --   0014_call_state_denorm.sql
 --   0015_call_number.sql
---   0005_rbac.sql
---   0007_user_access.sql
---   0008_rbac_enforcement.sql
---   0013_all_masters_module.sql
+--   0021_master_lists.sql
 --   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -31,7 +34,8 @@
 --   0017_spare_or_number_monthly.sql
 --   0018_spare_or_number_padded.sql
 --   0019_spare_or_number_format.sql
---   0020_handstock.sql
+--   0020_stock_transfer.sql
+--   0022_handstock.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -40,9 +44,7 @@
 do $$
 declare missing text[] := '{}';
 begin
-  if to_regclass('public.profiles') is null then
-    missing := array_append(missing, 'the profiles table — 0001_init.sql');
-  end if;
+
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
       array_to_string(missing, E'\n  - ');
@@ -53,67 +55,442 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0004_user_directory.sql
+-- 0001_init.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- User Master → user_directory: the engineer/manager directory (names +
--- reporting hierarchy) that drives who-sees-what. Separate from auth logins
--- (profiles): a person is scoped by matching their login email to a directory
--- row, then by the RM/RGM tree (by name). Admins (profiles.role='admin') see all.
+-- RITHI CRM — Supabase (Postgres) schema, v1 (full cutover from Google Sheets)
+-- ---------------------------------------------------------------------------
+-- Run this once against a fresh Supabase project (SQL Editor → paste → Run,
+-- or `supabase db push`). It creates the core tables, the role/profile model,
+-- Row-Level Security policies that reproduce the app's access rules
+-- (engineer sees own calls; RM/RGM sees the reporting sub-tree; admin sees
+-- all), and the UCN generator.
+--
+-- Column names are snake_case; the app's data layer (src/lib/supabase.ts) maps
+-- them to the existing app keys, so the UI keeps working unchanged.
 -- ===========================================================================
 
-create table if not exists public.user_directory (
-  id                 bigint generated always as identity primary key,
-  name               text not null,               -- User Name (matches "Call Allocated To")
-  email              text default '',
-  gmail              text default '',
-  designation        text default '',
-  reporting_manager  text default '',             -- RM name
-  regional_manager   text default '',             -- RGM name
-  region             text default '',
-  validity           boolean not null default true,
-  extra              jsonb not null default '{}'
+create extension if not exists "pgcrypto";
+
+-- ---------------------------------------------------------------------------
+-- profiles — one row per user, linked to Supabase Auth. Mirrors User Master.
+-- reporting_manager_email / regional_manager_email drive the access hierarchy.
+-- ---------------------------------------------------------------------------
+create table if not exists public.profiles (
+  id                      uuid primary key references auth.users (id) on delete cascade,
+  email                   text unique not null,
+  full_name               text not null default '',
+  role                    text not null default 'engineer',      -- admin | rm | rgm | engineer | viewer
+  designation             text default '',
+  engineer_code           text default '',
+  reporting_manager_email text default '',
+  regional_manager_email  text default '',
+  active                  boolean not null default true,
+  created_at              timestamptz not null default now()
 );
-create index if not exists user_directory_email_idx on public.user_directory (lower(email));
-create index if not exists user_directory_gmail_idx on public.user_directory (lower(gmail));
-create index if not exists user_directory_name_idx  on public.user_directory (lower(name));
 
-alter table public.user_directory enable row level security;
-drop policy if exists ud_read on public.user_directory;
-create policy ud_read on public.user_directory for select using (auth.role() = 'authenticated');
-drop policy if exists ud_admin_write on public.user_directory;
-create policy ud_admin_write on public.user_directory for all using (public.is_admin()) with check (public.is_admin());
-
--- The signed-in user's directory name (by login email or gmail).
-create or replace function public.my_dir_name()
-returns text language sql stable security definer set search_path = public as $$
-  select name from public.user_directory
-   where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
-   limit 1;
+-- Is the current user an admin? (SECURITY DEFINER so policies can call it.)
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  );
 $$;
 
--- Names the current user may see: their own + everyone in their reporting
--- sub-tree (recursive over reporting_manager / regional_manager, by name).
+-- The current user's own profile name (for matching "Call Allocated To").
+create or replace function public.my_name()
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(full_name, '') from public.profiles where id = auth.uid();
+$$;
+
+-- Set of engineer NAMES the current user may see: their own, plus everyone who
+-- reports (directly or transitively) to them via reporting/regional manager.
 create or replace function public.visible_engineer_names()
 returns setof text language sql stable security definer set search_path = public as $$
   with recursive me as (
-    select name from public.user_directory
-     where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+    select id, email, full_name from public.profiles where id = auth.uid()
   ),
   tree as (
-    select d.name from public.user_directory d where d.name in (select name from me)
+    select p.email, p.full_name
+      from public.profiles p, me
+     where p.email = me.email
     union
-    select c.name from public.user_directory c
+    select c.email, c.full_name
+      from public.profiles c
       join tree t
-        on lower(c.reporting_manager) = lower(t.name)
-        or lower(c.regional_manager)  = lower(t.name)
+        on lower(c.reporting_manager_email) = lower(t.email)
+        or lower(c.regional_manager_email)  = lower(t.email)
   )
-  select name from tree where coalesce(name,'') <> '';
+  select full_name from tree where coalesce(full_name,'') <> '';
 $$;
 
--- can_see_call() already uses visible_engineer_names(), so call scoping now
--- follows the directory automatically (admins still bypass via is_admin()).
+-- Can the current user see a call allocated to `allottee`?
+create or replace function public.can_see_call(allottee text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or coalesce(allottee,'') = ''
+      or lower(trim(allottee)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Masters — Party / Product / Part, plus generic value-lists for dropdowns.
+-- ---------------------------------------------------------------------------
+create table if not exists public.parties (
+  id          bigint generated always as identity primary key,
+  party_name  text not null,
+  city        text default '',
+  state       text default '',
+  party_type  text default '',
+  address     text default '',
+  extra       jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+create index if not exists parties_name_idx on public.parties using gin (to_tsvector('simple', party_name));
+
+create table if not exists public.products (
+  id              bigint generated always as identity primary key,
+  party_name      text default '',
+  item_name       text default '',
+  serial_number   text default '',
+  item_status     text default '',
+  warranty_number text default '',
+  warranty_start  date,
+  warranty_end    date,
+  contract_number text default '',
+  contract_start  date,
+  contract_end    date,
+  contract_type   text default '',
+  active          boolean not null default true,
+  extra           jsonb not null default '{}',
+  created_at      timestamptz not null default now()
+);
+create index if not exists products_serial_idx on public.products (lower(serial_number));
+
+create table if not exists public.parts (
+  id          bigint generated always as identity primary key,
+  code        text default '',
+  description text default '',
+  item_detail text default '',              -- "CODE|Description" as shown in pickers
+  active      boolean not null default true, -- ITEM Master Col F = Active
+  extra       jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+create index if not exists parts_active_idx on public.parts (active);
+
+-- Generic master value-lists (Standard Complaint, Call Type, Pending Reason,
+-- Feedback Rating, …). name = list key, value = one option.
+create table if not exists public.masters (
+  id     bigint generated always as identity primary key,
+  name   text not null,
+  value  text not null,
+  extra  jsonb not null default '{}'
+);
+create index if not exists masters_name_idx on public.masters (name);
+
+-- ---------------------------------------------------------------------------
+-- calls — unified Field / Installation / PM register (call_type distinguishes).
+-- ---------------------------------------------------------------------------
+create table if not exists public.calls (
+  id                    bigint generated always as identity primary key,
+  ucn                   text unique,                 -- assigned on register (see next_ucn)
+  call_number           text default '',
+  reg_date              date,
+  complaint_date        date,
+  party_name            text default '',
+  city                  text default '',
+  state                 text default '',
+  product_name          text default '',
+  serial                text default '',
+  item_status           text default '',
+  warranty_number       text default '',
+  warranty_start        date,
+  warranty_end          date,
+  contract_number       text default '',
+  contract_start        date,
+  contract_end          date,
+  contract_type         text default '',
+  call_type             text default 'FIELD',        -- FIELD | INSTALLATION | PM
+  standard_complaint    text default '',
+  complaint_reported    text default '',
+  allocated_to          text default '',             -- engineer NAME (matches profiles.full_name)
+  allocated_to_email    text default '',
+  breakdown_date        date,
+  person_calling        text default '',
+  public_health_threat  text default '',
+  death                 text default '',
+  serious_incident      text default '',
+  mode_of_reporting     text default '',
+  customer_name         text default '',
+  customer_number       text default '',
+  customer_designation  text default '',
+  email_address         text default '',
+  status                text default 'Registered',
+  extra                 jsonb not null default '{}',
+  created_by            uuid references auth.users (id),
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+create index if not exists calls_allocated_idx on public.calls (lower(allocated_to));
+create index if not exists calls_type_idx on public.calls (call_type);
+create index if not exists calls_serial_idx on public.calls (lower(serial));
+
+-- Pending registrations (engineer requests awaiting a UCN) — same shape, no UCN.
+create table if not exists public.pending_registrations (
+  id                 bigint generated always as identity primary key,
+  requested_at       timestamptz not null default now(),
+  engineer           text default '',
+  call_type          text default 'FIELD',
+  party_name         text default '',
+  city               text default '',
+  state              text default '',
+  product            text default '',
+  serial             text default '',
+  reported_problem   text default '',
+  plan_date          date,
+  ucn                text default '',                 -- back-filled once registered
+  extra              jsonb not null default '{}',
+  created_by         uuid references auth.users (id)
+);
+
+-- reports — the Reporting-N equivalent, one report per call UCN.
+create table if not exists public.reports (
+  id            bigint generated always as identity primary key,
+  ucn           text not null,
+  call_number   text default '',
+  call_status   text default '',                      -- Solved-Report Completed | Unsolved | Report Pending
+  pending_reason text default '',
+  manual_report text default '',                      -- uploaded file URL
+  data          jsonb not null default '{}',          -- all other Reporting-N fields
+  engineer      text default '',
+  engineer_email text default '',
+  visit_at      timestamptz,
+  updated_by    uuid references auth.users (id),
+  updated_at    timestamptz not null default now(),
+  unique (ucn)
+);
+
+-- Spare requests (intake) + exploded lines (approval workflow → replaces v2_OR_Req).
+create table if not exists public.spare_requests (
+  id                bigint generated always as identity primary key,
+  uid               text unique not null,             -- WA-yyyymmdd-xxxx
+  req_type          text default 'Call Based',        -- Call Based | HandStock
+  engineer          text default '',
+  engineer_email    text default '',
+  ucn               text default '',
+  call_number       text default '',
+  party_name        text default '',
+  product_name      text default '',
+  serial            text default '',
+  complaint         text default '',
+  item_status       text default '',
+  handstock_reason  text default '',
+  remarks           text default '',
+  status            text default 'Pending',
+  created_at        timestamptz not null default now(),
+  created_by        uuid references auth.users (id)
+);
+create table if not exists public.spare_request_lines (
+  id              bigint generated always as identity primary key,
+  request_uid     text not null references public.spare_requests (uid) on delete cascade,
+  part            text default '',
+  qty             numeric default 1,
+  rm_approval     text default 'Pending',
+  admin_approval  text default 'Pending',
+  stores_status   text default '',
+  status          text default 'Pending',
+  created_at      timestamptz not null default now()
+);
+
+-- Spare consumption (v2Consumption) — parts consumed against a report.
+create table if not exists public.spare_consumption (
+  id          bigint generated always as identity primary key,
+  ucn         text default '',
+  call_number text default '',
+  part        text default '',
+  qty         numeric default 1,
+  engineer    text default '',
+  data        jsonb not null default '{}',
+  created_at  timestamptz not null default now(),
+  created_by  uuid references auth.users (id)
+);
+
+-- Customer feedback (v2Feedback) — structured answers per call type.
+create table if not exists public.feedback (
+  id            bigint generated always as identity primary key,
+  ucn           text default '',
+  call_number   text default '',
+  call_type     text default '',
+  engineer      text default '',
+  engineer_email text default '',
+  party_name    text default '',
+  state         text default '',
+  product_name  text default '',
+  serial        text default '',
+  complaint     text default '',
+  answers       jsonb not null default '{}',           -- {question: answer}
+  visit_at      timestamptz,
+  created_at    timestamptz not null default now(),
+  created_by    uuid references auth.users (id)
+);
+
+-- ---------------------------------------------------------------------------
+-- UCN generator. Format mirrors the sheet: <YY><MonthLetter><DD><TypeLetter><Seq4>.
+-- Type letter: F=FIELD, I=INSTALLATION, P=PM. Seq is a global monotonic count.
+-- NOTE: confirm this matches the legacy format before go-live; adjust here only.
+-- ---------------------------------------------------------------------------
+create sequence if not exists public.ucn_seq start 1;
+
+create or replace function public.next_ucn(p_call_type text)
+returns text language plpgsql volatile security definer set search_path = public as $$
+declare
+  yy      text := to_char(now(), 'YY');
+  mon     text := substr('ABCDEFGHIJKL', extract(month from now())::int, 1); -- A=Jan…L=Dec
+  dd      text := to_char(now(), 'DD');
+  tletter text := case
+                    when upper(coalesce(p_call_type,'')) like 'INSTALL%' then 'I'
+                    when upper(coalesce(p_call_type,'')) like 'PM%'      then 'P'
+                    else 'F'
+                  end;
+  seq     int  := nextval('public.ucn_seq');
+begin
+  return yy || mon || dd || tletter || lpad(seq::text, 4, '0');
+end;
+$$;
+
+-- Assign a UCN + reg date on insert if none supplied.
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end;
+$$;
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- ===========================================================================
+-- Row-Level Security
+-- ===========================================================================
+alter table public.profiles              enable row level security;
+alter table public.parties               enable row level security;
+alter table public.products              enable row level security;
+alter table public.parts                 enable row level security;
+alter table public.masters               enable row level security;
+alter table public.calls                 enable row level security;
+alter table public.pending_registrations enable row level security;
+alter table public.reports               enable row level security;
+alter table public.spare_requests        enable row level security;
+alter table public.spare_request_lines   enable row level security;
+alter table public.spare_consumption     enable row level security;
+alter table public.feedback              enable row level security;
+
+-- profiles: a user sees their own row; admins see/manage all.
+drop policy if exists profiles_self_read on public.profiles;
+create policy profiles_self_read on public.profiles for select using (id = auth.uid() or public.is_admin());
+drop policy if exists profiles_admin_write on public.profiles;
+create policy profiles_admin_write on public.profiles for all using (public.is_admin()) with check (public.is_admin());
+
+-- Masters & catalog: any authenticated user reads; admins write.
+do $$
+declare t text;
+begin
+  foreach t in array array['parties','products','parts','masters'] loop
+    execute format('drop policy if exists %1$s_read on public.%1$s;', t);
+    execute format('create policy %1$s_read on public.%1$s for select using (auth.role() = ''authenticated'');', t);
+    execute format('drop policy if exists %1$s_admin_write on public.%1$s;', t);
+    execute format('create policy %1$s_admin_write on public.%1$s for all using (public.is_admin()) with check (public.is_admin());', t);
+  end loop;
+end $$;
+
+-- calls: scoped read; engineers/admins can insert/update within their scope.
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls
+  for select using (public.can_see_call(allocated_to));
+drop policy if exists calls_insert on public.calls;
+create policy calls_insert on public.calls
+  for insert with check (auth.role() = 'authenticated');
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls
+  for update using (public.can_see_call(allocated_to)) with check (public.can_see_call(allocated_to));
+
+-- pending registrations: creator or scope by engineer; any auth can insert.
+drop policy if exists pend_read on public.pending_registrations;
+create policy pend_read on public.pending_registrations
+  for select using (public.is_admin() or created_by = auth.uid()
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists pend_insert on public.pending_registrations;
+create policy pend_insert on public.pending_registrations for insert with check (auth.role() = 'authenticated');
+drop policy if exists pend_update on public.pending_registrations;
+create policy pend_update on public.pending_registrations for update using (auth.role() = 'authenticated');
+
+-- reports / consumption / feedback: readable when the parent call is visible;
+-- any authenticated engineer may add their own.
+drop policy if exists reports_read on public.reports;
+create policy reports_read on public.reports for select
+  using (public.is_admin() or exists (select 1 from public.calls c where c.ucn = reports.ucn and public.can_see_call(c.allocated_to)));
+drop policy if exists reports_write on public.reports;
+create policy reports_write on public.reports for all
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+drop policy if exists cons_read on public.spare_consumption;
+create policy cons_read on public.spare_consumption for select using (auth.role() = 'authenticated');
+drop policy if exists cons_write on public.spare_consumption;
+create policy cons_write on public.spare_consumption for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists fb_read on public.feedback;
+create policy fb_read on public.feedback for select using (auth.role() = 'authenticated');
+drop policy if exists fb_write on public.feedback;
+create policy fb_write on public.feedback for insert with check (auth.role() = 'authenticated');
+
+-- spare requests: creator/engineer scope reads; any auth inserts; managers approve.
+drop policy if exists sr_read on public.spare_requests;
+create policy sr_read on public.spare_requests for select
+  using (public.is_admin() or created_by = auth.uid() or lower(engineer_email) = lower(auth.email())
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists sr_insert on public.spare_requests;
+create policy sr_insert on public.spare_requests for insert with check (auth.role() = 'authenticated');
+drop policy if exists srl_read on public.spare_request_lines;
+create policy srl_read on public.spare_request_lines for select
+  using (public.is_admin() or exists (select 1 from public.spare_requests r where r.uid = spare_request_lines.request_uid
+    and (r.created_by = auth.uid() or lower(r.engineer_email) = lower(auth.email())
+      or lower(trim(r.engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)))));
+drop policy if exists srl_write on public.spare_request_lines;
+create policy srl_write on public.spare_request_lines for all
+  using (public.is_admin()) with check (public.is_admin());
+
+-- ------------------------------------------------------------------------
+-- 0002_reports_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Reports = visit history: one row per VISIT, keyed by UID (not one per UCN).
+-- Run in the Supabase SQL Editor as postgres. This drops the one-per-UCN
+-- uniqueness, adds a unique `uid`, clears the deduped reports, and lets you
+-- re-import all visit rows.
+-- ===========================================================================
+
+-- 1) Drop the one-report-per-UCN constraint (created by `unique (ucn)`).
+alter table public.reports drop constraint if exists reports_ucn_key;
+
+-- 2) Add the visit UID and make it the natural key.
+alter table public.reports add column if not exists uid text;
+create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
+create index if not exists reports_ucn_idx on public.reports (ucn);
+
+-- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
+truncate table public.reports;
+
+-- After running this, re-import reports.csv from Admin Config → Bulk Data Import
+-- (now one row per visit, ~17,392 rows).
 
 -- ------------------------------------------------------------------------
 -- 0003_call_requests.sql
@@ -186,311 +563,67 @@ drop policy if exists cr_update on public.call_requests;
 create policy cr_update on public.call_requests for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ------------------------------------------------------------------------
--- 0010_call_request_items.sql
+-- 0004_user_directory.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- Multi-item call requests. A request is up to 5 calls (Product + Serial No +
--- Standard Complaint + Reported Problem) that SHARE one REQID, so REQID cannot
--- be unique — the per-row identity is UniqueID (REQID-Product-SerialNo).
---
--- Before this, inserting the 2nd..5th item failed with
---   duplicate key value violates unique constraint "call_requests_reqid_key"
--- leaving the request half-saved (item 1 only).
+-- User Master → user_directory: the engineer/manager directory (names +
+-- reporting hierarchy) that drives who-sees-what. Separate from auth logins
+-- (profiles): a person is scoped by matching their login email to a directory
+-- row, then by the RM/RGM tree (by name). Admins (profiles.role='admin') see all.
 -- ===========================================================================
 
-alter table public.call_requests drop constraint if exists call_requests_reqid_key;
-create index if not exists call_requests_reqid_idx on public.call_requests (reqid);
-
--- The real identity: one row per product/serial within a request.
-create unique index if not exists call_requests_unique_key_uidx
-  on public.call_requests (unique_key);
-
--- Mint a REQID up front so the whole request goes in as ONE insert and can
--- never be half-saved. The trigger still assigns one when this isn't used.
-create or replace function public.next_call_reqid()
-returns text language sql security definer set search_path = public as $$
-  select 'R' || nextval('public.call_req_seq')::text;
-$$;
-grant execute on function public.next_call_reqid() to authenticated;
-
--- ------------------------------------------------------------------------
--- 0011_call_request_actions.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call request actions (Hotline): a pending request is closed out in one of
--- three ways —
---   • Registered — a new call was created from it (UCN written back)
---   • Mapped     — it belongs to an existing call (that call's UCN written back)
---   • Cancelled  — not a call; reason recorded
--- A request leaves the pending list once it has a UCN or is cancelled.
--- ===========================================================================
-
-alter table public.call_requests
-  add column if not exists cancel_reason text default '',
-  add column if not exists cancelled_at  timestamptz,
-  add column if not exists actioned_by   text default '',
-  add column if not exists actioned_at   timestamptz;
-
-create index if not exists call_requests_status_idx on public.call_requests (status);
-
--- 0003 ships permissive insert/update policies; 0008 (RBAC enforcement)
--- replaces them with permission checks. Re-applying 0003 — which the
--- call_requests apply bundle does — would silently hand them back, so put the
--- RBAC versions back whenever has_perm() is present.
-do $$
-begin
-  if to_regprocedure('public.has_perm(text)') is null then return; end if;
-
-  execute 'drop policy if exists cr_insert on public.call_requests';
-  execute $p$create policy cr_insert on public.call_requests for insert
-    with check (public.has_perm('request.create'))$p$;
-
-  execute 'drop policy if exists cr_update on public.call_requests';
-  execute $p$create policy cr_update on public.call_requests for update
-    using (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())
-    with check (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())$p$;
-end $$;
-
--- ------------------------------------------------------------------------
--- 0012_call_state.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call state = whether a call is still open, derived from its LATEST visit:
---   Unattended     — no visit reported yet
---   Unsolved       — last visit came back unsolved
---   Report pending — visit made, report not completed
---   Solved         — last visit closed it
--- `pending_calls` is every call that is not Solved (the Pending Calls module).
--- Both views run with the caller's rights, so calls/reports RLS still applies.
--- ===========================================================================
-
-create or replace view public.call_state as
-select
-  c.ucn,
-  coalesce(r.call_status, '')                        as last_status,
-  r.visit_at                                         as last_visit_at,
-  case
-    when r.ucn is null                    then 'Unattended'
-    when r.call_status ilike 'solved%'     then 'Solved'
-    when r.call_status ilike '%unsolved%'  then 'Unsolved'
-    else 'Report pending'
-  end                                                as state
-from public.calls c
-left join lateral (
-  select rr.ucn, rr.call_status, rr.visit_at
-  from public.reports rr
-  where rr.ucn = c.ucn
-  order by rr.visit_at desc nulls last, rr.id desc
-  limit 1
-) r on true;
-
--- NB: `calls` already has a `state` column (the geographic one), so the call's
--- open state is exposed here as `open_state`.
-create or replace view public.pending_calls as
-select c.*, s.state as open_state, s.last_status, s.last_visit_at
-from public.calls c
-join public.call_state s on s.ucn = c.ucn
-where s.state <> 'Solved';
-
-alter view public.call_state    set (security_invoker = on);
-alter view public.pending_calls set (security_invoker = on);
-
-grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
-
--- ------------------------------------------------------------------------
--- 0014_call_state_denorm.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call state, without re-deriving it on every read.
---
--- 0012 computed a call's state from its latest visit in a view. Correct, but
--- reading it meant scanning `reports` through that table's RLS — a correlated
--- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
--- is ~37ms without RLS and >5s with it: "canceling statement due to statement
--- timeout".
---
--- The latest visit is now kept ON the call, maintained by a trigger on
--- `reports`. Reads touch `calls` only — the register already loads it, so the
--- state comes along for free, and Pending Calls is an indexed filter.
--- ===========================================================================
-
--- The 0012 views read the columns below, and one of them is recreated with a
--- different shape, so they go first.
-drop view if exists public.pending_calls;
-drop view if exists public.call_state;
-
-alter table public.calls
-  add column if not exists last_status   text default '',
-  add column if not exists last_visit_at timestamptz;
-
--- Derived, so it can never drift from the two columns above.
-alter table public.calls drop column if exists open_state;
-alter table public.calls add column open_state text
-  generated always as (
-    case
-      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
-      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
-      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
-      else 'Report pending'
-    end
-  ) stored;
-
-create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
-
--- ---- keep it current -------------------------------------------------------
--- security definer: a visit by one engineer updates the call regardless of who
--- may write `calls`.
-create or replace function public.sync_call_last_visit(p_ucn text)
-returns void language plpgsql security definer set search_path = public as $$
-begin
-  update public.calls c
-     set last_status   = coalesce(r.call_status, ''),
-         last_visit_at = r.visit_at
-    from (
-      select call_status, visit_at
-        from public.reports
-       where ucn = p_ucn
-       order by visit_at desc nulls last, id desc
-       limit 1
-    ) r
-   where c.ucn = p_ucn;
-
-  if not found then  -- no visits left (or none matched): back to Unattended
-    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
-  end if;
-end $$;
-
-create or replace function public.reports_touch_call()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
-  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
-    perform public.sync_call_last_visit(old.ucn);
-  end if;
-  return null;
-end $$;
-
-drop trigger if exists reports_touch_call on public.reports;
-create trigger reports_touch_call after insert or update or delete on public.reports
-  for each row execute function public.reports_touch_call();
-
--- ---- backfill --------------------------------------------------------------
-update public.calls c
-   set last_status   = coalesce(r.call_status, ''),
-       last_visit_at = r.visit_at
-  from (
-    select distinct on (ucn) ucn, call_status, visit_at
-      from public.reports
-     order by ucn, visit_at desc nulls last, id desc
-  ) r
- where r.ucn = c.ucn
-   and (c.last_status is distinct from coalesce(r.call_status, '')
-     or c.last_visit_at is distinct from r.visit_at);
-
--- ---- views, now trivial ----------------------------------------------------
--- `calls` already carries `state` (the geographic one), so the call's open
--- state stays `open_state` here too.
-create view public.call_state as
-  select ucn, last_status, last_visit_at, open_state as state from public.calls;
-
-create view public.pending_calls as
-  select * from public.calls where open_state <> 'Solved';
-
-alter view public.call_state    set (security_invoker = on);
-alter view public.pending_calls set (security_invoker = on);
-
-grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
-
--- ------------------------------------------------------------------------
--- 0015_call_number.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call Number.
---
---   • From a call registration request → the request's UniqueID
---     (REQID-Product-SerialNo), carried over when the Hotline registers it.
---   • Direct customer call (no request) → CLYY + a 5-digit running number,
---     e.g. CL2600001, continuing the existing series for that year
---     (the register already holds CL2300081, CL2300079, …).
---
--- It was a free-text field nobody filled, so a hand-created call could be
--- saved with a blank Call Number — and reports, spare requests, consumption
--- and feedback are all keyed by it.
--- ===========================================================================
-
-create table if not exists public.call_number_seq (
-  yy      text primary key,          -- two-digit year
-  last_no integer not null default 0
+create table if not exists public.user_directory (
+  id                 bigint generated always as identity primary key,
+  name               text not null,               -- User Name (matches "Call Allocated To")
+  email              text default '',
+  gmail              text default '',
+  designation        text default '',
+  reporting_manager  text default '',             -- RM name
+  regional_manager   text default '',             -- RGM name
+  region             text default '',
+  validity           boolean not null default true,
+  extra              jsonb not null default '{}'
 );
-alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+create index if not exists user_directory_email_idx on public.user_directory (lower(email));
+create index if not exists user_directory_gmail_idx on public.user_directory (lower(gmail));
+create index if not exists user_directory_name_idx  on public.user_directory (lower(name));
 
--- Next CL number for a year. The counter is seeded once, from the numbers
--- already in `calls` — so import historical CL numbers BEFORE this runs (or
--- delete that year's `call_number_seq` row afterwards to re-seed).
--- Next CL number for this year. The year's counter is seeded from the highest
--- CLYY##### already in `calls`, so it continues the series instead of
--- colliding with imported history.
-create or replace function public.next_direct_call_number(p_yy text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
-  v_no int;
-begin
-  insert into public.call_number_seq (yy, last_no)
-  values (v_yy, coalesce((
-    select max(substring(call_number from 5 for 5)::int)
-      from public.calls
-     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
-  on conflict (yy) do nothing;
+alter table public.user_directory enable row level security;
+drop policy if exists ud_read on public.user_directory;
+create policy ud_read on public.user_directory for select using (auth.role() = 'authenticated');
+drop policy if exists ud_admin_write on public.user_directory;
+create policy ud_admin_write on public.user_directory for all using (public.is_admin()) with check (public.is_admin());
 
-  update public.call_number_seq set last_no = last_no + 1
-   where yy = v_yy
-   returning last_no into v_no;
+-- The signed-in user's directory name (by login email or gmail).
+create or replace function public.my_dir_name()
+returns text language sql stable security definer set search_path = public as $$
+  select name from public.user_directory
+   where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+   limit 1;
+$$;
 
-  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
-end $$;
+-- Names the current user may see: their own + everyone in their reporting
+-- sub-tree (recursive over reporting_manager / regional_manager, by name).
+create or replace function public.visible_engineer_names()
+returns setof text language sql stable security definer set search_path = public as $$
+  with recursive me as (
+    select name from public.user_directory
+     where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+  ),
+  tree as (
+    select d.name from public.user_directory d where d.name in (select name from me)
+    union
+    select c.name from public.user_directory c
+      join tree t
+        on lower(c.reporting_manager) = lower(t.name)
+        or lower(c.regional_manager)  = lower(t.name)
+  )
+  select name from tree where coalesce(name,'') <> '';
+$$;
 
--- Assign one when the call arrives without a Call Number. A call registered
--- from a request carries the request's UniqueID, so this only fires for direct
--- calls (and for any import row that has none).
-create or replace function public.calls_before_insert()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if new.ucn is null or new.ucn = '' then
-    new.ucn := public.next_ucn(new.call_type);
-  end if;
-  if coalesce(new.call_number, '') = '' then
-    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
-  end if;
-  if new.reg_date is null then new.reg_date := current_date; end if;
-  if new.created_by is null then new.created_by := auth.uid(); end if;
-  return new;
-end $$;
-
-drop trigger if exists calls_biu on public.calls;
-create trigger calls_biu before insert on public.calls
-  for each row execute function public.calls_before_insert();
-
--- Back-fill calls saved before this with no Call Number, each in its own year's
--- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
-do $$
-declare r record;
-begin
-  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
-    update public.calls
-       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
-     where id = r.id;
-  end loop;
-end $$;
-
-grant execute on function public.next_direct_call_number(text) to authenticated;
+-- can_see_call() already uses visible_engineer_names(), so call scoping now
+-- follows the directory automatically (admins still bypass via is_admin()).
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql
@@ -942,6 +1075,1001 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters';
+
+-- ------------------------------------------------------------------------
+-- 0008_calls_creator_read.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Let a creator read back the call they just inserted (so insert...returning
+-- works for everyone, not only admins). Fixes "new call saved locally / pending"
+-- when the register is on Supabase.
+-- ===========================================================================
+
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls for select
+  using (public.can_see_call(allocated_to) or created_by = auth.uid());
+
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls for update
+  using (public.can_see_call(allocated_to) or created_by = auth.uid())
+  with check (public.can_see_call(allocated_to) or created_by = auth.uid());
+
+-- ------------------------------------------------------------------------
+-- 0010_call_request_items.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Multi-item call requests. A request is up to 5 calls (Product + Serial No +
+-- Standard Complaint + Reported Problem) that SHARE one REQID, so REQID cannot
+-- be unique — the per-row identity is UniqueID (REQID-Product-SerialNo).
+--
+-- Before this, inserting the 2nd..5th item failed with
+--   duplicate key value violates unique constraint "call_requests_reqid_key"
+-- leaving the request half-saved (item 1 only).
+-- ===========================================================================
+
+alter table public.call_requests drop constraint if exists call_requests_reqid_key;
+create index if not exists call_requests_reqid_idx on public.call_requests (reqid);
+
+-- The real identity: one row per product/serial within a request.
+create unique index if not exists call_requests_unique_key_uidx
+  on public.call_requests (unique_key);
+
+-- Mint a REQID up front so the whole request goes in as ONE insert and can
+-- never be half-saved. The trigger still assigns one when this isn't used.
+create or replace function public.next_call_reqid()
+returns text language sql security definer set search_path = public as $$
+  select 'R' || nextval('public.call_req_seq')::text;
+$$;
+grant execute on function public.next_call_reqid() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0011_call_request_actions.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call request actions (Hotline): a pending request is closed out in one of
+-- three ways —
+--   • Registered — a new call was created from it (UCN written back)
+--   • Mapped     — it belongs to an existing call (that call's UCN written back)
+--   • Cancelled  — not a call; reason recorded
+-- A request leaves the pending list once it has a UCN or is cancelled.
+-- ===========================================================================
+
+alter table public.call_requests
+  add column if not exists cancel_reason text default '',
+  add column if not exists cancelled_at  timestamptz,
+  add column if not exists actioned_by   text default '',
+  add column if not exists actioned_at   timestamptz;
+
+create index if not exists call_requests_status_idx on public.call_requests (status);
+
+-- 0003 ships permissive insert/update policies; 0008 (RBAC enforcement)
+-- replaces them with permission checks. Re-applying 0003 — which the
+-- call_requests apply bundle does — would silently hand them back, so put the
+-- RBAC versions back whenever has_perm() is present.
+do $$
+begin
+  if to_regprocedure('public.has_perm(text)') is null then return; end if;
+
+  execute 'drop policy if exists cr_insert on public.call_requests';
+  execute $p$create policy cr_insert on public.call_requests for insert
+    with check (public.has_perm('request.create'))$p$;
+
+  execute 'drop policy if exists cr_update on public.call_requests';
+  execute $p$create policy cr_update on public.call_requests for update
+    using (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())
+    with check (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())$p$;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0012_call_state.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state = whether a call is still open, derived from its LATEST visit:
+--   Unattended     — no visit reported yet
+--   Unsolved       — last visit came back unsolved
+--   Report pending — visit made, report not completed
+--   Solved         — last visit closed it
+-- `pending_calls` is every call that is not Solved (the Pending Calls module).
+-- Both views run with the caller's rights, so calls/reports RLS still applies.
+-- ===========================================================================
+
+create or replace view public.call_state as
+select
+  c.ucn,
+  coalesce(r.call_status, '')                        as last_status,
+  r.visit_at                                         as last_visit_at,
+  case
+    when r.ucn is null                    then 'Unattended'
+    when r.call_status ilike 'solved%'     then 'Solved'
+    when r.call_status ilike '%unsolved%'  then 'Unsolved'
+    else 'Report pending'
+  end                                                as state
+from public.calls c
+left join lateral (
+  select rr.ucn, rr.call_status, rr.visit_at
+  from public.reports rr
+  where rr.ucn = c.ucn
+  order by rr.visit_at desc nulls last, rr.id desc
+  limit 1
+) r on true;
+
+-- NB: `calls` already has a `state` column (the geographic one), so the call's
+-- open state is exposed here as `open_state`.
+--
+-- Skipped once 0014_call_state_denorm.sql has run: that migration denormalises
+-- open_state onto `calls` itself and rebuilds this view against it. After that,
+-- `c.*` here already carries open_state and aliasing s.state to the same name
+-- collides ("column open_state ... already exists"), which broke re-running
+-- this file. 0014's definition supersedes this one, so skipping is a no-op.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
+
+  create or replace view public.pending_calls as
+  select c.*, s.state as open_state, s.last_status, s.last_visit_at
+  from public.calls c
+  join public.call_state s on s.ucn = c.ucn
+  where s.state <> 'Solved';
+
+  execute 'alter view public.pending_calls set (security_invoker = on)';
+  execute 'grant select on public.pending_calls to authenticated';
+end $$;
+
+alter view public.call_state set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0014_call_state_denorm.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state, without re-deriving it on every read.
+--
+-- 0012 computed a call's state from its latest visit in a view. Correct, but
+-- reading it meant scanning `reports` through that table's RLS — a correlated
+-- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
+-- is ~37ms without RLS and >5s with it: "canceling statement due to statement
+-- timeout".
+--
+-- The latest visit is now kept ON the call, maintained by a trigger on
+-- `reports`. Reads touch `calls` only — the register already loads it, so the
+-- state comes along for free, and Pending Calls is an indexed filter.
+-- ===========================================================================
+
+-- The 0012 views read the columns below, and one of them is recreated with a
+-- different shape, so they go first.
+drop view if exists public.pending_calls;
+drop view if exists public.call_state;
+
+alter table public.calls
+  add column if not exists last_status   text default '',
+  add column if not exists last_visit_at timestamptz;
+
+-- Derived, so it can never drift from the two columns above.
+alter table public.calls drop column if exists open_state;
+alter table public.calls add column open_state text
+  generated always as (
+    case
+      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
+      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
+      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
+      else 'Report pending'
+    end
+  ) stored;
+
+create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+
+-- ---- keep it current -------------------------------------------------------
+-- security definer: a visit by one engineer updates the call regardless of who
+-- may write `calls`.
+create or replace function public.sync_call_last_visit(p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.calls c
+     set last_status   = coalesce(r.call_status, ''),
+         last_visit_at = r.visit_at
+    from (
+      select call_status, visit_at
+        from public.reports
+       where ucn = p_ucn
+       order by visit_at desc nulls last, id desc
+       limit 1
+    ) r
+   where c.ucn = p_ucn;
+
+  if not found then  -- no visits left (or none matched): back to Unattended
+    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
+  end if;
+end $$;
+
+create or replace function public.reports_touch_call()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
+  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
+    perform public.sync_call_last_visit(old.ucn);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists reports_touch_call on public.reports;
+create trigger reports_touch_call after insert or update or delete on public.reports
+  for each row execute function public.reports_touch_call();
+
+-- ---- backfill --------------------------------------------------------------
+update public.calls c
+   set last_status   = coalesce(r.call_status, ''),
+       last_visit_at = r.visit_at
+  from (
+    select distinct on (ucn) ucn, call_status, visit_at
+      from public.reports
+     order by ucn, visit_at desc nulls last, id desc
+  ) r
+ where r.ucn = c.ucn
+   and (c.last_status is distinct from coalesce(r.call_status, '')
+     or c.last_visit_at is distinct from r.visit_at);
+
+-- ---- views, now trivial ----------------------------------------------------
+-- `calls` already carries `state` (the geographic one), so the call's open
+-- state stays `open_state` here too.
+create view public.call_state as
+  select ucn, last_status, last_visit_at, open_state as state from public.calls;
+
+create view public.pending_calls as
+  select * from public.calls where open_state <> 'Solved';
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0015_call_number.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call Number.
+--
+--   • From a call registration request → the request's UniqueID
+--     (REQID-Product-SerialNo), carried over when the Hotline registers it.
+--   • Direct customer call (no request) → CLYY + a 5-digit running number,
+--     e.g. CL2600001, continuing the existing series for that year
+--     (the register already holds CL2300081, CL2300079, …).
+--
+-- It was a free-text field nobody filled, so a hand-created call could be
+-- saved with a blank Call Number — and reports, spare requests, consumption
+-- and feedback are all keyed by it.
+-- ===========================================================================
+
+create table if not exists public.call_number_seq (
+  yy      text primary key,          -- two-digit year
+  last_no integer not null default 0
+);
+alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+
+-- Next CL number for a year. The counter is seeded once, from the numbers
+-- already in `calls` — so import historical CL numbers BEFORE this runs (or
+-- delete that year's `call_number_seq` row afterwards to re-seed).
+-- Next CL number for this year. The year's counter is seeded from the highest
+-- CLYY##### already in `calls`, so it continues the series instead of
+-- colliding with imported history.
+create or replace function public.next_direct_call_number(p_yy text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
+  v_no int;
+begin
+  insert into public.call_number_seq (yy, last_no)
+  values (v_yy, coalesce((
+    select max(substring(call_number from 5 for 5)::int)
+      from public.calls
+     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
+  on conflict (yy) do nothing;
+
+  update public.call_number_seq set last_no = last_no + 1
+   where yy = v_yy
+   returning last_no into v_no;
+
+  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
+end $$;
+
+-- Assign one when the call arrives without a Call Number. A call registered
+-- from a request carries the request's UniqueID, so this only fires for direct
+-- calls (and for any import row that has none).
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if coalesce(new.call_number, '') = '' then
+    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end $$;
+
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- Back-fill calls saved before this with no Call Number, each in its own year's
+-- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
+do $$
+declare r record;
+begin
+  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
+    update public.calls
+       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
+     where id = r.id;
+  end loop;
+end $$;
+
+grant execute on function public.next_direct_call_number(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0021_master_lists.sql
+-- ------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 0021 — Master value lists as their own maintained tables.
+--
+-- Each master ("200 All Masters" in the workbook: Call Type, Standard
+-- Complaint, Call Pending Reason, Call Cancel Reason, Feedback, Spare Approval
+-- Reason) becomes a list that admins add to and remove from in the app. The
+-- rows still live in `masters` — one store the dropdown reader already knows —
+-- and `master_lists` is the registry that gives each list its own table: its
+-- label, what one row is called, and any extra columns that list carries
+-- (Spare Approval Reason has Stage + Status, kept in `masters.extra`).
+--
+-- Writes are already gated by masters.edit (0008_rbac_enforcement.sql).
+-- ---------------------------------------------------------------------------
+
+-- Provenance columns, as the workbook carries them.
+alter table public.masters add column if not exists added_on date;
+alter table public.masters add column if not exists added_by text default '';
+
+-- Standard Complaint arrived under two names; settle on `complaint`
+-- (listMaster() already reads them as one) so the list has a single table.
+update public.masters set name = 'complaint' where name = 'standardComplaint';
+
+-- One row per value per list — a re-seed or a double-tap on Add is a no-op.
+-- The Stage discriminator keeps the same reason on two approval stages.
+delete from public.masters a
+ using public.masters b
+ where a.name = b.name
+   and a.value = b.value
+   and coalesce(a.extra->>'stage','') = coalesce(b.extra->>'stage','')
+   and a.id > b.id;
+create unique index if not exists masters_name_value_idx
+  on public.masters (name, value, (coalesce(extra->>'stage','')));
+
+-- The registry: which lists exist, and what a row of each looks like.
+create table if not exists public.master_lists (
+  key         text primary key,
+  label       text not null,
+  value_label text not null default 'Value',
+  -- [{ "key": "stage", "label": "Stage" }, ...] — extra columns in masters.extra
+  columns     jsonb not null default '[]',
+  sort_order  int  not null default 100,
+  active      boolean not null default true,
+  updated_at  timestamptz not null default now()
+);
+alter table public.master_lists enable row level security;
+drop policy if exists master_lists_read on public.master_lists;
+create policy master_lists_read on public.master_lists for select
+  using (auth.role() = 'authenticated');
+drop policy if exists master_lists_write on public.master_lists;
+create policy master_lists_write on public.master_lists for all
+  using (public.has_perm('masters.edit')) with check (public.has_perm('masters.edit'));
+
+insert into public.master_lists (key, label, value_label, columns, sort_order) values
+  ('calltype', 'Call Type', 'Call Type', '[]'::jsonb, 10),
+  ('complaint', 'Standard Complaint', 'Complaint Name', '[]'::jsonb, 20),
+  ('pendingreason', 'Call Pending Reason', 'Reason', '[]'::jsonb, 30),
+  ('cancelreason', 'Call Cancel Reason', 'Reason', '[]'::jsonb, 40),
+  ('feedbackrating', 'Feedback Rating', 'Rating', '[]'::jsonb, 50),
+  ('orapproval', 'Spare Approval Reason', 'Reason', '[{"key": "stage", "label": "Stage"}, {"key": "status", "label": "Status"}]'::jsonb, 60)
+on conflict (key) do update set
+  label = excluded.label, value_label = excluded.value_label,
+  columns = excluded.columns, sort_order = excluded.sort_order, updated_at = now();
+
+-- The workbook's values, so a fresh project starts with the real lists.
+-- Anything an admin has since added or removed is left alone.
+insert into public.masters (name, value, extra, added_on, added_by) values
+  ('calltype', 'FIELD', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'INSTALLATION CALL', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'P M VISIT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'SW UPGRADATION', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'FSCA', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'DEMO', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'FIELD & P M VISIT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('calltype', 'FSCA & P M VISIT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('complaint', '0 NURSE CALL- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '1 OBSTRUCTED INSPIRATORY/ EXPIRATORY BREATHING TUBE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '1 PRESSURE GRAPH DISPLAY GOES TO –VE DURING EXPIRATION - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '1 PRESSURE IN EXCESS. - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '1 STANDBY MODE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '1 STANDY MODE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '10 BATTERY LOW. BATTERY WILL SOON BE EXHAUSTED. - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '10 EFLOW SENSOR FAIL - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '10 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '10 PPEAK >> P HIGH - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '10 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '100 EXCESSIVE INTERNAL BATTERY TEMPERATURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '100 LEFT LOUDSPEAKER INOPERANT. CONTACT THE TECHNICAL DEPARTMENT - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '101 BACKLIGHT FAILURE\NCONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '101 EXCESSIVE INTERCHANGEABLE BATTERY TEMPERATURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '102 EXCESSIVE PCB SUPPLY TEMPERATURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '102 VTI HIGH - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '103 INTERNAL BATTERY ERROR DETECTED- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '103 INVERSE I/E RATIO - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '104 100% FIO2, 2 MINUTES - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '104 INTERCHANGEABLE BATTERY ERROR DETECTED- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '105 INTERNAL BATTERY DEFECTIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '105 LOW INFLATION FLOW IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '106 INTERCHANGEABLE BATTERY DEFECTIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '106 SUSTAINED EXHALATION IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '107 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '107 NEBULIZATION IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '108 EXTERNAL PRESSURE CURVE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '108 TELE-INSPIRATORY OCCLUSION IN PROGRESS- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '109 TELE-EXPIRATORY OCCLUSION IN PROGRESS- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '11 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '11 PATIENT DISCONNECT - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '11 PEEP GREATER THAN SET PEEP + 5 CMH?O - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '11 PRESSURE SENSOR FAIL - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '110 100% 02 TIME > 3 MIN- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '110 APPARATUS IN STAND-BY MODE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '111 HIGH TURBINE TEMPERATURE VENTILATION COULD STOP.- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '111 MINOR FAILURE DETECTED. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '112 02 SENSOR DISABLED. USE AN EXTERNAL O2 MONITOR.- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '112 REPLACE OXYGEN SENSOR SOON - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '113 ADJUST EXPIRATORY TRIGGER - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '113 SLIGHT PATIENT CIRCUIT LEAK DETECTED DURING AUTOMATIC TESTS- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '114 RCSTATS MEASUREMENT IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '114 REBREATHING DETECTED- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '115 DC INPUT VOLTAGE ABOVE 30 V- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '115 P0.1 MEASUREMENT IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '116 MEASUREMENT OF RECRUITMENT IN PROGRESS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 APNEA - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 HIGH PRESSURE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 REAL O2% COMES ONLY 40% – 50% - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '12 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '13 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '13 HIGH PEEP - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '13 PATIENT DISCONNECTION - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '13 RUN FULL SELF- TESTS - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '13 SCREEN FAILURE CHECK THE VENTILATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 PRESSURE SENSOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 RUN LEAK TESTS - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 SCREEN FAILURE CHECK THE VENTILATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 SETTINGS INOPERATIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '14 WRONG EXPIRED VT DISPLAY - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 ALARM THRESHOLDS INOPERATIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 LOW MINUTE VOLUME - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 LOW PRESSURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 PSIMV MODE ONLY APNEA - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '15 SCREEN FAILURE CHECK THE VENTILATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 HIGH PRESSURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 HIGH RESPIRATORY RATE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 INCORRECT SETTINGS - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 LOW VMI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '16 RR DISPLAY LESS THAN 1 - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '17 CAN’T CHANGE PARAMETERS VALUES ALONE - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '17 INCORRECT SETTINGS - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '17 LOW VME- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '17 OXYGEN SUPPLY FAILURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '17 PPEAK >> PHIGH - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '18 AIR SUPPLY FAILURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '18 EXPIRED VT BECOMES 00 DURING TRIGGERING - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '18 INCORRECT ALARM SETTINGS - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '18 LOW FREQUENCY- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '18 PPLAT HIGH - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '19 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '19 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '19 LOW FIO? - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '19 LOW MVI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '19 PEEP GREATER THAN SET PEEP + 5 CMH2O - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 AUTO TRIGGER - WITH PEEP CONDITION - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 EXPIRATION BLOCKED - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 EXPIRATORY BRANCH MIGHT BE OBSTRUCTED - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 PARTIALLY OBSTRUCTED. EXPIRATORY BRANCH - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 SWITCHING OFF THE UNIT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '2 VENTILATOR SHUTDOWN- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 APNEA VENTILATION - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 DELIVERED GASES TOO HOT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 HIGH FIO? - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 LOW MVE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '20 SET PARAMETERS VALUES SUDDENLY DISPLAY ABRUPTLY - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 APNEA - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 HIGH MINUTE VOLUME - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 LOW FREQUENCY - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 O2 SUPPLY PRESSURE TOO LOW - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 PEEP GREATER THAN PEEP SET- POINT + 5 CMH2O- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '21 WRITE DEFAULT DISPLAY - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 ALL DISPLAY BLANKS - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 BATTERY LOW. CONNECT TO EXTERNAL SUPPLY - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 HIGH FREQUENCY- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 O2 SUPPLY PRESSURE TOO HIGH - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 PERFORM V MAINTENANCE CALIBRATIONS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '22 SAFETY VENTILATION RECOMMEND SWITCHING VENTILATOR- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 DELIVERED GASES TOO HOT - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 HIGH VMI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 LOW /HIGH INSPIRED VT - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 PERFORM M MAINTENANCE CALIBRATIONS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '23 VENTILATOR SAFETY SYSTEM IN- OPERANT. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '24 - 25 RUN FULL SELF-TESTS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '24 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '24 HIGH VME- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '24 PEEP GREATER THAN SET PEEP + 5CMH2O - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '24 SOFTWARE VERSIONS NOT COMPATIBLE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '25 FIO2 LOW- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '25 HIGH RESPIRATORY RATE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '25 LOST CONNECTION IN STAND-BY. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '26 FIO2 HIGH- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '26 HIGH MVI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '26 LOST CONNECTION IN VENTILATION. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '26 RUN LEAK TESTS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '27 COOLING FAN FAILURE. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '27 HIGH MVE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '27 LOW MINUTE VOLUME - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '28 BATTERIES EMPTY CONNECT AC POWER- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '28 HIGH RESPIRATORY RATE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '28 LOW FIO2 - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '28 LOW VTE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '29 BATTERIES NEARLY DISCHARGED CONNECT AC POWER- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '29 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '29 HIGH FIO2 - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '29 HIGH VTE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '29 INSPIRATORY HOT-WIRE FLOW SENSOR FAILURE REPLACE THE SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 EXPIRATORY BRANCH MIGHT BE OBSTRUCTED- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 EXPIRATORY VALVE FAILURE. CHECK APPARATUS ASSEMBLY. - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 O2% DISPLAY SHOWS LESS THAN 100% AT ONLY O2 SUPPLY CONDITION - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 PROGRAM 1 ACTIVATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '3 VENTILATOR IN- OPERANT. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '30 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '30 FAILURE, CONNECT TO EXTERNAL SOURCE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '30 INSPIRATORY HOT-WIRE FLOW SENSOR INOPERANT CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '30 LOW RESPIRATORY RATE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '31 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '31 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '31 INTERNAL BATTERY IN-OPERANT - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '31 INTERNAL BATTERY INOPERATIVE CONNECT AC POWER- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '31 INTERNAL FLOW SENSOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '32 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '32 INTERNAL BATTERY DISCHARGED CONNECT AC POWER- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '32 OXYGEN SUPPLY FAILURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '32 STOP OF VENTILATION REQUESTED…. RETURN IN STAND- BY - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '33 AIR SUPPLY FAILURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '33 APNEA VENTILATION- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '33 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '33 INTERNAL BATTERY UNAVAILABLE CHECK BATTERY- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '33 VENTILATOR OPERATES FROM INTERNAL BATTERY - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '34 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '34 FAILURE, CONNECT TO EXTERNAL SOURCE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '34 HIGH PRESSURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '34 VENTILATOR RECEPTION FAILURE. CONTACT AFTER- SALES - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '35 FAILURE, CONNECT TO EXTERNAL SOURCE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '35 MONITOR RECEPTION FAILURE. CONTACT AFTER- SALES - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '35 RIGHT LOUDSPEAKER IN- OPERANT. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '36 APNEA VENTILATION - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '36 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '36 FIO2 MEASUREMENT INOP. - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '36 LEFT LOUDSPEAKER IN-OPERANT. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '37 100% FIO?, 2 MINUTES - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '37 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '37 INTERNAL BATTERY UNAVAILABLE CHECK BATTERY- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '37 LOW FIO2 - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '37 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '38 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '38 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '38 HIGH FIO2 - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '38 NEBULIZATION FUNCTION ACTIVATED - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '38 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '39 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '39 EXPIRATORY HOT-WIRE FLOW SENSOR FAILURE REPLACE SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '39 PATIENT CIRCUIT LEAK DETECTED DURING AUTOMATIC TESTS- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '39 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '39 STAND BY - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 AIR AND OXYGEN SUPPLY FAILURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 HANGING AT SET PARAMETERS - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 PROGRAM 2 ACTIVATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 UNIT OUT OF SERVICE USE A BACK-UP VENTILATOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '4 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '40 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '40 EXPIRATORY HOT-WIRE FLOW SENSOR INOPERANT CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '40 INSPIRATORY PAUSE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '40 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '41 DELIVERED GASES TOO HOT - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '41 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '41 EXPIRATORY HOT-WIRE FLOW SENSOR CALIBRATION IMPOSSIBLE CHECK THE SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '41 EXPIRATORY PAUSE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '41 PATIENT CIRCUIT LEAK DETECTED DURING AUTOMATIC TESTS - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '42 ADJUST APNEA VENTILATION PARAMETERS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '42 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '42 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '42 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '43 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '43 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '43 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '43 SET ALARMS THRESHOLDS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '44 ADJUST VENTILATION PARAMETERS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '44 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '44 NO EXP FLOW RATE MEASUREMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '44 SAFETY VENTILATION SWITCH VENTILATOR RECOMMENDED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '45 1/2 LOST ADMINISTRATOR CONFIGURATION - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '45 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '45 FIO2 MEASUREMENT INOPERATIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '45 SPEAKER FAILURE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '46 2/2 LOST ADMINISTRATOR CONFIGURATION - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '46 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '46 EXPIRATORY FLOW MEASUREMENT INOPERATIVE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '47 FIO2 SENSOR INOPERATIVE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '47 HIGH MINUTE VOLUME - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '48 BATTERY LOW. RECONNECT TO EXTERNAL SUPPLY (ACKNOWLEDGEABLE ALARM) - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '48 ERROR DETECTED CONTACT TECHNICAL SUPPORT- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '48 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '48 LOW VTI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '49 LOW VTE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '49 RESTART THE AUTOMATIC TESTS - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '49 SCREEN FAILURE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '49 VENTILATOR SAFETY SYSTEM INOPERANT CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 BATTERY EMPTY. IMMINENT EXTENSION - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 HANGING AT PATIENT PARAMETERS - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 PROGRAM 1 BOOST ACTIVATION- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 UNIT OUT OF SERVICE USE A BACK-UP VENTILATOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '5 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '50 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '50 LOW VTI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '50 MONITOR SAFETY SYSTEM INOPERANT CONTACT TECH. SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '51 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '51 EXTERNAL MONITOR COMMUNICATION - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '51 HIGH VTI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '51 LOW VTE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '52 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '52 HIGH VTE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '52 SOFTWARE VERSIONS NOT COMPATIBLE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '53 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '53 FIO2 MEASUREMENT INOPERATIVE - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '53 HIGH VTI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '53 LOST CONNECT. IN STAND- BY. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '54 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '54 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '54 HIGH VTE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '54 LOST CONNECTION IN VENTILATION. CONTACT TECH. SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '55 COOLING FAN FAILURE. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '55 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '55 SPEAKER FAILURE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '56 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '56 HIGH PRESSURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '56 MIXER MANAGEMENT INOPERANT. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '56 SPEAKER FAILURE VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '57 EXPIRATORY FLOW MEASUREMENT INOPERATIVE - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '57 INTERNAL BATTERY NEARLY DISCHARGED - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '57 LOW VTE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '57 LOW VTI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '58 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '58 HIGH PRESSURE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '58 HIGH VTE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '58 LOW VTE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '59 HIGH VTI - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '59 LOW FREQUENCY- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '59 LOW VTI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 EXPIRATORY BRANCH POTENTIALLY OBSTRUCTED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 PEEP PROBLEM - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 POWER SUPPLY RECEPTION FAILURE. CONTACT TECHNICAL SERVICE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 UNIT OUT OF SERVICE USE A BACK-UP VENTILATOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '6 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '60 LOW VTE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '60 VTI < VT MINI INCREASE PS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '61 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '61 LOW FREQUENCY - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '61 PATIENT DEMAND HIGHER THAN SET PEAK FLOW - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '62 HIGH VTI- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '62 LOW VTI - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '63 HIGH VTE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '63 LIMIT PS REACHED - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '64 HIGH FREQUENCY- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '64 HIGH VTI - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '64 LIMIT PI REACHED - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '65 ADJUSTED VT LOWER THAN NEB. VOLUME - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '65 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '65 HIGH VTE - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '66 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '66 HIGH FREQUENCY - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '66 LOW RESPIRATORY RATE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '67 BATTERY CHARGER FAILURE. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '67 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '67 NON-CRITICAL ERROR VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '67 OPERATING ON INTERNAL BATTERY- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '68 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '68 INTERNAL BATTERY INOPERANT - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '68 NON-CRITICAL ERROR VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '69 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '69 SCHEDULE REPLACEMENT OF FIO2 SENSOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '69 STOP OF VENTILATION REQUESTED… RETURN IN STAND-BY - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '69 VENTILATOR OPERATES FROM INTERNAL BATTERY - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 NO OUTPUT FROM INSPIRATION LIMB - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 PATIENT DISCONNECTION - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 UNIT OUT OF SERVICE USE A BACK-UP VENTILATOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '7 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '70 CO2 MEASUREMENT INOPERANT - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '70 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '70 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '70 VENTILATOR OPERATES FROM EXTERNAL BATTERY - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '71 CO2 SENSOR INOPERANT\NREPLACE SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '71 FIO2 SENSOR TO BE REPLACED SOON - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '71 SCREEN LOCKED- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '72 CO2 APNEA - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '72 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '72 NON-CRITICAL ERROR VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '72 UNIT IN STAND-BY MODE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '73 CHECK THE ADAPTER OF THE CO2 SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '73 SCREEN INVERSION- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '73 SCREEN LOCKED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '74 CLINICIAN SCREEN- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '74 REPLACE THE ADAPTER OF THE CO2 SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '74 UNIT OUT OF SERVICE USE A BACK-UP VENTILATOR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '75 ALARM CLOCK ACTIVATED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '75 CALIBRATE THE CO2 SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '75 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '76 CO2 APNEA- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '76 CO2 CONCENTRATION OUT OF RANGE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '76 UNIT ON STAND-BY- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '77 CHECK THE ADAPTER OF THE IRMA (CO2) PROBE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '77 HIGH FICO2 - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '77 SCREEN UPSIDE DOWN- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '78 LOW ETCO2 - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '78 REPLACE THE ADAPTER OF THE IRMA(CO2) PROBE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '78 UNIT INOPERATIVE USE A BACK UP VENTILATOR- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '79 CO2 CONCENTRATION OUT OF TOLERANCE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '79 HIGH ETCO2 - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '79 NON-CRITICAL ERROR VENTILATION EFFECTIVE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 LOW PRESSURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 NO NEBULIZER OUTPUT - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 PATIENT DISCONNECTION- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '8 VENTILATOR INOP. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '80 CALIBRATE THE IRMA PROBE(CO2)- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '80 TEMPERATURE MEASUREMENT FAILURE\REPLACE CO2 SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '80 TURBINE TEMPERATURE TOO HIGH VENTILATION MAY SHUT DOWN.- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '81 ATMOSPHERIC PRESSURE MEASUREMENT FAILURE\REPLACE CO2 SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '81 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '81 IRMA(CO2) PROBE ERROR- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '81 LOW MINUTE VOLUME ALARM DISABLED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '82 CO2 MEASUREMENT INOPERATIVE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '82 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '82 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '82 IMPOSSIBLE SETTINGS. REFINE ADJUSTMENTS - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '83 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '83 EXPI. FLOW SENSOR CALIBRATION IMPOSSIBLE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '83 IRMA(CO2)PROBE: INTERNAL TEMPERATURE OUT OF TOLERANCE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '83 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '84 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '84 IRMA(CO2)PROBE: AMBIENT PRESSURE OUT OF TOLERANCE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '84 PATIENT DISCONNECTION: REDUCED SENSITIVITY- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '84 VENTILATOR OPERATES FROM INTERNAL BATTERY (ACKNOWLEDGEABLE ALARM) - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '85 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '85 ETCO2 HIGH- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '85 LOW MVI ALARM THRESHOLD DEACTIVATED- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '85 VENTILATOR OPERATES FROM EXTERNAL BATTERY (ACKNOWLEDGEABLE ALARM) - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '86 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '86 ETCO2 LOW- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '86 HIGH PRESSURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '86 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '87 LOW PRESSURE- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '87 PATIENT DEMAND HIGHER THAN SET PEAK FLOW - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '88 EXPI. FLOW SENSOR INHIBITED. USE EXTERNAL FLOW SENSOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '89 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '89 FIO2 SENSOR TO BE SOON REPLACED - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '89 O2 SENSOR INHIBITED. USE EXTERNAL O2 MONITOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '89 PATIENT ALARM INHIBITED, 2 MIN- T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 AIR AND OXYGEN SUPPLY FAILURE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 ERROR DETECTED CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 HIGH PRESSURE - ORI-G', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 HIGH PRESSURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 IFLOW SENSOR FAIL - ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '9 VENTILATION INTERRUPTED USE ANOTHER VENTILATOR - T50', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '90 BATTERY MAINTENANCE CONTACT THE TECH. DEPARTMENT- T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '90 CO2 SENSOR INHIBITED. USE EXTERNAL CO2 MONITOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '90 HIGH O2 SUPPLY PRESSURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '91 DID YOU START THE AUTOMATIC TESTS WITH THE NEBULIZER - T75', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '91 ZERO O2 SUPPLY PRESSURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '92 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '93 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '93 MINOR FAILURE DETECTED. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '94 LOW O2 SUPPLY PRESSURE- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '94 MINOR FAILURE DETECTED. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '95 MINOR FAILURE DETECTED. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '95 O2 MAXIMUM FOR 2 MIN- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '96 CONNECT CLINISOFT - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '96 LOW-PRESSURE O2- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '97 CONNECT VITAL SIGNS MONITOR - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '97 ERROR DETECTED CONTACT THE TECHNICAL DEPARTMENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '98 INTERNAL BATTERY ABSENT- T60', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '98 MINOR FAILURE DETECTED. CONTACT TECHNICAL SERVICE - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', '99 RIGHT LOUDSPEAKER INOPERANT. CONTACT THE TECHNICAL DEPARTMENT - EXT-XT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'ACCESSORY ISSUE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'ALARM ISSUE- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'AUTO TEST FAIL- HO/ORI/EO150', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'AUTOMATICALLY RESTARTING', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'BATTERY BACK UP ISSUE- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Battery Replacement13sep17', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'BREAKAGE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'BURNING ISSUE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Burnt Smell or Smoke', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'CABINET BROKEN / DAMAGE', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'CALIBRATION', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'CLINICAL ISSUE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'CUSTOMIZED SETTINGS LOST', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Dead', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'DISPLAY ISSUE- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Display Problem', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Fio2 % problem', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'FiO2 measurement inoperative', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'FIO2 STICKER MISSING', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'FIO2 VARIATION- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'HANGING- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'INSTALLATION CALL', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'LEAK/NOISE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Low Pressure', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'LOW PRESSURE- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'Mixer assemply', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'NEW COMPLAINT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'NO EXPIRATION- HO/ORI/ANA', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'NO OUTPUT PRESSURE-ASU,CPX', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'NO VENTILATION- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'O2 failure', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'ON/OFF SWITCH PROBLEM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'PEEP PROBLEM- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'PEEP VARIATIONS-COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'PERFORM INTERACTIVE TEST', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'SCHEDULED PM VISIT', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'PM Call', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'SETTING ISSUE- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'SOFTWARE UPGRADATION', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'SUDDENLY SWITCH OFF- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'TOUCH SCREEN NOT FUNCTIONING- COM', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'UNIT TRANSFER', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'UPGRADATION', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'VTE PROBLEM- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'VTI PROBLEM- HO/ORI', '{}'::jsonb, '2022-05-13'::date, 'Admin'),
+  ('complaint', 'ENCODER KNOB ISSUE', '{}'::jsonb, '2022-09-22'::date, 'Devika'),
+  ('complaint', '1 Obstructed Inspiratory/ Expiratory Breathing Tube-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '5 Pressure sensor inoperant-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '6 Pressure sensor inoperant-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '7 Ventilator in-operant. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '9 Air and oxygen supply failure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '10 Battery empty. Imminent extension-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '11 Power supply reception failure. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '12 Patient disconnection-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '13 Pressure sensor inoperant-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '14 Low pressure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '15 High pressure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '17 High Pplat-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '20 Apnea-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '23 Run full self-tests-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '26 Low minute volume-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '27 High respiratory rate-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '31 Oxygen supply failure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '32 Air supply failure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '46 High minute volume-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '47 Battery low. Connect to external supply-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '52 Lost connection in stand-by. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '53 Lost connection in ventilation. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '54 Cooling fan failure. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '56 Low VTe-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '57 High VTe-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '62 PEEP High-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '63 PI Limit Reached-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '64 PEEP Low-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '65 Low respiratory rate-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '67 Internal battery in-operant-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '68 Stop of ventilation requested…Return in Stand-by-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '83 Ventilator operates from internal battery-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '85 High pressure-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '100 Right loudspeaker in-operant. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '99 Left loudspeaker in-operant. Contact technical service-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '88 O2 sensor deactivated. Use external O2 monitor.-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '106 Nebulization function activated-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '109 Stand by-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '113 pPeak Upper Threshold >60-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '107 Inspiratory Hold-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '102 Expiratory Hold-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('complaint', '108 Demonstration Software-VEGA', '{}'::jsonb, '2023-01-11'::date, 'Devika'),
+  ('pendingreason', 'CRISIS-ENGINEER UNABLE TO ATTEND', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'CUSTOMER SITE NOT READY', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'ENGINEER NOT AVAILABLE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MACHINE NOT AVAILABLE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MACHINE SENT TO INDOOR SERVICE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MACHINE UNDER OBSERVATION', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MACHINE UNDER PROCESS', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MACHINE WORKING UNDER CONSTRAINST', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'SPARES NOT AVAILABLE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'SPARES RECEIVED IN DEFECTIVE CONDITION', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'UNABLE TO REPORT IN WINMAX', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'VENTILATOR ON PATIENT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WAITING FOR CUSTOMER SIGNATURE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WAITING FOR ESTIMATION APPROVAL', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WAITING FOR PAYMENT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WAITING FOR REPLACEMENT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WAITING FOR TECHNICAL SUPPORT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'SERVICE COMPLETED AT INDOOR SERVICE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'WORK IN PROGRESS', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('pendingreason', 'MORE THAN LIFETIME SERVICE', '{}'::jsonb, '2022-11-01'::date, 'Devika'),
+  ('pendingreason', 'MONTH END CALLS', '{}'::jsonb, '2023-06-21'::date, 'Devika'),
+  ('cancelreason', 'ALTERNATE SERVICE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'CRISIS-ENGINEER UNABLE TO ATTEND', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'CUSTOMER DECISION BUY BACK', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Customer donated.', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'CUSTOMER NOT APPROVED THE ESTIMATE', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Customer returned the equipment.', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Demo unit PM call generated', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'For Training Purpose', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Machine Not Installed, Wrong PM call generated', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Order Cancelled', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'PM CALL GENERATED DEMO EQUIPMENT', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'PM CALLS CANCELLED ON 18 Nov 2017', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'PM calls created dealer name', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Product transfer purpose call created', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'SCHEDULE CALL CREATED FROM DEALER NAME', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'UNABLE TO REPORT IN WINMAX', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'WRONG CALL REGISTRATION', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Wrong PM Calls created (Sale invoice cancelled)', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'WRONG PM CALLS CREATED (SOFTWARE ISSUE)', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Wrong sl.no. entered', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Wrong supply', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Wrong supply (Dealer)', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Wrongly entered dealer name.', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Customer Denied', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('cancelreason', 'Repeated Calls-Software Issue', '{}'::jsonb, '2022-11-19'::date, 'Devika'),
+  ('cancelreason', 'INSTALLATION IS NOT COMPLETED', '{}'::jsonb, '2023-09-01'::date, 'Admin'),
+  ('cancelreason', 'PRODUCT TRANSFERRED TO DIFFERENT PARTY', '{}'::jsonb, '2023-09-21'::date, 'Admin'),
+  ('feedbackrating', 'Excellent', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('feedbackrating', 'Good', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('feedbackrating', 'Average', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('feedbackrating', 'Poor', '{}'::jsonb, '2022-06-09'::date, 'Admin'),
+  ('orapproval', 'KOL CUSTOMER', '{"stage": "NSM", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Approved', '{"stage": "RM", "status": "Approved"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Wrong Spare', '{"stage": "RM", "status": "Rejected"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Duplicate Request', '{"stage": "RM", "status": "Rejected"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'LONG PENDING', '{"stage": "NSM", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'ENGINEER ASSURANCE', '{"stage": "NSM", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'PAYMENT RECEIVED', '{"stage": "NSM", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'APPROVED FOR TESTING PURPOSE', '{"stage": "NSM", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Under CMC', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Under WGP', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Under AMC', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'Direct PO', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
+  ('orapproval', 'OGP', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN')
+on conflict do nothing;
 
 -- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
@@ -1885,7 +3013,210 @@ on conflict (period) do update
   set last_no = greatest(public.spare_or_counters.last_no, excluded.last_no);
 
 -- ------------------------------------------------------------------------
--- 0020_handstock.sql
+-- 0020_stock_transfer.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Stock Transfer — engineer to engineer.
+--
+-- Stock is not stored as a balance anywhere; it is DERIVED from what has
+-- already happened to an engineer's hand-stock:
+--   +  a HandStock spare request line dispatched to the engineer
+--   -  a spare consumed on a call
+--   +/- stock transferred in or out
+-- engineer_stock sums those movements, so a balance can never disagree with
+-- the history behind it.
+--
+-- A transfer may only move stock the FROM engineer actually holds: the qty is
+-- capped in the form and enforced here, so no route can drive a balance
+-- negative.
+-- ===========================================================================
+
+create table if not exists public.stock_transfers (
+  id            bigint generated always as identity primary key,
+  uid           text unique not null,          -- ST-YYMM-NNNN
+  from_engineer text not null,
+  to_engineer   text not null,
+  transfer_date date not null default current_date,
+  remarks       text default '',
+  status        text default 'Completed',
+  created_at    timestamptz not null default now(),
+  created_by    uuid references auth.users (id) default auth.uid(),
+  constraint stock_transfer_distinct_parties
+    check (lower(trim(from_engineer)) <> lower(trim(to_engineer)))
+);
+create table if not exists public.stock_transfer_lines (
+  id           bigint generated always as identity primary key,
+  transfer_uid text not null references public.stock_transfers (uid) on delete cascade,
+  row_no       int,
+  part         text not null,
+  qty          numeric not null check (qty > 0),
+  created_at   timestamptz not null default now()
+);
+create index if not exists stock_transfer_lines_uid_idx on public.stock_transfer_lines (transfer_uid);
+create index if not exists stock_transfers_from_idx on public.stock_transfers (lower(trim(from_engineer)));
+create index if not exists stock_transfers_to_idx   on public.stock_transfers (lower(trim(to_engineer)));
+
+-- ---------------------------------------------------------------------------
+-- ST numbers follow the OR convention: ST-YYMM-NNNN, restarting each month.
+-- ---------------------------------------------------------------------------
+create table if not exists public.stock_transfer_counters (
+  period  text primary key,
+  last_no integer not null default 0
+);
+alter table public.stock_transfer_counters enable row level security;  -- definer-only
+
+create or replace function public.next_stock_transfer_no(p_on date default current_date)
+returns text language plpgsql security definer set search_path = public as $$
+declare p text := to_char(p_on, 'YY/MM'); n integer;
+begin
+  insert into public.stock_transfer_counters (period, last_no) values (p, 1)
+  on conflict (period) do update set last_no = public.stock_transfer_counters.last_no + 1
+  returning last_no into n;
+  return 'ST-' || to_char(p_on, 'YYMM') || '-' || lpad(n::text, 4, '0');
+end $$;
+grant execute on function public.next_stock_transfer_no(date) to authenticated;
+
+create or replace function public.stock_transfers_assign_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.transfer_date is null then new.transfer_date := current_date; end if;
+  if new.uid is null or trim(new.uid) = '' then
+    new.uid := public.next_stock_transfer_no(new.transfer_date);
+  end if;
+  return new;
+end $$;
+drop trigger if exists stock_transfers_assign_no on public.stock_transfers;
+create trigger stock_transfers_assign_no
+  before insert on public.stock_transfers
+  for each row execute function public.stock_transfers_assign_no();
+
+create or replace function public.stock_transfer_lines_row_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if new.row_no is null then
+    select coalesce(max(row_no), 0) + 1 into n
+      from public.stock_transfer_lines where transfer_uid = new.transfer_uid;
+    new.row_no := n;
+  end if;
+  return new;
+end $$;
+drop trigger if exists stock_transfer_lines_row_no on public.stock_transfer_lines;
+create trigger stock_transfer_lines_row_no
+  before insert on public.stock_transfer_lines
+  for each row execute function public.stock_transfer_lines_row_no();
+
+-- ---------------------------------------------------------------------------
+-- The derived balance. Engineers are matched by name, normalised the way
+-- visible_engineer_names() does, because that is how every other table in the
+-- app refers to them.
+-- ---------------------------------------------------------------------------
+create or replace view public.engineer_stock as
+with moves as (
+  -- In: hand-stock Stores has dispatched to the engineer.
+  --
+  -- Dispatch, not acknowledgement, is the trigger. Acknowledgement needs
+  -- spare.receive, which the role defaults no longer give engineers, so
+  -- keying off received_at would leave every balance at zero. Once Stores
+  -- books it out it is the engineer's stock; the acknowledgement remains a
+  -- confirmation step on the spare request, not a condition for holding it.
+  select lower(trim(r.engineer)) as engineer, trim(l.part) as part, l.qty::numeric as qty
+    from public.spare_request_lines l
+    join public.spare_requests r on r.uid = l.request_uid
+   where r.req_type = 'HandStock' and coalesce(l.stores_status, '') ~* 'dispatch'
+  union all
+  -- Out: consumed on a call.
+  select lower(trim(c.engineer)), trim(c.part), -c.qty::numeric
+    from public.spare_consumption c
+  union all
+  -- In: transferred from another engineer.
+  select lower(trim(t.to_engineer)), trim(l.part), l.qty::numeric
+    from public.stock_transfer_lines l join public.stock_transfers t on t.uid = l.transfer_uid
+  union all
+  -- Out: transferred away.
+  select lower(trim(t.from_engineer)), trim(l.part), -l.qty::numeric
+    from public.stock_transfer_lines l join public.stock_transfers t on t.uid = l.transfer_uid
+)
+select engineer, part, sum(qty) as qty
+  from moves
+ where coalesce(part, '') <> '' and coalesce(engineer, '') <> ''
+ group by 1, 2;
+
+grant select on public.engineer_stock to authenticated;
+
+-- What an engineer can actually transfer: only parts they are holding.
+create or replace function public.engineer_stock_available(p_engineer text, p_part text)
+returns numeric language sql stable security definer set search_path = public as $$
+  select coalesce((select qty from public.engineer_stock
+                    where engineer = lower(trim(p_engineer)) and part = trim(p_part)), 0);
+$$;
+grant execute on function public.engineer_stock_available(text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- A transfer may not move more than the sender holds. Checked AFTER the row
+-- lands so the view already accounts for it — which also catches a multi-row
+-- insert that would individually pass but together over-draw.
+-- ---------------------------------------------------------------------------
+create or replace function public.stock_transfer_lines_check_stock()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  sender text;
+  bal    numeric;
+begin
+  select from_engineer into sender from public.stock_transfers where uid = new.transfer_uid;
+  bal := public.engineer_stock_available(sender, new.part);
+  if bal < 0 then
+    -- bal is the balance AFTER this row, so a negative is the shortfall.
+    raise exception
+      'Stock transfer exceeds available stock: % would be left with % of %',
+      sender, bal, trim(new.part);
+  end if;
+  return null;
+end $$;
+drop trigger if exists stock_transfer_lines_check_stock on public.stock_transfer_lines;
+create trigger stock_transfer_lines_check_stock
+  after insert or update on public.stock_transfer_lines
+  for each row execute function public.stock_transfer_lines_check_stock();
+
+-- ---------------------------------------------------------------------------
+-- RLS. Reading follows the reporting tree, as the call and spare registers do;
+-- raising a transfer needs stock.transfer, and an engineer may only send their
+-- own stock (anyone with the wider permission may move on their behalf).
+-- ---------------------------------------------------------------------------
+alter table public.stock_transfers      enable row level security;
+alter table public.stock_transfer_lines enable row level security;
+
+drop policy if exists st_read on public.stock_transfers;
+create policy st_read on public.stock_transfers for select
+  using (public.is_admin() or created_by = auth.uid()
+      or lower(trim(from_engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n))
+      or lower(trim(to_engineer))   in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists st_insert on public.stock_transfers;
+create policy st_insert on public.stock_transfers for insert
+  with check (public.has_perm('stock.transfer'));
+
+drop policy if exists stl_read on public.stock_transfer_lines;
+create policy stl_read on public.stock_transfer_lines for select
+  using (exists (select 1 from public.stock_transfers t where t.uid = stock_transfer_lines.transfer_uid));
+drop policy if exists stl_insert on public.stock_transfer_lines;
+create policy stl_insert on public.stock_transfer_lines for insert
+  with check (public.has_perm('stock.transfer') and exists (
+    select 1 from public.stock_transfers t
+     where t.uid = transfer_uid and (t.created_by = auth.uid() or public.is_admin())));
+
+-- ---------------------------------------------------------------------------
+-- Permissions. 0008 leaves an existing role's list alone, so new keys are on
+-- no role — append them to the roles that hold or move spares.
+-- ---------------------------------------------------------------------------
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["stock.transfer","mod:/stock-transfer"]'::jsonb,
+       updated_at  = now()
+ where role in ('admin', 'engineer', 'rm', 'rgm', 'spare_coordinator', 'stores_incharge')
+   and not coalesce(permissions, '[]'::jsonb) ? 'stock.transfer';
+
+-- ------------------------------------------------------------------------
+-- 0022_handstock.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
@@ -1896,13 +3227,29 @@ on conflict (period) do update
 --               − Stock Transfer From
 --               + Stock Transfer To
 --
--- Three of those four movements already existed and had never been put side by
--- side: Stores dispatching a spare against an OR, the spare consumed on a call
--- report, and — new here — a spare handed from one engineer to another.
+-- 0020_stock_transfer.sql already derives that balance for the Stock Transfer
+-- screen (`engineer_stock`), and owns the transfer tables. This migration does
+-- not add a second one: it keeps ONE derivation and gives it the detail the
+-- Hand Stock register needs.
 --
---   stock_transfers     — engineer → engineer hand-overs (the only new entry).
---   handstock_movements — one row per movement, all four kinds.
---   handstock_balance   — the stock level per engineer + spare.
+--   handstock_movements — one row per movement, with where it came from:
+--                         the DC, the call, or the engineer on the other side.
+--   handstock_balance   — the level per engineer + spare, with each term of
+--                         the formula kept separately.
+--   engineer_stock      — REDEFINED over handstock_balance, so the transfer
+--                         screen, its stock guard and this register can never
+--                         disagree. Same columns, same meaning.
+--
+-- Two things the first derivation missed, both of which made a balance wrong:
+--
+--   • Only `req_type = 'HandStock'` requests counted as stock in. A spare
+--     dispatched against a CALL was consumed out of a balance it had never
+--     been added to, so the engineer went negative and their transfers were
+--     refused. Every spare Stores dispatches is stock in the engineer's hands,
+--     whatever the request was raised for.
+--   • The status is what makes it a stock out, not the timestamp. Dispatches
+--     from the sheet era, from imports, or from before 0009 added
+--     dispatched_at carry a DC but no date, and are every bit as much stock.
 --
 -- The views run with the caller's rights, so the register is scoped exactly
 -- like the tables under it: an engineer sees their own stock, an RM their
@@ -1934,49 +3281,6 @@ returns text language sql immutable as $$ select upper(btrim(split_part(coalesce
 
 grant execute on function public.handstock_key(text) to authenticated;
 grant execute on function public.part_code(text)     to authenticated;
-
--- ---------------------------------------------------------------------------
--- Stock transfers: one engineer hands a spare to another. The only movement
--- with no home elsewhere, so it gets a table — deliberately a plain record of
--- a hand-over, not a second approval chain.
--- ---------------------------------------------------------------------------
-create table if not exists public.stock_transfers (
-  id                 bigint generated always as identity primary key,
-  transfer_no        text unique,                  -- ST-YY/MM/N, assigned here
-  from_engineer      text not null default '',
-  from_engineer_email text default '',
-  to_engineer        text not null default '',
-  to_engineer_email  text default '',
-  part               text not null default '',     -- CODE|Description
-  qty                numeric not null default 1,
-  reason             text default '',
-  remarks            text default '',
-  transferred_at     timestamptz not null default now(),
-  created_at         timestamptz not null default now(),
-  created_by         uuid default auth.uid() references auth.users (id)
-);
-create index if not exists stock_transfers_from_idx on public.stock_transfers (lower(btrim(from_engineer)));
-create index if not exists stock_transfers_to_idx   on public.stock_transfers (lower(btrim(to_engineer)));
-
--- Numbered per month, like the OR series (0017): ST-26/08/1.
-create table if not exists public.stock_transfer_counters (
-  period  text primary key,          -- 'YY/MM'
-  last_no integer not null default 0
-);
-alter table public.stock_transfer_counters enable row level security;  -- definer-only
-
-create or replace function public.next_stock_transfer_no(p_on date default current_date)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  p text := to_char(p_on, 'YY/MM');
-  n integer;
-begin
-  insert into public.stock_transfer_counters (period, last_no) values (p, 1)
-  on conflict (period) do update set last_no = public.stock_transfer_counters.last_no + 1
-  returning last_no into n;
-  return 'ST-' || p || '/' || n;
-end $$;
-grant execute on function public.next_stock_transfer_no(date) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Movements — the four terms of the formula, one row each.
@@ -2040,38 +3344,40 @@ select
   'OUT'::text, 'Transfer out'::text,
   public.handstock_key(t.from_engineer),
   coalesce(t.from_engineer, ''),
-  coalesce(t.from_engineer_email, ''),
-  public.part_code(t.part),
-  coalesce(t.part, ''),
-  coalesce(t.qty, 0),
-  t.transferred_at,
-  coalesce(t.transfer_no, ''),
+  ''::text,
+  public.part_code(l.part),
+  coalesce(l.part, ''),
+  coalesce(l.qty, 0),
+  coalesce(t.transfer_date::timestamptz, t.created_at),
+  coalesce(t.uid, ''),
   'Transfer'::text,
   ''::text,
   ''::text,
   ''::text,
   coalesce(t.to_engineer, ''),                      -- who it went to
-  btrim(coalesce(t.reason, '') || ' ' || coalesce(t.remarks, ''))
-from public.stock_transfers t
+  coalesce(t.remarks, '')
+from public.stock_transfer_lines l
+join public.stock_transfers t on t.uid = l.transfer_uid
 union all
 -- 4. Stock transfer TO this engineer (+)
 select
   'IN'::text, 'Transfer in'::text,
   public.handstock_key(t.to_engineer),
   coalesce(t.to_engineer, ''),
-  coalesce(t.to_engineer_email, ''),
-  public.part_code(t.part),
-  coalesce(t.part, ''),
-  coalesce(t.qty, 0),
-  t.transferred_at,
-  coalesce(t.transfer_no, ''),
+  ''::text,
+  public.part_code(l.part),
+  coalesce(l.part, ''),
+  coalesce(l.qty, 0),
+  coalesce(t.transfer_date::timestamptz, t.created_at),
+  coalesce(t.uid, ''),
   'Transfer'::text,
   ''::text,
   ''::text,
   ''::text,
   coalesce(t.from_engineer, ''),                    -- who it came from
-  btrim(coalesce(t.reason, '') || ' ' || coalesce(t.remarks, ''))
-from public.stock_transfers t;
+  coalesce(t.remarks, '')
+from public.stock_transfer_lines l
+join public.stock_transfers t on t.uid = l.transfer_uid;
 
 -- ---------------------------------------------------------------------------
 -- The stock level, one row per engineer + spare, with each term of the formula
@@ -2104,130 +3410,37 @@ from public.handstock_movements m
 where m.engineer_key <> '' and m.part_code <> ''
 group by m.engineer_key, m.part_code;
 
+-- ---------------------------------------------------------------------------
+-- The Stock Transfer screen (and the guard that stops a transfer overdrawing)
+-- read `engineer_stock`. Point it at the balance above rather than leaving a
+-- second, differently-wrong derivation behind: same columns, same meaning, one
+-- set of rules. `engineer_stock_available()` and both screens follow.
+--
+-- NB: definer-rights functions read this view, so it stays as 0020 created it
+-- — NOT security_invoker.
+-- ---------------------------------------------------------------------------
+create or replace view public.engineer_stock as
+select b.engineer_key as engineer, b.part, b.on_hand as qty
+  from public.handstock_balance b;
+
+grant select on public.engineer_stock to authenticated;
+
 alter view public.handstock_movements set (security_invoker = on);
 alter view public.handstock_balance   set (security_invoker = on);
 
 grant select on public.handstock_movements to authenticated;
 grant select on public.handstock_balance   to authenticated;
-grant select, insert on public.stock_transfers to authenticated;
 
 -- ---------------------------------------------------------------------------
--- The stock level for one engineer + spare, read with the definer's rights so
--- the transfer guard can check stock the transferring user may not be able to
--- see (an admin moving a part between two engineers, say).
--- ---------------------------------------------------------------------------
-create or replace function public.handstock_on_hand(p_engineer_key text, p_part_code text)
-returns numeric language sql stable security definer set search_path = public as $$
-  select coalesce(sum(case when m.direction = 'IN' then m.qty else -m.qty end), 0)
-    from public.handstock_movements m
-   where m.engineer_key = p_engineer_key and m.part_code = p_part_code;
-$$;
--- Deliberately NOT granted to `authenticated`: it reads with the definer's
--- rights, so exposing it would let anyone ask what any engineer is holding.
--- The trigger below calls it from inside a definer function, which needs no
--- grant; the app reads the RLS-scoped `handstock_balance` view instead.
-revoke execute on function public.handstock_on_hand(text, text) from public, authenticated;
-
--- A hand-over cannot invent stock, move nothing, or go to the person who
--- already has it. Numbering happens here too, so nothing else has to.
-create or replace function public.stock_transfers_check()
-returns trigger language plpgsql security definer set search_path = public as $$
-declare available numeric;
-begin
-  if coalesce(new.qty, 0) < 1 then
-    raise exception 'Transfer quantity must be at least 1';
-  end if;
-  if public.handstock_key(new.from_engineer) = '' or public.handstock_key(new.to_engineer) = '' then
-    raise exception 'A transfer needs both the engineer handing over and the one receiving';
-  end if;
-  if public.handstock_key(new.from_engineer) = public.handstock_key(new.to_engineer) then
-    raise exception 'A spare cannot be transferred to the engineer who already holds it';
-  end if;
-  if public.part_code(new.part) = '' then
-    raise exception 'A transfer needs a spare';
-  end if;
-
-  available := public.handstock_on_hand(public.handstock_key(new.from_engineer), public.part_code(new.part));
-  if new.qty > available then
-    raise exception 'Only % of % in %''s hand stock — cannot transfer %',
-      available, public.part_code(new.part), new.from_engineer, new.qty;
-  end if;
-
-  if new.transfer_no is null or btrim(new.transfer_no) = '' then
-    new.transfer_no := public.next_stock_transfer_no(coalesce(new.transferred_at, now())::date);
-  end if;
-  return new;
-end $$;
-
-drop trigger if exists stock_transfers_check on public.stock_transfers;
-create trigger stock_transfers_check
-  before insert on public.stock_transfers
-  for each row execute function public.stock_transfers_check();
-
--- A transfer is a record of something that happened; correcting one means
--- another transfer the other way, not an edit. Only an admin may amend.
-create or replace function public.stock_transfers_immutable()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if public.is_admin() then return new; end if;
-  raise exception 'A stock transfer cannot be edited — record the return transfer instead';
-end $$;
-
-drop trigger if exists stock_transfers_immutable on public.stock_transfers;
-create trigger stock_transfers_immutable
-  before update on public.stock_transfers
-  for each row execute function public.stock_transfers_immutable();
-
-alter table public.stock_transfers enable row level security;
-
--- Readable by whoever may see the engineer's stock at all: the two engineers
--- on the transfer, anyone whose reporting sub-tree either of them is in, the
--- spare approvers, and admins.
-drop policy if exists st_read on public.stock_transfers;
-create policy st_read on public.stock_transfers for select
-  using (
-    public.is_admin()
-    or created_by = auth.uid()
-    or lower(coalesce(from_engineer_email, '')) = lower(auth.email())
-    or lower(coalesce(to_engineer_email, ''))   = lower(auth.email())
-    or public.can_approve_spares()
-    or lower(btrim(from_engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
-    or lower(btrim(to_engineer))   in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
-  );
-
--- Recording one needs the permission, and — unless you may act for others —
--- it has to be your own stock you are handing over.
-drop policy if exists st_insert on public.stock_transfers;
-create policy st_insert on public.stock_transfers for insert
-  with check (
-    public.has_perm('stock.transfer')
-    and (public.is_admin()
-         or public.can_approve_spares()
-         or lower(coalesce(from_engineer_email, '')) = lower(auth.email()))
-  );
-
-drop policy if exists st_delete on public.stock_transfers;
-create policy st_delete on public.stock_transfers for delete using (public.is_admin());
-
--- ---------------------------------------------------------------------------
--- Access. Neither key is on any role until granted; append them — additively —
--- to the roles that already work with spares, leaving anything an admin has
--- since edited alone.
---   mod:/handstock  opens the register.
---   stock.transfer  records a hand-over (own stock, unless you may act for
---                   others). Stores and the approvers get it too, since they
---                   are the ones who move stock between engineers.
+-- Access. `mod:/handstock` is on no role until granted; append it —
+-- additively — to every role that can already open the Spare Requests
+-- register, leaving anything an admin has since edited alone.
+-- (`stock.transfer` and `mod:/stock-transfer` belong to 0020_stock_transfer.)
 -- ---------------------------------------------------------------------------
 update public.app_roles
    set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/handstock"]'::jsonb,
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-requests'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/handstock';
-
-update public.app_roles
-   set permissions = coalesce(permissions, '[]'::jsonb) || '["stock.transfer"]'::jsonb,
-       updated_at  = now()
- where role in ('admin', 'engineer', 'rm', 'rgm', 'spare_coordinator', 'stores_incharge')
-   and not coalesce(permissions, '[]'::jsonb) ? 'stock.transfer';
 
 commit;

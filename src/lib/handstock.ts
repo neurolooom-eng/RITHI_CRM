@@ -4,11 +4,10 @@
 //   Stock Level = Stock Out (from Stores) − Consumption
 //               − Stock Transfer From    + Stock Transfer To
 //
-// Nothing is entered for a stock level: three of the four movements already
-// existed (a Stores dispatch against an OR, a spare consumed on a call), and
-// the fourth — an engineer handing a spare to another — is the one thing the
-// module records. Postgres nets them per engineer + spare (views
-// `handstock_movements` / `handstock_balance`, migration 0020). This module is
+// Nothing is entered for a stock level: a Stores dispatch against an OR, a
+// spare consumed on a call, and a hand-over recorded on Stock Transfer are all
+// movements the app already has. Postgres nets them per engineer + spare (views
+// `handstock_movements` / `handstock_balance`, migration 0022). This module is
 // the shape of those rows and the judgement the register applies on top.
 // ---------------------------------------------------------------------------
 
@@ -50,19 +49,6 @@ export interface HandstockMovement {
   // dispatch, the party the OR was raised against.
   party_name: string;
   remarks: string;
-}
-
-export interface StockTransfer {
-  transfer_no: string;
-  from_engineer: string;
-  from_engineer_email: string;
-  to_engineer: string;
-  to_engineer_email: string;
-  part: string;
-  qty: number;
-  reason: string;
-  remarks: string;
-  transferred_at: string | null;
 }
 
 export const num = (v: unknown): number => {

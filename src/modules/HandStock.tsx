@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
-import {
-  listHandstockBalance, listHandstockMovements, addStockTransfer, supabaseConfigured,
-} from '../lib/supabase';
-import { listUsers } from '../lib/sheets';
+import { listHandstockBalance, listHandstockMovements, supabaseConfigured } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import {
-  availableFor, balanceTone, byEngineer, engineerKey, movementTone, num,
-  partDescription, stockOptionLabel, summarise,
+  balanceTone, byEngineer, movementTone, num, partDescription, summarise,
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
@@ -21,15 +18,19 @@ import './fieldcalls.css';
 //
 //   Stock Level = Stock Out (Stores) − Consumption − Transfer From + Transfer To
 //
-// Only the transfer is entered here; the other three movements are the Stores
-// dispatch on a spare request and the consumption on a call report. Reads the
-// `handstock_balance` / `handstock_movements` views (migration
-// 0020_handstock.sql), which run with the caller's rights — so an engineer
+// Nothing is entered here: the movements are the Stores dispatch on a spare
+// request, the consumption on a call report, and the hand-overs recorded on
+// Stock Transfer. Reads `handstock_balance` / `handstock_movements` (migration
+// 0022_handstock.sql), which run with the caller's rights — so an engineer
 // sees their own stock, an RM their sub-tree, an admin everyone's.
+//
+// Stock Transfer (/stock-transfer) is where a hand-over is recorded, and it
+// reads the same derivation (`engineer_stock` is a view over the balance
+// below), so the two screens cannot disagree.
 // ===========================================================================
 
 const CACHE_KEY = 'handstock';
-const MIGRATION_HINT = 'Hand stock needs migration 0020_handstock.sql — run it in the Supabase SQL editor (apply bundle: spare_requests).';
+const MIGRATION_HINT = 'Hand stock needs migration 0022_handstock.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
 type Row = HandstockBalance & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';
@@ -69,7 +70,8 @@ const stockBadge = (onHand: number) => (
 );
 
 export function HandStock() {
-  const { user, can } = useAuth();
+  const { can } = useAuth();
+  const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
@@ -79,7 +81,6 @@ export function HandStock() {
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [detail, setDetail] = useState<Row | null>(null);
-  const [transfer, setTransfer] = useState<Row | null | 'new'>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
@@ -140,7 +141,7 @@ export function HandStock() {
         title="Hand Stock"
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
-        actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => setTransfer('new')}>⇄ Transfer stock</button>}
+        actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
       />
 
       {msg && (
@@ -202,19 +203,10 @@ export function HandStock() {
         {detail && (
           <MovementTrail
             row={detail}
-            onTransfer={can('stock.transfer') ? () => { setTransfer(detail); setDetail(null); } : undefined}
+            onTransfer={can('stock.transfer') ? () => navigate('/stock-transfer') : undefined}
           />
         )}
       </Drawer>
-
-      <TransferDrawer
-        open={transfer !== null}
-        from={transfer === 'new' ? null : transfer}
-        rows={rows}
-        defaultEngineer={user?.fullName ?? ''}
-        onClose={() => setTransfer(null)}
-        onSaved={(no) => { setMsg({ tone: 'ok', text: `Stock transferred${no ? ` — ${no}` : ''}.` }); void load(); }}
-      />
     </div>
   );
 }
@@ -301,139 +293,5 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
         {!busy && !err && moves.length === 0 && <div className="muted" style={{ fontSize: 12.5 }}>No movements found for this line.</div>}
       </section>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Transfer drawer — hand a spare from one engineer to another. Only what the
-// giving engineer actually holds can be picked, and only up to what they hold;
-// Postgres enforces both again on insert, so a stale screen cannot overdraw.
-// ---------------------------------------------------------------------------
-function TransferDrawer({
-  open, from, rows, defaultEngineer, onClose, onSaved,
-}: {
-  open: boolean;
-  from: Row | null;              // pre-picked line, when opened from the drawer
-  rows: Row[];
-  defaultEngineer: string;
-  onClose: () => void;
-  onSaved: (transferNo: string) => void;
-}) {
-  const { user, can } = useAuth();
-  // Engineers may only hand over their own stock; anyone who acts for others
-  // (admin, RM, Stores) may move a line between two people.
-  const forOthers = can('users.manage') || can('spare.dispatch') || can('spare.approve_rm');
-  const [fromEngineer, setFromEngineer] = useState('');
-  const [toEngineer, setToEngineer] = useState('');
-  const [part, setPart] = useState('');
-  const [qty, setQty] = useState('1');
-  const [reason, setReason] = useState('');
-  const [names, setNames] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    if (!open) return;
-    setFromEngineer(from?.engineer || (forOthers ? '' : defaultEngineer) || defaultEngineer);
-    setToEngineer(''); setPart(from?.part ?? ''); setQty('1'); setReason(''); setErr('');
-  }, [open, from, defaultEngineer, forOthers]);
-
-  // Directory names for the receiving engineer.
-  useEffect(() => {
-    if (!open || names.length) return;
-    let alive = true;
-    listUsers('', 2000)
-      .then((r) => {
-        if (!alive) return;
-        setNames([...new Set(r.map((x) => String(x['User Name'] ?? '').trim()).filter(Boolean))].sort());
-      })
-      .catch(() => { /* the field stays a free-text input */ });
-    return () => { alive = false; };
-  }, [open, names.length]);
-
-  const stock = useMemo(() => availableFor(rows, fromEngineer), [rows, fromEngineer]);
-  const picked = stock.find((r) => r.part === part);
-  const max = picked ? num(picked.on_hand) : 0;
-  const holders = useMemo(() => byEngineer(rows).filter((e) => e.onHand > 0), [rows]);
-
-  const submit = async () => {
-    const n = Math.floor(Number(qty) || 0);
-    if (!fromEngineer.trim() || !toEngineer.trim()) { setErr('Both engineers are required.'); return; }
-    if (engineerKey(fromEngineer) === engineerKey(toEngineer)) { setErr('Pick a different engineer to transfer to.'); return; }
-    if (!part) { setErr('Pick a spare from the engineer’s stock.'); return; }
-    if (n < 1) { setErr('Quantity must be at least 1.'); return; }
-    if (n > max) { setErr(`Only ${max} of ${picked?.part_code ?? 'this spare'} in hand.`); return; }
-    setBusy(true); setErr('');
-    try {
-      const res = await addStockTransfer({
-        from_engineer: fromEngineer.trim(),
-        from_engineer_email: picked?.engineer_email || (engineerKey(fromEngineer) === engineerKey(defaultEngineer) ? user?.email ?? '' : ''),
-        to_engineer: toEngineer.trim(),
-        part, qty: n, reason: reason.trim(),
-      });
-      if (res.ok) { onSaved(res.transferNo ?? ''); onClose(); }
-      else setErr(res.error ?? 'Could not record the transfer.');
-    } catch (e) {
-      setErr(`Transfer failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <Drawer open={open} onClose={onClose} title="Transfer hand stock" width={620}>
-      {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
-      <div className="rep-form">
-        <section className="rep-sec">
-          <div className="rep-sec-title">Hand over</div>
-          <div className="rep-grid">
-            <label className="rep-field">
-              <span className="field-label">From engineer *</span>
-              {forOthers ? (
-                <select className="select" value={engineerKey(fromEngineer)} onChange={(e) => { setFromEngineer(holders.find((h) => h.engineer_key === e.target.value)?.engineer ?? ''); setPart(''); }}>
-                  <option value="">Pick an engineer…</option>
-                  {holders.map((h) => <option key={h.engineer_key} value={h.engineer_key}>{h.engineer} ({h.onHand} in hand)</option>)}
-                </select>
-              ) : (
-                <input className="input" value={fromEngineer} readOnly title="You can only hand over your own stock" />
-              )}
-            </label>
-            <label className="rep-field">
-              <span className="field-label">To engineer *</span>
-              <input className="input" list="dl-transfer-engineers" value={toEngineer} onChange={(e) => setToEngineer(e.target.value)} placeholder="Who is taking it…" />
-              <datalist id="dl-transfer-engineers">
-                {names.map((n) => <option key={n} value={n} />)}
-              </datalist>
-            </label>
-          </div>
-        </section>
-
-        <section className="rep-sec">
-          <div className="rep-sec-title">
-            Spare <span className="muted">· only what {fromEngineer || 'the engineer'} is holding ({stock.length})</span>
-          </div>
-          <div className="rep-grid">
-            <label className="rep-field">
-              <span className="field-label">Spare *</span>
-              <select className="select" value={part} onChange={(e) => { setPart(e.target.value); setQty('1'); }} disabled={!stock.length}>
-                <option value="">{stock.length ? 'Pick a spare in hand…' : 'Nothing in hand'}</option>
-                {stock.map((r) => <option key={r.part_code} value={r.part}>{stockOptionLabel(r)}</option>)}
-              </select>
-            </label>
-            <label className="rep-field">
-              <span className="field-label">Quantity *{picked ? ` (max ${max})` : ''}</span>
-              <input className="input" type="number" min={1} max={max || 1} step={1} value={qty} onChange={(e) => setQty(e.target.value)} disabled={!picked} />
-            </label>
-          </div>
-          <label className="rep-field">
-            <span className="field-label">Reason / remarks</span>
-            <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why the spare is changing hands…" />
-          </label>
-        </section>
-
-        <div className="rep-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !picked}>{busy ? 'Transferring…' : '⇄ Transfer'}</button>
-        </div>
-      </div>
-    </Drawer>
   );
 }
