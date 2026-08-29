@@ -85,7 +85,7 @@ const LOADERS = {
     r = dedupe(r, 'ucn'); // one report row per UCN (latest kept)
     await insertBatched('reports', r.map((x) => ({
       ucn: x.ucn, call_number: x.call_number, call_status: x.call_status, pending_reason: x.pending_reason,
-      engineer: x.engineer, engineer_email: x.engineer_email, call_type: x.call_type, visit_at: toTs(x.visit_at),
+      engineer: x.engineer, engineer_email: x.engineer_email, visit_at: toTs(x.visit_at),
       data: (() => { try { return JSON.parse(x.data); } catch { return {}; } })(),
     })));
   },

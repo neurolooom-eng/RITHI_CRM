@@ -71,9 +71,10 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
     case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
     case 'products': return raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of PROD_DATES) o[d] = toDate(r[d]); return o; });
     case 'calls': return dedupe(raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of CALL_DATES) o[d] = toDate(r[d]); return o; }), 'ucn');
+    // Note: the reports table has no call_type column (it lives inside `data`).
     case 'reports': return dedupe(raw.map((r) => ({
       ucn: r.ucn, call_number: r.call_number, call_status: r.call_status, pending_reason: r.pending_reason,
-      engineer: r.engineer, engineer_email: r.engineer_email, call_type: r.call_type, visit_at: toTs(r.visit_at),
+      engineer: r.engineer, engineer_email: r.engineer_email, visit_at: toTs(r.visit_at),
       data: (() => { try { return JSON.parse(r.data); } catch { return {}; } })(),
     })), 'ucn');
   }
