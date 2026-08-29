@@ -60,9 +60,9 @@ RM/RGM sees the reporting sub-tree (recursive over
   (see below).
 - `supabase/migrations/0009_spare_receipt.sql` — spare-request receipt stage:
   acknowledgement columns, and the stage guard extended to cover them.
-- `supabase/migrations/0010_spare_intake.sql` — spare-request OR number (from
+- `supabase/migrations/0011_spare_intake.sql` — spare-request OR number (from
   OR47042), RowNo, OR request date, qty and 20-part limits.
-- `supabase/migrations/0011_spare_auto_approval.sql` — lets the RM's approval
+- `supabase/migrations/0012_spare_auto_approval.sql` — lets the RM's approval
   auto-clear Commercial/NSM on non-AMC items, which 0008's guard refused.
 - `supabase/tests/` — psql harness for the spare-request triggers (see its
   README); it is what caught the 0011 bug.

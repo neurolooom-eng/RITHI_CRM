@@ -93,7 +93,7 @@ auto REST + RLS + Auth).
   with the secret key, or add via Authentication → Users).
 - **Spare request WRITES still hit the sheet.** ✅ done — the `v2_ORReq-All`
   sheet append is gone; raising a request writes `spare_requests` +
-  `spare_request_lines` on Supabase only. `0010_spare_intake.sql` assigns the
+  `spare_request_lines` on Supabase only. `0011_spare_intake.sql` assigns the
   **OR NO** (running number continuing the sheet's series from OR47042), the
   **RowNo** (restarting at 1 per OR) and the **OR Req Date**; qty is at least 1
   and a request carries at most 20 parts, enforced in the DB as well as the UI.
@@ -174,7 +174,7 @@ auto REST + RLS + Auth).
     to cover the receipt columns (the raiser holds no approval permission, so
     the guard would otherwise reject the acknowledgement) and grants
     `spare.receive` in `app_roles` additively.
-  - *Phase 4* (`0010_spare_intake.sql`, `0011_spare_auto_approval.sql`): the
+  - *Phase 4* (`0011_spare_intake.sql`, `0012_spare_auto_approval.sql`): the
     intake spec — OR NO / RowNo / OR Req Date assigned by the database, UCN
     picker, engineer selection, 20 parts per request — and Supabase-only
     writes. 0011 fixes the RM's approval of a non-AMC item being refused by

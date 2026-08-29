@@ -476,7 +476,7 @@ export async function addSpareRequest(
   lines: { part: string; qty: number }[],
 ): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string }> {
   const c = must();
-  // or_no / or_req_date are assigned by the database (0010_spare_intake.sql).
+  // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
   const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);

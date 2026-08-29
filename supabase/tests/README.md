@@ -3,7 +3,7 @@
 `spare_workflow_test.sql` exercises the spare-request workflow triggers against
 a throwaway Postgres — the approval chain, the OR/RowNo numbering, and the RBAC
 guards. It caught a live bug (an RM's approval of a non-AMC item being refused
-by the stage guard, fixed in `0011_spare_auto_approval.sql`), so it is worth
+by the stage guard, fixed in `0012_spare_auto_approval.sql`), so it is worth
 re-running whenever a migration touches `spare_requests`.
 
 These are plain `psql` scripts, not a test framework: each step prints what it
