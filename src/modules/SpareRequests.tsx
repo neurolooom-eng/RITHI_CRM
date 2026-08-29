@@ -172,8 +172,8 @@ export function SpareRequestDrawer({
     };
 
     setBusy(true); setErr('');
+    const t0 = performance.now();
     try {
-      const t0 = performance.now();
       const res = await addSpareRequest(req, picks);
       logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: callFields.ucn, parts: picks.length } });
       if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
@@ -515,13 +515,25 @@ export function SpareRequests() {
       : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
 
     setBusy(true);
+    const t0 = performance.now();
+    // One audit entry per decision, whether it covered one spare or the OR.
+    const audit = (res: { ok: boolean; error?: string; count?: number }) => logAudit({
+      action: `spare.${p.kind}`,
+      target: scope === 'or' ? String(row.or_no ?? row.uid) : String(row.line_uid ?? row.uid),
+      status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+      duration_ms: Math.round(performance.now() - t0),
+      meta: { stage, scope, spares: scope === 'or' ? res.count ?? 0 : 1, ...(input.dc ? { dc: input.dc } : {}) },
+    });
+
     try {
       if (scope === 'or') {
         const res = await updateSpareRequestLinesAtStage(String(row.uid), [stage], patch);
+        audit(res);
         if (res.ok) setMsg({ tone: 'ok', text: `${res.count ?? 0} spare${res.count === 1 ? '' : 's'} on ${String(row.or_no ?? row.uid)} ${what}.` });
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       } else {
         const res = await updateSpareRequestLine(row.line_id ?? row.id, patch);
+        audit(res);
         if (res.ok) setMsg({ tone: 'ok', text: `${String(row.line_uid ?? row.part ?? 'Spare')} ${what}.` });
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       }

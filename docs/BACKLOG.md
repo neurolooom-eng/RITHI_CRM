@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
+_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped)_
 
 ---
 
@@ -120,6 +120,11 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
+- **`0023_handstock.sql`** — the hand-stock views, and `engineer_stock`
+  redefined over them (bundle: **`HandStock_X.sql`**, at the repo root; needs
+  `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
+  module says so and stays empty, and the report form has no stock to consume
+  from.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.
@@ -298,10 +303,42 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     OR can be dispatched on different days with different DCs (the per-line
     columns for that have existed since 0016; this adds the reference to quote).
     Fixed once issued, unique across the register.
-  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
-    first; the ITEM Master import carries only code, description and Active), a
-    stores-side pick/pack view, and consumption reconciliation — flag a received
-    request whose parts were never consumed against the call. Also worth a smoke test
+  - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
+    level an engineer is carrying, per spare:
+    **stock out (Stores) − consumption − transfer out + transfer in**.
+    Two tabs: **Stock Level**, one line per engineer and spare with every term
+    as its own column (in-hand / short / settled filters, per-engineer filter,
+    search, CSV, and a per-line movement trail in a drawer); and
+    **Movements**, the ledger those levels are made of — every stock out,
+    consumption and transfer, newest first, filtered by kind and engineer,
+    paged and exportable.
+    It does **not** add a second stock system: `0020_stock_transfer.sql` owns
+    the transfer tables and the `/stock-transfer` screen, and `engineer_stock`
+    — which that screen and its overdraw guard read — is redefined as a view
+    over `handstock_balance`, so the two can never disagree.
+    That consolidation fixed two ways a balance was wrong: only
+    `req_type = 'HandStock'` requests counted as stock in, so a spare
+    dispatched against a **call** was consumed out of a balance it had never
+    been added to (engineer goes negative, transfers refused); and a dispatch
+    carrying a DC but **no `dispatched_at`** — sheet-era rows, imports —
+    counted for nothing. Stock out is now every dispatched line, decided by the
+    *status*, dated by the best timestamp the row has.
+    **Reporting → Spare consumption offers only what that engineer holds**,
+    with the quantity in hand, and refuses more — so a report can no longer
+    consume a spare nobody issued.
+    Movements are matched on the engineer's **name** (case- and
+    space-insensitive) and the part **CODE**; consumption never carried an
+    email, so the report form now writes one for future rows.
+    A **negative** level is shown, not hidden. `supabase/tests/handstock_test.sql`
+    covers it, and `stock_transfer_test.sql` still passes against the
+    redefined view.
+  - **Next:** warehouse-side stock — the *Stores* balance, decremented on
+    dispatch (needs `parts.on_hand`/price columns first; the ITEM Master import
+    carries only code, description and Active) and a stores pick/pack view.
+    Engineer-side stock is now live, so consumption reconciliation is a filter
+    over it (a spare still in hand long after the call closed). A transfer is
+    deliberately immediate — if hand-overs need the receiving engineer to
+    accept them, that is an acknowledgement step on `stock_transfers`. Also worth a smoke test
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
@@ -342,5 +379,26 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.
+- ⚠️ **A merge on main reverted four modules** (2026-08-29). The audit-log
+  branch was cut from a much older tree, and merging it took its stale hunks:
+  `SpareRequests.tsx` lost per-spare approvals (leaving calls to `wfButtons` /
+  `runPending` that no longer existed), `FieldCalls.tsx` lost `StateBadge`,
+  `RequestCallRegistration.tsx` lost its product rows, `UserAccess.tsx` lost
+  `sbSendPasswordReset`. **`npm run build` failed on main**, so the Pages
+  deploy was broken too. Repaired here by restoring each file from the commit
+  before that merge and re-applying the audit calls on top. Worth checking a
+  long-lived branch against main before merging it.
+- `0009_audit_log.sql` arrived with no apply bundle, which the generator's
+  coverage check refuses (rightly) — it now has one (`supabase/apply/audit.sql`),
+  and `_status.sql` reports it.
 - Role/visibility matching relies on exact `User Name` ⇄ `Call Allocated To`
   strings (case/space-insensitive). Flag any spelling mismatches.
+- **`supabase/apply/all.sql` is not re-runnable** (the per-module bundles are).
+  On a second run `0012_call_state.sql` recreates `pending_calls` as
+  `select c.*, s.state as open_state`, and by then `0014` has added a real
+  `open_state` column to `calls` — so the view has the name twice and the
+  bundle stops with *“column open_state of relation pending_calls already
+  exists”*. Pre-existing, harmless on a first apply; fix by qualifying that
+  select when `0012` is next touched.
+- **`CallReporting.tsx` was missing its `uploadToDrive` / `MAX_UPLOAD_BYTES`
+  import** — `npm run build` failed on the branch tip. Import added.

@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.3',
+    date: '2026-08-29',
+    title: 'Hand Stock \u2014 the stock level every engineer is carrying',
+    changes: [
+      'Stock Transfer showed what each engineer holds; Hand Stock shows how they came to hold it. One line per engineer and spare with the stock level and every term beside it: stock out from Stores \u2212 consumption \u2212 transfers out + transfers in \u2014 so a figure can be argued with instead of taken on faith.',
+      'Two tabs: Stock Level, one line per engineer and spare with the level and every term behind it; and Movements, the ledger those levels are made of \u2014 every stock out, consumption and transfer, newest first, filterable by kind and engineer and exportable.',
+      'Click a line on Stock Level for its own movement trail: every stock out with its DC, every consumption with its call, every transfer with the engineer on the other side.',
+      'Both screens now read the same derivation, so they cannot disagree. That fixed two ways a balance could be wrong: a spare dispatched against a CALL counted when it was consumed but never when it was issued, leaving the engineer negative and blocking their transfers; and a dispatch from the sheet era, carrying a DC but no date, did not count at all.',
+      'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses more \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
+      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC.',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0023_handstock.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.7.1',
     date: '2026-08-29',
     title: 'Every spare has its own ID',

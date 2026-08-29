@@ -38,6 +38,11 @@ const NEEDS = {
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   callTables: [`to_regclass('public.calls')`, 'the calls table', '0001_init.sql'],
   reportTables: [`to_regclass('public.reports')`, 'the reports table', '0001_init.sql'],
+  spareLineStages: [`to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)')`,
+                    'per-spare approvals (spare_request_lines.dispatched_at)',
+                    '0016_spare_line_approvals.sql (apply bundle: Spare_X.sql)'],
+  transferTables: [`to_regclass('public.stock_transfer_lines')`, 'the stock-transfer tables',
+                   '0020_stock_transfer.sql (apply bundle: stock_transfer)'],
 };
 
 const MODULES = {
@@ -85,8 +90,10 @@ const MODULES = {
   },
   audit: {
     title: 'Audit Log',
-    blurb: ['The audit trail: actions, logins, errors and how long each took.'],
-    needs: ['profiles'],
+    blurb: ['The audit trail: who did what, when, whether it worked and how long it',
+            'took. Clients insert their own events; the identity is stamped by the',
+            'database so it cannot be forged, and only admins can read it.'],
+    needs: ['profiles', 'isAdmin'],
     files: ['0009_audit_log.sql'],
   },
   masters: {
@@ -102,6 +109,29 @@ const MODULES = {
     blurb: ['The visit history: the indexes behind its newest-first ordering.'],
     needs: ['profiles'],
     files: ['0010_reports_ordering.sql'],
+  },
+  handstock: {
+    // Written to the repo root as HandStock_X.sql, alongside Spare_1.sql — it
+    // is the file handed round for hand stock.
+    out: 'HandStock_X.sql',
+    title: 'Hand Stock',
+    blurb: [
+      'The stock level an engineer is carrying, per spare:',
+      '',
+      '  Stock Level = Stock Out (Stores) - Consumption',
+      '              - Stock Transfer From + Stock Transfer To',
+      '',
+      'The movement behind every figure (the DC, the call, the other engineer),',
+      'each term of the formula as its own column, and `engineer_stock` --- what',
+      'Stock Transfer and its stock guard read --- redefined over the same',
+      'derivation, so the two screens cannot disagree.',
+      '',
+      'Needs the spare workflow through per-spare approvals and the stock-transfer',
+      'tables; _status.sql says which of those are missing.',
+    ],
+    needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
+    files: ['0023_handstock.sql'],
+    tail: () => cookbook(),
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -137,6 +167,62 @@ const MODULES = {
     ],
   },
 };
+
+// Read queries for the objects above, kept with them so whoever applies the
+// module also has the queries to check it. Commented out: pasting the file
+// applies the module and nothing else.
+function cookbook() {
+  const bar = '='.repeat(75);
+  return [
+    `-- ${bar}`,
+    `-- Reading a stock level back. Uncomment one and run it on its own.`,
+    `-- ${bar}`,
+    `--`,
+    `-- 1. What is the field holding right now?`,
+    `-- select engineer, part_code, part, stock_out, consumed,`,
+    `--        transferred_in, transferred_out, on_hand`,
+    `--   from public.handstock_balance`,
+    `--  where on_hand > 0`,
+    `--  order by engineer, part_code;`,
+    `--`,
+    `-- 2. One engineer's stock — what the report form's consumption picker offers`,
+    `--    and what Stock Transfer will let them hand over.`,
+    `-- select part, on_hand from public.handstock_balance`,
+    `--  where engineer_key = lower(btrim('Engineer Name')) and on_hand > 0`,
+    `--  order by part_code;`,
+    `--`,
+    `-- 3. Where a disputed level came from: every movement behind one line.`,
+    `-- select moved_at, movement, qty, ref, ref_type, ucn, party_name, remarks`,
+    `--   from public.handstock_movements`,
+    `--  where engineer_key = lower(btrim('Engineer Name')) and part_code = 'SP-100'`,
+    `--  order by moved_at desc;`,
+    `--`,
+    `-- 4. Short lines — consumed or handed on more than Stores ever issued.`,
+    `-- select engineer, part_code, stock_out, consumed, transferred_out, on_hand`,
+    `--   from public.handstock_balance where on_hand < 0 order by on_hand;`,
+    `--`,
+    `-- 5. Transfers, newest first (0020_stock_transfer.sql's tables).`,
+    `-- select t.uid, t.transfer_date, t.from_engineer, t.to_engineer,`,
+    `--        l.row_no, l.part, l.qty, t.remarks`,
+    `--   from public.stock_transfer_lines l`,
+    `--   join public.stock_transfers t on t.uid = l.transfer_uid`,
+    `--  order by t.transfer_date desc, t.uid, l.row_no;`,
+    `--`,
+    `-- 6. Spares dispatched to an engineer and never consumed or handed on`,
+    `--    (a spare sitting in a car long after the call closed).`,
+    `-- select engineer, part_code, part, stock_out, on_hand, last_in`,
+    `--   from public.handstock_balance`,
+    `--  where on_hand > 0 and last_in < now() - interval '30 days'`,
+    `--  order by last_in;`,
+    `--`,
+    `-- 7. Do the register and the transfer screen agree? (they read one view now)`,
+    `-- select b.engineer_key, b.part_code, b.on_hand, e.qty`,
+    `--   from public.handstock_balance b`,
+    `--   join public.engineer_stock e on e.engineer = b.engineer_key and e.part = b.part`,
+    `--  where b.on_hand <> e.qty;   -- expect no rows`,
+    ``,
+  ].join('\n');
+}
 
 function preflight(needs) {
   const checks = needs.map((k) => {
@@ -185,6 +271,7 @@ function build(name) {
     parts.push(readFileSync(join(MIGRATIONS, f), 'utf8').trimEnd(), ``);
   }
   parts.push(`commit;`, ``);
+  if (m.tail) parts.push(m.tail());
   const out = m.out ? join(__dir, '..', m.out) : join(OUT, `${name}.sql`);
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, parts.join('\n'));
@@ -195,7 +282,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

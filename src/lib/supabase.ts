@@ -870,6 +870,54 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
   return data ?? [];
 }
 
+// ---- hand stock ------------------------------------------------------------
+// Netted per engineer + spare by Postgres (views from 0023_handstock.sql):
+// Stock Out (Stores) − Consumption − Transfer From + Transfer To. Both views
+// are security_invoker, so the rows a user gets are exactly the ones they may
+// already see in Spare Requests / Consumption. `engineer_stock`, which the
+// Stock Transfer screen and its guard read, is the same derivation — see
+// listEngineerStock above.
+export async function listHandstockBalance(limit = 5000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .order('engineer', { ascending: true }).order('part_code', { ascending: true })
+    .range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// One engineer's stock, for the pickers that may only offer what is in hand
+// (the report form's consumption list, the transfer form).
+export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
+  const key = engineer.trim().toLowerCase();
+  if (!key) return [];
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .eq('engineer_key', key).gt('on_hand', 0)
+    .order('part_code', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// Every movement, newest first — the Movements tab of the Hand Stock register.
+// Optional engineer / part filters narrow it server-side.
+export async function listAllHandstockMovements(
+  limit = 1000, offset = 0, filter: { engineerKey?: string; partCode?: string } = {},
+): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*');
+  if (filter.engineerKey) q = q.eq('engineer_key', filter.engineerKey);
+  if (filter.partCode) q = q.eq('part_code', filter.partCode);
+  const { data, error } = await q
+    .order('moved_at', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// The movement history behind one line — every stock-out, consumption and
+// transfer for that engineer and spare, newest first.
+export async function listHandstockMovements(engineerKey: string, partCode = '', limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*').eq('engineer_key', engineerKey);
+  if (partCode) q = q.eq('part_code', partCode);
+  const { data, error } = await q.order('moved_at', { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);

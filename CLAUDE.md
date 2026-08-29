@@ -17,7 +17,28 @@ triggers `.github/workflows/deploy.yml`, which builds and publishes to the
 2. Commit, push, open the PR.
 3. Merge it into `main`, then confirm the "Deploy to GitHub Pages" run succeeded.
 
-If `main` moved, merge it in and resolve rather than rebasing.
+If `main` moved, merge it in and resolve rather than rebasing. Check `main`
+itself builds **before** merging into it: a branch cut from an old tree can
+revert modules when it lands, and the next merge gets blamed for it. (It has
+happened twice — see the ⚠️ notes in `docs/BACKLOG.md`. Branch protection
+against force-pushes on `main` would turn both from recoverable into
+impossible.)
+
+### Verifying a SQL change
+
+`npm run build` does not see SQL. After any change under
+`supabase/migrations/`, re-run the bundle generator and apply every migration
+to a throwaway Postgres, then run the suites in `supabase/tests/` — each is
+written so the only errors in its output are the ones labelled `expect ERROR`:
+
+```bash
+node scripts/build-apply-bundles.mjs
+initdb -D /tmp/pg/data -U postgres --auth=trust
+pg_ctl -D /tmp/pg/data -o "-p 55432 -k /tmp/pg" -l /tmp/pg/log start
+psql -h /tmp/pg -p 55432 -U postgres -v ON_ERROR_STOP=1 \
+  -f supabase/tests/_stub.sql $(for f in supabase/migrations/*.sql; do echo -n " -f $f"; done)
+psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
+```
 
 ## Conventions
 
