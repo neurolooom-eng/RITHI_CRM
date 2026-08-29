@@ -37,6 +37,9 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_request_lines' and column_name='rm_at')
      and to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)') is not null)),
+    (9, 'spare_requests: monthly OR numbers', 'next_spare_or_no() + spare_or_counters (0017)',
+        (to_regprocedure('public.next_spare_or_no(date)') is not null
+     and to_regclass('public.spare_or_counters')          is not null)),
     (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
         (to_regprocedure('public.next_call_reqid()')   is not null
      and not exists (select 1 from pg_constraint
