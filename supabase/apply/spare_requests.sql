@@ -27,7 +27,7 @@ do $$
 declare missing text[] := '{}';
 begin
   if to_regclass('public.spare_requests') is null then
-    missing := array_append(missing, 'the spare_requests table — 0001_init.sql');
+    missing := array_append(missing, 'the spare_requests table — 0001_init.sql (apply bundle: base)');
   end if;
   if to_regprocedure('public.has_perm(text)') is null then
     missing := array_append(missing, 'has_perm() — 0008_rbac_enforcement.sql (apply bundle: rbac)');

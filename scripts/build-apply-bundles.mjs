@@ -18,7 +18,7 @@
 // Apply one by pasting it into the Supabase SQL Editor and running it. Every
 // bundle is idempotent: running it twice is a no-op.
 // ===========================================================================
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -31,7 +31,8 @@ const OUT = join(__dir, '..', 'supabase', 'apply');
 const NEEDS = {
   profiles: [`to_regclass('public.profiles')`, 'the profiles table', '0001_init.sql'],
   visibleEngineers: [`to_regprocedure('public.visible_engineer_names()')`, 'visible_engineer_names()', '0004_user_directory.sql (apply bundle: user_directory)'],
-  spareTables: [`to_regclass('public.spare_requests')`, 'the spare_requests table', '0001_init.sql'],
+  spareTables: [`to_regclass('public.spare_requests')`, 'the spare_requests table', '0001_init.sql (apply bundle: base)'],
+  callRequestTable: [`to_regclass('public.call_requests')`, 'the call_requests table', '0003_call_requests.sql (apply bundle: base)'],
   rbac: [`to_regprocedure('public.has_perm(text)')`, 'has_perm()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   isAdmin: [`to_regprocedure('public.is_admin()')`, 'is_admin()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
@@ -40,6 +41,14 @@ const NEEDS = {
 };
 
 const MODULES = {
+  base: {
+    title: 'Base schema',
+    blurb: ['Tables, RLS and the UCN generator that every other module builds on:',
+            'profiles, parties/products/parts, calls, reports-as-history, and the',
+            'call_requests table the RBAC policies reference.'],
+    needs: [],
+    files: ['0001_init.sql', '0002_reports_history.sql', '0003_call_requests.sql'],
+  },
   user_directory: {
     title: 'User Directory',
     blurb: ['The engineer directory and the reporting-tree helpers that call and',
@@ -52,7 +61,7 @@ const MODULES = {
     blurb: ['The role → action matrix, per-user extra access, and its enforcement in',
             'Postgres (policies plus the per-stage approval guard), and the All Masters',
             'module grant.'],
-    needs: ['profiles', 'visibleEngineers'],
+    needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql'],
   },
   call_requests: {
@@ -66,7 +75,7 @@ const MODULES = {
     ],
     needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
     files: [
-      '0003_call_requests.sql',
+      '0008_calls_creator_read.sql',
       '0010_call_request_items.sql',
       '0011_call_request_actions.sql',
       '0012_call_state.sql',
@@ -165,23 +174,37 @@ function build(name) {
 // A single ordered file: every module above, in dependency order, for a project
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
+// Dependency order: base, then the shared foundations, then the modules.
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'call_requests', 'reports', 'spare_requests', 'stock_transfer'];
+
 MODULES.all = {
   title: 'Everything, in dependency order',
-  blurb: ['For a project that is behind on more than one module. Runs the user',
-          'directory, then call requests (RBAC tightens their policies next),',
-          'then RBAC, then the whole spare-request workflow.',
+  blurb: ['Every module below, in dependency order — enough to bring an empty',
+          'database, or one behind on several modules, fully up to date.',
           '',
           'Prefer a per-module bundle when you only need that one module.'],
-  needs: ['profiles'],
-  files: [
-    ...MODULES.user_directory.files,
-    ...MODULES.call_requests.files,
-    ...MODULES.rbac.files,
-    ...MODULES.reports.files,
-    ...MODULES.spare_requests.files,
-    ...MODULES.stock_transfer.files,
-  ],
+  needs: [],
+  files: ALL_ORDER.flatMap((m) => MODULES[m].files),
 };
+
+// Every migration must belong to exactly one module, or `all` silently stops
+// meaning all — which is how 0002 and 0008_calls_creator_read went unbundled.
+{
+  const onDisk = readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort();
+  const inBundles = ALL_ORDER.flatMap((m) => MODULES[m].files);
+  const missing = onDisk.filter((f) => !inBundles.includes(f));
+  const unknown = inBundles.filter((f) => !onDisk.includes(f));
+  const dupes = inBundles.filter((f, i) => inBundles.indexOf(f) !== i);
+  const problems = [
+    ...missing.map((f) => `${f} is in no module`),
+    ...unknown.map((f) => `${f} is bundled but not on disk`),
+    ...dupes.map((f) => `${f} is in more than one module`),
+  ];
+  if (problems.length) {
+    console.error('Migration coverage problems:\n  - ' + problems.join('\n  - '));
+    process.exit(1);
+  }
+}
 
 const want = process.argv.slice(2);
 const names = want.length ? want : Object.keys(MODULES);
