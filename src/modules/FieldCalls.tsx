@@ -570,19 +570,24 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // calls always stay visible so they can finish/sync them.
     const scopeOk = (row: Rec) =>
       scope.all || allowsAllottee(scope, row.allocatedTo) || (row._pending === true && row.ownerId === user?.id);
+    // On Supabase the SERVER already applied the search terms, so the displayed
+    // list must stick exactly to what came back — only role-scope (and always
+    // the user's own pending rows). On the sheet path we filter client-side.
     const r = cached.filter((row) =>
       scopeOk(row) &&
-      has(row.ucn, srch.ucn) &&
-      has(row.productName, srch.productName) &&
-      has(row.serial, srch.serial) &&
-      has(row.partyName, srch.partyName) &&
-      (!q || ['ucn', 'callNumber', 'partyName', 'city', 'state', 'productName', 'serial', 'standardComplaint', 'complaintReported', 'allocatedTo', 'customerName'].some(
-        (k) => String(row[k] ?? '').toLowerCase().includes(q),
+      (onDb || (
+        has(row.ucn, srch.ucn) &&
+        has(row.productName, srch.productName) &&
+        has(row.serial, srch.serial) &&
+        has(row.partyName, srch.partyName) &&
+        (!q || ['ucn', 'callNumber', 'partyName', 'city', 'state', 'productName', 'serial', 'standardComplaint', 'complaintReported', 'allocatedTo', 'customerName'].some(
+          (k) => String(row[k] ?? '').toLowerCase().includes(q),
+        ))
       )),
     );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, srch, scope, user?.id]);
+  }, [cached, srch, scope, user?.id, onDb]);
 
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,
