@@ -1,9 +1,8 @@
 -- ===========================================================================
 -- RITHI CRM — Everything, in dependency order: apply bundle
 --
--- For a project that is behind on more than one module. Runs the user
--- directory, then call requests (RBAC tightens their policies next),
--- then RBAC, then the whole spare-request workflow.
+-- Every module below, in dependency order — enough to bring an empty
+-- database, or one behind on several modules, fully up to date.
 -- 
 -- Prefer a per-module bundle when you only need that one module.
 --
@@ -11,17 +10,20 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0004_user_directory.sql
+--   0001_init.sql
+--   0002_reports_history.sql
 --   0003_call_requests.sql
+--   0004_user_directory.sql
+--   0005_rbac.sql
+--   0007_user_access.sql
+--   0008_rbac_enforcement.sql
+--   0013_all_masters_module.sql
+--   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
 --   0012_call_state.sql
 --   0014_call_state_denorm.sql
 --   0015_call_number.sql
---   0005_rbac.sql
---   0007_user_access.sql
---   0008_rbac_enforcement.sql
---   0013_all_masters_module.sql
 --   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -40,9 +42,7 @@
 do $$
 declare missing text[] := '{}';
 begin
-  if to_regclass('public.profiles') is null then
-    missing := array_append(missing, 'the profiles table — 0001_init.sql');
-  end if;
+
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
       array_to_string(missing, E'\n  - ');
@@ -53,67 +53,442 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0004_user_directory.sql
+-- 0001_init.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- User Master → user_directory: the engineer/manager directory (names +
--- reporting hierarchy) that drives who-sees-what. Separate from auth logins
--- (profiles): a person is scoped by matching their login email to a directory
--- row, then by the RM/RGM tree (by name). Admins (profiles.role='admin') see all.
+-- RITHI CRM — Supabase (Postgres) schema, v1 (full cutover from Google Sheets)
+-- ---------------------------------------------------------------------------
+-- Run this once against a fresh Supabase project (SQL Editor → paste → Run,
+-- or `supabase db push`). It creates the core tables, the role/profile model,
+-- Row-Level Security policies that reproduce the app's access rules
+-- (engineer sees own calls; RM/RGM sees the reporting sub-tree; admin sees
+-- all), and the UCN generator.
+--
+-- Column names are snake_case; the app's data layer (src/lib/supabase.ts) maps
+-- them to the existing app keys, so the UI keeps working unchanged.
 -- ===========================================================================
 
-create table if not exists public.user_directory (
-  id                 bigint generated always as identity primary key,
-  name               text not null,               -- User Name (matches "Call Allocated To")
-  email              text default '',
-  gmail              text default '',
-  designation        text default '',
-  reporting_manager  text default '',             -- RM name
-  regional_manager   text default '',             -- RGM name
-  region             text default '',
-  validity           boolean not null default true,
-  extra              jsonb not null default '{}'
+create extension if not exists "pgcrypto";
+
+-- ---------------------------------------------------------------------------
+-- profiles — one row per user, linked to Supabase Auth. Mirrors User Master.
+-- reporting_manager_email / regional_manager_email drive the access hierarchy.
+-- ---------------------------------------------------------------------------
+create table if not exists public.profiles (
+  id                      uuid primary key references auth.users (id) on delete cascade,
+  email                   text unique not null,
+  full_name               text not null default '',
+  role                    text not null default 'engineer',      -- admin | rm | rgm | engineer | viewer
+  designation             text default '',
+  engineer_code           text default '',
+  reporting_manager_email text default '',
+  regional_manager_email  text default '',
+  active                  boolean not null default true,
+  created_at              timestamptz not null default now()
 );
-create index if not exists user_directory_email_idx on public.user_directory (lower(email));
-create index if not exists user_directory_gmail_idx on public.user_directory (lower(gmail));
-create index if not exists user_directory_name_idx  on public.user_directory (lower(name));
 
-alter table public.user_directory enable row level security;
-drop policy if exists ud_read on public.user_directory;
-create policy ud_read on public.user_directory for select using (auth.role() = 'authenticated');
-drop policy if exists ud_admin_write on public.user_directory;
-create policy ud_admin_write on public.user_directory for all using (public.is_admin()) with check (public.is_admin());
-
--- The signed-in user's directory name (by login email or gmail).
-create or replace function public.my_dir_name()
-returns text language sql stable security definer set search_path = public as $$
-  select name from public.user_directory
-   where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
-   limit 1;
+-- Is the current user an admin? (SECURITY DEFINER so policies can call it.)
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = auth.uid() and p.role = 'admin'
+  );
 $$;
 
--- Names the current user may see: their own + everyone in their reporting
--- sub-tree (recursive over reporting_manager / regional_manager, by name).
+-- The current user's own profile name (for matching "Call Allocated To").
+create or replace function public.my_name()
+returns text language sql stable security definer set search_path = public as $$
+  select coalesce(full_name, '') from public.profiles where id = auth.uid();
+$$;
+
+-- Set of engineer NAMES the current user may see: their own, plus everyone who
+-- reports (directly or transitively) to them via reporting/regional manager.
 create or replace function public.visible_engineer_names()
 returns setof text language sql stable security definer set search_path = public as $$
   with recursive me as (
-    select name from public.user_directory
-     where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+    select id, email, full_name from public.profiles where id = auth.uid()
   ),
   tree as (
-    select d.name from public.user_directory d where d.name in (select name from me)
+    select p.email, p.full_name
+      from public.profiles p, me
+     where p.email = me.email
     union
-    select c.name from public.user_directory c
+    select c.email, c.full_name
+      from public.profiles c
       join tree t
-        on lower(c.reporting_manager) = lower(t.name)
-        or lower(c.regional_manager)  = lower(t.name)
+        on lower(c.reporting_manager_email) = lower(t.email)
+        or lower(c.regional_manager_email)  = lower(t.email)
   )
-  select name from tree where coalesce(name,'') <> '';
+  select full_name from tree where coalesce(full_name,'') <> '';
 $$;
 
--- can_see_call() already uses visible_engineer_names(), so call scoping now
--- follows the directory automatically (admins still bypass via is_admin()).
+-- Can the current user see a call allocated to `allottee`?
+create or replace function public.can_see_call(allottee text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or coalesce(allottee,'') = ''
+      or lower(trim(allottee)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         );
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Masters — Party / Product / Part, plus generic value-lists for dropdowns.
+-- ---------------------------------------------------------------------------
+create table if not exists public.parties (
+  id          bigint generated always as identity primary key,
+  party_name  text not null,
+  city        text default '',
+  state       text default '',
+  party_type  text default '',
+  address     text default '',
+  extra       jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+create index if not exists parties_name_idx on public.parties using gin (to_tsvector('simple', party_name));
+
+create table if not exists public.products (
+  id              bigint generated always as identity primary key,
+  party_name      text default '',
+  item_name       text default '',
+  serial_number   text default '',
+  item_status     text default '',
+  warranty_number text default '',
+  warranty_start  date,
+  warranty_end    date,
+  contract_number text default '',
+  contract_start  date,
+  contract_end    date,
+  contract_type   text default '',
+  active          boolean not null default true,
+  extra           jsonb not null default '{}',
+  created_at      timestamptz not null default now()
+);
+create index if not exists products_serial_idx on public.products (lower(serial_number));
+
+create table if not exists public.parts (
+  id          bigint generated always as identity primary key,
+  code        text default '',
+  description text default '',
+  item_detail text default '',              -- "CODE|Description" as shown in pickers
+  active      boolean not null default true, -- ITEM Master Col F = Active
+  extra       jsonb not null default '{}',
+  created_at  timestamptz not null default now()
+);
+create index if not exists parts_active_idx on public.parts (active);
+
+-- Generic master value-lists (Standard Complaint, Call Type, Pending Reason,
+-- Feedback Rating, …). name = list key, value = one option.
+create table if not exists public.masters (
+  id     bigint generated always as identity primary key,
+  name   text not null,
+  value  text not null,
+  extra  jsonb not null default '{}'
+);
+create index if not exists masters_name_idx on public.masters (name);
+
+-- ---------------------------------------------------------------------------
+-- calls — unified Field / Installation / PM register (call_type distinguishes).
+-- ---------------------------------------------------------------------------
+create table if not exists public.calls (
+  id                    bigint generated always as identity primary key,
+  ucn                   text unique,                 -- assigned on register (see next_ucn)
+  call_number           text default '',
+  reg_date              date,
+  complaint_date        date,
+  party_name            text default '',
+  city                  text default '',
+  state                 text default '',
+  product_name          text default '',
+  serial                text default '',
+  item_status           text default '',
+  warranty_number       text default '',
+  warranty_start        date,
+  warranty_end          date,
+  contract_number       text default '',
+  contract_start        date,
+  contract_end          date,
+  contract_type         text default '',
+  call_type             text default 'FIELD',        -- FIELD | INSTALLATION | PM
+  standard_complaint    text default '',
+  complaint_reported    text default '',
+  allocated_to          text default '',             -- engineer NAME (matches profiles.full_name)
+  allocated_to_email    text default '',
+  breakdown_date        date,
+  person_calling        text default '',
+  public_health_threat  text default '',
+  death                 text default '',
+  serious_incident      text default '',
+  mode_of_reporting     text default '',
+  customer_name         text default '',
+  customer_number       text default '',
+  customer_designation  text default '',
+  email_address         text default '',
+  status                text default 'Registered',
+  extra                 jsonb not null default '{}',
+  created_by            uuid references auth.users (id),
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+create index if not exists calls_allocated_idx on public.calls (lower(allocated_to));
+create index if not exists calls_type_idx on public.calls (call_type);
+create index if not exists calls_serial_idx on public.calls (lower(serial));
+
+-- Pending registrations (engineer requests awaiting a UCN) — same shape, no UCN.
+create table if not exists public.pending_registrations (
+  id                 bigint generated always as identity primary key,
+  requested_at       timestamptz not null default now(),
+  engineer           text default '',
+  call_type          text default 'FIELD',
+  party_name         text default '',
+  city               text default '',
+  state              text default '',
+  product            text default '',
+  serial             text default '',
+  reported_problem   text default '',
+  plan_date          date,
+  ucn                text default '',                 -- back-filled once registered
+  extra              jsonb not null default '{}',
+  created_by         uuid references auth.users (id)
+);
+
+-- reports — the Reporting-N equivalent, one report per call UCN.
+create table if not exists public.reports (
+  id            bigint generated always as identity primary key,
+  ucn           text not null,
+  call_number   text default '',
+  call_status   text default '',                      -- Solved-Report Completed | Unsolved | Report Pending
+  pending_reason text default '',
+  manual_report text default '',                      -- uploaded file URL
+  data          jsonb not null default '{}',          -- all other Reporting-N fields
+  engineer      text default '',
+  engineer_email text default '',
+  visit_at      timestamptz,
+  updated_by    uuid references auth.users (id),
+  updated_at    timestamptz not null default now(),
+  unique (ucn)
+);
+
+-- Spare requests (intake) + exploded lines (approval workflow → replaces v2_OR_Req).
+create table if not exists public.spare_requests (
+  id                bigint generated always as identity primary key,
+  uid               text unique not null,             -- WA-yyyymmdd-xxxx
+  req_type          text default 'Call Based',        -- Call Based | HandStock
+  engineer          text default '',
+  engineer_email    text default '',
+  ucn               text default '',
+  call_number       text default '',
+  party_name        text default '',
+  product_name      text default '',
+  serial            text default '',
+  complaint         text default '',
+  item_status       text default '',
+  handstock_reason  text default '',
+  remarks           text default '',
+  status            text default 'Pending',
+  created_at        timestamptz not null default now(),
+  created_by        uuid references auth.users (id)
+);
+create table if not exists public.spare_request_lines (
+  id              bigint generated always as identity primary key,
+  request_uid     text not null references public.spare_requests (uid) on delete cascade,
+  part            text default '',
+  qty             numeric default 1,
+  rm_approval     text default 'Pending',
+  admin_approval  text default 'Pending',
+  stores_status   text default '',
+  status          text default 'Pending',
+  created_at      timestamptz not null default now()
+);
+
+-- Spare consumption (v2Consumption) — parts consumed against a report.
+create table if not exists public.spare_consumption (
+  id          bigint generated always as identity primary key,
+  ucn         text default '',
+  call_number text default '',
+  part        text default '',
+  qty         numeric default 1,
+  engineer    text default '',
+  data        jsonb not null default '{}',
+  created_at  timestamptz not null default now(),
+  created_by  uuid references auth.users (id)
+);
+
+-- Customer feedback (v2Feedback) — structured answers per call type.
+create table if not exists public.feedback (
+  id            bigint generated always as identity primary key,
+  ucn           text default '',
+  call_number   text default '',
+  call_type     text default '',
+  engineer      text default '',
+  engineer_email text default '',
+  party_name    text default '',
+  state         text default '',
+  product_name  text default '',
+  serial        text default '',
+  complaint     text default '',
+  answers       jsonb not null default '{}',           -- {question: answer}
+  visit_at      timestamptz,
+  created_at    timestamptz not null default now(),
+  created_by    uuid references auth.users (id)
+);
+
+-- ---------------------------------------------------------------------------
+-- UCN generator. Format mirrors the sheet: <YY><MonthLetter><DD><TypeLetter><Seq4>.
+-- Type letter: F=FIELD, I=INSTALLATION, P=PM. Seq is a global monotonic count.
+-- NOTE: confirm this matches the legacy format before go-live; adjust here only.
+-- ---------------------------------------------------------------------------
+create sequence if not exists public.ucn_seq start 1;
+
+create or replace function public.next_ucn(p_call_type text)
+returns text language plpgsql volatile security definer set search_path = public as $$
+declare
+  yy      text := to_char(now(), 'YY');
+  mon     text := substr('ABCDEFGHIJKL', extract(month from now())::int, 1); -- A=Jan…L=Dec
+  dd      text := to_char(now(), 'DD');
+  tletter text := case
+                    when upper(coalesce(p_call_type,'')) like 'INSTALL%' then 'I'
+                    when upper(coalesce(p_call_type,'')) like 'PM%'      then 'P'
+                    else 'F'
+                  end;
+  seq     int  := nextval('public.ucn_seq');
+begin
+  return yy || mon || dd || tletter || lpad(seq::text, 4, '0');
+end;
+$$;
+
+-- Assign a UCN + reg date on insert if none supplied.
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end;
+$$;
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- ===========================================================================
+-- Row-Level Security
+-- ===========================================================================
+alter table public.profiles              enable row level security;
+alter table public.parties               enable row level security;
+alter table public.products              enable row level security;
+alter table public.parts                 enable row level security;
+alter table public.masters               enable row level security;
+alter table public.calls                 enable row level security;
+alter table public.pending_registrations enable row level security;
+alter table public.reports               enable row level security;
+alter table public.spare_requests        enable row level security;
+alter table public.spare_request_lines   enable row level security;
+alter table public.spare_consumption     enable row level security;
+alter table public.feedback              enable row level security;
+
+-- profiles: a user sees their own row; admins see/manage all.
+drop policy if exists profiles_self_read on public.profiles;
+create policy profiles_self_read on public.profiles for select using (id = auth.uid() or public.is_admin());
+drop policy if exists profiles_admin_write on public.profiles;
+create policy profiles_admin_write on public.profiles for all using (public.is_admin()) with check (public.is_admin());
+
+-- Masters & catalog: any authenticated user reads; admins write.
+do $$
+declare t text;
+begin
+  foreach t in array array['parties','products','parts','masters'] loop
+    execute format('drop policy if exists %1$s_read on public.%1$s;', t);
+    execute format('create policy %1$s_read on public.%1$s for select using (auth.role() = ''authenticated'');', t);
+    execute format('drop policy if exists %1$s_admin_write on public.%1$s;', t);
+    execute format('create policy %1$s_admin_write on public.%1$s for all using (public.is_admin()) with check (public.is_admin());', t);
+  end loop;
+end $$;
+
+-- calls: scoped read; engineers/admins can insert/update within their scope.
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls
+  for select using (public.can_see_call(allocated_to));
+drop policy if exists calls_insert on public.calls;
+create policy calls_insert on public.calls
+  for insert with check (auth.role() = 'authenticated');
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls
+  for update using (public.can_see_call(allocated_to)) with check (public.can_see_call(allocated_to));
+
+-- pending registrations: creator or scope by engineer; any auth can insert.
+drop policy if exists pend_read on public.pending_registrations;
+create policy pend_read on public.pending_registrations
+  for select using (public.is_admin() or created_by = auth.uid()
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists pend_insert on public.pending_registrations;
+create policy pend_insert on public.pending_registrations for insert with check (auth.role() = 'authenticated');
+drop policy if exists pend_update on public.pending_registrations;
+create policy pend_update on public.pending_registrations for update using (auth.role() = 'authenticated');
+
+-- reports / consumption / feedback: readable when the parent call is visible;
+-- any authenticated engineer may add their own.
+drop policy if exists reports_read on public.reports;
+create policy reports_read on public.reports for select
+  using (public.is_admin() or exists (select 1 from public.calls c where c.ucn = reports.ucn and public.can_see_call(c.allocated_to)));
+drop policy if exists reports_write on public.reports;
+create policy reports_write on public.reports for all
+  using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+drop policy if exists cons_read on public.spare_consumption;
+create policy cons_read on public.spare_consumption for select using (auth.role() = 'authenticated');
+drop policy if exists cons_write on public.spare_consumption;
+create policy cons_write on public.spare_consumption for insert with check (auth.role() = 'authenticated');
+
+drop policy if exists fb_read on public.feedback;
+create policy fb_read on public.feedback for select using (auth.role() = 'authenticated');
+drop policy if exists fb_write on public.feedback;
+create policy fb_write on public.feedback for insert with check (auth.role() = 'authenticated');
+
+-- spare requests: creator/engineer scope reads; any auth inserts; managers approve.
+drop policy if exists sr_read on public.spare_requests;
+create policy sr_read on public.spare_requests for select
+  using (public.is_admin() or created_by = auth.uid() or lower(engineer_email) = lower(auth.email())
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+drop policy if exists sr_insert on public.spare_requests;
+create policy sr_insert on public.spare_requests for insert with check (auth.role() = 'authenticated');
+drop policy if exists srl_read on public.spare_request_lines;
+create policy srl_read on public.spare_request_lines for select
+  using (public.is_admin() or exists (select 1 from public.spare_requests r where r.uid = spare_request_lines.request_uid
+    and (r.created_by = auth.uid() or lower(r.engineer_email) = lower(auth.email())
+      or lower(trim(r.engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)))));
+drop policy if exists srl_write on public.spare_request_lines;
+create policy srl_write on public.spare_request_lines for all
+  using (public.is_admin()) with check (public.is_admin());
+
+-- ------------------------------------------------------------------------
+-- 0002_reports_history.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Reports = visit history: one row per VISIT, keyed by UID (not one per UCN).
+-- Run in the Supabase SQL Editor as postgres. This drops the one-per-UCN
+-- uniqueness, adds a unique `uid`, clears the deduped reports, and lets you
+-- re-import all visit rows.
+-- ===========================================================================
+
+-- 1) Drop the one-report-per-UCN constraint (created by `unique (ucn)`).
+alter table public.reports drop constraint if exists reports_ucn_key;
+
+-- 2) Add the visit UID and make it the natural key.
+alter table public.reports add column if not exists uid text;
+create unique index if not exists reports_uid_key on public.reports (uid) where uid is not null;
+create index if not exists reports_ucn_idx on public.reports (ucn);
+
+-- 3) Clear the earlier de-duped load so the full visit history can be re-imported.
+truncate table public.reports;
+
+-- After running this, re-import reports.csv from Admin Config → Bulk Data Import
+-- (now one row per visit, ~17,392 rows).
 
 -- ------------------------------------------------------------------------
 -- 0003_call_requests.sql
@@ -186,328 +561,67 @@ drop policy if exists cr_update on public.call_requests;
 create policy cr_update on public.call_requests for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
 -- ------------------------------------------------------------------------
--- 0010_call_request_items.sql
+-- 0004_user_directory.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- Multi-item call requests. A request is up to 5 calls (Product + Serial No +
--- Standard Complaint + Reported Problem) that SHARE one REQID, so REQID cannot
--- be unique — the per-row identity is UniqueID (REQID-Product-SerialNo).
---
--- Before this, inserting the 2nd..5th item failed with
---   duplicate key value violates unique constraint "call_requests_reqid_key"
--- leaving the request half-saved (item 1 only).
+-- User Master → user_directory: the engineer/manager directory (names +
+-- reporting hierarchy) that drives who-sees-what. Separate from auth logins
+-- (profiles): a person is scoped by matching their login email to a directory
+-- row, then by the RM/RGM tree (by name). Admins (profiles.role='admin') see all.
 -- ===========================================================================
 
-alter table public.call_requests drop constraint if exists call_requests_reqid_key;
-create index if not exists call_requests_reqid_idx on public.call_requests (reqid);
-
--- The real identity: one row per product/serial within a request.
-create unique index if not exists call_requests_unique_key_uidx
-  on public.call_requests (unique_key);
-
--- Mint a REQID up front so the whole request goes in as ONE insert and can
--- never be half-saved. The trigger still assigns one when this isn't used.
-create or replace function public.next_call_reqid()
-returns text language sql security definer set search_path = public as $$
-  select 'R' || nextval('public.call_req_seq')::text;
-$$;
-grant execute on function public.next_call_reqid() to authenticated;
-
--- ------------------------------------------------------------------------
--- 0011_call_request_actions.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call request actions (Hotline): a pending request is closed out in one of
--- three ways —
---   • Registered — a new call was created from it (UCN written back)
---   • Mapped     — it belongs to an existing call (that call's UCN written back)
---   • Cancelled  — not a call; reason recorded
--- A request leaves the pending list once it has a UCN or is cancelled.
--- ===========================================================================
-
-alter table public.call_requests
-  add column if not exists cancel_reason text default '',
-  add column if not exists cancelled_at  timestamptz,
-  add column if not exists actioned_by   text default '',
-  add column if not exists actioned_at   timestamptz;
-
-create index if not exists call_requests_status_idx on public.call_requests (status);
-
--- 0003 ships permissive insert/update policies; 0008 (RBAC enforcement)
--- replaces them with permission checks. Re-applying 0003 — which the
--- call_requests apply bundle does — would silently hand them back, so put the
--- RBAC versions back whenever has_perm() is present.
-do $$
-begin
-  if to_regprocedure('public.has_perm(text)') is null then return; end if;
-
-  execute 'drop policy if exists cr_insert on public.call_requests';
-  execute $p$create policy cr_insert on public.call_requests for insert
-    with check (public.has_perm('request.create'))$p$;
-
-  execute 'drop policy if exists cr_update on public.call_requests';
-  execute $p$create policy cr_update on public.call_requests for update
-    using (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())
-    with check (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())$p$;
-end $$;
-
--- ------------------------------------------------------------------------
--- 0012_call_state.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call state = whether a call is still open, derived from its LATEST visit:
---   Unattended     — no visit reported yet
---   Unsolved       — last visit came back unsolved
---   Report pending — visit made, report not completed
---   Solved         — last visit closed it
--- `pending_calls` is every call that is not Solved (the Pending Calls module).
--- Both views run with the caller's rights, so calls/reports RLS still applies.
--- ===========================================================================
-
-create or replace view public.call_state as
-select
-  c.ucn,
-  coalesce(r.call_status, '')                        as last_status,
-  r.visit_at                                         as last_visit_at,
-  case
-    when r.ucn is null                    then 'Unattended'
-    when r.call_status ilike 'solved%'     then 'Solved'
-    when r.call_status ilike '%unsolved%'  then 'Unsolved'
-    else 'Report pending'
-  end                                                as state
-from public.calls c
-left join lateral (
-  select rr.ucn, rr.call_status, rr.visit_at
-  from public.reports rr
-  where rr.ucn = c.ucn
-  order by rr.visit_at desc nulls last, rr.id desc
-  limit 1
-) r on true;
-
--- NB: `calls` already has a `state` column (the geographic one), so the call's
--- open state is exposed here as `open_state`.
---
--- Skipped once 0014_call_state_denorm.sql has run: that migration denormalises
--- open_state onto `calls` itself and rebuilds this view against it. After that,
--- `c.*` here already carries open_state and aliasing s.state to the same name
--- collides ("column open_state ... already exists"), which broke re-running
--- this file. 0014's definition supersedes this one, so skipping is a no-op.
-do $$
-begin
-  if exists (select 1 from information_schema.columns
-              where table_schema = 'public' and table_name = 'calls'
-                and column_name = 'open_state') then
-    return;
-  end if;
-
-  create or replace view public.pending_calls as
-  select c.*, s.state as open_state, s.last_status, s.last_visit_at
-  from public.calls c
-  join public.call_state s on s.ucn = c.ucn
-  where s.state <> 'Solved';
-
-  execute 'alter view public.pending_calls set (security_invoker = on)';
-  execute 'grant select on public.pending_calls to authenticated';
-end $$;
-
-alter view public.call_state set (security_invoker = on);
-
-grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
-
--- ------------------------------------------------------------------------
--- 0014_call_state_denorm.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call state, without re-deriving it on every read.
---
--- 0012 computed a call's state from its latest visit in a view. Correct, but
--- reading it meant scanning `reports` through that table's RLS — a correlated
--- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
--- is ~37ms without RLS and >5s with it: "canceling statement due to statement
--- timeout".
---
--- The latest visit is now kept ON the call, maintained by a trigger on
--- `reports`. Reads touch `calls` only — the register already loads it, so the
--- state comes along for free, and Pending Calls is an indexed filter.
--- ===========================================================================
-
--- The 0012 views read the columns below, and one of them is recreated with a
--- different shape, so they go first.
-drop view if exists public.pending_calls;
-drop view if exists public.call_state;
-
-alter table public.calls
-  add column if not exists last_status   text default '',
-  add column if not exists last_visit_at timestamptz;
-
--- Derived, so it can never drift from the two columns above.
-alter table public.calls drop column if exists open_state;
-alter table public.calls add column open_state text
-  generated always as (
-    case
-      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
-      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
-      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
-      else 'Report pending'
-    end
-  ) stored;
-
-create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
-
--- ---- keep it current -------------------------------------------------------
--- security definer: a visit by one engineer updates the call regardless of who
--- may write `calls`.
-create or replace function public.sync_call_last_visit(p_ucn text)
-returns void language plpgsql security definer set search_path = public as $$
-begin
-  update public.calls c
-     set last_status   = coalesce(r.call_status, ''),
-         last_visit_at = r.visit_at
-    from (
-      select call_status, visit_at
-        from public.reports
-       where ucn = p_ucn
-       order by visit_at desc nulls last, id desc
-       limit 1
-    ) r
-   where c.ucn = p_ucn;
-
-  if not found then  -- no visits left (or none matched): back to Unattended
-    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
-  end if;
-end $$;
-
-create or replace function public.reports_touch_call()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
-  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
-    perform public.sync_call_last_visit(old.ucn);
-  end if;
-  return null;
-end $$;
-
-drop trigger if exists reports_touch_call on public.reports;
-create trigger reports_touch_call after insert or update or delete on public.reports
-  for each row execute function public.reports_touch_call();
-
--- ---- backfill --------------------------------------------------------------
-update public.calls c
-   set last_status   = coalesce(r.call_status, ''),
-       last_visit_at = r.visit_at
-  from (
-    select distinct on (ucn) ucn, call_status, visit_at
-      from public.reports
-     order by ucn, visit_at desc nulls last, id desc
-  ) r
- where r.ucn = c.ucn
-   and (c.last_status is distinct from coalesce(r.call_status, '')
-     or c.last_visit_at is distinct from r.visit_at);
-
--- ---- views, now trivial ----------------------------------------------------
--- `calls` already carries `state` (the geographic one), so the call's open
--- state stays `open_state` here too.
-create view public.call_state as
-  select ucn, last_status, last_visit_at, open_state as state from public.calls;
-
-create view public.pending_calls as
-  select * from public.calls where open_state <> 'Solved';
-
-alter view public.call_state    set (security_invoker = on);
-alter view public.pending_calls set (security_invoker = on);
-
-grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
-
--- ------------------------------------------------------------------------
--- 0015_call_number.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Call Number.
---
---   • From a call registration request → the request's UniqueID
---     (REQID-Product-SerialNo), carried over when the Hotline registers it.
---   • Direct customer call (no request) → CLYY + a 5-digit running number,
---     e.g. CL2600001, continuing the existing series for that year
---     (the register already holds CL2300081, CL2300079, …).
---
--- It was a free-text field nobody filled, so a hand-created call could be
--- saved with a blank Call Number — and reports, spare requests, consumption
--- and feedback are all keyed by it.
--- ===========================================================================
-
-create table if not exists public.call_number_seq (
-  yy      text primary key,          -- two-digit year
-  last_no integer not null default 0
+create table if not exists public.user_directory (
+  id                 bigint generated always as identity primary key,
+  name               text not null,               -- User Name (matches "Call Allocated To")
+  email              text default '',
+  gmail              text default '',
+  designation        text default '',
+  reporting_manager  text default '',             -- RM name
+  regional_manager   text default '',             -- RGM name
+  region             text default '',
+  validity           boolean not null default true,
+  extra              jsonb not null default '{}'
 );
-alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+create index if not exists user_directory_email_idx on public.user_directory (lower(email));
+create index if not exists user_directory_gmail_idx on public.user_directory (lower(gmail));
+create index if not exists user_directory_name_idx  on public.user_directory (lower(name));
 
--- Next CL number for a year. The counter is seeded once, from the numbers
--- already in `calls` — so import historical CL numbers BEFORE this runs (or
--- delete that year's `call_number_seq` row afterwards to re-seed).
--- Next CL number for this year. The year's counter is seeded from the highest
--- CLYY##### already in `calls`, so it continues the series instead of
--- colliding with imported history.
-create or replace function public.next_direct_call_number(p_yy text default null)
-returns text language plpgsql security definer set search_path = public as $$
-declare
-  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
-  v_no int;
-begin
-  insert into public.call_number_seq (yy, last_no)
-  values (v_yy, coalesce((
-    select max(substring(call_number from 5 for 5)::int)
-      from public.calls
-     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
-  on conflict (yy) do nothing;
+alter table public.user_directory enable row level security;
+drop policy if exists ud_read on public.user_directory;
+create policy ud_read on public.user_directory for select using (auth.role() = 'authenticated');
+drop policy if exists ud_admin_write on public.user_directory;
+create policy ud_admin_write on public.user_directory for all using (public.is_admin()) with check (public.is_admin());
 
-  update public.call_number_seq set last_no = last_no + 1
-   where yy = v_yy
-   returning last_no into v_no;
+-- The signed-in user's directory name (by login email or gmail).
+create or replace function public.my_dir_name()
+returns text language sql stable security definer set search_path = public as $$
+  select name from public.user_directory
+   where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+   limit 1;
+$$;
 
-  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
-end $$;
+-- Names the current user may see: their own + everyone in their reporting
+-- sub-tree (recursive over reporting_manager / regional_manager, by name).
+create or replace function public.visible_engineer_names()
+returns setof text language sql stable security definer set search_path = public as $$
+  with recursive me as (
+    select name from public.user_directory
+     where lower(email) = lower(auth.email()) or lower(gmail) = lower(auth.email())
+  ),
+  tree as (
+    select d.name from public.user_directory d where d.name in (select name from me)
+    union
+    select c.name from public.user_directory c
+      join tree t
+        on lower(c.reporting_manager) = lower(t.name)
+        or lower(c.regional_manager)  = lower(t.name)
+  )
+  select name from tree where coalesce(name,'') <> '';
+$$;
 
--- Assign one when the call arrives without a Call Number. A call registered
--- from a request carries the request's UniqueID, so this only fires for direct
--- calls (and for any import row that has none).
-create or replace function public.calls_before_insert()
-returns trigger language plpgsql security definer set search_path = public as $$
-begin
-  if new.ucn is null or new.ucn = '' then
-    new.ucn := public.next_ucn(new.call_type);
-  end if;
-  if coalesce(new.call_number, '') = '' then
-    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
-  end if;
-  if new.reg_date is null then new.reg_date := current_date; end if;
-  if new.created_by is null then new.created_by := auth.uid(); end if;
-  return new;
-end $$;
-
-drop trigger if exists calls_biu on public.calls;
-create trigger calls_biu before insert on public.calls
-  for each row execute function public.calls_before_insert();
-
--- Back-fill calls saved before this with no Call Number, each in its own year's
--- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
-do $$
-declare r record;
-begin
-  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
-    update public.calls
-       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
-     where id = r.id;
-  end loop;
-end $$;
-
-grant execute on function public.next_direct_call_number(text) to authenticated;
+-- can_see_call() already uses visible_engineer_names(), so call scoping now
+-- follows the directory automatically (admins still bypass via is_admin()).
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql
@@ -959,6 +1073,349 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters';
+
+-- ------------------------------------------------------------------------
+-- 0008_calls_creator_read.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Let a creator read back the call they just inserted (so insert...returning
+-- works for everyone, not only admins). Fixes "new call saved locally / pending"
+-- when the register is on Supabase.
+-- ===========================================================================
+
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls for select
+  using (public.can_see_call(allocated_to) or created_by = auth.uid());
+
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls for update
+  using (public.can_see_call(allocated_to) or created_by = auth.uid())
+  with check (public.can_see_call(allocated_to) or created_by = auth.uid());
+
+-- ------------------------------------------------------------------------
+-- 0010_call_request_items.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Multi-item call requests. A request is up to 5 calls (Product + Serial No +
+-- Standard Complaint + Reported Problem) that SHARE one REQID, so REQID cannot
+-- be unique — the per-row identity is UniqueID (REQID-Product-SerialNo).
+--
+-- Before this, inserting the 2nd..5th item failed with
+--   duplicate key value violates unique constraint "call_requests_reqid_key"
+-- leaving the request half-saved (item 1 only).
+-- ===========================================================================
+
+alter table public.call_requests drop constraint if exists call_requests_reqid_key;
+create index if not exists call_requests_reqid_idx on public.call_requests (reqid);
+
+-- The real identity: one row per product/serial within a request.
+create unique index if not exists call_requests_unique_key_uidx
+  on public.call_requests (unique_key);
+
+-- Mint a REQID up front so the whole request goes in as ONE insert and can
+-- never be half-saved. The trigger still assigns one when this isn't used.
+create or replace function public.next_call_reqid()
+returns text language sql security definer set search_path = public as $$
+  select 'R' || nextval('public.call_req_seq')::text;
+$$;
+grant execute on function public.next_call_reqid() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0011_call_request_actions.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call request actions (Hotline): a pending request is closed out in one of
+-- three ways —
+--   • Registered — a new call was created from it (UCN written back)
+--   • Mapped     — it belongs to an existing call (that call's UCN written back)
+--   • Cancelled  — not a call; reason recorded
+-- A request leaves the pending list once it has a UCN or is cancelled.
+-- ===========================================================================
+
+alter table public.call_requests
+  add column if not exists cancel_reason text default '',
+  add column if not exists cancelled_at  timestamptz,
+  add column if not exists actioned_by   text default '',
+  add column if not exists actioned_at   timestamptz;
+
+create index if not exists call_requests_status_idx on public.call_requests (status);
+
+-- 0003 ships permissive insert/update policies; 0008 (RBAC enforcement)
+-- replaces them with permission checks. Re-applying 0003 — which the
+-- call_requests apply bundle does — would silently hand them back, so put the
+-- RBAC versions back whenever has_perm() is present.
+do $$
+begin
+  if to_regprocedure('public.has_perm(text)') is null then return; end if;
+
+  execute 'drop policy if exists cr_insert on public.call_requests';
+  execute $p$create policy cr_insert on public.call_requests for insert
+    with check (public.has_perm('request.create'))$p$;
+
+  execute 'drop policy if exists cr_update on public.call_requests';
+  execute $p$create policy cr_update on public.call_requests for update
+    using (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())
+    with check (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())$p$;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0012_call_state.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state = whether a call is still open, derived from its LATEST visit:
+--   Unattended     — no visit reported yet
+--   Unsolved       — last visit came back unsolved
+--   Report pending — visit made, report not completed
+--   Solved         — last visit closed it
+-- `pending_calls` is every call that is not Solved (the Pending Calls module).
+-- Both views run with the caller's rights, so calls/reports RLS still applies.
+-- ===========================================================================
+
+create or replace view public.call_state as
+select
+  c.ucn,
+  coalesce(r.call_status, '')                        as last_status,
+  r.visit_at                                         as last_visit_at,
+  case
+    when r.ucn is null                    then 'Unattended'
+    when r.call_status ilike 'solved%'     then 'Solved'
+    when r.call_status ilike '%unsolved%'  then 'Unsolved'
+    else 'Report pending'
+  end                                                as state
+from public.calls c
+left join lateral (
+  select rr.ucn, rr.call_status, rr.visit_at
+  from public.reports rr
+  where rr.ucn = c.ucn
+  order by rr.visit_at desc nulls last, rr.id desc
+  limit 1
+) r on true;
+
+-- NB: `calls` already has a `state` column (the geographic one), so the call's
+-- open state is exposed here as `open_state`.
+--
+-- Skipped once 0014_call_state_denorm.sql has run: that migration denormalises
+-- open_state onto `calls` itself and rebuilds this view against it. After that,
+-- `c.*` here already carries open_state and aliasing s.state to the same name
+-- collides ("column open_state ... already exists"), which broke re-running
+-- this file. 0014's definition supersedes this one, so skipping is a no-op.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
+
+  create or replace view public.pending_calls as
+  select c.*, s.state as open_state, s.last_status, s.last_visit_at
+  from public.calls c
+  join public.call_state s on s.ucn = c.ucn
+  where s.state <> 'Solved';
+
+  execute 'alter view public.pending_calls set (security_invoker = on)';
+  execute 'grant select on public.pending_calls to authenticated';
+end $$;
+
+alter view public.call_state set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0014_call_state_denorm.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state, without re-deriving it on every read.
+--
+-- 0012 computed a call's state from its latest visit in a view. Correct, but
+-- reading it meant scanning `reports` through that table's RLS — a correlated
+-- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
+-- is ~37ms without RLS and >5s with it: "canceling statement due to statement
+-- timeout".
+--
+-- The latest visit is now kept ON the call, maintained by a trigger on
+-- `reports`. Reads touch `calls` only — the register already loads it, so the
+-- state comes along for free, and Pending Calls is an indexed filter.
+-- ===========================================================================
+
+-- The 0012 views read the columns below, and one of them is recreated with a
+-- different shape, so they go first.
+drop view if exists public.pending_calls;
+drop view if exists public.call_state;
+
+alter table public.calls
+  add column if not exists last_status   text default '',
+  add column if not exists last_visit_at timestamptz;
+
+-- Derived, so it can never drift from the two columns above.
+alter table public.calls drop column if exists open_state;
+alter table public.calls add column open_state text
+  generated always as (
+    case
+      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
+      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
+      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
+      else 'Report pending'
+    end
+  ) stored;
+
+create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+
+-- ---- keep it current -------------------------------------------------------
+-- security definer: a visit by one engineer updates the call regardless of who
+-- may write `calls`.
+create or replace function public.sync_call_last_visit(p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.calls c
+     set last_status   = coalesce(r.call_status, ''),
+         last_visit_at = r.visit_at
+    from (
+      select call_status, visit_at
+        from public.reports
+       where ucn = p_ucn
+       order by visit_at desc nulls last, id desc
+       limit 1
+    ) r
+   where c.ucn = p_ucn;
+
+  if not found then  -- no visits left (or none matched): back to Unattended
+    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
+  end if;
+end $$;
+
+create or replace function public.reports_touch_call()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
+  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
+    perform public.sync_call_last_visit(old.ucn);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists reports_touch_call on public.reports;
+create trigger reports_touch_call after insert or update or delete on public.reports
+  for each row execute function public.reports_touch_call();
+
+-- ---- backfill --------------------------------------------------------------
+update public.calls c
+   set last_status   = coalesce(r.call_status, ''),
+       last_visit_at = r.visit_at
+  from (
+    select distinct on (ucn) ucn, call_status, visit_at
+      from public.reports
+     order by ucn, visit_at desc nulls last, id desc
+  ) r
+ where r.ucn = c.ucn
+   and (c.last_status is distinct from coalesce(r.call_status, '')
+     or c.last_visit_at is distinct from r.visit_at);
+
+-- ---- views, now trivial ----------------------------------------------------
+-- `calls` already carries `state` (the geographic one), so the call's open
+-- state stays `open_state` here too.
+create view public.call_state as
+  select ucn, last_status, last_visit_at, open_state as state from public.calls;
+
+create view public.pending_calls as
+  select * from public.calls where open_state <> 'Solved';
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0015_call_number.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call Number.
+--
+--   • From a call registration request → the request's UniqueID
+--     (REQID-Product-SerialNo), carried over when the Hotline registers it.
+--   • Direct customer call (no request) → CLYY + a 5-digit running number,
+--     e.g. CL2600001, continuing the existing series for that year
+--     (the register already holds CL2300081, CL2300079, …).
+--
+-- It was a free-text field nobody filled, so a hand-created call could be
+-- saved with a blank Call Number — and reports, spare requests, consumption
+-- and feedback are all keyed by it.
+-- ===========================================================================
+
+create table if not exists public.call_number_seq (
+  yy      text primary key,          -- two-digit year
+  last_no integer not null default 0
+);
+alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+
+-- Next CL number for a year. The counter is seeded once, from the numbers
+-- already in `calls` — so import historical CL numbers BEFORE this runs (or
+-- delete that year's `call_number_seq` row afterwards to re-seed).
+-- Next CL number for this year. The year's counter is seeded from the highest
+-- CLYY##### already in `calls`, so it continues the series instead of
+-- colliding with imported history.
+create or replace function public.next_direct_call_number(p_yy text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
+  v_no int;
+begin
+  insert into public.call_number_seq (yy, last_no)
+  values (v_yy, coalesce((
+    select max(substring(call_number from 5 for 5)::int)
+      from public.calls
+     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
+  on conflict (yy) do nothing;
+
+  update public.call_number_seq set last_no = last_no + 1
+   where yy = v_yy
+   returning last_no into v_no;
+
+  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
+end $$;
+
+-- Assign one when the call arrives without a Call Number. A call registered
+-- from a request carries the request's UniqueID, so this only fires for direct
+-- calls (and for any import row that has none).
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if coalesce(new.call_number, '') = '' then
+    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end $$;
+
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- Back-fill calls saved before this with no Call Number, each in its own year's
+-- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
+do $$
+declare r record;
+begin
+  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
+    update public.calls
+       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
+     where id = r.id;
+  end loop;
+end $$;
+
+grant execute on function public.next_direct_call_number(text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
