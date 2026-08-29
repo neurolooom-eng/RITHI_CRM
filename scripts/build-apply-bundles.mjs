@@ -127,6 +127,7 @@ const MODULES = {
       '0017_spare_or_number_monthly.sql',
       '0018_spare_or_number_padded.sql',
       '0019_spare_or_number_format.sql',
+      '0022_spare_line_uid.sql',
     ],
   },
 };

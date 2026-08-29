@@ -374,6 +374,9 @@ const COLUMNS: Column<Row>[] = [
 // Supabase shape (spare_request_lines joined with spare_requests) with the
 // approval workflow columns.
 const SUPA_COLUMNS: Column<Row>[] = [
+  // The spare's own ID (OR number + its row). This is the reference quoted on
+  // the DC and used for the RM decision, so it leads the register.
+  { key: 'line_uid', header: 'Spare ID', width: 160, wrap: false },
   { key: 'or_no', header: 'OR No', width: 100, wrap: false },
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'uid', header: 'UID', width: 150, wrap: false },
@@ -516,7 +519,7 @@ export function SpareRequests() {
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       } else {
         const res = await updateSpareRequestLine(row.line_id ?? row.id, patch);
-        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.part ?? 'Spare')} ${what}.` });
+        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.line_uid ?? row.part ?? 'Spare')} ${what}.` });
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       }
       await load();
@@ -588,7 +591,7 @@ export function SpareRequests() {
     const q = search.trim().toLowerCase();
     if (!q) return out;
     const keys = onDb
-      ? ['uid', 'or_no', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
+      ? ['line_uid', 'uid', 'or_no', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
       : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
@@ -733,7 +736,13 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
         <ul className="rep-spare-list">
           {[...lines]
             .sort((a, b) => Number(a.row_no ?? 0) - Number(b.row_no ?? 0))
-            .map((l) => <li key={l.id}>{String(l.row_no ?? '')}. {String(l.part ?? '')} — qty {String(l.qty ?? '')}</li>)}
+            .map((l) => (
+              <li key={l.id}>
+                <b>{String(l.line_uid ?? l.row_no ?? '')}</b> — {String(l.part ?? '')} · qty {String(l.qty ?? '')}
+                {!!String(l.dc_number ?? '') && <span className="muted"> · DC {String(l.dc_number)}{l.dispatched_at ? ` on ${fmtLongDate(l.dispatched_at)}` : ''}</span>}
+                {' '}{stageBadge(deriveStage(l))}
+              </li>
+            ))}
         </ul>
       </section>
 
@@ -790,7 +799,7 @@ function DecisionModal({
           <br />
           {scope === 'or'
             ? `Applies to every spare on this OR still at ${deriveStage(row)} — ${lines} of them.`
-            : `Applies to this spare only: ${String(row.part ?? '')}.`}
+            : `Applies to this spare only — ${String(row.line_uid ?? '')}: ${String(row.part ?? '')}.`}
           {kind === 'approve' && !needsReview(row.item_status) && deriveStage(row) === 'RM Approval' &&
             <><br />Not AMC/OGP — approving clears Commercial and NSM automatically and sends it to Stores.</>}
           {deriveStage(row) === 'RM Approval' &&
