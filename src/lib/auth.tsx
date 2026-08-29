@@ -3,6 +3,9 @@ import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
 import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac } from './rbac';
+import { setAuditUser, logAudit } from './audit';
+
+const auditIdentity = (u: User | null) => u ? { actor: u.fullName || u.email, role: (u.rbacRole || legacyToRbac(u.role)), email: u.email } : null;
 
 // Map a profiles.role (admin | rm | rgm | engineer | viewer) to an app Role.
 function roleFromProfile(r: string): Role {
@@ -233,7 +236,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hydrate = async () => {
       const p = await sbCurrentProfile();
       if (!alive) return;
-      setSupaUser(p ? profileToUser(p) : null);
+      const u = p ? profileToUser(p) : null;
+      setSupaUser(u);
+      setAuditUser(auditIdentity(u));
       if (p) { const list = await sbListProfiles(); if (alive) setSupaUsers(list.map(profileToUser)); }
       else setSupaUsers([]);
       if (alive) setSupaBooting(false);
@@ -337,15 +342,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const idNorm = id.trim();
     // 0) Supabase (email + password) — the primary path once a DB is connected.
     if (supaMode) {
+      const t0 = performance.now();
       const res = await sbSignIn(idNorm, password);
       if (!res.ok) {
+        logAudit({ action: 'login_failed', email: idNorm, status: 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
         const m = (res.error || '').toLowerCase();
         if (m.includes('invalid login')) return { ok: false, error: 'Incorrect email or password.' };
         if (m.includes('not confirmed')) return { ok: false, error: 'Email not confirmed — turn off "Confirm email" in Supabase, or confirm the address.' };
         return { ok: false, error: res.error || 'Login failed.' };
       }
       const p = await sbCurrentProfile();
-      if (p) { setSupaUser(profileToUser(p)); const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); }
+      const u = p ? profileToUser(p) : null;
+      if (u) { setSupaUser(u); setAuditUser(auditIdentity(u)); const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); }
+      logAudit({ action: 'login', status: 'ok', duration_ms: Math.round(performance.now() - t0) });
       return { ok: true };
     }
     // 1) Local demo/offline accounts (username or email), password-checked here.
@@ -389,7 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_KEY);
     setViewAs(null);
     setUserId(null);
-    if (supaMode) { setSupaUser(null); setSupaUsers([]); void sbSignOut(); }
+    if (supaMode) { logAudit({ action: 'logout', status: 'ok' }); setAuditUser(null); setSupaUser(null); setSupaUsers([]); void sbSignOut(); }
   };
 
   const createUser: AuthContextValue['createUser'] = (input) => {

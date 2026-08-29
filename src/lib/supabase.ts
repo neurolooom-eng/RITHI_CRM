@@ -522,6 +522,18 @@ export async function sbDirectoryNames(): Promise<string[]> {
   return distinctColumn('user_directory', 'name');
 }
 
+// ---- Audit log (admin) -----------------------------------------------------
+export interface AuditFilter { action?: string; email?: string; status?: string }
+export async function queryAudit(filter: AuditFilter, offset = 0, limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('audit_log').select('*').order('at', { ascending: false }).range(offset, offset + limit - 1);
+  if (filter.action) q = q.ilike('action', `%${_san(filter.action)}%`);
+  if (filter.email) q = q.ilike('email', `%${_san(filter.email)}%`);
+  if (filter.status) q = q.eq('status', filter.status);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
 // ---- RBAC (role → permissions) ---------------------------------------------
 export async function getRolePerms(): Promise<Record<string, string[]>> {
   const c = getSupabase(); if (!c) return {};
