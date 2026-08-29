@@ -43,6 +43,10 @@ with checks(sort_order, bundle, provides, present) as (
     (10, 'call_requests: state',   'call_state + pending_calls views (0012)',
         (to_regclass('public.call_state')    is not null
      and to_regclass('public.pending_calls') is not null)),
+    (11, 'call_requests: state (fast)', 'calls.open_state + the reports trigger (0014)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='calls' and column_name='open_state')
+     and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
     (11, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles

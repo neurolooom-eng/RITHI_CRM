@@ -132,7 +132,9 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
   row per call sharing its REQID; `unique_key` is the identity; atomic insert
   via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
-  `0012_call_state` (the two views). Applied.
+  `0012_call_state` (the two views) and `0014_call_state_denorm` — the state is
+  kept ON the call by a trigger on `reports`, because deriving it per read cost
+  >5s under the visit-table RLS (statement timeout). Applied.
 - ✅ **Apply bundles** — new SQL goes in `supabase/migrations/` **and** a bundle
   (`node scripts/build-apply-bundles.mjs`): `supabase/apply/call_requests.sql`
   for this module, `all.sql` for everything, `_status.sql` to see what a project

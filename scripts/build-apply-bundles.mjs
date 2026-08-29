@@ -69,6 +69,7 @@ const MODULES = {
       '0010_call_request_items.sql',
       '0011_call_request_actions.sql',
       '0012_call_state.sql',
+      '0014_call_state_denorm.sql',
     ],
   },
   spare_requests: {
