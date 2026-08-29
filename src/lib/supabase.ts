@@ -464,6 +464,11 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- consumption / feedback ------------------------------------------------
+export async function listConsumptionRows(limit = 1000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);
   return error ? { ok: false, error: error.message } : { ok: true };
