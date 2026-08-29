@@ -91,10 +91,17 @@ auto REST + RLS + Auth).
   (1) run `0004`; (2) send/import the User Master CSV; (3) **engineer logins** —
   create Supabase Auth accounts for active directory users (bulk-create script
   with the secret key, or add via Authentication → Users).
-- **Spare request WRITES still hit the sheet.** ✅ done — on Supabase the drawer
-  writes `spare_requests` + `spare_request_lines` and the register reads them
-  back; the sheet path (`v2_ORReq-All` via `tabAppend`) remains only as the
-  fallback when Supabase isn't connected.
+- **Spare request WRITES still hit the sheet.** ✅ done — the `v2_ORReq-All`
+  sheet append is gone; raising a request writes `spare_requests` +
+  `spare_request_lines` on Supabase only. `0011_spare_intake.sql` assigns the
+  **OR NO** (running number continuing the sheet's series from OR47042), the
+  **RowNo** (restarting at 1 per OR) and the **OR Req Date**; qty is at least 1
+  and a request carries at most 20 parts, enforced in the DB as well as the UI.
+  The intake form now covers the full field spec: a **UC Number picker** that
+  searches the Call Register and copies party / product / serial / complaint /
+  item status onto the request, an **Engineer Name** every role except Engineer
+  may repoint, and free-text remarks. Reads still fall back to the sheet when
+  Supabase isn't connected.
 - **Pending Registrations** — the UCN-less request list wasn't migrated; still on
   the sheet path. Migrate or wire a Supabase intake table.
 - **Raw monthly PM bulk import** *(user use-case)* — accept the **raw PM tab
@@ -167,6 +174,12 @@ auto REST + RLS + Auth).
     to cover the receipt columns (the raiser holds no approval permission, so
     the guard would otherwise reject the acknowledgement) and grants
     `spare.receive` in `app_roles` additively.
+  - *Phase 4* (`0011_spare_intake.sql`, `0012_spare_auto_approval.sql`): the
+    intake spec — OR NO / RowNo / OR Req Date assigned by the database, UCN
+    picker, engineer selection, 20 parts per request — and Supabase-only
+    writes. 0011 fixes the RM's approval of a non-AMC item being refused by
+    0008's stage guard (the auto-approval of Commercial/NSM rode along in the
+    same update and tripped their permission checks).
   - **Next:** stock decrement on dispatch (Part Master on-hand), a stores-side
     pick/pack view, and consumption reconciliation — flag a received request
     whose parts were never consumed against the call.

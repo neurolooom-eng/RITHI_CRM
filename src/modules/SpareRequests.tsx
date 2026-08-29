@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { csvExport, fmtLongDate, makeRequestUID, timeAgo } from '../lib/format';
-import { toSheetDate } from '../lib/fieldcall';
-import { listTabRows, sheetsConfigured, tabAppend } from '../lib/sheets';
-import { addSpareRequest, listSpareRequestLines, updateSpareRequest, supabaseConfigured } from '../lib/supabase';
+import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
+import { listTabRows, sheetsConfigured, listUsers } from '../lib/sheets';
+import {
+  addSpareRequest, listSpareRequestLines, updateSpareRequest, searchCalls, supabaseConfigured,
+} from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
   deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
@@ -17,14 +18,16 @@ import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
 // ===========================================================================
-// SPARE REQUESTS — live against 26_SpareRequest.
-//   • List / track from v2_OR_Req (exploded, one row per part, with the
-//     approval + dispatch status). Role-scoped like the call registers.
-//   • Raise a request (Call Based, linked to a call's UCN) → appended to
-//     v2_ORReq-All; the sheet explodes it into v2_OR_Req and drives approvals.
-//   • On Supabase the full workflow runs in-app: RM → Commercial → NSM →
-//     Stores (dispatch + DC) → engineer acknowledgement, with stage tiles, a
-//     "needs my action" queue, a detail drawer and an approval trail.
+// SPARE REQUESTS.
+//   • Raising a request writes to Supabase — one spare_requests row plus a
+//     spare_request_lines row per part, with the OR number, OR date and RowNo
+//     assigned by the database. The old v2_ORReq-All sheet append is gone.
+//   • The register lists one row per part with the approval + dispatch status,
+//     and runs the workflow in-app: RM → Commercial → NSM → Stores (dispatch
+//     + DC) → engineer acknowledgement, with stage tiles, a "needs my action"
+//     queue, a detail drawer and an approval trail.
+//   • Reads still fall back to the 26_SpareRequest sheet when Supabase is not
+//     connected, so an unmigrated deployment can still see its history.
 // ===========================================================================
 
 const BOOK = 'sparereq';
@@ -49,8 +52,36 @@ const badge = (s: string) => s ? <span className={`badge badge-${statusTone(s)}`
 
 // ---------------------------------------------------------------------------
 // Raise-request drawer (reused from the register screen and from a call).
+//
+// Fields follow the intake spec:
+//   UID · Engineer Email (the signed-in user) · TimeStamp (created_at) ·
+//   OR Req Date (today) · ENGINEER NAME (from the mail id; every role except
+//   Engineer may point the request at someone else) · Req Type · OR NO and
+//   RowNo (assigned by the database) · Call Number / UC Number / Party /
+//   Product / Serial / Complaint / Item Status (from the Call Register, and
+//   mandatory when the type is Call Based) · Reason for HANDSTOCK (mandatory
+//   when the type is HandStock) · Additional Remarks · up to 20 Spare + Qty
+//   rows, each editable and removable until the request is submitted.
 // ---------------------------------------------------------------------------
 export interface CallLike { ucn?: unknown; [key: string]: unknown }
+
+const MIN_QTY = 1;
+
+// The call fields the register copies onto a request.
+interface PickedCall {
+  ucn: string; callNumber: string; partyName: string; productName: string;
+  serial: string; complaint: string; itemStatus: string;
+}
+const EMPTY_CALL: PickedCall = { ucn: '', callNumber: '', partyName: '', productName: '', serial: '', complaint: '', itemStatus: '' };
+
+const callToPicked = (c: Record<string, unknown> | CallLike | null): PickedCall => {
+  const g = (k: string) => String((c as Record<string, unknown>)?.[k] ?? '');
+  if (!c) return EMPTY_CALL;
+  return {
+    ucn: g('ucn'), callNumber: g('callNumber'), partyName: g('partyName'), productName: g('productName'),
+    serial: g('serial'), complaint: g('complaintReported') || g('standardComplaint'), itemStatus: g('itemStatus'),
+  };
+};
 
 export function SpareRequestDrawer({
   call, open, onClose, onSaved,
@@ -58,11 +89,14 @@ export function SpareRequestDrawer({
   call: CallLike | null;
   open: boolean;
   onClose: () => void;
-  onSaved?: (ucn: string, uid?: string) => void;
+  onSaved?: (ucn: string, uid?: string, orNo?: string) => void;
 }) {
   const { user } = useAuth();
   const spareMaster = useMaster('spare');
   const [reqType, setReqType] = useState('Call Based');
+  const [engineer, setEngineer] = useState('');
+  const [engineerOpts, setEngineerOpts] = useState<string[]>([]);
+  const [picked, setPicked] = useState<PickedCall>(EMPTY_CALL);
   const [remarks, setRemarks] = useState('');
   const [handstockReason, setHandstockReason] = useState('');
   const [spares, setSpares] = useState<{ spare: string; qty: string }[]>([{ spare: '', qty: '1' }]);
@@ -70,84 +104,89 @@ export function SpareRequestDrawer({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
+  // Engineers raise requests for themselves; every other role may point a
+  // request at one of their engineers.
+  const canPickEngineer = (user?.rbacRole ?? 'engineer') !== 'engineer';
+  // A call passed in from the call view fixes the call fields; opened from the
+  // register, the user picks the UCN.
+  const fixedCall = !!call?.ucn;
+
   // A fresh UID (WA-yyyymmdd-xxxx) is minted each time the drawer opens, so the
   // engineer can see/quote the reference for the request they're about to raise.
   useEffect(() => {
-    if (open) { setReqType('Call Based'); setRemarks(''); setHandstockReason(''); setSpares([{ spare: '', qty: '1' }]); setUid(makeRequestUID()); setErr(''); }
-  }, [open, call]);
+    if (!open) return;
+    setReqType('Call Based'); setRemarks(''); setHandstockReason('');
+    setSpares([{ spare: '', qty: '1' }]); setUid(makeRequestUID()); setErr('');
+    setEngineer(user?.fullName ?? '');
+    setPicked(callToPicked(call));
+  }, [open, call, user]);
 
-  const c = (k: string) => String(call?.[k] ?? '');
+  // Directory names for the engineer picker (only for roles that may choose).
+  useEffect(() => {
+    if (!open || !canPickEngineer || engineerOpts.length) return;
+    let alive = true;
+    listUsers('', 2000)
+      .then((rows) => {
+        if (!alive) return;
+        const names = [...new Set(rows.map((r) => String(r['User Name'] ?? '').trim()).filter(Boolean))].sort();
+        setEngineerOpts(names);
+      })
+      .catch(() => { /* the field stays a free-text input */ });
+    return () => { alive = false; };
+  }, [open, canPickEngineer, engineerOpts.length]);
+
   const setSpare = (i: number, field: 'spare' | 'qty', v: string) =>
     setSpares((s) => s.map((x, j) => (j === i ? { ...x, [field]: v } : x)));
   const addSpareRow = () => setSpares((s) => (s.length < MAX_SPARES ? [...s, { spare: '', qty: '1' }] : s));
   const removeSpareRow = (i: number) => setSpares((s) => (s.length > 1 ? s.filter((_, j) => j !== i) : s));
 
   const submit = async () => {
-    const picked = spares.filter((s) => s.spare.trim() !== '');
-    if (picked.length === 0) { setErr('Add at least one spare.'); return; }
-    if (reqType === 'Call Based' && !c('ucn')) { setErr('A Call-Based request needs a call (UC Number).'); return; }
+    const picks = spares
+      .map((s) => ({ part: s.spare.trim(), qty: Math.max(MIN_QTY, Math.floor(Number(s.qty) || MIN_QTY)) }))
+      .filter((s) => s.part !== '');
+    if (picks.length === 0) { setErr('Add at least one spare.'); return; }
+    if (picks.length > MAX_SPARES) { setErr(`A request carries at most ${MAX_SPARES} spares.`); return; }
+    if (!engineer.trim()) { setErr('Engineer name is required.'); return; }
+    if (reqType === 'Call Based' && !picked.ucn.trim()) { setErr('A Call-Based request needs a call (UC Number).'); return; }
     if (reqType === 'HandStock' && !handstockReason.trim()) { setErr('Enter the reason for the HandStock request.'); return; }
 
-    const data: Record<string, unknown> = {
-      'UID': uid,
-      'Engineer Email': user?.email ?? '',
-      'Req Type': reqType,
-      'OR Req Date': toSheetDate(new Date()),
-      'ENGINEER NAME': user?.fullName ?? '',
-      'Call Number': c('callNumber'),
-      'UC Number': c('ucn'),
-      'Party Name': c('partyName'),
-      'Product Name': c('productName'),
-      'Product Serial Number': c('serial'),
-      'Complaint Reported': c('complaintReported') || c('standardComplaint'),
-      'Item Status': c('itemStatus'),
-      'Reason for HANDSTOCK Request': reqType === 'HandStock' ? handstockReason : '',
-      'Additional Remarks': remarks,
+    // Call-Based requests carry the call's identifying fields.
+    const callFields = reqType === 'Call Based' ? picked : EMPTY_CALL;
+    const req: Record<string, unknown> = {
+      uid,
+      req_type: reqType,
+      engineer: engineer.trim(),
+      engineer_email: user?.email ?? '',
+      ucn: callFields.ucn,
+      call_number: callFields.callNumber,
+      party_name: callFields.partyName,
+      product_name: callFields.productName,
+      serial: callFields.serial,
+      complaint: callFields.complaint,
+      item_status: callFields.itemStatus,
+      handstock_reason: reqType === 'HandStock' ? handstockReason.trim() : '',
+      remarks: remarks.trim(),
+      status: 'Pending',
     };
-    picked.forEach((s, idx) => {
-      data[`Spare (${idx + 1})`] = s.spare;
-      data[`Qty (${idx + 1})`] = Number(s.qty) || 1;
-    });
 
     setBusy(true); setErr('');
     try {
-      if (supabaseConfigured()) {
-        // Supabase: one spare_requests row + a spare_request_lines row per part.
-        const req: Record<string, unknown> = {
-          uid, req_type: reqType, engineer: user?.fullName ?? '', engineer_email: user?.email ?? '',
-          ucn: c('ucn'), call_number: c('callNumber'), party_name: c('partyName'), product_name: c('productName'),
-          serial: c('serial'), complaint: c('complaintReported') || c('standardComplaint'), item_status: c('itemStatus'),
-          handstock_reason: reqType === 'HandStock' ? handstockReason : '', remarks, status: 'Pending',
-        };
-        const res = await addSpareRequest(req, picked.map((s) => ({ part: s.spare, qty: Number(s.qty) || 1 })));
-        if (res.ok) { onSaved?.(c('ucn'), res.uid ?? uid); onClose(); }
-        else setErr(res.error ?? 'Could not submit the request.');
-        setBusy(false); return;
-      }
-      const res = await tabAppend(INTAKE_TAB, data, BOOK);
-      if (res.ok) { onSaved?.(c('ucn'), uid); onClose(); }
+      const res = await addSpareRequest(req, picks);
+      if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
       setErr(`Submit failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(false); }
   };
 
+  const ready = supabaseConfigured();
+
   return (
-    <Drawer open={open} onClose={onClose} title={call?.ucn ? `Request Spares — ${String(call.ucn)}` : 'New Spare Request'} width={780}>
-      {!(supabaseConfigured() || sheetsConfigured()) && <div className="sheet-banner sheet-banner-info"><span>Connect the database in Settings to raise spare requests.</span></div>}
+    <Drawer open={open} onClose={onClose} title={picked.ucn ? `Request Spares — ${picked.ucn}` : 'New Spare Request'} width={780}>
+      {!ready && <div className="sheet-banner sheet-banner-info"><span>Connect the database in Settings to raise spare requests.</span></div>}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
 
       <div className="rep-form">
-        {!!call?.ucn && (
-          <section className="rep-sec">
-            <div className="rep-sec-title">Against call</div>
-            <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
-              <b>{c('ucn')}</b> · {c('callNumber')}<br />
-              {c('partyName')} — {c('productName')} {c('serial') && `(${c('serial')})`} · {c('itemStatus')}
-            </div>
-          </section>
-        )}
-
         <section className="rep-sec">
           <div className="rep-sec-title">Request <span className="muted">· UID {uid}</span></div>
           <div className="rep-grid">
@@ -161,40 +200,154 @@ export function SpareRequestDrawer({
                 {REQ_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
-            {reqType === 'HandStock' && (
-              <label className="rep-field">
-                <span className="field-label">Reason for HandStock *</span>
-                <input className="input" value={handstockReason} onChange={(e) => setHandstockReason(e.target.value)} />
-              </label>
-            )}
-            <label className="rep-field rep-span2">
-              <span className="field-label">Additional Remarks</span>
-              <input className="input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+            <label className="rep-field">
+              <span className="field-label">Engineer Name *</span>
+              <input
+                className="input" list="dl-engineers" value={engineer}
+                onChange={(e) => setEngineer(e.target.value)} readOnly={!canPickEngineer}
+                title={canPickEngineer ? 'Raise this request for another engineer' : 'Taken from your login'}
+              />
+            </label>
+            <label className="rep-field">
+              <span className="field-label">Engineer Email</span>
+              <input className="input" value={user?.email ?? ''} readOnly />
+            </label>
+            <label className="rep-field">
+              <span className="field-label">OR Req Date</span>
+              <input className="input" value={fmtLongDate(todayISO())} readOnly />
+            </label>
+            <label className="rep-field">
+              <span className="field-label">OR No</span>
+              <input className="input" value="assigned on submit" readOnly />
             </label>
           </div>
+          {canPickEngineer && (
+            <datalist id="dl-engineers">
+              {engineerOpts.map((n) => <option key={n} value={n} />)}
+            </datalist>
+          )}
         </section>
 
+        {reqType === 'Call Based' && (
+          <section className="rep-sec">
+            <div className="rep-sec-title">Against call <span className="muted">· from the Call Register</span></div>
+            {fixedCall ? (
+              <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <b>{picked.ucn}</b> · {picked.callNumber}<br />
+                {picked.partyName} — {picked.productName} {picked.serial && `(${picked.serial})`} · {picked.itemStatus}
+              </div>
+            ) : (
+              <CallPicker picked={picked} onPick={setPicked} />
+            )}
+          </section>
+        )}
+
+        {reqType === 'HandStock' && (
+          <section className="rep-sec">
+            <div className="rep-sec-title">HandStock</div>
+            <label className="rep-field">
+              <span className="field-label">Reason for HandStock Request *</span>
+              <input className="input" value={handstockReason} onChange={(e) => setHandstockReason(e.target.value)} />
+            </label>
+          </section>
+        )}
+
         <section className="rep-sec">
-          <div className="rep-sec-title">Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'}</span></div>
+          <div className="rep-sec-title">
+            Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'} · {spares.length}/{MAX_SPARES}</span>
+          </div>
           <datalist id="dl-spares">
             {spareMaster.values.slice(0, 2000).map((v) => <option key={v} value={v} />)}
           </datalist>
           {spares.map((s, i) => (
             <div className="spare-row" key={i}>
+              <span className="spare-no muted">{i + 1}</span>
               <input className="input spare-part" list="dl-spares" placeholder="Search part (CODE|Description)…" value={s.spare} onChange={(e) => setSpare(i, 'spare', e.target.value)} />
-              <input className="input spare-qty" type="number" min={1} value={s.qty} onChange={(e) => setSpare(i, 'qty', e.target.value)} />
+              <input className="input spare-qty" type="number" min={MIN_QTY} step={1} value={s.qty} onChange={(e) => setSpare(i, 'qty', e.target.value)} />
               <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => removeSpareRow(i)} disabled={spares.length === 1}>✕</button>
             </div>
           ))}
-          {spares.length < MAX_SPARES && <button className="btn btn-sm" onClick={addSpareRow}>＋ Add spare</button>}
+          {spares.length < MAX_SPARES
+            ? <button className="btn btn-sm" onClick={addSpareRow}>＋ Add spare</button>
+            : <span className="muted" style={{ fontSize: 12.5 }}>Maximum of {MAX_SPARES} spares per request.</span>}
+        </section>
+
+        <section className="rep-sec">
+          <div className="rep-sec-title">Additional Remarks</div>
+          <textarea className="input" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Anything the approver or stores should know…" />
         </section>
 
         <div className="rep-actions">
           <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !(supabaseConfigured() || sheetsConfigured())}>{busy ? 'Submitting…' : 'Submit Request'}</button>
+          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy || !ready}>{busy ? 'Submitting…' : 'Submit Request'}</button>
         </div>
       </div>
     </Drawer>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UC Number picker — searches the Call Register and copies the picked call's
+// party / product / serial / complaint / item status onto the request.
+// ---------------------------------------------------------------------------
+function CallPicker({ picked, onPick }: { picked: PickedCall; onPick: (c: PickedCall) => void }) {
+  const [q, setQ] = useState('');
+  const [hits, setHits] = useState<Record<string, unknown>[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
+
+  // Debounced so typing a UCN doesn't fire a query per keystroke.
+  useEffect(() => {
+    const term = q.trim();
+    if (picked.ucn || term.length < 3) { setHits([]); return; }
+    let alive = true;
+    const id = window.setTimeout(() => {
+      setBusy(true); setNote('');
+      searchCalls('', { q: term }, 25)
+        .then((rows) => { if (alive) { setHits(rows); setNote(rows.length ? '' : 'No calls match that search.'); } })
+        .catch((e) => { if (alive) setNote(e instanceof Error ? e.message : String(e)); })
+        .finally(() => { if (alive) setBusy(false); });
+    }, 350);
+    return () => { alive = false; window.clearTimeout(id); };
+  }, [q, picked.ucn]);
+
+  if (picked.ucn) {
+    return (
+      <div>
+        <div className="muted" style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <b>{picked.ucn}</b> · {picked.callNumber}<br />
+          {picked.partyName} — {picked.productName} {picked.serial && `(${picked.serial})`} · {picked.itemStatus}<br />
+          {picked.complaint}
+        </div>
+        <button className="btn btn-sm" onClick={() => { onPick(EMPTY_CALL); setQ(''); }}>Change call</button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="rep-field">
+        <span className="field-label">UC Number *</span>
+        <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search UCN, call number, party, serial…" />
+      </label>
+      {busy && <div className="muted" style={{ fontSize: 12.5 }}>Searching…</div>}
+      {note && <div className="muted" style={{ fontSize: 12.5 }}>{note}</div>}
+      {hits.length > 0 && (
+        <ul className="call-hits">
+          {hits.map((h, i) => {
+            const c = callToPicked(h as CallLike);
+            return (
+              <li key={`${c.ucn}-${i}`}>
+                <button className="call-hit" onClick={() => onPick(c)}>
+                  <b>{c.ucn}</b> <span className="muted">{c.callNumber}</span>
+                  <div className="muted">{c.partyName} — {c.productName} {c.serial && `(${c.serial})`}</div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -220,8 +373,10 @@ const COLUMNS: Column<Row>[] = [
 // Supabase shape (spare_request_lines joined with spare_requests) with the
 // approval workflow columns.
 const SUPA_COLUMNS: Column<Row>[] = [
+  { key: 'or_no', header: 'OR No', width: 100, wrap: false },
+  { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'uid', header: 'UID', width: 150, wrap: false },
-  { key: 'requested_at', header: 'Date', width: 130, wrap: false, render: (r) => fmtLongDate(r.requested_at) },
+  { key: 'or_req_date', header: 'OR Date', width: 110, wrap: false, render: (r) => fmtLongDate(r.or_req_date ?? r.requested_at) },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
   { key: 'party_name', header: 'Party', width: 190 },
   { key: 'product_name', header: 'Product', width: 120 },
@@ -383,7 +538,7 @@ export function SpareRequests() {
     const q = search.trim().toLowerCase();
     if (!q) return out;
     const keys = onDb
-      ? ['uid', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
+      ? ['uid', 'or_no', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
       : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
@@ -463,10 +618,13 @@ export function SpareRequests() {
         call={null}
         open={drawer}
         onClose={() => setDrawer(false)}
-        onSaved={(_ucn, uid) => { setMsg({ tone: 'ok', text: `Spare request ${uid ?? ''} submitted.` }); void load(); }}
+        onSaved={(_ucn, uid, orNo) => {
+          setMsg({ tone: 'ok', text: `Spare request ${orNo ? `${orNo} ` : ''}submitted${uid ? ` (${uid})` : ''}.` });
+          void load();
+        }}
       />
 
-      <Drawer open={!!detail && !!detailRow} onClose={() => setDetail('')} title={`Spare Request — ${detail}`} width={720}>
+      <Drawer open={!!detail && !!detailRow} onClose={() => setDetail('')} title={`Spare Request — ${String(detailRow?.or_no ?? '') || detail}`} width={720}>
         {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} />}
       </Drawer>
 
@@ -489,6 +647,8 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
       <section className="rep-sec">
         <div className="rep-sec-title">Status {stageBadge(stage)}</div>
         <div className="rep-grid">
+          {field('OR No', row.or_no)}
+          {field('OR Req Date', fmtLongDate(row.or_req_date ?? row.requested_at))}
           {field('Raised by', row.req_engineer)}
           {field('Raised on', fmtLongDate(row.requested_at))}
           {field('Request type', row.req_type)}
@@ -518,7 +678,9 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
       <section className="rep-sec">
         <div className="rep-sec-title">Parts requested <span className="muted">({lines.length})</span></div>
         <ul className="rep-spare-list">
-          {lines.map((l) => <li key={l.id}>{String(l.part ?? '')} — qty {String(l.qty ?? '')}</li>)}
+          {[...lines]
+            .sort((a, b) => Number(a.row_no ?? 0) - Number(b.row_no ?? 0))
+            .map((l) => <li key={l.id}>{String(l.row_no ?? '')}. {String(l.part ?? '')} — qty {String(l.qty ?? '')}</li>)}
         </ul>
       </section>
 

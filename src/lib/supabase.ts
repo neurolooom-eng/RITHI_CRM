@@ -471,20 +471,33 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
 }
 
 // ---- spare requests --------------------------------------------------------
-export async function addSpareRequest(req: Record<string, unknown>, lines: { part: string; qty: number }[]): Promise<{ ok: boolean; uid?: string; error?: string }> {
+export async function addSpareRequest(
+  req: Record<string, unknown>,
+  lines: { part: string; qty: number }[],
+): Promise<{ ok: boolean; uid?: string; orNo?: string; error?: string }> {
   const c = must();
-  const { data, error } = await c.from('spare_requests').insert(req).select('uid').single();
+  // or_no / or_req_date are assigned by the database (0011_spare_intake.sql).
+  const { data, error } = await c.from('spare_requests').insert(req).select('uid, or_no').single();
   if (error) return { ok: false, error: errMsg(error) };
   const uid = String(data.uid);
+  const orNo = String(data.or_no ?? '');
   if (lines.length) {
-    const { error: le } = await c.from('spare_request_lines').insert(lines.map((l) => ({ request_uid: uid, part: l.part, qty: l.qty })));
-    if (le) return { ok: false, uid, error: errMsg(le) };
+    // RowNo is sent explicitly: every row of one multi-row insert fires the
+    // trigger against the same snapshot, so a max()+1 default would hand the
+    // whole batch the same number. The trigger stays as the fallback.
+    const { error: le } = await c.from('spare_request_lines')
+      .insert(lines.map((l, i) => ({ request_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+    if (le) {
+      // The lines are the request; a header with none is not a usable record.
+      await c.from('spare_requests').delete().eq('uid', uid);
+      return { ok: false, error: errMsg(le) };
+    }
   }
-  return { ok: true, uid };
+  return { ok: true, uid, orNo };
 }
 export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, status, stage, rm_approval, rm_by, rm_at, commercial_approval, commercial_by, commercial_at, nsm_approval, nsm_by, nsm_at, stores_status, dc_number, courier, dispatch_remarks, dispatched_by, dispatched_at, received_by, received_at, receipt_remarks, reject_reason, rejected_stage, created_at)')
+    .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, status, stage, rm_approval, rm_by, rm_at, commercial_approval, commercial_by, commercial_at, nsm_approval, nsm_by, nsm_at, stores_status, dc_number, courier, dispatch_remarks, dispatched_by, dispatched_at, received_by, received_at, receipt_remarks, reject_reason, rejected_stage, created_at)')
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
