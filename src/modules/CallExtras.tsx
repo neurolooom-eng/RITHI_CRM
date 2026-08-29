@@ -3,7 +3,8 @@ import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
 import { C, toOptions } from './collections';
-import { fmtCurrency, fmtDateTime, lookup, nextCode, todayISO } from '../lib/format';
+import { fmtDateTime, lookup, nextCode, todayISO } from '../lib/format';
+import { useMaster } from '../lib/masters';
 import './callextras.css';
 
 // ===========================================================================
@@ -38,23 +39,29 @@ export function CallExtras({ collection, row }: { collection: string; row: BaseR
 }
 
 // ---- Spares consumed (linked to this call) -------------------------------
+// Parts come from the live `spare` master (the ITEM Master catalogue the call
+// report and the spare requests read), not the local demo collection — that one
+// is cleared on first load, so the picker used to be empty. A part is stored by
+// its catalogue string ("CODE|Description"); rows written before this still
+// carry a partId and are resolved through the old collection.
 function SparesPanel({ collection, row }: { collection: string; row: BaseRecord }) {
   const consumption = useCollection(C.spareConsumption);
-  const parts = useCollection(C.parts);
+  const spareMaster = useMaster('spare');
   const { user } = useAuth();
   const linked = consumption.filter((c) => c.callId === row.id);
 
-  const [partId, setPartId] = useState('');
+  const [part, setPart] = useState('');
   const [qty, setQty] = useState(1);
   const [billable, setBillable] = useState(false);
 
   const add = () => {
-    if (!partId) return;
+    const chosen = part.trim();
+    if (!chosen) return;
     db.insert(C.spareConsumption, {
       code: nextCode(C.spareConsumption, 'CON'),
       callId: row.id,
       callCollection: collection,
-      partId,
+      part: chosen,
       qty,
       engineer: row.engineer ?? '',
       consumeDate: todayISO(),
@@ -62,16 +69,12 @@ function SparesPanel({ collection, row }: { collection: string; row: BaseRecord 
       remarks: '',
       ownerId: user?.id,
     });
-    // decrement stock for the part (POC inventory effect)
-    const part = parts.find((p) => p.id === partId);
-    if (part) db.update(C.parts, partId, { stockQty: Math.max(0, Number(part.stockQty ?? 0) - qty) });
-    setPartId('');
+    setPart('');
     setQty(1);
     setBillable(false);
   };
 
-  const partPrice = (id: unknown) => Number(parts.find((p) => p.id === id)?.unitPrice ?? 0);
-  const total = linked.reduce((s, c) => s + partPrice(c.partId) * Number(c.qty ?? 0), 0);
+  const partName = (c: BaseRecord) => String(c.part ?? '') || lookup(C.parts, c.partId, 'name');
 
   return (
     <section className="call-panel">
@@ -82,32 +85,34 @@ function SparesPanel({ collection, row }: { collection: string; row: BaseRecord 
 
       {linked.length > 0 && (
         <table className="call-mini-table">
-          <thead><tr><th>Part</th><th>Qty</th><th>Amount</th><th>Billing</th><th></th></tr></thead>
+          <thead><tr><th>Part</th><th>Qty</th><th>Billing</th><th></th></tr></thead>
           <tbody>
             {linked.map((c) => (
               <tr key={c.id}>
-                <td>{lookup(C.parts, c.partId, 'name')}</td>
+                <td>{partName(c)}</td>
                 <td>{String(c.qty)}</td>
-                <td>{fmtCurrency(partPrice(c.partId) * Number(c.qty ?? 0))}</td>
                 <td>{c.billable ? <span className="badge badge-warning">Billable</span> : <span className="badge badge-success">Free</span>}</td>
                 <td><button className="btn btn-ghost btn-sm" title="Remove" onClick={() => db.remove(C.spareConsumption, c.id)}>✕</button></td>
               </tr>
             ))}
           </tbody>
-          <tfoot><tr><td colSpan={2}><b>Total</b></td><td colSpan={3}><b>{fmtCurrency(total)}</b></td></tr></tfoot>
         </table>
       )}
 
       <div className="call-add-row">
-        <select className="select" value={partId} onChange={(e) => setPartId(e.target.value)}>
-          <option value="">— Select spare part —</option>
-          {parts.map((p) => (
-            <option key={p.id} value={p.id}>{String(p.code)} · {String(p.name)} (stock {String(p.stockQty ?? 0)})</option>
-          ))}
-        </select>
+        <input
+          className="input"
+          list={`dl-spares-${row.id}`}
+          placeholder={spareMaster.ready && !spareMaster.values.length ? 'Parts catalogue unavailable — type the part' : 'Search the parts catalogue…'}
+          value={part}
+          onChange={(e) => setPart(e.target.value)}
+        />
+        <datalist id={`dl-spares-${row.id}`}>
+          {spareMaster.values.slice(0, 2000).map((v) => <option key={v} value={v} />)}
+        </datalist>
         <input className="input call-qty" type="number" min={1} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value)))} />
         <label className="call-billable"><input type="checkbox" checked={billable} onChange={(e) => setBillable(e.target.checked)} /> Billable</label>
-        <button className="btn btn-primary btn-sm" onClick={add} disabled={!partId}>+ Add</button>
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={!part.trim()}>+ Add</button>
       </div>
     </section>
   );

@@ -19,6 +19,7 @@
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
+--   0013_all_masters_module.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
 --   0011_spare_intake.sql
@@ -722,6 +723,26 @@ drop trigger if exists profiles_role_guard on public.profiles;
 create trigger profiles_role_guard
   before update on public.profiles
   for each row execute function public.profiles_role_guard();
+
+-- ------------------------------------------------------------------------
+-- 0013_all_masters_module.sql
+-- ------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 0013 — All Masters module access.
+--
+-- The new /masters screen (every master the app reads, with its source, size
+-- and values) is gated like any other module by `mod:/masters`. 0008 seeded the
+-- role matrix with the modules that existed then and deliberately leaves an
+-- existing role's permissions alone, so the new key is on no role. Append it —
+-- additively — to every role that can already open a master register
+-- (`mod:/parts`), without disturbing any permission an admin has since edited.
+-- ---------------------------------------------------------------------------
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/masters"]'::jsonb,
+       updated_at  = now()
+ where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
+   and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters';
 
 -- ------------------------------------------------------------------------
 -- 0006_spare_workflow.sql
