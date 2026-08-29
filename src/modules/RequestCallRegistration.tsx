@@ -278,12 +278,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     const t0 = performance.now();
     try {
       const res = await addCallRequestBatch(base, filled);
-      logAudit({
-        action: 'request.create', target: res.reqid ?? '',
-        status: res.ok && !res.error ? 'ok' : 'error', error: res.error,
-        duration_ms: Math.round(performance.now() - t0),
-        meta: { calls: filled.length, callType: f.callType },
-      });
+      logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
       if (res.ok) {
         setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} call${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
         if (!res.error) { reset(); onSaved(); }

@@ -175,11 +175,7 @@ export function SpareRequestDrawer({
     const t0 = performance.now();
     try {
       const res = await addSpareRequest(req, picks);
-      logAudit({
-        action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error',
-        error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0),
-        meta: { ucn: callFields.ucn, parts: picks.length, req_type: reqType },
-      });
+      logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: callFields.ucn, parts: picks.length } });
       if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
