@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.4.0',
+    date: '2026-08-29',
+    title: 'Spare Request module — full approval-to-receipt workflow',
+    changes: [
+      'Spare requests now run end to end in the app: RM \u2192 Commercial \u2192 NSM \u2192 Stores (dispatch + DC) \u2192 engineer acknowledgement. Commercial and NSM auto-approve unless the item is AMC or OGP.',
+      'Stage tiles on top of the register (awaiting me / in approval / awaiting dispatch / dispatched / received / rejected) and one-tap stage filters, including a "Needs my action" queue that shows only what your role can move forward.',
+      'Every decision goes through a confirmation dialog: a rejection must carry a reason, a dispatch must carry a DC number (courier and remarks optional), and a receipt can note condition or short shipment.',
+      'Click any line to open the request: header, call it was raised against, every part requested, and an approval trail of who did what and when \u2014 with the rejection reason inline.',
+      'Engineers close the loop by acknowledging receipt of dispatched parts; only the engineer who raised the request can acknowledge it.',
+      'New "Acknowledge spare receipt" permission (spare.receive), granted by default to engineers, RM/RGM and the spare coordinator, and editable in Roles & Permissions.',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-08-28',
     title: 'Reporting workflow, role-based access, mobile & masters',

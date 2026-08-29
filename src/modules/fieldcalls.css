@@ -210,3 +210,23 @@
 .req-doc { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .req-doc-link { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .req-doc-hint { font-size: 11px; }
+
+/* ---- Spare request workflow (stage chips + approval trail) --------------- */
+.stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 4px 11px; font-size: 12.5px; cursor: pointer; line-height: 1.6;
+}
+.chip:hover { border-color: var(--primary); }
+.chip b { font-weight: 700; margin-left: 4px; color: var(--text-muted); }
+.chip-on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.chip-on b { color: #fff; }
+
+.wf-trail { list-style: none; margin: 0; padding: 0 0 0 14px; font-size: 12.5px; border-left: 2px solid var(--border); }
+.wf-trail li { position: relative; padding: 3px 0 8px 10px; }
+.wf-trail li::before {
+  content: ''; position: absolute; left: -19px; top: 9px;
+  width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);
+}
+.wf-trail li.wf-ok::before { background: var(--success, #2e9e5b); }
+.wf-trail li.wf-bad::before { background: var(--danger, #d64545); }

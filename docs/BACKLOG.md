@@ -66,7 +66,7 @@ _Last updated: 2026-08-29_
 Reads were timing out on Apps Script; the app now runs on Supabase (Postgres +
 auto REST + RLS + Auth).
 - ✅ Schema (`0001_init.sql`) + reports-as-history (`0002_reports_history.sql`).
-- ⚠️ **Run `0007_call_request_items.sql`** — drops the `reqid` unique constraint
+- ⚠️ **Run `0010_call_request_items.sql`** — drops the `reqid` unique constraint
   (a request has one row per call, all sharing the REQID), makes `unique_key`
   the unique identity, and adds `next_call_reqid()` so a multi-call request is
   written as one atomic insert. Without it only the first call of a request
@@ -91,10 +91,10 @@ auto REST + RLS + Auth).
   (1) run `0004`; (2) send/import the User Master CSV; (3) **engineer logins** —
   create Supabase Auth accounts for active directory users (bulk-create script
   with the secret key, or add via Authentication → Users).
-- **Spare request WRITES still hit the sheet.** `SpareRequestDrawer` appends to
-  `v2_ORReq-All` via `tabAppend`. Move to Supabase `spare_requests` +
-  `spare_request_lines` (`addSpareRequest` already exists); then the Spare
-  Requests register reads from Supabase too.
+- **Spare request WRITES still hit the sheet.** ✅ done — on Supabase the drawer
+  writes `spare_requests` + `spare_request_lines` and the register reads them
+  back; the sheet path (`v2_ORReq-All` via `tabAppend`) remains only as the
+  fallback when Supabase isn't connected.
 - **Pending Registrations** — the UCN-less request list wasn't migrated; still on
   the sheet path. Migrate or wire a Supabase intake table.
 - **Raw monthly PM bulk import** *(user use-case)* — accept the **raw PM tab
@@ -152,12 +152,24 @@ auto REST + RLS + Auth).
 
 ## 📋 Queued (from the Service_CRM intent)
 
-- **Spare module** — ✅ Phase 1 shipped: raise a Call-Based spare request from a
-  call (📦 Spare / Request Spares) → appended to `v2_ORReq-All` of
-  `26_SpareRequest`; **Spare Requests** register lists the exploded status view
-  (`v2_OR_Req`) with the approval/dispatch chain, role-scoped. Spare parts come
-  from the `spare` master (LookupValues → SPARE). **Next:** approvals
-  (RM/Admin/NSM) and stores/dispatch views.
+- **Spare module** — ✅ Phases 1–3 shipped.
+  - *Phase 1:* raise a Call-Based spare request from a call (📦 Spare /
+    Request Spares); **Spare Requests** register lists one row per part with the
+    approval/dispatch chain, role-scoped. Parts come from the `spare` master.
+  - *Phase 2:* approval chain RM → Commercial → NSM → Stores (DC dispatch);
+    Commercial + NSM auto-approve unless the item is AMC or OGP.
+  - *Phase 3* (`0009_spare_receipt.sql`): engineer **acknowledgement** closes the
+    loop (Dispatched → Received, raiser only); reject **reasons** and dispatch
+    details (DC, courier, remarks) captured in confirmation dialogs; stage KPI
+    tiles + stage chips with a **"Needs my action"** queue; a request **detail
+    drawer** with every part and the full approval trail; new `spare.receive`
+    permission. The migration extends `0008_rbac_enforcement.sql`'s stage guard
+    to cover the receipt columns (the raiser holds no approval permission, so
+    the guard would otherwise reject the acknowledgement) and grants
+    `spare.receive` in `app_roles` additively.
+  - **Next:** stock decrement on dispatch (Part Master on-hand), a stores-side
+    pick/pack view, and consumption reconciliation — flag a received request
+    whose parts were never consumed against the call.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target
