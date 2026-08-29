@@ -61,7 +61,8 @@ const MODULES = {
       'The Hotline request desk: a request is one row per call (Product + Serial +',
       'Complaint + Reported Problem), closed out by mapping it to an existing call,',
       'registering a new one, or cancelling it. Plus the call_state / pending_calls',
-      'views the Call Status column and the Pending Calls module read.',
+      'views the Call Status column and the Pending Calls module read, and Call',
+      'Number assignment (the request UniqueID, or CLYY##### for a direct call).',
     ],
     needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
     files: [
@@ -69,6 +70,8 @@ const MODULES = {
       '0010_call_request_items.sql',
       '0011_call_request_actions.sql',
       '0012_call_state.sql',
+      '0014_call_state_denorm.sql',
+      '0015_call_number.sql',
     ],
   },
   reports: {
@@ -82,7 +85,8 @@ const MODULES = {
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
       '→ NSM → Stores), the engineer receipt that closes it, the OR/RowNo',
-      'numbering, and the RBAC guard fix that lets an RM approve a non-AMC item.',
+      'numbering (OR-YYMM-NNNN, restarting each month), and per-SPARE approvals —',
+      'the RM decides each line on its own, so one OR can go forward partly approved.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers'],
     files: [
@@ -90,6 +94,10 @@ const MODULES = {
       '0009_spare_receipt.sql',
       '0011_spare_intake.sql',
       '0012_spare_auto_approval.sql',
+      '0016_spare_line_approvals.sql',
+      '0017_spare_or_number_monthly.sql',
+      '0018_spare_or_number_padded.sql',
+      '0019_spare_or_number_format.sql',
     ],
   },
 };

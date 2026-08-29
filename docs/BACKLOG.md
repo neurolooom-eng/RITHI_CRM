@@ -32,6 +32,15 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped; go-
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Request Call Registration is a register** — a table of every request with
+  its outcome (Pending / Registered / Mapped / Cancelled) and UCN, status
+  filter, search, CSV export and a row-detail drawer; **New Request** raises one
+  in a drawer. It used to be a form with no way to see what you had raised.
+- **Call Number is assigned, not typed** (`0015_call_number.sql`) — from a
+  request it is the request's **UniqueID** (REQID-Product-Serial); a direct
+  customer call gets **CLYY#####** (five-digit running number, per year,
+  seeded from the existing series). Blank ones are back-filled. It matters
+  because reports / spare requests / consumption / feedback are keyed by it.
 - **Call status everywhere** — a call is **Solved / Unsolved / Report pending /
   Unattended** by its LATEST visit, derived once in Postgres (`call_state` /
   `pending_calls` views, `0012_call_state.sql`). Colour-coded column on the
@@ -132,7 +141,9 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
   row per call sharing its REQID; `unique_key` is the identity; atomic insert
   via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
-  `0012_call_state` (the two views). Applied.
+  `0012_call_state` (the two views) and `0014_call_state_denorm` — the state is
+  kept ON the call by a trigger on `reports`, because deriving it per read cost
+  >5s under the visit-table RLS (statement timeout). Applied.
 - ✅ **Apply bundles** — new SQL goes in `supabase/migrations/` **and** a bundle
   (`node scripts/build-apply-bundles.mjs`): `supabase/apply/call_requests.sql`
   for this module, `all.sql` for everything, `_status.sql` to see what a project
@@ -173,11 +184,6 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **Product Master derivation + Warranty/Contract registers** — build from Sale
   Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
   received); add warranties/contracts/sales/ownership tables + screens.
-- **Installation Report / KYC uploads need a CallReg redeploy** — the request
-  form uploads both to the Drive folder through the new `driveupload` /
-  `driveref` actions, which exist only in `apps-script/CallReg.gs`, not on the
-  deployed Web App. Redeploy (re-authorising the Drive scope) and send the new
-  `/exec` URL to bump the baked-in default; until then an upload times out.
 - **Pending Calls noise** *(watch)* — a call with no visit reported counts as
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
@@ -187,10 +193,10 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   `driveupload` / `driveref` endpoints the request form uses (folder
   `1-46Ud9j…z2La`); the returned link fills the field, so both paths store one
   ordinary Drive link. The previous visit's report is linked from the drawer.
-  **Blocked on the same CallReg redeploy as the request-form uploads** — until
-  it ships, uploading times out and pasting a link is the working path.
-  **Queued:** surface the link as a 📎 column in the Reports register and the
-  call-view mini-table.
+  Live: CallReg was redeployed with the Drive scope (`driveupload` / `driveref`),
+  and the new `/exec` is baked in as URL version 8 — which also unblocks the
+  request form's Installation Report / KYC uploads. **Queued:** surface the link
+  as a 📎 column in the Reports register and the call-view mini-table.
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
@@ -256,6 +262,19 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     caught the 0012 bug — the build and the TypeScript tests could not see it.
     The harness runs as superuser, so it covers **triggers, not RLS policies**;
     the policies still want a check against the live project.
+  - *Phase 5* (`0016_spare_line_approvals.sql`): **approvals moved from the
+    request to the spare.** The RM decides each line on its own, so one OR can
+    go forward partly approved. Every later stage reads the same per-line
+    state, which is what lets it be actioned per spare *or* per OR (an "all N"
+    button; the RM stage deliberately has none). The request keeps a rolled-up
+    stage — the least-advanced surviving line — maintained by trigger, and the
+    header's own approval columns are frozen so the two cannot disagree.
+  - *Phase 6* (`0017_spare_or_number_monthly.sql`): OR numbers become
+    **`OR-YYMM-NNNN`, restarting at 0001 each month** (a back-dated request is
+    numbered in its own month). A per-month counter table replaces the single
+    running sequence; numbers already issued keep the old `OR47042` form, since
+    they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
+    `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
   - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
     first; the ITEM Master import carries only code, description and Active), a
     stores-side pick/pack view, and consumption reconciliation — flag a received
@@ -308,9 +327,9 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ## 🔧 Operational notes / blockers
 
-- **Redeploy CallReg** after backend changes (latest adds report/reportget,
-  tabmeta/tabappend, upload, master/masters/setmasters). Upload needs the Drive
-  scope → re-authorise on redeploy. Send the new /exec URL to bump the default.
+- **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
+  and send the new /exec URL so the baked-in default can be bumped. Done for the
+  upload endpoints (`driveupload` / `driveref`) — URL version **8**, 2026-08-29.
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.

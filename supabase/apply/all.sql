@@ -16,6 +16,8 @@
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
 --   0012_call_state.sql
+--   0014_call_state_denorm.sql
+--   0015_call_number.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
@@ -25,6 +27,10 @@
 --   0009_spare_receipt.sql
 --   0011_spare_intake.sql
 --   0012_spare_auto_approval.sql
+--   0016_spare_line_approvals.sql
+--   0017_spare_or_number_monthly.sql
+--   0018_spare_or_number_padded.sql
+--   0019_spare_or_number_format.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -293,6 +299,197 @@ alter view public.pending_calls set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
 grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0014_call_state_denorm.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state, without re-deriving it on every read.
+--
+-- 0012 computed a call's state from its latest visit in a view. Correct, but
+-- reading it meant scanning `reports` through that table's RLS — a correlated
+-- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
+-- is ~37ms without RLS and >5s with it: "canceling statement due to statement
+-- timeout".
+--
+-- The latest visit is now kept ON the call, maintained by a trigger on
+-- `reports`. Reads touch `calls` only — the register already loads it, so the
+-- state comes along for free, and Pending Calls is an indexed filter.
+-- ===========================================================================
+
+-- The 0012 views read the columns below, and one of them is recreated with a
+-- different shape, so they go first.
+drop view if exists public.pending_calls;
+drop view if exists public.call_state;
+
+alter table public.calls
+  add column if not exists last_status   text default '',
+  add column if not exists last_visit_at timestamptz;
+
+-- Derived, so it can never drift from the two columns above.
+alter table public.calls drop column if exists open_state;
+alter table public.calls add column open_state text
+  generated always as (
+    case
+      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
+      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
+      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
+      else 'Report pending'
+    end
+  ) stored;
+
+create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+
+-- ---- keep it current -------------------------------------------------------
+-- security definer: a visit by one engineer updates the call regardless of who
+-- may write `calls`.
+create or replace function public.sync_call_last_visit(p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.calls c
+     set last_status   = coalesce(r.call_status, ''),
+         last_visit_at = r.visit_at
+    from (
+      select call_status, visit_at
+        from public.reports
+       where ucn = p_ucn
+       order by visit_at desc nulls last, id desc
+       limit 1
+    ) r
+   where c.ucn = p_ucn;
+
+  if not found then  -- no visits left (or none matched): back to Unattended
+    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
+  end if;
+end $$;
+
+create or replace function public.reports_touch_call()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
+  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
+    perform public.sync_call_last_visit(old.ucn);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists reports_touch_call on public.reports;
+create trigger reports_touch_call after insert or update or delete on public.reports
+  for each row execute function public.reports_touch_call();
+
+-- ---- backfill --------------------------------------------------------------
+update public.calls c
+   set last_status   = coalesce(r.call_status, ''),
+       last_visit_at = r.visit_at
+  from (
+    select distinct on (ucn) ucn, call_status, visit_at
+      from public.reports
+     order by ucn, visit_at desc nulls last, id desc
+  ) r
+ where r.ucn = c.ucn
+   and (c.last_status is distinct from coalesce(r.call_status, '')
+     or c.last_visit_at is distinct from r.visit_at);
+
+-- ---- views, now trivial ----------------------------------------------------
+-- `calls` already carries `state` (the geographic one), so the call's open
+-- state stays `open_state` here too.
+create view public.call_state as
+  select ucn, last_status, last_visit_at, open_state as state from public.calls;
+
+create view public.pending_calls as
+  select * from public.calls where open_state <> 'Solved';
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0015_call_number.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call Number.
+--
+--   • From a call registration request → the request's UniqueID
+--     (REQID-Product-SerialNo), carried over when the Hotline registers it.
+--   • Direct customer call (no request) → CLYY + a 5-digit running number,
+--     e.g. CL2600001, continuing the existing series for that year
+--     (the register already holds CL2300081, CL2300079, …).
+--
+-- It was a free-text field nobody filled, so a hand-created call could be
+-- saved with a blank Call Number — and reports, spare requests, consumption
+-- and feedback are all keyed by it.
+-- ===========================================================================
+
+create table if not exists public.call_number_seq (
+  yy      text primary key,          -- two-digit year
+  last_no integer not null default 0
+);
+alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+
+-- Next CL number for a year. The counter is seeded once, from the numbers
+-- already in `calls` — so import historical CL numbers BEFORE this runs (or
+-- delete that year's `call_number_seq` row afterwards to re-seed).
+-- Next CL number for this year. The year's counter is seeded from the highest
+-- CLYY##### already in `calls`, so it continues the series instead of
+-- colliding with imported history.
+create or replace function public.next_direct_call_number(p_yy text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
+  v_no int;
+begin
+  insert into public.call_number_seq (yy, last_no)
+  values (v_yy, coalesce((
+    select max(substring(call_number from 5 for 5)::int)
+      from public.calls
+     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
+  on conflict (yy) do nothing;
+
+  update public.call_number_seq set last_no = last_no + 1
+   where yy = v_yy
+   returning last_no into v_no;
+
+  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
+end $$;
+
+-- Assign one when the call arrives without a Call Number. A call registered
+-- from a request carries the request's UniqueID, so this only fires for direct
+-- calls (and for any import row that has none).
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if coalesce(new.call_number, '') = '' then
+    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end $$;
+
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- Back-fill calls saved before this with no Call Number, each in its own year's
+-- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
+do $$
+declare r record;
+begin
+  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
+    update public.calls
+       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
+     where id = r.id;
+  end loop;
+end $$;
+
+grant execute on function public.next_direct_call_number(text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql
@@ -1178,5 +1375,512 @@ begin
 
   return new;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0016_spare_line_approvals.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Spare approvals move from the REQUEST to the LINE.
+--
+-- The RM must decide each spare individually — a request for five parts may
+-- warrant three of them — so the approval state belongs on spare_request_lines,
+-- not on the request header. The later stages (Commercial, NSM, Stores,
+-- receipt) also live on the line, which is what lets them be actioned either
+-- per spare or, by updating every open line of a request at once, per OR.
+--
+-- The request header keeps stage/status as a ROLL-UP of its lines, maintained
+-- by trigger, so existing reads and filters stay meaningful. Nothing writes
+-- those columns directly any more.
+-- ===========================================================================
+
+alter table public.spare_request_lines
+  add column if not exists rm_by               text,
+  add column if not exists rm_at               timestamptz,
+  add column if not exists commercial_approval text default 'Pending',
+  add column if not exists commercial_by       text,
+  add column if not exists commercial_at       timestamptz,
+  add column if not exists nsm_approval        text default 'Pending',
+  add column if not exists nsm_by              text,
+  add column if not exists nsm_at              timestamptz,
+  add column if not exists dc_number           text,
+  add column if not exists courier             text,
+  add column if not exists dispatch_remarks    text,
+  add column if not exists dispatched_by       text,
+  add column if not exists dispatched_at       timestamptz,
+  add column if not exists received_by         text,
+  add column if not exists received_at         timestamptz,
+  add column if not exists receipt_remarks     text,
+  add column if not exists reject_reason       text,
+  add column if not exists rejected_stage      text,
+  add column if not exists stage               text default 'RM Approval';
+
+-- Everything below writes data. The RBAC guard installed at the end of this
+-- migration is dropped first: these are data migrations, not somebody
+-- approving spares, and they must not be judged against whoever is running
+-- them. In the Supabase SQL Editor auth.uid() is NULL, so is_admin() is false
+-- and every stage check would refuse. Recreating the guard at the end also
+-- makes this migration safe to re-run.
+drop trigger if exists spare_request_lines_guard on public.spare_request_lines;
+
+-- rm_approval / stores_status / status already exist on the line (0001) but
+-- were never used; normalise them (and the column defaults) to the header's
+-- vocabulary, so new lines need no normalising on a later re-run.
+alter table public.spare_request_lines alter column rm_approval   set default 'Pending';
+alter table public.spare_request_lines alter column stores_status set default 'Pending';
+update public.spare_request_lines set rm_approval   = 'Pending' where coalesce(rm_approval, '') = '';
+update public.spare_request_lines set stores_status = 'Pending' where coalesce(stores_status, '') = '';
+
+-- ---------------------------------------------------------------------------
+-- Carry each existing request's decisions down onto its lines, so requests
+-- already part-way through the chain keep their state.
+-- ---------------------------------------------------------------------------
+update public.spare_request_lines l
+   set rm_approval         = coalesce(nullif(r.rm_approval, ''), l.rm_approval),
+       rm_by               = coalesce(l.rm_by, r.rm_by),
+       rm_at               = coalesce(l.rm_at, r.rm_at),
+       commercial_approval = coalesce(nullif(r.commercial_approval, ''), l.commercial_approval),
+       commercial_by       = coalesce(l.commercial_by, r.commercial_by),
+       commercial_at       = coalesce(l.commercial_at, r.commercial_at),
+       nsm_approval        = coalesce(nullif(r.nsm_approval, ''), l.nsm_approval),
+       nsm_by              = coalesce(l.nsm_by, r.nsm_by),
+       nsm_at              = coalesce(l.nsm_at, r.nsm_at),
+       stores_status       = coalesce(nullif(r.stores_status, ''), l.stores_status),
+       dc_number           = coalesce(l.dc_number, r.dc_number),
+       courier             = coalesce(l.courier, r.courier),
+       dispatch_remarks    = coalesce(l.dispatch_remarks, r.dispatch_remarks),
+       dispatched_by       = coalesce(l.dispatched_by, r.dispatched_by),
+       dispatched_at       = coalesce(l.dispatched_at, r.dispatched_at),
+       received_by         = coalesce(l.received_by, r.received_by),
+       received_at         = coalesce(l.received_at, r.received_at),
+       receipt_remarks     = coalesce(l.receipt_remarks, r.receipt_remarks),
+       reject_reason       = coalesce(l.reject_reason, r.reject_reason),
+       rejected_stage      = coalesce(l.rejected_stage, r.rejected_stage),
+       stage               = coalesce(nullif(r.stage, ''), l.stage)
+  from public.spare_requests r
+ where r.uid = l.request_uid
+   and l.rm_at is null;   -- only lines never decided on their own
+
+-- ---------------------------------------------------------------------------
+-- One line's stage — the same rule the app applies (src/lib/spareflow.ts).
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_line_stage(
+  rm text, commercial text, nsm text, stores text, received timestamptz, item_status text
+) returns text language sql immutable as $$
+  select case
+    when rm ~* 'reject' or commercial ~* 'reject' or nsm ~* 'reject' then 'Rejected'
+    when received is not null                                        then 'Received'
+    when stores ~* 'dispatch'                                        then 'Dispatched'
+    when rm !~* 'approv|auto'                                        then 'RM Approval'
+    when public.spare_needs_review(item_status)
+     and commercial !~* 'approv|auto'                                then 'Commercial'
+    when public.spare_needs_review(item_status)
+     and nsm !~* 'approv|auto'                                       then 'NSM'
+    else 'Stores'
+  end;
+$$;
+grant execute on function public.spare_line_stage(text, text, text, text, timestamptz, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Keep each line's own stage column current.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_lines_set_stage()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare item text;
+begin
+  select r.item_status into item from public.spare_requests r where r.uid = new.request_uid;
+  new.stage := public.spare_line_stage(
+    coalesce(new.rm_approval, 'Pending'), coalesce(new.commercial_approval, 'Pending'),
+    coalesce(new.nsm_approval, 'Pending'), coalesce(new.stores_status, 'Pending'),
+    new.received_at, item);
+  new.status := new.stage;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_set_stage on public.spare_request_lines;
+create trigger spare_request_lines_set_stage
+  before insert or update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_set_stage();
+
+-- ---------------------------------------------------------------------------
+-- Roll the lines up onto the request: the least-advanced stage among the lines
+-- still alive, or Rejected when every line was rejected.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_rollup(p_uid text)
+returns void language plpgsql security definer set search_path = public as $$
+declare roll text;
+begin
+  select case
+           when count(*) = 0                              then 'RM Approval'
+           when count(*) filter (where stage <> 'Rejected') = 0 then 'Rejected'
+           else min(case stage
+                      when 'RM Approval' then 1 when 'Commercial' then 2
+                      when 'NSM'         then 3 when 'Stores'     then 4
+                      when 'Dispatched'  then 5 when 'Received'   then 6
+                    end) filter (where stage <> 'Rejected')::text
+         end
+    into roll
+    from public.spare_request_lines where request_uid = p_uid;
+
+  roll := coalesce(case roll
+            when '1' then 'RM Approval' when '2' then 'Commercial'
+            when '3' then 'NSM'         when '4' then 'Stores'
+            when '5' then 'Dispatched'  when '6' then 'Received'
+            else roll end, 'RM Approval');
+
+  -- Written by this function only; the header guard below allows it via a flag.
+  perform set_config('app.spare_rollup', '1', true);
+  update public.spare_requests
+     set stage  = roll,
+         status = case when roll = 'Stores' then 'Awaiting Dispatch' else roll end
+   where uid = p_uid and (stage is distinct from roll);
+  perform set_config('app.spare_rollup', '', true);
+end $$;
+
+create or replace function public.spare_request_lines_rollup()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.spare_request_rollup(coalesce(new.request_uid, old.request_uid));
+  return null;
+end $$;
+
+drop trigger if exists spare_request_lines_rollup on public.spare_request_lines;
+create trigger spare_request_lines_rollup
+  after insert or update or delete on public.spare_request_lines
+  for each row execute function public.spare_request_lines_rollup();
+
+-- ---------------------------------------------------------------------------
+-- The per-stage guard moves to the line. Same rules as 0012 held on the
+-- header: each stage's columns may only change if the actor holds that stage's
+-- action; Commercial/NSM auto-approve alongside the RM on a non-AMC item; the
+-- receipt needs spare.receive, the raiser, and a dispatched line.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_lines_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  changed boolean;
+  auto_ok boolean;
+  req     public.spare_requests;
+begin
+  if public.is_admin() then return new; end if;
+  select * into req from public.spare_requests where uid = new.request_uid;
+
+  auto_ok := not public.spare_needs_review(req.item_status)
+             and public.has_perm('spare.approve_rm');
+
+  changed := new.rm_approval is distinct from old.rm_approval
+          or new.rm_by       is distinct from old.rm_by
+          or new.rm_at       is distinct from old.rm_at;
+  if changed and not public.has_perm('spare.approve_rm') then
+    raise exception 'RBAC: RM approval requires the spare.approve_rm permission';
+  end if;
+
+  changed := new.commercial_approval is distinct from old.commercial_approval
+          or new.commercial_by       is distinct from old.commercial_by
+          or new.commercial_at       is distinct from old.commercial_at;
+  if changed
+     and not public.has_perm('spare.approve_commercial')
+     and not (auto_ok and new.commercial_approval = 'Auto-Approved'
+              and new.commercial_by is not distinct from old.commercial_by) then
+    raise exception 'RBAC: Commercial approval requires the spare.approve_commercial permission';
+  end if;
+
+  changed := new.nsm_approval is distinct from old.nsm_approval
+          or new.nsm_by       is distinct from old.nsm_by
+          or new.nsm_at       is distinct from old.nsm_at;
+  if changed
+     and not public.has_perm('spare.approve_nsm')
+     and not (auto_ok and new.nsm_approval = 'Auto-Approved'
+              and new.nsm_by is not distinct from old.nsm_by) then
+    raise exception 'RBAC: NSM approval requires the spare.approve_nsm permission';
+  end if;
+
+  changed := new.stores_status    is distinct from old.stores_status
+          or new.dc_number        is distinct from old.dc_number
+          or new.dispatched_by    is distinct from old.dispatched_by
+          or new.dispatched_at    is distinct from old.dispatched_at
+          or new.courier          is distinct from old.courier
+          or new.dispatch_remarks is distinct from old.dispatch_remarks;
+  if changed and not public.has_perm('spare.dispatch') then
+    raise exception 'RBAC: dispatch / DC requires the spare.dispatch permission';
+  end if;
+
+  changed := new.reject_reason  is distinct from old.reject_reason
+          or new.rejected_stage is distinct from old.rejected_stage;
+  if changed and not public.can_approve_spares() then
+    raise exception 'RBAC: recording a rejection requires an approval permission';
+  end if;
+
+  changed := new.received_by     is distinct from old.received_by
+          or new.received_at     is distinct from old.received_at
+          or new.receipt_remarks is distinct from old.receipt_remarks;
+  if changed then
+    if not public.has_perm('spare.receive') then
+      raise exception 'RBAC: acknowledging receipt requires the spare.receive permission';
+    end if;
+    if not public.is_spare_requester(req) then
+      raise exception 'RBAC: only the engineer who raised the request may acknowledge it';
+    end if;
+    if old.stores_status is null or old.stores_status !~* 'dispatch' then
+      raise exception 'RBAC: a spare can only be acknowledged after it is dispatched';
+    end if;
+  end if;
+
+  -- The part and quantity are the request; they are fixed once submitted.
+  if (new.part is distinct from old.part or new.qty is distinct from old.qty)
+     and not public.is_spare_requester(req) then
+    raise exception 'RBAC: only the engineer who raised the request may change its parts';
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_guard on public.spare_request_lines;
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+
+-- ---------------------------------------------------------------------------
+-- The header no longer carries decisions. Its stage/status change only through
+-- the roll-up; its approval columns are legacy and frozen for non-admins.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_requests_stage_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  if coalesce(current_setting('app.spare_rollup', true), '') = '1' then return new; end if;
+
+  if new.stage  is distinct from old.stage
+  or new.status is distinct from old.status
+  or new.rm_approval         is distinct from old.rm_approval
+  or new.commercial_approval is distinct from old.commercial_approval
+  or new.nsm_approval        is distinct from old.nsm_approval
+  or new.stores_status       is distinct from old.stores_status
+  or new.received_at         is distinct from old.received_at then
+    raise exception 'Spare approvals are recorded per spare — update spare_request_lines, not the request';
+  end if;
+  return new;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Approvers already update lines; the raiser must too, to acknowledge receipt.
+-- ---------------------------------------------------------------------------
+drop policy if exists srl_update on public.spare_request_lines;
+create policy srl_update on public.spare_request_lines for update
+  using (
+    public.can_approve_spares()
+    or exists (select 1 from public.spare_requests r
+                where r.uid = spare_request_lines.request_uid and public.is_spare_requester(r))
+  )
+  with check (
+    public.can_approve_spares()
+    or exists (select 1 from public.spare_requests r
+                where r.uid = spare_request_lines.request_uid and public.is_spare_requester(r))
+  );
+
+-- Bring every existing request's header into line with its lines.
+do $$
+declare u text;
+begin
+  for u in select uid from public.spare_requests loop
+    perform public.spare_request_rollup(u);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0017_spare_or_number_monthly.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- OR numbers become OR-YY/MM/N, restarting at 1 every month.
+--
+-- 0011 issued a single running series (OR47042…) continuing the sheet's. The
+-- required format is per-month instead: OR-26/08/1, OR-26/08/2, … and the
+-- first request of September is OR-26/09/1.
+--
+-- Numbers already issued are NOT rewritten — they are quoted on DCs and in
+-- Tally, so the old series stays as history and the new format starts here.
+-- ===========================================================================
+
+-- One counter per YY/MM period. Written only by next_spare_or_no().
+create table if not exists public.spare_or_counters (
+  period  text primary key,          -- 'YY/MM', e.g. '26/08'
+  last_no integer not null default 0
+);
+alter table public.spare_or_counters enable row level security;  -- definer-only
+
+-- Hand out the next number for a month. The upsert is atomic, so two requests
+-- submitted at the same moment cannot take the same number.
+create or replace function public.next_spare_or_no(p_on date default current_date)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  p text := to_char(p_on, 'YY/MM');
+  n integer;
+begin
+  insert into public.spare_or_counters (period, last_no) values (p, 1)
+  on conflict (period) do update set last_no = public.spare_or_counters.last_no + 1
+  returning last_no into n;
+  return 'OR-' || p || '/' || n;
+end $$;
+grant execute on function public.next_spare_or_no(date) to authenticated;
+
+-- If this month already has numbers in the new format (a re-run, or a partial
+-- rollout), continue past the highest rather than colliding with it.
+insert into public.spare_or_counters (period, last_no)
+select to_char(coalesce(or_req_date, created_at::date), 'YY/MM'),
+       max((regexp_replace(or_no, '^OR-\d\d/\d\d/', ''))::integer)
+  from public.spare_requests
+ where or_no ~ '^OR-\d\d/\d\d/\d+$'
+ group by 1
+on conflict (period) do update
+  set last_no = greatest(public.spare_or_counters.last_no, excluded.last_no);
+
+create or replace function public.spare_requests_assign_or_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.or_req_date is null then
+    new.or_req_date := current_date;
+  end if;
+  if new.or_no is null or trim(new.or_no) = '' then
+    -- Numbered in the month the request is raised in.
+    new.or_no := public.next_spare_or_no(new.or_req_date);
+  end if;
+  return new;
+end $$;
+
+-- The old single running series is no longer used by anything.
+drop sequence if exists public.spare_or_no_seq;
+
+-- ------------------------------------------------------------------------
+-- 0018_spare_or_number_padded.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- OR numbers pad the counter to three digits: OR-26/08/001.
+--
+-- 0017 wrote the counter bare (OR-26/08/1), which sorts wrongly as text once a
+-- month passes nine requests — OR-26/08/10 lands before OR-26/08/2 in the
+-- register and in CSV exports. Three digits sorts correctly to 999 a month.
+--
+-- Past 999 the number simply grows (OR-26/08/1000) and text ordering breaks
+-- again at that point; no month is expected to come close.
+-- ===========================================================================
+
+create or replace function public.next_spare_or_no(p_on date default current_date)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  p text := to_char(p_on, 'YY/MM');
+  n integer;
+begin
+  insert into public.spare_or_counters (period, last_no) values (p, 1)
+  on conflict (period) do update set last_no = public.spare_or_counters.last_no + 1
+  returning last_no into n;
+  return 'OR-' || p || '/' || lpad(n::text, 3, '0');
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Restate the few numbers 0017 issued unpadded. This is the same number in the
+-- required format, not a renumbering: OR-26/08/1 becomes OR-26/08/001, same
+-- month, same position in the series. The unpadded form was only ever live
+-- between 0017 and this migration.
+--
+-- The immutability trigger is dropped first: it refuses any or_no change from
+-- a non-admin, and in the Supabase SQL Editor auth.uid() is NULL so is_admin()
+-- is false. It is recreated below, which also makes this safe to re-run.
+-- ---------------------------------------------------------------------------
+drop trigger if exists spare_requests_number_immutable on public.spare_requests;
+
+update public.spare_requests r
+   set or_no = 'OR-' || substring(or_no from 4 for 5) || '/'
+               || lpad(substring(or_no from 10), 3, '0')
+ where or_no ~ '^OR-\d\d/\d\d/\d{1,2}$'
+   -- never write over a number that already exists in the padded form
+   and not exists (
+     select 1 from public.spare_requests x
+      where x.or_no = 'OR-' || substring(r.or_no from 4 for 5) || '/'
+                      || lpad(substring(r.or_no from 10), 3, '0')
+        and x.uid <> r.uid);
+
+create trigger spare_requests_number_immutable
+  before update on public.spare_requests
+  for each row execute function public.spare_requests_number_immutable();
+
+-- Re-seed the counters from the padded numbers, so a re-run cannot hand out
+-- one that is taken (0017's seeding only matched the unpadded form).
+insert into public.spare_or_counters (period, last_no)
+select to_char(coalesce(or_req_date, created_at::date), 'YY/MM'),
+       max((regexp_replace(or_no, '^OR-\d\d/\d\d/', ''))::integer)
+  from public.spare_requests
+ where or_no ~ '^OR-\d\d/\d\d/\d+$'
+ group by 1
+on conflict (period) do update
+  set last_no = greatest(public.spare_or_counters.last_no, excluded.last_no);
+
+-- ------------------------------------------------------------------------
+-- 0019_spare_or_number_format.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- OR numbers become OR-YYMM-NNNN: OR-2608-0001.
+--
+-- Third and final shape for this identifier:
+--   0017  OR-26/08/1     monthly series, bare counter
+--   0018  OR-26/08/001   padded to three
+--   0019  OR-2608-0001   slashes replaced by a dash, counter padded to four
+--
+-- Still one series per month, restarting at 0001. Four digits sorts correctly
+-- to 9999 a month, which no month will approach.
+--
+-- Numbers from the ORIGINAL sheet series (OR47042…) are left alone — they are
+-- quoted on DCs and in Tally. The OR-26/08/… forms only ever existed between
+-- these migrations, so they are restated into the new shape.
+-- ===========================================================================
+
+create or replace function public.next_spare_or_no(p_on date default current_date)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  p text := to_char(p_on, 'YY/MM');   -- counters stay keyed by YY/MM
+  n integer;
+begin
+  insert into public.spare_or_counters (period, last_no) values (p, 1)
+  on conflict (period) do update set last_no = public.spare_or_counters.last_no + 1
+  returning last_no into n;
+  return 'OR-' || to_char(p_on, 'YYMM') || '-' || lpad(n::text, 4, '0');
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Restate the slashed numbers. Same month, same position in the series — only
+-- the rendering changes.
+--
+-- The immutability trigger is dropped first: it refuses any or_no change from
+-- a non-admin, and in the Supabase SQL Editor auth.uid() is NULL so is_admin()
+-- is false. Recreated below, which also makes this safe to re-run.
+-- ---------------------------------------------------------------------------
+drop trigger if exists spare_requests_number_immutable on public.spare_requests;
+
+update public.spare_requests r
+   set or_no = 'OR-' || substring(or_no from 4 for 2) || substring(or_no from 7 for 2)
+               || '-' || lpad(regexp_replace(or_no, '^OR-\d\d/\d\d/', ''), 4, '0')
+ where or_no ~ '^OR-\d\d/\d\d/\d+$'
+   and not exists (
+     select 1 from public.spare_requests x
+      where x.or_no = 'OR-' || substring(r.or_no from 4 for 2) || substring(r.or_no from 7 for 2)
+                      || '-' || lpad(regexp_replace(r.or_no, '^OR-\d\d/\d\d/', ''), 4, '0')
+        and x.uid <> r.uid);
+
+create trigger spare_requests_number_immutable
+  before update on public.spare_requests
+  for each row execute function public.spare_requests_number_immutable();
+
+-- Re-seed the counters from the new shape, so a re-run cannot reissue a number
+-- that is taken (earlier seeding only matched the slashed forms).
+insert into public.spare_or_counters (period, last_no)
+select substring(or_no from 4 for 2) || '/' || substring(or_no from 6 for 2),
+       max((regexp_replace(or_no, '^OR-\d{4}-', ''))::integer)
+  from public.spare_requests
+ where or_no ~ '^OR-\d{4}-\d+$'
+ group by 1
+on conflict (period) do update
+  set last_no = greatest(public.spare_or_counters.last_no, excluded.last_no);
 
 commit;

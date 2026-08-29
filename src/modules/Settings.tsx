@@ -5,6 +5,7 @@ import { TemplatePlaceholder } from './TemplatePlaceholder';
 import { SheetConnection } from './SheetConnection';
 import { DbConnection } from './DbConnection';
 import { useAuth } from '../lib/auth';
+import { ChangePassword } from './ChangePassword';
 
 export function Settings() {
   const { theme, themes, setThemeId } = useTheme();
@@ -22,6 +23,10 @@ export function Settings() {
   return (
     <div>
       <PageHeader title="Settings" subtitle="Appearance, design-system defaults & templates" icon="⚙️" />
+
+      <ChangePassword />
+
+      <div style={{ height: 16 }} />
 
       <DbConnection />
 

@@ -111,6 +111,38 @@ Rejections surface in the UI through `errMsg()` in `src/lib/supabase.ts`,
 which turns `42501` / row-level-security errors and the triggers' `RBAC: …`
 messages into a readable sentence.
 
+## Password reset
+
+Passwords live in Supabase Auth, so resets go through it — the app never sees
+or stores another user's password.
+
+Three ways in:
+
+- **Forgot password** on the sign-in screen → `resetPasswordForEmail()` emails a
+  one-time link. The form always reports success, so it can't be used to probe
+  which addresses have accounts.
+- **User Access → Reset password** (admins) sends that same link to a user who
+  is locked out.
+- **Settings → Password** changes it while signed in; the current password is
+  checked first, since `updateUser()` alone doesn't ask for it.
+
+The link returns to the app as an implicit-flow fragment
+(`#access_token=…&type=recovery`). The app routes on the hash, so
+`takeRecoveryFromUrl()` in `src/lib/supabase.ts` grabs the tokens in
+`main.tsx` *before* React and the router run, resets the URL to `#/`, and
+`AuthProvider` exchanges them for a session; `ResetPassword.tsx` then takes the
+new password. An expired or reused link comes back as `#error=…` and is shown
+as a message on the sign-in screen. `detectSessionInUrl` is off so the client
+doesn't race that handoff.
+
+**Project setup required for the emails to arrive:**
+
+- Authentication → URL Configuration: set the **Site URL** and add the deployed
+  app URL (and any preview URLs) to **Redirect URLs** — the link's `redirectTo`
+  must be allow-listed or Supabase refuses it.
+- Authentication → Emails: configure SMTP. The built-in sender is rate-limited
+  to a handful of messages an hour and is not meant for production.
+
 ## Open items to confirm before go-live
 
 - **UCN format**: `next_ucn()` currently emits `<YY><MonthLetter><DD><TypeLetter><Seq4>`

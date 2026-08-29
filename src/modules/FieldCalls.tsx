@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, openCallStates } from '../lib/supabase';
+import { supabaseConfigured, searchCalls } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import './fieldcalls.css';
 import {
@@ -50,12 +50,20 @@ const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
 export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
-  if (!prefill) return FIELD_CALL_FIELDS;
-  return FIELD_CALL_FIELDS.map((f) =>
-    FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== ''
-      ? { ...f, readOnly: true, help: 'From Product Master (locked)' }
-      : f,
-  );
+  // Call Number is never typed: a call registered from a request carries the
+  // request's UniqueID (REQID-Product-Serial); a direct call is assigned
+  // CLYY##### by the database on save.
+  const callNumberField = (f: FieldDef): FieldDef =>
+    String(prefill?.callNumber ?? '') !== ''
+      ? { ...f, readOnly: true, help: 'From the call request (UniqueID)' }
+      : { ...f, readOnly: true, help: 'Assigned on save — CLYY##### for a direct customer call' };
+
+  return FIELD_CALL_FIELDS.map((f) => {
+    if (f.name === 'callNumber') return callNumberField(f);
+    if (prefill && FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== '')
+      return { ...f, readOnly: true, help: 'From Product Master (locked)' };
+    return f;
+  });
 }
 
 // ===========================================================================
@@ -76,7 +84,7 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
   { name: 'ucn', label: 'UC Number (UCN)', section: 'Registration', readOnly: true, help: 'Assigned automatically on save — matches the sheet UCN format.', span: 1 },
   { name: 'regDate', label: 'Call Registration Date', section: 'Registration', readOnly: true, help: 'Stamped automatically.', span: 1 },
-  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'e.g. R18447-MONNAL T75-7909', span: 1 },
+  { name: 'callNumber', label: 'Call Number', section: 'Registration', placeholder: 'Assigned on save', span: 1 },
   { name: 'complaintDate', label: 'Complaint Date', type: 'date', section: 'Registration', required: true, span: 1 },
 
   // Customer & product
@@ -328,15 +336,10 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  // Which calls are still open (Unattended / Unsolved / Report pending). One
-  // query for the whole register; every other call is Solved.
-  const [callStates, setCallStates] = useState<Record<string, string>>({});
-  const loadStates = () => {
-    if (!supabaseConfigured()) return;
-    openCallStates().then(setCallStates).catch(() => { /* column stays blank until 0012 is run */ });
-  };
-  useEffect(() => { loadStates(); /* eslint-disable-next-line */ }, []);
-  const { user, can } = useAuth();
+  const { user, can, isAdmin } = useAuth();
+  // A Solved call is read-only for everyone except admins.
+  const isSolved = (row: Rec) => /solved/i.test(String(row.status ?? ''));
+  const canEditRow = (row: Rec) => can('calls.edit') && (isAdmin || !isSolved(row));
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
   const partyMaster = useMaster('party');
@@ -405,7 +408,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     } finally {
       setBusy(false);
     }
-    loadStates();
   };
 
   // Use the cached data when it's fresh (< 30 min); only auto-sync when the
@@ -529,6 +531,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const handleEdit = async (values: FormValues) => {
     const row = drawer?.row;
     if (!row) return;
+    if (!canEditRow(row)) { setBanner({ tone: 'error', text: isSolved(row) ? 'This call is Solved and read-only.' : 'You don’t have permission to edit calls.' }); setDrawer(null); return; }
     const patch = buildPayload(values, config.callType);
     setBusy(true);
     try {
@@ -610,27 +613,22 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       )),
     );
     // Newest first: cache already appends in load order; reverse for recency.
-    // Call Status comes from the open-call map — anything not listed there is
-    // closed, and a local (unsynced) call has no state yet.
-    return [...r].reverse().map((row) => ({
-      ...row,
-      callState: row._pending || !row.ucn ? '' : callStates[String(row.ucn)] ?? 'Solved',
-    }));
-  }, [cached, srch, scope, user?.id, onDb, callStates]);
+    return [...r].reverse();
+  }, [cached, srch, scope, user?.id, onDb]);
 
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,
     render: (row) => (
       <div className="row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'view', row })}>View</button>
-        {can('edit') && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
-        {can('edit') && !row._pending && (
-          <button className="btn btn-sm btn-primary" title="Update / report this call (saved to Reporting-N)" onClick={() => setReport(row)}>📝 Update</button>
+        {canEditRow(row) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
+        {can('calls.report') && !row._pending && (
+          <button className="btn btn-sm btn-primary" title="Update / report this call" onClick={() => setReport(row)}>📝 Update</button>
         )}
-        {can('edit') && !row._pending && (
+        {can('spare.request') && !row._pending && (
           <button className="btn btn-sm" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦 Spare</button>
         )}
-        {row._pending && can('edit') && (
+        {row._pending && (can('calls.create') || can('calls.edit')) && (
           <button className="btn btn-sm btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
         )}
       </div>
@@ -644,7 +642,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         subtitle={config.subtitle}
         icon={config.icon}
         actions={
-          can('edit') && (
+          can('calls.create') && (
             <button
               className="btn btn-primary"
               onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setPendingRow(null); setDrawer({ mode: 'create' }); }}
@@ -739,12 +737,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
               </div>
             )}
-            {/* Actions at the top of a call's view */}
-            {drawer.mode === 'view' && !drawer.row?._pending && can('edit') && (
+            {/* Actions at the top of a call's view (each gated by its own permission) */}
+            {drawer.mode === 'view' && !drawer.row?._pending && (can('calls.report') || can('spare.request') || canEditRow(drawer.row as Rec)) && (
               <div className="call-actions-top">
-                <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
-                <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
-                <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>
+                {can('calls.report') && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>}
+                {can('spare.request') && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
+                {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
+                {isSolved(drawer.row as Rec) && !isAdmin && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Solved — read-only</span>}
               </div>
             )}
             {drawer.mode === 'create' && configured && (
@@ -762,13 +761,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
-                drawer.mode === 'view' && can('edit') ? (
+                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || can('calls.report') || can('spare.request')) ? (
                   <>
-                    <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>
-                    {!drawer.row?._pending && (
+                    {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
+                    {!drawer.row?._pending && can('calls.report') && (
                       <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
                     )}
-                    {!drawer.row?._pending && (
+                    {!drawer.row?._pending && can('spare.request') && (
                       <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
                     )}
                   </>

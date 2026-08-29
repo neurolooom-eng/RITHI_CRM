@@ -25,10 +25,13 @@ export function DataImport() {
   const [files, setFiles] = useState<FileState[]>([]);
   const [busy, setBusy] = useState(false);
 
+  const [countErr, setCountErr] = useState('');
   const refreshCounts = async () => {
     const out: Partial<Record<ImportTable, number | null>> = {};
-    for (const t of TABLES) out[t] = await tableCount(t);
+    let firstErr = '';
+    for (const t of TABLES) { const r = await tableCount(t); out[t] = r.count; if (r.error && !firstErr) firstErr = `${t}: ${r.error}`; }
     setCounts(out);
+    setCountErr(firstErr);
   };
   useEffect(() => { if (supabaseConfigured()) void refreshCounts(); }, []);
 
@@ -80,6 +83,7 @@ export function DataImport() {
         ))}
         <button className="btn btn-sm" onClick={() => void refreshCounts()} disabled={busy}>↻ Counts</button>
       </div>
+      {countErr && <div className="sheet-banner sheet-banner-error" style={{ marginBottom: 12 }}><span>Count check failed — {countErr} (a “—” means the query errored, not that the table is empty). If the project is paused, open it in Supabase to resume; if you’re signed out, sign in again.</span></div>}
 
       <input type="file" accept=".csv" multiple onChange={(e) => void onPick(e.target.files)} disabled={busy} />
 

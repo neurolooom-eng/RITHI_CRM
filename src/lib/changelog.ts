@@ -12,6 +12,65 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.10',
+    date: '2026-08-29',
+    title: 'OR numbers are per month',
+    changes: [
+      'OR numbers now read OR-YYMM-NNNN \u2014 OR-2608-0001, OR-2608-0002 \u2014 and the count restarts at 0001 on the first of each month.',
+      'A back-dated request is numbered in the month it is dated, not the month it is entered.',
+      'Numbers already issued keep their old form: they are quoted on DCs and in Tally, so the old series stays as history and the new format starts from here.',
+    ],
+  },
+  {
+    version: '0.6.7',
+    date: '2026-08-29',
+    title: 'Spare approvals are per spare, not per request',
+    changes: [
+      'The RM now approves or rejects each spare on its own, so a request for five parts can go forward with three \u2014 the rejected ones stop, the rest carry on to Stores.',
+      'Commercial, NSM, Stores and the engineer\u2019s receipt work the same way, and can be actioned either one spare at a time or, with the \u201call N\u201d button, for every spare of an OR still at that stage. The RM stage deliberately has no bulk button.',
+      'Each spare carries its own approval trail, DC number and rejection reason; the request shows the stage of whichever spare is furthest behind.',
+      'The database now refuses an approval written against the request instead of the spare, so the two can never disagree.',
+    ],
+  },
+  {
+    version: '0.6.6',
+    date: '2026-08-29',
+    title: 'Request Call Registration is a register',
+    changes: [
+      'The screen was a bare form \u2014 you could raise a request but never see one again. It is now a table of every request raised, newest first, with what became of it: Pending, Registered, Mapped (to a call that already existed) or Cancelled, and the UCN once it has one.',
+      'Filter by status, search across REQID / UCN / party / product / serial / engineer, export to CSV, and click a row to read the full request.',
+      '\u201cNew Request\u201d opens the same form as before, in a drawer; the list refreshes as soon as a request is saved.',
+    ],
+  },
+  {
+    version: '0.6.5',
+    date: '2026-08-29',
+    title: 'Call Number is assigned, not typed',
+    changes: [
+      'Call Number was a free-text box nobody filled, so a call created by hand could be saved blank \u2014 and reports, spare requests, consumption and feedback are all keyed by it.',
+      'It is now assigned automatically: a call registered from a request carries the request\u2019s UniqueID (REQID-Product-Serial); a direct customer call gets CLYY plus a five-digit running number (CL2600081), continuing that year\u2019s series.',
+      'Calls already saved without one are back-filled, each in the series for the year it was registered.',
+    ],
+  },
+  {
+    version: '0.6.4',
+    date: '2026-08-29',
+    title: 'Call status no longer times out',
+    changes: [
+      'Loading a register or Pending Calls could fail with \u201ccanceling statement due to statement timeout\u201d. The call\u2019s status was re-derived from the whole visit history on every read, and the per-row security checks on visits made that ~140\u00d7 more expensive than the same query without them.',
+      'A call now carries its own latest-visit status, kept current as visits are saved. The registers get it with the rows they already load \u2014 one query instead of two \u2014 and Pending Calls reads an indexed column.',
+    ],
+  },
+  {
+    version: '0.6.3',
+    date: '2026-08-29',
+    title: 'File uploads are live',
+    changes: [
+      'The CallReg backend was redeployed with the Drive permission the uploads need, and the app now points at it \u2014 every device picks up the new address on its own.',
+      'Manual Report on a call, and Installation Report / KYC on a registration request, can now actually be uploaded rather than only linked.',
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-08-29',
     title: 'Reporting loads again, and the manual report can be uploaded',
