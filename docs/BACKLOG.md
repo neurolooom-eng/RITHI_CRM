@@ -270,11 +270,11 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     stage — the least-advanced surviving line — maintained by trigger, and the
     header's own approval columns are frozen so the two cannot disagree.
   - *Phase 6* (`0017_spare_or_number_monthly.sql`): OR numbers become
-    **`OR-YY/MM/NNN`, restarting at 001 each month** (a back-dated request is
+    **`OR-YYMM-NNNN`, restarting at 0001 each month** (a back-dated request is
     numbered in its own month). A per-month counter table replaces the single
     running sequence; numbers already issued keep the old `OR47042` form, since
-    they are quoted on DCs and in Tally. `0018` pads the counter to three
-    digits so the register sorts correctly past nine a month.
+    they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
+    `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
   - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
     first; the ITEM Master import carries only code, description and Active), a
     stores-side pick/pack view, and consumption reconciliation — flag a received

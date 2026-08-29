@@ -85,7 +85,7 @@ const MODULES = {
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
       '→ NSM → Stores), the engineer receipt that closes it, the OR/RowNo',
-      'numbering (OR-YY/MM/NNN, restarting each month), and per-SPARE approvals —',
+      'numbering (OR-YYMM-NNNN, restarting each month), and per-SPARE approvals —',
       'the RM decides each line on its own, so one OR can go forward partly approved.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers'],
@@ -97,6 +97,7 @@ const MODULES = {
       '0016_spare_line_approvals.sql',
       '0017_spare_or_number_monthly.sql',
       '0018_spare_or_number_padded.sql',
+      '0019_spare_or_number_format.sql',
     ],
   },
 };
