@@ -93,6 +93,14 @@ export function RequestCallRegistration() {
     if (!filled.some((it) => it.product.trim())) return 'Add at least one call (Product is required).';
     const bad = filled.findIndex((it) => !it.product.trim());
     if (bad >= 0) return `Call ${bad + 1}: Product is required (or clear the other fields).`;
+    // One row per Product + Serial within a request (its UniqueID), so the same
+    // pair can't appear twice.
+    const seen = new Set<string>();
+    for (let i = 0; i < filled.length; i++) {
+      const key = `${filled[i].product.trim().toLowerCase()}|${filled[i].serial.trim().toLowerCase()}`;
+      if (seen.has(key)) return `Call ${i + 1}: this Product + Serial is already on the request.`;
+      seen.add(key);
+    }
     if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
     if (uploading > 0) return 'Wait for the document upload to finish.';
     return '';
