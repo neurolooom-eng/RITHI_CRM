@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { MODULES, moduleAction } from './lib/rbac';
+import { MODULES, actionForPath } from './lib/rbac';
 import { AuthProvider, useAuth } from './lib/auth';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { clearDemoData } from './lib/seed';
@@ -13,6 +13,7 @@ import { ProductMaster } from './modules/ProductMaster';
 import { PartyMaster } from './modules/PartyMaster';
 import { PartMaster } from './modules/PartMaster';
 import { AllMasters } from './modules/AllMasters';
+import { MasterListPage } from './modules/MasterListPage';
 import { Reports } from './modules/Reports';
 import { RolePermissions } from './modules/RolePermissions';
 import { UserMasterView } from './modules/UserMasterView';
@@ -53,8 +54,10 @@ function Shell() {
 
   // RBAC route guard: a known module the role can't open is blocked (nav hides
   // it too). Unknown paths fall through to the routes / not-found.
-  const known = MODULES.some((m) => m.path === location.pathname);
-  if (known && !can(moduleAction(location.pathname))) {
+  // Every /masters/<key> screen is the All Masters module (see actionForPath).
+  const known = MODULES.some((m) => m.path === location.pathname)
+    || location.pathname.startsWith('/masters/');
+  if (known && !can(actionForPath(location.pathname))) {
     return (
       <Layout>
         <div style={{ padding: 32 }} className="muted">
@@ -73,6 +76,7 @@ function Shell() {
         <Route path="/products" element={<CrudModule config={productConfig} />} />
         <Route path="/parts" element={<PartMaster />} />
         <Route path="/masters" element={<AllMasters />} />
+        <Route path="/masters/:key" element={<MasterListPage />} />
         <Route path="/warranties" element={<CrudModule config={warrantyConfig} />} />
         <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
         <Route path="/field-calls" element={<FieldCalls />} />

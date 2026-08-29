@@ -53,6 +53,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/version-history', label: 'Version History' },
 ];
 export const moduleAction = (path: string): string => `mod:${path}`;
+
+// Each master value list has its own screen (/masters/<key>), but they are one
+// module: whoever may open All Masters may open any of its lists. Keeps the
+// role matrix from growing a row per list.
+export const actionForPath = (path: string): string =>
+  moduleAction(path.startsWith('/masters/') ? '/masters' : path);
 const ADMIN_MODULES = MODULES.filter((m) => m.admin).map((m) => moduleAction(m.path));
 const NON_ADMIN_MODULES = MODULES.filter((m) => !m.admin).map((m) => moduleAction(m.path));
 const ALL_MODULES = MODULES.map((m) => moduleAction(m.path));

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.2',
+    date: '2026-08-29',
+    title: 'Each master list has its own screen',
+    changes: [
+      'New Master Lists group in the sidebar: Call Type, Standard Complaint, Call Pending Reason, Call Cancel Reason, Feedback Rating and Spare Approval Reason each open their own screen, with that list\u2019s own table, Add and Remove.',
+      'All Masters stays the overview \u2014 counts, sources and status for every master \u2014 and opening a list from there shows the same table, with a link through to its own screen.',
+      'Fixed: the value lists could look like they never arrived. The previous release\u2019s cached rows were still being shown, and clicking one did nothing; and if the master-lists tables were not in the database yet, the whole screen failed instead of falling back to the lists the app knows and saying which SQL bundle to apply.',
+      'The list screens need no new permission \u2014 whoever can open All Masters can open any of them.',
+    ],
+  },
+  {
     version: '0.7.1',
     date: '2026-08-29',
     title: 'Every master value list is its own editable table',
