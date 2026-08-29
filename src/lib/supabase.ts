@@ -105,21 +105,49 @@ function callToDb(rec: Record<string, unknown>): Record<string, unknown> {
   }
   return out;
 }
-// Coerce assorted date strings to YYYY-MM-DD (Postgres date); '' -> null.
+// Coerce assorted date strings to YYYY-MM-DD (Postgres date); '' / unparseable -> null.
+const _MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 function isoDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? s : d.toISOString().slice(0, 10);
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[-/ ]([A-Za-z]+)[-/ ](\d{4})/); // 28-August-2026 / 2-Sep-2026
+  if (m) { const mo = _MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return `${m[3]}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
+  m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/); // DD/MM/YYYY
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return null;
+}
+
+// Map a snake_case products row to the sheet-header shape the call forms expect
+// (productToCallPrefill reads these keys).
+export function productRowToSheet(r: Record<string, unknown>): Record<string, unknown> {
+  const ex = (r.extra as Record<string, unknown>) ?? {};
+  const g = (k: string) => r[k] ?? '';
+  return {
+    'Party Name': g('party_name'), 'City': ex['City'] ?? '', 'State': ex['State'] ?? '',
+    'Item Name': g('item_name'), 'Item Serial Number': g('serial_number'), 'Item Status': g('item_status'),
+    'Warranty Number': g('warranty_number'), 'Warranty Start Date': g('warranty_start'), 'Warranty End Date': g('warranty_end'),
+    'Contract Number': g('contract_number'), 'Contract Start Date': g('contract_start'), 'Contract End Date': g('contract_end'),
+    'Contract Type': g('contract_type'), 'Service Engineer': ex['Service Engineer'] ?? '',
+  };
 }
 
 // ---- calls ----------------------------------------------------------------
-export async function listCalls(callType = '', limit = 500): Promise<Record<string, unknown>[]> {
-  let q = must().from('calls').select('*').order('created_at', { ascending: false }).limit(limit);
-  if (callType) q = q.eq('call_type', callType);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return (data ?? []).map(dbToCall);
+// Supabase caps a single response at ~1000 rows, so page through with range()
+// until the register is fully loaded (or `limit` reached).
+export async function listCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    let q = must().from('calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    if (callType) q = q.eq('call_type', callType);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    out.push(...rows.map(dbToCall));
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
 
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }
@@ -134,6 +162,44 @@ export async function addCall(rec: Record<string, unknown>): Promise<AddResult> 
 export async function updateCall(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('calls').update(callToDb(patch)).eq('ucn', ucn);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+// ---- Product Master (cascade + search) -------------------------------------
+export async function sbListParties(): Promise<string[]> {
+  const { data, error } = await must().from('parties').select('party_name').order('party_name').limit(10000);
+  if (error) throw new Error(error.message);
+  return [...new Set((data ?? []).map((r) => String(r.party_name)).filter(Boolean))];
+}
+export async function sbListPartyProducts(party: string): Promise<string[]> {
+  const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
+  if (error) throw new Error(error.message);
+  return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
+}
+export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
+  let q = must().from('products').select('*').eq('party_name', party).limit(2000);
+  if (product) q = q.eq('item_name', product);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(productRowToSheet);
+}
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100): Promise<Record<string, unknown>[]> {
+  let q = must().from('products').select('*').limit(limit);
+  if (filters.serial) q = q.ilike('serial_number', `%${filters.serial}%`);
+  if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
+  if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
+  if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(productRowToSheet);
+}
+
+// Map a sheet tab name to a call_type value in the calls table.
+export function callTypeForTab(tab: string): string {
+  const t = (tab || '').toUpperCase();
+  if (t === 'INST' || t.startsWith('INSTALL')) return 'INSTALLATION CALL';
+  if (t === 'PM' || t.startsWith('P M') || t.startsWith('PM')) return 'P M VISIT';
+  if (t === 'FIELD') return 'FIELD';
+  return tab; // already a call_type, or empty (= all)
 }
 
 // ---- pending registrations -------------------------------------------------
