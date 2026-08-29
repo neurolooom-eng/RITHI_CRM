@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
-import { csvExport } from '../lib/format';
+import { csvExport, timeAgo } from '../lib/format';
 import { queryParties, supabaseConfigured, type PartyFilter } from '../lib/supabase';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 
 // ===========================================================================
-// PARTY MASTER — live from Supabase `parties`. Field-specific server-side
-// filters (Party / City / State / Type) with a Load more pager.
+// PARTY MASTER — live from Supabase `parties`, with a local browser cache +
+// last-sync (like the Call Register): instant load from cache, 30-min auto
+// refresh, manual force-sync. Field filters (Party / City / State / Type)
+// query the server live; the unfiltered browse set is what gets cached.
 // ===========================================================================
 
+const CACHE_KEY = 'partyMaster';
 const PAGE = 1000;
 type Row = Record<string, unknown> & { id: string };
 
@@ -20,30 +24,65 @@ const COLUMNS: Column<Row>[] = [
   { key: 'address', header: 'Address', width: 340 },
 ];
 
+const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.map((p, i) => ({ ...p, id: String(p.id ?? base + i) } as Row));
+
 export function PartyMaster() {
+  const cached = loadCache<Row>(CACHE_KEY);
   const [filter, setFilter] = useState<PartyFilter>({ name: '', city: '', state: '', type: '' });
-  const [rows, setRows] = useState<Row[]>([]);
-  const [offset, setOffset] = useState(0);
-  const [more, setMore] = useState(false);   // a full page came back → maybe more
+  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
+  const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
+  const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
   const set = (k: keyof PartyFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
-  const toRows = (data: Record<string, unknown>[], base: number) => data.map((p, i) => ({ ...p, id: String(p.id ?? base + i) } as Row));
+  const hasFilter = !!(filter.name || filter.city || filter.state || filter.type);
 
-  // Debounced first page whenever a filter changes.
-  useEffect(() => {
+  // Force-sync the browse set (no filters) and cache it.
+  const refresh = async () => {
     if (!supabaseConfigured()) return;
+    setBusy(true);
+    try {
+      const data = await queryParties({}, 0, PAGE);
+      const r = toRows(data, 0);
+      setRows(r); setOffset(r.length); setMore(r.length === PAGE);
+      setLastSync(saveCache(CACHE_KEY, r));
+      setMsg({ tone: 'ok', text: `Synced ${r.length}${r.length === PAGE ? '+' : ''} parties.` });
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Sync failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+
+  // Mount: show cache, refresh if stale/empty. 30-min auto force-sync.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (mounted.current) return; mounted.current = true;
+    if (!supabaseConfigured()) return;
+    if (!rows.length || isStale(lastSync)) void refresh();
+    else setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
+    const id = window.setInterval(() => { if (!hasFilter) void refresh(); }, SYNC_TTL_MS);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Filters: query the server live (debounced). Clearing them restores the cache.
+  useEffect(() => {
+    if (!mounted.current || !supabaseConfigured()) return;
+    if (!hasFilter) {
+      const c = loadCache<Row>(CACHE_KEY);
+      if (c) { setRows(c.rows); setOffset(c.rows.length); setMore(c.rows.length >= PAGE); setLastSync(c.at); }
+      return;
+    }
     const t = window.setTimeout(async () => {
       setBusy(true);
       try {
         const data = await queryParties(filter, 0, PAGE);
         setRows(toRows(data, 0)); setOffset(data.length); setMore(data.length === PAGE);
-        const any = filter.name || filter.city || filter.state || filter.type;
-        setMsg({ tone: 'ok', text: `${data.length}${data.length === PAGE ? '+' : ''} parties${any ? ' matched' : ''}.` });
+        setMsg({ tone: 'ok', text: `${data.length}${data.length === PAGE ? '+' : ''} parties matched (live).` });
       } catch (e) {
-        setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
+        setMsg({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
       } finally { setBusy(false); }
     }, 300);
     return () => window.clearTimeout(t);
@@ -53,9 +92,10 @@ export function PartyMaster() {
   const loadMore = async () => {
     setBusy(true);
     try {
-      const data = await queryParties(filter, offset, PAGE);
-      setRows((cur) => [...cur, ...toRows(data, cur.length)]);
-      setOffset((o) => o + data.length); setMore(data.length === PAGE);
+      const data = await queryParties(hasFilter ? filter : {}, offset, PAGE);
+      const merged = [...rows, ...toRows(data, rows.length)];
+      setRows(merged); setOffset(offset + data.length); setMore(data.length === PAGE);
+      if (!hasFilter) setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) {
       setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -69,7 +109,7 @@ export function PartyMaster() {
 
   return (
     <div>
-      <PageHeader title="Party Master" subtitle="Customers / parties — live from the database." icon="🏥" />
+      <PageHeader title="Party Master" subtitle="Customers / parties — cached locally, synced from the database." icon="🏥" />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -93,9 +133,10 @@ export function PartyMaster() {
               <input className="input" placeholder="City" value={filter.city} onChange={(e) => set('city', e.target.value)} />
               <input className="input" placeholder="Type" value={filter.type} onChange={(e) => set('type', e.target.value)} />
             </div>
-            {busy && <span className="muted">…</span>}
+            <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             {more && !busy && <button className="btn btn-sm" onClick={() => void loadMore()}>↓ Load more</button>}
             <div className="spacer" />
+            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('party-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
