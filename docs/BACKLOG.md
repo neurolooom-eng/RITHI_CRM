@@ -282,6 +282,18 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
+- **Stock Transfer** — ✅ shipped (`0020_stock_transfer.sql`). Engineer-to-engineer
+  hand-stock transfers, numbered `ST-YYMM-NNNN`. **Stock is derived, not stored:**
+  the `engineer_stock` view sums hand-stock dispatched to an engineer, less
+  consumption, plus/minus transfers — so a balance cannot drift from its history.
+  A transfer only offers parts the sender holds and caps the qty at what is
+  left, enforced by trigger as well as in the form (an AFTER trigger, so a
+  multi-row insert that individually passes but together over-draws is caught).
+  **Note:** inflow keys off *dispatch*, not the engineer's acknowledgement —
+  acknowledgement needs `spare.receive`, which the role defaults no longer give
+  engineers, so keying off it would leave every balance at zero.
+  **Next:** store-level stock (this is engineer hand-stock only), and stock
+  decrement straight from a Call-Based dispatch.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target

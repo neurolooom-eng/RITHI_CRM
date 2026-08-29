@@ -80,6 +80,13 @@ const MODULES = {
     needs: ['profiles'],
     files: ['0010_reports_ordering.sql'],
   },
+  stock_transfer: {
+    title: 'Stock Transfer',
+    blurb: ['Engineer-to-engineer hand-stock transfers, with the stock balance derived',
+            'from what each engineer was dispatched and has consumed.'],
+    needs: ['spareTables', 'rbac', 'visibleEngineers'],
+    files: ['0020_stock_transfer.sql'],
+  },
   spare_requests: {
     title: 'Spare Requests',
     blurb: [
@@ -172,6 +179,7 @@ MODULES.all = {
     ...MODULES.rbac.files,
     ...MODULES.reports.files,
     ...MODULES.spare_requests.files,
+    ...MODULES.stock_transfer.files,
   ],
 };
 

@@ -725,6 +725,61 @@ export async function updateSpareRequest(uid: string, patch: Record<string, unkn
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// ---- stock transfer -------------------------------------------------------
+// Stock is not stored; engineer_stock derives it from hand-stock received,
+// consumption, and transfers (0020_stock_transfer.sql).
+export interface StockRow { engineer: string; part: string; qty: number }
+
+// What one engineer is holding — only parts with something left.
+export async function listEngineerStock(engineer: string): Promise<StockRow[]> {
+  const key = engineer.trim().toLowerCase();
+  if (!key) return [];
+  const { data, error } = await must().from('engineer_stock')
+    .select('*').eq('engineer', key).gt('qty', 0).order('part');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
+}
+
+// Every engineer's holding, for the stock-on-hand view.
+export async function listAllStock(limit = 5000): Promise<StockRow[]> {
+  const { data, error } = await must().from('engineer_stock')
+    .select('*').gt('qty', 0).order('engineer').limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
+}
+
+export async function addStockTransfer(
+  from: string, to: string, lines: { part: string; qty: number }[], remarks = '', on?: string,
+): Promise<{ ok: boolean; uid?: string; error?: string }> {
+  const c = must();
+  // uid / row_no are assigned by the database.
+  const { data, error } = await c.from('stock_transfers')
+    .insert({ from_engineer: from.trim(), to_engineer: to.trim(), remarks, ...(on ? { transfer_date: on } : {}) })
+    .select('uid').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const uid = String(data.uid);
+  const { error: le } = await c.from('stock_transfer_lines')
+    .insert(lines.map((l, i) => ({ transfer_uid: uid, row_no: i + 1, part: l.part, qty: l.qty })));
+  if (le) {
+    // The lines are the transfer; a header alone is not a usable record. The
+    // stock check rejects the whole insert, so nothing moved.
+    await c.from('stock_transfers').delete().eq('uid', uid);
+    return { ok: false, error: errMsg(le) };
+  }
+  return { ok: true, uid };
+}
+
+export async function listStockTransfers(limit = 1000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('stock_transfer_lines')
+    .select('*, stock_transfers!inner(uid, from_engineer, to_engineer, transfer_date, remarks, status, created_at)')
+    .order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const { stock_transfers: h, ...line } = r as Record<string, unknown> & { stock_transfers?: Record<string, unknown> };
+    return { ...h, ...line, uid: h?.uid, transferred_at: h?.created_at };
+  });
+}
+
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
 export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);

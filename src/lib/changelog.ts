@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-08-29',
+    title: 'Stock Transfer',
+    changes: [
+      'New Stock Transfer screen: move hand-stock from one engineer to another, with a transfer number (ST-YYMM-NNNN) and remarks.',
+      'Stock on hand is worked out from what has actually happened \u2014 hand-stock dispatched to the engineer, less what they consumed on calls, plus or minus transfers \u2014 so the figure can never disagree with the history behind it.',
+      'A transfer only offers parts the sender is holding, and the quantity box will not go above what is left of that part. The database enforces the same limit, so a stale screen cannot overdraw.',
+      'A \u201cStock on hand\u201d tab shows every engineer\u2019s holding, searchable and exportable to CSV.',
+    ],
+  },
+  {
     version: '0.6.10',
     date: '2026-08-29',
     title: 'OR numbers are per month',

@@ -220,14 +220,31 @@ left join lateral (
 
 -- NB: `calls` already has a `state` column (the geographic one), so the call's
 -- open state is exposed here as `open_state`.
-create or replace view public.pending_calls as
-select c.*, s.state as open_state, s.last_status, s.last_visit_at
-from public.calls c
-join public.call_state s on s.ucn = c.ucn
-where s.state <> 'Solved';
+--
+-- Skipped once 0014_call_state_denorm.sql has run: that migration denormalises
+-- open_state onto `calls` itself and rebuilds this view against it. After that,
+-- `c.*` here already carries open_state and aliasing s.state to the same name
+-- collides ("column open_state ... already exists"), which broke re-running
+-- this file. 0014's definition supersedes this one, so skipping is a no-op.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
 
-alter view public.call_state    set (security_invoker = on);
-alter view public.pending_calls set (security_invoker = on);
+  create or replace view public.pending_calls as
+  select c.*, s.state as open_state, s.last_status, s.last_visit_at
+  from public.calls c
+  join public.call_state s on s.ucn = c.ucn
+  where s.state <> 'Solved';
+
+  execute 'alter view public.pending_calls set (security_invoker = on)';
+  execute 'grant select on public.pending_calls to authenticated';
+end $$;
+
+alter view public.call_state set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
 grant select on public.pending_calls to authenticated;
