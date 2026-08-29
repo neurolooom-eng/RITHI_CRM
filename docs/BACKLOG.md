@@ -32,6 +32,20 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
   from Product Master; section reorder persists.
 - Call Registration Request → 2026-CRNRequest; Pending Registrations (Hotline)
   registers UCN-less Data-2026 rows, mapping warranty/contract, back-fills UCN.
+- **Call status everywhere** — a call is **Solved / Unsolved / Report pending /
+  Unattended** by its LATEST visit, derived once in Postgres (`call_state` /
+  `pending_calls` views, `0012_call_state.sql`). Colour-coded column on the
+  Field / Installation / PM registers, and a **Pending Calls** module
+  (`/pending-calls`): every call nobody has closed, with clickable status tiles,
+  type filter, search, CSV export and the registers' role scoping.
+- **Pending Registrations = the Hotline desk** — clicking a request opens it in
+  full and closes it out one of three ways: **map** it to an existing call (its
+  UCN goes into the editable **UCN Number (Mapped)** column), **create** a new
+  call (UCN assigned and back-filled), or **cancel** it with a reason from the
+  `cancelreason` master. Each takes it off the pending list. Column 2 shows
+  **Open Calls** — calls on that machine nobody has closed — so a duplicate is
+  visible before another is created. Gated on `pending.register`, so the Hotline
+  role can act without call-edit rights.
 - **Call reporting** (replaces the standalone Call Updation view): "Update Call"
   on every Field/Installation call → Reporting-N tab, keyed by UCN.
   - Sectioned by Call Status: Solved (full report + manual report upload + spare
@@ -87,10 +101,21 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
   **Party Master** view, master dropdowns (paginated past the 1000 cap),
   **Reports** view, **Update Call reporting** (per-visit history, engineer picker),
   **spare consumption + feedback**, **Request Registration** (→ `call_requests`,
-  multi-product ≤5, REQID/UniqueID), **Pending Registrations** (reads
-  `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
+  multi-product ≤5, REQID/UniqueID), **Pending Registrations** (the Hotline
+  desk over `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
   Data Import**, unified **call view** (actions on top + mini-tables keyed by Call
   Number).
+- ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
+  row per call sharing its REQID; `unique_key` is the identity; atomic insert
+  via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
+  `0012_call_state` (the two views). Applied.
+- ✅ **Apply bundles** — new SQL goes in `supabase/migrations/` **and** a bundle
+  (`node scripts/build-apply-bundles.mjs`): `supabase/apply/call_requests.sql`
+  for this module, `all.sql` for everything, `_status.sql` to see what a project
+  is missing. Migration numbers are per-module and collide
+  (`0011_spare_intake` vs `0011_call_request_actions`) — go by file name.
+  `supabase/tests/call_requests_test.sql` exercises the whole set against a
+  throwaway Postgres.
 - ✅ **Local browser cache + "synced X ago" + 30-min auto/force sync** on masters,
   Reports, and spare tables; **Load more** in every table footer.
 - ✅ **Global date formats** (Short `dd-mmm-yyyy`, Long `dd-mmm-yyyy hh:mm:ss`).
@@ -116,8 +141,18 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
 - **Product Master derivation + Warranty/Contract registers** — build from Sale
   Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
   received); add warranties/contracts/sales/ownership tables + screens.
-- **Manual Report** — currently a Drive-link paste; option to restore file
-  upload to the Drive folder `1-46Ud9j…z2La` (question).
+- **Installation Report / KYC uploads need a CallReg redeploy** — the request
+  form uploads both to the Drive folder through the new `driveupload` /
+  `driveref` actions, which exist only in `apps-script/CallReg.gs`, not on the
+  deployed Web App. Redeploy (re-authorising the Drive scope) and send the new
+  `/exec` URL to bump the baked-in default; until then an upload times out.
+- **Pending Calls noise** *(watch)* — a call with no visit reported counts as
+  Unattended, with no age cut-off, so an old import can crowd the list; add a
+  date filter if it does. "Report pending" counts as open (visited, not closed)
+  — say so if it should be hidden instead.
+- **Manual Report** — currently a Drive-link paste; the `driveupload` endpoint
+  added for the request form can back a file-upload flow here too (folder
+  `1-46Ud9j…z2La`) (question).
 - **Reports history screen** — a fuller visit-history report beyond the call-view
   mini-table (the `/reports` screen covers the list; expand if needed).
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
@@ -144,8 +179,8 @@ REST + RLS + Auth). Migrations `0001`–`0008` (also consolidated in
     (FIELD, INSTALLATION CALL, P M VISIT, SW UPGRADATION, FSCA, DEMO, ...).
   - `pendingreason` → col **"Call Pending Reason Name"** → the pending-reason
     field on the call report (Unsolved branch).
-  - `cancelreason` → col **"Call Cancel Reason Name"** → reserved for call
-    cancellation (no UI yet).
+  - `cancelreason` → col **"Call Cancel Reason Name"** → the reason on the
+    Hotline's **Cancel request** action (Pending Registrations).
 
 ---
 
