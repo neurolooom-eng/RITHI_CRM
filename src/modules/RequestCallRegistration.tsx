@@ -7,6 +7,7 @@ import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import { todayISO } from '../lib/format';
+import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -274,8 +275,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       call_attended: f.callAttended, attended_date: f.attendedDate || null, plan_date: f.planDate || null,
       additional_comments: f.additionalComments,
     };
+    const t0 = performance.now();
     try {
       const res = await addCallRequestBatch(base, filled);
+      logAudit({ action: 'request.create', target: res.reqid ?? '', status: res.ok && !res.error ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0), meta: { products: filled.length, callType: f.callType } });
       if (res.ok) {
         setMsg({ tone: res.error ? 'error' : 'ok', text: res.error ?? `Request ${res.reqid} submitted — ${res.count} call${res.count === 1 ? '' : 's'}. Now in Pending Registrations.` });
         if (!res.error) { reset(); onSaved(); }

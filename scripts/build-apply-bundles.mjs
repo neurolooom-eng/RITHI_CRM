@@ -83,6 +83,12 @@ const MODULES = {
       '0015_call_number.sql',
     ],
   },
+  audit: {
+    title: 'Audit Log',
+    blurb: ['The audit trail: actions, logins, errors and how long each took.'],
+    needs: ['profiles'],
+    files: ['0009_audit_log.sql'],
+  },
   masters: {
     title: 'Master Value Lists',
     blurb: ['The master lists registry — each value list (Call Type, Standard Complaint,',
@@ -189,7 +195,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

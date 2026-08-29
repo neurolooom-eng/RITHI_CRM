@@ -13,6 +13,7 @@ import {
   deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
+import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -172,7 +173,9 @@ export function SpareRequestDrawer({
 
     setBusy(true); setErr('');
     try {
+      const t0 = performance.now();
       const res = await addSpareRequest(req, picks);
+      logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: callFields.ucn, parts: picks.length } });
       if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {

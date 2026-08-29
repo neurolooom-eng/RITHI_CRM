@@ -18,6 +18,7 @@
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
 --   0013_all_masters_module.sql
+--   0009_audit_log.sql
 --   0021_master_lists.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
@@ -1075,6 +1076,58 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters';
+
+-- ------------------------------------------------------------------------
+-- 0009_audit_log.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Audit log — records actions, logins, errors, and the time each action took.
+-- Clients insert their own events; the identity (user_id/email) is stamped by
+-- the DB so it can't be forged. Only admins can read the log.
+-- ===========================================================================
+
+create table if not exists public.audit_log (
+  id          bigint generated always as identity primary key,
+  at          timestamptz not null default now(),
+  user_id     uuid,
+  email       text default '',
+  actor       text default '',      -- display name (client-supplied)
+  role        text default '',      -- role key (client-supplied)
+  action      text not null,        -- e.g. login, call.create, call.report, spare.approve
+  target      text default '',      -- UCN / uid / id the action acted on
+  status      text default 'ok',    -- ok | error
+  error       text default '',
+  duration_ms integer,              -- how long the action took
+  meta        jsonb not null default '{}'
+);
+create index if not exists audit_at_idx     on public.audit_log (at desc);
+create index if not exists audit_action_idx on public.audit_log (action);
+create index if not exists audit_email_idx  on public.audit_log (lower(email));
+create index if not exists audit_status_idx on public.audit_log (status);
+
+-- Stamp identity + time server-side (don't trust the client for who/when).
+create or replace function public.audit_before_insert()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.user_id := auth.uid();
+  new.email   := coalesce(nullif(auth.email(), ''), new.email);  -- keep attempted email for anon login failures
+  new.at      := now();
+  return new;
+end $$;
+drop trigger if exists audit_biu on public.audit_log;
+create trigger audit_biu before insert on public.audit_log
+  for each row execute function public.audit_before_insert();
+
+alter table public.audit_log enable row level security;
+-- Authenticated users log their own actions; anon may log only login attempts
+-- (so failed logins, which have no session yet, are still recorded).
+drop policy if exists audit_insert on public.audit_log;
+create policy audit_insert on public.audit_log for insert
+  with check (auth.role() = 'authenticated' or action in ('login', 'login_failed'));
+-- Only admins read the audit log.
+drop policy if exists audit_read on public.audit_log;
+create policy audit_read on public.audit_log for select using (public.is_admin());
 
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
