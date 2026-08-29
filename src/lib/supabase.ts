@@ -349,6 +349,28 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
   return { ok: true, reqid, count: items.length };
 }
 
+// Every call request, whatever its outcome — the Request Registration register.
+// Rows keep the app's camelCase shape; `status` is Pending / Mapped /
+// Registered / Cancelled.
+export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('call_requests').select('*')
+    .order('submitted_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({
+    id: r.id, reqid: r.reqid, uniqueKey: r.unique_key, submittedAt: r.submitted_at,
+    engineer: r.engineer, email: r.email, callType: r.call_type,
+    partyName: r.party_name, state: r.state, city: r.city, address: r.address,
+    product: r.product, serial: r.serial_no,
+    standardComplaint: r.standard_complaint, reportedProblem: r.reported_problem,
+    customerContactDetails: r.customer_contact_details, customerContactNumber: r.customer_contact_number,
+    installationReport: r.installation_report, kyc: r.kyc,
+    callAttended: r.call_attended, attendedDate: r.attended_date, planDate: r.plan_date,
+    additionalComments: r.additional_comments,
+    ucn: r.ucn ?? '', status: r.status ?? 'Pending',
+    cancelReason: r.cancel_reason ?? '', actionedBy: r.actioned_by ?? '', actionedAt: r.actioned_at ?? '',
+  }));
+}
+
 // Pending call registrations (no UCN yet), mapped to the header keys the
 // Pending Registrations screen already reads.
 export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {

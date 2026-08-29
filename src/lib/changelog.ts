@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.6',
+    date: '2026-08-29',
+    title: 'Request Call Registration is a register',
+    changes: [
+      'The screen was a bare form \u2014 you could raise a request but never see one again. It is now a table of every request raised, newest first, with what became of it: Pending, Registered, Mapped (to a call that already existed) or Cancelled, and the UCN once it has one.',
+      'Filter by status, search across REQID / UCN / party / product / serial / engineer, export to CSV, and click a row to read the full request.',
+      '\u201cNew Request\u201d opens the same form as before, in a drawer; the list refreshes as soon as a request is saved.',
+    ],
+  },
+  {
     version: '0.6.5',
     date: '2026-08-29',
     title: 'Call Number is assigned, not typed',
