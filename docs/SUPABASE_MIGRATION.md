@@ -56,13 +56,15 @@ RM/RGM sees the reporting sub-tree (recursive over
 ## What's already in the repo
 
 - `supabase/migrations/0001_init.sql` — schema + RLS + UCN generator.
-- `supabase/migrations/0007_rbac_enforcement.sql` — RBAC enforced in Postgres
+- `supabase/migrations/0008_rbac_enforcement.sql` — RBAC enforced in Postgres
   (see below).
+- `supabase/migrations/0009_spare_receipt.sql` — spare-request receipt stage:
+  acknowledgement columns, and the stage guard extended to cover them.
 - `src/lib/supabase.ts` — client, connection config, and a data API whose
   function shapes mirror the old `sheets.ts` so modules switch mechanically.
 - `@supabase/supabase-js` installed.
 
-## RBAC — server-side enforcement (`0007_rbac_enforcement.sql`)
+## RBAC — server-side enforcement (`0008_rbac_enforcement.sql`)
 
 The role → action matrix that admins edit in **Admin → Roles & Permissions**
 (`app_roles`) is now enforced by Postgres, not only by the browser. Before

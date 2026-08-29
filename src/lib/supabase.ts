@@ -464,17 +464,18 @@ export async function addSpareRequest(req: Record<string, unknown>, lines: { par
 }
 export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
+    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, status, stage, rm_approval, rm_by, rm_at, commercial_approval, commercial_by, commercial_at, nsm_approval, nsm_by, nsm_at, stores_status, dc_number, courier, dispatch_remarks, dispatched_by, dispatched_at, received_by, received_at, receipt_remarks, reject_reason, rejected_stage, created_at)')
     .order('created_at', { ascending: false }).limit(limit);
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
-    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
+    // Flatten the parent request onto the line so the register (and the
+    // workflow helpers) read one row per part. The request wins on the columns
+    // both tables carry (approvals, stores status) — those live on the request.
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
     return {
-      ...r, uid: req?.uid, req_type: req?.req_type, req_engineer: req?.engineer, requested_at: req?.created_at,
-      ucn: req?.ucn, call_number: req?.call_number, party_name: req?.party_name, product_name: req?.product_name,
-      serial: req?.serial, item_status: req?.item_status, req_status: req?.status, stage: req?.stage,
-      rm_approval: req?.rm_approval, commercial_approval: req?.commercial_approval, nsm_approval: req?.nsm_approval,
-      stores_status: req?.stores_status, dc_number: req?.dc_number,
+      ...line, ...req, part: line.part, qty: line.qty, line_id: line.id,
+      uid: req?.uid, req_engineer: req?.engineer, requested_at: req?.created_at,
+      req_status: req?.status, line_status: line.status,
     };
   });
 }
@@ -491,12 +492,16 @@ export async function reportsByCall(callNumber: string): Promise<Record<string, 
 }
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, created_at)')
+    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
     .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
   if (error) return [];
   return (data ?? []).map((r) => {
-    const req = (r as Record<string, unknown>).spare_requests as Record<string, unknown> | undefined;
-    return { ...r, uid: req?.uid, req_type: req?.req_type, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at };
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    // Same flattening as the register: the request owns the workflow columns.
+    return {
+      ...line, ...req, part: line.part, qty: line.qty,
+      uid: req?.uid, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at,
+    };
   });
 }
 export async function spareConsumptionByCall(callNumber: string): Promise<Record<string, unknown>[]> {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured } from '../lib/supabase';
+import { deriveStage } from '../lib/spareflow';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -80,7 +81,8 @@ export function CallAssociations({ callNumber }: { callNumber: string }) {
           { key: 'uid', label: 'Req UID' },
           { key: 'part', label: 'Part' },
           { key: 'qty', label: 'Qty' },
-          { key: 'req_status', label: 'Status' },
+          { key: 'stage', label: 'Stage', fmt: (r) => deriveStage(r) },
+          { key: 'dc_number', label: 'DC No' },
         ]}
       />
 
