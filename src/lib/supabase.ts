@@ -506,6 +506,14 @@ export interface Profile {
   id: string; email: string; full_name: string; role: string;
   designation?: string; engineer_code?: string;
   reporting_manager_email?: string; regional_manager_email?: string; active?: boolean;
+  extra_permissions?: string[];
+}
+
+// Admin: set a user's role and/or extra per-user permissions.
+export async function updateProfile(id: string, patch: { role?: string; extra_permissions?: string[] }): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.from('profiles').update(patch).eq('id', id);
+  return error ? { ok: false, error: error.message } : { ok: true };
 }
 
 export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
