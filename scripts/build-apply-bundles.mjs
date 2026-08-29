@@ -71,6 +71,14 @@ const MODULES = {
       '0012_call_state.sql',
     ],
   },
+  masters: {
+    title: 'Master Value Lists',
+    blurb: ['The master lists registry — each value list (Call Type, Standard Complaint,',
+            'Pending Reason, Cancel Reason, Feedback, Spare Approval Reason) as its own',
+            'maintained table, seeded from the "200 All Masters" workbook.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0014_master_lists.sql'],
+  },
   spare_requests: {
     title: 'Spare Requests',
     blurb: [
