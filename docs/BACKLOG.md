@@ -56,6 +56,10 @@ _Last updated: 2026-08-29_
 - **All Masters** (`/masters`) — one view over every master: the registers
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- In-call **Spares Consumed** picker reads the live `spare` master too (it used
+  to list the same cleared demo collection). A consumed part is stored by its
+  `CODE|Description` catalogue string; the old Amount/Total column and the stock
+  decrement are gone — the live `parts` table carries neither price nor on-hand.
 
 ### UX
 - All tables: column show/hide/reorder/resize (⚙ lists every schema field),
@@ -193,9 +197,11 @@ auto REST + RLS + Auth).
     writes. 0011 fixes the RM's approval of a non-AMC item being refused by
     0008's stage guard (the auto-approval of Commercial/NSM rode along in the
     same update and tripped their permission checks).
-  - **Next:** stock decrement on dispatch (Part Master on-hand), a stores-side
-    pick/pack view, and consumption reconciliation — flag a received request
-    whose parts were never consumed against the call.
+  - **Next:** stock decrement on dispatch (Part Master on-hand — needs
+    `parts.on_hand`/price columns first; the ITEM Master import carries only
+    code, description and Active), a stores-side pick/pack view, and consumption
+    reconciliation — flag a received request whose parts were never consumed
+    against the call.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target
@@ -203,7 +209,8 @@ auto REST + RLS + Auth).
   else the first sheet). Links editable in Admin Config. Confirm the landing tab
   after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
-  Entry, ITEM Master, "200 All Masters").
+  Entry, "200 All Masters"). ITEM Master is done — it backs Part Master, the
+  spare-request picker and the in-call consumption picker.
 - Preventive Maintenance (PM) schedule/calls.
 - Sale Entry, Reports, Dashboard/KPI, Indoor Activity, other misc (to be placed).
 
