@@ -31,7 +31,7 @@ each other.
 | `user_directory.sql` | `0004` — engineer directory, reporting-tree helpers | base `0001` |
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
 | `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
-| `call_requests.sql` | `0003`, `0010`, `0011`, `0012`, `0014` — call requests, the Hotline actions, and call state | `user_directory` |
+| `call_requests.sql` | `0003`, `0010`, `0011`, `0012`, `0014`, `0015` — call requests, the Hotline actions, call state, Call Number | `user_directory` |
 | `reports.sql` | `0010_reports_ordering` — visit-history ordering indexes | base `0001` |
 | `all.sql` | the five above, in dependency order | base `0001` |
 

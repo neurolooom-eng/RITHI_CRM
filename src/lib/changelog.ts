@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.5',
+    date: '2026-08-29',
+    title: 'Call Number is assigned, not typed',
+    changes: [
+      'Call Number was a free-text box nobody filled, so a call created by hand could be saved blank \u2014 and reports, spare requests, consumption and feedback are all keyed by it.',
+      'It is now assigned automatically: a call registered from a request carries the request\u2019s UniqueID (REQID-Product-Serial); a direct customer call gets CLYY plus a five-digit running number (CL2600081), continuing that year\u2019s series.',
+      'Calls already saved without one are back-filled, each in the series for the year it was registered.',
+    ],
+  },
+  {
     version: '0.6.4',
     date: '2026-08-29',
     title: 'Call status no longer times out',
