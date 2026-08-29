@@ -97,6 +97,9 @@ const MODULES = {
     files: ['0020_stock_transfer.sql'],
   },
   spare_requests: {
+    // Written to the repo root as Spare_X.sql rather than supabase/apply/,
+    // by request — it is the file handed round for the spare module.
+    out: 'Spare_X.sql',
     title: 'Spare Requests',
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
@@ -165,8 +168,8 @@ function build(name) {
     parts.push(readFileSync(join(MIGRATIONS, f), 'utf8').trimEnd(), ``);
   }
   parts.push(`commit;`, ``);
-  mkdirSync(OUT, { recursive: true });
-  const out = join(OUT, `${name}.sql`);
+  const out = m.out ? join(__dir, '..', m.out) : join(OUT, `${name}.sql`);
+  mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, parts.join('\n'));
   return out;
 }
