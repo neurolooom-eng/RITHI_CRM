@@ -292,6 +292,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     running sequence; numbers already issued keep the old `OR47042` form, since
     they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
     `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
+  - *Phase 7* (`0022_spare_line_uid.sql`): **every spare has its own ID** —
+    `<OR number>-<RowNo>`, e.g. `OR-2608-0001-01`. It leads the register, the RM
+    approves against it and Stores dispatches against it, so two spares on one
+    OR can be dispatched on different days with different DCs (the per-line
+    columns for that have existed since 0016; this adds the reference to quote).
+    Fixed once issued, unique across the register.
   - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
     first; the ITEM Master import carries only code, description and Active), a
     stores-side pick/pack view, and consumption reconciliation — flag a received

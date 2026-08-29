@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.1',
+    date: '2026-08-29',
+    title: 'Every spare has its own ID',
+    changes: [
+      'Each spare on a request now carries its own reference \u2014 OR-2608-0001-01, OR-2608-0001-02 \u2014 shown as the first column of the register.',
+      'That ID is what the RM approves against and what Stores dispatches against, so two spares on the same OR can go out on different days, each with its own DC number.',
+      'The request view lists every spare by its ID with its own stage, DC and dispatch date, so you can see at a glance which part is where.',
+      'The ID is fixed once issued and unique across the register \u2014 it is what gets quoted on the DC.',
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-08-29',
     title: 'Each master list has its own screen',
