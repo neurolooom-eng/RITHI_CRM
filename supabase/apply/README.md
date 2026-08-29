@@ -31,10 +31,13 @@ each other.
 | `user_directory.sql` | `0004` — engineer directory, reporting-tree helpers | base `0001` |
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
 | `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
-| `all.sql` | the three above, in dependency order | base `0001` |
+| `call_requests.sql` | `0003`, `0010`, `0011`, `0012` — call requests, the Hotline actions, and the call-state views | `user_directory` |
+| `all.sql` | the four above, in dependency order | base `0001` |
 
 Use `all.sql` when a project is behind on more than one module; use a
 per-module bundle when you only need that one.
+
+> Migration numbers are per-module, so two files can share a number (`0011_spare_intake.sql` and `0011_call_request_actions.sql`). The bundles list exactly which files they carry — go by the file name, not the number.
 
 ## Verifying a change
 

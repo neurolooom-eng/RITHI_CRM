@@ -28,8 +28,10 @@ left join lateral (
   limit 1
 ) r on true;
 
+-- NB: `calls` already has a `state` column (the geographic one), so the call's
+-- open state is exposed here as `open_state`.
 create or replace view public.pending_calls as
-select c.*, s.state, s.last_status, s.last_visit_at
+select c.*, s.state as open_state, s.last_status, s.last_visit_at
 from public.calls c
 join public.call_state s on s.ucn = c.ucn
 where s.state <> 'Solved';

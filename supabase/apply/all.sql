@@ -2,7 +2,8 @@
 -- RITHI CRM — Everything, in dependency order: apply bundle
 --
 -- For a project that is behind on more than one module. Runs the user
--- directory, then RBAC, then the whole spare-request workflow.
+-- directory, then call requests (RBAC tightens their policies next),
+-- then RBAC, then the whole spare-request workflow.
 -- 
 -- Prefer a per-module bundle when you only need that one module.
 --
@@ -11,6 +12,10 @@
 --
 -- Carries, in order:
 --   0004_user_directory.sql
+--   0003_call_requests.sql
+--   0010_call_request_items.sql
+--   0011_call_request_actions.sql
+--   0012_call_state.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
@@ -101,6 +106,192 @@ $$;
 
 -- can_see_call() already uses visible_engineer_names(), so call scoping now
 -- follows the directory automatically (admins still bypass via is_admin()).
+
+-- ------------------------------------------------------------------------
+-- 0003_call_requests.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call Requests (Request Registration) — engineers raise a request; it becomes
+-- a Pending Registration until a UCN is assigned. REQID starts at 20000 (R…),
+-- UniqueID = REQID-Product-SerialNo.
+-- ===========================================================================
+
+create sequence if not exists public.call_req_seq start 20000;
+
+create table if not exists public.call_requests (
+  id                       bigint generated always as identity primary key,
+  reqid                    text unique,                 -- R20000, R20001, …
+  unique_key               text,                        -- REQID-Product-SerialNo
+  submitted_at             timestamptz not null default now(),
+  email                    text default '',
+  engineer                 text default '',
+  call_type                text default '',
+  party_name               text default '',
+  state                    text default '',
+  city                     text default '',
+  address                  text default '',
+  customer_contact_details text default '',
+  customer_contact_number  text default '',
+  product                  text default '',
+  serial_no                text default '',
+  standard_complaint       text default '',
+  reported_problem         text default '',
+  installation_report      text default '',
+  kyc                      text default '',
+  call_attended            text default '',             -- Yes / No
+  attended_date            date,
+  plan_date                date,
+  additional_comments      text default '',
+  ucn                      text default '',             -- back-filled on registration
+  status                   text default 'Pending',
+  created_by               uuid references auth.users (id),
+  created_at               timestamptz not null default now()
+);
+create index if not exists call_requests_pending_idx on public.call_requests (ucn);
+
+-- Assign REQID + UniqueID + submitter on insert.
+create or replace function public.call_requests_biu()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.reqid is null or new.reqid = '' then
+    new.reqid := 'R' || nextval('public.call_req_seq')::text;
+  end if;
+  new.unique_key := new.reqid || '-' || coalesce(nullif(new.product,''),'NA') || '-' || coalesce(nullif(new.serial_no,''),'NA');
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  if coalesce(new.email,'') = '' then new.email := auth.email(); end if;
+  return new;
+end $$;
+drop trigger if exists call_requests_biu on public.call_requests;
+create trigger call_requests_biu before insert on public.call_requests
+  for each row execute function public.call_requests_biu();
+
+alter table public.call_requests enable row level security;
+drop policy if exists cr_read on public.call_requests;
+create policy cr_read on public.call_requests for select using (
+  public.is_admin() or created_by = auth.uid() or lower(email) = lower(auth.email())
+  or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n))
+);
+drop policy if exists cr_insert on public.call_requests;
+create policy cr_insert on public.call_requests for insert with check (auth.role() = 'authenticated');
+drop policy if exists cr_update on public.call_requests;
+create policy cr_update on public.call_requests for update using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+-- ------------------------------------------------------------------------
+-- 0010_call_request_items.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Multi-item call requests. A request is up to 5 calls (Product + Serial No +
+-- Standard Complaint + Reported Problem) that SHARE one REQID, so REQID cannot
+-- be unique — the per-row identity is UniqueID (REQID-Product-SerialNo).
+--
+-- Before this, inserting the 2nd..5th item failed with
+--   duplicate key value violates unique constraint "call_requests_reqid_key"
+-- leaving the request half-saved (item 1 only).
+-- ===========================================================================
+
+alter table public.call_requests drop constraint if exists call_requests_reqid_key;
+create index if not exists call_requests_reqid_idx on public.call_requests (reqid);
+
+-- The real identity: one row per product/serial within a request.
+create unique index if not exists call_requests_unique_key_uidx
+  on public.call_requests (unique_key);
+
+-- Mint a REQID up front so the whole request goes in as ONE insert and can
+-- never be half-saved. The trigger still assigns one when this isn't used.
+create or replace function public.next_call_reqid()
+returns text language sql security definer set search_path = public as $$
+  select 'R' || nextval('public.call_req_seq')::text;
+$$;
+grant execute on function public.next_call_reqid() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0011_call_request_actions.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call request actions (Hotline): a pending request is closed out in one of
+-- three ways —
+--   • Registered — a new call was created from it (UCN written back)
+--   • Mapped     — it belongs to an existing call (that call's UCN written back)
+--   • Cancelled  — not a call; reason recorded
+-- A request leaves the pending list once it has a UCN or is cancelled.
+-- ===========================================================================
+
+alter table public.call_requests
+  add column if not exists cancel_reason text default '',
+  add column if not exists cancelled_at  timestamptz,
+  add column if not exists actioned_by   text default '',
+  add column if not exists actioned_at   timestamptz;
+
+create index if not exists call_requests_status_idx on public.call_requests (status);
+
+-- 0003 ships permissive insert/update policies; 0008 (RBAC enforcement)
+-- replaces them with permission checks. Re-applying 0003 — which the
+-- call_requests apply bundle does — would silently hand them back, so put the
+-- RBAC versions back whenever has_perm() is present.
+do $$
+begin
+  if to_regprocedure('public.has_perm(text)') is null then return; end if;
+
+  execute 'drop policy if exists cr_insert on public.call_requests';
+  execute $p$create policy cr_insert on public.call_requests for insert
+    with check (public.has_perm('request.create'))$p$;
+
+  execute 'drop policy if exists cr_update on public.call_requests';
+  execute $p$create policy cr_update on public.call_requests for update
+    using (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())
+    with check (public.has_perm('calls.create') or public.has_perm('pending.register') or created_by = auth.uid())$p$;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0012_call_state.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state = whether a call is still open, derived from its LATEST visit:
+--   Unattended     — no visit reported yet
+--   Unsolved       — last visit came back unsolved
+--   Report pending — visit made, report not completed
+--   Solved         — last visit closed it
+-- `pending_calls` is every call that is not Solved (the Pending Calls module).
+-- Both views run with the caller's rights, so calls/reports RLS still applies.
+-- ===========================================================================
+
+create or replace view public.call_state as
+select
+  c.ucn,
+  coalesce(r.call_status, '')                        as last_status,
+  r.visit_at                                         as last_visit_at,
+  case
+    when r.ucn is null                    then 'Unattended'
+    when r.call_status ilike 'solved%'     then 'Solved'
+    when r.call_status ilike '%unsolved%'  then 'Unsolved'
+    else 'Report pending'
+  end                                                as state
+from public.calls c
+left join lateral (
+  select rr.ucn, rr.call_status, rr.visit_at
+  from public.reports rr
+  where rr.ucn = c.ucn
+  order by rr.visit_at desc nulls last, rr.id desc
+  limit 1
+) r on true;
+
+-- NB: `calls` already has a `state` column (the geographic one), so the call's
+-- open state is exposed here as `open_state`.
+create or replace view public.pending_calls as
+select c.*, s.state as open_state, s.last_status, s.last_visit_at
+from public.calls c
+join public.call_state s on s.ucn = c.ucn
+where s.state <> 'Solved';
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql

@@ -35,6 +35,8 @@ const NEEDS = {
   rbac: [`to_regprocedure('public.has_perm(text)')`, 'has_perm()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   isAdmin: [`to_regprocedure('public.is_admin()')`, 'is_admin()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
+  callTables: [`to_regclass('public.calls')`, 'the calls table', '0001_init.sql'],
+  reportTables: [`to_regclass('public.reports')`, 'the reports table', '0001_init.sql'],
 };
 
 const MODULES = {
@@ -52,6 +54,22 @@ const MODULES = {
             'module grant.'],
     needs: ['profiles', 'visibleEngineers'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql'],
+  },
+  call_requests: {
+    title: 'Call Requests & Call State',
+    blurb: [
+      'The Hotline request desk: a request is one row per call (Product + Serial +',
+      'Complaint + Reported Problem), closed out by mapping it to an existing call,',
+      'registering a new one, or cancelling it. Plus the call_state / pending_calls',
+      'views the Call Status column and the Pending Calls module read.',
+    ],
+    needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
+    files: [
+      '0003_call_requests.sql',
+      '0010_call_request_items.sql',
+      '0011_call_request_actions.sql',
+      '0012_call_state.sql',
+    ],
   },
   spare_requests: {
     title: 'Spare Requests',
@@ -129,12 +147,14 @@ function build(name) {
 MODULES.all = {
   title: 'Everything, in dependency order',
   blurb: ['For a project that is behind on more than one module. Runs the user',
-          'directory, then RBAC, then the whole spare-request workflow.',
+          'directory, then call requests (RBAC tightens their policies next),',
+          'then RBAC, then the whole spare-request workflow.',
           '',
           'Prefer a per-module bundle when you only need that one module.'],
   needs: ['profiles'],
   files: [
     ...MODULES.user_directory.files,
+    ...MODULES.call_requests.files,
     ...MODULES.rbac.files,
     ...MODULES.spare_requests.files,
   ],
