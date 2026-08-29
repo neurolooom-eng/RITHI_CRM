@@ -49,6 +49,13 @@ _Last updated: 2026-08-29_
 - **Product Master** — wired (cascade + Product Master view + register-from-row).
 - Generic master-value layer: `master` endpoint + `useMaster` hook + Admin Config
   → **Master Value Lists** editor (id / tab / column per master).
+- **Part Master** — wired to the live ITEM Master (`parts`); search on code /
+  description, active filter, Load more, CSV export. (It used to render the
+  local demo collection, which `clearDemoData()` empties — hence the blank
+  screen.)
+- **All Masters** (`/masters`) — one view over every master: the registers
+  (Party / Product / Part / User) with row counts, and each value list with its
+  values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
 
 ### UX
 - All tables: column show/hide/reorder/resize (⚙ lists every schema field),

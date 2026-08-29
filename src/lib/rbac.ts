@@ -30,6 +30,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/product-master', label: 'Product Master' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
+  { path: '/masters', label: 'All Masters' },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
   { path: '/request-registration', label: 'Request Registration' },

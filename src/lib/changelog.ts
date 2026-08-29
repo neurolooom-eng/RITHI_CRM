@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.6.0',
+    date: '2026-08-29',
+    title: 'All Masters view; Part Master reads the live catalogue',
+    changes: [
+      'New All Masters screen (Masters \u2192 All Masters): every master the app reads in one place \u2014 the registers (Party, Product, Part, User) with their row counts, and the dropdown value lists (Standard Complaint, Call Type, Pending Reason, Cancel Reason, Feedback Rating) with their values.',
+      'Each row shows where the master comes from, how many values it holds, whether it is populated and when it was last synced; picking a value list lists every value, searchable and exportable to CSV.',
+      'Part Master was empty: it was still a local demo collection, and the demo data is cleared on first load. It now reads the live ITEM Master (the same parts catalogue the spare pickers use), with search on code and description, an active/inactive filter, Load more, CSV export and the cached-with-last-sync behaviour of Party Master.',
+      'Roles that can already open a master register are granted the new All Masters module (migration 0013, additive \u2014 it leaves any admin edit alone).',
+    ],
+  },
+  {
     version: '0.5.1',
     date: '2026-08-29',
     title: 'Registers say where they actually read from',

@@ -154,42 +154,10 @@ export const productConfig: CrudConfig<BaseRecord> = {
 };
 
 // ---------------------------------------------------------------------------
-// 3. PART MASTER (spare parts)
+// 3. PART MASTER — see modules/PartMaster.tsx. The parts catalogue is the live
+// ITEM Master (Supabase `parts`), not a local CRUD collection, so it has no
+// config here.
 // ---------------------------------------------------------------------------
-export const partConfig: CrudConfig<BaseRecord> = {
-  collection: C.parts,
-  title: 'Part Master',
-  subtitle: 'Spare parts catalogue & stock',
-  icon: '🔩',
-  singular: 'Part',
-  storageKey: 'parts',
-  searchKeys: ['code', 'name', 'partNo', 'category'],
-  onBeforeCreate: (v) => ({ ...v, code: nextCode(C.parts, 'SPR') }),
-  columns: [
-    codeCol(),
-    { key: 'name', header: 'Part Name', width: 200 },
-    { key: 'partNo', header: 'Part No.', width: 130, wrap: false },
-    { key: 'category', header: 'Category', width: 130 },
-    { key: 'stockQty', header: 'In Stock', width: 90, align: 'right', wrap: false },
-    { key: 'reorderLevel', header: 'Reorder', width: 90, align: 'right', wrap: false },
-    currencyCol('unitPrice', 'Unit Price'),
-  ],
-  fields: [
-    { name: 'name', label: 'Part Name', required: true, span: 2, section: 'Identity', placeholder: 'e.g. SpO2 Sensor Cable' },
-    { name: 'partNo', label: 'Part No. / SKU', required: true, section: 'Identity' },
-    { name: 'category', label: 'Category', type: 'select', section: 'Identity',
-      options: toOptions(['Cable', 'Sensor', 'PCB / Board', 'Battery', 'Display', 'Mechanical', 'Consumable', 'Filter', 'Other']) },
-    { name: 'compatibleProductId', label: 'Compatible Product', type: 'select', section: 'Identity',
-      options: optionsFrom(C.products, 'name', { codeKey: 'code' }) },
-    { name: 'unitPrice', label: 'Unit Price', type: 'currency', section: 'Commercial', required: true },
-    { name: 'gstRate', label: 'GST %', type: 'number', section: 'Commercial', defaultValue: 18 },
-    { name: 'uom', label: 'Unit of Measure', type: 'select', section: 'Stock',
-      options: toOptions(['Nos', 'Set', 'Mtr', 'Pair', 'Pack']), defaultValue: 'Nos' },
-    { name: 'stockQty', label: 'Stock Quantity', type: 'number', section: 'Stock', defaultValue: 0, min: 0 },
-    { name: 'reorderLevel', label: 'Reorder Level', type: 'number', section: 'Stock', defaultValue: 2, min: 0 },
-    { name: 'binLocation', label: 'Bin / Location', section: 'Stock' },
-  ],
-};
 
 // ---------------------------------------------------------------------------
 // 4. WARRANTY REGISTRATION

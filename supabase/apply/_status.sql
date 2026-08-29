@@ -32,7 +32,12 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='spare_requests' and column_name='or_no')
      and to_regclass('public.spare_or_no_seq')          is not null)),
     (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
-        to_regprocedure('public.spare_needs_review(text)')   is not null)
+        to_regprocedure('public.spare_needs_review(text)')   is not null),
+    (8, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
+        (to_regclass('public.app_roles') is not null
+     and not exists (select 1 from public.app_roles
+                      where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
+                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

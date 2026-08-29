@@ -48,9 +48,10 @@ const MODULES = {
   rbac: {
     title: 'Roles & Permissions',
     blurb: ['The role → action matrix, per-user extra access, and its enforcement in',
-            'Postgres (policies plus the per-stage approval guard).'],
+            'Postgres (policies plus the per-stage approval guard), and the All Masters',
+            'module grant.'],
     needs: ['profiles', 'visibleEngineers'],
-    files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql'],
+    files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql'],
   },
   spare_requests: {
     title: 'Spare Requests',
