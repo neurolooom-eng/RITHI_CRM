@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.5.1',
+    date: '2026-08-29',
+    title: 'Registers say where they actually read from',
+    changes: [
+      'The Field / Installation / PM registers showed \u201cSheet connected\u201d even when every row came from the database \u2014 the badge only checked that a Web App URL was set, and one ships with the app. It now reads \u201cDatabase connected\u201d when the database is connected, and \u201cSheet connected\u201d only on the sheet fallback.',
+      'Screens that refused to load without a sheet URL (Dashboard, Pending Registrations, Product Master, User Master, View as, role scoping, master dropdowns) now accept either source.',
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-08-29',
     title: 'Spare requests move to the database',

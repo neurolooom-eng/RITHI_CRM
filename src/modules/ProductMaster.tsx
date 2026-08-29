@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
-import { searchProducts, sheetsConfigured, type ProdFilters } from '../lib/sheets';
+import { searchProducts, dataConfigured, type ProdFilters } from '../lib/sheets';
 import { ITEM_STATUS, productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -45,13 +45,13 @@ export function ProductMaster() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to search the Product Master.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Master.' },
   );
 
   const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
 
   const run = async (filters: ProdFilters = f) => {
-    if (!sheetsConfigured()) return;
+    if (!dataConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Searching Product Master…' });
     try {

@@ -12,7 +12,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react';
-import { listUsers, sheetsConfigured } from './sheets';
+import { listUsers, dataConfigured } from './sheets';
 import { useAuth } from './auth';
 
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
@@ -71,8 +71,8 @@ export function useAccessScope(): AccessScope {
     const emailNorm = norm(identity.email);
     const usernameNorm = norm(identity.username);
 
-    // Offline / no sheet: fall back to the user's own name only.
-    if (!sheetsConfigured()) {
+    // Offline / no data source: fall back to the user's own name only.
+    if (!dataConfigured()) {
       setScope({ ready: true, all: false, names: new Set([selfName0].filter(Boolean)), isManager: false, reports: [], selfName: identity.fullName });
       return;
     }

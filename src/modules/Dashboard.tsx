@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, DonutChart, ColumnChart } from '../components/charts/Charts';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { listFieldCalls, listPending, sheetsConfigured } from '../lib/sheets';
+import { listFieldCalls, listPending, dataConfigured } from '../lib/sheets';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 
 // ===========================================================================
@@ -49,7 +49,7 @@ export function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!sheetsConfigured()) { setLoading(false); return; }
+    if (!dataConfigured()) { setLoading(false); return; }
     (async () => {
       try {
         const [f, i] = await Promise.all([listFieldCalls('', 0, 'FIELD'), listFieldCalls('', 0, 'INST')]);
@@ -97,7 +97,7 @@ export function Dashboard() {
       <PageHeader title="Service Dashboard" subtitle="Live field-service operations at a glance" icon="📊"
         actions={<span className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}>{scopeLabel(scope)}</span>} />
 
-      {!sheetsConfigured() && <div className="sheet-banner sheet-banner-info"><span>Connect the Google Sheet in Settings to populate the dashboard.</span></div>}
+      {!dataConfigured() && <div className="sheet-banner sheet-banner-info"><span>Connect the database in Settings to populate the dashboard.</span></div>}
       {err && <div className="sheet-banner sheet-banner-error"><span>Could not load dashboard data: {err}</span></div>}
       {loading && <div className="muted" style={{ padding: 16 }}>Loading live data…</div>}
 

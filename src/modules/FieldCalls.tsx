@@ -20,7 +20,8 @@ import {
   listPartyItems,
   listPartyProducts,
   setPendingUcn,
-  sheetsConfigured,
+  dataSource,
+  dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
 import { supabaseConfigured, searchCalls } from '../lib/supabase';
@@ -277,7 +278,7 @@ export const FIELD_CONFIG: CallSheetConfig = {
   callType: 'FIELD',
   singular: 'Field Call',
   title: 'Field Call Register',
-  subtitle: 'Live against the FIELD tab of the Call Register — new calls get a UCN and are written back.',
+  subtitle: 'Live Field Call register — new calls get a UCN and are written back.',
   icon: '📡',
   collection: C.fieldCalls,
   storageKey: 'fieldCalls',
@@ -289,7 +290,7 @@ export const INST_CONFIG: CallSheetConfig = {
   callType: 'INSTALLATION CALL',
   singular: 'Installation Call',
   title: 'Installation Call Register',
-  subtitle: 'Live against the INST tab of the Call Register — new calls get a UCN and are written back.',
+  subtitle: 'Live Installation Call register — new calls get a UCN and are written back.',
   icon: '🔧',
   collection: C.instCalls,
   storageKey: 'instCalls',
@@ -349,7 +350,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const syncKey = `rithi.sync.${config.collection}`;
   const [lastSync, setLastSync] = useState<string>(() => { try { return localStorage.getItem(syncKey) ?? ''; } catch { return ''; } });
   const [banner, setBanner] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
-  const configured = sheetsConfigured();
+  const source = dataSource();
+  const configured = source !== 'none';
   const pendingCount = cached.filter((r) => r._pending).length;
   const location = useLocation();
 
@@ -357,7 +359,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // most recent `limit` rows — the sheet holds thousands.
   const refresh = async (limit = loadLimit) => {
     if (!configured) {
-      setBanner({ tone: 'info', text: 'Not connected to a Google Sheet. Add the Web App URL in Settings → Google Sheet Connection to load & publish calls. New calls are saved locally until then.' });
+      setBanner({ tone: 'info', text: 'No data source connected. Connect the database (or the Google Sheet Web App URL) in Settings to load & publish calls. New calls are saved locally until then.' });
       return;
     }
     setBusy(true);
@@ -402,7 +404,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     } else {
       setBanner({ tone: 'info', text: `Showing cached data — last synced ${timeAgo(lastSync)}. Tap ↻ Refresh to update.` });
     }
-    const id = window.setInterval(() => { if (sheetsConfigured()) void refresh(); }, 30 * 60 * 1000);
+    const id = window.setInterval(() => { if (dataConfigured()) void refresh(); }, 30 * 60 * 1000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -680,9 +682,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             >
               {scopeLabel(scope)}
             </span>
-            {configured && lastSync && <span className="conn-dot conn-off" title="Last synced from the sheet">⟳ {timeAgo(lastSync)}</span>}
-            <span className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`} title={configured ? 'Connected to Google Sheet' : 'Not connected'}>
-              {configured ? '● Sheet connected' : '○ Not connected'}
+            {configured && lastSync && <span className="conn-dot conn-off" title={`Last synced from the ${source === 'db' ? 'database' : 'sheet'}`}>⟳ {timeAgo(lastSync)}</span>}
+            <span
+              className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`}
+              title={source === 'db' ? 'Reading from the Supabase database' : source === 'sheet' ? 'Reading from the Google Sheet' : 'Not connected'}
+            >
+              {source === 'db' ? '● Database connected' : source === 'sheet' ? '● Sheet connected' : '○ Not connected'}
             </span>
             <button
               className="btn btn-sm"
