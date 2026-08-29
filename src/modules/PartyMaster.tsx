@@ -1,49 +1,65 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
-import { listPartyRows, searchPartyRows, supabaseConfigured } from '../lib/supabase';
+import { queryParties, supabaseConfigured, type PartyFilter } from '../lib/supabase';
 
 // ===========================================================================
-// PARTY MASTER — live from the Supabase `parties` table. Default shows the
-// first 1,000 (alphabetical); typing searches the whole table server-side.
+// PARTY MASTER — live from Supabase `parties`. Field-specific server-side
+// filters (Party / City / State / Type) with a Load more pager.
 // ===========================================================================
 
+const PAGE = 1000;
 type Row = Record<string, unknown> & { id: string };
-const g = (r: Row, k: string) => String(r[k] ?? '');
 
 const COLUMNS: Column<Row>[] = [
   { key: 'party_name', header: 'Party Name', width: 300 },
-  { key: 'city', header: 'City', width: 140 },
-  { key: 'state', header: 'State', width: 140 },
-  { key: 'party_type', header: 'Type', width: 140 },
-  { key: 'address', header: 'Address', width: 320 },
+  { key: 'city', header: 'City', width: 150 },
+  { key: 'state', header: 'State', width: 150 },
+  { key: 'party_type', header: 'Type', width: 150 },
+  { key: 'address', header: 'Address', width: 340 },
 ];
 
 export function PartyMaster() {
+  const [filter, setFilter] = useState<PartyFilter>({ name: '', city: '', state: '', type: '' });
   const [rows, setRows] = useState<Row[]>([]);
-  const [search, setSearch] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [more, setMore] = useState(false);   // a full page came back → maybe more
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load Party Master.' },
   );
+  const set = (k: keyof PartyFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
+  const toRows = (data: Record<string, unknown>[], base: number) => data.map((p, i) => ({ ...p, id: String(p.id ?? base + i) } as Row));
 
-  // Debounced server-side load/search.
+  // Debounced first page whenever a filter changes.
   useEffect(() => {
     if (!supabaseConfigured()) return;
-    const term = search.trim();
     const t = window.setTimeout(async () => {
       setBusy(true);
       try {
-        const data = term ? await searchPartyRows(term, 1000) : await listPartyRows(1000);
-        setRows(data.map((p, i) => ({ ...p, id: String(p.id ?? i) })));
-        setMsg({ tone: 'ok', text: term ? `${data.length} match${data.length === 1 ? '' : 'es'} for "${term}".` : `Showing ${data.length} parties (search to find any).` });
+        const data = await queryParties(filter, 0, PAGE);
+        setRows(toRows(data, 0)); setOffset(data.length); setMore(data.length === PAGE);
+        const any = filter.name || filter.city || filter.state || filter.type;
+        setMsg({ tone: 'ok', text: `${data.length}${data.length === PAGE ? '+' : ''} parties${any ? ' matched' : ''}.` });
       } catch (e) {
         setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
       } finally { setBusy(false); }
-    }, term ? 300 : 0);
+    }, 300);
     return () => window.clearTimeout(t);
-  }, [search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter.name, filter.city, filter.state, filter.type]);
+
+  const loadMore = async () => {
+    setBusy(true);
+    try {
+      const data = await queryParties(filter, offset, PAGE);
+      setRows((cur) => [...cur, ...toRows(data, cur.length)]);
+      setOffset((o) => o + data.length); setMore(data.length === PAGE);
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
@@ -68,11 +84,17 @@ export function PartyMaster() {
         storageKey="partyMaster"
         rowsBeforeScroll={16}
         dense
-        emptyText={busy ? 'Loading…' : 'No parties.'}
+        emptyText={busy ? 'Loading…' : 'No parties match.'}
         toolbar={
           <Toolbar>
-            <SearchBox value={search} onChange={setSearch} placeholder="Search party, city, state, type…" />
+            <div className="call-search">
+              <input className="input" placeholder="Party name" value={filter.name} onChange={(e) => set('name', e.target.value)} />
+              <input className="input" placeholder="State" value={filter.state} onChange={(e) => set('state', e.target.value)} />
+              <input className="input" placeholder="City" value={filter.city} onChange={(e) => set('city', e.target.value)} />
+              <input className="input" placeholder="Type" value={filter.type} onChange={(e) => set('type', e.target.value)} />
+            </div>
             {busy && <span className="muted">…</span>}
+            {more && !busy && <button className="btn btn-sm" onClick={() => void loadMore()}>↓ Load more</button>}
             <div className="spacer" />
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('party-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
