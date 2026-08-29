@@ -4,8 +4,9 @@ import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo } from '../lib/format';
 import { toSheetDate } from '../lib/fieldcall';
 import { listTabRows, sheetsConfigured, tabAppend } from '../lib/sheets';
-import { addSpareRequest, listSpareRequestLines, supabaseConfigured } from '../lib/supabase';
+import { addSpareRequest, listSpareRequestLines, updateSpareRequest, supabaseConfigured } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { deriveStage, stageAction, buildPatch, dispatchPatch } from '../lib/spareflow';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -209,20 +210,23 @@ const COLUMNS: Column<Row>[] = [
   { key: 'Status', header: 'Status', width: 140, render: (r) => badge(g(r, 'Status')) },
 ];
 
-// Supabase shape (spare_request_lines joined with spare_requests).
+// Supabase shape (spare_request_lines joined with spare_requests) with the
+// approval workflow columns.
 const SUPA_COLUMNS: Column<Row>[] = [
   { key: 'uid', header: 'UID', width: 150, wrap: false },
   { key: 'requested_at', header: 'Date', width: 130, wrap: false, render: (r) => fmtLongDate(r.requested_at) },
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
-  { key: 'party_name', header: 'Party', width: 200 },
-  { key: 'product_name', header: 'Product', width: 130 },
-  { key: 'part', header: 'Part', width: 200 },
-  { key: 'qty', header: 'Qty', width: 60, align: 'right', wrap: false },
-  { key: 'req_engineer', header: 'Engineer', width: 150 },
-  { key: 'rm_approval', header: 'RM', width: 110, render: (r) => badge(g(r, 'rm_approval')) },
-  { key: 'admin_approval', header: 'Admin', width: 120, render: (r) => badge(g(r, 'admin_approval')) },
-  { key: 'stores_status', header: 'Stores', width: 120, render: (r) => badge(g(r, 'stores_status')) },
-  { key: 'status', header: 'Status', width: 130, render: (r) => badge(g(r, 'status')) },
+  { key: 'party_name', header: 'Party', width: 190 },
+  { key: 'product_name', header: 'Product', width: 120 },
+  { key: 'part', header: 'Part', width: 180 },
+  { key: 'qty', header: 'Qty', width: 55, align: 'right', wrap: false },
+  { key: 'item_status', header: 'Item', width: 70, wrap: false },
+  { key: 'stage', header: 'Stage', width: 130, wrap: false, render: (r) => badge(deriveStage(r)) },
+  { key: 'rm_approval', header: 'RM', width: 100, render: (r) => badge(g(r, 'rm_approval')) },
+  { key: 'commercial_approval', header: 'Commercial', width: 120, render: (r) => badge(g(r, 'commercial_approval')) },
+  { key: 'nsm_approval', header: 'NSM', width: 110, render: (r) => badge(g(r, 'nsm_approval')) },
+  { key: 'stores_status', header: 'Stores', width: 110, render: (r) => badge(g(r, 'stores_status')) },
+  { key: 'dc_number', header: 'DC No', width: 110, wrap: false },
 ];
 
 const CACHE_KEY = 'spareRequests';
@@ -292,7 +296,33 @@ export function SpareRequests() {
     );
   }, [rows, scope, email, onDb]);
 
-  const columns = onDb ? SUPA_COLUMNS : COLUMNS;
+  const actor = user?.fullName || user?.email || 'user';
+  const act = async (row: Row, decision: 'approve' | 'reject') => {
+    const res = await updateSpareRequest(String(row.uid), buildPatch(row, decision, actor));
+    if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Update failed.' });
+  };
+  const doDispatch = async (row: Row) => {
+    const dc = window.prompt('DC / Stock-out number for dispatch:', String(row.dc_number ?? ''));
+    if (dc == null) return;
+    const res = await updateSpareRequest(String(row.uid), dispatchPatch(dc.trim(), actor));
+    if (res.ok) void load(); else setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' });
+  };
+  const wfColumn: Column<Row> = {
+    key: '_wf', header: 'Action', width: 210, sortable: false, wrap: false,
+    render: (row) => {
+      const stage = deriveStage(row);
+      const action = stageAction(stage);
+      if (!action || !can(action)) return <span className="muted">{stage === 'Dispatched' ? '✓ Dispatched' : stage === 'Rejected' ? '✕ Rejected' : '—'}</span>;
+      if (stage === 'Stores') return <button className="btn btn-sm btn-primary" onClick={() => void doDispatch(row)}>🚚 Dispatch + DC</button>;
+      return (
+        <div className="row" onClick={(e) => e.stopPropagation()}>
+          <button className="btn btn-sm btn-primary" onClick={() => void act(row, 'approve')}>✔ Approve</button>
+          <button className="btn btn-sm" onClick={() => void act(row, 'reject')}>✖ Reject</button>
+        </div>
+      );
+    },
+  };
+  const columns = onDb ? [...SUPA_COLUMNS, wfColumn] : COLUMNS;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return scoped;
