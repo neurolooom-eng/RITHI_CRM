@@ -419,14 +419,14 @@ export async function sbEngineerNames(): Promise<string[]> {
 // ---- reports (Reporting-N equivalent) --------------------------------------
 // Latest visit for a UCN (reports is history; ucn is no longer unique).
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(errMsg(error));
   return { row: data ?? null };
 }
 // Reports register — field filters + paging (Load more), like Party Master.
 export interface ReportFilter { ucn?: string; callNumber?: string; engineer?: string; status?: string }
 export async function queryReports(filter: ReportFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from('reports').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  let q = must().from('reports').select('*').order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).range(offset, offset + limit - 1);
   if (filter.ucn) q = q.ilike('ucn', `%${_san(filter.ucn)}%`);
   if (filter.callNumber) q = q.ilike('call_number', `%${_san(filter.callNumber)}%`);
   if (filter.engineer) q = q.ilike('engineer', `%${_san(filter.engineer)}%`);
@@ -438,7 +438,7 @@ export async function queryReports(filter: ReportFilter, offset = 0, limit = 100
 
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -451,7 +451,7 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
-  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('created_at', { ascending: false }).limit(1).maybeSingle();
+  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   return data ?? null;
 }
 
@@ -506,7 +506,7 @@ export async function updateSpareRequest(uid: string, patch: Record<string, unkn
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
 export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('created_at', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) return [];
   return data ?? [];
 }
