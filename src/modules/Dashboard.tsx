@@ -52,7 +52,7 @@ export function Dashboard() {
     if (!sheetsConfigured()) { setLoading(false); return; }
     (async () => {
       try {
-        const [f, i] = await Promise.all([listFieldCalls('', 300, 'FIELD'), listFieldCalls('', 300, 'INST')]);
+        const [f, i] = await Promise.all([listFieldCalls('', 0, 'FIELD'), listFieldCalls('', 0, 'INST')]);
         if (cancelled) return;
         setField(f); setInst(i);
         try { const p = await listPending(500); if (!cancelled) setPending(p.length); } catch { /* pending optional */ }
