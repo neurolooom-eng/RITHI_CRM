@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SectionCard } from '../components/ui/ui';
@@ -6,11 +6,10 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtDate, timeAgo } from '../lib/format';
 import { dataConfigured, listMaster } from '../lib/sheets';
-import {
-  addMasterItem, countRows, deleteMasterItem, listMasterItems, listMasterLists,
-  supabaseConfigured, type MasterItem, type MasterList,
-} from '../lib/supabase';
+import { countRows, listMasterItems, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { clearMasterCache } from '../lib/masters';
+import { fallbackRegistry, masterListPath, usedBy } from './masterLists';
+import { MasterListTable } from './MasterListTable';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 
 // ===========================================================================
@@ -40,29 +39,8 @@ const REGISTERS: { key: string; label: string; table: string; icon: string; rout
   { key: 'user', label: 'User Master', table: 'user_directory', icon: '👤', route: '/user-master' },
 ];
 
-// Where each list is used — shown so nobody removes a value the forms need.
-const USED_BY: Record<string, string> = {
-  complaint: 'Call report — Standard Complaint',
-  calltype: 'Request form — Call Type',
-  pendingreason: 'Call report — Unsolved branch',
-  cancelreason: 'Call cancellation',
-  feedbackrating: 'Customer feedback — ratings',
-  orapproval: 'Spare approval — reason for approval / rejection',
-};
-
 // Lists the sheet-only fallback can still read (there is no registry there, so
 // the labels are carried here).
-// The lists the app knows by name. Used by the sheet fallback, and when the
-// database has no `master_lists` yet (0021 not applied) — the screen still
-// opens every list rather than showing nothing.
-const KNOWN_LISTS: { key: string; label: string }[] = [
-  { key: 'complaint', label: 'Standard Complaint' },
-  { key: 'calltype', label: 'Call Type' },
-  { key: 'pendingreason', label: 'Call Pending Reason' },
-  { key: 'cancelreason', label: 'Call Cancel Reason' },
-  { key: 'feedbackrating', label: 'Feedback Rating' },
-];
-
 interface SummaryRow extends Record<string, unknown> {
   id: string;
   key: string;
@@ -77,7 +55,7 @@ interface SummaryRow extends Record<string, unknown> {
 
 export function AllMasters() {
   const navigate = useNavigate();
-  const { user, can } = useAuth();
+  const { can } = useAuth();
   const live = supabaseConfigured();
   const editable = live && can('masters.edit');
   const cached = loadCache<SummaryRow>(CACHE_KEY);
@@ -90,12 +68,9 @@ export function AllMasters() {
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the masters.' },
   );
 
-  // The open list and its rows.
+  // The list opened below the summary (MasterListTable owns its rows).
   const [open, setOpen] = useState<MasterList | null>(null);
-  const [items, setItems] = useState<MasterItem[]>([]);
-  const [search, setSearch] = useState('');
-  const [draft, setDraft] = useState<Record<string, string>>({});
-  const [itemBusy, setItemBusy] = useState(false);
+  const [openCount, setOpenCount] = useState(0);
 
   const refresh = async () => {
     if (!dataConfigured()) return;
@@ -130,15 +105,11 @@ export function AllMasters() {
           // to this project. Fall back to the known lists so the screen still
           // works, and say what to run.
           registryMissing = true;
-          registry = KNOWN_LISTS.map((l, i) => ({
-            key: l.key, label: l.label, value_label: 'Value', columns: [], sort_order: (i + 1) * 10, active: true,
-          }));
+          registry = fallbackRegistry();
           void err;
         }
       } else {
-        registry = KNOWN_LISTS.map((l, i) => ({
-          key: l.key, label: l.label, value_label: 'Value', columns: [], sort_order: (i + 1) * 10, active: true,
-        }));
+        registry = fallbackRegistry();
       }
       for (const l of registry) {
         let count = 0; let status = 'Loaded';
@@ -149,7 +120,7 @@ export function AllMasters() {
         out.push({
           id: `list:${l.key}`, key: l.key, label: l.label, kind: 'Value list',
           source: live ? 'Supabase · masters' : 'Google Sheet · master registry',
-          count, usedBy: USED_BY[l.key] ?? '', status,
+          count, usedBy: usedBy(l.key), status,
         });
       }
 
@@ -176,47 +147,12 @@ export function AllMasters() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---- one list's own table ------------------------------------------------
-  const openList = async (list: MasterList) => {
-    setOpen(list); setSearch(''); setDraft({});
-    setItemBusy(true);
-    try {
-      if (live) setItems(await listMasterItems(list.key));
-      else setItems((await listMaster(list.key)).map((v, i) => ({ id: -(i + 1), name: list.key, value: v, extra: {}, added_on: null, added_by: '' })));
-    } catch (e) {
-      setMsg({ tone: 'error', text: `Could not read ${list.label}: ${e instanceof Error ? e.message : String(e)}` });
-    } finally { setItemBusy(false); }
-  };
+  const openList = (list: MasterList) => { setOpen(list); setOpenCount(0); };
 
-  // Reload the open list and refresh its count in the summary, after a change.
-  const reload = async (list: MasterList) => {
-    clearMasterCache(list.key);
-    const fresh = await listMasterItems(list.key);
-    setItems(fresh);
-    setRows((rs) => rs.map((r) => (r.id === `list:${list.key}` ? { ...r, count: fresh.length, status: fresh.length ? 'Loaded' : 'Empty' } : r)));
-  };
-
-  const addItem = async () => {
-    if (!open) return;
-    const value = (draft.value ?? '').trim();
-    if (!value) return;
-    const extra: Record<string, string> = {};
-    open.columns.forEach((c) => { const v = (draft[c.key] ?? '').trim(); if (v) extra[c.key] = v; });
-    setItemBusy(true);
-    const r = await addMasterItem(open.key, value, extra, user?.fullName || user?.email || '');
-    if (r.ok) { setDraft({}); await reload(open); setMsg({ tone: 'ok', text: `Added “${value}” to ${open.label}.` }); }
-    else setMsg({ tone: 'error', text: r.error ?? 'Could not add that entry.' });
-    setItemBusy(false);
-  };
-
-  const removeItem = async (item: MasterItem) => {
-    if (!open) return;
-    if (!confirm(`Remove “${item.value}” from ${open.label}?`)) return;
-    setItemBusy(true);
-    const r = await deleteMasterItem(item.id);
-    if (r.ok) { await reload(open); setMsg({ tone: 'ok', text: `Removed “${item.value}” from ${open.label}.` }); }
-    else setMsg({ tone: 'error', text: r.error ?? 'Could not remove that entry.' });
-    setItemBusy(false);
+  // Keep the summary's count honest while the open list is edited.
+  const noteCount = (n: number) => {
+    setOpenCount(n);
+    if (open) setRows((rs) => rs.map((r) => (r.id === `list:${open.key}` ? { ...r, count: n, status: n ? 'Loaded' : 'Empty' } : r)));
   };
 
   // A summary row back to its registry entry. The id is the fallback so a row
@@ -246,7 +182,7 @@ export function AllMasters() {
             e.stopPropagation();
             if (r.route) { navigate(r.route); return; }
             const l = listFor(r);
-            if (l) void openList(l);
+            if (l) openList(l);
           }}
         >
           {r.route ? 'Open' : editable ? 'Edit list' : 'View list'}
@@ -254,36 +190,6 @@ export function AllMasters() {
       ),
     },
   ];
-
-  const visibleItems = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((i) => i.value.toLowerCase().includes(q)
-      || Object.values(i.extra ?? {}).some((v) => String(v).toLowerCase().includes(q)));
-  }, [items, search]);
-
-  const ITEM_COLUMNS: Column<MasterItem & Record<string, unknown>>[] = useMemo(() => {
-    if (!open) return [];
-    const cols: Column<MasterItem & Record<string, unknown>>[] = [
-      { key: 'value', header: open.value_label, width: 320 },
-      ...open.columns.map((c) => ({
-        key: `extra.${c.key}`, header: c.label, width: 180,
-        render: (r: MasterItem) => String(r.extra?.[c.key] ?? ''),
-      })),
-      { key: 'added_on', header: 'Added On', width: 110, wrap: false, render: (r: MasterItem) => (r.added_on ? fmtDate(r.added_on) : '') },
-      { key: 'added_by', header: 'Added By', width: 150 },
-    ];
-    if (editable) {
-      cols.push({
-        key: '_remove', header: '', width: 70, sortable: false, wrap: false,
-        render: (r: MasterItem) => (
-          <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={itemBusy} onClick={(e) => { e.stopPropagation(); void removeItem(r); }}>🗑</button>
-        ),
-      });
-    }
-    return cols;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, editable, itemBusy]);
 
   return (
     <div>
@@ -316,7 +222,7 @@ export function AllMasters() {
         storageKey="allMasters"
         rowsBeforeScroll={12}
         dense
-        onRowClick={(r) => { if (!r.route) { const l = listFor(r); if (l) void openList(l); } }}
+        onRowClick={(r) => { if (!r.route) { const l = listFor(r); if (l) openList(l); } }}
         emptyText={busy ? 'Loading…' : 'No masters loaded yet — ↻ Refresh all.'}
         toolbar={
           <Toolbar>
@@ -332,63 +238,13 @@ export function AllMasters() {
       />
 
       {open && (
-        <SectionCard title={`${open.label} — ${items.length.toLocaleString()} ${items.length === 1 ? 'entry' : 'entries'}`}>
-          {USED_BY[open.key] && (
-            <p className="muted" style={{ marginTop: 0 }}>
-              Used by: {USED_BY[open.key]}. Removing an entry only takes it out of the dropdown — calls already reported with it keep their value.
-            </p>
-          )}
-
-          {editable && (
-            <div className="call-add-row">
-              <input
-                className="input"
-                placeholder={`New ${open.value_label.toLowerCase()}`}
-                value={draft.value ?? ''}
-                onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
-                onKeyDown={(e) => { if (e.key === 'Enter') void addItem(); }}
-              />
-              {open.columns.map((c) => (
-                <input
-                  key={c.key}
-                  className="input"
-                  placeholder={c.label}
-                  value={draft[c.key] ?? ''}
-                  onChange={(e) => setDraft((d) => ({ ...d, [c.key]: e.target.value }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void addItem(); }}
-                />
-              ))}
-              <button className="btn btn-primary btn-sm" onClick={() => void addItem()} disabled={itemBusy || !(draft.value ?? '').trim()}>
-                + Add
-              </button>
-            </div>
-          )}
-          {!editable && (
-            <p className="muted" style={{ marginTop: 0 }}>
-              {live ? 'You need the “Edit masters” permission to change this list.' : 'Connect the database to add or remove entries.'}
-            </p>
-          )}
-
+        <SectionCard title={`${open.label}${openCount ? ` — ${openCount.toLocaleString()} ${openCount === 1 ? 'entry' : 'entries'}` : ''}`}>
           <Toolbar>
-            <input className="input" placeholder="Search this list" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <button className="btn btn-sm" onClick={() => navigate(masterListPath(open.key))}>↗ Open its own screen</button>
             <div className="spacer" />
-            {items.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport(`${open.key}-master.csv`,
-                [{ key: 'value', header: open.value_label }, ...open.columns.map((c) => ({ key: c.key, header: c.label })), { key: 'added_on', header: 'Added On' }, { key: 'added_by', header: 'Added By' }],
-                visibleItems.map((i) => ({ value: i.value, ...i.extra, added_on: i.added_on ?? '', added_by: i.added_by })))}>⭳ Export CSV</button>
-            )}
-            <button className="btn btn-sm btn-ghost" onClick={() => { setOpen(null); setItems([]); }}>✕ Close</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setOpen(null)}>✕ Close</button>
           </Toolbar>
-
-          <DataTable<MasterItem & Record<string, unknown>>
-            columns={ITEM_COLUMNS}
-            rows={visibleItems as (MasterItem & Record<string, unknown>)[]}
-            getRowId={(r) => String(r.id)}
-            storageKey={`master-${open.key}`}
-            rowsBeforeScroll={12}
-            dense
-            emptyText={itemBusy ? 'Loading…' : 'This list is empty.'}
-          />
+          <MasterListTable list={open} onCountChange={noteCount} />
         </SectionCard>
       )}
     </div>

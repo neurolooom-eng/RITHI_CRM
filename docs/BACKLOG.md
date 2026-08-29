@@ -79,6 +79,10 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
 - **All Masters** (`/masters`) — one view over every master: the registers
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
+- **Each value list has its own screen** (`/masters/<key>`, Master Lists in the
+  sidebar) — one table per master with Add / Remove, shared with the All Masters
+  overview. All `/masters/*` screens are gated by the one `mod:/masters` action,
+  so a new list needs no permission row.
 - **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
   a `master_lists` registry (label, what one row is called, extra columns) plus
   the `masters` rows; All Masters opens each list as its own table with Add /

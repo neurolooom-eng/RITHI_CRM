@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth, ROLE_LABELS } from '../../lib/auth';
-import { moduleAction } from '../../lib/rbac';
+import { actionForPath } from '../../lib/rbac';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
 import { ViewAsControl, ViewAsBanner } from './ViewAs';
+import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
 import './layout.css';
 
 interface NavItem {
@@ -34,6 +35,12 @@ export const NAV: NavGroup[] = [
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },
+    ],
+  },
+  {
+    title: 'Master Lists',
+    items: [
+      ...MASTER_LISTS.map((l) => ({ to: masterListPath(l.key), label: l.label, icon: l.icon })),
     ],
   },
   {
@@ -90,7 +97,7 @@ function ModuleSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () => NAV.flatMap((g) => g.items.filter((it) => (!it.adminOnly || can('manage-users')) && can(moduleAction(it.to))).map((it) => ({ ...it, group: g.title }))),
+    () => NAV.flatMap((g) => g.items.filter((it) => (!it.adminOnly || can('manage-users')) && can(actionForPath(it.to))).map((it) => ({ ...it, group: g.title }))),
     [can],
   );
   const results = q.trim()
@@ -217,7 +224,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
         <nav className="sidebar-nav">
           {NAV.map((group) => {
-            const items = group.items.filter((i) => (!i.adminOnly || can('manage-users')) && can(moduleAction(i.to)));
+            const items = group.items.filter((i) => (!i.adminOnly || can('manage-users')) && can(actionForPath(i.to)));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
             return (
