@@ -1,0 +1,40 @@
+-- ===========================================================================
+-- What is actually applied to this project?
+--
+-- Run this FIRST in the Supabase SQL Editor. It reports one row per apply
+-- bundle: whether the objects that bundle installs are present, so you know
+-- what to run instead of discovering it one error at a time.
+--
+-- Read-only — it changes nothing.
+-- ===========================================================================
+with checks(sort_order, bundle, provides, present) as (
+  values
+    (1, 'base (0001-0003)',        'profiles / calls / spare_requests tables',
+        (to_regclass('public.profiles')        is not null
+     and to_regclass('public.calls')           is not null
+     and to_regclass('public.spare_requests')  is not null)),
+    (2, 'user_directory',          'visible_engineer_names()',
+        to_regprocedure('public.visible_engineer_names()')   is not null),
+    (3, 'rbac',                    'app_roles + has_perm() + is_admin() + can_approve_spares()',
+        (to_regclass('public.app_roles')                is not null
+     and to_regprocedure('public.has_perm(text)')            is not null
+     and to_regprocedure('public.is_admin()')                is not null
+     and to_regprocedure('public.can_approve_spares()')      is not null)),
+    (4, 'spare_requests: workflow','spare_requests.stage (0006)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='spare_requests' and column_name='stage')),
+    (5, 'spare_requests: receipt', 'spare_requests.received_at + is_spare_requester() (0009)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='spare_requests' and column_name='received_at')
+     and to_regprocedure('public.is_spare_requester(public.spare_requests)') is not null)),
+    (6, 'spare_requests: intake',  'spare_requests.or_no + the OR sequence (0011)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='spare_requests' and column_name='or_no')
+     and to_regclass('public.spare_or_no_seq')          is not null)),
+    (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
+        to_regprocedure('public.spare_needs_review(text)')   is not null)
+)
+select bundle,
+       case when present then 'yes' else 'NO  <-- apply this' end as applied,
+       provides
+  from checks order by sort_order;
