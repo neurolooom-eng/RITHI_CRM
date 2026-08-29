@@ -9,6 +9,7 @@ import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
 import { PartyMaster } from './modules/PartyMaster';
+import { Reports } from './modules/Reports';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -60,6 +61,7 @@ function Shell() {
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/user-master" element={<UserMasterView />} />
         <Route path="/pm-calls" element={<PMCalls />} />
+        <Route path="/reports" element={<Reports />} />
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />
