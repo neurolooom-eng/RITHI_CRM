@@ -883,6 +883,20 @@ export async function handstockForEngineer(engineer: string, limit = 1000): Prom
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// Every movement, newest first — the Movements tab of the Hand Stock register.
+// Optional engineer / part filters narrow it server-side.
+export async function listAllHandstockMovements(
+  limit = 1000, offset = 0, filter: { engineerKey?: string; partCode?: string } = {},
+): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*');
+  if (filter.engineerKey) q = q.eq('engineer_key', filter.engineerKey);
+  if (filter.partCode) q = q.eq('part_code', filter.partCode);
+  const { data, error } = await q
+    .order('moved_at', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
 // The movement history behind one line — every stock-out, consumption and
 // transfer for that engineer and spare, newest first.
 export async function listHandstockMovements(engineerKey: string, partCode = '', limit = 500): Promise<Record<string, unknown>[]> {

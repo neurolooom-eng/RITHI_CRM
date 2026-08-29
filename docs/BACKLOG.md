@@ -305,10 +305,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     Fixed once issued, unique across the register.
   - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
     level an engineer is carrying, per spare:
-    **stock out (Stores) − consumption − transfer out + transfer in**, with
-    every term as its own column and the movement behind each figure (the DC,
-    the call, the engineer on the other side). In-hand / short / settled
-    filters, per-engineer filter, search, CSV.
+    **stock out (Stores) − consumption − transfer out + transfer in**.
+    Two tabs: **Stock Level**, one line per engineer and spare with every term
+    as its own column (in-hand / short / settled filters, per-engineer filter,
+    search, CSV, and a per-line movement trail in a drawer); and
+    **Movements**, the ledger those levels are made of — every stock out,
+    consumption and transfer, newest first, filtered by kind and engineer,
+    paged and exportable.
     It does **not** add a second stock system: `0020_stock_transfer.sql` owns
     the transfer tables and the `/stock-transfer` screen, and `engineer_stock`
     — which that screen and its overdraw guard read — is redefined as a view

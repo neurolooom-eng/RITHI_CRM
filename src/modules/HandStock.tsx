@@ -4,7 +4,9 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
-import { listHandstockBalance, listHandstockMovements, supabaseConfigured } from '../lib/supabase';
+import {
+  listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured,
+} from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import {
@@ -24,6 +26,12 @@ import './fieldcalls.css';
 // 0023_handstock.sql), which run with the caller's rights — so an engineer
 // sees their own stock, an RM their sub-tree, an admin everyone's.
 //
+// Two tabs over the same derivation:
+//   Stock Level — one line per engineer and spare, each term of the formula
+//                 beside the level. What is in hand, right now.
+//   Movements   — the ledger those levels are made of: every stock out,
+//                 consumption and transfer, newest first.
+//
 // Stock Transfer (/stock-transfer) is where a hand-over is recorded, and it
 // reads the same derivation (`engineer_stock` is a view over the balance
 // below), so the two screens cannot disagree.
@@ -33,7 +41,9 @@ const CACHE_KEY = 'handstock';
 const MIGRATION_HINT = 'Hand stock needs migration 0023_handstock.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
 type Row = HandstockBalance & { id: string };
+type MoveRow = HandstockMovement & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';
+type Tab = 'levels' | 'moves';
 
 const asRow = (r: Record<string, unknown>): Row => ({
   engineer_key: String(r.engineer_key ?? ''),
@@ -74,6 +84,7 @@ export function HandStock() {
   const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
+  const [tab, setTab] = useState<Tab>('levels');
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
@@ -157,42 +168,53 @@ export function HandStock() {
         <KpiCard label="Spares held" value={totals.partCodes} icon="🔩" tone="info" sub="distinct part codes" />
         <KpiCard label="Stock out" value={totals.stockOut} icon="📤" tone="success" sub="issued by Stores on a DC" />
         <KpiCard label="Consumed" value={totals.consumed} icon="🧾" tone="neutral" sub="used on calls" />
-        <KpiCard label="Transferred" value={totals.transferred} icon="⇄" tone="info" sub="handed between engineers" />
         <KpiCard label="Short" value={totals.shortLines} icon="⚠️" tone={totals.shortLines ? 'danger' : 'neutral'} sub="taken without a stock out" />
       </KpiGrid>
 
-      <div className="stage-chips">
-        <button className={`chip ${holding === 'held' ? 'chip-on' : ''}`} onClick={() => setHolding('held')}>In hand <b>{rows.filter((r) => r.on_hand > 0).length}</b></button>
-        <button className={`chip ${holding === 'short' ? 'chip-on' : ''}`} onClick={() => setHolding('short')}>⚠️ Short <b>{totals.shortLines}</b></button>
-        <button className={`chip ${holding === 'settled' ? 'chip-on' : ''}`} onClick={() => setHolding('settled')}>Settled <b>{rows.filter((r) => r.on_hand === 0).length}</b></button>
-        <button className={`chip ${holding === '' ? 'chip-on' : ''}`} onClick={() => setHolding('')}>All <b>{rows.length}</b></button>
+      {/* Tabs: the level, and the ledger it is made of. */}
+      <div className="stage-chips hs-tabs">
+        <button className={`chip ${tab === 'levels' ? 'chip-on' : ''}`} onClick={() => setTab('levels')}>📊 Stock Level <b>{rows.length}</b></button>
+        <button className={`chip ${tab === 'moves' ? 'chip-on' : ''}`} onClick={() => setTab('moves')}>🧾 Movements</button>
       </div>
 
-      <DataTable<Row>
-        columns={columns}
-        rows={visible}
-        getRowId={(r) => r.id}
-        onRowClick={(r) => setDetail(r)}
-        storageKey="handstock"
-        rowsBeforeScroll={14}
-        dense
-        emptyText={rows.length ? 'No lines match this filter.' : 'No hand stock yet — Refresh to load.'}
-        toolbar={
-          <Toolbar>
-            <SearchBox value={search} onChange={setSearch} placeholder="Engineer, part code, description…" />
-            <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
-              <option value="">All engineers</option>
-              {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer} ({e.onHand})</option>)}
-            </select>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
-            <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
-            {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
-            )}
-          </Toolbar>
-        }
-      />
+      {tab === 'moves' ? (
+        <Movements engineers={engineers} onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} />
+      ) : (
+        <>
+          <div className="stage-chips">
+            <button className={`chip ${holding === 'held' ? 'chip-on' : ''}`} onClick={() => setHolding('held')}>In hand <b>{rows.filter((r) => r.on_hand > 0).length}</b></button>
+            <button className={`chip ${holding === 'short' ? 'chip-on' : ''}`} onClick={() => setHolding('short')}>⚠️ Short <b>{totals.shortLines}</b></button>
+            <button className={`chip ${holding === 'settled' ? 'chip-on' : ''}`} onClick={() => setHolding('settled')}>Settled <b>{rows.filter((r) => r.on_hand === 0).length}</b></button>
+            <button className={`chip ${holding === '' ? 'chip-on' : ''}`} onClick={() => setHolding('')}>All <b>{rows.length}</b></button>
+          </div>
+
+          <DataTable<Row>
+            columns={columns}
+            rows={visible}
+            getRowId={(r) => r.id}
+            onRowClick={(r) => setDetail(r)}
+            storageKey="handstock"
+            rowsBeforeScroll={14}
+            dense
+            emptyText={rows.length ? 'No lines match this filter.' : 'No hand stock yet — Refresh to load.'}
+            toolbar={
+              <Toolbar>
+                <SearchBox value={search} onChange={setSearch} placeholder="Engineer, part code, description…" />
+                <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
+                  <option value="">All engineers</option>
+                  {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer} ({e.onHand})</option>)}
+                </select>
+                <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+                <div className="spacer" />
+                {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
+                {rows.length > 0 && (
+                  <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+                )}
+              </Toolbar>
+            }
+          />
+        </>
+      )}
 
       <Drawer
         open={!!detail}
@@ -208,6 +230,128 @@ export function HandStock() {
         )}
       </Drawer>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Movements tab — the ledger the levels are made of. Every stock out,
+// consumption and transfer across everyone the viewer may see, newest first.
+// Loaded on its own (and paged) rather than with the levels, because a level
+// is a handful of rows per engineer and its history is not.
+// ---------------------------------------------------------------------------
+const PAGE = 1000;
+
+function Movements({
+  engineers, onMigrationError,
+}: {
+  engineers: { engineer_key: string; engineer: string }[];
+  onMigrationError: () => void;
+}) {
+  const [moves, setMoves] = useState<MoveRow[]>([]);
+  const [search, setSearch] = useState('');
+  const [engineerFilter, setEngineerFilter] = useState('');
+  const [kind, setKind] = useState<MovementKind | ''>('');
+  const [busy, setBusy] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [more, setMore] = useState(false);
+  const [err, setErr] = useState('');
+
+  const fetchPage = async (from: number, engineerKey: string) => {
+    const raw = await listAllHandstockMovements(PAGE, from, engineerKey ? { engineerKey } : {});
+    return raw.map((m, i) => ({ ...asMovement(m), id: `${from + i}` } as MoveRow));
+  };
+
+  const load = async (engineerKey = engineerFilter) => {
+    setBusy(true); setErr('');
+    try {
+      const page = await fetchPage(0, engineerKey);
+      setMoves(page); setOffset(page.length); setMore(page.length === PAGE);
+    } catch (e) {
+      const text = e instanceof Error ? e.message : String(e);
+      if (/handstock|does not exist|schema cache/i.test(text)) onMigrationError();
+      else setErr(text);
+      setMoves([]); setMore(false);
+    } finally { setBusy(false); }
+  };
+  useEffect(() => { void load(engineerFilter); /* eslint-disable-next-line */ }, [engineerFilter]);
+
+  const loadMore = async () => {
+    setBusy(true);
+    try {
+      const page = await fetchPage(offset, engineerFilter);
+      setMoves((m) => [...m, ...page]); setOffset(offset + page.length); setMore(page.length === PAGE);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+  };
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return moves.filter((m) => {
+      if (kind && m.movement !== kind) return false;
+      if (!q) return true;
+      return [m.engineer, m.part, m.part_code, m.ref, m.ucn, m.call_number, m.party_name, m.remarks]
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+  }, [moves, search, kind]);
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    moves.forEach((m) => { c[m.movement] = (c[m.movement] ?? 0) + 1; });
+    return c;
+  }, [moves]);
+
+  const columns: Column<MoveRow>[] = [
+    { key: 'moved_at', header: 'When', width: 135, render: (m) => fmtLongDate(m.moved_at) },
+    { key: 'movement', header: 'Movement', width: 120, wrap: false, render: (m) => <span className={`badge badge-${movementTone(m.movement)}`}>{m.movement}</span> },
+    { key: 'engineer', header: 'Engineer', width: 160 },
+    { key: 'part_code', header: 'Spare', width: 115, wrap: false },
+    { key: 'part', header: 'Description', width: 220, accessor: (m) => partDescription(m.part) || m.part, render: (m) => partDescription(m.part) || m.part },
+    { key: 'qty', header: 'Qty', width: 70, align: 'right', wrap: false, render: (m) => <span className={m.direction === 'IN' ? 'wf-in' : 'wf-out'}>{m.direction === 'IN' ? '+' : '−'}{m.qty}</span> },
+    { key: 'ref', header: 'Reference', width: 140, wrap: false },
+    { key: 'ref_type', header: 'Against', width: 100, wrap: false },
+    { key: 'party_name', header: 'Party / other engineer', width: 200 },
+    { key: 'remarks', header: 'Remarks', width: 180 },
+  ];
+
+  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out'];
+
+  return (
+    <>
+      {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
+
+      <div className="stage-chips">
+        <button className={`chip ${kind === '' ? 'chip-on' : ''}`} onClick={() => setKind('')}>All <b>{moves.length}</b></button>
+        {KINDS.map((k) => (
+          <button key={k} className={`chip ${kind === k ? 'chip-on' : ''}`} onClick={() => setKind(kind === k ? '' : k)}>{k} <b>{counts[k] ?? 0}</b></button>
+        ))}
+      </div>
+
+      <DataTable<MoveRow>
+        columns={columns}
+        rows={visible}
+        getRowId={(m) => m.id}
+        storageKey="handstockMovements"
+        rowsBeforeScroll={14}
+        dense
+        onLoadMore={loadMore}
+        moreAvailable={more}
+        loadingMore={busy}
+        emptyText={busy ? 'Loading movements…' : 'No movements yet.'}
+        toolbar={
+          <Toolbar>
+            <SearchBox value={search} onChange={setSearch} placeholder="Engineer, spare, DC, call, remarks…" />
+            <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
+              <option value="">All engineers</option>
+              {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer}</option>)}
+            </select>
+            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+            <div className="spacer" />
+            {moves.length > 0 && (
+              <button className="btn btn-sm" onClick={() => csvExport('hand-stock-movements.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+            )}
+          </Toolbar>
+        }
+      />
+    </>
   );
 }
 
