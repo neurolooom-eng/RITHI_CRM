@@ -23,7 +23,7 @@ import {
   sheetsConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured } from '../lib/supabase';
+import { supabaseConfigured, searchCalls } from '../lib/supabase';
 import './fieldcalls.css';
 import {
   FC_CONTRACT_TYPE,
@@ -330,10 +330,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [report, setReport] = useState<Rec | null>(null); // "Update Call" → Reporting-N
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
-  // On Supabase the whole register loads (fast + fully searchable). The 300-row
-  // cap + "Load more" only exist for the legacy Google-Sheet path.
+  // On Supabase we show the recent set by default and run SEARCH server-side
+  // (so older calls are found without loading everything). The 300-cap + "Load
+  // more" only exist for the legacy Google-Sheet path.
   const onDb = supabaseConfigured();
-  const [loadLimit, setLoadLimit] = useState(onDb ? 100000 : 300);
+  const RECENT_LIMIT = 800;
+  const [loadLimit, setLoadLimit] = useState(onDb ? RECENT_LIMIT : 300);
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
   const [pendingRow, setPendingRow] = useState<number | null>(null); // Data-2026 row to back-fill
@@ -385,6 +387,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Use the cached data when it's fresh (< 30 min); only auto-sync when the
   // cache is stale or empty. A 30-minute timer force-syncs in the background.
   useEffect(() => {
+    if (onDb) return; // Supabase path: the server-search effect below owns loading.
     if (!configured) { void refresh(); return; }
     const ageMs = lastSync ? Date.now() - new Date(lastSync).getTime() : Infinity;
     const hasCache = cached.some((r) => r._synced);
@@ -397,6 +400,36 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Server-side search (Supabase). Debounced: any active term re-queries the
+  // whole register on the server (RLS-scoped); empty terms show the recent set.
+  useEffect(() => {
+    if (!onDb) return;
+    const active = !!(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName);
+    const applyRows = (rows: Rec[]) => {
+      db.list(config.collection).filter((r) => (r as Rec)._synced).forEach((r) => db.remove(config.collection, r.id));
+      [...rows].reverse().forEach((r) => db.insert(config.collection, { ...r, id: String(r.ucn || genId()), _synced: true }));
+    };
+    const t = window.setTimeout(async () => {
+      setBusy(true);
+      try {
+        const rows = active
+          ? (await searchCalls(config.callType, srch, 1000)) as unknown as Rec[]
+          : (await listFieldCalls('', RECENT_LIMIT, config.tab)) as unknown as Rec[];
+        applyRows(rows);
+        const now = new Date().toISOString();
+        try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
+        setLastSync(now);
+        setBanner({ tone: 'ok', text: active
+          ? `${rows.length} match${rows.length === 1 ? '' : 'es'} for your search (server-side).`
+          : `Showing the ${rows.length} most recent ${config.singular.toLowerCase()}s — search finds any call.` });
+      } catch (e) {
+        setBanner({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
+      } finally { setBusy(false); }
+    }, active ? 350 : 0);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [srch, onDb]);
 
   // Arriving with a prefill (Product Master / pending) opens the create drawer;
   // arriving with editUcn opens the existing call in edit mode.
@@ -712,8 +745,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ) : undefined
               }
             />
-            {drawer.mode === 'view' && !drawer.row?._pending && drawer.row?.ucn && (
-              <CallAssociations ucn={String(drawer.row.ucn)} />
+            {drawer.mode === 'view' && !drawer.row?._pending && (drawer.row?.callNumber || drawer.row?.ucn) && (
+              <CallAssociations callNumber={String(drawer.row.callNumber || drawer.row.ucn)} />
             )}
           </>
         )}
