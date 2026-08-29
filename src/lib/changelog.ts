@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-08-29',
+    title: 'Spare requests move to the database',
+    changes: [
+      'Raising a spare request now writes to the database only \u2014 the old sheet append is gone. Each request is one record plus a row per part.',
+      'OR numbers are issued by the database, continuing the sheet\u2019s series from OR47042, with a RowNo that restarts at 1 for each OR and the request date stamped on submit.',
+      'Call-Based requests get a UC Number picker: search the Call Register by UCN, call number, party or serial, and the party, product, serial, complaint and item status are copied onto the request.',
+      'Every role except Engineer can raise a request on behalf of one of their engineers; engineers raise their own.',
+      'Up to 20 spares per request, each row editable and removable until you submit; quantity is at least 1. Remarks are now a proper multi-line field.',
+      'Fixed: approving a spare request for a non-AMC item was being rejected by the database \u2014 the automatic Commercial and NSM clearance rode along in the same update and tripped their permission checks.',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-08-29',
     title: 'Spare Request module — full approval-to-receipt workflow',
