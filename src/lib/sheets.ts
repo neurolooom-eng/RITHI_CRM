@@ -453,6 +453,40 @@ export async function uploadManualReport(ucn: string, column: string, file: File
   }
 }
 
+// Upload a standalone file to the Drive folder (no sheet write) and return its
+// link — used by Request Call Registration for the Installation Report / KYC
+// documents, which have no UCN to attach to yet. The POST response is opaque
+// cross-origin, so the file is sent with a client-generated `ref` and the link
+// is read back over GET (which is CORS-safe).
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: boolean; url?: string; error?: string }> {
+  const base = getSheetsUrl();
+  if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
+  if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
+  const ref = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    const dataBase64 = await fileToBase64(file);
+    await fetch(base, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({ action: 'driveupload', ref, prefix, filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
+      redirect: 'follow',
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+  // Poll for the stored link (~30s); Drive writes are usually done in a second.
+  for (let i = 0; i < 15; i++) {
+    await new Promise((r) => setTimeout(r, i === 0 ? 800 : 2000));
+    try {
+      const r = await getJson({ action: 'driveref', ref });
+      if (r.ok && r.url) return { ok: true, url: String(r.url) };
+    } catch { /* keep polling */ }
+  }
+  return { ok: false, error: 'Upload not confirmed — retry, or check the Drive folder.' };
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
