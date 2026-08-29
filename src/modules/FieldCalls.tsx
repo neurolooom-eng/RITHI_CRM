@@ -336,7 +336,10 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  const { user, can } = useAuth();
+  const { user, can, isAdmin } = useAuth();
+  // A Solved call is read-only for everyone except admins.
+  const isSolved = (row: Rec) => /solved/i.test(String(row.status ?? ''));
+  const canEditRow = (row: Rec) => can('calls.edit') && (isAdmin || !isSolved(row));
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
   const partyMaster = useMaster('party');
@@ -528,6 +531,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const handleEdit = async (values: FormValues) => {
     const row = drawer?.row;
     if (!row) return;
+    if (!canEditRow(row)) { setBanner({ tone: 'error', text: isSolved(row) ? 'This call is Solved and read-only.' : 'You don’t have permission to edit calls.' }); setDrawer(null); return; }
     const patch = buildPayload(values, config.callType);
     setBusy(true);
     try {
@@ -617,14 +621,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     render: (row) => (
       <div className="row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'view', row })}>View</button>
-        {can('edit') && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
-        {can('edit') && !row._pending && (
-          <button className="btn btn-sm btn-primary" title="Update / report this call (saved to Reporting-N)" onClick={() => setReport(row)}>📝 Update</button>
+        {canEditRow(row) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
+        {can('calls.report') && !row._pending && (
+          <button className="btn btn-sm btn-primary" title="Update / report this call" onClick={() => setReport(row)}>📝 Update</button>
         )}
-        {can('edit') && !row._pending && (
+        {can('spare.request') && !row._pending && (
           <button className="btn btn-sm" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦 Spare</button>
         )}
-        {row._pending && can('edit') && (
+        {row._pending && (can('calls.create') || can('calls.edit')) && (
           <button className="btn btn-sm btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
         )}
       </div>
@@ -638,7 +642,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         subtitle={config.subtitle}
         icon={config.icon}
         actions={
-          can('edit') && (
+          can('calls.create') && (
             <button
               className="btn btn-primary"
               onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setPendingRow(null); setDrawer({ mode: 'create' }); }}
@@ -733,12 +737,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
               </div>
             )}
-            {/* Actions at the top of a call's view */}
-            {drawer.mode === 'view' && !drawer.row?._pending && can('edit') && (
+            {/* Actions at the top of a call's view (each gated by its own permission) */}
+            {drawer.mode === 'view' && !drawer.row?._pending && (can('calls.report') || can('spare.request') || canEditRow(drawer.row as Rec)) && (
               <div className="call-actions-top">
-                <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
-                <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
-                <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>
+                {can('calls.report') && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>}
+                {can('spare.request') && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
+                {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
+                {isSolved(drawer.row as Rec) && !isAdmin && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Solved — read-only</span>}
               </div>
             )}
             {drawer.mode === 'create' && configured && (
@@ -756,13 +761,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
-                drawer.mode === 'view' && can('edit') ? (
+                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || can('calls.report') || can('spare.request')) ? (
                   <>
-                    <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>
-                    {!drawer.row?._pending && (
+                    {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
+                    {!drawer.row?._pending && can('calls.report') && (
                       <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
                     )}
-                    {!drawer.row?._pending && (
+                    {!drawer.row?._pending && can('spare.request') && (
                       <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
                     )}
                   </>
