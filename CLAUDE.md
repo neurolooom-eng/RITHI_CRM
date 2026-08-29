@@ -44,14 +44,22 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 
 - **Migrations** — `supabase/migrations/`, numbered **per module**, so two files
   can share a number (`0011_spare_intake.sql`, `0011_call_request_actions.sql`).
-  Go by file name, never the number.
+  Go by file name, never the number. Other sessions add migrations at the same
+  time, so **re-check for a collision after merging `main`** and renumber if
+  yours is taken — safe even once the SQL has been applied, since the bundles
+  are idempotent.
 - **Apply bundles** — `supabase/apply/*.sql` are GENERATED. Edit the migration,
   add it to the right module in `scripts/build-apply-bundles.mjs`, re-run
   `node scripts/build-apply-bundles.mjs`, and commit the result. `_status.sql`
   is hand-maintained: add a row when a bundle gains a checkable object.
 - **User-visible change** → add a `CHANGELOG` entry in `src/lib/changelog.ts`
   (in-app Version History) and bump `package.json`. Write it in the user's
-  words, not the code's.
+  words, not the code's. `main` has often claimed your version already from
+  another branch: take the next one **above** it rather than renumbering
+  theirs, and keep `package-lock.json`'s two version fields in step.
+- **Applying SQL to the live Supabase project stays the user's step.** Name the
+  bundle to run (`_status.sql` first, then what it flags) — never assume a
+  migration is live because it is merged.
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
 - **CallReg redeploys** — a change to `apps-script/CallReg.gs` is not live until
@@ -68,3 +76,7 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   access is enforced by RLS. Never ship the service_role key.
 - `script.google.com` is blocked from the sandbox's outbound proxy, so the Apps
   Script endpoints cannot be probed from here — say so rather than guessing.
+- The local `db.ts` collections are **demo leftovers**, and `clearDemoData()`
+  empties them on load — a screen backed by one renders blank against live
+  data. That is what made Part Master and the in-call spare-consumption picker
+  look empty; both read live tables now. Recognise the symptom quickly.
