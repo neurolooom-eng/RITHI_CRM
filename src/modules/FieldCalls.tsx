@@ -23,6 +23,7 @@ import {
   sheetsConfigured,
   updateFieldCall,
 } from '../lib/sheets';
+import { supabaseConfigured } from '../lib/supabase';
 import './fieldcalls.css';
 import {
   FC_CONTRACT_TYPE,
@@ -329,7 +330,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [report, setReport] = useState<Rec | null>(null); // "Update Call" → Reporting-N
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
-  const [loadLimit, setLoadLimit] = useState(300);
+  // On Supabase the whole register loads (fast + fully searchable). The 300-row
+  // cap + "Load more" only exist for the legacy Google-Sheet path.
+  const onDb = supabaseConfigured();
+  const [loadLimit, setLoadLimit] = useState(onDb ? 100000 : 300);
   const [prefill, setPrefill] = useState<FormValues | undefined>(undefined);
   const [prefillKey, setPrefillKey] = useState(0);
   const [pendingRow, setPendingRow] = useState<number | null>(null); // Data-2026 row to back-fill
@@ -364,10 +368,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       const now = new Date().toISOString();
       try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
       setLastSync(now);
-      const capped = rows.length >= limit;
+      const capped = !onDb && rows.length >= limit;
       setBanner({
         tone: 'ok',
-        text: `Synced ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
+        text: onDb
+          ? `Loaded all ${rows.length} ${config.singular.toLowerCase()}s — search covers the full register.`
+          : `Synced ${rows.length} ${config.singular.toLowerCase()}s${capped ? ` — most recent ${limit}; use “Load more” for older` : ''}.`,
       });
     } catch (e) {
       setBanner({ tone: 'error', text: `Could not reach the sheet: ${e instanceof Error ? e.message : String(e)}` });
@@ -610,7 +616,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>
-            {configured && cached.filter((r) => r._synced).length >= loadLimit && (
+            {configured && !onDb && cached.filter((r) => r._synced).length >= loadLimit && (
               <button
                 className="btn btn-sm"
                 onClick={() => { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); }}
