@@ -1,43 +1,39 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { getReport, saveReport, sheetsConfigured, tabAppend, tabMeta, uploadManualReport } from '../lib/sheets';
+import { getReport, saveReport, addConsumption, addFeedback, sbEngineerNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
-import { toSheetDate } from '../lib/fieldcall';
+import { useAccessScope } from '../lib/access';
 import { todayISO } from '../lib/format';
-
-const WARRANTY_Q = 'Warranty Start Date?';
 import './fieldcalls.css';
 
 // ===========================================================================
-// CALL REPORTING — "Update Call" against a Field / Installation call.
-// The report is written to the Call Register's Reporting-N tab (keyed by UCN),
-// and the visible sections change with the chosen Call Status:
-//   • Solved - Report Completed → full report + Manual report upload +
-//     Spare Consumption (v2Consumption, added one by one) + Customer Feedback
-//     (v2Feedback).
-//   • Unsolved → only the pending reason is required; the rest is optional.
-//   • Report Pending → pending reason is set to "Report Pending" automatically;
-//     the rest is optional.
+// CALL REPORTING — "Update Call" against a Field / Installation / PM call.
+// Saves to the Supabase `reports` table (one row per UCN; all fields live in
+// the `data` jsonb). Sections adapt to the chosen Call Status:
+//   • Solved  → full work details + manual report + spare consumption
+//               (spare_consumption) + customer feedback (feedback).
+//   • Unsolved → pending reason required; the rest optional.
+//   • Report Pending → pending reason auto-set to "Report Pending".
 // ===========================================================================
 
-// Spare consumption / customer feedback are standalone spreadsheets (books),
-// not tabs of the Call Register. We target each book's primary sheet (empty tab).
-const CONSUMPTION_TAB = 'v2Consumption'; // display label only
-const FEEDBACK_TAB = 'v2Feedback';       // display label only
-const CONSUMPTION_BOOK = 'consumption';
-const FEEDBACK_BOOK = 'feedback';
-
-const READONLY = ['UC Number', 'Call Number', 'UID', 'Email-ID'];
 const STATUS_OPTIONS = ['Solved - Report Completed', 'Unsolved', 'Report Pending'];
-const LONG_MATCH = /job\s*done|observation|service\s*report|standard\s*complaint|pending\s*reason|remark|action\s*taken|description|comment/i;
-const CORE_SOLVED = [/job\s*done/i, /service\s*report/i, /complaint\s*observation/i];
 const RATINGS_FALLBACK = ['Excellent', 'Good', 'Average', 'Poor'];
+const WARRANTY_Q = 'Warranty Start Date?';
 
-// Customer-feedback questions (v2Feedback), each shown only for the applicable
-// call type. rule: ALL = every call; INSTALLATION = installation only;
-// FIELD = field only; NOT_INSTALLATION = any non-installation (PM / Field).
-// answer: rating (Excellent…Poor) | yesno | date | text.
+// Work-detail fields (kept in reports.data). label + whether it's a long textarea.
+const WORK_FIELDS: { key: string; long?: boolean }[] = [
+  { key: 'Service Report', long: true },
+  { key: 'Complaint Observation', long: true },
+  { key: 'Job Done', long: true },
+  { key: 'Hour Meter Reading' },
+  { key: 'Software Version' },
+  { key: 'Accessory Serial No (CPX/ASU)' },
+  { key: 'Maintenance Done?' },
+  { key: 'Recomended Filter Changed?' },
+];
+
+// Customer-feedback questions (feedback table), filtered by call type.
 type FbRule = 'ALL' | 'INSTALLATION' | 'FIELD' | 'NOT_INSTALLATION';
 type FbAnswer = 'rating' | 'yesno' | 'date' | 'text';
 interface FbQuestion { col: string; rule: FbRule; answer: FbAnswer }
@@ -67,17 +63,6 @@ function fbApplies(rule: FbRule, callType: string): boolean {
   }
 }
 
-const PREFILL_FROM_CALL: Record<string, string> = {
-  'UC Number': 'ucn', 'Call Number': 'callNumber', 'Call Type': 'callType',
-  'Party Name': 'partyName', 'City': 'city', 'State': 'state',
-  'Product Name': 'productName', 'Product Serial Number': 'serial',
-  'Visiting Service Engineer': 'allocatedTo',
-};
-
-const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
-const find = (headers: string[], re: RegExp) => headers.find((h) => re.test(h));
-const ucnColOf = (headers: string[]) => find(headers, /uc\s*number|ucn/i) || find(headers, /call\s*number/i) || 'UC Number';
-
 export interface CallLike { ucn?: unknown; [key: string]: unknown }
 
 export function CallReportDrawer({
@@ -88,109 +73,76 @@ export function CallReportDrawer({
   onClose: () => void;
   onSaved?: (mode: string, ucn: string) => void;
 }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
+  const scope = useAccessScope();
   const ucn = String(call?.ucn ?? '');
-  const pendingReasons = useMaster('pendingreason'); // Call Pending Reason master
-  const ratings = useMaster('feedbackrating', RATINGS_FALLBACK); // Excellent/Good/Average/Poor
+  const callType = String(call?.callType ?? call?.['call_type'] ?? '');
+  const pendingReasons = useMaster('pendingreason');
+  const ratings = useMaster('feedbackrating', RATINGS_FALLBACK);
+
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [existing, setExisting] = useState<Record<string, unknown>>({});
-  const [values, setValues] = useState<Record<string, string>>({});
 
-  // ---- load the report schema + existing row on open ----
+  // Visit + status
+  const [visitEntry] = useState(() => new Date().toLocaleString());
+  const [visitDate, setVisitDate] = useState(todayISO());
+  const [engineer, setEngineer] = useState('');
+  const [updateWork, setUpdateWork] = useState('Yes');
+  const [status, setStatus] = useState('');
+  const [pendingReason, setPendingReason] = useState('');
+  const [manualLink, setManualLink] = useState('');
+  const [work, setWork] = useState<Record<string, string>>({});
+
+  // Engineer dropdown: admin → everyone; manager → their reports; else self.
+  const selfName = user?.fullName ?? '';
+  const [allEngineers, setAllEngineers] = useState<string[]>([]);
+  useEffect(() => { if (open && isAdmin) sbEngineerNames().then(setAllEngineers).catch(() => {}); }, [open, isAdmin]);
+  const engineerOptions = useMemo(() => {
+    const base = isAdmin ? allEngineers : scope.isManager ? [selfName, ...scope.reports] : [selfName];
+    const set = new Set(base.filter(Boolean));
+    if (engineer) set.add(engineer);
+    return [...set];
+  }, [isAdmin, allEngineers, scope.isManager, scope.reports, selfName, engineer]);
+
+  const solved = /solved/i.test(status) && /complet/i.test(status);
+  const pending = /report\s*pending/i.test(status);
+  const unsolved = /unsolved/i.test(status);
+  const fbQuestions = useMemo(() => FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType)), [callType]);
+
+  // Spare consumption + feedback
+  const spareMaster = useMaster('spare');
+  const [spares, setSpares] = useState<{ part: string; qty: string }[]>([]);
+  const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1' });
+  const [feedback, setFeedback] = useState<Record<string, string>>({});
+
+  // Load any existing report for this UCN.
   useEffect(() => {
     if (!open || !ucn) return;
-    if (!sheetsConfigured()) { setErr('Connect the Google Sheet in Settings to report calls.'); return; }
+    if (!supabaseConfigured()) { setErr('Connect the database in Settings to report calls.'); return; }
     let cancelled = false;
-    setLoading(true); setErr(''); setHeaders([]); setExisting({}); setValues({});
-    setSpares([]); setSpareDraft({}); setFeedback({}); setConsHeaders(null); setSubNote('');
-    setManualLink(''); setManualFile(null);
-    getReport(ucn)
-      .then((r) => {
-        if (cancelled) return;
-        setHeaders(r.headers); setExisting(r.row);
-        // seed values: existing value, else identifying prefill from the call
-        const seed: Record<string, string> = {};
-        r.headers.forEach((h) => {
-          const cur = r.row[h];
-          if (cur != null && String(cur) !== '') { seed[h] = String(cur); return; }
-          const k = PREFILL_FROM_CALL[h];
-          seed[h] = k && call ? String(call[k] ?? '') : '';
-        });
-        // default the visit date/time to now if empty
-        const visitH = find(r.headers, /visit.*(date|time)/i);
-        if (visitH && !seed[visitH]) seed[visitH] = new Date().toLocaleString();
-        setValues(seed);
-        const manualH = find(r.headers, /manual\s*report|report\s*(link|url|attachment|upload)/i);
-        if (manualH && r.row[manualH]) setManualLink(String(r.row[manualH]));
-      })
-      .catch((e) => { if (!cancelled) setErr(`Couldn't load the report: ${e instanceof Error ? e.message : String(e)}`); })
+    setLoading(true); setErr(''); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
+    getReport(ucn).then((r) => {
+      if (cancelled) return;
+      const row = r.row ?? {};
+      const data = (row.data as Record<string, unknown>) ?? {};
+      setStatus(String(row.call_status ?? ''));
+      setPendingReason(String(row.pending_reason ?? ''));
+      setEngineer(String(row.engineer ?? call?.allocatedTo ?? selfName ?? ''));
+      setVisitDate(String(data['Visit Date & Time'] ?? '').slice(0, 10) || todayISO());
+      setUpdateWork(String(data['Update Visit Work Details?'] ?? 'Yes'));
+      setManualLink(String(data['Manual Report'] ?? ''));
+      const w: Record<string, string> = {};
+      WORK_FIELDS.forEach((f) => { w[f.key] = String(data[f.key] ?? ''); });
+      setWork(w);
+    }).catch((e) => { if (!cancelled) setErr(`Couldn't load the report: ${e instanceof Error ? e.message : String(e)}`); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, ucn]);
 
-  const usable = useMemo(() => headers.filter((h) => h && !h.startsWith('_') && !/^Page.*Header$/i.test(h)), [headers]);
-  const statusH = useMemo(() => find(usable, /call\s*status|^status$/i), [usable]);
-  const pendingH = useMemo(() => find(usable, /pending\s*reason/i), [usable]);
-  const manualH = useMemo(() => find(usable, /manual\s*report|report\s*(link|url|attachment|upload)/i), [usable]);
-
-  const status = statusH ? values[statusH] ?? '' : '';
-  const solved = /solved/i.test(status) && /complet/i.test(status);
-  const pending = /report\s*pending/i.test(status) || norm(status) === 'report pending';
-  const unsolved = /unsolved/i.test(status);
-
-  const detailHeaders = useMemo(
-    () => usable.filter((h) => h !== statusH && h !== pendingH && h !== manualH && !READONLY.includes(h)),
-    [usable, statusH, pendingH, manualH],
-  );
-
-  const set = (h: string, v: string) => setValues((s) => ({ ...s, [h]: v }));
-
-  // ---- Report Pending auto-fills the pending reason ----
-  useEffect(() => {
-    if (pending && pendingH && values[pendingH] !== 'Report Pending') set(pendingH, 'Report Pending');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pending, pendingH]);
-
-  // ---- Manual report upload ----
-  const [manualFile, setManualFile] = useState<File | null>(null);
-  const [manualLink, setManualLink] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const doUpload = async () => {
-    if (!manualFile || !ucn) return;
-    setUploading(true); setErr('');
-    const res = await uploadManualReport(ucn, manualH || 'Manual Report', manualFile);
-    if (!res.ok) { setErr(`Upload failed: ${res.error}`); setUploading(false); return; }
-    // Response is opaque; confirm by re-reading the report link.
-    await new Promise((r) => setTimeout(r, 1500));
-    try {
-      const rr = await getReport(ucn);
-      const link = manualH ? String(rr.row[manualH] ?? '') : '';
-      setManualLink(link || 'uploaded');
-      if (manualH) set(manualH, link);
-    } catch { setManualLink('uploaded'); }
-    setManualFile(null);
-    setUploading(false);
-  };
-
-  // ---- Spare consumption (v2Consumption) — added one by one ----
-  const [consHeaders, setConsHeaders] = useState<string[] | null>(null);
-  const [spareDraft, setSpareDraft] = useState<Record<string, string>>({});
-  const [spares, setSpares] = useState<Record<string, string>[]>([]);
-  const [spareBusy, setSpareBusy] = useState(false);
-
-  // ---- Customer feedback (v2Feedback) — questions filtered by call type ----
-  const [feedback, setFeedback] = useState<Record<string, string>>({});
-  const [subNote, setSubNote] = useState(''); // note if the consumption tab isn't reachable
-  const callType = String(call?.callType ?? values['Call Type'] ?? '');
-  const fbQuestions = useMemo(() => FEEDBACK_QUESTIONS.filter((q) => fbApplies(q.rule, callType)), [callType]);
-
-  // For an installation call, the warranty starts on the solved date — default
-  // it to today (the report-completion date); the engineer can change it to the
-  // invoice date.
+  // Report Pending → auto pending reason. Warranty date defaults to today.
+  useEffect(() => { if (pending) setPendingReason('Report Pending'); }, [pending]);
   useEffect(() => {
     if (solved && fbQuestions.some((q) => q.col === WARRANTY_Q) && feedback[WARRANTY_Q] === undefined) {
       setFeedback((f) => ({ ...f, [WARRANTY_Q]: todayISO() }));
@@ -198,46 +150,21 @@ export function CallReportDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solved, fbQuestions]);
 
-  // Lazily load the spare-consumption schema the first time a call is solved.
-  useEffect(() => {
-    if (!solved || !open) return;
-    let cancelled = false;
-    if (consHeaders === null) {
-      tabMeta('', CONSUMPTION_BOOK)
-        .then((h) => { if (!cancelled) { setConsHeaders(h); setSpareDraft({ [ucnColOf(h)]: ucn }); } })
-        .catch(() => { if (!cancelled) { setConsHeaders([]); setSubNote(`Couldn't reach ${CONSUMPTION_TAB} — check the link in Admin Config.`); } });
-    }
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solved, open]);
-
-  const addSpare = async () => {
-    if (!consHeaders || consHeaders.length === 0) return;
-    const meaningful = Object.entries(spareDraft).some(([k, v]) => !/uc\s*number|ucn|call\s*number/i.test(k) && String(v).trim() !== '');
-    if (!meaningful) { setErr('Enter the spare details before adding.'); return; }
-    setSpareBusy(true); setErr('');
-    const payload = { ...spareDraft, [ucnColOf(consHeaders)]: ucn };
-    const res = await tabAppend('', payload, CONSUMPTION_BOOK);
-    if (res.ok) {
-      setSpares((s) => [...s, payload]);
-      setSpareDraft({ [ucnColOf(consHeaders)]: ucn }); // reset for the next spare
-    } else setErr(`Couldn't save spare: ${res.error}`);
-    setSpareBusy(false);
+  const addSpare = () => {
+    if (!spareDraft.part.trim()) { setErr('Pick a spare before adding.'); return; }
+    setSpares((s) => [...s, { ...spareDraft }]);
+    setSpareDraft({ part: '', qty: '1' });
   };
 
-  // ---- validation + save ----
   const validate = (): string => {
     if (!ucn) return 'This call has no UC Number to report against.';
-    if (statusH && !status) return 'Choose a Call Status.';
-    if (unsolved && pendingH && !String(values[pendingH] ?? '').trim()) return 'Enter the pending reason.';
+    if (!status) return 'Choose a Call Status.';
+    if ((unsolved || pending) && !pendingReason.trim()) return 'Enter the pending reason.';
     if (solved) {
-      const missing = detailHeaders.filter((h) => CORE_SOLVED.some((re) => re.test(h)) && !String(values[h] ?? '').trim());
-      if (missing.length) return `Fill the report details: ${missing.join(', ')}.`;
-      if (manualH && !manualLink) return 'Upload the manual report.';
-      // Customer feedback is mandatory for a solved call — every rating / yes-no
-      // question that applies to this call type must be answered.
-      const fbMissing = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
-      if (fbMissing.length) return `Customer feedback is mandatory for a solved call. Answer: ${fbMissing.map((q) => q.col).join(', ')}.`;
+      if (!String(work['Job Done'] ?? '').trim() && !String(work['Service Report'] ?? '').trim())
+        return 'Fill the work details (Job Done / Service Report).';
+      const miss = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
+      if (miss.length) return `Customer feedback is mandatory for a solved call. Answer: ${miss.map((q) => q.col).join(', ')}.`;
     }
     return '';
   };
@@ -247,103 +174,104 @@ export function CallReportDrawer({
     if (v) { setErr(v); return; }
     setBusy(true); setErr('');
     try {
-      // Report patch: changed, editable fields (UC Number kept for a first append).
-      const patch: Record<string, unknown> = {};
-      usable.forEach((h) => {
-        if (READONLY.includes(h) && h !== 'UC Number') return;
-        if (String(values[h] ?? '') !== String(existing[h] ?? '')) patch[h] = values[h] ?? '';
-      });
+      const data: Record<string, unknown> = {
+        'Visit Entry Date': visitEntry,
+        'Visit Date & Time': visitDate,
+        'Update Visit Work Details?': updateWork,
+        'Manual Report': manualLink,
+        ...work,
+      };
+      const patch = {
+        call_number: String(call?.callNumber ?? ''),
+        call_status: status,
+        pending_reason: pendingReason,
+        engineer,
+        engineer_email: user?.email ?? '',
+        visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
+        data,
+      };
       const res = await saveReport(ucn, patch);
       if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
 
-      // Customer feedback → v2Feedback: a structured row with the identifying
-      // fields + the answers to the questions that apply to this call type.
-      if (solved && fbQuestions.length) {
-        const now = new Date();
-        const fbRow: Record<string, unknown> = {
-          'UC Number': ucn,
-          'Call Number': String(call?.callNumber ?? values['Call Number'] ?? ''),
-          'Call Type': callType,
-          'Email-ID': user?.email ?? '',
-          'Visiting Service Engineer': String(values['Visiting Service Engineer'] ?? call?.allocatedTo ?? user?.fullName ?? ''),
-          'Visit Entry Date': toSheetDate(now),
-          'Visit Date & Time': String(values['Visit Date & Time'] ?? ''),
-          'Party Name': String(call?.partyName ?? ''),
-          'State': String(call?.state ?? ''),
-          'Product Name': String(call?.productName ?? ''),
-          'Product Serial Number': String(call?.serial ?? ''),
-          'Complaint Reported': String(call?.complaintReported ?? ''),
-        };
-        fbQuestions.forEach((q) => {
-          const val = feedback[q.col];
-          if (val != null && String(val).trim() !== '') fbRow[q.col] = q.answer === 'date' ? toSheetDate(val) : val;
-        });
-        const fbRes = await tabAppend('', fbRow, FEEDBACK_BOOK);
-        if (!fbRes.ok) { setErr(`Report saved, but the feedback wasn't sent: ${fbRes.error}. Try Save again.`); setBusy(false); return; }
+      // Spare consumption → spare_consumption (one row per part).
+      for (const s of spares) {
+        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, data: {} });
       }
-      onSaved?.(res.mode ?? 'saved', ucn);
+      // Customer feedback → feedback (structured answers).
+      if (solved && fbQuestions.length) {
+        const answers: Record<string, unknown> = {};
+        fbQuestions.forEach((q) => { const val = feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
+        await addFeedback({
+          ucn, call_number: String(call?.callNumber ?? ''), call_type: callType, engineer, engineer_email: user?.email ?? '',
+          party_name: String(call?.partyName ?? ''), state: String(call?.state ?? ''), product_name: String(call?.productName ?? ''),
+          serial: String(call?.serial ?? ''), complaint: String(call?.complaintReported ?? ''),
+          answers, visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
+        });
+      }
+      onSaved?.('saved', ucn);
       onClose();
     } catch (e) {
       setErr(`Save failed: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   };
-
-  // Render one report field. A plain function (not a nested component) so the
-  // inputs keep focus while typing — a nested component would remount per render.
-  const renderField = (h: string, locked?: boolean) => {
-    const long = LONG_MATCH.test(h);
-    const ro = locked || READONLY.includes(h);
-    return (
-      <label className={`rep-field ${long ? 'rep-span2' : ''}`} key={h}>
-        <span className="field-label">{h}</span>
-        {long ? (
-          <textarea className="input" rows={2} value={values[h] ?? ''} readOnly={ro} onChange={(e) => set(h, e.target.value)} />
-        ) : (
-          <input className="input" value={values[h] ?? ''} readOnly={ro} onChange={(e) => set(h, e.target.value)} />
-        )}
-      </label>
-    );
-  };
-
-  const idHeaders = usable.filter((h) => READONLY.includes(h));
 
   return (
     <Drawer open={open} onClose={onClose} title={ucn ? `Update Call — ${ucn}` : 'Update Call'} width={820}>
-      <div className="detail-hint">📝 Report is saved to the <b>Reporting-N</b> tab; spares to <b>{CONSUMPTION_TAB}</b>, feedback to <b>{FEEDBACK_TAB}</b>.</div>
+      <div className="detail-hint">📝 Saved to the <b>reports</b> table; spares to <b>spare_consumption</b>, feedback to <b>feedback</b>.</div>
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
 
       {loading ? (
         <div className="muted" style={{ padding: 16 }}>Loading report…</div>
-      ) : usable.length === 0 ? (
-        <div className="muted" style={{ padding: 16 }}>{err ? '' : 'No reporting columns found on the Reporting-N tab.'}</div>
       ) : (
         <div className="rep-form">
-          {/* Identifying */}
-          {idHeaders.length > 0 && (
-            <section className="rep-sec">
-              <div className="rep-grid">{idHeaders.map((h) => renderField(h, true))}</div>
-            </section>
-          )}
+          {/* Visit */}
+          <section className="rep-sec">
+            <div className="rep-sec-title">Visit</div>
+            <div className="rep-grid">
+              <label className="rep-field">
+                <span className="field-label">Visit Entry Date</span>
+                <input className="input" value={visitEntry} readOnly />
+                <span className="muted rep-hint">Auto — when this report is entered.</span>
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Visit Date</span>
+                <input type="date" className="input" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Visiting Service Engineer</span>
+                <select className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}>
+                  {!engineer && <option value="">— select —</option>}
+                  {engineerOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+                {(isAdmin || scope.isManager) && <span className="muted rep-hint">You can assign a reporting engineer.</span>}
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Update Visit Work Details?</span>
+                <select className="select" value={updateWork} onChange={(e) => setUpdateWork(e.target.value)}>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </label>
+            </div>
+          </section>
 
-          {/* Status routing */}
+          {/* Status */}
           <section className="rep-sec">
             <div className="rep-sec-title">Call Status</div>
             <div className="rep-grid">
               <label className="rep-field">
-                <span className="field-label">{statusH || 'Call Status'}</span>
-                <select className="select" value={status} onChange={(e) => statusH && set(statusH, e.target.value)} disabled={!statusH}>
+                <span className="field-label">Call Status</span>
+                <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
                   <option value="">— Select status —</option>
                   {STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   {status && !STATUS_OPTIONS.includes(status) && <option value={status}>{status}</option>}
                 </select>
               </label>
-              {pendingH && (unsolved || pending) && (
+              {(unsolved || pending) && (
                 <label className="rep-field rep-span2">
-                  <span className="field-label">{pendingH}{unsolved ? ' *' : ''}</span>
-                  <input className="input" list="dl-pendingreason" value={values[pendingH] ?? ''} readOnly={pending} onChange={(e) => set(pendingH, e.target.value)} />
-                  {!pending && pendingReasons.values.length > 0 && (
+                  <span className="field-label">Call Pending Reason{unsolved ? ' *' : ''}</span>
+                  <input className="input" list="dl-pendingreason" value={pendingReason} readOnly={pending} onChange={(e) => setPendingReason(e.target.value)} />
+                  {!pending && (
                     <datalist id="dl-pendingreason">
                       {pendingReasons.values.slice(0, 1000).map((v) => <option key={v} value={v} />)}
                     </datalist>
@@ -352,67 +280,52 @@ export function CallReportDrawer({
                 </label>
               )}
             </div>
-            {!status && <div className="muted rep-hint">Choose a status to continue — the form adapts to it.</div>}
+            {!status && <div className="muted rep-hint">Choose a status — the form adapts to it.</div>}
           </section>
 
-          {/* Report details — required core fields when solved, optional otherwise */}
-          {status && (
+          {/* Work details */}
+          {status && updateWork === 'Yes' && (
             <section className="rep-sec">
-              <div className="rep-sec-title">Report details {solved ? '' : <span className="muted">(optional)</span>}</div>
-              <div className="rep-grid">{detailHeaders.map((h) => renderField(h))}</div>
+              <div className="rep-sec-title">Work details {solved ? '' : <span className="muted">(optional)</span>}</div>
+              <div className="rep-grid">
+                {WORK_FIELDS.map((f) => (
+                  <label className={`rep-field ${f.long ? 'rep-span2' : ''}`} key={f.key}>
+                    <span className="field-label">{f.key}</span>
+                    {f.long
+                      ? <textarea className="input" rows={2} value={work[f.key] ?? ''} onChange={(e) => setWork((w) => ({ ...w, [f.key]: e.target.value }))} />
+                      : <input className="input" value={work[f.key] ?? ''} onChange={(e) => setWork((w) => ({ ...w, [f.key]: e.target.value }))} />}
+                  </label>
+                ))}
+                <label className="rep-field rep-span2">
+                  <span className="field-label">Manual Report (Drive link)</span>
+                  <input className="input" placeholder="Paste the Drive link to the signed report" value={manualLink} onChange={(e) => setManualLink(e.target.value)} />
+                </label>
+              </div>
             </section>
           )}
 
-          {/* Manual report (solved) */}
+          {/* Spare consumption (solved) */}
           {solved && (
             <section className="rep-sec">
-              <div className="rep-sec-title">Manual report *</div>
-              {manualLink ? (
-                <div className="rep-manual-done">
-                  ✓ Uploaded{manualLink !== 'uploaded' && <> — <a href={manualLink} target="_blank" rel="noreferrer">open</a></>}
-                  <button className="btn btn-sm btn-ghost" onClick={() => { setManualLink(''); if (manualH) set(manualH, ''); }}>Replace</button>
-                </div>
-              ) : (
-                <div className="rep-upload">
-                  <input type="file" onChange={(e) => setManualFile(e.target.files?.[0] ?? null)} />
-                  <button className="btn btn-sm btn-primary" disabled={!manualFile || uploading} onClick={() => void doUpload()}>{uploading ? 'Uploading…' : '⭱ Upload report'}</button>
-                </div>
+              <div className="rep-sec-title">Spare consumption <span className="muted">→ spare_consumption</span></div>
+              {spares.length > 0 && (
+                <ul className="rep-spare-list">
+                  {spares.map((s, i) => <li key={i}>✓ {s.part} × {s.qty}</li>)}
+                </ul>
               )}
+              <div className="spare-row">
+                <input className="input spare-part" list="dl-spares" placeholder="Search part…" value={spareDraft.part} onChange={(e) => setSpareDraft((d) => ({ ...d, part: e.target.value }))} />
+                <input className="input spare-qty" type="number" min={1} value={spareDraft.qty} onChange={(e) => setSpareDraft((d) => ({ ...d, qty: e.target.value }))} />
+                <button className="btn btn-sm" onClick={addSpare}>＋ Add</button>
+              </div>
+              <datalist id="dl-spares">{spareMaster.values.slice(0, 2000).map((v) => <option key={v} value={v} />)}</datalist>
             </section>
           )}
 
-          {/* Spare consumption (solved) — added one by one */}
-          {solved && (
-            <section className="rep-sec">
-              <div className="rep-sec-title">Spare consumption <span className="muted">→ {CONSUMPTION_TAB}</span></div>
-              {subNote && <div className="muted rep-hint">{subNote}</div>}
-              {consHeaders && consHeaders.length > 0 && (
-                <>
-                  {spares.length > 0 && (
-                    <ul className="rep-spare-list">
-                      {spares.map((s, i) => (
-                        <li key={i}>✓ {consHeaders.filter((h) => !/uc\s*number|ucn|call\s*number/i.test(h) && s[h]).map((h) => `${h}: ${s[h]}`).join(' · ') || 'spare added'}</li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="rep-grid">
-                    {consHeaders.filter((h) => !/uc\s*number|ucn|call\s*number/i.test(h)).map((h) => (
-                      <label className="rep-field" key={h}>
-                        <span className="field-label">{h}</span>
-                        <input className="input" value={spareDraft[h] ?? ''} onChange={(e) => setSpareDraft((s) => ({ ...s, [h]: e.target.value }))} />
-                      </label>
-                    ))}
-                  </div>
-                  <button className="btn btn-sm" disabled={spareBusy} onClick={() => void addSpare()}>{spareBusy ? 'Adding…' : '＋ Add spare'}</button>
-                </>
-              )}
-            </section>
-          )}
-
-          {/* Customer feedback (solved) — questions for this call's type */}
+          {/* Customer feedback (solved) */}
           {solved && fbQuestions.length > 0 && (
             <section className="rep-sec">
-              <div className="rep-sec-title">Customer feedback * <span className="muted">→ {FEEDBACK_TAB} · {callType || 'call'} · required</span></div>
+              <div className="rep-sec-title">Customer feedback * <span className="muted">→ feedback · {callType || 'call'} · required</span></div>
               <div className="rep-grid">
                 {fbQuestions.map((q) => {
                   const req = q.answer === 'rating' || q.answer === 'yesno';
@@ -424,19 +337,13 @@ export function CallReportDrawer({
                         <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
                           <option value="">— rate —</option>
                           {ratings.values.map((v) => <option key={v} value={v}>{v}</option>)}
-                          {feedback[q.col] && !ratings.values.includes(feedback[q.col]) && <option value={feedback[q.col]}>{feedback[q.col]}</option>}
                         </select>
                       ) : q.answer === 'yesno' ? (
                         <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
-                          <option value="">— select —</option>
-                          <option value="Yes">Yes</option>
-                          <option value="No">No</option>
+                          <option value="">— select —</option><option value="Yes">Yes</option><option value="No">No</option>
                         </select>
                       ) : q.answer === 'date' ? (
-                        <>
-                          <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
-                          {q.col === WARRANTY_Q && <span className="muted rep-hint">Installation solved date (default) or the invoice date.</span>}
-                        </>
+                        <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
                       ) : (
                         <input className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
                       )}
