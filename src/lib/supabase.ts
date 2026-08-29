@@ -205,16 +205,14 @@ async function distinctColumn(table: string, column: string, opts?: { eq?: [stri
 export async function sbListParties(): Promise<string[]> {
   return distinctColumn('parties', 'party_name');
 }
-// Full party rows for the Party Master view (recent set + server-side search).
-export async function listPartyRows(limit = 1000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('parties').select('*').order('party_name').limit(limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
-}
-export async function searchPartyRows(term: string, limit = 1000): Promise<Record<string, unknown>[]> {
-  const t = _san(term);
-  let q = must().from('parties').select('*').order('party_name').limit(limit);
-  if (t) q = q.or(['party_name', 'city', 'state', 'party_type'].map((c) => `${c}.ilike.%${t}%`).join(','));
+// Party Master view — field-specific server-side filters + paging (Load more).
+export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }
+export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
+  let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
+  if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);
+  if (filter.city) q = q.ilike('city', `%${_san(filter.city)}%`);
+  if (filter.state) q = q.ilike('state', `%${_san(filter.state)}%`);
+  if (filter.type) q = q.ilike('party_type', `%${_san(filter.type)}%`);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return data ?? [];
