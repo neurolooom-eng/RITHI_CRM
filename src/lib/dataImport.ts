@@ -137,8 +137,8 @@ export async function bulkInsert(
 }
 
 // Count existing rows so the admin can see what's already loaded / avoid dupes.
-export async function tableCount(table: ImportTable): Promise<number | null> {
-  const c = getSupabase(); if (!c) return null;
+export async function tableCount(table: ImportTable): Promise<{ count: number | null; error?: string }> {
+  const c = getSupabase(); if (!c) return { count: null, error: 'Not connected to Supabase.' };
   const { count, error } = await c.from(table).select('*', { count: 'exact', head: true });
-  return error ? null : (count ?? 0);
+  return error ? { count: null, error: error.message } : { count: count ?? 0 };
 }

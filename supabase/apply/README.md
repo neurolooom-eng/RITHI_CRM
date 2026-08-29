@@ -31,9 +31,10 @@ each other.
 | `user_directory.sql` | `0004` — engineer directory, reporting-tree helpers | base `0001` |
 | `rbac.sql` | `0005`, `0007`, `0008` — role matrix, per-user access, Postgres enforcement | `user_directory` |
 | `spare_requests.sql` | `0006`, `0009`, `0011`, `0012` — the whole spare workflow | `rbac` |
-| `call_requests.sql` | `0003`, `0010`, `0011`, `0012` — call requests, the Hotline actions, and the call-state views | `user_directory` |
-| `masters.sql` | `0014` — master value lists registry + the "200 All Masters" seed | `rbac` |
-| `all.sql` | the five above, in dependency order | base `0001` |
+| `call_requests.sql` | `0003`, `0010`, `0011`, `0012`, `0014`, `0015` — call requests, the Hotline actions, call state, Call Number | `user_directory` |
+| `masters.sql` | `0016` — master value lists registry + the "200 All Masters" seed | `rbac` |
+| `reports.sql` | `0010_reports_ordering` — visit-history ordering indexes | base `0001` |
+| `all.sql` | the six above, in dependency order | base `0001` |
 
 Use `all.sql` when a project is behind on more than one module; use a
 per-module bundle when you only need that one.

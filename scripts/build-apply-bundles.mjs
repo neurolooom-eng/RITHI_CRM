@@ -61,7 +61,8 @@ const MODULES = {
       'The Hotline request desk: a request is one row per call (Product + Serial +',
       'Complaint + Reported Problem), closed out by mapping it to an existing call,',
       'registering a new one, or cancelling it. Plus the call_state / pending_calls',
-      'views the Call Status column and the Pending Calls module read.',
+      'views the Call Status column and the Pending Calls module read, and Call',
+      'Number assignment (the request UniqueID, or CLYY##### for a direct call).',
     ],
     needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
     files: [
@@ -69,6 +70,8 @@ const MODULES = {
       '0010_call_request_items.sql',
       '0011_call_request_actions.sql',
       '0012_call_state.sql',
+      '0014_call_state_denorm.sql',
+      '0015_call_number.sql',
     ],
   },
   masters: {
@@ -77,7 +80,13 @@ const MODULES = {
             'Pending Reason, Cancel Reason, Feedback, Spare Approval Reason) as its own',
             'maintained table, seeded from the "200 All Masters" workbook.'],
     needs: ['profiles', 'rbac'],
-    files: ['0014_master_lists.sql'],
+    files: ['0016_master_lists.sql'],
+  },
+  reports: {
+    title: 'Reports',
+    blurb: ['The visit history: the indexes behind its newest-first ordering.'],
+    needs: ['profiles'],
+    files: ['0010_reports_ordering.sql'],
   },
   spare_requests: {
     title: 'Spare Requests',
@@ -164,6 +173,7 @@ MODULES.all = {
     ...MODULES.user_directory.files,
     ...MODULES.call_requests.files,
     ...MODULES.rbac.files,
+    ...MODULES.reports.files,
     ...MODULES.spare_requests.files,
   ],
 };

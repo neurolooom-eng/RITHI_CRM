@@ -43,12 +43,21 @@ with checks(sort_order, bundle, provides, present) as (
     (10, 'call_requests: state',   'call_state + pending_calls views (0012)',
         (to_regclass('public.call_state')    is not null
      and to_regclass('public.pending_calls') is not null)),
-    (11, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
+    (11, 'reports: ordering',      'reports_visit_at_idx (0010_reports_ordering)',
+        exists (select 1 from pg_indexes
+                 where schemaname='public' and tablename='reports' and indexname='reports_visit_at_idx')),
+    (12, 'call_requests: state (fast)', 'calls.open_state + the reports trigger (0014)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='calls' and column_name='open_state')
+     and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
+    (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
+        to_regprocedure('public.next_direct_call_number(text)') is not null),
+    (14, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
         (to_regclass('public.app_roles') is not null
      and not exists (select 1 from public.app_roles
                       where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
                         and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters'))),
-    (12, 'masters: value lists',   'master_lists registry + masters.added_on (0014)',
+    (12, 'masters: value lists',   'master_lists registry + masters.added_on (0016)',
         (to_regclass('public.master_lists') is not null
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='masters' and column_name='added_on')))

@@ -9,7 +9,7 @@
 -- Edit the migrations below and re-run the generator.
 --
 -- Carries, in order:
---   0014_master_lists.sql
+--   0016_master_lists.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -34,11 +34,11 @@ end $$;
 begin;
 
 -- ------------------------------------------------------------------------
--- 0014_master_lists.sql
+-- 0016_master_lists.sql
 -- ------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------
--- 0014 — Master value lists as their own maintained tables.
+-- 0016 — Master value lists as their own maintained tables.
 --
 -- Each master ("200 All Masters" in the workbook: Call Type, Standard
 -- Complaint, Call Pending Reason, Call Cancel Reason, Feedback, Spare Approval

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.2',
+    version: '0.6.6',
     date: '2026-08-29',
     title: 'Every master value list is its own editable table',
     changes: [
@@ -21,6 +21,44 @@ export const CHANGELOG: ChangeEntry[] = [
       'Spare Approval Reason carries its own Stage and Status columns \u2014 a list can have more than one column, and the registry says which.',
       'Adding a list no longer needs a release: a row in the new `master_lists` registry gives it a table, a label and its columns.',
       'A duplicate entry is refused rather than silently doubling a dropdown, and editing needs the \u201cEdit masters\u201d permission.',
+    ],
+  },
+  {
+    version: '0.6.5',
+    date: '2026-08-29',
+    title: 'Call Number is assigned, not typed',
+    changes: [
+      'Call Number was a free-text box nobody filled, so a call created by hand could be saved blank \u2014 and reports, spare requests, consumption and feedback are all keyed by it.',
+      'It is now assigned automatically: a call registered from a request carries the request\u2019s UniqueID (REQID-Product-Serial); a direct customer call gets CLYY plus a five-digit running number (CL2600081), continuing that year\u2019s series.',
+      'Calls already saved without one are back-filled, each in the series for the year it was registered.',
+    ],
+  },
+  {
+    version: '0.6.4',
+    date: '2026-08-29',
+    title: 'Call status no longer times out',
+    changes: [
+      'Loading a register or Pending Calls could fail with \u201ccanceling statement due to statement timeout\u201d. The call\u2019s status was re-derived from the whole visit history on every read, and the per-row security checks on visits made that ~140\u00d7 more expensive than the same query without them.',
+      'A call now carries its own latest-visit status, kept current as visits are saved. The registers get it with the rows they already load \u2014 one query instead of two \u2014 and Pending Calls reads an indexed column.',
+    ],
+  },
+  {
+    version: '0.6.3',
+    date: '2026-08-29',
+    title: 'File uploads are live',
+    changes: [
+      'The CallReg backend was redeployed with the Drive permission the uploads need, and the app now points at it \u2014 every device picks up the new address on its own.',
+      'Manual Report on a call, and Installation Report / KYC on a registration request, can now actually be uploaded rather than only linked.',
+    ],
+  },
+  {
+    version: '0.6.2',
+    date: '2026-08-29',
+    title: 'Reporting loads again, and the manual report can be uploaded',
+    changes: [
+      'Fixed the Reporting page failing to sync \u2014 it asked the database to sort by a column the reports table does not have. Visits now come back newest first, by visit date.',
+      'Manual Report takes a file, not just a link: upload the signed report (PDF or photo, up to 10 MB) straight from the report form and it goes to the CallReg Drive folder, filling the link for you. Pasting a link still works.',
+      'The report filed on the previous visit is now one click away from the Update Call drawer.',
     ],
   },
   {

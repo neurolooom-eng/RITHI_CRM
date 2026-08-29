@@ -16,10 +16,13 @@
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
 --   0012_call_state.sql
+--   0014_call_state_denorm.sql
+--   0015_call_number.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
 --   0013_all_masters_module.sql
+--   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
 --   0011_spare_intake.sql
@@ -292,6 +295,197 @@ alter view public.pending_calls set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
 grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0014_call_state_denorm.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call state, without re-deriving it on every read.
+--
+-- 0012 computed a call's state from its latest visit in a view. Correct, but
+-- reading it meant scanning `reports` through that table's RLS — a correlated
+-- subquery plus can_see_call() per report row. At 11k calls / 17k reports that
+-- is ~37ms without RLS and >5s with it: "canceling statement due to statement
+-- timeout".
+--
+-- The latest visit is now kept ON the call, maintained by a trigger on
+-- `reports`. Reads touch `calls` only — the register already loads it, so the
+-- state comes along for free, and Pending Calls is an indexed filter.
+-- ===========================================================================
+
+-- The 0012 views read the columns below, and one of them is recreated with a
+-- different shape, so they go first.
+drop view if exists public.pending_calls;
+drop view if exists public.call_state;
+
+alter table public.calls
+  add column if not exists last_status   text default '',
+  add column if not exists last_visit_at timestamptz;
+
+-- Derived, so it can never drift from the two columns above.
+alter table public.calls drop column if exists open_state;
+alter table public.calls add column open_state text
+  generated always as (
+    case
+      when last_visit_at is null and coalesce(last_status, '') = '' then 'Unattended'
+      when lower(coalesce(last_status, '')) like 'solved%'          then 'Solved'
+      when lower(coalesce(last_status, '')) like '%unsolved%'       then 'Unsolved'
+      else 'Report pending'
+    end
+  ) stored;
+
+create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+
+-- ---- keep it current -------------------------------------------------------
+-- security definer: a visit by one engineer updates the call regardless of who
+-- may write `calls`.
+create or replace function public.sync_call_last_visit(p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.calls c
+     set last_status   = coalesce(r.call_status, ''),
+         last_visit_at = r.visit_at
+    from (
+      select call_status, visit_at
+        from public.reports
+       where ucn = p_ucn
+       order by visit_at desc nulls last, id desc
+       limit 1
+    ) r
+   where c.ucn = p_ucn;
+
+  if not found then  -- no visits left (or none matched): back to Unattended
+    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
+  end if;
+end $$;
+
+create or replace function public.reports_touch_call()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_call_last_visit(coalesce(new.ucn, old.ucn));
+  if tg_op = 'UPDATE' and new.ucn is distinct from old.ucn then
+    perform public.sync_call_last_visit(old.ucn);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists reports_touch_call on public.reports;
+create trigger reports_touch_call after insert or update or delete on public.reports
+  for each row execute function public.reports_touch_call();
+
+-- ---- backfill --------------------------------------------------------------
+update public.calls c
+   set last_status   = coalesce(r.call_status, ''),
+       last_visit_at = r.visit_at
+  from (
+    select distinct on (ucn) ucn, call_status, visit_at
+      from public.reports
+     order by ucn, visit_at desc nulls last, id desc
+  ) r
+ where r.ucn = c.ucn
+   and (c.last_status is distinct from coalesce(r.call_status, '')
+     or c.last_visit_at is distinct from r.visit_at);
+
+-- ---- views, now trivial ----------------------------------------------------
+-- `calls` already carries `state` (the geographic one), so the call's open
+-- state stays `open_state` here too.
+create view public.call_state as
+  select ucn, last_status, last_visit_at, open_state as state from public.calls;
+
+create view public.pending_calls as
+  select * from public.calls where open_state <> 'Solved';
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0015_call_number.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Call Number.
+--
+--   • From a call registration request → the request's UniqueID
+--     (REQID-Product-SerialNo), carried over when the Hotline registers it.
+--   • Direct customer call (no request) → CLYY + a 5-digit running number,
+--     e.g. CL2600001, continuing the existing series for that year
+--     (the register already holds CL2300081, CL2300079, …).
+--
+-- It was a free-text field nobody filled, so a hand-created call could be
+-- saved with a blank Call Number — and reports, spare requests, consumption
+-- and feedback are all keyed by it.
+-- ===========================================================================
+
+create table if not exists public.call_number_seq (
+  yy      text primary key,          -- two-digit year
+  last_no integer not null default 0
+);
+alter table public.call_number_seq enable row level security;  -- only the definer function touches it
+
+-- Next CL number for a year. The counter is seeded once, from the numbers
+-- already in `calls` — so import historical CL numbers BEFORE this runs (or
+-- delete that year's `call_number_seq` row afterwards to re-seed).
+-- Next CL number for this year. The year's counter is seeded from the highest
+-- CLYY##### already in `calls`, so it continues the series instead of
+-- colliding with imported history.
+create or replace function public.next_direct_call_number(p_yy text default null)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  v_yy text := coalesce(nullif(p_yy, ''), to_char(current_date, 'YY'));
+  v_no int;
+begin
+  insert into public.call_number_seq (yy, last_no)
+  values (v_yy, coalesce((
+    select max(substring(call_number from 5 for 5)::int)
+      from public.calls
+     where call_number ~ ('^CL' || v_yy || '[0-9]{5}')), 0))
+  on conflict (yy) do nothing;
+
+  update public.call_number_seq set last_no = last_no + 1
+   where yy = v_yy
+   returning last_no into v_no;
+
+  return 'CL' || v_yy || lpad(v_no::text, 5, '0');
+end $$;
+
+-- Assign one when the call arrives without a Call Number. A call registered
+-- from a request carries the request's UniqueID, so this only fires for direct
+-- calls (and for any import row that has none).
+create or replace function public.calls_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.ucn is null or new.ucn = '' then
+    new.ucn := public.next_ucn(new.call_type);
+  end if;
+  if coalesce(new.call_number, '') = '' then
+    new.call_number := public.next_direct_call_number(to_char(coalesce(new.reg_date, current_date), 'YY'));
+  end if;
+  if new.reg_date is null then new.reg_date := current_date; end if;
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  return new;
+end $$;
+
+drop trigger if exists calls_biu on public.calls;
+create trigger calls_biu before insert on public.calls
+  for each row execute function public.calls_before_insert();
+
+-- Back-fill calls saved before this with no Call Number, each in its own year's
+-- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
+do $$
+declare r record;
+begin
+  for r in select id, reg_date from public.calls where coalesce(call_number, '') = '' order by id loop
+    update public.calls
+       set call_number = public.next_direct_call_number(to_char(coalesce(r.reg_date, current_date), 'YY'))
+     where id = r.id;
+  end loop;
+end $$;
+
+grant execute on function public.next_direct_call_number(text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql
@@ -743,6 +937,21 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters';
+
+-- ------------------------------------------------------------------------
+-- 0010_reports_ordering.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Reports ordering. `public.reports` has no `created_at` column — the visit
+-- history is ordered by `visit_at` (newest visit first), with the identity
+-- `id` as the tiebreaker for rows that share a date or have none. These
+-- indexes back that sort so the register and the per-call/per-UCN lookups
+-- stay fast. Run in the Supabase SQL Editor as postgres.
+-- ===========================================================================
+
+create index if not exists reports_visit_at_idx on public.reports (visit_at desc nulls last, id desc);
+create index if not exists reports_call_number_idx on public.reports (call_number);
 
 -- ------------------------------------------------------------------------
 -- 0006_spare_workflow.sql
