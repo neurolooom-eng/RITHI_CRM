@@ -240,8 +240,8 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').limit(limit);
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+  let q = must().from('products').select('*').range(offset, offset + limit - 1);
   if (filters.serial) q = q.ilike('serial_number', `%${filters.serial}%`);
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
   if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
@@ -495,11 +495,11 @@ export async function addSpareRequest(
   }
   return { ok: true, uid, orNo };
 }
-export async function listSpareRequestLines(limit = 1000): Promise<Record<string, unknown>[]> {
+export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, status, stage, rm_approval, rm_by, rm_at, commercial_approval, commercial_by, commercial_at, nsm_approval, nsm_by, nsm_at, stores_status, dc_number, courier, dispatch_remarks, dispatched_by, dispatched_at, received_by, received_at, receipt_remarks, reject_reason, rejected_stage, created_at)')
-    .order('created_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
+    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
+    .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     // Flatten the parent request onto the line so the register (and the
     // workflow helpers) read one row per part. The request wins on the columns
@@ -549,9 +549,9 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- consumption / feedback ------------------------------------------------
-export async function listConsumptionRows(limit = 1000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
+export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {

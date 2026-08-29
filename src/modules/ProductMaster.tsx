@@ -38,8 +38,11 @@ export function ProductMaster() {
   const { can } = useAuth();
   const cached = loadCache<Row>(CACHE_KEY);
   const [f, setF] = useState<ProdFilters>({ q: '', party: '', product: '', serial: '', status: '' });
+  const PAGE = 200;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
+  const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     sheetsConfigured() ? null : { tone: 'info', text: 'Connect the Google Sheet in Settings to search the Product Master.' },
@@ -52,9 +55,9 @@ export function ProductMaster() {
     setBusy(true);
     setMsg({ tone: 'info', text: 'Searching Product Master…' });
     try {
-      const r = await searchProducts(filters, 200);
+      const r = await searchProducts(filters, PAGE, 0);
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
-      setRows(mapped);
+      setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE);
       const anyFilter = Object.values(filters).some((v) => v && String(v).trim());
       if (!anyFilter) setLastSync(saveCache(CACHE_KEY, mapped)); // cache the browse set
       setMsg({
@@ -71,6 +74,20 @@ export function ProductMaster() {
   };
 
   const clear = () => { const empty = { q: '', party: '', product: '', serial: '', status: '' }; setF(empty); void run(empty); };
+
+  const loadMore = async () => {
+    setBusy(true);
+    try {
+      const r = await searchProducts(f, PAGE, offset);
+      const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${offset + i}` }));
+      const merged = [...rows, ...mapped];
+      setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE);
+      const anyFilter = Object.values(f).some((v) => v && String(v).trim());
+      if (!anyFilter) setLastSync(saveCache(CACHE_KEY, merged));
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
 
   // Mount: show cache, refresh the browse set if stale/empty. 30-min auto-sync.
   useEffect(() => {
@@ -131,6 +148,9 @@ export function ProductMaster() {
         getRowId={(r) => r.id}
         storageKey="productMaster"
         rowsBeforeScroll={14}
+        onLoadMore={loadMore}
+        moreAvailable={more}
+        loadingMore={busy}
         emptyText="No products — adjust the filters or global search."
         toolbar={
           <Toolbar>

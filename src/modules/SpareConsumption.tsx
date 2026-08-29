@@ -39,10 +39,13 @@ export function SpareConsumption() {
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
+  const PAGE = 1000;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
+  const [offset, setOffset] = useState(cached?.rows.length ?? 0);
+  const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare consumption.' },
   );
@@ -51,9 +54,9 @@ export function SpareConsumption() {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
       try {
-        const r = await listConsumptionRows(1000);
+        const r = await listConsumptionRows(PAGE, 0);
         const mapped = r.map((x, i) => ({ ...x, id: `${pick(x, UCN_KEYS)}-${i}` } as Row));
-        setRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+        setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
         setMsg({ tone: 'ok', text: `Synced ${mapped.length} consumption lines.` });
       } catch (e) {
         setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -78,6 +81,16 @@ export function SpareConsumption() {
     return () => { if (id) window.clearInterval(id); };
     // eslint-disable-next-line
   }, []);
+
+  const loadMore = async () => {
+    setBusy(true);
+    try {
+      const r = await listConsumptionRows(PAGE, offset);
+      const mapped = r.map((x, i) => ({ ...x, id: `${pick(x, UCN_KEYS)}-${offset + i}` } as Row));
+      const merged = [...rows, ...mapped];
+      setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, merged));
+    } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
+  };
 
   const headerKeys = useMemo(() => {
     const ks = new Set<string>();
@@ -131,6 +144,9 @@ export function SpareConsumption() {
         storageKey="spareConsumption"
         rowsBeforeScroll={14}
         dense
+        onLoadMore={onDb ? loadMore : undefined}
+        moreAvailable={onDb && more}
+        loadingMore={busy}
         emptyText="No consumption yet — Refresh to load."
         toolbar={
           <Toolbar>

@@ -119,6 +119,9 @@ export function Reports() {
         storageKey="reportsView"
         rowsBeforeScroll={16}
         dense
+        onLoadMore={loadMore}
+        moreAvailable={more}
+        loadingMore={busy}
         emptyText={busy ? 'Loading…' : 'No report visits.'}
         toolbar={
           <Toolbar>
@@ -129,7 +132,6 @@ export function Reports() {
               <input className="input" placeholder="Status" value={filter.status} onChange={(e) => set('status', e.target.value)} />
             </div>
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
-            {more && !busy && <button className="btn btn-sm" onClick={() => void loadMore()}>↓ Load more</button>}
             <div className="spacer" />
             {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (

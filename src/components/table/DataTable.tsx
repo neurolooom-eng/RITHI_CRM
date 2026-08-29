@@ -45,6 +45,9 @@ export interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   emptyText?: string;
   toolbar?: ReactNode;
+  onLoadMore?: () => void | Promise<void>; // renders a Load more in the footer
+  moreAvailable?: boolean;                  // whether another page may exist
+  loadingMore?: boolean;
   storageKey?: string; // persists column order/width per table
   dense?: boolean;
   // Full field list for the Columns picker (so any schema field can be added).
@@ -85,6 +88,9 @@ export function DataTable<T>({
   onRowClick,
   emptyText = 'No records yet.',
   toolbar,
+  onLoadMore,
+  moreAvailable,
+  loadingMore,
   storageKey,
   dense = false,
   allFields,
@@ -543,7 +549,12 @@ export function DataTable<T>({
         </table>
       </div>
       <div className="dt-footer">
-        <span className="muted">{sortedRows.length} row{sortedRows.length === 1 ? '' : 's'}</span>
+        <span className="muted">{sortedRows.length} row{sortedRows.length === 1 ? '' : 's'}{moreAvailable ? '+' : ''}</span>
+        {onLoadMore && moreAvailable && (
+          <button className="btn btn-sm dt-loadmore" onClick={() => void onLoadMore()} disabled={loadingMore}>
+            {loadingMore ? 'Loading…' : '↓ Load more'}
+          </button>
+        )}
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />
         {persistKey && (

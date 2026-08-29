@@ -421,21 +421,21 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       try {
         const rows = active
           ? (await searchCalls(config.callType, srch, 1000)) as unknown as Rec[]
-          : (await listFieldCalls('', RECENT_LIMIT, config.tab)) as unknown as Rec[];
+          : (await listFieldCalls('', loadLimit, config.tab)) as unknown as Rec[];
         applyRows(rows);
         const now = new Date().toISOString();
         try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
         setLastSync(now);
         setBanner({ tone: 'ok', text: active
           ? `${rows.length} match${rows.length === 1 ? '' : 'es'} for your search (server-side).`
-          : `Showing the ${rows.length} most recent ${config.singular.toLowerCase()}s — search finds any call.` });
+          : `Showing ${rows.length} ${config.singular.toLowerCase()}s${rows.length >= loadLimit ? ' — Load more for older' : ''}; search finds any call.` });
       } catch (e) {
         setBanner({ tone: 'error', text: `Search failed: ${e instanceof Error ? e.message : String(e)}` });
       } finally { setBusy(false); }
     }, active ? 350 : 0);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [srch, onDb]);
+  }, [srch, onDb, loadLimit]);
 
   // Arriving with a prefill (Product Master / pending) opens the create drawer;
   // arriving with editUcn opens the existing call in edit mode.
@@ -646,6 +646,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         getRowId={(r) => r.id}
         storageKey={config.storageKey}
         rowsBeforeScroll={12}
+        onLoadMore={() => { if (onDb) setLoadLimit((l) => l + 800); else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); } }}
+        moreAvailable={configured && !(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName) && cached.filter((r) => r._synced).length >= loadLimit}
+        loadingMore={busy}
         onRowClick={(r) => setDrawer({ mode: 'view', row: r })}
         emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
         toolbar={
@@ -660,16 +663,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
             </button>
-            {configured && !onDb && cached.filter((r) => r._synced).length >= loadLimit && (
-              <button
-                className="btn btn-sm"
-                onClick={() => { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); }}
-                disabled={busy}
-                title="Load older field calls"
-              >
-                ↓ Load more
-              </button>
-            )}
             {pendingCount > 0 && (
               <button className="btn btn-sm btn-primary" onClick={() => void syncPending()} disabled={busy || !configured}>
                 ⇪ Sync {pendingCount} pending

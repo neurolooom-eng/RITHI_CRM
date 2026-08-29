@@ -193,3 +193,5 @@
 .dt-filter-row .input { flex: 1; min-width: 50px; font-size: 12px; padding: 3px 6px; }
 .dt-filter-between { display: flex; gap: 4px; flex: 1; }
 .dt-filter-between .input { width: 50%; }
+
+.dt-loadmore { margin-left: 10px; }
