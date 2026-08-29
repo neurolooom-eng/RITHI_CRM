@@ -311,10 +311,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   - **Keep, do not purge:** Supabase Auth users, `profiles`, `app_roles` /
     Roles & Permissions, per-user extra access, saved table views, and Admin
     Config. Those are configuration, not data.
-  - **Reset the sequences after loading** so new records continue the sheet's
-    series rather than colliding with it: the UCN counters (F / I / PM) and the
-    spare **OR NO** running number (`0011_spare_intake.sql`, currently anchored
-    at OR47042), plus `next_call_reqid()` for REQID.
+  - **Reset the counters after loading** so new records continue the series
+    rather than colliding with the imported rows: the UCN counters (F / I / PM);
+    the **Call Number** running number (`0015_call_number.sql`, `CLYY#####`,
+    seeded from the existing series); `next_call_reqid()` for REQID; and the
+    **OR NO** per-month counter table (`0017`–`0019`, `OR-YYMM-NNNN` restarting
+    at 0001 each month) — a fresh load of historical spares must not leave the
+    current month's counter behind the numbers it just imported.
   - **Verify against the sheet before opening it up:** row counts per table,
     a spot-check of back-dated `reg_date` values, call status derivation
     (`call_state`), and that role scoping still resolves — it matches on exact
