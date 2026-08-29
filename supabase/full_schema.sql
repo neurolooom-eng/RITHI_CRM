@@ -1,14 +1,7 @@
 -- ===========================================================================
--- RITHI CRM — CONSOLIDATED schema (migrations 0001 → 0008), in order.
--- Run as the 'postgres' role in the Supabase SQL Editor.
--- Idempotent where possible (create ... if not exists / or replace /
--- drop-then-create policies).
---
--- ⚠️  NOTE: the reports-history step (0002) contains a TRUNCATE of
---     public.reports. It is COMMENTED OUT below so this script never wipes
---     existing report data. On a brand-new project that's fine (table is
---     empty). If you deliberately want to clear + reload reports, uncomment
---     the marked line.
+-- RITHI CRM — CONSOLIDATED schema (migrations 0001 → 0009), in order.
+-- Run as the 'postgres' role in the Supabase SQL Editor. Idempotent where
+-- possible. The reports TRUNCATE (0002) is commented out (non-destructive).
 -- ===========================================================================
 
 -- ####################  0001_init  ####################
@@ -669,3 +662,53 @@ drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls for update
   using (public.can_see_call(allocated_to) or created_by = auth.uid())
   with check (public.can_see_call(allocated_to) or created_by = auth.uid());
+
+-- ####################  0009_audit_log  ####################
+
+-- ===========================================================================
+-- Audit log — records actions, logins, errors, and the time each action took.
+-- Clients insert their own events; the identity (user_id/email) is stamped by
+-- the DB so it can't be forged. Only admins can read the log.
+-- ===========================================================================
+
+create table if not exists public.audit_log (
+  id          bigint generated always as identity primary key,
+  at          timestamptz not null default now(),
+  user_id     uuid,
+  email       text default '',
+  actor       text default '',      -- display name (client-supplied)
+  role        text default '',      -- role key (client-supplied)
+  action      text not null,        -- e.g. login, call.create, call.report, spare.approve
+  target      text default '',      -- UCN / uid / id the action acted on
+  status      text default 'ok',    -- ok | error
+  error       text default '',
+  duration_ms integer,              -- how long the action took
+  meta        jsonb not null default '{}'
+);
+create index if not exists audit_at_idx     on public.audit_log (at desc);
+create index if not exists audit_action_idx on public.audit_log (action);
+create index if not exists audit_email_idx  on public.audit_log (lower(email));
+create index if not exists audit_status_idx on public.audit_log (status);
+
+-- Stamp identity + time server-side (don't trust the client for who/when).
+create or replace function public.audit_before_insert()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  new.user_id := auth.uid();
+  new.email   := coalesce(nullif(auth.email(), ''), new.email);  -- keep attempted email for anon login failures
+  new.at      := now();
+  return new;
+end $$;
+drop trigger if exists audit_biu on public.audit_log;
+create trigger audit_biu before insert on public.audit_log
+  for each row execute function public.audit_before_insert();
+
+alter table public.audit_log enable row level security;
+-- Authenticated users log their own actions; anon may log only login attempts
+-- (so failed logins, which have no session yet, are still recorded).
+drop policy if exists audit_insert on public.audit_log;
+create policy audit_insert on public.audit_log for insert
+  with check (auth.role() = 'authenticated' or action in ('login', 'login_failed'));
+-- Only admins read the audit log.
+drop policy if exists audit_read on public.audit_log;
+create policy audit_read on public.audit_log for select using (public.is_admin());
