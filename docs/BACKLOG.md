@@ -262,6 +262,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     caught the 0012 bug — the build and the TypeScript tests could not see it.
     The harness runs as superuser, so it covers **triggers, not RLS policies**;
     the policies still want a check against the live project.
+  - *Phase 5* (`0016_spare_line_approvals.sql`): **approvals moved from the
+    request to the spare.** The RM decides each line on its own, so one OR can
+    go forward partly approved. Every later stage reads the same per-line
+    state, which is what lets it be actioned per spare *or* per OR (an "all N"
+    button; the RM stage deliberately has none). The request keeps a rolled-up
+    stage — the least-advanced surviving line — maintained by trigger, and the
+    header's own approval columns are frozen so the two cannot disagree.
   - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
     first; the ITEM Master import carries only code, description and Active), a
     stores-side pick/pack view, and consumption reconciliation — flag a received

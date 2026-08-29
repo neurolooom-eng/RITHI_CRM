@@ -33,6 +33,10 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.spare_or_no_seq')          is not null)),
     (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
         to_regprocedure('public.spare_needs_review(text)')   is not null),
+    (8, 'spare_requests: per-spare approvals', 'spare_request_lines.rm_at + spare_line_stage() (0016)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='spare_request_lines' and column_name='rm_at')
+     and to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)') is not null)),
     (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
         (to_regprocedure('public.next_call_reqid()')   is not null
      and not exists (select 1 from pg_constraint
