@@ -275,6 +275,19 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     caught the 0012 bug — the build and the TypeScript tests could not see it.
     The harness runs as superuser, so it covers **triggers, not RLS policies**;
     the policies still want a check against the live project.
+  - *Phase 5* (`0016_spare_line_approvals.sql`): **approvals moved from the
+    request to the spare.** The RM decides each line on its own, so one OR can
+    go forward partly approved. Every later stage reads the same per-line
+    state, which is what lets it be actioned per spare *or* per OR (an "all N"
+    button; the RM stage deliberately has none). The request keeps a rolled-up
+    stage — the least-advanced surviving line — maintained by trigger, and the
+    header's own approval columns are frozen so the two cannot disagree.
+  - *Phase 6* (`0017_spare_or_number_monthly.sql`): OR numbers become
+    **`OR-YYMM-NNNN`, restarting at 0001 each month** (a back-dated request is
+    numbered in its own month). A per-month counter table replaces the single
+    running sequence; numbers already issued keep the old `OR47042` form, since
+    they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
+    `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
   - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
     first; the ITEM Master import carries only code, description and Active), a
     stores-side pick/pack view, and consumption reconciliation — flag a received
@@ -282,6 +295,18 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
+- **Stock Transfer** — ✅ shipped (`0020_stock_transfer.sql`). Engineer-to-engineer
+  hand-stock transfers, numbered `ST-YYMM-NNNN`. **Stock is derived, not stored:**
+  the `engineer_stock` view sums hand-stock dispatched to an engineer, less
+  consumption, plus/minus transfers — so a balance cannot drift from its history.
+  A transfer only offers parts the sender holds and caps the qty at what is
+  left, enforced by trigger as well as in the form (an AFTER trigger, so a
+  multi-row insert that individually passes but together over-draws is caught).
+  **Note:** inflow keys off *dispatch*, not the engineer's acknowledgement —
+  acknowledgement needs `spare.receive`, which the role defaults no longer give
+  engineers, so keying off it would leave every balance at zero.
+  **Next:** store-level stock (this is engineer hand-stock only), and stock
+  decrement straight from a Call-Based dispatch.
 - **v2Consumption / v2Feedback** — ✅ fixed. They are standalone spreadsheets
   (`consumption` = `1j1IHT3P…dG7o`, `feedback` = `1Mi-b-JY…nqXc`), now wired as
   their own books; the report-time spare-consumption / feedback saves target

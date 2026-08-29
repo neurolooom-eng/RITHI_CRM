@@ -80,7 +80,7 @@ const MODULES = {
             'Pending Reason, Cancel Reason, Feedback, Spare Approval Reason) as its own',
             'maintained table, seeded from the "200 All Masters" workbook.'],
     needs: ['profiles', 'rbac'],
-    files: ['0016_master_lists.sql'],
+    files: ['0021_master_lists.sql'],
   },
   reports: {
     title: 'Reports',
@@ -88,12 +88,20 @@ const MODULES = {
     needs: ['profiles'],
     files: ['0010_reports_ordering.sql'],
   },
+  stock_transfer: {
+    title: 'Stock Transfer',
+    blurb: ['Engineer-to-engineer hand-stock transfers, with the stock balance derived',
+            'from what each engineer was dispatched and has consumed.'],
+    needs: ['spareTables', 'rbac', 'visibleEngineers'],
+    files: ['0020_stock_transfer.sql'],
+  },
   spare_requests: {
     title: 'Spare Requests',
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
       '→ NSM → Stores), the engineer receipt that closes it, the OR/RowNo',
-      'numbering, and the RBAC guard fix that lets an RM approve a non-AMC item.',
+      'numbering (OR-YYMM-NNNN, restarting each month), and per-SPARE approvals —',
+      'the RM decides each line on its own, so one OR can go forward partly approved.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers'],
     files: [
@@ -101,6 +109,10 @@ const MODULES = {
       '0009_spare_receipt.sql',
       '0011_spare_intake.sql',
       '0012_spare_auto_approval.sql',
+      '0016_spare_line_approvals.sql',
+      '0017_spare_or_number_monthly.sql',
+      '0018_spare_or_number_padded.sql',
+      '0019_spare_or_number_format.sql',
     ],
   },
 };
@@ -175,6 +187,7 @@ MODULES.all = {
     ...MODULES.rbac.files,
     ...MODULES.reports.files,
     ...MODULES.spare_requests.files,
+    ...MODULES.stock_transfer.files,
   ],
 };
 

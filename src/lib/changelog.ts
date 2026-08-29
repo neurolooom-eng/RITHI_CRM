@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.7',
+    version: '0.7.1',
     date: '2026-08-29',
     title: 'Every master value list is its own editable table',
     changes: [
@@ -21,6 +21,38 @@ export const CHANGELOG: ChangeEntry[] = [
       'Spare Approval Reason carries its own Stage and Status columns \u2014 a list can have more than one column, and the registry says which.',
       'Adding a list no longer needs a release: a row in the new `master_lists` registry gives it a table, a label and its columns.',
       'A duplicate entry is refused rather than silently doubling a dropdown, and editing needs the \u201cEdit masters\u201d permission.',
+    ],
+  },
+  {
+    version: '0.7.0',
+    date: '2026-08-29',
+    title: 'Stock Transfer',
+    changes: [
+      'New Stock Transfer screen: move hand-stock from one engineer to another, with a transfer number (ST-YYMM-NNNN) and remarks.',
+      'Stock on hand is worked out from what has actually happened \u2014 hand-stock dispatched to the engineer, less what they consumed on calls, plus or minus transfers \u2014 so the figure can never disagree with the history behind it.',
+      'A transfer only offers parts the sender is holding, and the quantity box will not go above what is left of that part. The database enforces the same limit, so a stale screen cannot overdraw.',
+      'A \u201cStock on hand\u201d tab shows every engineer\u2019s holding, searchable and exportable to CSV.',
+    ],
+  },
+  {
+    version: '0.6.10',
+    date: '2026-08-29',
+    title: 'OR numbers are per month',
+    changes: [
+      'OR numbers now read OR-YYMM-NNNN \u2014 OR-2608-0001, OR-2608-0002 \u2014 and the count restarts at 0001 on the first of each month.',
+      'A back-dated request is numbered in the month it is dated, not the month it is entered.',
+      'Numbers already issued keep their old form: they are quoted on DCs and in Tally, so the old series stays as history and the new format starts from here.',
+    ],
+  },
+  {
+    version: '0.6.7',
+    date: '2026-08-29',
+    title: 'Spare approvals are per spare, not per request',
+    changes: [
+      'The RM now approves or rejects each spare on its own, so a request for five parts can go forward with three \u2014 the rejected ones stop, the rest carry on to Stores.',
+      'Commercial, NSM, Stores and the engineer\u2019s receipt work the same way, and can be actioned either one spare at a time or, with the \u201call N\u201d button, for every spare of an OR still at that stage. The RM stage deliberately has no bulk button.',
+      'Each spare carries its own approval trail, DC number and rejection reason; the request shows the stage of whichever spare is furthest behind.',
+      'The database now refuses an approval written against the request instead of the spare, so the two can never disagree.',
     ],
   },
   {
