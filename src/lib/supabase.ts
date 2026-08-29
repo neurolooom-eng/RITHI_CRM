@@ -70,7 +70,10 @@ export function getSupabase(): SupabaseClient | null {
   const { url, anon } = getSupabaseCreds();
   if (!supabaseConfigured()) return null;
   _client = createClient(url, anon, {
-    auth: { persistSession: true, autoRefreshToken: true },
+    // Recovery links are handled by takeRecoveryFromUrl() below (the app uses a
+    // HashRouter, which would otherwise swallow the token fragment), so the
+    // client is told not to race us for it.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
   });
   return _client;
 }
@@ -760,6 +763,76 @@ export async function updateProfile(id: string, patch: { role?: string; extra_pe
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { error } = await c.from('profiles').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- password reset --------------------------------------------------------
+// A Supabase recovery link comes back as an implicit-flow fragment:
+//   https://app/#access_token=…&refresh_token=…&type=recovery
+// The app routes on the hash, so the tokens are grabbed synchronously at boot
+// (before React or the router runs) and the URL is put back to "#/".
+let pendingRecovery: { access: string; refresh: string } | null = null;
+// An expired or already-used link comes back as #error=…&error_description=…
+let recoveryError = '';
+
+export function takeRecoveryFromUrl(): boolean {
+  try {
+    const raw = window.location.hash.replace(/^#\/?/, '');
+    if (!raw.includes('access_token') && !raw.includes('error')) return false;
+    const p = new URLSearchParams(raw);
+    const access = p.get('access_token') ?? '';
+    const refresh = p.get('refresh_token') ?? '';
+    const isRecovery = (p.get('type') ?? '') === 'recovery';
+    const err = p.get('error_description') ?? p.get('error') ?? '';
+    window.location.hash = '#/';
+    if (err) {
+      recoveryError = /expired|invalid/i.test(err)
+        ? 'That password-reset link has expired or was already used. Request a new one below.'
+        : err.replace(/\+/g, ' ');
+      return false;
+    }
+    if (!isRecovery || !access || !refresh) return false;
+    pendingRecovery = { access, refresh };
+    return true;
+  } catch { return false; }
+}
+export const hasPendingRecovery = (): boolean => pendingRecovery !== null;
+// Read (and clear) the message from a failed reset link, for the login screen.
+export function takeRecoveryError(): string { const e = recoveryError; recoveryError = ''; return e; }
+
+// Exchange the recovery tokens for a session, so updateUser() can set the new
+// password. The session is a normal signed-in session afterwards.
+export async function sbConsumeRecovery(): Promise<{ ok: boolean; error?: string }> {
+  const r = pendingRecovery; pendingRecovery = null;
+  if (!r) return { ok: false, error: 'No recovery link.' };
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.auth.setSession({ access_token: r.access, refresh_token: r.refresh });
+  return error ? { ok: false, error: 'This reset link has expired. Request a new one.' } : { ok: true };
+}
+
+// Email a reset link. Always reports success: whether an address has an account
+// is not something an unauthenticated form should reveal.
+export async function sbSendPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected to the database.' };
+  const redirectTo = `${window.location.origin}${window.location.pathname}`;
+  const { error } = await c.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+  if (error && /rate|too many/i.test(error.message)) return { ok: false, error: 'Too many attempts — wait a minute and try again.' };
+  return { ok: true };
+}
+
+// Set a new password for the signed-in (or just-recovered) user.
+export async function sbUpdatePassword(password: string): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.auth.updateUser({ password });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Confirm the user's current password before changing it (Supabase's
+// updateUser doesn't ask for it). A correct password simply re-signs the same
+// user in; a wrong one leaves the existing session untouched.
+export async function sbVerifyPassword(email: string, password: string): Promise<boolean> {
+  const c = getSupabase(); if (!c) return false;
+  const { error } = await c.auth.signInWithPassword({ email: email.trim(), password });
+  return !error;
 }
 
 export async function sbSignIn(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
