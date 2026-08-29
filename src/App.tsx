@@ -10,6 +10,7 @@ import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
 import { PartyMaster } from './modules/PartyMaster';
 import { Reports } from './modules/Reports';
+import { RolePermissions } from './modules/RolePermissions';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
@@ -73,6 +74,7 @@ function Shell() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/admin-config" element={<AdminConfig />} />
+        <Route path="/roles" element={<RolePermissions />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

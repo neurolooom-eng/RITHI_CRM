@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
-import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, supabaseConfigured, type Profile } from './supabase';
+import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, type Profile } from './supabase';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac } from './rbac';
 
 // Map a profiles.role (admin | rm | rgm | engineer | viewer) to an app Role.
 function roleFromProfile(r: string): Role {
@@ -25,6 +26,7 @@ function profileToUser(p: Profile): User {
     designation: p.designation,
     reportingManager: p.reporting_manager_email,
     regionalManager: p.regional_manager_email,
+    rbacRole: (p.role || 'engineer').toLowerCase(),
   } as User;
 }
 
@@ -60,6 +62,7 @@ export interface User extends BaseRecord {
   designation?: string; // from the User Master (e.g. Engineer, Regional Manager)
   reportingManager?: string; // RM — the name this user reports to
   regionalManager?: string; // RGM — the regional (general) manager
+  rbacRole?: string; // raw role key for RBAC (admin|rgm|rm|engineer|hotline|spare_coordinator|tally_coordinator)
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -163,7 +166,9 @@ interface AuthContextValue {
   }) => { ok: boolean; error?: string };
   updateUser: (id: string, patch: Partial<User> & { password?: string }) => void;
   removeUser: (id: string) => void;
-  can: (action: 'manage-users' | 'edit' | 'delete' | 'view') => boolean;
+  can: (action: string) => boolean; // RBAC: legacy keys + canonical action keys
+  rolePerms: Record<string, string[]>; // role → allowed actions (admin-editable)
+  reloadRoles: () => Promise<void>;
   // The actual logged-in user (never the impersonated one) and whether they are
   // a real administrator — used to gate the "View as" control itself.
   realUser: User | null;
@@ -190,6 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [supaUser, setSupaUser] = useState<User | null>(null);
   const [supaUsers, setSupaUsers] = useState<User[]>([]);
   const [supaBooting, setSupaBooting] = useState<boolean>(supaMode);
+  const [rolePerms, setRolePerms] = useState<Record<string, string[]>>(DEFAULT_PERMS);
+  const reloadRoles = async () => { if (supaMode) { const p = await getRolePerms(); if (Object.keys(p).length) setRolePerms((cur) => ({ ...cur, ...p })); } };
 
   useEffect(() => seedUsers(), []);
   useEffect(() => db.subscribe(USERS, refresh), []);
@@ -207,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (alive) setSupaBooting(false);
     };
     void hydrate();
+    void reloadRoles();
     const off = sbOnAuthChange(() => { void hydrate(); });
     return () => { alive = false; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,23 +396,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const can: AuthContextValue['can'] = (action) => {
     const u = effectiveUser; // reflects the impersonated engineer while previewing
     if (!u) return false;
-    if (isSuper(u.email, u.username)) return true; // dev access — all rights
-    const r = u.role;
-    switch (action) {
-      case 'manage-users':
-        return r === 'admin';
-      case 'delete':
-        return r === 'admin' || r === 'manager';
-      case 'edit':
-        return r !== 'viewer';
-      case 'view':
-        return true;
-    }
+    if (action === 'view') return true; // any signed-in user can view
+    if (isSuper(u.email, u.username)) return true; // super admins — all rights
+    const roleKey = u.rbacRole || legacyToRbac(u.role);
+    if (roleKey === 'admin') return true;
+    return permsForRole(roleKey, rolePerms).includes(toCanonical(action));
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, realUser, isAdmin, viewAs, setViewAs }}
+      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, realUser, isAdmin, viewAs, setViewAs }}
     >
       {children}
     </AuthContext.Provider>
