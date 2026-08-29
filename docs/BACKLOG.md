@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
+_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped; go-live data reset queued)_
 
 ---
 
@@ -274,6 +274,35 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   spare-request picker and the in-call consumption picker.
 - Preventive Maintenance (PM) schedule/calls.
 - Sale Entry, Reports, Dashboard/KPI, Indoor Activity, other misc (to be placed).
+
+---
+
+## 🚀 Before go-live
+
+- **Clear all data and re-upload fresh from the sheet CSVs.** Everything in
+  Supabase today is migration/test data loaded while the modules were being
+  built (plus whatever the demo seed left behind). Before go-live, purge the
+  data tables and re-import a clean export of every sheet in one pass through
+  **Bulk Data Import**, so the live system starts from the sheet as the single
+  source of truth.
+  - **Purge, then load in dependency order:** masters / value lists → parties →
+    products → parts (ITEM Master) → user directory → calls (FIELD + INST + PM)
+    → reports (per-visit) → spare requests + lines → consumption → feedback →
+    call requests. Children reference parents, so the order matters.
+  - **Keep, do not purge:** Supabase Auth users, `profiles`, `app_roles` /
+    Roles & Permissions, per-user extra access, saved table views, and Admin
+    Config. Those are configuration, not data.
+  - **Reset the sequences after loading** so new records continue the sheet's
+    series rather than colliding with it: the UCN counters (F / I / PM) and the
+    spare **OR NO** running number (`0011_spare_intake.sql`, currently anchored
+    at OR47042), plus `next_call_reqid()` for REQID.
+  - **Verify against the sheet before opening it up:** row counts per table,
+    a spot-check of back-dated `reg_date` values, call status derivation
+    (`call_state`), and that role scoping still resolves — it matches on exact
+    `User Name` ⇄ `Call Allocated To` strings.
+  - Needs a repeatable purge path (a `supabase/apply/` reset bundle, or a
+    documented SQL snippet) rather than deleting tables by hand — it will
+    likely be run more than once during the dry run.
 
 ---
 
