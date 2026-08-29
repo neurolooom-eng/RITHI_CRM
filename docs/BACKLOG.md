@@ -66,6 +66,11 @@ _Last updated: 2026-08-29_
 Reads were timing out on Apps Script; the app now runs on Supabase (Postgres +
 auto REST + RLS + Auth).
 - ✅ Schema (`0001_init.sql`) + reports-as-history (`0002_reports_history.sql`).
+- ⚠️ **Run `0010_call_request_items.sql`** — drops the `reqid` unique constraint
+  (a request has one row per call, all sharing the REQID), makes `unique_key`
+  the unique identity, and adds `next_call_reqid()` so a multi-call request is
+  written as one atomic insert. Without it only the first call of a request
+  saves.
 - ✅ Data layer (`src/lib/supabase.ts`); `sheets.ts` delegates to it when connected.
 - ✅ Baked project URL + publishable key; **email/password login** via `profiles`.
 - ✅ Loaded: masters 567, parties 5,872, products 20,999, parts 1,324, calls
