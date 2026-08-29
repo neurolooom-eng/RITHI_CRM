@@ -101,8 +101,10 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
-  engineer: ['calls.view', 'calls.report', 'request.create', 'spare.request', 'consumption.view', 'reports.view', 'dashboard.view'],
-  hotline: ['calls.view', 'calls.create', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
+  // Engineers: view + report their calls; no create/edit, no spare requests.
+  engineer: ['calls.view', 'calls.report', 'request.create', 'consumption.view', 'reports.view', 'dashboard.view'],
+  // Hotline: register/create calls; no spare requests.
+  hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
   spare_coordinator: ['spare.request', 'spare.approve_rm', 'spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
   stores_incharge: ['spare.dispatch', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],

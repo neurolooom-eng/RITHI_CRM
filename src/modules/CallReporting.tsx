@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -194,6 +194,8 @@ export function CallReportDrawer({
       };
       const res = await saveReport(ucn, patch);
       if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
+      // Stamp the call's status so a Solved call becomes read-only in the register.
+      try { await updateCall(ucn, { status: solved ? 'Solved - Report Completed' : status }); } catch { /* status stamp is best-effort */ }
 
       // Spare consumption → spare_consumption (one row per part).
       for (const s of spares) {
