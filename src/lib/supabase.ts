@@ -330,7 +330,8 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 // Pending Registrations screen already reads.
 export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('call_requests').select('*')
-    .or('ucn.is.null,ucn.eq.').order('submitted_at', { ascending: false }).limit(limit);
+    .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
+    .order('submitted_at', { ascending: false }).limit(limit);
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => ({
     _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
@@ -343,9 +344,129 @@ export async function listCallRequestsAsPending(limit = 500): Promise<Record<str
     'Additional Comments': r.additional_comments,
   }));
 }
-export async function setCallRequestUcn(id: number, ucn: string): Promise<boolean> {
-  const { error } = await must().from('call_requests').update({ ucn, status: 'Registered' }).eq('id', id);
-  return !error;
+// Close a request out with a UCN: 'Registered' (a new call was created from it)
+// or 'Mapped' (it belongs to a call that already existed). Either way it leaves
+// the pending list, which only lists requests with no UCN.
+export async function setCallRequestUcn(id: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('call_requests')
+    .update({ ucn, status, actioned_by: by, actioned_at: new Date().toISOString() }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Cancel a request — it stops being pending without ever becoming a call.
+export async function cancelCallRequest(id: number, reason: string, by = ''): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const { error } = await must().from('call_requests')
+    .update({ status: 'Cancelled', cancel_reason: reason, cancelled_at: now, actioned_by: by, actioned_at: now }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- call state / open calls ------------------------------------------------
+// A call's state comes from its LATEST visit (view `call_state`, migration
+// 0012): Unattended (no visit yet), Unsolved, Report pending, or Solved.
+// Everything but Solved counts as OPEN.
+export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved';
+export const OPEN_STATES: CallState[] = ['Unattended', 'Unsolved', 'Report pending'];
+
+export interface OpenCall {
+  ucn: string; callType: string; partyName: string; productName: string; serial: string;
+  allocatedTo: string; regDate: string; complaint: string;
+  state: Exclude<CallState, 'Solved'>;
+}
+const CHUNK = 150;
+const chunked = <T,>(xs: T[], n = CHUNK): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += n) out.push(xs.slice(i, i + n));
+  return out;
+};
+
+// State of specific calls, keyed by UCN. Unknown UCNs are simply absent.
+export async function callStates(ucns: string[]): Promise<Record<string, CallState>> {
+  const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
+  const out: Record<string, CallState> = {};
+  for (const part of chunked(list)) {
+    const { data, error } = await must().from('call_state').select('ucn,state').in('ucn', part);
+    if (error) throw new Error(errMsg(error));
+    (data ?? []).forEach((r) => { out[String(r.ucn)] = String(r.state) as CallState; });
+  }
+  return out;
+}
+
+// Every call that is NOT solved, keyed by UCN — one paged query, so a whole
+// register can be colour-coded without asking about each call.
+export async function openCallStates(limit = 20000): Promise<Record<string, CallState>> {
+  const PAGE = 1000;
+  const out: Record<string, CallState> = {};
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await must().from('call_state').select('ucn,state')
+      .neq('state', 'Solved').range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    rows.forEach((r) => { out[String(r.ucn)] = String(r.state) as CallState; });
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// Pending (not solved) calls, optionally for one call type — the Pending Calls
+// register. Rows come back in the app's call shape plus `state`.
+export async function listPendingCalls(callType = '', limit = 20000): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    let q = must().from('pending_calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
+    if (callType) q = q.eq('call_type', callType);
+    const { data, error } = await q;
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.state ?? ''), lastStatus: String(r.last_status ?? ''), lastVisitAt: String(r.last_visit_at ?? '') })));
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// Open calls on any of these serials (or parties, when a request has no
+// serial) — the Hotline's "is there already a call for this?" check.
+export async function openCallsFor(serials: string[], parties: string[] = []): Promise<OpenCall[]> {
+  const c = must();
+  const ser = [...new Set(serials.map((s) => s.trim()).filter(Boolean))];
+  const par = [...new Set(parties.map((s) => s.trim()).filter(Boolean))];
+  if (!ser.length && !par.length) return [];
+
+  const rows: Record<string, unknown>[] = [];
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,state';
+  for (const part of chunked(ser)) {
+    const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
+    if (error) throw new Error(errMsg(error));
+    rows.push(...(data ?? []));
+  }
+  if (!ser.length) {
+    for (const part of chunked(par)) {
+      const { data, error } = await c.from('pending_calls').select(cols).in('party_name', part).limit(1000);
+      if (error) throw new Error(errMsg(error));
+      rows.push(...(data ?? []));
+    }
+  }
+
+  const byUcn = new Map<string, OpenCall>();
+  rows.forEach((r) => {
+    const ucn = String(r.ucn ?? '');
+    if (!ucn || byUcn.has(ucn)) return;
+    byUcn.set(ucn, {
+      ucn, callType: String(r.call_type ?? ''), partyName: String(r.party_name ?? ''),
+      productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
+      allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
+      complaint: String(r.complaint_reported ?? ''),
+      state: (String(r.state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+    });
+  });
+  return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+}
+
+// Does this UCN exist? (manual mapping is free text, so it is worth checking.)
+export async function callByUcn(ucn: string): Promise<Record<string, unknown> | null> {
+  const { data } = await must().from('calls').select('*').eq('ucn', ucn).maybeSingle();
+  return data ? dbToCall(data) : null;
 }
 
 // ---- pending registrations -------------------------------------------------

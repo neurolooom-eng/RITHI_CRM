@@ -305,8 +305,8 @@ export async function addCrnRequest(data: Record<string, unknown>): Promise<bool
   const r = await getJson({ action: 'crnrequest', data: JSON.stringify(data) });
   return !!r.ok;
 }
-export async function setPendingUcn(row: number, ucn: string): Promise<boolean> {
-  if (sb.supabaseConfigured()) return sb.setCallRequestUcn(row, ucn);
+export async function setPendingUcn(row: number, ucn: string, status: 'Registered' | 'Mapped' = 'Registered', by = ''): Promise<boolean> {
+  if (sb.supabaseConfigured()) return (await sb.setCallRequestUcn(row, ucn, status, by)).ok;
   const r = await getJson({ action: 'setucn', uid: String(row), ucn });
   return !!r.ok;
 }

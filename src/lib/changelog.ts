@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.0',
+    version: '0.6.1',
     date: '2026-08-29',
     title: 'All Masters view; Part Master reads the live catalogue',
     changes: [
@@ -20,6 +20,19 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each row shows where the master comes from, how many values it holds, whether it is populated and when it was last synced; picking a value list lists every value, searchable and exportable to CSV.',
       'Part Master was empty: it was still a local demo collection, and the demo data is cleared on first load. It now reads the live ITEM Master (the same parts catalogue the spare pickers use), with search on code and description, an active/inactive filter, Load more, CSV export and the cached-with-last-sync behaviour of Party Master.',
       'Roles that can already open a master register are granted the new All Masters module (migration 0013, additive \u2014 it leaves any admin edit alone).',
+    ],
+  },
+  {
+    version: '0.6.0',
+    date: '2026-08-29',
+    title: 'Call status everywhere, and a Hotline desk for requests',
+    changes: [
+      'Every register now shows a colour-coded Call Status \u2014 Solved (green), Unsolved (red), Report pending (amber), Unattended (blue) \u2014 taken from the call\u2019s latest visit.',
+      'New Pending Calls module: every call nobody has closed, across Field, Installation and PM, with status tiles you can click to filter and a CSV export.',
+      'Pending Registrations is now a desk: click a request to see it in full and either map it to an existing call, create a new one, or cancel it with a reason. Any of the three takes it off the pending list.',
+      'Requests list an Open Calls column \u2014 how many calls on that machine are still open \u2014 so a duplicate call is obvious before you create one.',
+      'UCN Number (Mapped) column: type a UCN straight into the row to map a request to a call that already exists.',
+      'Hotline can act on requests again \u2014 the screen now honours the \u201cRegister pending\u201d permission, not just call editing.',
     ],
   },
   {

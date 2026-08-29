@@ -69,6 +69,12 @@ _Last updated: 2026-08-29_
 
 ## 🔜 In progress / Next
 
+### Migrations to run (Supabase SQL editor)
+- `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
+- `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
+  run, the Call Status column stays blank and Pending Calls says so.
+
+
 ### Supabase cutover — status
 Reads were timing out on Apps Script; the app now runs on Supabase (Postgres +
 auto REST + RLS + Auth).

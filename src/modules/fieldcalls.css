@@ -243,3 +243,25 @@
 }
 .call-hit:hover { background: var(--surface-2, rgba(127, 127, 127, .09)); }
 .call-hit .muted { font-size: 12px; }
+
+/* Pending Calls — status tiles above the register (click to filter). */
+.pc-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.pc-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  min-width: 120px; padding: 8px 12px; cursor: pointer; text-align: left;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.pc-tile:hover { border-color: var(--primary); }
+.pc-tile-on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.pc-tile-n { font-size: 20px; font-weight: 700; line-height: 1.1; }
+
+/* Pending Registrations — Hotline actions on a request. */
+.req-act-sec { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 10px; background: var(--surface); }
+.req-open-list { display: flex; flex-direction: column; gap: 6px; }
+.req-open-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.req-open-main { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.req-open-cmp { flex-basis: 100%; font-size: 12px; }
+.map-cell { display: flex; align-items: center; gap: 6px; }
+.map-cell .input { min-width: 0; }
+.linklike { background: none; border: 0; padding: 0; color: var(--primary); font-weight: 650; cursor: pointer; }
+.linklike:hover { text-decoration: underline; }
