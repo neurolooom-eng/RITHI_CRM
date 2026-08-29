@@ -5,12 +5,13 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
 import { listTabRows, sheetsConfigured, listUsers } from '../lib/sheets';
 import {
-  addSpareRequest, listSpareRequestLines, updateSpareRequest, searchCalls, supabaseConfigured,
+  addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
+  searchCalls, supabaseConfigured,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
   deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
-  STAGES, stageTone, type Stage,
+  canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -397,10 +398,15 @@ const CACHE_KEY = 'spareRequests';
 const MINE = 'mine'; // pseudo-stage: "needs my action"
 
 // A pending workflow decision awaiting confirmation in the modal.
+//   scope 'line' — this spare only. The RM stage is always 'line': each part
+//                  is approved or rejected on its own.
+//   scope 'or'   — every line of the request still at this stage, for the
+//                  later stages where deciding per OR is allowed.
+type Scope = 'line' | 'or';
 type Pending =
-  | { kind: 'approve' | 'reject'; row: Row }
-  | { kind: 'dispatch'; row: Row }
-  | { kind: 'receive'; row: Row };
+  | { kind: 'approve' | 'reject'; row: Row; scope: Scope; lines: number }
+  | { kind: 'dispatch'; row: Row; scope: Scope; lines: number }
+  | { kind: 'receive'; row: Row; scope: Scope; lines: number };
 
 export function SpareRequests() {
   const { user, can } = useAuth();
@@ -483,40 +489,73 @@ export function SpareRequests() {
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
   };
   const actor = user?.fullName || user?.email || 'user';
-  const apply = async (uid: string, patch: Record<string, unknown>, okText: string, failText: string) => {
-    setBusy(true);
-    try {
-      const res = await updateSpareRequest(uid, patch);
-      if (res.ok) { setMsg({ tone: 'ok', text: okText }); await load(); }
-      else setMsg({ tone: 'error', text: res.error ?? failText });
-    } finally { setBusy(false); }
-  };
-  const runPending = async (p: Pending, input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => {
-    const uid = String(p.row.uid);
-    setPending(null);
-    if (p.kind === 'approve' || p.kind === 'reject') {
-      await apply(uid, buildPatch(p.row, p.kind, actor, input.reason ?? ''),
-        `${uid} ${p.kind === 'approve' ? 'approved' : 'rejected'}.`, 'Update failed.');
-    } else if (p.kind === 'dispatch') {
-      await apply(uid, dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? ''),
-        `${uid} dispatched${input.dc ? ` on DC ${input.dc}` : ''}.`, 'Dispatch failed.');
-    } else {
-      await apply(uid, receivePatch(actor, input.remarks ?? ''), `Receipt acknowledged for ${uid}.`, 'Acknowledgement failed.');
-    }
+  // How many lines of this request sit at the same stage and are mine to act on
+  // — the size of a per-OR decision.
+  const sameStageLines = (row: Row): Row[] => {
+    const stage = deriveStage(row);
+    return rows.filter((r) => String(r.uid) === String(row.uid)
+      && deriveStage(r) === stage && actionable(r, can, email));
   };
 
-  // Action cell — one button set per workflow stage, RBAC-gated.
+  const runPending = async (p: Pending, input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => {
+    setPending(null);
+    const { row, scope } = p;
+    const stage = deriveStage(row);
+    const patch =
+      p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
+      : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
+      : buildPatch(row, p.kind, actor, input.reason ?? '');
+    const what = p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
+      : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
+
+    setBusy(true);
+    try {
+      if (scope === 'or') {
+        const res = await updateSpareRequestLinesAtStage(String(row.uid), [stage], patch);
+        if (res.ok) setMsg({ tone: 'ok', text: `${res.count ?? 0} spare${res.count === 1 ? '' : 's'} on ${String(row.or_no ?? row.uid)} ${what}.` });
+        else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
+      } else {
+        const res = await updateSpareRequestLine(row.line_id ?? row.id, patch);
+        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.part ?? 'Spare')} ${what}.` });
+        else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
+      }
+      await load();
+    } finally { setBusy(false); }
+  };
+
+  // Action cell — the buttons for this SPARE's current stage, RBAC-gated.
+  // Every decision here is per line. Where the stage allows a whole-OR
+  // decision, an extra "all N" button appears once more than one line of the
+  // request is sitting at the same stage; the RM stage never offers it.
   const wfButtons = (row: Row, size = 'btn-sm') => {
     const stage = deriveStage(row);
     if (!actionable(row, can, email)) {
       return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : '—'}</span>;
     }
-    if (stage === 'Stores') return <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'dispatch', row })}>🚚 Dispatch + DC</button>;
-    if (stage === 'Dispatched') return <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'receive', row })}>📥 Mark received</button>;
+    const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
+    const bulk = (kind: 'approve' | 'dispatch' | 'receive') => siblings > 1 && (
+      <button className={`btn ${size}`} title={`Apply to all ${siblings} spares of this OR at this stage`}
+        onClick={() => setPending({ kind, row, scope: 'or', lines: siblings })}>
+        ⇉ all {siblings}
+      </button>
+    );
+    if (stage === 'Stores') return (
+      <div className="row">
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'dispatch', row, scope: 'line', lines: 1 })}>🚚 Dispatch + DC</button>
+        {bulk('dispatch')}
+      </div>
+    );
+    if (stage === 'Dispatched') return (
+      <div className="row">
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'receive', row, scope: 'line', lines: 1 })}>📥 Mark received</button>
+        {bulk('receive')}
+      </div>
+    );
     return (
       <div className="row">
-        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'approve', row })}>✔ Approve</button>
-        <button className={`btn ${size}`} onClick={() => setPending({ kind: 'reject', row })}>✖ Reject</button>
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'approve', row, scope: 'line', lines: 1 })}>✔ Approve</button>
+        <button className={`btn ${size}`} onClick={() => setPending({ kind: 'reject', row, scope: 'line', lines: 1 })}>✖ Reject</button>
+        {bulk('approve')}
       </div>
     );
   };
@@ -736,19 +775,26 @@ function DecisionModal({
   }, [pending]);
   if (!pending) return null;
 
-  const { kind, row } = pending;
-  const title = kind === 'approve' ? `Approve — ${deriveStage(row)}`
-    : kind === 'reject' ? `Reject — ${deriveStage(row)}`
-    : kind === 'dispatch' ? 'Dispatch from Stores' : 'Acknowledge receipt';
+  const { kind, row, scope, lines } = pending;
+  const per = scope === 'or' ? `all ${lines} spares` : 'this spare';
+  const title = kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
+    : kind === 'reject' ? `Reject ${per} — ${deriveStage(row)}`
+    : kind === 'dispatch' ? `Dispatch ${per} from Stores` : `Acknowledge receipt of ${per}`;
   const blocked = (kind === 'reject' && !reason.trim()) || (kind === 'dispatch' && !dc.trim());
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>
       <div className="rep-form">
         <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-          <b>{String(row.uid ?? '')}</b> · {String(row.part ?? '')} · {String(row.party_name ?? '')}
+          <b>{String(row.or_no ?? row.uid ?? '')}</b> · {String(row.party_name ?? '')}
+          <br />
+          {scope === 'or'
+            ? `Applies to every spare on this OR still at ${deriveStage(row)} — ${lines} of them.`
+            : `Applies to this spare only: ${String(row.part ?? '')}.`}
           {kind === 'approve' && !needsReview(row.item_status) && deriveStage(row) === 'RM Approval' &&
             <><br />Not AMC/OGP — approving clears Commercial and NSM automatically and sends it to Stores.</>}
+          {deriveStage(row) === 'RM Approval' &&
+            <><br />Other spares on this OR are unaffected — the RM decides each one separately.</>}
         </p>
         {kind === 'reject' && (
           <label className="rep-field">

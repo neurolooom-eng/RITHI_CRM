@@ -24,7 +24,7 @@ alter table public.spare_consumption
 
 create index if not exists spare_consumption_engineer_idx   on public.spare_consumption (lower(btrim(engineer)));
 create index if not exists spare_consumption_created_at_idx on public.spare_consumption (created_at desc);
-create index if not exists spare_requests_received_at_idx   on public.spare_requests (received_at) where received_at is not null;
+create index if not exists spare_request_lines_received_at_idx on public.spare_request_lines (received_at) where received_at is not null;
 
 -- ---------------------------------------------------------------------------
 -- The two things a movement is matched on. Names arrive with stray case and
@@ -42,7 +42,9 @@ grant execute on function public.part_code(text)     to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Movements. A receipt is dated by the acknowledgement, not by the request:
--- the parts entered hand stock when the engineer said they arrived.
+-- the parts entered hand stock when the engineer said they arrived. Since
+-- 0016_spare_line_approvals.sql the acknowledgement is per SPARE, so a
+-- part-received OR puts only the parts actually acknowledged into hand stock.
 -- ---------------------------------------------------------------------------
 create or replace view public.handstock_movements as
 select
@@ -53,17 +55,17 @@ select
   public.part_code(l.part)                          as part_code,
   coalesce(l.part, '')                              as part,
   coalesce(l.qty, 0)                                as qty,
-  r.received_at                                     as moved_at,
+  l.received_at                                     as moved_at,
   coalesce(r.or_no, '')                             as ref,
   'Spare request'::text                             as ref_type,
   coalesce(r.uid, '')                               as ref_uid,
   coalesce(r.ucn, '')                               as ucn,
   coalesce(r.call_number, '')                       as call_number,
   coalesce(r.party_name, '')                        as party_name,
-  coalesce(r.receipt_remarks, '')                   as remarks
+  coalesce(l.receipt_remarks, '')                   as remarks
 from public.spare_request_lines l
 join public.spare_requests r on r.uid = l.request_uid
-where r.received_at is not null
+where l.received_at is not null
 union all
 select
   'OUT'::text,

@@ -108,7 +108,7 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
-- **`0016_handstock.sql`** — the hand-stock views (in the `spare_requests`
+- **`0020_handstock.sql`** — the hand-stock views (in the `spare_requests`
   bundle). Until it is run, the Hand Stock module says so and stays empty.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
@@ -264,12 +264,26 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     caught the 0012 bug — the build and the TypeScript tests could not see it.
     The harness runs as superuser, so it covers **triggers, not RLS policies**;
     the policies still want a check against the live project.
-  - *Phase 5* (`0016_handstock.sql`): **Hand Stock** (`/handstock`) — what an
-    engineer is actually carrying. A receipt (Dispatched → Received) puts parts
-    in; a spare consumed on a call report takes them out; Postgres nets the two
-    per engineer + part in the `handstock_movements` / `handstock_balance`
-    views. One line per engineer and part with received / consumed / in hand,
-    a movement trail behind each line (OR number in, call number out), an
+  - *Phase 5* (`0016_spare_line_approvals.sql`): **approvals moved from the
+    request to the spare.** The RM decides each line on its own, so one OR can
+    go forward partly approved. Every later stage reads the same per-line
+    state, which is what lets it be actioned per spare *or* per OR (an "all N"
+    button; the RM stage deliberately has none). The request keeps a rolled-up
+    stage — the least-advanced surviving line — maintained by trigger, and the
+    header's own approval columns are frozen so the two cannot disagree.
+  - *Phase 6* (`0017_spare_or_number_monthly.sql`): OR numbers become
+    **`OR-YYMM-NNNN`, restarting at 0001 each month** (a back-dated request is
+    numbered in its own month). A per-month counter table replaces the single
+    running sequence; numbers already issued keep the old `OR47042` form, since
+    they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
+    `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
+  - *Phase 7* (`0020_handstock.sql`): **Hand Stock** (`/handstock`) — what an
+    engineer is actually carrying. An acknowledged receipt puts parts in (per
+    SPARE, since phase 5, so a part-received OR only counts what arrived); a
+    spare consumed on a call report takes them out; Postgres nets the two per
+    engineer + part in the `handstock_movements` / `handstock_balance` views.
+    One line per engineer and part with received / consumed / in hand, a
+    movement trail behind each line (OR number in, call number out), an
     in-hand / short / settled filter, per-engineer filter, search and CSV.
     Both views are `security_invoker`, so scoping is the underlying tables'.
     The two sides are matched on the engineer's **name** (case- and
@@ -278,6 +292,7 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     A **negative** balance is shown, not hidden: it means parts were consumed
     that no acknowledged receipt covers (stock carried from before the receipt
     step, or a dispatch nobody acknowledged).
+    `supabase/tests/handstock_test.sql` covers it.
   - **Next:** warehouse-side stock — decrement on dispatch (needs
     `parts.on_hand`/price columns first; the ITEM Master import carries only
     code, description and Active) and a stores pick/pack view. Hand stock now

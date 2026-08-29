@@ -85,8 +85,9 @@ const MODULES = {
     blurb: [
       'The spare-request workflow end to end: the approval chain (RM → Commercial',
       '→ NSM → Stores), the engineer receipt that closes it, the OR/RowNo',
-      'numbering, the RBAC guard fix that lets an RM approve a non-AMC item, and',
-      'the hand-stock views (receipts in, consumption out, netted per engineer).',
+      'numbering (OR-YYMM-NNNN, restarting each month), per-SPARE approvals — the',
+      'RM decides each line on its own, so one OR can go forward partly approved —',
+      'and the hand-stock views (receipts in, consumption out, netted per engineer).',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers'],
     files: [
@@ -94,7 +95,11 @@ const MODULES = {
       '0009_spare_receipt.sql',
       '0011_spare_intake.sql',
       '0012_spare_auto_approval.sql',
-      '0016_handstock.sql',
+      '0016_spare_line_approvals.sql',
+      '0017_spare_or_number_monthly.sql',
+      '0018_spare_or_number_padded.sql',
+      '0019_spare_or_number_format.sql',
+      '0020_handstock.sql',
     ],
   },
 };

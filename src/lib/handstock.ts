@@ -6,7 +6,7 @@
 //   IN   a spare request the engineer acknowledged as received
 //   OUT  a spare consumed against a call report
 // Postgres nets them per engineer + part (views `handstock_movements` and
-// `handstock_balance`, migration 0016). This module is the shape of those rows
+// `handstock_balance`, migration 0020). This module is the shape of those rows
 // and the small amount of judgement the register applies on top: which part
 // codes are short, and how a balance reads.
 // ---------------------------------------------------------------------------

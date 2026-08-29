@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.6.7',
+    version: '0.6.11',
     date: '2026-08-29',
     title: 'Hand Stock \u2014 what an engineer is carrying',
     changes: [
@@ -20,7 +20,28 @@ export const CHANGELOG: ChangeEntry[] = [
       'Nothing extra is entered for it. A receipt on a spare request adds to hand stock; a spare consumed on a call report takes it away. Postgres nets the two, so the register is the ledger, not a second place to keep books.',
       'Click a line for its movement trail \u2014 every receipt (with its OR number) and every consumption (with its call), so a disputed balance can be read back to where it came from.',
       'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed than received, which means stock carried from before receipts were acknowledged or a dispatch nobody acknowledged. Search, per-engineer filter and CSV export as everywhere else.',
-      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0016_handstock.sql (apply bundle: spare_requests).',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0020_handstock.sql (apply bundle: spare_requests).',
+    ],
+  },
+  {
+    version: '0.6.10',
+    date: '2026-08-29',
+    title: 'OR numbers are per month',
+    changes: [
+      'OR numbers now read OR-YYMM-NNNN \u2014 OR-2608-0001, OR-2608-0002 \u2014 and the count restarts at 0001 on the first of each month.',
+      'A back-dated request is numbered in the month it is dated, not the month it is entered.',
+      'Numbers already issued keep their old form: they are quoted on DCs and in Tally, so the old series stays as history and the new format starts from here.',
+    ],
+  },
+  {
+    version: '0.6.7',
+    date: '2026-08-29',
+    title: 'Spare approvals are per spare, not per request',
+    changes: [
+      'The RM now approves or rejects each spare on its own, so a request for five parts can go forward with three \u2014 the rejected ones stop, the rest carry on to Stores.',
+      'Commercial, NSM, Stores and the engineer\u2019s receipt work the same way, and can be actioned either one spare at a time or, with the \u201call N\u201d button, for every spare of an OR still at that stage. The RM stage deliberately has no bulk button.',
+      'Each spare carries its own approval trail, DC number and rejection reason; the request shows the stage of whichever spare is furthest behind.',
+      'The database now refuses an approval written against the request instead of the spare, so the two can never disagree.',
     ],
   },
   {

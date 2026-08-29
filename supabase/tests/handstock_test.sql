@@ -33,13 +33,20 @@ insert into public.spare_request_lines (request_uid, part, qty)
   values ('HS-1','SP-100|Filter assembly',4), ('HS-1','SP-200|Sensor',1);
 select count(*) as movements_before_receipt from public.handstock_movements where part_code like 'SP-%';
 
-\echo '--- 2. the acknowledgement puts both parts into hand stock ---'
+\echo '--- 2. the acknowledgement puts both parts into hand stock (per SPARE) ---'
+call public.be('rm@x.com');
+update public.spare_request_lines
+   set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
+       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved'
+ where request_uid='HS-1';
 call public.be('stores@x.com');
-update public.spare_requests
-   set stores_status='Dispatched', dc_number='DC-9', stage='Dispatched' where uid='HS-1';
+update public.spare_request_lines
+   set stores_status='Dispatched', dc_number='DC-9', dispatched_by='Stores Sam', dispatched_at=now()
+ where request_uid='HS-1' and stage='Stores';
 call public.be('eng@x.com');
-update public.spare_requests
-   set received_by='Eng Elan', received_at=now(), stage='Received' where uid='HS-1';
+update public.spare_request_lines
+   set received_by='Eng Elan', received_at=now(), receipt_remarks='ok'
+ where request_uid='HS-1';
 select direction, engineer, part, qty, ref, ref_type from public.handstock_movements where part_code like 'SP-%' order by part, direction;
 
 \echo '--- 3. consuming one filter on a call takes it back out ---'
@@ -75,3 +82,24 @@ select role,
        permissions ? 'mod:/spare-requests' as has_spare_requests,
        permissions ? 'mod:/handstock'      as has_handstock
   from public.app_roles order by role;
+
+\echo '--- 10. a part-received OR puts in only the spares acknowledged ---'
+call public.be('eng@x.com');
+insert into public.spare_requests (uid, engineer, engineer_email, item_status)
+  values ('HS-2','Eng Elan','eng@x.com','WARRANTY');
+insert into public.spare_request_lines (request_uid, row_no, part, qty)
+  values ('HS-2',1,'SP-300|Pump',2), ('HS-2',2,'SP-400|Valve',5);
+call public.be('rm@x.com');
+update public.spare_request_lines
+   set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
+       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved'
+ where request_uid='HS-2';
+call public.be('stores@x.com');
+update public.spare_request_lines
+   set stores_status='Dispatched', dc_number='DC-10', dispatched_by='Stores Sam', dispatched_at=now()
+ where request_uid='HS-2' and stage='Stores';
+call public.be('eng@x.com');
+update public.spare_request_lines set received_by='Eng Elan', received_at=now()
+ where request_uid='HS-2' and row_no=1;   -- only the pump arrived
+select part_code, received, on_hand from public.handstock_balance
+ where part_code in ('SP-300','SP-400') order by part_code;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, supabaseConfigured } from '../lib/supabase';
-import { uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
+import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';

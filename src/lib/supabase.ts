@@ -681,23 +681,45 @@ export async function addSpareRequest(
   }
   return { ok: true, uid, orNo };
 }
+// Only the request's IDENTIFYING fields are pulled from the header. Its
+// approval columns are deliberately not: since 0016 every decision lives on
+// the line (the RM approves each spare separately) and the request carries
+// only a rolled-up stage.
 export async function listSpareRequestLines(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, item_status, status, stage, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, created_at)')
+    .select('*, spare_requests!inner(uid, or_no, or_req_date, req_type, engineer, engineer_email, ucn, call_number, party_name, product_name, serial, complaint, item_status, handstock_reason, remarks, stage, status, created_at)')
     .order('created_at', { ascending: false }).range(offset, offset + limit - 1);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
-    // Flatten the parent request onto the line so the register (and the
-    // workflow helpers) read one row per part. The request wins on the columns
-    // both tables carry (approvals, stores status) — those live on the request.
+    // One row per part: the request's identity, the line's own workflow state.
+    // The line is spread last, so it wins on every column both tables carry.
     const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
     return {
-      ...line, ...req, part: line.part, qty: line.qty, line_id: line.id,
-      uid: req?.uid, req_engineer: req?.engineer, requested_at: req?.created_at,
-      req_status: req?.status, line_status: line.status,
+      ...req, ...line,
+      uid: req?.uid, line_id: line.id,
+      req_engineer: req?.engineer, requested_at: req?.created_at,
+      req_stage: req?.stage, req_status: req?.status,
     };
   });
 }
+
+// One spare. This is the RM path: each line is approved or rejected on its own.
+export async function updateSpareRequestLine(lineId: unknown, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('spare_request_lines').update(patch).eq('id', lineId);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Every line of one request that currently sits at `stages` — the per-OR path
+// the later stages may use instead of acting spare by spare. Lines rejected
+// earlier, or already past this stage, are left alone.
+export async function updateSpareRequestLinesAtStage(
+  uid: string, stages: string[], patch: Record<string, unknown>,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const { data, error } = await must().from('spare_request_lines')
+    .update(patch).eq('request_uid', uid).in('stage', stages).select('id');
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, count: (data ?? []).length };
+}
+
 export async function updateSpareRequest(uid: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_requests').update(patch).eq('uid', uid);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
@@ -735,7 +757,7 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 }
 
 // ---- hand stock ------------------------------------------------------------
-// Netted per engineer + part by Postgres (views from 0016_handstock.sql), so
+// Netted per engineer + part by Postgres (views from 0020_handstock.sql), so
 // the register never has to pull every receipt and every consumption line to
 // work out a balance. Both views are security_invoker, so the rows a user gets
 // are exactly the ones they may already see in Spare Requests / Consumption.

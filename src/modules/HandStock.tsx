@@ -19,13 +19,13 @@ import './fieldcalls.css';
 // stock. One row per engineer + part, with the movement trail behind it.
 //
 // Reads the `handstock_balance` / `handstock_movements` views (migration
-// 0016_handstock.sql). They run with the caller's rights, so the rows match
+// 0020_handstock.sql). They run with the caller's rights, so the rows match
 // what Spare Requests and Spare Consumption already show that user: their own
 // stock for an engineer, the sub-tree for an RM, everything for an admin.
 // ===========================================================================
 
 const CACHE_KEY = 'handstock';
-const MIGRATION_HINT = 'Hand stock needs migration 0016_handstock.sql — run it in the Supabase SQL editor (apply bundle: spare_requests).';
+const MIGRATION_HINT = 'Hand stock needs migration 0020_handstock.sql — run it in the Supabase SQL editor (apply bundle: spare_requests).';
 
 type Row = HandstockBalance & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';

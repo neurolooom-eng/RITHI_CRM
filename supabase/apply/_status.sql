@@ -33,6 +33,15 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.spare_or_no_seq')          is not null)),
     (7, 'spare_requests: approval fix', 'spare_needs_review() (0012)',
         to_regprocedure('public.spare_needs_review(text)')   is not null),
+    (8, 'spare_requests: per-spare approvals', 'spare_request_lines.rm_at + spare_line_stage() (0016)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='spare_request_lines' and column_name='rm_at')
+     and to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)') is not null)),
+    (9, 'spare_requests: monthly OR numbers', 'next_spare_or_no() + spare_or_counters (0017)',
+        (to_regprocedure('public.next_spare_or_no(date)') is not null
+     and to_regclass('public.spare_or_counters')          is not null)),
+    (10, 'spare_requests: OR number shape', 'OR-YYMM-NNNN, no slashed numbers left (0018 + 0019)',
+        not exists (select 1 from public.spare_requests where or_no ~ '^OR-\d\d/\d\d/')),
     (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
         (to_regprocedure('public.next_call_reqid()')   is not null
      and not exists (select 1 from pg_constraint
@@ -52,7 +61,7 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
     (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
         to_regprocedure('public.next_direct_call_number(text)') is not null),
-    (14, 'spare_requests: hand stock', 'handstock_balance + handstock_movements views (0016)',
+    (14, 'spare_requests: hand stock', 'handstock_balance + handstock_movements views (0020)',
         (to_regclass('public.handstock_balance')   is not null
      and to_regclass('public.handstock_movements') is not null)),
     (15, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',

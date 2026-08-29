@@ -14,7 +14,7 @@ guards. It caught a live bug (an RM's approval of a non-AMC item being refused
 by the stage guard, fixed in `0012_spare_auto_approval.sql`), so it is worth
 re-running whenever a migration touches `spare_requests`.
 
-`handstock_test.sql` exercises the hand-stock views (`0016_handstock.sql`) — a
+`handstock_test.sql` exercises the hand-stock views (`0020_handstock.sql`) — a
 receipt entering hand stock only once it is acknowledged, consumption taking it
 back out, the name/part-code matching the two sides are joined on, and a
 negative balance where parts were consumed that no receipt covers.
