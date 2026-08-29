@@ -29,6 +29,7 @@ export function UserAccess() {
     setResetting(u.id); setMsg(null);
     const res = await sbSendPasswordReset(u.email);
     setResetting(null);
+    logAudit({ action: 'user.password.reset_link', target: u.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
     setMsg(res.ok
       ? { tone: 'ok', text: `Reset link sent to ${u.email}. It expires after a short while and can be used once.` }
       : { tone: 'error', text: res.error ?? 'Could not send the reset link.' });
