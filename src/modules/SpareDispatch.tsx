@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
@@ -48,6 +48,7 @@ type Tab = 'queue' | 'sent';
 
 export function SpareDispatch() {
   const { user, can } = useAuth();
+  const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const mayDispatch = can('spare.dispatch');
   const cached = onDb ? loadCache<PendingLine & { id: string }>(CACHE_KEY) : null;
@@ -141,9 +142,11 @@ export function SpareDispatch() {
     setPicked(new Set());
     setMsg({
       tone: 'ok',
-      text: `Stock out ${so} · DC ${dc} — ${ids.length} spare${ids.length === 1 ? '' : 's'} booked out to ${target}. It is in their hand stock now.`,
+      text: `Stock out ${so} — ${ids.length} spare${ids.length === 1 ? '' : 's'} booked out to ${target}. It is in their hand stock now.`,
     });
     await load();
+    // Straight to the challan: the delivery does not leave Stores without it.
+    navigate(`/dc/${encodeURIComponent(so)}`);
   };
 
   return (
@@ -174,7 +177,7 @@ export function SpareDispatch() {
         <button className={`chip ${tab === 'sent' ? 'chip-on' : ''}`} onClick={() => setTab('sent')}>📄 Stock outs</button>
       </div>
 
-      {tab === 'sent' ? <StockOuts onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} /> : (
+      {tab === 'sent' ? <StockOuts onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} onPrint={(so) => navigate(`/dc/${encodeURIComponent(so)}`)} /> : (
         <>
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Engineer, OR, spare ID, part, party…" />
@@ -380,7 +383,7 @@ function DispatchModal({ open, engineer, lines, busy, onClose, onConfirm }: {
 // ---------------------------------------------------------------------------
 // Stock outs already booked — the record behind every DC.
 // ---------------------------------------------------------------------------
-function StockOuts({ onMigrationError }: { onMigrationError: () => void }) {
+function StockOuts({ onMigrationError, onPrint }: { onMigrationError: () => void; onPrint: (stockOut: string) => void }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [detailLines, setDetailLines] = useState<Record<string, unknown>[]>([]);
@@ -406,20 +409,23 @@ function StockOuts({ onMigrationError }: { onMigrationError: () => void }) {
   return (
     <>
       {rows.map((r) => (
-        <button key={String(r.uid)} className="card queue-card queue-card-click" onClick={() => openOne(r)}>
+        <div key={String(r.uid)} className="card queue-card queue-card-click" onClick={() => openOne(r)}>
           <div className="queue-head">
             <span className="ql-id"><b>{String(r.uid)}</b></span>
-            <span className="badge badge-success">DC {String(r.dc_number ?? '—')}</span>
             <span><b>{String(r.engineer)}</b></span>
             <span className="muted">{String(r.line_count)} spare{Number(r.line_count) === 1 ? '' : 's'} · {String(r.total_qty)} units</span>
             <div className="spacer" />
             {!!String(r.courier ?? '') && <span className="muted">{String(r.courier)}</span>}
             <span className="muted">{fmtLongDate(r.dc_date)}</span>
+            <button
+              className="btn btn-sm"
+              onClick={(e) => { e.stopPropagation(); onPrint(String(r.uid)); }}
+            >🖨 Challan</button>
           </div>
-        </button>
+        </div>
       ))}
 
-      <Drawer open={!!detail} onClose={() => setDetail(null)} title={detail ? `${String(detail.uid)} · DC ${String(detail.dc_number ?? '')}` : ''} width={720}>
+      <Drawer open={!!detail} onClose={() => setDetail(null)} title={detail ? `Stock out ${String(detail.uid)}` : ''} width={720}>
         {detail && (
           <div className="card-pad">
             <p className="muted" style={{ marginTop: 0 }}>
@@ -428,6 +434,7 @@ function StockOuts({ onMigrationError }: { onMigrationError: () => void }) {
               {String(detail.dispatched_by ?? '') && <> · booked out by {String(detail.dispatched_by)}</>}
             </p>
             {!!String(detail.remarks ?? '') && <p className="muted">{String(detail.remarks)}</p>}
+            <button className="btn btn-sm btn-primary" onClick={() => onPrint(String(detail.uid))}>🖨 Print challan</button>
             <div className="queue-lines queue-lines-compact">
               {detailLines.map((l) => (
                 <div key={String(l.id)} className="queue-line">

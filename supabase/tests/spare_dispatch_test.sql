@@ -92,3 +92,13 @@ update public.spare_request_lines set stock_out_no='SO-FAKE' where request_uid='
 call public.be('st@x.com');
 select engineer, part, qty from public.spare_pending_dispatch order by engineer;
 select count(*) as stock_outs_recorded from public.spare_dispatches;
+
+\echo '--- 11. the challan number IS the stock out number (0028) ---'
+select uid as stock_out_no, dc_number,
+       (dc_number = uid) as challan_is_the_stock_out
+  from public.spare_dispatches order by uid;
+select count(*) as lines_carrying_a_foreign_dc
+  from public.spare_request_lines l join public.spare_dispatches d on d.uid = l.dispatch_uid
+ where l.dc_number is distinct from d.uid;
+\echo 'expect ERROR: the retired DC series is gone'
+select public.next_dc_number(current_date);
