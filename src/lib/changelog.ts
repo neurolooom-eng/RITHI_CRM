@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.8',
+    date: '2026-08-30',
+    title: 'Commercial and NSM approve on their own forms',
+    changes: [
+      'The Commercial step (formerly Admin Approval) now asks what the Google Form asked: the status, then either a reason for clearing \u2014 with the MC / SA number, or the four Direct PO steps behind it \u2014 or a pending reason, plus any comments.',
+      'NSM has its form too: the status, the reasons behind it (several may apply, with an Other box) and remarks.',
+      '\u201cAdmin Process in Progress\u201d and \u201cPut on HOLD\u201d are new: they record why a spare is waiting without approving it, so it stays in that queue instead of quietly moving on.',
+      'The request view shows what each stage answered, so a spare sitting with Commercial or NSM says why.',
+    ],
+  },
+  {
     version: '0.7.7',
     date: '2026-08-30',
     title: 'Old spare requests, and a Dropped outcome',

@@ -14,6 +14,12 @@ import {
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
+import {
+  COMMERCIAL_STATUSES, CLEARING_REASONS, REASONS_NEEDING_MC_SA, DIRECT_PO_STEPS, PENDING_REASONS,
+  NSM_STATUSES, NSM_REASONS, commercialGaps, commercialPatch, commercialSummary, clearsForStores,
+  nsmGaps, nsmPatch, nsmSummary, nsmClearsForStores, mergeApprovalData,
+  type CommercialAnswer, type NsmAnswer,
+} from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -503,15 +509,28 @@ export function SpareRequests() {
       && deriveStage(r) === stage && actionable(r, can, email));
   };
 
-  const runPending = async (p: Pending, input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => {
+  const runPending = async (
+    p: Pending,
+    input: { reason?: string; dc?: string; courier?: string; remarks?: string;
+             commercial?: CommercialAnswer; nsm?: NsmAnswer },
+  ) => {
     setPending(null);
     const { row, scope } = p;
     const stage = deriveStage(row);
+    // The Commercial and NSM steps answer a form rather than a yes/no. Their
+    // "in progress" / "on hold" answers record why without approving, so the
+    // spare stays in that stage's queue.
+    const held = (input.commercial && !clearsForStores(input.commercial))
+              || (input.nsm && !nsmClearsForStores(input.nsm));
+    const formPatch = input.commercial ? commercialPatch(input.commercial, actor)
+                    : input.nsm ? nsmPatch(input.nsm, actor) : null;
     const patch =
-      p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
+      formPatch ? { ...formPatch, approval_data: mergeApprovalData(row.approval_data, formPatch) }
+      : p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
       : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
       : buildPatch(row, p.kind, actor, input.reason ?? '');
-    const what = p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
+    const what = held ? (input.nsm ? 'put on hold' : 'marked in progress')
+      : p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
       : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
 
     setBusy(true);
@@ -763,6 +782,21 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
 
       <section className="rep-sec">
         <div className="rep-sec-title">Approval trail</div>
+        {(() => {
+          // What Commercial and NSM answered on their forms — including an
+          // "in progress" or "on hold" answer, which records why the spare is
+          // still sitting in that stage rather than moving on.
+          const d = (row.approval_data ?? {}) as Record<string, unknown>;
+          const c = commercialSummary(d.commercial as CommercialAnswer | undefined);
+          const n = nsmSummary(d.nsm as NsmAnswer | undefined);
+          if (!c && !n) return null;
+          return (
+            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              {c && <div><b>Commercial:</b> {c}</div>}
+              {n && <div><b>NSM:</b> {n}</div>}
+            </div>
+          );
+        })()}
         <ol className="wf-trail">
           {trail(row).map((e, i) => (
             <li key={i} className={/reject/i.test(e.outcome) ? 'wf-bad' : 'wf-ok'}>
@@ -788,23 +822,37 @@ function DecisionModal({
 }: {
   pending: Pending | null;
   onClose: () => void;
-  onConfirm: (input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => void;
+  onConfirm: (input: { reason?: string; dc?: string; courier?: string; remarks?: string;
+                       commercial?: CommercialAnswer; nsm?: NsmAnswer }) => void;
 }) {
   const [reason, setReason] = useState('');
   const [dc, setDc] = useState('');
   const [courier, setCourier] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [com, setCom] = useState<CommercialAnswer>({ status: '' });
+  const [nsm, setNsm] = useState<NsmAnswer>({ status: '', reasons: [] });
   useEffect(() => {
-    if (pending) { setReason(''); setDc(String(pending.row.dc_number ?? '')); setCourier(''); setRemarks(''); }
+    if (pending) {
+      setReason(''); setDc(String(pending.row.dc_number ?? '')); setCourier(''); setRemarks('');
+      setCom({ status: '' }); setNsm({ status: '', reasons: [] });
+    }
   }, [pending]);
   if (!pending) return null;
 
   const { kind, row, scope, lines } = pending;
   const per = scope === 'or' ? `all ${lines} spares` : 'this spare';
-  const title = kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
+  const title = kind === 'approve' && (deriveStage(row) === 'Commercial' || deriveStage(row) === 'NSM')
+    ? `${deriveStage(row)} approval — ${per}`
+    : kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
     : kind === 'reject' ? `Reject ${per} — ${deriveStage(row)}`
     : kind === 'dispatch' ? `Dispatch ${per} from Stores` : `Acknowledge receipt of ${per}`;
-  const blocked = (kind === 'reject' && !reason.trim()) || (kind === 'dispatch' && !dc.trim());
+  // Commercial and NSM answer their own form instead of a plain approve.
+  const stage = deriveStage(row);
+  const onForm = kind === 'approve' && (stage === 'Commercial' || stage === 'NSM');
+  const gaps = !onForm ? [] : stage === 'Commercial' ? commercialGaps(com) : nsmGaps(nsm);
+  const blocked = (kind === 'reject' && !reason.trim())
+    || (kind === 'dispatch' && !dc.trim())
+    || gaps.length > 0;
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>
@@ -820,6 +868,118 @@ function DecisionModal({
           {deriveStage(row) === 'RM Approval' &&
             <><br />Other spares on this OR are unaffected — the RM decides each one separately.</>}
         </p>
+        {onForm && stage === 'Commercial' && (
+          <>
+            <label className="rep-field">
+              <span className="field-label">Admin Status *</span>
+              <select className="select" value={com.status}
+                onChange={(e) => setCom({ status: e.target.value as CommercialAnswer['status'] })}>
+                <option value="">— Choose —</option>
+                {COMMERCIAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            {com.status === 'Cleared for Stores Processing' && (
+              <label className="rep-field">
+                <span className="field-label">Reason for Clearing? *</span>
+                <select className="select" value={com.clearing_reason ?? ''}
+                  onChange={(e) => setCom({ ...com, clearing_reason: e.target.value, mc_sa_number: '', direct_po: {} })}>
+                  <option value="">— Choose —</option>
+                  {CLEARING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+            )}
+
+            {REASONS_NEEDING_MC_SA.includes(com.clearing_reason ?? '') && (
+              <label className="rep-field">
+                <span className="field-label">MC / SA number *</span>
+                <input className="input" value={com.mc_sa_number ?? ''}
+                  onChange={(e) => setCom({ ...com, mc_sa_number: e.target.value })}
+                  placeholder="MCyyyy or SAyyyy — no spaces" />
+              </label>
+            )}
+
+            {com.clearing_reason === 'Direct PO' && (
+              <section className="rep-sec">
+                <div className="rep-sec-title">Process Completed — Direct PO *</div>
+                {DIRECT_PO_STEPS.map((step) => (
+                  <div className="spare-row" key={step}>
+                    <span style={{ flex: 1, fontSize: 13 }}>{step}</span>
+                    {(['Yes', 'No'] as const).map((v) => (
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                        <input type="radio" name={`po-${step}`} checked={com.direct_po?.[step] === v}
+                          onChange={() => setCom({ ...com, direct_po: { ...(com.direct_po ?? {}), [step]: v } })} />
+                        {v}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {com.status === 'Admin Process in Progress' && (
+              <label className="rep-field">
+                <span className="field-label">Pending Reason *</span>
+                <select className="select" value={com.pending_reason ?? ''}
+                  onChange={(e) => setCom({ ...com, pending_reason: e.target.value })}>
+                  <option value="">— Choose —</option>
+                  {PENDING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+            )}
+
+            <label className="rep-field">
+              <span className="field-label">Additional Comments (if any)</span>
+              <textarea className="input" rows={2} value={com.comments ?? ''}
+                onChange={(e) => setCom({ ...com, comments: e.target.value })} />
+            </label>
+          </>
+        )}
+
+        {onForm && stage === 'NSM' && (
+          <>
+            <label className="rep-field">
+              <span className="field-label">Status *</span>
+              <select className="select" value={nsm.status}
+                onChange={(e) => setNsm({ ...nsm, status: e.target.value as NsmAnswer['status'] })}>
+                <option value="">— Choose —</option>
+                {NSM_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            <section className="rep-sec">
+              <div className="rep-sec-title">Reason for Approval / Rejection <span className="muted">· any that apply</span></div>
+              {NSM_REASONS.map((r) => (
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '2px 0' }}>
+                  <input type="checkbox" checked={(nsm.reasons ?? []).includes(r)}
+                    onChange={(e) => setNsm({
+                      ...nsm,
+                      reasons: e.target.checked
+                        ? [...(nsm.reasons ?? []), r]
+                        : (nsm.reasons ?? []).filter((x) => x !== r),
+                    })} />
+                  {r}
+                </label>
+              ))}
+              <label className="rep-field">
+                <span className="field-label">Other</span>
+                <input className="input" value={nsm.other ?? ''}
+                  onChange={(e) => setNsm({ ...nsm, other: e.target.value })} />
+              </label>
+            </section>
+
+            <label className="rep-field">
+              <span className="field-label">Remarks</span>
+              <textarea className="input" rows={2} value={nsm.remarks ?? ''}
+                onChange={(e) => setNsm({ ...nsm, remarks: e.target.value })} />
+            </label>
+          </>
+        )}
+
+        {gaps.length > 0 && (
+          <div className="muted" style={{ fontSize: 12.5 }}>{gaps[0]}</div>
+        )}
+
         {kind === 'reject' && (
           <label className="rep-field">
             <span className="field-label">Reason for rejection *</span>
@@ -850,8 +1010,18 @@ function DecisionModal({
         )}
         <div className="rep-actions" style={{ position: 'static' }}>
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={blocked} onClick={() => onConfirm({ reason, dc: dc.trim(), courier, remarks })}>
-            {kind === 'approve' ? '✔ Approve' : kind === 'reject' ? '✖ Reject' : kind === 'dispatch' ? '🚚 Dispatch' : '📥 Confirm receipt'}
+          <button className="btn btn-primary" disabled={blocked}
+            onClick={() => onConfirm({
+              reason, dc: dc.trim(), courier, remarks,
+              ...(onForm && stage === 'Commercial' ? { commercial: com } : {}),
+              ...(onForm && stage === 'NSM' ? { nsm } : {}),
+            })}>
+            {onForm && stage === 'Commercial'
+              ? (com.status === 'Admin Process in Progress' ? '⏳ Record progress' : '✔ Clear for Stores')
+              : onForm && stage === 'NSM'
+              ? (nsm.status === 'Put on HOLD' ? '⏸ Put on hold' : '✔ Clear for Stores')
+              : kind === 'approve' ? '✔ Approve' : kind === 'reject' ? '✖ Reject'
+              : kind === 'dispatch' ? '🚚 Dispatch' : '📥 Confirm receipt'}
           </button>
         </div>
       </div>
