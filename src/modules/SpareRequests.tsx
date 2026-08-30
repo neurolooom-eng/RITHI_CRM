@@ -405,6 +405,21 @@ const SUPA_COLUMNS: Column<Row>[] = [
   { key: 'dc_number', header: 'DC No', width: 110, wrap: false },
 ];
 
+// What Commercial and NSM answered, as a line of text rather than raw jsonb.
+function approvalCell(row: Row): ReactNode {
+  const d = (row.approval_data ?? {}) as Record<string, unknown>;
+  const c = commercialSummary(d.commercial as CommercialAnswer | undefined);
+  const n = nsmSummary(d.nsm as NsmAnswer | undefined);
+  if (!c && !n) return '';
+  return (
+    <span style={{ fontSize: 12.5 }}>
+      {c && <><b>Commercial:</b> {c}</>}
+      {c && n && <br />}
+      {n && <><b>NSM:</b> {n}</>}
+    </span>
+  );
+}
+
 const stageBadge = (stage: Stage) => <span className={`badge badge-${stageTone(stage)}`}>{stage}</span>;
 
 const CACHE_KEY = 'spareRequests';
@@ -435,7 +450,10 @@ export function SpareRequests() {
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [drawer, setDrawer] = useState(false);
-  const [detail, setDetail] = useState<string>(''); // uid of the open request
+  // The row id of the SPARE whose drawer is open. Keyed by the spare, not the
+  // request: each spare has its own stage, so showing one line's status under
+  // the OR number reads as the whole order's status and misleads.
+  const [detail, setDetail] = useState<string>('');
   const [pending, setPending] = useState<Pending | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare requests.' },
@@ -636,12 +654,20 @@ export function SpareRequests() {
   const allFields = useMemo(() => {
     const ks = new Set<string>();
     rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id') ks.add(k); }));
-    return [...ks].map((k) => ({ key: k, header: k }));
+    return [...ks].map((k) => (k === 'approval_data'
+      // The Commercial and NSM answers are jsonb. Raw they are unreadable, so
+      // the column shows what each stage actually answered.
+      ? { key: k, header: 'Approvals', render: (r: Row) => approvalCell(r) }
+      : { key: k, header: k }));
   }, [rows]);
 
-  // All lines of the request open in the detail drawer.
-  const detailLines = useMemo(() => rows.filter((r) => String(r.uid) === detail), [rows, detail]);
-  const detailRow = detailLines[0];
+  // The spare whose drawer is open, and every spare of the same request —
+  // shown alongside it so the order's other parts stay visible.
+  const detailRow = useMemo(() => rows.find((r) => String(r.id) === detail), [rows, detail]);
+  const detailLines = useMemo(
+    () => (detailRow ? rows.filter((r) => String(r.uid) === String(detailRow.uid)) : []),
+    [rows, detailRow],
+  );
 
   return (
     <div>
@@ -685,7 +711,7 @@ export function SpareRequests() {
         allFields={allFields}
         rows={visible}
         getRowId={(r) => r.id}
-        onRowClick={onDb ? (r) => setDetail(String(r.uid)) : undefined}
+        onRowClick={onDb ? (r) => setDetail(String(r.id)) : undefined}
         storageKey="spareRequests"
         rowsBeforeScroll={14}
         dense
@@ -716,7 +742,12 @@ export function SpareRequests() {
         }}
       />
 
-      <Drawer open={!!detail && !!detailRow} onClose={() => setDetail('')} title={`Spare Request — ${String(detailRow?.or_no ?? '') || detail}`} width={720}>
+      <Drawer
+        open={!!detail && !!detailRow}
+        onClose={() => setDetail('')}
+        title={`Spare ${String(detailRow?.line_uid ?? '') || String(detailRow?.or_no ?? '')}`}
+        width={720}
+      >
         {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} />}
       </Drawer>
 
@@ -725,9 +756,24 @@ export function SpareRequests() {
   );
 }
 
+// Where the order's spares actually are — "1 at Stores · 2 at RM Approval".
+// The order has no single status of its own: its spares are approved and
+// dispatched one at a time, so it is only ever a tally.
+function orderSummary(lines: Row[]): string {
+  if (lines.length <= 1) return '1 spare on this order.';
+  const counts = new Map<string, number>();
+  lines.forEach((l) => {
+    const st = deriveStage(l);
+    counts.set(st, (counts.get(st) ?? 0) + 1);
+  });
+  const parts = STAGES.filter((st) => counts.has(st)).map((st) => `${counts.get(st)} at ${st}`);
+  return `${lines.length} spares — ${parts.join(' · ')}.`;
+}
+
 // ---------------------------------------------------------------------------
-// Detail drawer — the request header, every requested part, and the audit
-// trail of who approved / dispatched / received it, plus the next action.
+// Detail drawer — the SPARE that was opened, the other spares on its order,
+// and the trail of who approved / dispatched / received it, plus the next
+// action.
 // ---------------------------------------------------------------------------
 function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action: ReactNode }) {
   const stage = deriveStage(row);
@@ -737,9 +783,19 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
   return (
     <div className="rep-form">
       <section className="rep-sec">
-        <div className="rep-sec-title">Status {stageBadge(stage)}</div>
+        {/* This spare, not the order. Each spare has its own stage — one of
+            three reaching Stores must not read as the whole OR at Stores. */}
+        <div className="rep-sec-title">
+          Spare {String(row.line_uid ?? '')} {stageBadge(stage)}
+        </div>
         <div className="rep-grid">
-          {field('OR No', row.or_no)}
+          {field('Part', row.part)}
+          {field('Qty', row.qty)}
+        </div>
+
+        <div className="rep-sec-title" style={{ marginTop: 14 }}>On order {String(row.or_no ?? '')}</div>
+        <p className="muted" style={{ fontSize: 12.5, margin: '0 0 8px' }}>{orderSummary(lines)}</p>
+        <div className="rep-grid">
           {field('OR Req Date', fmtLongDate(row.or_req_date ?? row.requested_at))}
           {field('Raised by', row.req_engineer)}
           {field('Raised on', fmtLongDate(row.requested_at))}
@@ -768,7 +824,7 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
       </section>
 
       <section className="rep-sec">
-        <div className="rep-sec-title">Parts requested <span className="muted">({lines.length})</span></div>
+        <div className="rep-sec-title">Every spare on this order <span className="muted">({lines.length})</span></div>
         <ul className="rep-spare-list">
           {[...lines]
             .sort((a, b) => Number(a.row_no ?? 0) - Number(b.row_no ?? 0))
