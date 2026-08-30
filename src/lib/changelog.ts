@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.6',
+    date: '2026-08-30',
+    title: 'One machine, one call on a request',
+    changes: [
+      'A serial already chosen on another call of the same request no longer appears in the other Serial No dropdowns \u2014 the same machine cannot be raised twice on one request.',
+      'When every serial of a product is already spoken for, the dropdown says so rather than looking empty.',
+    ],
+  },
+  {
     version: '0.7.5',
     date: '2026-08-30',
     title: 'Pick the product and serial, don\u2019t type them',
