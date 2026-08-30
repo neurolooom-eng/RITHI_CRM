@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.7',
+    date: '2026-08-30',
+    title: 'Fixed: spares stuck at Stores never reached the dispatch queue',
+    changes: [
+      'Spare Requests could show spares sitting at Stores while Pending Dispatch showed an empty queue. The queue was reading a stored stage that can fall out of date; it now works out the stage from the approvals themselves, exactly as the register does, so the two can no longer disagree.',
+      'The stored stage is repaired for every existing spare when the migration runs, which also corrects the stage chips and the tiles on the register.',
+      'Needs migration 0031_pending_dispatch_live_stage.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
     version: '0.8.6',
     date: '2026-08-30',
     title: 'Fixed: a register could go blank',

@@ -327,6 +327,22 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 14* (`0031_pending_dispatch_live_stage.sql`): **the dispatch queue
+    computes the stage instead of trusting the column.**
+    Reported symptom: Spare Requests showed three spares at Stores while
+    Pending Dispatch was empty. The two screens were asking different
+    questions — the register derives the stage in the app from the approval
+    columns (`deriveStage`), the queue filtered on `spare_request_lines.stage`,
+    which is a trigger-maintained CACHE of that same derivation. Any write that
+    does not refresh it (a load with triggers off, a row last written before
+    0016/0025 changed the rule) leaves the two disagreeing, and the spare is
+    invisible to Stores while looking perfectly normal in the register.
+    The view now applies `spare_line_stage()` to the columns. The cached column
+    is repaired for every line as well, since the register's chips and tiles
+    and the header roll-up still read it.
+    Reproduced first: with the stored stage forced to 'Commercial' behind the
+    trigger's back, the queue returned 0 rows before and all 3 after — kept as
+    step 12 of `spare_dispatch_test.sql`.
   - *Phase 13* (`0029_engineer_address.sql`): **the Declaration form**
     (`/declaration/<stock out>`) — the template's second sheet, the paper that
     travels with the parcel. Same printing as the challan: A4, narrow margins,
