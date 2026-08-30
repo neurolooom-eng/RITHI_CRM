@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.6',
+    date: '2026-08-30',
+    title: 'Fixed: a register could go blank',
+    changes: [
+      'Adding certain columns to a register \u2014 the ones holding structured data, such as the Commercial/NSM answers \u2014 could blank the whole app instead of showing the column. Those cells now show their content, and an empty one shows nothing.',
+      'This was the cause of the blank Spare Requests page.',
+    ],
+  },
+  {
     version: '0.8.5',
     date: '2026-08-30',
     title: 'A broken screen no longer shows a blank page',

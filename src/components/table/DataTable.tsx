@@ -55,6 +55,24 @@ export interface DataTableProps<T> {
   allFields?: { key: string; header?: string }[];
 }
 
+// A cell value straight from the data may not be a primitive: a jsonb column
+// (spare_request_lines.approval_data, user_directory.extra, reports.data …)
+// arrives as an object, and React refuses to render one — it throws error #31
+// and unmounts the WHOLE app, so a single such column blanks the page. Show it
+// as compact JSON instead, and an empty object as nothing.
+//
+// Only raw values go through this. A column's own render() may legitimately
+// return elements or arrays of them, and is left untouched.
+const rawCell = (v: unknown): ReactNode => {
+  if (v !== null && typeof v === 'object') {
+    try {
+      const text = JSON.stringify(v);
+      return text === '{}' || text === '[]' ? '' : text;
+    } catch { return ''; }   // circular, or otherwise unserialisable
+  }
+  return v as ReactNode;
+};
+
 const INTERNAL_KEYS = new Set(['id', 'createdAt', 'updatedAt', 'ownerId', '_seedOrder', '_synced', '_pending']);
 
 interface TableFilter {
@@ -125,7 +143,7 @@ export function DataTable<T>({
       key: k,
       header: labelFor(k),
       width: 140,
-      render: (r: T) => (((r as Record<string, unknown>)[k] ?? '') as ReactNode),
+      render: (r: T) => rawCell((r as Record<string, unknown>)[k] ?? ''),
     }));
     return [...columns, ...extra];
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -532,7 +550,7 @@ export function DataTable<T>({
                     ? c.render(row)
                     : c.accessor
                       ? c.accessor(row)
-                      : ((row as Record<string, unknown>)[c.key] as ReactNode);
+                      : rawCell((row as Record<string, unknown>)[c.key]);
                   return (
                     <td
                       key={c.key}
