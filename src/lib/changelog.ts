@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.4',
+    date: '2026-08-30',
+    title: 'Item Status comes from Product Master',
+    changes: [
+      'On a call, Item Status is filled from the machine\u2019s record in Product Master and locked \u2014 the same as its warranty and contract details \u2014 instead of being picked by hand and possibly contradicting the master.',
+    ],
+  },
+  {
     version: '0.8.3',
     date: '2026-08-30',
     title: 'Every call on a request needs its problem',

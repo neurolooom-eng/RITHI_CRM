@@ -49,7 +49,9 @@ const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
 ));
 
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
-export const FREEZE_KEYS = ['warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
+// Item Status comes from the machine, like its warranty and contract, so it is
+// filled from Product Master and locked rather than chosen on the call.
+export const FREEZE_KEYS = ['itemStatus', 'warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
   // Call Number is never typed: a call registered from a request carries the
   // request's UniqueID (REQID-Product-Serial); a direct call is assigned
