@@ -309,6 +309,24 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     OR can be dispatched on different days with different DCs (the per-line
     columns for that have existed since 0016; this adds the reference to quote).
     Fixed once issued, unique across the register.
+  - *Phase 9* (`0025_spare_dropped_stage.sql`,
+    `scripts/import-spare-history.mjs`): the **26_SpareRequest history imports**
+    — 4,088 requests and 8,480 spare lines back to June 2023, with the approval
+    chain, stores status and SO number per line. Driven by `v2_OR_Req`, which
+    carries every identifying field, so the **57 ORs missing from `v2_ORReq-All`
+    still import in full**. Imported requests keep their original `OR43016`-style
+    numbers; the monthly `OR-YYMM-NNNN` counter is untouched, since its seeding
+    only matches the new format. Each imported spare gets its own ID
+    (`OR43016-01`) from the existing trigger.
+    New terminal **Dropped** stage for a spare Stores did not send — distinct
+    from Rejected (254 of the 272 had the RM's approval first), and it no longer
+    holds its request open.
+    ⚠️ **8 lines are both RM-Rejected and Stores-Dropped**; the derivation calls
+    those Rejected — the approver's decision closed the line — where the sheet's
+    own Status column said Dropped. Every other line matches the sheet exactly
+    (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
+    `spare_line_stage()` if the sheet should win instead.
+    The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
   - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
     level an engineer is carrying, per spare:
     **stock out (Stores) − consumption − transfer out + transfer in**.
