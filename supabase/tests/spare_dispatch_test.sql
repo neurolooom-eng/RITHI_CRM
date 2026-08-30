@@ -102,3 +102,17 @@ select count(*) as lines_carrying_a_foreign_dc
  where l.dc_number is distinct from d.uid;
 \echo 'expect ERROR: the retired DC series is gone'
 select public.next_dc_number(current_date);
+
+\echo '--- 12. a STALE cached stage does not hide a spare from the queue (0031) ---'
+insert into public.spare_requests (uid, engineer, item_status) values ('D6','Anil','CMC');
+insert into public.spare_request_lines (request_uid, part, qty) values ('D6','P-E|Filter',2);
+call public.be('rm@x.com');
+update public.spare_request_lines set rm_approval='Approved', rm_by='RM Ravi', rm_at=now()
+ where request_uid='D6';
+-- Write the cached column behind the trigger's back, the way a load with
+-- triggers off, or a rule change after the row was last written, would.
+alter table public.spare_request_lines disable trigger spare_request_lines_set_stage;
+update public.spare_request_lines set stage='Commercial' where request_uid='D6';
+alter table public.spare_request_lines enable trigger spare_request_lines_set_stage;
+select stage as stored_stage from public.spare_request_lines where request_uid='D6';
+select engineer, part, qty from public.spare_pending_dispatch where request_uid='D6';
