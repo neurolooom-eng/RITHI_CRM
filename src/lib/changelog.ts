@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.5',
+    date: '2026-08-30',
+    title: 'A broken screen no longer shows a blank page',
+    changes: [
+      'If a screen hits an error it now says so, on the page, with the reason \u2014 instead of the whole app going white with nothing to go on. The menu keeps working, so you can carry on elsewhere.',
+      'Two buttons on that message actually recover it: Reload, and Clear cached data and reload.',
+      '\u201cForce update\u201d now really does clear the stored rows. It was only clearing the sync markers, so a screen stuck on data saved by an older version stayed stuck however many times you pressed it.',
+    ],
+  },
+  {
     version: '0.8.4',
     date: '2026-08-30',
     title: 'Item Status comes from Product Master',
