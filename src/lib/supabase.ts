@@ -828,6 +828,55 @@ export async function addStockTransfer(
   return { ok: true, uid };
 }
 
+// ---- stores dispatch ------------------------------------------------------
+// The Stores queue: every spare that has cleared its approvals and has not
+// been booked out yet, with the engineer it is going to. The view is
+// security_invoker, so this returns exactly the lines the caller may already
+// see in the register (0027_spare_dispatch.sql).
+export async function listPendingDispatch(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_pending_dispatch').select('*')
+    .order('engineer', { ascending: true }).order('or_no', { ascending: true })
+    .order('row_no', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// Book a batch out. One round trip: the database generates the stock-out and
+// DC numbers, stamps every line, and rolls the requests up — all in one
+// transaction, so a batch never lands half done.
+export async function dispatchSpareLines(
+  lineIds: number[], courier: string, remarks: string, dcDate: string, actor: string,
+): Promise<{ ok: boolean; dispatch?: Record<string, unknown>; error?: string }> {
+  const { data, error } = await must().rpc('dispatch_spare_lines', {
+    p_line_ids: lineIds, p_courier: courier, p_remarks: remarks, p_dc_date: dcDate, p_actor: actor,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  // A function returning a composite comes back as the row itself; PostgREST
+  // wraps it in an array when the client asks for a set.
+  const row = Array.isArray(data) ? data[0] : data;
+  return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
+}
+
+// Stock outs already booked, newest first — the Dispatched tab of the screen.
+export async function listSpareDispatches(limit = 500): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_dispatches').select('*')
+    .order('dispatched_at', { ascending: false }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// The spares that went out under one stock out — what a DC prints.
+export async function listDispatchLines(stockOutNo: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_request_lines')
+    .select('*, spare_requests!inner(uid, or_no, engineer, engineer_email, ucn, call_number, party_name, product_name, serial)')
+    .eq('dispatch_uid', stockOutNo).order('line_uid', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    return { ...req, ...line, uid: req?.uid };
+  });
+}
+
 export async function listStockTransfers(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('stock_transfer_lines')
     .select('*, stock_transfers!inner(uid, from_engineer, to_engineer, transfer_date, remarks, status, created_at)')

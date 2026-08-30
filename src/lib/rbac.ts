@@ -41,6 +41,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/pending-calls', label: 'Pending Calls' },
   { path: '/reports', label: 'Reports' },
   { path: '/spare-requests', label: 'Spare Requests' },
+  { path: '/spare-dispatch', label: 'Pending Dispatch' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
   { path: '/handstock', label: 'Hand Stock' },
   { path: '/stock-transfer', label: 'Stock Transfer' },

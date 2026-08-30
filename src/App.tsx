@@ -22,6 +22,7 @@ import { PendingRegistrations } from './modules/PendingRegistrations';
 import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
+import { SpareDispatch } from './modules/SpareDispatch';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
 import { StockTransfer } from './modules/StockTransfer';
@@ -96,6 +97,7 @@ function Shell() {
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />
+        <Route path="/spare-dispatch" element={<SpareDispatch />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />

@@ -47,6 +47,13 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.engineer_stock')  is not null)),
     (10, 'spare_requests: OR number shape', 'OR-YYMM-NNNN, no slashed numbers left (0018 + 0019)',
         not exists (select 1 from public.spare_requests where or_no ~ '^OR-\d\d/\d\d/')),
+    (11, 'spare_requests: approval forms', 'spare_request_lines.approval_data (0026)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='spare_request_lines' and column_name='approval_data')),
+    (12, 'spare_requests: stores dispatch', 'spare_dispatches + spare_pending_dispatch + dispatch_spare_lines() (0027)',
+        (to_regclass('public.spare_dispatches')       is not null
+     and to_regclass('public.spare_pending_dispatch') is not null
+     and to_regprocedure('public.dispatch_spare_lines(bigint[],text,text,date,text)') is not null)),
     (8, 'call_requests: items',    'call_requests without a unique reqid + next_call_reqid() (0010)',
         (to_regprocedure('public.next_call_reqid()')   is not null
      and not exists (select 1 from pg_constraint
