@@ -70,8 +70,10 @@ function dedupe(rows: Record<string, unknown>[], key: string): Record<string, un
 
 // The User Master arrives either as the clean file (snake_case columns) or as
 // the raw sheet export ("User Name", "RM", "GMAIL ID", …). Map both onto the
-// user_directory columns; anything else (contact, address, city…) is kept in
-// the `extra` jsonb rather than failing the insert on an unknown column.
+// user_directory columns; anything left over is kept in the `extra` jsonb
+// rather than failing the insert on an unknown column.
+// Address / City / State / Contact are real columns since
+// 0029_engineer_address.sql — the Declaration form is addressed by them.
 const DIR_ALIASES: Record<string, string> = {
   name: 'name', 'user name': 'name', username: 'name', 'engineer name': 'name',
   email: 'email', 'email id': 'email', 'email-id': 'email',
@@ -81,9 +83,15 @@ const DIR_ALIASES: Record<string, string> = {
   regional_manager: 'regional_manager', rgm: 'regional_manager', 'regional manager': 'regional_manager',
   region: 'region',
   validity: 'validity', active: 'validity',
+  address: 'address', 'address line': 'address',
+  city: 'city', state: 'state',
+  phone: 'phone', 'contact no': 'phone', contact: 'phone', 'contact number': 'phone', mobile: 'phone',
 };
 function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
-  const out: Record<string, unknown> = { name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '' };
+  const out: Record<string, unknown> = {
+    name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '',
+    address: '', city: '', state: '', phone: '',
+  };
   const extra: Record<string, string> = {};
   let validity = 'true';
   for (const [k, v] of Object.entries(r)) {

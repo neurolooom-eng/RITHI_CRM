@@ -75,3 +75,36 @@
   .dc-sheet { break-after: page; page-break-after: always; margin: 0; }
   .dc-sheet:last-child { break-after: auto; page-break-after: auto; }
 }
+
+/* ===========================================================================
+   DECLARATION FORM — the second sheet of the template, printed the same way:
+   A4, narrow margins, one complete <section> per page.
+   =========================================================================== */
+/* The fill-in panel is screen only — it collects what the app cannot know. */
+.dc-fillin { margin-bottom: 16px; }
+.dc-fillin h3 { margin: 0 0 10px; font-size: 14px; }
+.dc-fillin .field { display: block; margin-bottom: 10px; }
+.dc-fillin textarea.input { resize: vertical; font-family: inherit; }
+
+.decl-head { display: flex; align-items: center; gap: 12px; border: 1px solid #000; }
+.decl-head .dc-logo { width: 42mm; border-right: 1px solid #000; }
+.decl-title { flex: 1; text-align: center; font-weight: 700; font-size: 13pt; letter-spacing: 0.5px; }
+.decl-meta { width: 62mm; border-left: 1px solid #000; }
+.decl-meta div { display: flex; justify-content: space-between; gap: 8px; padding: 4px 6px; font-size: 9pt; }
+.decl-meta div + div { border-top: 1px solid #000; }
+
+.decl-ids { display: flex; gap: 24px; padding: 6px 2px 2px; font-size: 9.5pt; }
+.decl-heading { font-weight: 700; text-decoration: underline; padding: 8px 2px; font-size: 10.5pt; }
+.decl-body { padding: 0 2px 8px; font-size: 9.5pt; }
+.decl-body p { margin: 0 0 7px; }
+
+.decl-table { margin-top: 2px; }
+.decl-c-sno { width: 16mm; text-align: center; }
+.decl-c-part { width: 42mm; }
+
+.decl-foot { display: flex; gap: 16px; padding-top: 12px; font-size: 9.5pt; }
+.decl-to { flex: 1; }
+.decl-to-label { margin-top: 6px; }
+.decl-from { width: 78mm; }
+.decl-fill-row { display: flex; gap: 10px; }
+.decl-fill-row .field { flex: 1; }

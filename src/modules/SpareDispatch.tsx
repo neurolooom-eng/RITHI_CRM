@@ -177,7 +177,8 @@ export function SpareDispatch() {
         <button className={`chip ${tab === 'sent' ? 'chip-on' : ''}`} onClick={() => setTab('sent')}>📄 Stock outs</button>
       </div>
 
-      {tab === 'sent' ? <StockOuts onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} onPrint={(so) => navigate(`/dc/${encodeURIComponent(so)}`)} /> : (
+      {tab === 'sent' ? <StockOuts onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} onPrint={(so) => navigate(`/dc/${encodeURIComponent(so)}`)}
+          onDeclare={(so) => navigate(`/declaration/${encodeURIComponent(so)}`)} /> : (
         <>
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Engineer, OR, spare ID, part, party…" />
@@ -383,7 +384,9 @@ function DispatchModal({ open, engineer, lines, busy, onClose, onConfirm }: {
 // ---------------------------------------------------------------------------
 // Stock outs already booked — the record behind every DC.
 // ---------------------------------------------------------------------------
-function StockOuts({ onMigrationError, onPrint }: { onMigrationError: () => void; onPrint: (stockOut: string) => void }) {
+function StockOuts({ onMigrationError, onPrint, onDeclare }: {
+  onMigrationError: () => void; onPrint: (stockOut: string) => void; onDeclare: (stockOut: string) => void;
+}) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
   const [detailLines, setDetailLines] = useState<Record<string, unknown>[]>([]);
@@ -421,6 +424,11 @@ function StockOuts({ onMigrationError, onPrint }: { onMigrationError: () => void
               className="btn btn-sm"
               onClick={(e) => { e.stopPropagation(); onPrint(String(r.uid)); }}
             >🖨 Challan</button>
+            <button
+              className="btn btn-sm"
+              title="The declaration that travels with the parcel"
+              onClick={(e) => { e.stopPropagation(); onDeclare(String(r.uid)); }}
+            >📜 Declaration</button>
           </div>
         </div>
       ))}
@@ -435,6 +443,8 @@ function StockOuts({ onMigrationError, onPrint }: { onMigrationError: () => void
             </p>
             {!!String(detail.remarks ?? '') && <p className="muted">{String(detail.remarks)}</p>}
             <button className="btn btn-sm btn-primary" onClick={() => onPrint(String(detail.uid))}>🖨 Print challan</button>
+            {' '}
+            <button className="btn btn-sm" onClick={() => onDeclare(String(detail.uid))}>📜 Declaration</button>
             <div className="queue-lines queue-lines-compact">
               {detailLines.map((l) => (
                 <div key={String(l.id)} className="queue-line">
