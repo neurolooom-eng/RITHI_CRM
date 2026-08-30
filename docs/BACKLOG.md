@@ -364,10 +364,14 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     **New third outcome:** "Admin Process in Progress" / "Put on HOLD" record
     *why* without approving, so the spare stays in that stage's queue —
     previously Commercial and NSM could only approve or reject.
-    **Note:** the clearing reasons include Under CMC / Warranty / Direct PO,
-    but `needsReview()` only routes AMC and OGP items to Commercial at all, so
-    the others will rarely be reachable. Worth confirming which item statuses
-    should go to Commercial.
+    **Resolved (asked and answered):** the clearing reasons include Under CMC
+    and Under Warranty while `needsReview()` routes only AMC and OGP items to
+    Commercial — which looked like a mismatch, and is not. **Contract entry
+    lags reality:** a machine whose CMC or warranty has not been keyed in yet
+    still reads as OGP, so it lands with Commercial, who clears it as *Under
+    CMC* / *Under Warranty*. Those reasons are how Commercial records that the
+    system is behind the contract. Routing stays AMC + OGP; the form keeps all
+    five reasons. Do not "fix" either one.
   - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
     level an engineer is carrying, per spare:
     **stock out (Stores) − consumption − transfer out + transfer in**.
