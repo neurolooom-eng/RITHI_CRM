@@ -347,11 +347,20 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     Dispatch may correct the four address fields from the form and save them
     back to the User Master; a guard refuses every other column from a
     non-admin, so the reporting tree cannot be edited through that door.
-    ⚠️ It ships in the **RBAC** bundle, not the User Directory one, though the
-    columns are the directory's: its policy calls `has_perm()`, which RBAC
-    defines and which applies later. Caught by the apply-twice check, which is
-    the second time bundle ORDER has bitten — worth remembering that a new
-    object may only reference things its module already depends on.
+    **Split across two migrations, on purpose.** `0029` is the four columns and
+    the `extra` backfill, and ships in the **User Directory** bundle where the
+    User Master lives. `0030_engineer_address_write.sql` is only the rule about
+    writing them, and ships with **RBAC**, because its policy calls
+    `has_perm()` — which RBAC defines and which applies after the directory.
+    (Both were first put in the RBAC bundle, which worked but hid a User Master
+    column change inside "Roles & Permissions". Bundle ORDER is the constraint,
+    and it has now bitten twice: a new object may only reference what its own
+    module already depends on. Splitting the migration, rather than moving it,
+    is the way out.)
+    `0029` drops the write guard around its backfill and puts it back only if
+    it exists, so it is safe both on a first run (no guard yet) and re-run
+    after `0030` (guard restored) — verified by applying the bundles out of
+    order and checking the trigger is still installed.
   - *Phase 12* (`0028_dc_number_is_stock_out.sql`): **the Delivery Challan
     prints** (`/dc/<stock out>`), laid out from `v2_DCTemplate.xlsx`.
     A4, narrow margins (0.25in sides, 0.75in top/bottom), and the letterhead

@@ -21,7 +21,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'If an address is wrong or missing, Stores can correct it on the form and save it back to the User Master, so the next parcel to that engineer is right. Dispatch can edit those four fields and nothing else \u2014 the rest of the directory stays with administrators.',
       'The approximate value is typed for each parcel (the form calls it approximate, and the catalogue carries no prices), and the purpose sentence can be edited \u2014 not every parcel is a ventilator part.',
       'Prints on A4 with narrow margins like the challan, and a long parcel list carries the heading and the sender block onto every sheet.',
-      'Needs migration 0029_engineer_address.sql (apply bundle: the RBAC one).',
+      'Needs migrations 0029 and 0030 \u2014 apply the User Directory bundle (the address fields on the User Master) and the RBAC one (who may edit them).',
     ],
   },
   {
