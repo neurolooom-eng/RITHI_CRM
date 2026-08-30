@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.3',
+    date: '2026-08-30',
+    title: 'Every call on a request needs its problem',
+    changes: [
+      'Reported Problem is now mandatory on each of the five calls, so no request reaches the Hotline saying only which machine it is about.',
+    ],
+  },
+  {
     version: '0.8.1',
     date: '2026-08-30',
     title: 'The Declaration form that travels with the parcel',

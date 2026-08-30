@@ -278,6 +278,8 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     if (!filled.some((it) => it.product.trim())) return 'Add at least one call (Product is required).';
     const bad = filled.findIndex((it) => !it.product.trim());
     if (bad >= 0) return `Call ${bad + 1}: Product is required (or clear the other fields).`;
+    const noProblem = filled.findIndex((it) => !it.reportedProblem.trim());
+    if (noProblem >= 0) return `Call ${noProblem + 1}: Reported Problem is required.`;
     // One row per Product + Serial within a request (its UniqueID), so the same
     // pair can't appear twice.
     const seen = new Set<string>();
@@ -422,7 +424,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     ? <input className="input" value={it.standardComplaint} readOnly />
                     : <input className="input" list="dl-complaint" value={it.standardComplaint} onChange={(e) => setItem(i, 'standardComplaint', e.target.value)} />
                 ))}
-                {field('Reported Problem', (
+                {field('Reported Problem *', (
                   isInstall
                     ? <input className="input" value={it.reportedProblem} onChange={(e) => setItem(i, 'reportedProblem', e.target.value)} />
                     : <textarea className="input" rows={2} value={it.reportedProblem} onChange={(e) => setItem(i, 'reportedProblem', e.target.value)} />
