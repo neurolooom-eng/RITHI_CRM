@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
@@ -10,7 +11,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
-  deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
+  deriveStage, buildPatch, receivePatch, actionable, needsReview, trail,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
@@ -417,11 +418,11 @@ const MINE = 'mine'; // pseudo-stage: "needs my action"
 type Scope = 'line' | 'or';
 type Pending =
   | { kind: 'approve' | 'reject'; row: Row; scope: Scope; lines: number }
-  | { kind: 'dispatch'; row: Row; scope: Scope; lines: number }
   | { kind: 'receive'; row: Row; scope: Scope; lines: number };
 
 export function SpareRequests() {
   const { user, can } = useAuth();
+  const navigate = useNavigate();
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
@@ -511,8 +512,7 @@ export function SpareRequests() {
 
   const runPending = async (
     p: Pending,
-    input: { reason?: string; dc?: string; courier?: string; remarks?: string;
-             commercial?: CommercialAnswer; nsm?: NsmAnswer },
+    input: { reason?: string; remarks?: string; commercial?: CommercialAnswer; nsm?: NsmAnswer },
   ) => {
     setPending(null);
     const { row, scope } = p;
@@ -526,12 +526,11 @@ export function SpareRequests() {
                     : input.nsm ? nsmPatch(input.nsm, actor) : null;
     const patch =
       formPatch ? { ...formPatch, approval_data: mergeApprovalData(row.approval_data, formPatch) }
-      : p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
       : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
       : buildPatch(row, p.kind, actor, input.reason ?? '');
     const what = held ? (input.nsm ? 'put on hold' : 'marked in progress')
       : p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
-      : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
+      : 'acknowledged';
 
     setBusy(true);
     const t0 = performance.now();
@@ -541,7 +540,7 @@ export function SpareRequests() {
       target: scope === 'or' ? String(row.or_no ?? row.uid) : String(row.line_uid ?? row.uid),
       status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
       duration_ms: Math.round(performance.now() - t0),
-      meta: { stage, scope, spares: scope === 'or' ? res.count ?? 0 : 1, ...(input.dc ? { dc: input.dc } : {}) },
+      meta: { stage, scope, spares: scope === 'or' ? res.count ?? 0 : 1 },
     });
 
     try {
@@ -570,17 +569,20 @@ export function SpareRequests() {
       return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
     const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
-    const bulk = (kind: 'approve' | 'dispatch' | 'receive') => siblings > 1 && (
+    const bulk = (kind: 'approve' | 'receive') => siblings > 1 && (
       <button className={`btn ${size}`} title={`Apply to all ${siblings} spares of this OR at this stage`}
         onClick={() => setPending({ kind, row, scope: 'or', lines: siblings })}>
         ⇉ all {siblings}
       </button>
     );
+    // Dispatch happens on Pending Dispatch, not here: the stock-out and DC
+    // numbers are generated for a BATCH, so a spare booked out on its own from
+    // the register would mint a document nobody asked for. This links to the
+    // queue, already filtered to the engineer this spare is going to.
     if (stage === 'Stores') return (
-      <div className="row">
-        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'dispatch', row, scope: 'line', lines: 1 })}>🚚 Dispatch + DC</button>
-        {bulk('dispatch')}
-      </div>
+      <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
+        🚚 Dispatch…
+      </button>
     );
     if (stage === 'Dispatched') return (
       <div className="row">
@@ -822,18 +824,15 @@ function DecisionModal({
 }: {
   pending: Pending | null;
   onClose: () => void;
-  onConfirm: (input: { reason?: string; dc?: string; courier?: string; remarks?: string;
-                       commercial?: CommercialAnswer; nsm?: NsmAnswer }) => void;
+  onConfirm: (input: { reason?: string; remarks?: string; commercial?: CommercialAnswer; nsm?: NsmAnswer }) => void;
 }) {
   const [reason, setReason] = useState('');
-  const [dc, setDc] = useState('');
-  const [courier, setCourier] = useState('');
   const [remarks, setRemarks] = useState('');
   const [com, setCom] = useState<CommercialAnswer>({ status: '' });
   const [nsm, setNsm] = useState<NsmAnswer>({ status: '', reasons: [] });
   useEffect(() => {
     if (pending) {
-      setReason(''); setDc(String(pending.row.dc_number ?? '')); setCourier(''); setRemarks('');
+      setReason(''); setRemarks('');
       setCom({ status: '' }); setNsm({ status: '', reasons: [] });
     }
   }, [pending]);
@@ -845,14 +844,12 @@ function DecisionModal({
     ? `${deriveStage(row)} approval — ${per}`
     : kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
     : kind === 'reject' ? `Reject ${per} — ${deriveStage(row)}`
-    : kind === 'dispatch' ? `Dispatch ${per} from Stores` : `Acknowledge receipt of ${per}`;
+    : `Acknowledge receipt of ${per}`;
   // Commercial and NSM answer their own form instead of a plain approve.
   const stage = deriveStage(row);
   const onForm = kind === 'approve' && (stage === 'Commercial' || stage === 'NSM');
   const gaps = !onForm ? [] : stage === 'Commercial' ? commercialGaps(com) : nsmGaps(nsm);
-  const blocked = (kind === 'reject' && !reason.trim())
-    || (kind === 'dispatch' && !dc.trim())
-    || gaps.length > 0;
+  const blocked = (kind === 'reject' && !reason.trim()) || gaps.length > 0;
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>
@@ -986,22 +983,6 @@ function DecisionModal({
             <input className="input" autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this request being rejected?" />
           </label>
         )}
-        {kind === 'dispatch' && (
-          <>
-            <label className="rep-field">
-              <span className="field-label">DC / stock-out number *</span>
-              <input className="input" autoFocus value={dc} onChange={(e) => setDc(e.target.value)} />
-            </label>
-            <label className="rep-field">
-              <span className="field-label">Courier / mode</span>
-              <input className="input" value={courier} onChange={(e) => setCourier(e.target.value)} />
-            </label>
-            <label className="rep-field">
-              <span className="field-label">Dispatch remarks</span>
-              <input className="input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-            </label>
-          </>
-        )}
         {kind === 'receive' && (
           <label className="rep-field">
             <span className="field-label">Receipt remarks</span>
@@ -1012,7 +993,7 @@ function DecisionModal({
           <button className="btn" onClick={onClose}>Cancel</button>
           <button className="btn btn-primary" disabled={blocked}
             onClick={() => onConfirm({
-              reason, dc: dc.trim(), courier, remarks,
+              reason, remarks,
               ...(onForm && stage === 'Commercial' ? { commercial: com } : {}),
               ...(onForm && stage === 'NSM' ? { nsm } : {}),
             })}>
@@ -1021,7 +1002,7 @@ function DecisionModal({
               : onForm && stage === 'NSM'
               ? (nsm.status === 'Put on HOLD' ? '⏸ Put on hold' : '✔ Clear for Stores')
               : kind === 'approve' ? '✔ Approve' : kind === 'reject' ? '✖ Reject'
-              : kind === 'dispatch' ? '🚚 Dispatch' : '📥 Confirm receipt'}
+              : '📥 Confirm receipt'}
           </button>
         </div>
       </div>

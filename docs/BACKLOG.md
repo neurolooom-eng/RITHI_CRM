@@ -327,6 +327,31 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 11* (`0027_spare_dispatch.sql`): **Pending Dispatch** — the Stores
+    queue as a screen of its own (`/spare-dispatch`), grouped by engineer,
+    longest wait first. Multi-select within a group (or tick the whole
+    engineer) and book the lot out in ONE stock out.
+    New `spare_dispatches` header, one row per stock out, carrying the
+    generated **SO-YYMM-NNNN** and **DC-YYMM-NNNN** numbers, the engineer, the
+    courier and the DC date; `spare_request_lines` gains `dispatch_uid` /
+    `stock_out_no` and keeps `dc_number`, so hand stock, the trail and the
+    imported history all still read.
+    `dispatch_spare_lines()` does the batch atomically and enforces what the
+    screen promises — the caller holds `spare.dispatch`, every line is still
+    waiting at Stores, and the whole batch goes to one engineer (a DC is one
+    delivery to one person).
+    Numbering is the OR/ST upsert counter, so concurrent dispatchers cannot
+    collide. ⚠️ **The DC format is still to be confirmed** — it is produced in
+    exactly one place, `next_dc_number()`, so changing it is a one-function
+    change. A DC *document* (the printable challan) is not built yet, pending
+    that format.
+    Dispatch was removed from the register's own modal: there is now one way
+    to book stock out, so nobody types a DC number by hand. The register's
+    Stores action links to that engineer's queue instead.
+    No change was needed for hand stock or the call-report picker: `0023`
+    already counts a spare from the DISPATCH, not the acknowledgement, so a
+    booked-out spare is in the engineer's hand stock — and therefore in the
+    consumption picker — immediately.
   - *Phase 10* (`0026_spare_approval_data.sql`): **Commercial and NSM answer
     their own forms**, transcribed from the two Google Forms.
     Commercial branches — status → clearing reason → MC/SA number *or* the

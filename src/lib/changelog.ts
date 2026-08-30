@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.9',
+    date: '2026-08-30',
+    title: 'Pending Dispatch — Stores sends a batch, not a spare',
+    changes: [
+      'New Pending Dispatch screen for Stores: every approved spare still waiting, grouped by the engineer it is going to, longest wait first.',
+      'Tick the spares for one engineer — or the whole engineer at once — and send them in a single go. Spares for two different engineers cannot go on one delivery.',
+      'The stock-out number and the DC number are generated for you when the batch is booked out; there is nothing to type and no chance of two people using the same number.',
+      'A spare counts as the engineer’s hand stock the moment it is booked out — no waiting for them to acknowledge it — so it can be used on a call report straight away.',
+      'The Stock outs tab keeps every delivery: which spares went out, to whom, on which DC and whether each has been acknowledged.',
+      'Dispatching from the Spare Requests register now takes you to that engineer’s queue, so there is one place a delivery is made.',
+      'Needs migration 0027_spare_dispatch.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
     version: '0.7.8',
     date: '2026-08-30',
     title: 'Commercial and NSM approve on their own forms',

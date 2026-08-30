@@ -167,6 +167,7 @@ const MODULES = {
       '0022_spare_line_uid.sql',
       '0025_spare_dropped_stage.sql',
       '0026_spare_approval_data.sql',
+      '0027_spare_dispatch.sql',
     ],
   },
 };
