@@ -327,6 +327,22 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 10* (`0026_spare_approval_data.sql`): **Commercial and NSM answer
+    their own forms**, transcribed from the two Google Forms.
+    Commercial branches — status → clearing reason → MC/SA number *or* the
+    four-step Direct PO checklist, or a pending reason. NSM is flat — status,
+    multi-select reasons with an *Other*, remarks.
+    Answers live in `spare_request_lines.approval_data` as jsonb keyed by
+    stage, so a form can change without a migration; the decision itself stays
+    in the columns the workflow reads, so stage derivation is untouched.
+    A separate trigger gates each stage's answer by that stage's permission.
+    **New third outcome:** "Admin Process in Progress" / "Put on HOLD" record
+    *why* without approving, so the spare stays in that stage's queue —
+    previously Commercial and NSM could only approve or reject.
+    **Note:** the clearing reasons include Under CMC / Warranty / Direct PO,
+    but `needsReview()` only routes AMC and OGP items to Commercial at all, so
+    the others will rarely be reachable. Worth confirming which item statuses
+    should go to Commercial.
   - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
     level an engineer is carrying, per spare:
     **stock out (Stores) − consumption − transfer out + transfer in**.
