@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.4',
+    date: '2026-08-30',
+    title: 'Import the old call registration requests',
+    changes: [
+      'The historical CRN Registration sheet can be imported as exported \u2014 drop it into Bulk Data Import and it loads into the request register: 4,077 requests from January to August, each with the engineer, party, product, serial, complaint and its UCN.',
+      'A request that was registered comes in as Registered with its UCN; one that never was stays Pending and appears in Pending Registrations for the Hotline. Accidental double-submissions in the sheet are dropped.',
+      'The sheet columns the register has no field for \u2014 Any Open Call?, Regional Manager, Comments / Remarks \u2014 are kept with the request rather than lost.',
+    ],
+  },
+  {
     version: '0.7.3',
     date: '2026-08-29',
     title: 'Hand Stock \u2014 the stock level every engineer is carrying',

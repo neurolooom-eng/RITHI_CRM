@@ -155,6 +155,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   desk over `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
   Data Import**, unified **call view** (actions on top + mini-tables keyed by Call
   Number).
+- ✅ **Historical requests imported** — the CRN Registration sheet export
+  (Data2026) drops straight into Bulk Data Import: 4,083 rows → 4,077 (six
+  exact double-submissions deduped on UniqueID), 2,692 requests, Jan–Aug 2026.
+  A row with a UCN loads as **Registered**, one without stays **Pending** and
+  reaches the Hotline desk. Needs `0024_call_request_extra.sql` — the sheet's
+  "Any Open Call?", Regional Manager and Comments / Remarks live in `extra`.
 - ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
   row per call sharing its REQID; `unique_key` is the identity; atomic insert
   via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
