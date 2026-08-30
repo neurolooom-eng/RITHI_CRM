@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.0',
+    date: '2026-08-30',
+    title: 'The Delivery Challan prints',
+    changes: [
+      'Booking a stock out now opens its Delivery Challan, laid out like the v2_DCTemplate form — letterhead, the engineer it is going to, the Stock Out number and date, the spares with order number, item code, description and quantity, remarks and both signature blocks.',
+      'It prints on A4 with narrow margins, and when a delivery runs past one sheet the letterhead and the signature block are on every sheet — each one is a complete challan, numbered “Sheet 1 of 3”, with the earlier sheets saying where they carry on.',
+      'Any past stock out can be reprinted from the Stock outs tab.',
+      'One number, not two: the challan is identified by its Stock Out number, exactly as the form and the old sheet did. The separate DC number the previous version generated is gone.',
+      'Needs migration 0028_dc_number_is_stock_out.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
     version: '0.7.9',
     date: '2026-08-30',
     title: 'Pending Dispatch — Stores sends a batch, not a spare',

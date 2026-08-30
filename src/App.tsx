@@ -23,6 +23,7 @@ import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
 import { SpareDispatch } from './modules/SpareDispatch';
+import { DeliveryChallan } from './modules/DeliveryChallan';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
 import { StockTransfer } from './modules/StockTransfer';
@@ -54,6 +55,17 @@ function Shell() {
   // else (the recovery session is signed in, so this comes before the app).
   if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
+
+  // The delivery challan prints on its own: no sidebar, no header, nothing
+  // that would land on the paper. Its rows are RLS-scoped, so a stock out the
+  // user may not see simply is not found.
+  if (location.pathname.startsWith('/dc/')) {
+    return (
+      <Routes>
+        <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
+      </Routes>
+    );
+  }
 
   // RBAC route guard: a known module the role can't open is blocked (nav hides
   // it too). Unknown paths fall through to the routes / not-found.

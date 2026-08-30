@@ -168,6 +168,7 @@ const MODULES = {
       '0025_spare_dropped_stage.sql',
       '0026_spare_approval_data.sql',
       '0027_spare_dispatch.sql',
+      '0028_dc_number_is_stock_out.sql',
     ],
   },
 };

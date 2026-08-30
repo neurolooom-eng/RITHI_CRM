@@ -327,6 +327,33 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 12* (`0028_dc_number_is_stock_out.sql`): **the Delivery Challan
+    prints** (`/dc/<stock out>`), laid out from `v2_DCTemplate.xlsx`.
+    A4, narrow margins (0.25in sides, 0.75in top/bottom), and the letterhead
+    AND the signature block on **every** sheet.
+    That last part decided the implementation. Two browser mechanisms were
+    tried and both fail: a table's `<thead>` repeats, but Chromium prints
+    `<tfoot>` only on the LAST page; and a `position: fixed` footer repeats but
+    reserves no space, so it paints over the final rows (both reproduced, and
+    the second one confirmed in a printed PDF). So the pages are cut in code —
+    `paginate()` in `src/lib/dc.ts` — one complete `<section>` per sheet,
+    20 rows each, which is exactly the template's own grid and exactly what
+    fits: a sheet measures ~250mm against 259mm of usable A4.
+    Verified by printing through headless Chromium: 1/6/20 spares → 1 sheet,
+    21/40 → 2, 41/45/60 → 3, with the letterhead and both signature blocks on
+    every page and no row hidden.
+    **One number, not two.** 0027 minted an SO- and a DC- series on the
+    assumption the challan had its own number. The template says otherwise —
+    it identifies the delivery by **Stock Out No.** and has no DC field — and
+    so does the sheet era, whose `SO NO` column is what the import loaded into
+    `dc_number`. `dc_number` now mirrors the stock out, every existing read
+    (hand stock's movement ref, the trail, the register, the history) keeps
+    working, and `next_dc_number()` is retired. If a distinct challan series is
+    ever wanted, `spare_dispatches_assign_no()` is the one place it comes back.
+    ⚠️ **Still to do:** the workbook's second sheet, the **Declaration form**
+    (for the courier), is not built — it needs a recipient name and address and
+    an approximate value, none of which the app holds. Ask where those come
+    from before building it.
   - *Phase 11* (`0027_spare_dispatch.sql`): **Pending Dispatch** — the Stores
     queue as a screen of its own (`/spare-dispatch`), grouped by engineer,
     longest wait first. Multi-select within a group (or tick the whole
