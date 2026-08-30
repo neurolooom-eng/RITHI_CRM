@@ -67,6 +67,9 @@ export function DeliveryChallan() {
       <div className="dc-toolbar">
         <button className="btn btn-sm" onClick={() => navigate('/spare-dispatch')}>← Back to dispatch</button>
         <button className="btn btn-sm btn-primary" onClick={() => window.print()}>🖨 Print</button>
+        <button className="btn btn-sm" onClick={() => navigate(`/declaration/${encodeURIComponent(doc.stockOutNo)}`)}>
+          📜 Declaration
+        </button>
         <span className="muted">
           A4, narrow margins · {pages.length} sheet{pages.length === 1 ? '' : 's'} — the letterhead and signature
           block print on every one.

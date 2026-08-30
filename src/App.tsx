@@ -24,6 +24,7 @@ import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
 import { SpareDispatch } from './modules/SpareDispatch';
 import { DeliveryChallan } from './modules/DeliveryChallan';
+import { Declaration } from './modules/Declaration';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
 import { StockTransfer } from './modules/StockTransfer';
@@ -56,13 +57,14 @@ function Shell() {
   if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
 
-  // The delivery challan prints on its own: no sidebar, no header, nothing
-  // that would land on the paper. Its rows are RLS-scoped, so a stock out the
-  // user may not see simply is not found.
-  if (location.pathname.startsWith('/dc/')) {
+  // The challan and the declaration print on their own: no sidebar, no header,
+  // nothing that would land on the paper. Their rows are RLS-scoped, so a stock
+  // out the user may not see simply is not found.
+  if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')) {
     return (
       <Routes>
         <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
+        <Route path="/declaration/:stockOut" element={<Declaration />} />
       </Routes>
     );
   }

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.1',
+    date: '2026-08-30',
+    title: 'The Declaration form that travels with the parcel',
+    changes: [
+      'Every stock out can now print its Declaration \u2014 \u201cTO WHOMSOEVER IT MAY CONCERN\u201d \u2014 in the same format as the template: what the parcel contains, why it is being sent, its approximate value, that no money changes hands, the spares, and who it is going to.',
+      'The address comes from the User Master \u2014 Address, City, State and Contact No for that engineer \u2014 so it is maintained in one place and right on every parcel. Those four now appear on the User Master screen, and are kept when the sheet is imported.',
+      'If an address is wrong or missing, Stores can correct it on the form and save it back to the User Master, so the next parcel to that engineer is right. Dispatch can edit those four fields and nothing else \u2014 the rest of the directory stays with administrators.',
+      'The approximate value is typed for each parcel (the form calls it approximate, and the catalogue carries no prices), and the purpose sentence can be edited \u2014 not every parcel is a ventilator part.',
+      'Prints on A4 with narrow margins like the challan, and a long parcel list carries the heading and the sender block onto every sheet.',
+      'Needs migration 0029_engineer_address.sql (apply bundle: the RBAC one).',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-08-30',
     title: 'The Delivery Challan prints',

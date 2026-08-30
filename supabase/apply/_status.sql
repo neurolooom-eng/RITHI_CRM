@@ -47,6 +47,9 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.engineer_stock')  is not null)),
     (10, 'spare_requests: OR number shape', 'OR-YYMM-NNNN, no slashed numbers left (0018 + 0019)',
         not exists (select 1 from public.spare_requests where or_no ~ '^OR-\d\d/\d\d/')),
+    (17, 'rbac: engineer address', 'user_directory.address / city / state / phone (0029)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='user_directory' and column_name='address')),
     (11, 'spare_requests: approval forms', 'spare_request_lines.approval_data (0026)',
         exists (select 1 from information_schema.columns
                  where table_schema='public' and table_name='spare_request_lines' and column_name='approval_data')),

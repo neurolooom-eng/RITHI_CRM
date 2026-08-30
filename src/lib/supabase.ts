@@ -513,6 +513,10 @@ export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]>
       'User Name': r.name, 'Email ID': r.email, 'GMAIL ID': r.gmail, 'Designation': r.designation,
       'RM': r.reporting_manager, 'RGM': r.regional_manager, 'REGION': r.region,
       'Validity': r.validity ? 'TRUE' : 'FALSE',
+      // The delivery address the Declaration form is addressed by
+      // (0029_engineer_address.sql), under the User Master's own headers.
+      'ADDRESS': r.address ?? '', 'CITY': r.city ?? '', 'STATE': r.state ?? '',
+      'Contact  No': r.phone ?? '',
     }));
     if (rows.length < PAGE) break;
   }
@@ -855,6 +859,38 @@ export async function dispatchSpareLines(
   // wraps it in an array when the client asks for a set.
   const row = Array.isArray(data) ? data[0] : data;
   return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
+}
+
+// The engineer's delivery address — Address / City / State / Contact from the
+// User Master, which is where it is maintained (0029_engineer_address.sql).
+export interface EngineerAddress { address: string; city: string; state: string; phone: string }
+
+export async function engineerAddress(name: string): Promise<EngineerAddress | null> {
+  const key = name.trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('user_directory')
+    .select('name, address, city, state, phone').ilike('name', key).limit(1);
+  if (error) return null;
+  const row = (data ?? [])[0];
+  if (!row) return null;
+  return {
+    address: String(row.address ?? ''), city: String(row.city ?? ''),
+    state: String(row.state ?? ''), phone: String(row.phone ?? ''),
+  };
+}
+
+// Correcting an address is the packer's job, so dispatch may set it. The
+// database allows that column and no other (user_directory_address_guard).
+export async function saveEngineerAddress(
+  name: string, patch: Partial<EngineerAddress>,
+): Promise<{ ok: boolean; error?: string }> {
+  const key = name.trim();
+  if (!key) return { ok: false, error: 'No engineer to save an address for.' };
+  const { data, error } = await must().from('user_directory')
+    .update(patch).ilike('name', key).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!(data ?? []).length) return { ok: false, error: `${key} is not in the user directory, so the address has nowhere to live.` };
+  return { ok: true };
 }
 
 // Stock outs already booked, newest first — the Dispatched tab of the screen.

@@ -327,6 +327,31 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 13* (`0029_engineer_address.sql`): **the Declaration form**
+    (`/declaration/<stock out>`) — the template's second sheet, the paper that
+    travels with the parcel. Same printing as the challan: A4, narrow margins,
+    one complete `<section>` per sheet (18 rows, the sheet's own grid), so the
+    heading and the sender block are on every page.
+    Three things the form needs and the app did not have, each settled where it
+    belongs:
+    • **the address** — from the **User Master**: `user_directory` gains
+      `address` / `city` / `state` / `phone`. The sheet always had those
+      columns and the User Master screen already showed City/State/Contact, but
+      the table never carried them, so on Supabase they were blank. Now read,
+      shown (Address added to the screen), imported, and **lifted out of
+      `extra`** for a directory imported before they were columns.
+    • **the approximate value** — typed per parcel. The form says approximate,
+      and `parts` carries no price at all.
+    • **the purpose sentence** — the sheet's COVID-era wording is the default
+      and is editable.
+    Dispatch may correct the four address fields from the form and save them
+    back to the User Master; a guard refuses every other column from a
+    non-admin, so the reporting tree cannot be edited through that door.
+    ⚠️ It ships in the **RBAC** bundle, not the User Directory one, though the
+    columns are the directory's: its policy calls `has_perm()`, which RBAC
+    defines and which applies later. Caught by the apply-twice check, which is
+    the second time bundle ORDER has bitten — worth remembering that a new
+    object may only reference things its module already depends on.
   - *Phase 12* (`0028_dc_number_is_stock_out.sql`): **the Delivery Challan
     prints** (`/dc/<stock out>`), laid out from `v2_DCTemplate.xlsx`.
     A4, narrow margins (0.25in sides, 0.75in top/bottom), and the letterhead
