@@ -86,6 +86,7 @@ const MODULES = {
       '0012_call_state.sql',
       '0014_call_state_denorm.sql',
       '0015_call_number.sql',
+      '0024_call_request_extra.sql',
     ],
   },
   audit: {
@@ -164,6 +165,7 @@ const MODULES = {
       '0018_spare_or_number_padded.sql',
       '0019_spare_or_number_format.sql',
       '0022_spare_line_uid.sql',
+      '0025_spare_dropped_stage.sql',
     ],
   },
 };

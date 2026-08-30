@@ -548,7 +548,7 @@ export function SpareRequests() {
   const wfButtons = (row: Row, size = 'btn-sm') => {
     const stage = deriveStage(row);
     if (!actionable(row, can, email)) {
-      return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : '—'}</span>;
+      return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
     const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
     const bulk = (kind: 'approve' | 'dispatch' | 'receive') => siblings > 1 && (
