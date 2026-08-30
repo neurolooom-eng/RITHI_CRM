@@ -234,11 +234,21 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     () => (isInstall ? productMaster.values : [...new Set(partyItems.map((r) => String(r['Item Name'] ?? '')).filter(Boolean))]),
     [isInstall, productMaster.values, partyItems],
   );
-  // Serial numbers this party owns of this product.
-  const serialsFor = (product: string) => (isInstall ? [] : [...new Set(
-    partyItems.filter((r) => String(r['Item Name'] ?? '') === product)
-      .map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean),
-  )]);
+  // Serial numbers this party owns of this product, minus the ones another
+  // call on the request has already taken — one machine cannot be two calls
+  // (its UniqueID is REQID-Product-Serial, so the DB would reject the pair
+  // twice anyway).
+  const serialsFor = (product: string, forIndex = -1) => {
+    if (isInstall || !product) return [];
+    const taken = new Set(
+      items.filter((it, j) => j !== forIndex && it.product === product && it.serial)
+        .map((it) => it.serial),
+    );
+    return [...new Set(
+      partyItems.filter((r) => String(r['Item Name'] ?? '') === product)
+        .map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean),
+    )].filter((v) => !taken.has(v));
+  };
 
   // Changing the party changes what the dropdowns can offer, so a product or
   // serial the new party does not have is dropped rather than left showing a
@@ -390,12 +400,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                   isInstall
                     ? <input className="input" placeholder="Serial (new machine)" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} />
                     : (() => {
-                      const serials = serialsFor(it.product);
+                      const serials = serialsFor(it.product, i);
+                      const allTaken = !serials.length && !it.serial && !!it.product
+                        && items.some((o, j) => j !== i && o.product === it.product && o.serial);
                       return (
                         <select className="select" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} disabled={!it.product}>
                           <option value="">
                             {!it.product ? '— pick a product first —'
                               : serials.length ? '— pick a serial —'
+                              : allTaken ? '— every serial is already on this request —'
                               : '— no serial on record —'}
                           </option>
                           {serials.map((v) => <option key={v} value={v}>{v}</option>)}
