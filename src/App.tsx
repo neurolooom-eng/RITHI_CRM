@@ -25,6 +25,7 @@ import { SpareRequests } from './modules/SpareRequests';
 import { SpareDispatch } from './modules/SpareDispatch';
 import { DeliveryChallan } from './modules/DeliveryChallan';
 import { Declaration } from './modules/Declaration';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
 import { StockTransfer } from './modules/StockTransfer';
@@ -62,10 +63,12 @@ function Shell() {
   // out the user may not see simply is not found.
   if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')) {
     return (
-      <Routes>
-        <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
-        <Route path="/declaration/:stockOut" element={<Declaration />} />
-      </Routes>
+      <ErrorBoundary where="printable document">
+        <Routes>
+          <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
+          <Route path="/declaration/:stockOut" element={<Declaration />} />
+        </Routes>
+      </ErrorBoundary>
     );
   }
 
@@ -86,6 +89,9 @@ function Shell() {
 
   return (
     <Layout>
+      {/* One screen failing must not blank the whole app — without this a
+          render error unmounts everything and the page just goes white. */}
+      <ErrorBoundary where={location.pathname}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
@@ -126,6 +132,7 @@ function Shell() {
         <Route path="/audit" element={<AuditLog />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   );
 }
@@ -135,7 +142,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <HashRouter>
-          <Shell />
+          <ErrorBoundary>
+            <Shell />
+          </ErrorBoundary>
         </HashRouter>
       </AuthProvider>
     </ThemeProvider>

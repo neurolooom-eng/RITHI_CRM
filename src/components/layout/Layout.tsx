@@ -186,14 +186,20 @@ export function Layout({ children }: { children: ReactNode }) {
   // Close the mobile drawer whenever the route changes.
   const closeMobile = () => setMobileOpen(false);
 
-  // Force update — the mobile equivalent of Ctrl/Win+Shift+R. Drops cached
-  // sheet-sync markers and any service-worker/HTTP caches, then hard-reloads
+  // Force update — the mobile equivalent of Ctrl/Win+Shift+R. Drops the cached
+  // rows and sync markers and any service-worker/HTTP caches, then hard-reloads
   // with a cache-busting param so the freshest deployed build is fetched.
+  //
+  // `rithi.cache.` is the important one and was missing: every register restores
+  // its rows from there before the network answers, so a force update that left
+  // them in place could not clear a screen stuck on stale data.
   const [refreshing, setRefreshing] = useState(false);
   const forceRefresh = async () => {
     setRefreshing(true);
     try {
-      Object.keys(localStorage).forEach((k) => { if (k.startsWith('rithi.sync.')) localStorage.removeItem(k); });
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith('rithi.cache.') || k.startsWith('rithi.sync.')) localStorage.removeItem(k);
+      });
       if ('caches' in window) { const keys = await caches.keys(); await Promise.all(keys.map((k) => caches.delete(k))); }
       if ('serviceWorker' in navigator) { const regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map((r) => r.unregister())); }
     } catch { /* best-effort */ }
