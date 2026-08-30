@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.5',
+    date: '2026-08-30',
+    title: 'Pick the product and serial, don\u2019t type them',
+    changes: [
+      'On a call request, Product is now a dropdown of what that party actually owns, and Serial No a dropdown of that party\u2019s serials for the chosen product \u2014 on all five calls. No more typos putting a request on a machine that isn\u2019t there.',
+      'Changing the party clears any product or serial the new party does not have, instead of leaving a stale one behind.',
+      'Call Attended? must be answered before a request can be submitted.',
+    ],
+  },
+  {
     version: '0.7.4',
     date: '2026-08-30',
     title: 'Import the old call registration requests',

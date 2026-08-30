@@ -234,7 +234,26 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     () => (isInstall ? productMaster.values : [...new Set(partyItems.map((r) => String(r['Item Name'] ?? '')).filter(Boolean))]),
     [isInstall, productMaster.values, partyItems],
   );
-  const serialsFor = (product: string) => (isInstall ? [] : partyItems.filter((r) => String(r['Item Name'] ?? '') === product).map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean));
+  // Serial numbers this party owns of this product.
+  const serialsFor = (product: string) => (isInstall ? [] : [...new Set(
+    partyItems.filter((r) => String(r['Item Name'] ?? '') === product)
+      .map((r) => String(r['Item Serial Number'] ?? '')).filter(Boolean),
+  )]);
+
+  // Changing the party changes what the dropdowns can offer, so a product or
+  // serial the new party does not have is dropped rather than left showing a
+  // value the list no longer contains.
+  useEffect(() => {
+    if (isInstall) return;
+    setItems((s) => s.map((it) => {
+      if (!it.product) return it;
+      if (!productOptions.includes(it.product)) return { ...it, product: '', serial: '' };
+      const serials = partyItems.filter((r) => String(r['Item Name'] ?? '') === it.product)
+        .map((r) => String(r['Item Serial Number'] ?? ''));
+      return it.serial && !serials.includes(it.serial) ? { ...it, serial: '' } : it;
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyItems, isInstall]);
 
   const setItem = (i: number, k: keyof Item, v: string) => setItems((s) => s.map((it, j) => (j === i ? { ...it, [k]: v } : it)));
   const addItem = () => setItems((s) => (s.length < MAX_ITEMS ? [...s, blankItem(isInstall)] : s));
@@ -257,6 +276,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       if (seen.has(key)) return `Call ${i + 1}: this Product + Serial is already on the request.`;
       seen.add(key);
     }
+    if (!f.callAttended) return 'Answer Call Attended?';
     if (attended && !f.attendedDate) return 'Attended Date is required when Call Attended? = Yes.';
     if (uploading > 0) return 'Wait for the document upload to finish.';
     return '';
@@ -337,7 +357,6 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
           <div className="rep-sec-title">
             Calls <span className="muted">(up to {MAX_ITEMS} — Product + Serial + Complaint + Reported Problem; each becomes its own UniqueID)</span>
           </div>
-          <datalist id="dl-product">{productOptions.slice(0, 8000).map((v) => <option key={v} value={v} />)}</datalist>
           <datalist id="dl-complaint">{complaintMaster.values.slice(0, 5000).map((v) => <option key={v} value={v} />)}</datalist>
 
           {items.map((it, i) => (
@@ -347,18 +366,43 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 <button className="btn btn-ghost btn-sm" title="Remove this call" onClick={() => removeItem(i)} disabled={items.length === 1}>✕</button>
               </div>
               <div className="rep-grid">
-                {field(`Product *`, (
-                  <input className="input" list="dl-product" value={it.product}
-                    placeholder={isInstall ? 'Product Master' : 'Filtered by party'}
-                    onChange={(e) => setItem(i, 'product', e.target.value)} />
+                {field('Product *', (
+                  <select
+                    className="select"
+                    value={it.product}
+                    onChange={(e) => setItems((s) => s.map((x, j) => (j === i ? { ...x, product: e.target.value, serial: '' } : x)))}
+                  >
+                    <option value="">
+                      {isInstall ? '— pick from Product Master —'
+                        : !f.partyName.trim() ? '— pick a Party first —'
+                        : productOptions.length ? '— pick a product —'
+                        : '— no products for this party —'}
+                    </option>
+                    {productOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+                    {/* a value the current list cannot offer (e.g. imported) stays selectable */}
+                    {it.product && !productOptions.includes(it.product) && <option value={it.product}>{it.product}</option>}
+                  </select>
                 ))}
                 {field('Serial No', (
+                  // An installation is a machine the party does not own yet, so
+                  // its serial is typed. Otherwise it is picked from what this
+                  // party owns of this product.
                   isInstall
-                    ? <input className="input" placeholder="Serial (free text)" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} />
-                    : <>
-                      <input className="input" list={`dl-serial-${i}`} placeholder="Serial (filtered)" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} />
-                      <datalist id={`dl-serial-${i}`}>{serialsFor(it.product).slice(0, 2000).map((v) => <option key={v} value={v} />)}</datalist>
-                    </>
+                    ? <input className="input" placeholder="Serial (new machine)" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} />
+                    : (() => {
+                      const serials = serialsFor(it.product);
+                      return (
+                        <select className="select" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} disabled={!it.product}>
+                          <option value="">
+                            {!it.product ? '— pick a product first —'
+                              : serials.length ? '— pick a serial —'
+                              : '— no serial on record —'}
+                          </option>
+                          {serials.map((v) => <option key={v} value={v}>{v}</option>)}
+                          {it.serial && !serials.includes(it.serial) && <option value={it.serial}>{it.serial}</option>}
+                        </select>
+                      );
+                    })()
                 ))}
                 {field('Standard Complaint', (
                   isInstall
@@ -401,7 +445,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
         <section className="rep-sec">
           <div className="rep-sec-title">Visit</div>
           <div className="rep-grid">
-            {field('Call Attended?', (
+            {field('Call Attended? *', (
               <select className="select" value={f.callAttended} onChange={(e) => set('callAttended', e.target.value)}>
                 <option value="">—</option><option value="Yes">Yes</option><option value="No">No</option>
               </select>
