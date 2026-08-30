@@ -52,7 +52,10 @@ export interface DataTableProps<T> {
   dense?: boolean;
   // Full field list for the Columns picker (so any schema field can be added).
   // If omitted, the field list is derived from the data rows' keys.
-  allFields?: { key: string; header?: string }[];
+  // `render` lets a module make one of those fields readable — a jsonb column
+  // is honest as JSON but nobody can read it, so the owner can supply a
+  // summary instead.
+  allFields?: { key: string; header?: string; render?: (row: T) => ReactNode }[];
 }
 
 // A cell value straight from the data may not be a primitive: a jsonb column
@@ -138,13 +141,17 @@ export function DataTable<T>({
     return out;
   }, [allFields, rows, baseKeys]);
   const labelFor = (k: string) => allFields?.find((f) => f.key === k)?.header ?? humanize(k);
+  const renderFor = (k: string) => allFields?.find((f) => f.key === k)?.render;
   const mergedColumns = useMemo<Column<T>[]>(() => {
-    const extra: Column<T>[] = extraKeys.map((k) => ({
-      key: k,
-      header: labelFor(k),
-      width: 140,
-      render: (r: T) => rawCell((r as Record<string, unknown>)[k] ?? ''),
-    }));
+    const extra: Column<T>[] = extraKeys.map((k) => {
+      const own = renderFor(k);
+      return {
+        key: k,
+        header: labelFor(k),
+        width: 140,
+        render: own ?? ((r: T) => rawCell((r as Record<string, unknown>)[k] ?? '')),
+      };
+    });
     return [...columns, ...extra];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columns, extraKeys]);

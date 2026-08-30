@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.8',
+    date: '2026-08-30',
+    title: 'A spare\u2019s own status, and readable approvals',
+    changes: [
+      'Opening a spare now shows THAT spare \u2014 its ID and its own status at the top, with the part and quantity. Before, it showed the OR number beside one spare\u2019s status, so an order with one spare at Stores and two still with the RM read as though the whole order was at Stores.',
+      'Underneath it says where the order actually stands \u2014 \u201c3 spares \u2014 2 at RM Approval \u00b7 1 at Stores\u201d \u2014 and lists every spare on it with its own stage.',
+      'The Approvals column is readable: \u201cCommercial: Cleared \u2014 Under CMC \u00b7 mc1233\u201d rather than the raw record.',
+    ],
+  },
+  {
     version: '0.8.7',
     date: '2026-08-30',
     title: 'Fixed: spares stuck at Stores never reached the dispatch queue',
