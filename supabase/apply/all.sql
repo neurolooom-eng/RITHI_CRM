@@ -26,6 +26,7 @@
 --   0012_call_state.sql
 --   0014_call_state_denorm.sql
 --   0015_call_number.sql
+--   0024_call_request_extra.sql
 --   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -36,6 +37,7 @@
 --   0018_spare_or_number_padded.sql
 --   0019_spare_or_number_format.sql
 --   0022_spare_line_uid.sql
+--   0025_spare_dropped_stage.sql
 --   0020_stock_transfer.sql
 --   0023_handstock.sql
 --
@@ -2126,6 +2128,20 @@ end $$;
 grant execute on function public.next_direct_call_number(text) to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0024_call_request_extra.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- `extra` on call_requests, so the historical CRN Registration export can be
+-- imported without losing the columns the table has no home for — "Any Open
+-- Call?" (the Hotline's answer at the time, either No or the open call's UCN),
+-- Regional Manager, and Comments / Remarks.
+-- ===========================================================================
+
+alter table public.call_requests
+  add column if not exists extra jsonb not null default '{}'::jsonb;
+
+-- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
 -- ------------------------------------------------------------------------
 
@@ -3161,6 +3177,103 @@ drop trigger if exists spare_request_lines_uid_immutable on public.spare_request
 create trigger spare_request_lines_uid_immutable
   before update on public.spare_request_lines
   for each row execute function public.spare_request_lines_uid_immutable();
+
+-- ------------------------------------------------------------------------
+-- 0025_spare_dropped_stage.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Dropped — a spare Stores did not send.
+--
+-- Stores can drop a line instead of dispatching it (short supply, part no
+-- longer needed, superseded). That is a different outcome from a rejection:
+-- an approver refuses the request, Stores drops a part that was already
+-- approved. The imported history carries 272 of them, 254 approved by the RM
+-- first, so folding them into Rejected would misreport who ended the line.
+--
+-- Terminal, like Dispatched and Rejected. Checked after Rejected: if an
+-- approver refused the line, that decision is the one that closed it.
+-- ===========================================================================
+
+create or replace function public.spare_line_stage(
+  rm text, commercial text, nsm text, stores text, received timestamptz, item_status text
+) returns text language sql immutable as $$
+  select case
+    when rm ~* 'reject' or commercial ~* 'reject' or nsm ~* 'reject' then 'Rejected'
+    when received is not null                                        then 'Received'
+    when stores ~* 'drop'                                            then 'Dropped'
+    when stores ~* 'dispatch'                                        then 'Dispatched'
+    when rm !~* 'approv|auto'                                        then 'RM Approval'
+    when public.spare_needs_review(item_status)
+     and commercial !~* 'approv|auto'                                then 'Commercial'
+    when public.spare_needs_review(item_status)
+     and nsm !~* 'approv|auto'                                       then 'NSM'
+    else 'Stores'
+  end;
+$$;
+
+-- The request's rolled-up stage: a dropped line is closed, so it no longer
+-- holds the request open. A request is Dropped only when every line is.
+create or replace function public.spare_request_rollup(p_uid text)
+returns void language plpgsql security definer set search_path = public as $$
+declare roll text;
+begin
+  select case
+           when count(*) = 0 then 'RM Approval'
+           when count(*) filter (where stage not in ('Rejected', 'Dropped')) = 0
+             then case when count(*) filter (where stage = 'Dropped') > 0
+                       then 'Dropped' else 'Rejected' end
+           else min(case stage
+                      when 'RM Approval' then 1 when 'Commercial' then 2
+                      when 'NSM'         then 3 when 'Stores'     then 4
+                      when 'Dispatched'  then 5 when 'Received'   then 6
+                    end) filter (where stage not in ('Rejected', 'Dropped'))::text
+         end
+    into roll
+    from public.spare_request_lines where request_uid = p_uid;
+
+  roll := coalesce(case roll
+            when '1' then 'RM Approval' when '2' then 'Commercial'
+            when '3' then 'NSM'         when '4' then 'Stores'
+            when '5' then 'Dispatched'  when '6' then 'Received'
+            else roll end, 'RM Approval');
+
+  perform set_config('app.spare_rollup', '1', true);
+  update public.spare_requests
+     set stage  = roll,
+         status = case when roll = 'Stores' then 'Awaiting Dispatch' else roll end
+   where uid = p_uid and (stage is distinct from roll);
+  perform set_config('app.spare_rollup', '', true);
+end $$;
+
+-- Recompute every line and request against the new rule. The RBAC guard is
+-- dropped around it: this is a data migration, and in the SQL Editor
+-- auth.uid() is NULL so is_admin() is false and the guard would refuse it.
+drop trigger if exists spare_request_lines_guard on public.spare_request_lines;
+
+update public.spare_request_lines l
+   set stage = public.spare_line_stage(
+                 coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+                 coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+                 l.received_at, r.item_status),
+       status = public.spare_line_stage(
+                 coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+                 coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+                 l.received_at, r.item_status)
+  from public.spare_requests r
+ where r.uid = l.request_uid;
+
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+
+do $$
+declare u text;
+begin
+  for u in select uid from public.spare_requests loop
+    perform public.spare_request_rollup(u);
+  end loop;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0020_stock_transfer.sql

@@ -15,7 +15,7 @@
 // ---------------------------------------------------------------------------
 
 export type Decision = 'approve' | 'reject';
-export type Stage = 'RM Approval' | 'Commercial' | 'NSM' | 'Stores' | 'Dispatched' | 'Received' | 'Rejected';
+export type Stage = 'RM Approval' | 'Commercial' | 'NSM' | 'Stores' | 'Dispatched' | 'Received' | 'Dropped' | 'Rejected';
 
 export interface SpareReq {
   uid?: unknown; item_status?: unknown;
@@ -32,6 +32,9 @@ const isApproved = (v: unknown) => /approv|auto/i.test(s(v)); // "Approved" or "
 export function deriveStage(r: SpareReq): Stage {
   if ([r.rm_approval, r.commercial_approval, r.nsm_approval].some((v) => /reject/i.test(s(v)))) return 'Rejected';
   if (s(r.received_at)) return 'Received';
+  // Stores dropped the part rather than sending it — closed, but not a
+  // rejection: an approver refuses a request, Stores drops an approved part.
+  if (/drop/i.test(s(r.stores_status))) return 'Dropped';
   if (/dispatch/i.test(s(r.stores_status))) return 'Dispatched';
   if (!isApproved(r.rm_approval)) return 'RM Approval';
   const review = needsReview(r.item_status);
@@ -46,10 +49,11 @@ export const canBulkApprove = (stage: Stage): boolean =>
   stage === 'Commercial' || stage === 'NSM' || stage === 'Stores' || stage === 'Dispatched';
 
 // Stage order for filter chips / KPI tiles (terminal stages last).
-export const STAGES: Stage[] = ['RM Approval', 'Commercial', 'NSM', 'Stores', 'Dispatched', 'Received', 'Rejected'];
+export const STAGES: Stage[] = ['RM Approval', 'Commercial', 'NSM', 'Stores', 'Dispatched', 'Received', 'Dropped', 'Rejected'];
 
 export function stageTone(stage: Stage): 'success' | 'warning' | 'danger' | 'info' | 'neutral' {
   if (stage === 'Rejected') return 'danger';
+  if (stage === 'Dropped') return 'warning';
   if (stage === 'Received') return 'success';
   if (stage === 'Dispatched') return 'info';
   if (stage === 'Stores') return 'warning';

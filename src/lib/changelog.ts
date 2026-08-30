@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.7.7',
+    date: '2026-08-30',
+    title: 'Old spare requests, and a Dropped outcome',
+    changes: [
+      'The 26_SpareRequest history can be brought in: every past request and each spare on it, with who approved it, when Stores sent it and on which SO number \u2014 so the register shows the full history, not only what has been raised since.',
+      'Imported requests keep their original OR numbers (OR43016 and the like); the new OR-YYMM-NNNN series carries on separately for anything raised from now on.',
+      'New \u201cDropped\u201d outcome for a spare Stores did not send. It is kept separate from Rejected \u2014 an approver refuses a request, Stores drops a part that was already approved \u2014 and a dropped spare no longer holds its request open.',
+    ],
+  },
+  {
     version: '0.7.6',
     date: '2026-08-30',
     title: 'One machine, one call on a request',

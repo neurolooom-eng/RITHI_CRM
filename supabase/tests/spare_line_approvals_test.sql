@@ -74,3 +74,21 @@ insert into public.spare_request_lines (request_uid,row_no,part,qty) values ('WA
 call public.be('rm@x.com');
 update public.spare_request_lines set rm_approval='Rejected', rm_by='RM Ravi', rm_at=now() where request_uid='WA-2';
 select uid, stage from public.spare_requests where uid='WA-2';
+
+\echo '--- 9. Stores dropping a spare closes it as Dropped, not Rejected ---'
+call public.be('eng@x.com');
+insert into public.spare_requests (uid, engineer, engineer_email, item_status) values ('WA-3','Eng Elan','eng@x.com','WARRANTY');
+insert into public.spare_request_lines (request_uid,row_no,part,qty) values ('WA-3',1,'P-M',1),('WA-3',2,'P-N',1);
+call public.be('rm@x.com');
+update public.spare_request_lines set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
+       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved' where request_uid='WA-3';
+call public.be('stores@x.com');
+update public.spare_request_lines set stores_status='Dropped'    where request_uid='WA-3' and row_no=1;
+update public.spare_request_lines set stores_status='Dispatched', dc_number='DC-5' where request_uid='WA-3' and row_no=2;
+select row_no, stores_status, stage from public.spare_request_lines where request_uid='WA-3' order by row_no;
+\echo 'the dropped line no longer holds the request open:'
+select uid, stage from public.spare_requests where uid='WA-3';
+
+\echo '--- 10. every line dropped -> the request is Dropped ---'
+update public.spare_request_lines set stores_status='Dropped' where request_uid='WA-3';
+select uid, stage from public.spare_requests where uid='WA-3';

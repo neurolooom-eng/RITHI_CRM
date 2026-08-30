@@ -17,6 +17,7 @@
 --   0012_call_state.sql
 --   0014_call_state_denorm.sql
 --   0015_call_number.sql
+--   0024_call_request_extra.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -388,5 +389,19 @@ begin
 end $$;
 
 grant execute on function public.next_direct_call_number(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0024_call_request_extra.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- `extra` on call_requests, so the historical CRN Registration export can be
+-- imported without losing the columns the table has no home for — "Any Open
+-- Call?" (the Hotline's answer at the time, either No or the open call's UCN),
+-- Regional Manager, and Comments / Remarks.
+-- ===========================================================================
+
+alter table public.call_requests
+  add column if not exists extra jsonb not null default '{}'::jsonb;
 
 commit;
