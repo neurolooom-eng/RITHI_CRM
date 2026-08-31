@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeEntry[] = [
     changes: [
       'Re-running HandStock_X.sql or the consolidated all.sql on a project that already had Material Returns failed with “cannot drop columns from view”. The hand-stock views are now rebuilt rather than replaced, so either file can be run again safely whatever has already been applied.',
       'The consolidated all.sql also failed part-way on a fresh project (“column engineer_email does not exist”) because the consumption-visibility rule was applied before the column it reads was added. It no longer depends on that ordering.',
+      'And once the call tables were split, re-running it failed again at “cannot create index on relation calls” — public.calls is a view now, so the older table-only steps are skipped on a project that has already been split.',
     ],
   },
   {

@@ -302,6 +302,16 @@ create policy ar_write on public.app_roles for all
   using (public.has_perm('rbac.manage')) with check (public.has_perm('rbac.manage'));
 
 -- calls: the reporting-tree scope still applies, on top of the action.
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (public.has_perm('calls.view') and public.can_see_call(allocated_to));
@@ -312,6 +322,9 @@ drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls for update
   using ((public.has_perm('calls.edit') or public.has_perm('calls.report')) and public.can_see_call(allocated_to))
   with check ((public.has_perm('calls.edit') or public.has_perm('calls.report')) and public.can_see_call(allocated_to));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- pending registrations: Hotline registers them; scope still applies to reads.
 drop policy if exists pend_read on public.pending_registrations;
@@ -758,6 +771,16 @@ create policy cons_read on public.spare_consumption for select
 -- ===========================================================================
 
 -- ---- calls: read + update --------------------------------------------------
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (
@@ -796,8 +819,9 @@ create policy calls_update on public.calls for update
          )
     )
   );
-
--- ---- reports: read (visible with the parent call) --------------------------
+$calls_sql$;
+end if;
+end $calls_guard$;-- ---- reports: read (visible with the parent call) --------------------------
 -- The recursive set is uncorrelated, so it stays an InitPlan (once); the only
 -- per-report work is the indexed lookup of its call by ucn.
 drop policy if exists reports_read on public.reports;

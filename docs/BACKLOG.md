@@ -158,7 +158,14 @@ preflight their prerequisites, and are idempotent.
   the rbac module, long before `0023` added the `engineer_email` it reads, so a
   FRESH project failed at that line; `0038` adds the column itself now. Both
   were found by applying `all.sql` twice in a row on a throwaway Postgres —
-  worth doing after any change to a bundled migration.
+  worth doing after any change to a bundled migration. The same check then
+  caught `0040_call_tables_split.sql`: it makes `public.calls` a VIEW, so the
+  table-only work in `0001`, both `0008`s, `0014`, `0015`, `0032` and `0037`
+  (indexes, ALTER TABLE, ENABLE RLS, policies) died on replay. Each of those
+  regions is now wrapped in a guard that runs it only while `calls` is still
+  a table; on a split project `0040`'s own policies on the typed tables are
+  what apply. **Any new table-only statement on `public.calls` needs the same
+  guard.**
 - **`0039_material_returns.sql`** — MRN (Material Return Note): the return
   register, its `MRN-YYMM-NNNN` numbering, the guard that stops an engineer
   returning more than they hold, and the fifth hand-stock movement that

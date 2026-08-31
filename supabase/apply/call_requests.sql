@@ -62,6 +62,16 @@ begin;
 -- when the register is on Supabase.
 -- ===========================================================================
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (public.can_see_call(allocated_to) or created_by = auth.uid());
@@ -70,6 +80,9 @@ drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls for update
   using (public.can_see_call(allocated_to) or created_by = auth.uid())
   with check (public.can_see_call(allocated_to) or created_by = auth.uid());
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ------------------------------------------------------------------------
 -- 0010_call_request_items.sql
@@ -227,6 +240,16 @@ grant select on public.pending_calls to authenticated;
 drop view if exists public.pending_calls;
 drop view if exists public.call_state;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls
   add column if not exists last_status   text default '',
   add column if not exists last_visit_at timestamptz;
@@ -244,6 +267,9 @@ alter table public.calls add column open_state text
   ) stored;
 
 create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ---- keep it current -------------------------------------------------------
 -- security definer: a visit by one engineer updates the call regardless of who
@@ -377,9 +403,22 @@ begin
   return new;
 end $$;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop trigger if exists calls_biu on public.calls;
 create trigger calls_biu before insert on public.calls
   for each row execute function public.calls_before_insert();
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- Back-fill calls saved before this with no Call Number, each in its own year's
 -- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
@@ -438,6 +477,16 @@ alter table public.call_requests
 drop view if exists public.pending_calls;
 drop view if exists public.call_state;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls drop column if exists open_state;
 alter table public.calls add column open_state text
   generated always as (
@@ -451,6 +500,9 @@ alter table public.calls add column open_state text
   ) stored;
 
 create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ---- latest = latest ENTRY -------------------------------------------------
 create or replace function public.sync_call_last_visit(p_ucn text)
