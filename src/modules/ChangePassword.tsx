@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import { useAuth } from '../lib/auth';
 import { sbUpdatePassword, sbVerifyPassword, supabaseConfigured } from '../lib/supabase';
 
@@ -40,15 +41,15 @@ export function ChangePassword() {
       <form onSubmit={submit} style={{ display: 'grid', gap: 12, maxWidth: 360 }}>
         <div className="sf-field">
           <label className="field-label">Current password</label>
-          <input className="input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
+          <PasswordInput value={current} onChange={setCurrent} autoComplete="current-password" />
         </div>
         <div className="sf-field">
           <label className="field-label">New password</label>
-          <input className="input" type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="min 8 characters" autoComplete="new-password" />
+          <PasswordInput value={next} onChange={setNext} placeholder="min 8 characters" autoComplete="new-password" />
         </div>
         <div className="sf-field">
           <label className="field-label">Confirm new password</label>
-          <input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" />
+          <PasswordInput value={confirm} onChange={setConfirm} autoComplete="new-password" />
         </div>
         {msg && <div className={msg.tone === 'ok' ? 'muted' : 'field-err'}>{msg.text}</div>}
         <div><button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Change password'}</button></div>

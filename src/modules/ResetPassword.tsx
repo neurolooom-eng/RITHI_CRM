@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { recoveryIsInvite } from '../lib/supabase';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import './login.css';
 
 // ===========================================================================
@@ -42,11 +43,11 @@ export function ResetPassword() {
         <form onSubmit={submit} className="login-form">
           <div className="sf-field">
             <label className="field-label">New password</label>
-            <input className="input" type="password" value={pw} autoFocus onChange={(e) => setPw(e.target.value)} placeholder="min 8 characters" />
+            <PasswordInput value={pw} autoFocus onChange={setPw} placeholder="min 8 characters" />
           </div>
           <div className="sf-field">
             <label className="field-label">Confirm password</label>
-            <input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="re-enter password" />
+            <PasswordInput value={confirm} onChange={setConfirm} placeholder="re-enter password" />
           </div>
           {error && <div className="field-err">{error}</div>}
           <button className="btn btn-primary login-btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save password & continue'}</button>

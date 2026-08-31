@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { sbSendPasswordReset, takeRecoveryError, supabaseConfigured } from '../lib/supabase';
+import { PasswordInput } from '../components/ui/PasswordInput';
 import './login.css';
 
 export function Login() {
@@ -90,7 +91,7 @@ export function Login() {
             </div>
             <div className="sf-field">
               <label className="field-label">Password</label>
-              <input className="input" type="password" value={password} onChange={(e) => setPwd(e.target.value)} placeholder="••••••••" />
+              <PasswordInput value={password} onChange={setPwd} placeholder="••••••••" />
             </div>
             {error && <div className="field-err">{error}</div>}
             <button className="btn btn-primary login-btn" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign In'}</button>
@@ -108,11 +109,11 @@ export function Login() {
             </div>
             <div className="sf-field">
               <label className="field-label">New password</label>
-              <input className="input" type="password" value={newPw} autoFocus onChange={(e) => setNewPw(e.target.value)} placeholder="min 5 characters" />
+              <PasswordInput value={newPw} autoFocus onChange={setNewPw} placeholder="min 5 characters" />
             </div>
             <div className="sf-field">
               <label className="field-label">Confirm password</label>
-              <input className="input" type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="re-enter password" />
+              <PasswordInput value={confirmPw} onChange={setConfirmPw} placeholder="re-enter password" />
             </div>
             {error && <div className="field-err">{error}</div>}
             <button className="btn btn-primary login-btn" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Set Password & Sign In'}</button>

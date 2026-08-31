@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.42',
+    date: '2026-08-31',
+    title: 'Show password toggle',
+    changes: [
+      'Every password box (sign-in, first-time set password, reset and Profile → Password) now has an eye button to reveal what you typed, so you can check it before submitting.',
+    ],
+  },
+  {
     version: '0.8.41',
     date: '2026-08-31',
     title: 'Registers read their own call table (PM isolated)',

@@ -167,3 +167,21 @@
   .page-header-actions { width: 100%; }
   .page-header-actions .btn { flex: 1 1 auto; justify-content: center; }
 }
+
+/* password field with show/hide toggle */
+.pw-field { position: relative; display: block; }
+.pw-field .pw-input { width: 100%; padding-right: 38px; }
+.pw-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  opacity: 0.7;
+}
+.pw-toggle:hover { opacity: 1; }
