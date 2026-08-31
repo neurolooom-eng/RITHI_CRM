@@ -8,6 +8,23 @@ _Last updated: 2026-08-31 (MRN — Material Return Note — built on `claude/han
 
 ---
 
+## 🚧 In progress
+
+### Calls table split (3 physical tables)
+- **Stage 1 — DB (built, SQL to run):** `0040_call_tables_split.sql` splits
+  `calls` into `field_calls` / `installation_calls` / `pm_calls`. `calls`
+  becomes a UNION view with INSTEAD OF routing triggers, so the app is
+  unchanged; `pending_calls` / `call_state` rebuilt over the union; RLS + the
+  UCN/call-number/last-visit machinery live per table; UCN letters now F/I/P
+  (PM detection fixed). Validated on PG16 (fresh apply, idempotent, routing +
+  returned UCN, RLS scoping, report sync, call-registration suite).
+  **⏳ Run `split_call_tables.sql` on the live Supabase project.**
+- **Stage 2 — client (queued):** point each register at its own table (PM reads
+  only `pm_calls`) for the real volume isolation; cross-type screens keep the view.
+- **Stage 3 — cleanup (queued):** decide whether to retire the `calls` view.
+- Related, queued: Commercial-gated Installation creation; Admin/Super-Admin PM
+  bulk upload; daily full-list email digest.
+
 ## ✅ Done
 
 ### Platform & data
