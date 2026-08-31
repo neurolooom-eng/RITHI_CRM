@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.45',
+    date: '2026-08-31',
+    title: 'Hand Stock, Stock Transfer and Material Returns follow your team',
+    changes: [
+      'The same rule as Spare Requests now applies across the stock screens: a manager sees their own and their reporting engineers\u2019 hand stock, transfers and returns \u2014 and nobody else\u2019s.',
+      'Stock levels were the gap: the figures behind Stock Transfer were read in a way that ignored access rules altogether, so anyone signed in could see every engineer\u2019s stock. They are now scoped like everything else.',
+      'Stock transfers are visible to Stores, Commercial, NSM and the other desks again \u2014 they move stock for every team, and had been shut out.',
+      'The check that stops a transfer overdrawing still counts every movement, so nobody can transfer stock they do not have by virtue of not being able to see it.',
+      '\u201cView as\u201d on these three screens now shows what that person would really see, instead of the administrator\u2019s own stock wearing their name.',
+      'Needs migration 0041_stock_read_scope.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.8.44',
     date: '2026-08-31',
     title: 'Knowledge Base — how-to guide + team field solutions',

@@ -156,7 +156,8 @@ const MODULES = {
     // redefine them back without returns.
     // 0038 scopes spare_consumption, whose engineer_email column 0023 adds —
     // so it belongs here, not in rbac, which applies before this module.
-    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql'],
+    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql',
+            '0041_stock_read_scope.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
