@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.52',
+    version: '0.8.54',
     date: '2026-08-31',
     title: 'Data-integrity hardening for regulated use',
     changes: [
@@ -25,13 +25,40 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.51',
+    version: '0.8.53',
     date: '2026-08-31',
     title: 'Software Validation package (Admin)',
     changes: [
       'New Admin → Software Validation page: the computer-system validation package for the software as used in the medical-device QMS — validation plan, a compliance checklist mapped to FDA CSA, ISO/TR 80002-2, GAMP 5 and 21 CFR Part 11, User and System Requirements, Architecture and Detailed Design, an ISO 14971 risk assessment, a software FMEA (S/O/D/RPN), a 21 CFR Part 11 assessment, supplier assessments (Supabase / GitHub / Resend), an IQ/OQ/PQ test protocol, a requirements traceability matrix and a Validation Summary Report template. Print the open tab or the whole package.',
       'A built-in execution tracker records each test case’s result (Pass/Fail, actual result, tester) in the database rather than on paper — QA/admins record, everyone can read.',
       'It is a DRAFT for QA to review, approve and execute — it does not itself assert a validated state. Needs a database script run once (validation_results.sql) for the execution tracker.',
+    ],
+  },
+  {
+    version: '0.8.52',
+    date: '2026-08-31',
+    title: 'The daily review shows the report — and the register opens straight away',
+    changes: [
+      'The Daily Call Review took a very long time to open, or looked like it had hung: it was pulling the whole register down before it would show anything. It now opens on the last 30 days, a page at a time, and the first calls appear immediately — “Load more” brings the next page. Widen or clear the dates to go further back.',
+      'Every filter — dates, stage, product, engineer, potential effect and the search box — is now applied by the database rather than after the fact, so filtering a big register is fast and the counters cover everything the filters match, not just what is on screen.',
+      'Reviewing a call now shows what the engineer actually reported, in the review itself: the Visit Details of every visit, the Call Status, the Spares Consumed, the Software Version from the latest visit, and the Age of the Product when it failed — the days since warranty start, banded the way the register bands them (“With in 1 yr” … “More than 5 yrs”).',
+      'The same five are columns on the register and are carried into the export, which now matches the workbook’s Visit Remarks, Spares Consumed, SW Version and the two failure-age columns.',
+      'Export now covers every call the filters match, not just the pages loaded on screen, and says how far it has got while it reads.',
+      'Needs a database script run once (daily_review.sql).',
+    ],
+  },
+  {
+    version: '0.8.51',
+    date: '2026-08-31',
+    title: 'Daily Call Review — the DCCR, in the app',
+    changes: [
+      'New module: Daily Call Review. Every field call now goes through its review here rather than in the register workbook, in the same three stages. Review 1 is the Public Health Threat / Death / Serious Incident answers already given at Call Registration — the review shows them back and takes the registration date as the Review 1 date. Review 2 asks Risk to Patient / Any Clinical Impact, Warranty Failure (1 yr) and Frequent Failure. Review 3 asks Complaint Grouping, Root Cause Key Word and Spare / Consumable / Correction / Calibration. Each stage is dated the day it is completed.',
+      'Any Potential Effect works itself out, exactly as the register formula does: blank until all three Review 2 answers are in, then YES if any of them is YES. When it turns YES the Action Taken reads “FFR Generation” until whoever raises the report types the FFR number over it.',
+      'Review Status says which stage a call is waiting on — Review 2 Pending, Review 3 Pending, or Review Completed — and the register colours it, so what is outstanding today is visible at a glance. Filter by date range, stage, product, engineer, or just the calls with a potential effect.',
+      'Two new masters, both tagged per product: DCCR Complaint Grouping and Root Cause Key Word. Review 3 offers a call only the values for its own product plus anything tagged COMM (common to every product), so the list stays short and right. Both ship with the register\'s own values and have their own tab in the module (and a row in All Masters).',
+      'Export gives the register\'s own 38 columns, in its own order and under its own headings, for whatever the Review Register tab is currently showing.',
+      'Completing a review needs the new “Complete the daily call review” permission, granted by default to Admin, Hotline, NSM, Regional Manager, Reporting Manager and Commercial. Everyone who can open the module can still read every review.',
+      'The old Daily Call Review screen showed sample data and was blank against the live database; this replaces it outright.',
     ],
   },
   {

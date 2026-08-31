@@ -1,0 +1,78 @@
+/* Daily Call Review (DCCR) — the tab bar and the review drawer. */
+.dccr-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  margin: 4px 0 16px;
+}
+.dccr-tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+}
+.dccr-tab:hover { background: var(--surface-alt); color: var(--text); }
+.dccr-tab.is-active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--primary-soft);
+}
+.dccr-tab-count {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+}
+
+/* One review stage in the drawer. */
+.dccr-stage { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+.dccr-stage-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.dccr-stage-head h3 { margin: 0; font-size: 14px; }
+.dccr-stage-date { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.dccr-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.dccr-fields .dccr-wide { grid-column: 1 / -1; }
+.dccr-derived {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);
+  font-size: 13px;
+}
+.dccr-callcard {
+  background: var(--surface-alt); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; font-size: 13px;
+}
+.dccr-callcard div span { display: block; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+.dccr-export-cols { columns: 2; font-size: 13px; }
+.dccr-export-cols li { break-inside: avoid; margin-bottom: 3px; }
+@media (max-width: 640px) { .dccr-export-cols { columns: 1; } }
+
+/* The report context the reviewer judges the call by. */
+.dccr-report { background: var(--surface-alt); }
+.dccr-visits {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 190px;
+  overflow: auto;
+  font: inherit;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dccr-spares {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  word-break: break-word;
+}

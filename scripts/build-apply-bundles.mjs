@@ -43,6 +43,10 @@ const NEEDS = {
                     '0016_spare_line_approvals.sql (apply bundle: Spare_X.sql)'],
   transferTables: [`to_regclass('public.stock_transfer_lines')`, 'the stock-transfer tables',
                    '0020_stock_transfer.sql (apply bundle: stock_transfer)'],
+  fieldCalls: [`to_regclass('public.field_calls')`, 'the split call tables (field_calls)',
+               '0040_call_tables_split.sql (apply bundle: call_requests)'],
+  masterLists: [`to_regclass('public.master_lists')`, 'the master_lists registry',
+                '0021_master_lists.sql (apply bundle: masters)'],
 };
 
 const MODULES = {
@@ -112,6 +116,31 @@ const MODULES = {
             'Rich text with images and tables is stored as sanitized HTML on the row.'],
     needs: ['profiles', 'isAdmin'],
     files: ['0042_knowledge_base.sql'],
+  },
+  daily_review: {
+    title: 'Daily Call Review (DCCR)',
+    blurb: ['The three-stage daily review every field call goes through: Review 1 is',
+            'the registration\'s own Public Health Threat / Death / Serious Incident',
+            'answers, Review 2 is Risk to Patient / Warranty Failure / Frequent',
+            'Failure, and Review 3 is Complaint Grouping / Root Cause Key Word /',
+            'Spare-Consumable-Correction-Calibration.',
+            '',
+            'Stages 2 and 3 are stored in `call_reviews`; ANY POTENTIAL EFFECT, ACTION',
+            'TAKEN and REVIEW STATUS are derived, so the register cannot drift from',
+            'its own formulas. `field_call_review` is what the module reads.',
+            '',
+            'Also installs the two per-product masters the review reads — DCCR',
+            'Complaint Grouping and Root Cause Key Word — with the register\'s values.',
+            '',
+            'Writing a review needs the `review.edit` action, granted here to admin,',
+            'hotline, NSM, RGM, RM and Commercial.',
+            '',
+            'The register also carries what the reviewer judges the call by, all of it',
+            'derived from the report: every visit as "date : what was done", the latest',
+            'visit\'s status and software version, the spares consumed, and the age of',
+            'the product at failure with the register\'s own banding of it.'],
+    needs: ['profiles', 'rbac', 'fieldCalls', 'masterLists'],
+    files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql', '0047_daily_review_report_context.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -368,7 +397,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

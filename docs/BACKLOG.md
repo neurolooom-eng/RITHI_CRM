@@ -708,7 +708,58 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ---
 
+## 🩺 Daily Call Review (DCCR) — shipped 2026-08-31
+
+- The module is live: three review stages, the derived Any Potential Effect /
+  Action Taken / Review Status, the two per-product masters, and the export in
+  the register's own 38-column format.
+- **PENDING — SQL to run on the live project.** Run `supabase/apply/_status.sql`
+  first; it now reports `daily_review (DCCR)` and `daily_review: values`. If
+  either says NO, run **`supabase/apply/daily_review.sql`** (0044 + 0046 + 0047).
+  Until it is applied the module reads nothing — `field_call_review` does not
+  exist. **Re-run it after 0047** even if the earlier parts are already in: 0047
+  adds the report context, the age banding and — importantly — the indexes that
+  keep the register fast.
+- The register opens on the **last 30 days** and reads a page (500) at a time,
+  with every filter applied by the database. It has to: the per-call report
+  lookups run for every row a query returns, so pulling the whole register at
+  once cost ~13.7 s per page on 25k calls / 50k visits and showed nothing until
+  the last page landed (which is what "it is hanging" was). With
+  `field_calls_reg_date_idx` a page is ~0.25 s. If the register ever feels slow
+  again, check that index exists before anything else.
+- The stage counters read `field_call_review_summary` — the same register
+  WITHOUT the report lookups — so counting a year of calls is ~25 ms rather
+  than ~3 s. Keep new filterable columns on both views.
+- The seed carries the register's own master values (707 groupings, 657 root
+  cause key words, tagged MONNAL T60 / MONNAL T75 / COMM). Source CSVs are kept
+  in `migration-data/dccr/` so the seed can be regenerated.
+- `review.edit` is granted by the migration to admin, hotline, nsm, rgm, rm and
+  commercial. Confirm the matrix in Roles & Permissions matches what the team
+  wants — nobody else can complete a review, though everyone who can open the
+  module reads it.
+- Historic reviews are **not** imported. The register's own 3,850 reviewed calls
+  for 2026 still live in the workbook; if they should be carried over, that is a
+  one-off load into `call_reviews` keyed by UCN (the DCCR export format is the
+  same shape, so it maps column for column).
+- Review 1 is answered on the Call Registration form. A call registered before
+  those three questions were mandatory reads as **Review 1 Pending** — it is
+  completed by editing the call, not from this module.
+
+---
+
 ## 🔧 Operational notes / blockers
+
+- ⚠️ **`notify_spare_dispatched()` (0045_notifications.sql, on `main`) is broken
+  and takes spare dispatch down with it.** It declares a local `uid` and then
+  does `select ... from public.spare_requests where uid = new.request_uid`, so
+  Postgres raises *“column reference "uid" is ambiguous”* — and because the
+  trigger fires on the dispatch write, **the dispatch itself fails**. Reproduced
+  on PG16: `spare_stock_scope`, `handstock`, `spare_workflow` and
+  `stock_transfer` all now fail at their dispatch steps, and they pass on the
+  commit before notifications landed. Fix is one line — rename the variable
+  (e.g. `v_uid`) or qualify the column (`where spare_requests.uid = ...`).
+  NOT fixed here: it is nothing to do with the daily review, and it deserves
+  its own change so it can be verified on its own.
 
 - **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
   and send the new /exec URL so the baked-in default can be bumped. Done for the
