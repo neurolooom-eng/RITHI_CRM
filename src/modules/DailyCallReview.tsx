@@ -4,7 +4,10 @@ import { PageHeader, SectionCard, Toolbar, Drawer } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
-import { listCallReviews, listMasterLists, listMasterValuesForProduct, saveCallReview, supabaseConfigured, type MasterList } from '../lib/supabase';
+import {
+  callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
+  reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
+} from '../lib/supabase';
 import { fallbackList } from './masterLists';
 import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
@@ -47,6 +50,14 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
 
 const OPT = (arr: string[]) => ['', ...arr];
 
+// How many calls one read brings back. The register is paged rather than
+// pulled down whole: the per-call report lookups (0047) run for every row a
+// query returns, so a page is the difference between a quarter of a second
+// and a stalled screen.
+const PAGE = 500;
+
+const daysAgoISO = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+
 export function DailyCallReview() {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
@@ -55,6 +66,11 @@ export function DailyCallReview() {
   const [tab, setTab] = useState<Tab>('register');
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [more, setMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [counts, setCounts] = useState<{ total: number; byStatus: Record<string, number>; effects: number }>(
+    { total: 0, byStatus: {}, effects: 0 },
+  );
   const [lastSync, setLastSync] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to run the daily review.' },
@@ -65,79 +81,108 @@ export function DailyCallReview() {
   const [lists, setLists] = useState<Record<string, MasterList>>({});
 
   // ---- filters -------------------------------------------------------------
-  const [from, setFrom] = useState('');
+  // Every one of these is applied by the DATABASE, and the register is read a
+  // page at a time — the whole register is far too much to pull down at once.
+  // It opens on the last 30 days because it is a DAILY review; widen the dates
+  // (or clear them) to go further back.
+  const [from, setFrom] = useState(daysAgoISO(30));
   const [to, setTo] = useState('');
   const [status, setStatus] = useState('');
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
   const [effectOnly, setEffectOnly] = useState(false);
   const [search, setSearch] = useState('');
+  // What the loaded page set was actually read with, so Load more keeps asking
+  // for the same thing while the boxes are being typed in.
+  const [applied, setApplied] = useState<ReviewFilter>({ from: daysAgoISO(30) });
+
+  // The pick-lists. Read once from the whole register (the summary view, which
+  // has no per-call lookups) rather than from whatever page is loaded — a
+  // product only used last year must still be selectable.
+  const [products, setProducts] = useState<string[]>([]);
+  const [engineers, setEngineers] = useState<string[]>([]);
 
   // The call whose review is open.
   const [open, setOpen] = useState<ReviewRow | null>(null);
 
-  const load = async () => {
+  const filter = useMemo<ReviewFilter>(() => ({
+    from: from || undefined, to: to || undefined, status: status || undefined,
+    product: product || undefined, engineer: engineer || undefined,
+    effectOnly: effectOnly || undefined, q: search.trim() || undefined,
+  }), [from, to, status, product, engineer, effectOnly, search]);
+
+  const load = async (f: ReviewFilter) => {
     if (!live) return;
     setBusy(true);
     try {
-      const r = (await listCallReviews()) as ReviewRow[];
-      setRows(r);
+      const page = (await listCallReviews(f, 0, PAGE)) as ReviewRow[];
+      setRows(page);
+      setMore(page.length === PAGE);
+      setApplied(f);
       setLastSync(new Date().toISOString());
       setMsg(null);
+      // The stage counters cover the WHOLE filtered set, not the page shown.
+      void countCallReviews(f).then(setCounts).catch(() => { /* counters stay as they were */ });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
 
+  const loadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = (await listCallReviews(applied, rows.length, PAGE)) as ReviewRow[];
+      setRows((r) => [...r, ...next]);
+      setMore(next.length === PAGE);
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Could not read the next page: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setLoadingMore(false); }
+  };
+
+  // Re-read when a filter changes. The free-text box is debounced so a query
+  // is not fired on every keystroke.
   useEffect(() => {
-    void load();
+    if (!live) return;
+    const t = setTimeout(() => { void load(filter); }, search ? 400 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live, filter]);
+
+  useEffect(() => {
     if (!live) return;
     void listMasterLists()
       .then((all) => setLists(Object.fromEntries(all.map((l) => [l.key, l]))))
       .catch(() => { /* no registry yet — the built-in definitions stand */ });
+    void reviewPickLists()
+      .then((p) => { setProducts(p.products); setEngineers(p.engineers); })
+      .catch(() => { /* the boxes stay empty; the register still reads */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live]);
 
-  const products = useMemo(
-    () => [...new Set(rows.map((r) => String(r.product_name ?? '')).filter(Boolean))].sort(),
-    [rows],
-  );
-  const engineers = useMemo(
-    () => [...new Set(rows.map((r) => String(r.allocated_to ?? '')).filter(Boolean))].sort(),
-    [rows],
-  );
+  const statusCount = (s: string) => counts.byStatus[s] ?? 0;
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
-      const d = String(r.reg_date ?? '').slice(0, 10);
-      if (from && (!d || d < from)) return false;
-      if (to && (!d || d > to)) return false;
-      if (status && r.review_status !== status) return false;
-      if (product && r.product_name !== product) return false;
-      if (engineer && r.allocated_to !== engineer) return false;
-      if (effectOnly && r.any_potential_effect !== 'YES') return false;
-      if (!q) return true;
-      return [r.ucn, r.call_number, r.party_name, r.product_name, r.serial, r.allocated_to,
-        r.standard_complaint, r.complaint_reported, r.complaint_grouping, r.root_cause_keyword]
-        .some((v) => String(v ?? '').toLowerCase().includes(q));
-    });
-  }, [rows, from, to, status, product, engineer, effectOnly, search]);
-
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { 'Review 1 Pending': 0, 'Review 2 Pending': 0, 'Review 3 Pending': 0, 'Review Completed': 0 };
-    visible.forEach((r) => { c[r.review_status] = (c[r.review_status] ?? 0) + 1; });
-    return c;
-  }, [visible]);
-  const effects = useMemo(() => visible.filter((r) => r.any_potential_effect === 'YES').length, [visible]);
-
-  const exportRows = () => {
-    csvExport(
-      `dccr-${new Date().toISOString().slice(0, 10)}.csv`,
-      DCCR_EXPORT_COLUMNS,
-      visible.map((r, i) => toExportRow(r, i)),
-    );
-    logAudit({ action: 'dccr.export', target: `${visible.length} calls`, meta: { rows: visible.length } });
+  // Export covers the WHOLE filtered set, not the pages that happen to be on
+  // screen — so it is read here rather than taken from `rows`.
+  const [exporting, setExporting] = useState(false);
+  const exportRows = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setMsg({ tone: 'info', text: `Reading ${counts.total.toLocaleString()} calls for the export…` });
+    try {
+      const all: ReviewRow[] = [];
+      for (let off = 0; ; off += PAGE) {
+        const page = (await listCallReviews(applied, off, PAGE)) as ReviewRow[];
+        all.push(...page);
+        if (page.length < PAGE) break;
+        setMsg({ tone: 'info', text: `Read ${all.length.toLocaleString()} of ${counts.total.toLocaleString()}…` });
+      }
+      csvExport(`dccr-${new Date().toISOString().slice(0, 10)}.csv`, DCCR_EXPORT_COLUMNS, all.map((r, i) => toExportRow(r, i)));
+      setMsg({ tone: 'ok', text: `Exported ${all.length.toLocaleString()} calls.` });
+      logAudit({ action: 'dccr.export', target: `${all.length} calls`, meta: { rows: all.length } });
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Could not export: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setExporting(false); }
   };
 
   const columns: Column<ReviewRow>[] = [
@@ -150,6 +195,20 @@ export function DailyCallReview() {
     { key: 'serial', header: 'Serial', width: 100, wrap: false },
     { key: 'allocated_to', header: 'Engineer', width: 140 },
     { key: 'complaint_reported', header: 'Nature of Complaint', width: 220 },
+    {
+      key: 'open_state', header: 'Call Status', width: 130, wrap: false,
+      render: (r) => (r.open_state || r.last_status || r.status || <span className="muted">—</span>),
+    },
+    { key: 'visit_details', header: 'Visit Details', width: 260 },
+    { key: 'spares_consumed', header: 'Spares Consumed', width: 220 },
+    { key: 'sw_version', header: 'SW Version', width: 100, wrap: false },
+    {
+      key: 'age_group', header: 'Age of Product', width: 130, wrap: false,
+      accessor: (r) => r.age_days ?? -1,
+      render: (r) => (r.age_days == null
+        ? <span className="muted">—</span>
+        : <span title={`${r.age_days.toLocaleString()} days from warranty start`}>{r.age_group}</span>),
+    },
     {
       key: 'any_potential_effect', header: 'Any Potential Effect', width: 140, wrap: false,
       render: (r) => (r.any_potential_effect
@@ -181,12 +240,12 @@ export function DailyCallReview() {
         title="Daily Call Review"
         subtitle="DCCR — every field call through Review 1, 2 and 3"
         icon="🩺"
-        count={tab === 'register' ? visible.length : undefined}
+        count={tab === 'register' ? counts.total : undefined}
         actions={
           tab === 'register' ? (
             <>
-              <button className="btn btn-sm" onClick={() => void load()} disabled={busy || !live}>{busy ? '…' : '↻ Refresh'}</button>
-              <button className="btn btn-primary btn-sm" onClick={exportRows} disabled={!visible.length}>⭳ Export DCCR</button>
+              <button className="btn btn-sm" onClick={() => void load(filter)} disabled={busy || !live}>{busy ? '…' : '↻ Refresh'}</button>
+              <button className="btn btn-primary btn-sm" onClick={() => void exportRows()} disabled={exporting || !counts.total}>{exporting ? 'Exporting…' : '⭳ Export DCCR'}</button>
             </>
           ) : undefined
         }
@@ -209,7 +268,7 @@ export function DailyCallReview() {
             onClick={() => setTab(t.key)}
           >
             {t.icon} {t.label}
-            {t.key === 'register' && rows.length > 0 && <span className="dccr-tab-count">{visible.length.toLocaleString()}</span>}
+            {t.key === 'register' && counts.total > 0 && <span className="dccr-tab-count">{counts.total.toLocaleString()}</span>}
           </button>
         ))}
       </div>
@@ -217,12 +276,12 @@ export function DailyCallReview() {
       {tab === 'register' && (
         <>
           <KpiGrid min={170}>
-            <KpiCard label="Calls in view" value={visible.length} tone="primary" icon="📋" />
-            <KpiCard label="Review 1 Pending" value={counts['Review 1 Pending']} tone={counts['Review 1 Pending'] ? 'danger' : 'neutral'} />
-            <KpiCard label="Review 2 Pending" value={counts['Review 2 Pending']} tone={counts['Review 2 Pending'] ? 'warning' : 'neutral'} />
-            <KpiCard label="Review 3 Pending" value={counts['Review 3 Pending']} tone={counts['Review 3 Pending'] ? 'info' : 'neutral'} />
-            <KpiCard label="Review Completed" value={counts['Review Completed']} tone="success" />
-            <KpiCard label="Any Potential Effect" value={effects} tone={effects ? 'danger' : 'neutral'} icon="⚠️" sub="FFR to be raised" />
+            <KpiCard label="Calls in view" value={counts.total} tone="primary" icon="📋" />
+            <KpiCard label="Review 1 Pending" value={statusCount('Review 1 Pending')} tone={statusCount('Review 1 Pending') ? 'danger' : 'neutral'} />
+            <KpiCard label="Review 2 Pending" value={statusCount('Review 2 Pending')} tone={statusCount('Review 2 Pending') ? 'warning' : 'neutral'} />
+            <KpiCard label="Review 3 Pending" value={statusCount('Review 3 Pending')} tone={statusCount('Review 3 Pending') ? 'info' : 'neutral'} />
+            <KpiCard label="Review Completed" value={statusCount('Review Completed')} tone="success" />
+            <KpiCard label="Any Potential Effect" value={counts.effects} tone={counts.effects ? 'danger' : 'neutral'} icon="⚠️" sub="FFR to be raised" />
           </KpiGrid>
 
           <div className="filter-bar">
@@ -267,18 +326,24 @@ export function DailyCallReview() {
           <SectionCard title="Review Register">
             <DataTable<ReviewRow>
               columns={columns}
-              rows={visible}
+              rows={rows}
               getRowId={(r) => r.ucn}
               onRowClick={(r) => setOpen(r)}
               storageKey="dccr-register"
               rowsBeforeScroll={12}
               dense
+              onLoadMore={() => void loadMore()}
+              moreAvailable={more}
+              loadingMore={loadingMore}
               emptyText={busy ? 'Loading…' : live ? 'No calls match these filters.' : 'Connect the database to load the register.'}
               toolbar={
                 <Toolbar>
                   <input className="input" placeholder="Search UCN, customer, product, complaint…" value={search} onChange={(e) => setSearch(e.target.value)} />
                   <div className="spacer" />
-                  {lastSync && <span className="muted">synced {timeAgo(lastSync)}</span>}
+                  <span className="muted">
+                    showing {rows.length.toLocaleString()} of {counts.total.toLocaleString()}
+                  </span>
+                  {lastSync && <span className="muted">· synced {timeAgo(lastSync)}</span>}
                 </Toolbar>
               }
             />
@@ -310,12 +375,13 @@ export function DailyCallReview() {
         <SectionCard title="Export — DCCR format">
           <p className="muted" style={{ marginTop: 0 }}>
             The register's own columns, in its own order and under its own headings, so the file
-            drops straight into the workbook. It exports <b>what the Review Register tab is
-            currently showing</b> — set the date range and the filters there first.
+            drops straight into the workbook. It exports <b>every call the Review Register's
+            filters match</b> — not just the pages loaded on screen — so set the date range and
+            the filters there first.
           </p>
           <div className="row" style={{ marginBottom: 14 }}>
-            <button className="btn btn-primary" onClick={exportRows} disabled={!visible.length}>
-              ⭳ Export {visible.length.toLocaleString()} {visible.length === 1 ? 'call' : 'calls'}
+            <button className="btn btn-primary" onClick={() => void exportRows()} disabled={exporting || !counts.total}>
+              {exporting ? 'Exporting…' : `⭳ Export ${counts.total.toLocaleString()} ${counts.total === 1 ? 'call' : 'calls'}`}
             </button>
             <button className="btn" onClick={() => setTab('register')}>Change the filters</button>
           </div>
@@ -331,7 +397,7 @@ export function DailyCallReview() {
         editable={editable}
         reviewer={user?.fullName || user?.email || ''}
         onClose={() => setOpen(null)}
-        onSaved={async () => { setOpen(null); await load(); }}
+        onSaved={async () => { setOpen(null); await load(applied); }}
       />
     </div>
   );
@@ -356,6 +422,9 @@ function ReviewDrawer({
   const [keywords, setKeywords] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // The row on the register is from a page read; re-read this one call so the
+  // report context (visits, spares, software version) is what it is right now.
+  const [live, setLive] = useState<ReviewRow | null>(null);
 
   const ucn = row?.ucn ?? '';
   const productName = row?.product_name ?? '';
@@ -376,6 +445,16 @@ function ReviewDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ucn]);
 
+  useEffect(() => {
+    if (!ucn) { setLive(null); return; }
+    let cancelled = false;
+    setLive(null);
+    void callReview(ucn)
+      .then((r) => { if (!cancelled && r) setLive(r as ReviewRow); })
+      .catch(() => { /* the register's own row stands */ });
+    return () => { cancelled = true; };
+  }, [ucn]);
+
   // The two masters, narrowed to this call's product (plus the COMM values).
   useEffect(() => {
     if (!row) return;
@@ -389,6 +468,7 @@ function ReviewDrawer({
   }, [ucn, productName]);
 
   if (!row) return null;
+  const ctx = live ?? row;   // the freshly-read row when it has arrived
 
   const set = (k: keyof ReviewPatch) => (e: { target: { value: string } }) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
@@ -426,6 +506,39 @@ function ReviewDrawer({
         <div><span>Call Status</span>{row.open_state || row.last_status || row.status || '—'}</div>
         <div className="dccr-wide" style={{ gridColumn: '1 / -1' }}>
           <span>Nature of Complaint</span>{row.complaint_reported || row.standard_complaint || '—'}
+        </div>
+      </div>
+
+      {/* ---- What the reviewer judges the call by, from the report --------- */}
+      <div className="dccr-stage dccr-report">
+        <div className="dccr-stage-head">
+          <h3>From the report</h3>
+          <span className="dccr-stage-date">
+            {ctx.visit_count ? `${ctx.visit_count} visit${ctx.visit_count === 1 ? '' : 's'}` : 'no visit reported yet'}
+          </span>
+        </div>
+        <div className="dccr-fields">
+          <ReadOnly label="Call Status" value={ctx.open_state || ctx.last_status || ctx.status} />
+          <ReadOnly label="Software Version" value={ctx.sw_version} />
+          <ReadOnly
+            label="Age of the Product at failure"
+            value={ctx.age_days == null ? '' : `${ctx.age_days.toLocaleString()} days · ${ctx.age_group}`}
+          />
+        </div>
+        {ctx.pending_reason && (
+          <p className="muted" style={{ margin: '10px 0 0' }}>Pending reason: {ctx.pending_reason}</p>
+        )}
+        <div style={{ marginTop: 12 }}>
+          <label className="field-label">Visit Details</label>
+          {ctx.visit_details
+            ? <pre className="dccr-visits">{ctx.visit_details}</pre>
+            : <div className="muted">No visit has been reported against this call yet.</div>}
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <label className="field-label">Spares Consumed{ctx.spares_count ? ` (${ctx.spares_count})` : ''}</label>
+          {ctx.spares_consumed
+            ? <div className="dccr-spares">{ctx.spares_consumed}</div>
+            : <div className="muted">No spare booked against this call.</div>}
         </div>
       </div>
 

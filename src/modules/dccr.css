@@ -52,3 +52,27 @@
 .dccr-export-cols { columns: 2; font-size: 13px; }
 .dccr-export-cols li { break-inside: avoid; margin-bottom: 3px; }
 @media (max-width: 640px) { .dccr-export-cols { columns: 1; } }
+
+/* The report context the reviewer judges the call by. */
+.dccr-report { background: var(--surface-alt); }
+.dccr-visits {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 190px;
+  overflow: auto;
+  font: inherit;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.dccr-spares {
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  word-break: break-word;
+}

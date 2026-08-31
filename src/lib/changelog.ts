@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.52',
+    date: '2026-08-31',
+    title: 'The daily review shows the report — and the register opens straight away',
+    changes: [
+      'The Daily Call Review took a very long time to open, or looked like it had hung: it was pulling the whole register down before it would show anything. It now opens on the last 30 days, a page at a time, and the first calls appear immediately — “Load more” brings the next page. Widen or clear the dates to go further back.',
+      'Every filter — dates, stage, product, engineer, potential effect and the search box — is now applied by the database rather than after the fact, so filtering a big register is fast and the counters cover everything the filters match, not just what is on screen.',
+      'Reviewing a call now shows what the engineer actually reported, in the review itself: the Visit Details of every visit, the Call Status, the Spares Consumed, the Software Version from the latest visit, and the Age of the Product when it failed — the days since warranty start, banded the way the register bands them (“With in 1 yr” … “More than 5 yrs”).',
+      'The same five are columns on the register and are carried into the export, which now matches the workbook’s Visit Remarks, Spares Consumed, SW Version and the two failure-age columns.',
+      'Export now covers every call the filters match, not just the pages loaded on screen, and says how far it has got while it reads.',
+      'Needs a database script run once (daily_review.sql).',
+    ],
+  },
+  {
     version: '0.8.51',
     date: '2026-08-31',
     title: 'Daily Call Review — the DCCR, in the app',

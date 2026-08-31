@@ -93,3 +93,35 @@ select value, count(*) from public.masters
 \echo 'expect ERROR: duplicate key (same value, same product)'
 insert into public.masters (name, value, extra)
   values ('rootcause', 'Calibration', jsonb_build_object('product', 'MONNAL T60'));
+
+-- ===========================================================================
+-- 0047 — what the reviewer judges the call by, from the report.
+-- ===========================================================================
+\echo '--- 13. Visits, spares, software version and product age ride on the row ---'
+call public.be('hot@x.com');
+insert into public.reports (uid, ucn, call_status, engineer, visit_at, updated_at, data) values
+  ('T-R1','26A02F0001','Unsolved','AAKASH YADAV','2026-01-02','2026-01-02'::timestamptz,
+   jsonb_build_object('Job Done','Performed calibration; sensor replaced','Software Version','1.01')),
+  ('T-R2','26A02F0001','Solved - Report Completed','AAKASH YADAV','2026-01-05','2026-01-05'::timestamptz,
+   jsonb_build_object('Job Done','Ventilator working satisfactorily','Software Version','1.02'));
+insert into public.spare_consumption (ucn, part, qty, engineer) values
+  ('26A02F0001','MP-010|OXYGEN SENSOR', 1, 'AAKASH YADAV'),
+  ('26A02F0001','EBD-020|DAUGHTER BOARD', 2, 'AAKASH YADAV');
+update public.field_calls set warranty_start = '2021-05-01' where ucn = '26A02F0001';
+
+\echo 'expect: 2 visits newest first, sw 1.02 (the LATEST visit), both spares, 1707 days'
+select visit_count, sw_version, spares_count, spares_consumed, age_days, age_group
+  from public.field_call_review where ucn = '26A02F0001';
+select visit_details from public.field_call_review where ucn = '26A02F0001';
+
+\echo '--- 14. A call with no visit and no warranty start reads empty, not wrong ---'
+select visit_count, visit_details = '' as no_visits, spares_count,
+       age_days is null as no_age, age_group = '' as no_group
+  from public.field_call_review where ucn = '26A02F0002';
+
+\echo '--- 15. The age banding matches the register''s buckets ---'
+select d as days, public.failure_age_group(d) as grouping
+  from unnest(array[null, -5, 0, 364, 365, 729, 730, 1094, 1095, 1824, 1825, 5000]) d;
+
+\echo '--- 16. The summary view answers the stage counters without the report lookups ---'
+select review_status, count(*) from public.field_call_review_summary group by 1 order by 1;
