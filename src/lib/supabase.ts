@@ -1019,6 +1019,16 @@ export async function addConsumption(row: Record<string, unknown>): Promise<{ ok
   const { error } = await must().from('spare_consumption').insert(row);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+// Every part consumed on one visit, in ONE insert: Postgres writes all the
+// rows or none, so a report can never end up with some of its spares recorded
+// and the rest lost. (Row-at-a-time inserts could fail on the second and, if
+// the caller ignored the result, do exactly that.) No `.select()` — returning
+// rows would need read rights on spare_consumption as well as write.
+export async function addConsumptionRows(rows: Record<string, unknown>[]): Promise<{ ok: boolean; error?: string }> {
+  if (!rows.length) return { ok: true };
+  const { error } = await must().from('spare_consumption').insert(rows);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
 export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('feedback').insert(row);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
