@@ -116,7 +116,9 @@ export function Reports() {
     const base = COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
     const seen = new Set(base.map((b) => b.key));
     const extra: { key: string; header: string }[] = [];
-    rows.slice(0, 120).forEach((r) => {
+    // Scan every loaded row (not just the first page) so a field that only
+    // appears on later reports still shows up in the ⚙ column list.
+    rows.forEach((r) => {
       const d = (r.data as Record<string, unknown>) ?? {};
       Object.keys(d).forEach((k) => { if (k && !seen.has(k)) { seen.add(k); extra.push({ key: k, header: k }); } });
     });
@@ -125,7 +127,7 @@ export function Reports() {
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} />
+      <PageHeader title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

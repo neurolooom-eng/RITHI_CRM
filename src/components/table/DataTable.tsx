@@ -169,6 +169,21 @@ export function DataTable<T>({
   const [colPanel, setColPanel] = useState(false);
   const [viewMsg, setViewMsg] = useState('');
 
+  // Wrap text in every cell — ON by default for every table, with a toggle so a
+  // user can switch to single-line (truncated) rows. Persisted per table.
+  const wrapKey = persistKey ? `${persistKey}.wrap` : null;
+  const [wrapAll, setWrapAll] = useState<boolean>(() => {
+    try {
+      const saved = wrapKey ? localStorage.getItem(wrapKey) : null;
+      return saved == null ? wrapCells : saved !== '0';
+    } catch { return wrapCells; }
+  });
+  const toggleWrap = () => setWrapAll((w) => {
+    const next = !w;
+    if (wrapKey) { try { localStorage.setItem(wrapKey, next ? '1' : '0'); } catch { /* ignore */ } }
+    return next;
+  });
+
   // ---- user-defined filters over the full field list ----
   const filtersKey = persistKey ? `${persistKey}.filters` : null;
   const [filters, setFilters] = useState<TableFilter[]>(() => {
@@ -552,7 +567,9 @@ export function DataTable<T>({
                 onClick={() => onRowClick?.(row)}
               >
                 {visibleCols.map((c) => {
-                  const wrap = c.wrap ?? wrapCells;
+                  // The table-level Wrap toggle wins; it defaults ON, so every
+                  // table wraps text unless the user turns it off.
+                  const wrap = wrapAll;
                   const content = c.render
                     ? c.render(row)
                     : c.accessor
@@ -582,6 +599,13 @@ export function DataTable<T>({
         )}
         {viewMsg && <span className="muted dt-viewmsg">{viewMsg}</span>}
         <div className="spacer" />
+        <button
+          className={`btn btn-ghost btn-sm ${wrapAll ? 'dt-wrap-on' : ''}`}
+          onClick={toggleWrap}
+          title={wrapAll ? 'Text wrapping is on — click for single-line rows' : 'Text wrapping is off — click to wrap'}
+        >
+          {wrapAll ? '⭹ Wrap: on' : '⭰ Wrap: off'}
+        </button>
         {persistKey && (
           <div className="dt-cols">
             <button className="btn btn-ghost btn-sm" onClick={() => { setColPanel((o) => !o); setViewMsg(''); }} title="Show / hide & reorder columns">

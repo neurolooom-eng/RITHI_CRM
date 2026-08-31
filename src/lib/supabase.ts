@@ -1044,7 +1044,7 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
 // ---- material returns (MRN) ------------------------------------------------
 // One row per returned item, grouped by `uid` (MRN-YYMM-NNNN) — the flattened
 // shape of the sheet's two tabs. A return is the fifth hand-stock movement
-// (0037_material_returns.sql), so it needs no separate stock bookkeeping here.
+// (0039_material_returns.sql), so it needs no separate stock bookkeeping here.
 export interface MrnLineInput {
   part: string; good_qty: number; defective_qty: number;
   customer_name?: string; report_no?: string; removed_from_equipment?: string; remarks?: string;

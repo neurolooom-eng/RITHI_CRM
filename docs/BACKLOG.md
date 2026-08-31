@@ -132,7 +132,7 @@ preflight their prerequisites, and are idempotent.
   `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
   module says so and stays empty, and the report form has no stock to consume
   from.
-- **`0037_material_returns.sql`** — MRN (Material Return Note): the return
+- **`0039_material_returns.sql`** — MRN (Material Return Note): the return
   register, its `MRN-YYMM-NNNN` numbering, the guard that stops an engineer
   returning more than they hold, and the fifth hand-stock movement that
   subtracts it. Shipped **inside `HandStock_X.sql`** (re-run that file; it now

@@ -118,15 +118,16 @@ create trigger material_returns_immutable
 
 alter table public.material_returns enable row level security;
 
--- Reading follows the reporting tree, as the call, spare and transfer
--- registers do.
+-- Reading follows the reporting tree, in the same shape as spare consumption
+-- (0038): the reconciling roles see everything, everyone else sees their own
+-- returns and their sub-tree's. The handstock views are security_invoker, so a
+-- peer's return stays out of a peer's movement trail too.
 drop policy if exists mr_read on public.material_returns;
 create policy mr_read on public.material_returns for select
   using (
-    public.is_admin()
-    or created_by = auth.uid()
-    or lower(coalesce(engineer_email, '')) = lower(auth.email())
-    or public.can_approve_spares()
+    (select public.can_view_all_calls())        -- admin + office roles + data.view_all
+    or created_by = (select auth.uid())
+    or lower(coalesce(engineer_email, '')) = lower((select auth.email()))
     or lower(btrim(engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
   );
 

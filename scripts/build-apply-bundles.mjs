@@ -70,8 +70,8 @@ const MODULES = {
             'role a User Master row grants when that person first signs in.'],
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
-            '0030_engineer_address_write.sql', '0033_user_directory_role.sql',
-            '0034_office_roles_see_all.sql', '0035_data_view_all.sql'],
+            '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
+            '0035_data_view_all.sql', '0037_call_read_scale.sql', '0038_spare_consumption_scope.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -144,7 +144,7 @@ const MODULES = {
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
-    files: ['0023_handstock.sql', '0037_material_returns.sql'],
+    files: ['0023_handstock.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
   },
   stock_transfer: {

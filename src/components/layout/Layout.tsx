@@ -6,7 +6,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
 import { ViewAsControl, ViewAsBanner } from './ViewAs';
 import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
-import { useModuleCounts } from '../../lib/counts';
+import { useModuleCounts, countLabel } from '../../lib/counts';
 import './layout.css';
 
 interface NavItem {
@@ -273,8 +273,8 @@ export function Layout({ children }: { children: ReactNode }) {
                     >
                       <span className="nav-icon">{item.icon}</span>
                       {!collapsed && <span className="nav-label">{item.label}</span>}
-                      {!collapsed && typeof navCounts[item.to] === 'number' && (
-                        <span className="nav-count">{navCounts[item.to].toLocaleString()}</span>
+                      {!collapsed && navCounts[item.to] && (
+                        <span className="nav-count">{countLabel(navCounts[item.to])}</span>
                       )}
                     </NavLink>
                   ))}

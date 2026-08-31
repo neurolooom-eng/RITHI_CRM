@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.32',
+    version: '0.8.36',
     date: '2026-08-31',
     title: 'Material Returns (MRN) — send a spare back to Stores',
     changes: [
@@ -21,6 +21,41 @@ export const CHANGELOG: ChangeEntry[] = [
       'A return takes the spare off your Hand Stock: the stock level now reads Stock Out − Consumption − Transfer From + Transfer To − Returned, with a Returned column, a Returned total and the return listed in the movement trail against its MRN number.',
       'Each MRN gets its own number (MRN-YYMM-0001, restarting each month); the register lists every returned item, filters by engineer, exports to CSV, and opens a submission to show all of its lines.',
       'The old MRN sheet can be uploaded from Data Import — the register tab loads as one row per returned item.',
+    ],
+  },
+  {
+    version: '0.8.35',
+    date: '2026-08-31',
+    title: 'Spare consumption & hand stock scoped to you and your team',
+    changes: [
+      'Engineers no longer see a peer’s spare consumption or hand stock — the database now scopes those to what you raised, what is for you, and your reporting team. Admins, the office/coordination roles (Hotline, NSM, Commercial, Spare Coordinator, Stores, Tally) and “Permissions + Data” users still see everything. Spare Requests were already scoped this way.',
+      'Needs a database script run once (fix_spare_scope.sql) to take effect.',
+    ],
+  },
+  {
+    version: '0.8.34',
+    date: '2026-08-31',
+    title: 'Wrap-text toggle on every table; Reports shows every field',
+    changes: [
+      'Every table has a “Wrap: on/off” button (bottom-right). Text wrapping is on by default so long cells stay fully readable; turn it off for compact single-line rows. The choice is remembered per table.',
+      'Reports: the ⚙ Columns list now includes every field found across all loaded reports, not just the first page — nothing gets trimmed from the list.',
+    ],
+  },
+  {
+    version: '0.8.33',
+    date: '2026-08-31',
+    title: 'Honest module counts',
+    changes: [
+      'Module counts never show a wrong number: on screens that load in pages (Field/Installation/PM calls, Reports, Customer Feedback), when more rows exist beyond what is loaded the count reads “1,000+” rather than a misleading exact figure. Screens that load everything still show the exact total.',
+    ],
+  },
+  {
+    version: '0.8.32',
+    date: '2026-08-31',
+    title: 'Pending Calls & Reports load at scale',
+    changes: [
+      'Fixed “Load failed: canceling statement due to statement timeout” on Pending Calls (and the same risk on Reports) as call volume grows. The security check that scopes calls to your reporting tree was being recomputed for every call row; it is now computed once per load, behind an indexed lookup — the same calls stay visible to the same people, just far faster.',
+      'Needs a database script run once (fix_pending_timeout.sql) to take effect.',
     ],
   },
   {

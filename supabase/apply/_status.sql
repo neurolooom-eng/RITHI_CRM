@@ -97,7 +97,7 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (select 1 from public.app_roles
                       where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
                         and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters'))),
-    (17, 'handstock: material returns (MRN)', 'material_returns table + the Return arm on the balance (0037)',
+    (17, 'handstock: material returns (MRN)', 'material_returns table + the Return arm on the balance (0039)',
         (to_regclass('public.material_returns') is not null
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='handstock_balance'

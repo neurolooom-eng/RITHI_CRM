@@ -23,7 +23,7 @@ import './fieldcalls.css';
 // So an engineer can only return what they are actually holding: the picker
 // offers their hand stock and nothing else, the quantity is capped at what is
 // left of that spare across the lines already added, and Postgres enforces the
-// same rule (0037_material_returns.sql) so neither a stale screen nor a direct
+// same rule (0039_material_returns.sql) so neither a stale screen nor a direct
 // write can drive a level negative.
 //
 // One row per returned item — the flattened shape of the sheet's two tabs —
@@ -31,7 +31,7 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const CACHE_KEY = 'materialReturns';
-const MIGRATION_HINT = 'Material returns need migration 0037_material_returns.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
+const MIGRATION_HINT = 'Material returns need migration 0039_material_returns.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
 type Row = Record<string, unknown> & { id: string };
 const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');

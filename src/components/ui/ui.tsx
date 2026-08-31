@@ -9,6 +9,7 @@ export function PageHeader({
   actions,
   icon,
   count,
+  countMore,
 }: {
   title: string;
   subtitle?: string;
@@ -17,17 +18,20 @@ export function PageHeader({
   // How many records this screen is showing. Renders a badge next to the title
   // and feeds the same number to the sidebar nav (keyed by the current route).
   count?: number;
+  // The screen loads in pages and more rows exist behind "Load more", so the
+  // count is a lower bound — shown as "1,000+" rather than a wrong exact total.
+  countMore?: boolean;
 }) {
   const { pathname } = useLocation();
   useEffect(() => {
-    if (typeof count === 'number') setModuleCount(pathname, count);
-  }, [pathname, count]);
+    if (typeof count === 'number') setModuleCount(pathname, count, countMore);
+  }, [pathname, count, countMore]);
   return (
     <div className="page-header">
       <div className="page-header-main">
         {icon && <span className="page-header-icon">{icon}</span>}
         <div>
-          <h1 className="page-title">{title}{typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}</span>}</h1>
+          <h1 className="page-title">{title}{typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}{countMore ? '+' : ''}</span>}</h1>
           {subtitle && <div className="page-subtitle">{subtitle}</div>}
         </div>
       </div>
