@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.13',
+    version: '0.8.17',
     date: '2026-08-31',
     title: 'A Profile page, and adding users from inside the app',
     changes: [
@@ -22,12 +22,63 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.12',
+    version: '0.8.16',
     date: '2026-08-31',
     title: 'First-time sign-in and a self-cleaning audit log',
     changes: [
       'New users can now be invited straight from Supabase: an invite link opens a “Welcome — set your password” screen, the same way a “Forgot password?” reset link does. Either email is all a first-time user needs to get in — no shared temporary password.',
-      'The Audit Log now keeps 7 days of history and deletes anything older automatically. Needs migration 0033 (and pg_cron enabled) to take effect.',
+      'The Audit Log now keeps 7 days of history and deletes anything older automatically. Needs migration 0033_audit_retention.sql (and pg_cron enabled) to take effect.',
+    ],
+  },
+  {
+    version: '0.8.9',
+    date: '2026-08-30',
+    title: 'Stores Incharge can open Pending Dispatch',
+    changes: [
+      'The Pending Dispatch screen was missing for Stores Incharge \u2014 the role that actually does the dispatching. It is granted now, along with the Spare Requests register so Stores can see what is coming.',
+      'Needs migration 0032_stores_sees_pending_dispatch.sql (apply bundle: Spare_1.sql). An administrator can also tick it under Roles & Permissions at any time.',
+    ],
+  },
+  {
+    version: '0.8.15',
+    date: '2026-08-31',
+    title: 'User Master: one Edit, one Save',
+    changes: [
+      'Editing is now a single action at the top of User Master. \u270e Edit turns every row editable at once, one Save writes everything you changed, and Cancel drops the lot \u2014 no more editing a row at a time, and no more clicking a row by accident and finding it in edit mode.',
+      'While you edit, each row that will be written is marked Edited, and the toolbar counts the changes so far. Enter saves, Esc cancels.',
+      'Rows are saved one at a time, so if one is refused the message names that person and everything else still goes through \u2014 and what you typed into the failed row is kept.',
+      'The full form is still there behind \u22ef on a row, and behind + New User.',
+    ],
+  },
+  {
+    version: '0.8.14',
+    date: '2026-08-31',
+    title: 'User Master edits in the row',
+    changes: [
+      'Click a row in User Master and its cells become editable where they are \u2014 name, designation, role, IDs, region, active, managers, contact and address. Enter saves, Esc cancels, and the row goes back to reading normally.',
+      'The full form is still there behind \u22ef on the row, and behind + New User.',
+      'Regional Manager is now a column too, so the reporting tree can be corrected from the list rather than only in the form.',
+    ],
+  },
+  {
+    version: '0.8.13',
+    date: '2026-08-31',
+    title: 'User Master maintains people, and gives them their role',
+    changes: [
+      'User Master was read-only, so a new joiner could not be added and nobody\u2019s details could be corrected in the app. Administrators can now add a user and edit any of them \u2014 name, IDs, designation, reporting and regional manager, region, contact and address, and whether they are active.',
+      'Each user carries a Role. Someone who has never signed in gets that role the moment they first do; someone who has signed in already has it applied to their sign-in as soon as you save.',
+      'The list shows who has actually signed in and which role they hold, so it no longer takes two screens to see whether a person has the access you gave them.',
+      'Fixed: a person who signed in without a profile behind them showed up as a plain engineer and never appeared in User Access at all \u2014 the screen that assigns roles could not see them. Their profile is now created from their User Master row, with the role it carries.',
+      'Setting a delivery address still needs only dispatch, but it can no longer be used to hand out a role: everything except the address stays administrator-only.',
+    ],
+  },
+  {
+    version: '0.8.12',
+    date: '2026-08-31',
+    title: 'Every spare on a report is saved, or none is',
+    changes: [
+      'Consumed spares are now written in a single step: a report either records all of them or none, so a visit can no longer come back with one of the two spares you entered.',
+      'If the spares (or the customer feedback) cannot be saved, the report says so instead of closing as though it worked \u2014 and because the visit itself is already filed, pressing Save Report again retries only the part that failed, without filing a second visit.',
     ],
   },
   {

@@ -50,6 +50,11 @@ with checks(sort_order, bundle, provides, present) as (
     (2, 'user_directory: address', 'user_directory.address / city / state / phone (0029)',
         exists (select 1 from information_schema.columns
                  where table_schema='public' and table_name='user_directory' and column_name='address')),
+    (18, 'rbac: Stores sees Pending Dispatch', 'mod:/spare-dispatch on the dispatch roles (0032)',
+        (to_regclass('public.app_roles') is not null
+     and not exists (select 1 from public.app_roles
+                      where role in ('admin','stores_incharge','spare_coordinator')
+                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-dispatch'))),
     (17, 'rbac: address writable by dispatch', 'user_directory_address_guard() (0030)',
         to_regprocedure('public.user_directory_address_guard()') is not null),
     (11, 'spare_requests: approval forms', 'spare_request_lines.approval_data (0026)',

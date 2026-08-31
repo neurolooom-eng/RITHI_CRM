@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Drawer } from '../components/ui/ui';
-import { reportsByCall, saveReport, updateCall, addConsumption, addFeedback, sbEngineerNames, sbDirectoryNames, sbListPartyItems, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
+import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbEngineerNames, sbDirectoryNames, sbListPartyItems, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
@@ -104,6 +104,11 @@ export function CallReportDrawer({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // The visit row is written first. If the spares or the feedback then fail,
+  // the drawer stays open so the engineer can retry — and this stops the retry
+  // filing a second visit.
+  const [visitSaved, setVisitSaved] = useState(false);
+  const [sparesSaved, setSparesSaved] = useState(false);
 
   // Visit + status
   const [visitEntry] = useState(() => new Date().toLocaleString());
@@ -165,7 +170,7 @@ export function CallReportDrawer({
     let cancelled = false;
     setLoading(true); setErr('');
     // reset to a blank new visit
-    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false);
+    setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setVisitSaved(false); setSparesSaved(false);
     setWork({}); setSignoff({});
     setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
     setEngineer(selfName || String(call?.allocatedTo ?? ''));
@@ -338,14 +343,28 @@ export function CallReportDrawer({
         visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
         data,
       };
-      const res = await saveReport(ucn, patch);
-      if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
-      // Stamp the call's status so a Solved call becomes read-only in the register.
-      try { await updateCall(ucn, { status: solved ? 'Solved - Report Completed' : status }); } catch { /* status stamp is best-effort */ }
+      if (!visitSaved) {
+        const res = await saveReport(ucn, patch);
+        if (!res.ok) { setErr(res.error ?? 'Save failed.'); setBusy(false); return; }
+        setVisitSaved(true);
+        // Stamp the call's status so a Solved call becomes read-only in the register.
+        try { await updateCall(ucn, { status: solved ? 'Solved - Report Completed' : status }); } catch { /* status stamp is best-effort */ }
+      }
 
-      // Spare consumption → spare_consumption (one row per part).
-      for (const s of spares) {
-        await addConsumption({ ucn, call_number: String(call?.callNumber ?? ''), part: s.part, qty: Number(s.qty) || 1, engineer, engineer_email: user?.email ?? '', data: {} });
+      // Spare consumption → spare_consumption, every part in ONE insert so the
+      // report can never keep some of its spares and drop the rest. A failure
+      // here is shown, not swallowed: the visit is already filed, so pressing
+      // Save Report again retries just this.
+      const cons = sparesSaved ? { ok: true as const } : await addConsumptionRows(spares.map((sp) => ({
+        ucn, call_number: String(call?.callNumber ?? ''), part: sp.part, qty: Number(sp.qty) || 1,
+        engineer, engineer_email: user?.email ?? '', data: {},
+      })));
+      if (cons.ok) setSparesSaved(true);
+      if (!cons.ok) {
+        logAudit({ action: 'call.report.consumption', target: ucn, status: 'error', error: cons.error, meta: { spares: spares.length } });
+        setErr(`The visit was saved, but the ${spares.length} spare${spares.length === 1 ? '' : 's'} could not be recorded: ${cons.error} — fix it and press Save Report again to retry just the spares.`);
+        setBusy(false);
+        return;
       }
       // Customer feedback → feedback (structured answers). The warranty start
       // date is asked in the Service Report but belongs on the feedback row.
@@ -353,12 +372,18 @@ export function CallReportDrawer({
         const answers: Record<string, unknown> = {};
         fbQuestions.forEach((q) => { const val = feedback[q.col]; if (val != null && String(val).trim() !== '') answers[q.col] = val; });
         if (isInstall && String(work[WARRANTY_Q] ?? '').trim()) answers[WARRANTY_Q] = work[WARRANTY_Q];
-        await addFeedback({
+        const fb = await addFeedback({
           ucn, call_number: String(call?.callNumber ?? ''), call_type: callType, engineer, engineer_email: user?.email ?? '',
           party_name: partyName, state: String(call?.state ?? ''), product_name: String(call?.productName ?? ''),
           serial: String(call?.serial ?? ''), complaint: String(call?.complaintReported ?? ''),
           answers, visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
         });
+        if (!fb.ok) {
+          logAudit({ action: 'call.report.feedback', target: ucn, status: 'error', error: fb.error });
+          setErr(`The visit and the spares were saved, but the customer feedback was not: ${fb.error}`);
+          setBusy(false);
+          return;
+        }
       }
       logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: spares.length } });
       onSaved?.('saved', ucn);
