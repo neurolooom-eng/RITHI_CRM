@@ -190,6 +190,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
   without it, large loads are just slower.
 
+### Migrations to run (Supabase SQL editor)
+- **`0032_call_state_by_entry.sql`** (apply bundle: `call_requests`) — the call's
+  status now comes from the latest **visit entry** (by entry timestamp), not the
+  latest visit date, and "Solved - Report Pending" no longer reads as Solved.
+  Until it is run, a back-dated visit can still win and a report-pending call
+  drops off Pending Calls.
+
 ### Open items & questions
 - **User Master data + engineer logins** — directory infra is done and `0004`
   is now **applied** (via the `user_directory` bundle);

@@ -571,9 +571,15 @@ export async function sbEngineerNames(): Promise<string[]> {
 }
 
 // ---- reports (Reporting-N equivalent) --------------------------------------
-// Latest visit for a UCN (reports is history; ucn is no longer unique).
+// `reports` is the visit HISTORY (one row per visit, `ucn` is not unique) and
+// has no created_at. Two different orderings, on purpose:
+//   • the LATEST visit — what the call's status comes from — is the latest
+//     ENTRY: `updated_at` (written when the visit is entered) desc, id desc.
+//     The same rule the database uses (0032_call_state_by_entry.sql).
+//   • the register below lists the history by VISIT DATE, which is how it
+//     reads as a list.
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(errMsg(error));
   return { row: data ?? null };
 }
@@ -592,7 +598,7 @@ export async function queryReports(filter: ReportFilter, offset = 0, limit = 100
 
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -605,7 +611,7 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
-  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
+  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   return data ?? null;
 }
 
@@ -926,7 +932,7 @@ export async function listStockTransfers(limit = 1000): Promise<Record<string, u
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
 export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) return [];
   return data ?? [];
 }

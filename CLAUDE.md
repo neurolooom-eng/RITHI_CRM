@@ -70,8 +70,14 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 ## Gotchas
 
 - `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
-  It has `visit_at` and `updated_at` — there is **no `created_at`**; order by
-  `visit_at desc nulls last, id desc`.
+  It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
+  orderings, deliberately: a **list** of visits reads by `visit_at desc nulls
+  last, id desc`, but the **latest** visit (what a call's status comes from) is
+  the latest ENTRY — `updated_at desc, id desc`, matching
+  `sync_call_last_visit()` in `0032_call_state_by_entry.sql`.
+- A call is **Unattended** only while it has no visit row; after that its status
+  is the latest entry's. `calls.open_state` tests unsolved and report-pending
+  **before** `solved%`, or "Solved - Report Pending" would read as Solved.
 - The Supabase anon/publishable key in `src/lib/supabase.ts` is public by design;
   access is enforced by RLS. Never ship the service_role key.
 - `script.google.com` is blocked from the sandbox's outbound proxy, so the Apps
