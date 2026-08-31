@@ -14,3 +14,13 @@ create or replace function auth.email() returns text language sql stable securit
 create or replace function auth.role() returns text language sql stable as $$ select 'authenticated'::text $$;
 do $$ begin create role authenticated; exception when duplicate_object then null; end $$;
 do $$ begin create role anon; exception when duplicate_object then null; end $$;
+
+-- Supabase grants `authenticated` and `anon` blanket DML on `public` and leaves
+-- RLS as the gate; a migration only adds a grant for something it creates
+-- outside that default (a view, say). Without the same default here, a test
+-- running `set local role authenticated` fails on "permission denied for table
+-- reports" — a harness artefact that says nothing about the policy under test.
+-- Set BEFORE the migrations run so every table they create picks it up.
+alter default privileges in schema public grant all on tables to authenticated, anon;
+alter default privileges in schema public grant all on sequences to authenticated, anon;
+grant usage on schema public to authenticated, anon;

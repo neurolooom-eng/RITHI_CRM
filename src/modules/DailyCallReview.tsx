@@ -72,6 +72,8 @@ export function DailyCallReview() {
     { total: 0, byStatus: {}, effects: 0 },
   );
   const [lastSync, setLastSync] = useState('');
+  // True when the database predates the report context (0047/0048).
+  const [stale, setStale] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to run the daily review.' },
   );
@@ -120,7 +122,14 @@ export function DailyCallReview() {
       setMore(page.length === PAGE);
       setApplied(f);
       setLastSync(new Date().toISOString());
-      setMsg(null);
+      // A register from before 0047/0048 has no report columns at all. Left
+      // alone that reads as "no visit reported yet" on every call, which is
+      // indistinguishable from a call nobody has attended — so say what it is.
+      const stale = page.length > 0 && page[0].visit_details === undefined;
+      setStale(stale);
+      setMsg(stale
+        ? { tone: 'info', text: 'The visits, spares consumed, software version and product age are not in this database yet — run supabase/apply/daily_review.sql, then refresh.' }
+        : null);
       // The stage counters cover the WHOLE filtered set, not the page shown.
       void countCallReviews(f).then(setCounts).catch(() => { /* counters stay as they were */ });
     } catch (e) {
@@ -394,6 +403,7 @@ export function DailyCallReview() {
 
       <ReviewDrawer
         row={open}
+        stale={stale}
         editable={editable}
         reviewer={user?.fullName || user?.email || ''}
         onClose={() => setOpen(null)}
@@ -409,9 +419,10 @@ export function DailyCallReview() {
 // are previewed live from the same rules the database applies on save.
 // ---------------------------------------------------------------------------
 function ReviewDrawer({
-  row, editable, reviewer, onClose, onSaved,
+  row, stale, editable, reviewer, onClose, onSaved,
 }: {
   row: ReviewRow | null;
+  stale: boolean;
   editable: boolean;
   reviewer: string;
   onClose: () => void;
@@ -514,7 +525,8 @@ function ReviewDrawer({
         <div className="dccr-stage-head">
           <h3>From the report</h3>
           <span className="dccr-stage-date">
-            {ctx.visit_count ? `${ctx.visit_count} visit${ctx.visit_count === 1 ? '' : 's'}` : 'no visit reported yet'}
+            {stale ? 'not in this database yet'
+              : ctx.visit_count ? `${ctx.visit_count} visit${ctx.visit_count === 1 ? '' : 's'}` : 'no visit reported yet'}
           </span>
         </div>
         <div className="dccr-fields">
@@ -532,13 +544,17 @@ function ReviewDrawer({
           <label className="field-label">Visit Details</label>
           {ctx.visit_details
             ? <pre className="dccr-visits">{ctx.visit_details}</pre>
-            : <div className="muted">No visit has been reported against this call yet.</div>}
+            : <div className="muted">{stale
+                ? 'Run supabase/apply/daily_review.sql to bring the visits onto the review.'
+                : 'No visit has been reported against this call yet.'}</div>}
         </div>
         <div style={{ marginTop: 12 }}>
           <label className="field-label">Spares Consumed{ctx.spares_count ? ` (${ctx.spares_count})` : ''}</label>
           {ctx.spares_consumed
             ? <div className="dccr-spares">{ctx.spares_consumed}</div>
-            : <div className="muted">No spare booked against this call.</div>}
+            : <div className="muted">{stale
+                ? 'Run supabase/apply/daily_review.sql to bring the consumption onto the review.'
+                : 'No spare booked against this call.'}</div>}
         </div>
       </div>
 
