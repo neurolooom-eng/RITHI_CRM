@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.9',
+    date: '2026-08-30',
+    title: 'Stores Incharge can open Pending Dispatch',
+    changes: [
+      'The Pending Dispatch screen was missing for Stores Incharge \u2014 the role that actually does the dispatching. It is granted now, along with the Spare Requests register so Stores can see what is coming.',
+      'Needs migration 0032_stores_sees_pending_dispatch.sql (apply bundle: Spare_1.sql). An administrator can also tick it under Roles & Permissions at any time.',
+    ],
+  },
+  {
     version: '0.8.15',
     date: '2026-08-31',
     title: 'User Master: one Edit, one Save',

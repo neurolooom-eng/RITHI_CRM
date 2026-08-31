@@ -349,6 +349,21 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 15* (`0032_stores_sees_pending_dispatch.sql`): **Stores Incharge
+    could not open Pending Dispatch.** 0027 granted `mod:/spare-dispatch` only
+    to roles whose stored list already held `spare.dispatch` — one condition
+    too many, since a role's list is editable in Roles & Permissions, so any
+    role re-saved or trimmed came out of that migration without the screen
+    while still being the role that dispatches.
+    Granted by ROLE now as well (the way `0020_stock_transfer.sql` does it),
+    OR'd with the action, plus the spare register so Stores can see what is
+    coming. Every clause appends only, so an admin's other edits survive.
+    ⚠️ **The wider trap:** `0008_rbac_enforcement.sql` seeds each role with a
+    HARD-CODED module list, and a stored `app_roles` row wins outright over the
+    client defaults (`permsForRole`). So **every new module is invisible to
+    every role until a migration grants it** — this has now bitten for
+    handstock (0023), stock transfer (0020) and dispatch (0027/0032). Worth
+    making the grant part of adding a module rather than a follow-up fix.
   - *Phase 14* (`0031_pending_dispatch_live_stage.sql`): **the dispatch queue
     computes the stage instead of trusting the column.**
     Reported symptom: Spare Requests showed three spares at Stores while
