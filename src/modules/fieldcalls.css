@@ -306,3 +306,7 @@
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
 }
+
+/* Consumption lines stay editable until the report is saved. */
+.rep-spare-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rep-spare-row .spare-qty { width: 90px; }
