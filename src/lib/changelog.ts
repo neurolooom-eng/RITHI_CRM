@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.54',
+    version: '0.8.55',
     date: '2026-08-31',
     title: 'Data-integrity hardening for regulated use',
     changes: [
@@ -25,13 +25,24 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.53',
+    version: '0.8.54',
     date: '2026-08-31',
     title: 'Software Validation package (Admin)',
     changes: [
       'New Admin → Software Validation page: the computer-system validation package for the software as used in the medical-device QMS — validation plan, a compliance checklist mapped to FDA CSA, ISO/TR 80002-2, GAMP 5 and 21 CFR Part 11, User and System Requirements, Architecture and Detailed Design, an ISO 14971 risk assessment, a software FMEA (S/O/D/RPN), a 21 CFR Part 11 assessment, supplier assessments (Supabase / GitHub / Resend), an IQ/OQ/PQ test protocol, a requirements traceability matrix and a Validation Summary Report template. Print the open tab or the whole package.',
       'A built-in execution tracker records each test case’s result (Pass/Fail, actual result, tester) in the database rather than on paper — QA/admins record, everyone can read.',
       'It is a DRAFT for QA to review, approve and execute — it does not itself assert a validated state. Needs a database script run once (validation_results.sql) for the execution tracker.',
+    ],
+  },
+  {
+    version: '0.8.53',
+    date: '2026-08-31',
+    title: 'The review now finds the visits and the spares',
+    changes: [
+      'A call could show its visits and consumed spares on the Field Call view and yet read “no visit reported yet” and “no spare booked against this call” in its Daily Review. The review was looking them up by UC Number, but a visit and a consumption belong to a call by its Call Number — the same association the Field Call view’s own panels use. Both are now matched by Call Number (or the UCN, for a call that has no Call Number), so what the reviewer sees is what the call actually has.',
+      'The Software Version and the Visit Details on the review come from those same rows, so they were blank for the same reason and are now filled.',
+      'And if the database has not had the review script run against it yet, the review says so plainly instead of showing every call as though nobody had ever attended it.',
+      'Needs a database script run once (daily_review.sql).',
     ],
   },
   {
