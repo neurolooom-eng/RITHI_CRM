@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.19',
+    date: '2026-08-31',
+    title: 'View as shows the person’s real role',
+    changes: [
+      '“View as” used to preview everyone as an engineer, so a Hotline or Coordinator looked like they had no access and an empty register. It now previews each user with their ACTUAL role — the list and banner show the role, and search covers role too.',
+    ],
+  },
+  {
     version: '0.8.18',
     date: '2026-08-31',
     title: 'Hotline & office roles see everything; spare details on a call',
