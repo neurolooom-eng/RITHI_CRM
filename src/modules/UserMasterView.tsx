@@ -6,7 +6,7 @@ import { ROLES, ACTIONS, permsForRole } from '../lib/rbac';
 import { csvExport, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
-  listDirectory, saveDirectoryRow, updateProfile, sbAdminCreateUser, userActivity,
+  listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, userActivity,
   supabaseConfigured, type DirectoryRow, type UserActivity,
 } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
@@ -160,6 +160,19 @@ export function UserMasterView() {
     setEdit(null); setCloneSrc(null); setMkLogin(false);
     setMsg({ tone: 'ok', text: `${isNew ? 'Added' : 'Saved'} ${row.name.trim()}.${loginNote || (r.note ? ` They ${r.note}.` : '')}` });
     await load();
+  };
+
+  // Delete a User Master (directory) entry — for a wrong/duplicate row. The
+  // login and history are untouched; a leaver is handled with 🔒 Disable.
+  const removeRow = async (r: DirectoryRow) => {
+    if (r.id === 0) return;
+    if (!confirm(`Delete ${r.name || r.email || 'this user'} from the User Master?\n\nThis removes their directory entry only. Their login (if any) and all history are kept — use 🔒 Disable login to lock out a leaver.`)) return;
+    setBusy(true);
+    const res = await deleteDirectoryRow(r.id);
+    logAudit({ action: 'user.directory.delete', target: r.name || r.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
+    setBusy(false);
+    if (res.ok) { setViewRow(null); setMsg({ tone: 'ok', text: `Deleted ${r.name || r.email} from the User Master.` }); await load(); }
+    else setMsg({ tone: 'error', text: res.error ?? 'Could not delete that user.' });
   };
 
   // Enable / disable a person's sign-in login (keeps all their history).
@@ -499,6 +512,7 @@ export function UserMasterView() {
                     {prof.active === false ? '🔓 Enable login' : '🔒 Disable login'}
                   </button>
                 )}
+                {editable && <button className="btn btn-sm btn-danger" disabled={busy} title="Remove this User Master entry" onClick={() => void removeRow(r)}>🗑 Delete</button>}
               </div>
               {prof?.active === false && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 8 }}><span>🔒 This login is <b>disabled</b> — they cannot sign in, but all their records are kept.</span></div>}
               {!prof && <div className="muted rep-hint">This person has not signed in yet, so there is no login to set permissions on, clone, or report data for. Set their role above; it applies when they first sign in.</div>}

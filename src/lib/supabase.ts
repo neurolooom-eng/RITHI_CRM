@@ -565,6 +565,17 @@ export async function saveDirectoryRow(
   return { ok: false, error: /permission|policy|administrator/i.test(m) ? `${m} — this needs the “Manage users” permission.` : m };
 }
 
+// Remove a User Master (directory) row. The person's login and history are not
+// touched — use the disable-login toggle for a leaver; this is for a wrong /
+// duplicate directory entry.
+export async function deleteDirectoryRow(id: number): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.from('user_directory').delete().eq('id', id);
+  if (!error) return { ok: true };
+  const m = errMsg(error);
+  return { ok: false, error: /permission|policy|administrator/i.test(m) ? `${m} — this needs the “Manage users” permission.` : m };
+}
+
 // First sign-in: turn the User Master row into a real profile, with the role it
 // carries (0033_user_directory_role.sql). Older projects have not applied that
 // migration yet, so a missing function is not an error here — the caller falls

@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.24',
+    date: '2026-08-31',
+    title: 'Delete a User Master entry',
+    changes: [
+      'Open a person’s record and 🗑 Delete removes their User Master (directory) entry — for a wrong or duplicate row. Their login and history are untouched; to lock out a leaver keep using 🔒 Disable login (Inactive).',
+    ],
+  },
+  {
     version: '0.8.23',
     date: '2026-08-31',
     title: 'Disable a leaver’s login; New User & Clone do it all in one form',
