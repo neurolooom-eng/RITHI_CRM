@@ -71,7 +71,7 @@ const MODULES = {
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
             '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
-            '0035_data_view_all.sql', '0037_call_read_scale.sql', '0038_spare_consumption_scope.sql'],
+            '0035_data_view_all.sql', '0037_call_read_scale.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -146,7 +146,9 @@ const MODULES = {
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
-    files: ['0023_handstock.sql', '0039_material_returns.sql'],
+    // 0038 scopes spare_consumption, whose engineer_email column 0023 adds —
+    // so it belongs here, not in rbac, which applies before this module.
+    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -203,6 +205,8 @@ const MODULES = {
       '0028_dc_number_is_stock_out.sql',
       '0031_pending_dispatch_live_stage.sql',
       '0032_stores_sees_pending_dispatch.sql',
+      '0033_rm_approves_own_team.sql',
+      '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
     ],
   },
