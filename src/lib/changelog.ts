@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.41',
+    date: '2026-08-31',
+    title: 'The database scripts can be re-run without failing',
+    changes: [
+      'Re-running HandStock_X.sql or the consolidated all.sql on a project that already had Material Returns failed with “cannot drop columns from view”. The hand-stock views are now rebuilt rather than replaced, so either file can be run again safely whatever has already been applied.',
+      'The consolidated all.sql also failed part-way on a fresh project (“column engineer_email does not exist”) because the consumption-visibility rule was applied before the column it reads was added. It no longer depends on that ordering.',
+    ],
+  },
+  {
     version: '0.8.40',
     date: '2026-08-31',
     title: 'MRN: Good + Defective together cannot exceed what you hold',

@@ -1507,6 +1507,12 @@ create policy reports_read on public.reports for select
 -- handstock_movements views are security_invoker, so they inherit this.
 -- ===========================================================================
 
+-- The email this policy matches on is added by 0023_handstock.sql, which the
+-- consolidated file applies long AFTER this one — so add it here too rather
+-- than depend on an ordering that does not hold. Idempotent either way.
+alter table public.spare_consumption
+  add column if not exists engineer_email text default '';
+
 drop policy if exists cons_read on public.spare_consumption;
 create policy cons_read on public.spare_consumption for select
   using (
@@ -4837,7 +4843,19 @@ grant execute on function public.part_code(text)     to authenticated;
 -- every bit as much stock in the engineer's hands. They count, dated by the
 -- best timestamp the row has.
 -- ---------------------------------------------------------------------------
-create or replace view public.handstock_movements as
+-- These three are REBUILT, not replaced. `create or replace view` may not drop
+-- a column, so once MRN (0039_material_returns.sql) has added `returned` to
+-- the balance, replaying this file with the older column list fails with
+--   ERROR 42P16: cannot drop columns from view
+-- — and replaying it is exactly what re-running the bundle does. Dropping
+-- first makes this file re-runnable whatever shape the views are currently in;
+-- nothing is lost, since all three are derived. Dependants first:
+-- engineer_stock reads the balance, the balance reads the movements.
+drop view if exists public.engineer_stock;
+drop view if exists public.handstock_balance;
+drop view if exists public.handstock_movements;
+
+create view public.handstock_movements as
 -- 1. Stock out from Stores (+)
 select
   'IN'::text                                        as direction,
@@ -4928,7 +4946,7 @@ join public.stock_transfers t on t.uid = l.transfer_uid;
 -- handed on than this module has seen issued — stock carried from before the
 -- register existed, or a spare taken without a DC.
 -- ---------------------------------------------------------------------------
-create or replace view public.handstock_balance as
+create view public.handstock_balance as
 select
   m.engineer_key,
   max(m.engineer)                                                       as engineer,
@@ -4960,7 +4978,7 @@ group by m.engineer_key, m.part_code;
 -- NB: definer-rights functions read this view, so it stays as 0020 created it
 -- — NOT security_invoker.
 -- ---------------------------------------------------------------------------
-create or replace view public.engineer_stock as
+create view public.engineer_stock as
 select b.engineer_key as engineer, b.part, b.on_hand as qty
   from public.handstock_balance b;
 

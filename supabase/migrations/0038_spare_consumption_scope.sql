@@ -14,6 +14,12 @@
 -- handstock_movements views are security_invoker, so they inherit this.
 -- ===========================================================================
 
+-- The email this policy matches on is added by 0023_handstock.sql, which the
+-- consolidated file applies long AFTER this one — so add it here too rather
+-- than depend on an ordering that does not hold. Idempotent either way.
+alter table public.spare_consumption
+  add column if not exists engineer_email text default '';
+
 drop policy if exists cons_read on public.spare_consumption;
 create policy cons_read on public.spare_consumption for select
   using (

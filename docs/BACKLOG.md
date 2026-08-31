@@ -132,6 +132,16 @@ preflight their prerequisites, and are idempotent.
   `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
   module says so and stays empty, and the report form has no stock to consume
   from.
+- ⚠️ **An apply bundle must survive being re-run over a LATER state, not just
+  a fresh one.** `0023_handstock.sql` used `create or replace view`, which may
+  not drop a column — so once `0039` had added `returned` to the balance, every
+  re-run of `HandStock_X.sql` (and of `all.sql`, which carries it) died on
+  `42P16: cannot drop columns from view`. The views are dropped and rebuilt
+  now. Separately, `all.sql` applied `0038`'s consumption-visibility rule from
+  the rbac module, long before `0023` added the `engineer_email` it reads, so a
+  FRESH project failed at that line; `0038` adds the column itself now. Both
+  were found by applying `all.sql` twice in a row on a throwaway Postgres —
+  worth doing after any change to a bundled migration.
 - **`0039_material_returns.sql`** — MRN (Material Return Note): the return
   register, its `MRN-YYMM-NNNN` numbering, the guard that stops an engineer
   returning more than they hold, and the fifth hand-stock movement that
