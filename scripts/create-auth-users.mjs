@@ -126,14 +126,16 @@ async function provision(person) {
   }
 
   // Give them a profile row so the app has a role for them immediately.
+  // ignoreDuplicates: never overwrite an existing profile — that would reset
+  // an admin (devika, service.almsind, …) back to 'engineer' on a re-run.
   if (userId) {
     const { error: pErr } = await admin.from('profiles').upsert({
       id: userId,
       email,
-      full_name: person.name || '',
+      full_name: person.name || '',   // exact name, as given
       designation: person.designation || '',
       role: 'engineer',
-    }, { onConflict: 'id' });
+    }, { onConflict: 'id', ignoreDuplicates: true });
     if (pErr) console.warn(`  profile upsert failed for ${email}: ${pErr.message}`);
   }
 
