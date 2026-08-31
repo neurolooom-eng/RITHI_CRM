@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.49',
+    date: '2026-08-31',
+    title: 'Notification bell',
+    changes: [
+      'A bell in the top bar tells you when a call is allotted to you or a spare you requested is dispatched, with an unread count. Open it to see recent notifications; click one to jump straight to it, or mark them all read.',
+      'Needs a database script run once (notifications.sql).',
+    ],
+  },
+  {
     version: '0.8.48',
     date: '2026-08-31',
     title: 'SLA targets, editable — and flagged on the Dashboard',

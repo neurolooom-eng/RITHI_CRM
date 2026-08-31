@@ -7,6 +7,7 @@ import { fmtDateTime } from '../../lib/format';
 import { ViewAsControl, ViewAsBanner } from './ViewAs';
 import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
 import { useModuleCounts, countLabel } from '../../lib/counts';
+import { NotificationBell } from './NotificationBell';
 import './layout.css';
 
 interface NavItem {
@@ -309,6 +310,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           )}
           <ViewAsControl />
+          <NotificationBell />
           <ThemeMenu />
 
           <div className="header-user">

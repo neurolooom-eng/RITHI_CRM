@@ -113,6 +113,14 @@ const MODULES = {
     needs: ['profiles', 'isAdmin'],
     files: ['0042_knowledge_base.sql'],
   },
+  notifications: {
+    title: 'Notifications',
+    blurb: ['Per-user in-app notifications (notifications): a bell that fires when a call',
+            'is allotted to an engineer or a spare they requested is dispatched. Read/',
+            'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
+    needs: ['profiles'],
+    files: ['0045_notifications.sql'],
+  },
   audit: {
     title: 'Audit Log',
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
@@ -344,7 +352,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
