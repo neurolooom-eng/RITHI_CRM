@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.18',
+    date: '2026-08-31',
+    title: 'Hotline & office roles see everything; spare details on a call',
+    changes: [
+      'Hotline, NSM, Commercial, Spare Coordinator, Stores Incharge and Tally Coordinator now see every call (they are not tied to an allocation), and can act per their role — no more empty registers or greyed “New Call” for them. Engineers, RMs and RGMs stay scoped as before.',
+      'A role whose permission list was left blank now falls back to its built-in defaults instead of being left with no access. (Run reset_role_perms.sql once to repair roles already saved blank, and 0034_office_roles_see_all.sql for the server-side visibility.)',
+      'On a call, each requested spare now shows its OWN stage (one line can be at Stores while another is still at RM Approval), and clicking a spare row opens its full detail — approvals, DC number, courier and status.',
+    ],
+  },
+  {
     version: '0.8.17',
     date: '2026-08-31',
     title: 'A Profile page, and adding users from inside the app',

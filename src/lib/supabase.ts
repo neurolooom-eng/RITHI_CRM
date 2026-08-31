@@ -998,9 +998,12 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
   if (error) return [];
   return (data ?? []).map((r) => {
     const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
-    // Same flattening as the register: the request owns the workflow columns.
+    // Approvals / dispatch are PER LINE (0016), so the line's workflow columns
+    // must win over the request-header roll-up — otherwise every line of a
+    // request shows the header's single stage. Spread the header first, then the
+    // line, so the line's own rm/commercial/nsm/stores fields take precedence.
     return {
-      ...line, ...req, part: line.part, qty: line.qty,
+      ...req, ...line, part: line.part, qty: line.qty,
       uid: req?.uid, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at,
     };
   });

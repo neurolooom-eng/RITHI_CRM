@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react';
 import { listUsers, dataConfigured } from './sheets';
 import { useAuth } from './auth';
+import { roleSeesAllCalls } from './rbac';
 
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
@@ -63,6 +64,14 @@ export function useAccessScope(): AccessScope {
     // Administrators and super admins see every call — unless they are actively
     // previewing as someone else, in which case we scope to that person.
     if (!viewAs && can('manage-users')) {
+      setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: identity.fullName });
+      return;
+    }
+
+    // Office / coordination roles (Hotline, NSM, Commercial, Spare Coordinator,
+    // Stores, Tally) are not tied to call allocations — they see every call.
+    // Applies in "view as" preview too (identity is the previewed user).
+    if (roleSeesAllCalls(identity.rbacRole)) {
       setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: identity.fullName });
       return;
     }

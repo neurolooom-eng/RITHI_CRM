@@ -136,5 +136,20 @@ export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
 );
 void ADMIN_MODULES;
 
-export const permsForRole = (role: string, config: Record<string, string[]>): string[] =>
-  config[role] ?? DEFAULT_PERMS[role] ?? DEFAULT_PERMS.engineer;
+// Roles that see every call (office / coordination roles) rather than being
+// scoped to their own or their reporting sub-tree's calls. Engineers, RMs and
+// RGMs stay scoped; admins see all via `manage-users`.
+export const SEE_ALL_ROLES = new Set([
+  'hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator',
+]);
+export const roleSeesAllCalls = (role?: string): boolean => SEE_ALL_ROLES.has((role ?? '').toLowerCase());
+
+// A role's permissions. An EMPTY stored list means "not configured", so fall
+// back to the code defaults rather than leaving the role with no access — this
+// mirrors the server's has_perm() fallback and stops a blank app_roles row from
+// silently disabling a whole role.
+export const permsForRole = (role: string, config: Record<string, string[]>): string[] => {
+  const stored = config[role];
+  if (stored && stored.length) return stored;
+  return DEFAULT_PERMS[role] ?? DEFAULT_PERMS.engineer;
+};
