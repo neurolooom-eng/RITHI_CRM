@@ -522,6 +522,61 @@ export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]>
   }
   return out;
 }
+// ---- User Master maintenance (admin) ---------------------------------------
+// The directory rows as themselves (not remapped to sheet headers), so the User
+// Master screen can edit them. `role` (0033) is the role the person is granted
+// the first time they sign in.
+export interface DirectoryRow {
+  id: number; name: string; email: string; gmail: string; designation: string;
+  reporting_manager: string; regional_manager: string; region: string;
+  role: string; validity: boolean;
+  address: string; city: string; state: string; phone: string;
+}
+
+const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
+  id: Number(r.id),
+  name: String(r.name ?? ''), email: String(r.email ?? ''), gmail: String(r.gmail ?? ''),
+  designation: String(r.designation ?? ''),
+  reporting_manager: String(r.reporting_manager ?? ''), regional_manager: String(r.regional_manager ?? ''),
+  region: String(r.region ?? ''), role: String(r.role ?? ''), validity: r.validity !== false,
+  address: String(r.address ?? ''), city: String(r.city ?? ''), state: String(r.state ?? ''),
+  phone: String(r.phone ?? ''),
+});
+
+export async function listDirectory(limit = 5000): Promise<DirectoryRow[]> {
+  const { data, error } = await must().from('user_directory').select('*').order('name').limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map(dirRow);
+}
+
+// Add a person, or save an edit. `id` null adds.
+export async function saveDirectoryRow(
+  id: number | null, patch: Partial<DirectoryRow>,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = must();
+  const row: Record<string, unknown> = { ...patch };
+  delete row.id;
+  const { error } = id == null
+    ? await c.from('user_directory').insert(row)
+    : await c.from('user_directory').update(row).eq('id', id);
+  if (!error) return { ok: true };
+  const m = errMsg(error);
+  // The directory is admin-only to write (0004/0008, and 0030's guard).
+  return { ok: false, error: /permission|policy|administrator/i.test(m) ? `${m} — this needs the “Manage users” permission.` : m };
+}
+
+// First sign-in: turn the User Master row into a real profile, with the role it
+// carries (0033_user_directory_role.sql). Older projects have not applied that
+// migration yet, so a missing function is not an error here — the caller falls
+// back to the bare profile it already used.
+export async function ensureMyProfile(): Promise<Profile | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data, error } = await c.rpc('ensure_my_profile');
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row ?? null) as Profile | null;
+}
+
 export async function sbDirectoryNames(): Promise<string[]> {
   return distinctColumn('user_directory', 'name');
 }
@@ -1133,7 +1188,12 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
   if (!user) return null;
   const { data } = await c.from('profiles').select('*').eq('id', user.id).maybeSingle();
   if (data) return data as Profile;
-  // No profile row yet — fall back to a minimal one from the auth identity.
+  // No profile row yet: build one from this person's User Master row, so they
+  // arrive with the role they were given rather than as a bare engineer (and
+  // so they show up in User Access at all).
+  const made = await ensureMyProfile();
+  if (made) return made;
+  // Nothing to build from — the minimal identity, as before.
   return { id: user.id, email: user.email ?? '', full_name: user.email ?? '', role: 'engineer' };
 }
 // All profiles the current user may see (admins: everyone; others: themselves).
