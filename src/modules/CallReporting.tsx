@@ -52,6 +52,11 @@ const WORK_FIELDS: WorkField[] = [
 // is Solved - Report Completed, and never mandatory.
 const SIGNOFF_FIELDS = ['Name', 'Contact Number', 'Designation'];
 
+// Every report field a report can carry, in spec order — so the Reports
+// register can offer them ALL as columns (⚙), even the ones the currently
+// loaded rows happen not to have filled.
+export const REPORT_FIELD_KEYS: string[] = [...WORK_FIELDS.map((f) => f.key), ...SIGNOFF_FIELDS];
+
 // Customer-feedback questions (feedback table), filtered by call type.
 type FbRule = 'ALL' | 'INSTALLATION' | 'FIELD' | 'NOT_INSTALLATION';
 type FbAnswer = 'rating' | 'yesno' | 'date' | 'text';

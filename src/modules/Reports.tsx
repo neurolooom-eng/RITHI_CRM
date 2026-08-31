@@ -5,6 +5,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { queryReports, supabaseConfigured, type ReportFilter } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
+import { REPORT_FIELD_KEYS } from './CallReporting';
 
 // ===========================================================================
 // REPORTS — the visit history (one row per visit) from the Supabase `reports`
@@ -116,11 +117,15 @@ export function Reports() {
     const base = COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
     const seen = new Set(base.map((b) => b.key));
     const extra: { key: string; header: string }[] = [];
-    // Scan every loaded row (not just the first page) so a field that only
-    // appears on later reports still shows up in the ⚙ column list.
+    const add = (k: string) => { if (k && !seen.has(k)) { seen.add(k); extra.push({ key: k, header: k }); } };
+    // Start from the full report schema so EVERY report field is offered as a
+    // column, even when the loaded rows didn't fill it (nothing is trimmed to
+    // just what the current page happens to contain)…
+    REPORT_FIELD_KEYS.forEach(add);
+    // …then add any further keys actually present in the data (custom / legacy).
     rows.forEach((r) => {
       const d = (r.data as Record<string, unknown>) ?? {};
-      Object.keys(d).forEach((k) => { if (k && !seen.has(k)) { seen.add(k); extra.push({ key: k, header: k }); } });
+      Object.keys(d).forEach(add);
     });
     return [...base, ...extra];
   }, [rows]);

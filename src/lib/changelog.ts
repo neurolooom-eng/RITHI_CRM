@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.36',
+    date: '2026-08-31',
+    title: 'Reports lists every report field as a column',
+    changes: [
+      'The Reports ⚙ Columns list now comes from the full report field spec, so every field a report can carry is available as a column — even when the currently loaded rows didn’t fill it. Nothing is trimmed to just what the current page contains.',
+    ],
+  },
+  {
     version: '0.8.35',
     date: '2026-08-31',
     title: 'Spare consumption & hand stock scoped to you and your team',
