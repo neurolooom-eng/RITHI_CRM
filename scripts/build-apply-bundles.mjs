@@ -89,6 +89,7 @@ const MODULES = {
       '0014_call_state_denorm.sql',
       '0015_call_number.sql',
       '0024_call_request_extra.sql',
+      '0032_call_state_by_entry.sql',
     ],
   },
   audit: {

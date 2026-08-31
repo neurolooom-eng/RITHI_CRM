@@ -78,6 +78,10 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger where tgname = 'reports_touch_call'))),
     (13, 'call_requests: call number', 'next_direct_call_number() + the CL series (0015)',
         to_regprocedure('public.next_direct_call_number(text)') is not null),
+    (13, 'call_requests: status by entry', 'the latest visit picked by entry date (0032)',
+        exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                 where n.nspname = 'public' and p.proname = 'sync_call_last_visit'
+                   and pg_get_functiondef(p.oid) ilike '%order by updated_at%')),
     (14, 'audit', 'audit_log table (0009_audit_log)',
         to_regclass('public.audit_log') is not null),
     (15, 'handstock', 'handstock_balance + handstock_movements, and engineer_stock over them (0023)',

@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.11',
+    date: '2026-08-31',
+    title: 'Call Status follows the latest visit entered',
+    changes: [
+      'A call reads as Unattended until a visit is entered against it \u2014 after that its status is the status of the LATEST VISIT ENTRY, and latest now means most recently entered, not the latest visit date. A visit entered today for last week\u2019s work no longer loses to an older entry someone dated further ahead.',
+      'A call left at \u201cSolved - Report Pending\u201d now shows as Report pending and stays in Pending Calls; it used to read as Solved and disappear.',
+      'Needs migration 0032 (apply bundle: call_requests) to take effect on existing calls.',
+    ],
+  },
+  {
     version: '0.8.10',
     date: '2026-08-31',
     title: 'Call Status and the work-details switch sit together',
