@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.34',
+    version: '0.8.35',
     date: '2026-08-31',
     title: 'Warranty and Contract registers, live — with the entry as the parent record',
     changes: [
@@ -24,6 +24,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
       'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
       'Both tabs work like the Field Call Register: opens from cache with a “synced X ago” stamp, ↻ Refresh, Load more, and Export CSV.',
+    ],
+  },
+  {
+    version: '0.8.34',
+    date: '2026-08-31',
+    title: 'Wrap-text toggle on every table; Reports shows every field',
+    changes: [
+      'Every table has a “Wrap: on/off” button (bottom-right). Text wrapping is on by default so long cells stay fully readable; turn it off for compact single-line rows. The choice is remembered per table.',
+      'Reports: the ⚙ Columns list now includes every field found across all loaded reports, not just the first page — nothing gets trimmed from the list.',
     ],
   },
   {
