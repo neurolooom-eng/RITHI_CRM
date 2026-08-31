@@ -193,6 +193,7 @@ const MODULES = {
       '0028_dc_number_is_stock_out.sql',
       '0031_pending_dispatch_live_stage.sql',
       '0032_stores_sees_pending_dispatch.sql',
+      '0036_spare_drop.sql',
     ],
   },
 };

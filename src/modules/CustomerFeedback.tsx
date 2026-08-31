@@ -17,15 +17,21 @@ const CACHE_KEY = 'customerFeedback';
 type Row = Record<string, unknown> & { id: string };
 const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
 
-const COLS = [
+// Base columns; the per-question feedback columns (fb::<q>) are discovered from
+// the data and appended, so every field the engineer filled is its own column.
+const BASE_COLS = [
   { key: 'created_at', header: 'Date' },
   { key: 'call_number', header: 'Call Number' },
   { key: 'ucn', header: 'UCN' },
   { key: 'party_name', header: 'Party' },
   { key: 'product_name', header: 'Product' },
   { key: 'engineer', header: 'Engineer' },
-  { key: 'answers_summary', header: 'Feedback' },
 ];
+// Turn a fb::<question> key into a readable header.
+const fbHeader = (k: string) => {
+  const q = k.replace(/^fb::/, '').replace(/[-_]+/g, ' ').trim();
+  return q.charAt(0).toUpperCase() + q.slice(1);
+};
 
 export function CustomerFeedback() {
   const scope = useAccessScope();
@@ -78,22 +84,27 @@ export function CustomerFeedback() {
     return rows.filter((r) => scope.names.has(g(r, 'engineer').trim().toLowerCase()));
   }, [rows, scope]);
 
+  // One column per feedback question actually present in the data.
+  const fbKeys = useMemo(() => {
+    const s = new Set<string>();
+    rows.forEach((r) => Object.keys(r).forEach((k) => { if (k.startsWith('fb::')) s.add(k); }));
+    return [...s].sort();
+  }, [rows]);
+  const allCols = useMemo(() => [...BASE_COLS, ...fbKeys.map((k) => ({ key: k, header: fbHeader(k) }))], [fbKeys]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return scoped;
-    return scoped.filter((r) => COLS.some((c) => g(r, c.key).toLowerCase().includes(q)) || g(r, 'complaint').toLowerCase().includes(q));
-  }, [scoped, search]);
+    return scoped.filter((r) => allCols.some((c) => g(r, c.key).toLowerCase().includes(q)) || g(r, 'complaint').toLowerCase().includes(q));
+  }, [scoped, search, allCols]);
 
-  const columns: Column<Row>[] = COLS.map((c) => ({
-    key: c.key, header: c.header, width: c.key === 'answers_summary' ? 320 : c.key === 'created_at' ? 170 : 140,
-    wrap: c.key === 'answers_summary',
+  const columns: Column<Row>[] = allCols.map((c) => ({
+    key: c.key, header: c.header,
+    width: c.key === 'created_at' ? 170 : c.key.startsWith('fb::') ? 160 : 140,
+    wrap: c.key.startsWith('fb::'),
     ...(c.key === 'created_at' ? { render: (r: Row) => fmtLongDate(r[c.key]) } : {}),
   }));
-  const allFields = useMemo(() => {
-    const ks = new Set<string>();
-    rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id' && k !== 'answers') ks.add(k); }));
-    return [...ks].map((k) => ({ key: k, header: k }));
-  }, [rows]);
+  const allFields = allCols.map((c) => ({ key: c.key, header: c.header }));
 
   return (
     <div>

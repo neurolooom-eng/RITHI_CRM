@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.27',
+    version: '0.8.31',
     date: '2026-08-31',
     title: 'Warranty and Contract registers, live — with the entry as the parent record',
     changes: [
@@ -22,6 +22,41 @@ export const CHANGELOG: ChangeEntry[] = [
       'Your four AppSheet exports (Sale Entry, Warranty Sale Details, Contract Entry, Contract Details) import as they are, in any order, in Settings → Bulk Data Import. Every column is kept, and the repeated header values are folded back into inheritance afterwards.',
       'Warranty and contract on the machine (what a call form fills in) is now maintained by these registers, so the Product Master follows a contract renewal instead of being keyed twice.',
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
+    ],
+  },
+  {
+    version: '0.8.30',
+    date: '2026-08-31',
+    title: 'See every report field — in Reports and on a call',
+    changes: [
+      'Reports: every field you fill on a report is now available as a column (⚙ Columns to show/hide) and is searchable and exportable; clicking a report row opens a drawer with ALL of its fields.',
+      'Call view: each visit in a call\u2019s Visit history is clickable and opens the same report detail drawer.',
+    ],
+  },
+  {
+    version: '0.8.29',
+    date: '2026-08-31',
+    title: 'Customer Feedback — one column per field',
+    changes: [
+      'Customer Feedback now shows every field the engineer filled as its OWN column, instead of one consolidated “Feedback” string. Columns are discovered from the data, so any question that has answers appears; use ⚙ Columns to show/hide, and Export CSV carries them all.',
+    ],
+  },
+  {
+    version: '0.8.28',
+    date: '2026-08-31',
+    title: 'Drop a spare at any stage — Spare Coordinator & Hotline',
+    changes: [
+      'A spare can now be Dropped at ANY open stage (RM Approval, Commercial, NSM or Stores), not just at Stores.',
+      'Dropping is limited to the Spare Coordinator and Hotline Engineer (a new spare.drop permission) — separate from Stores dispatch. The ⊘ Drop button shows on the spare’s row for them at every open stage, and in Pending Dispatch. Needs migration 0036_spare_drop.sql + the permission grant.',
+    ],
+  },
+  {
+    version: '0.8.27',
+    date: '2026-08-31',
+    title: 'Drop a spare Stores isn’t sending',
+    changes: [
+      'Stores can now Drop an approved spare instead of dispatching it (short supply, no longer needed, superseded) — with a reason. It closes as “Dropped”, distinct from a rejection, and no DC is generated.',
+      '⊘ Drop is on the spare’s row in Spare Requests (at the Stores stage) and as a batch action in Pending Dispatch next to Dispatch. Needs the Dispatch permission.',
     ],
   },
   {

@@ -933,6 +933,17 @@ export async function dispatchSpareLines(
   return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
 }
 
+// Stores drops approved lines instead of sending them (short supply / no longer
+// needed). Terminal, not a dispatch — no DC is generated. Needs spare.dispatch
+// (the stage guard checks it because stores_status changes).
+export async function dropSpareLines(lineIds: number[], reason: string, actor: string): Promise<{ ok: boolean; error?: string }> {
+  if (!lineIds.length) return { ok: true };
+  const { error } = await must().from('spare_request_lines').update({
+    stores_status: 'Dropped', dispatch_remarks: reason, dispatched_by: actor, dispatched_at: new Date().toISOString(),
+  }).in('id', lineIds);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // The engineer's delivery address — Address / City / State / Contact from the
 // User Master, which is where it is maintained (0029_engineer_address.sql).
 export interface EngineerAddress { address: string; city: string; state: string; phone: string }
@@ -1084,14 +1095,17 @@ export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Rec
   if (error) throw new Error(error.message);
   return data ?? [];
 }
-// Customer feedback, newest first (flattens the answers jsonb to a summary).
+// Customer feedback, newest first. Each answer in the `answers` jsonb becomes
+// its OWN column (prefixed `fb::<question>`) so every field the engineer entered
+// shows as a separate column rather than one consolidated string.
 export async function listFeedbackRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     const a = (r.answers && typeof r.answers === 'object') ? r.answers as Record<string, unknown> : {};
-    const answers = Object.entries(a).map(([k, v]) => `${k.split('-').pop()}: ${v}`).join(' · ');
-    return { ...r, answers_summary: answers };
+    const flat: Record<string, unknown> = {};
+    Object.entries(a).forEach(([k, v]) => { flat[`fb::${k}`] = v; });
+    return { ...r, ...flat };
   });
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {

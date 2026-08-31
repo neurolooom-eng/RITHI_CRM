@@ -11,7 +11,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
-  deriveStage, buildPatch, receivePatch, actionable, needsReview, trail,
+  deriveStage, buildPatch, receivePatch, dropPatch, actionable, needsReview, trail,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
@@ -432,7 +432,7 @@ const MINE = 'mine'; // pseudo-stage: "needs my action"
 //                  later stages where deciding per OR is allowed.
 type Scope = 'line' | 'or';
 type Pending =
-  | { kind: 'approve' | 'reject'; row: Row; scope: Scope; lines: number }
+  | { kind: 'approve' | 'reject' | 'drop'; row: Row; scope: Scope; lines: number }
   | { kind: 'receive'; row: Row; scope: Scope; lines: number };
 
 export function SpareRequests() {
@@ -545,9 +545,11 @@ export function SpareRequests() {
     const patch =
       formPatch ? { ...formPatch, approval_data: mergeApprovalData(row.approval_data, formPatch) }
       : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
+      : p.kind === 'drop' ? dropPatch(actor, input.reason ?? '')
       : buildPatch(row, p.kind, actor, input.reason ?? '');
     const what = held ? (input.nsm ? 'put on hold' : 'marked in progress')
       : p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
+      : p.kind === 'drop' ? 'dropped'
       : 'acknowledged';
 
     setBusy(true);
@@ -583,7 +585,15 @@ export function SpareRequests() {
   // request is sitting at the same stage; the RM stage never offers it.
   const wfButtons = (row: Row, size = 'btn-sm') => {
     const stage = deriveStage(row);
+    // A spare can be DROPPED at any still-open stage by whoever holds spare.drop
+    // (Spare Coordinator / Hotline), even if the current stage is not theirs.
+    const dropActive = ['RM Approval', 'Commercial', 'NSM', 'Stores'].includes(stage);
+    const dropBtn = (can('spare.drop') && dropActive) ? (
+      <button className={`btn ${size}`} title="Drop this spare — not sent (needs a reason)"
+        onClick={() => setPending({ kind: 'drop', row, scope: 'line', lines: 1 })}>⊘ Drop</button>
+    ) : null;
     if (!actionable(row, can, email)) {
+      if (dropBtn) return <div className="row">{dropBtn}</div>;
       return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
     const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
@@ -598,9 +608,14 @@ export function SpareRequests() {
     // the register would mint a document nobody asked for. This links to the
     // queue, already filtered to the engineer this spare is going to.
     if (stage === 'Stores') return (
-      <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
-        🚚 Dispatch…
-      </button>
+      <div className="row">
+        {can('spare.dispatch') && (
+          <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
+            🚚 Dispatch…
+          </button>
+        )}
+        {dropBtn}
+      </div>
     );
     if (stage === 'Dispatched') return (
       <div className="row">
@@ -613,6 +628,7 @@ export function SpareRequests() {
         <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'approve', row, scope: 'line', lines: 1 })}>✔ Approve</button>
         <button className={`btn ${size}`} onClick={() => setPending({ kind: 'reject', row, scope: 'line', lines: 1 })}>✖ Reject</button>
         {bulk('approve')}
+        {dropBtn}
       </div>
     );
   };
@@ -900,12 +916,13 @@ function DecisionModal({
     ? `${deriveStage(row)} approval — ${per}`
     : kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
     : kind === 'reject' ? `Reject ${per} — ${deriveStage(row)}`
+    : kind === 'drop' ? `Drop ${per} — not sent`
     : `Acknowledge receipt of ${per}`;
   // Commercial and NSM answer their own form instead of a plain approve.
   const stage = deriveStage(row);
   const onForm = kind === 'approve' && (stage === 'Commercial' || stage === 'NSM');
   const gaps = !onForm ? [] : stage === 'Commercial' ? commercialGaps(com) : nsmGaps(nsm);
-  const blocked = (kind === 'reject' && !reason.trim()) || gaps.length > 0;
+  const blocked = ((kind === 'reject' || kind === 'drop') && !reason.trim()) || gaps.length > 0;
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>
@@ -1037,6 +1054,12 @@ function DecisionModal({
           <label className="rep-field">
             <span className="field-label">Reason for rejection *</span>
             <input className="input" autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this request being rejected?" />
+          </label>
+        )}
+        {kind === 'drop' && (
+          <label className="rep-field">
+            <span className="field-label">Reason for dropping *</span>
+            <input className="input" autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Short supply, no longer needed, superseded…" />
           </label>
         )}
         {kind === 'receive' && (
