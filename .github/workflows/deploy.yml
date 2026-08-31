@@ -37,5 +37,9 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          # Keep the rest of the branch — `preview/<branch>/` folders published
+          # by preview.yml live there, and a default publish would wipe them.
+          # The cost is that superseded (hashed) assets are never pruned.
+          keep_files: true
           # serve assets as-is (no Jekyll processing)
           enable_jekyll: false
