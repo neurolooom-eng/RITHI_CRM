@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.29',
+    date: '2026-08-31',
+    title: 'Customer Feedback — one column per field',
+    changes: [
+      'Customer Feedback now shows every field the engineer filled as its OWN column, instead of one consolidated “Feedback” string. Columns are discovered from the data, so any question that has answers appears; use ⚙ Columns to show/hide, and Export CSV carries them all.',
+    ],
+  },
+  {
     version: '0.8.28',
     date: '2026-08-31',
     title: 'Drop a spare at any stage — Spare Coordinator & Hotline',

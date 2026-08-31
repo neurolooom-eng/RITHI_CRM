@@ -1095,14 +1095,17 @@ export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Rec
   if (error) throw new Error(error.message);
   return data ?? [];
 }
-// Customer feedback, newest first (flattens the answers jsonb to a summary).
+// Customer feedback, newest first. Each answer in the `answers` jsonb becomes
+// its OWN column (prefixed `fb::<question>`) so every field the engineer entered
+// shows as a separate column rather than one consolidated string.
 export async function listFeedbackRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => {
     const a = (r.answers && typeof r.answers === 'object') ? r.answers as Record<string, unknown> : {};
-    const answers = Object.entries(a).map(([k, v]) => `${k.split('-').pop()}: ${v}`).join(' · ');
-    return { ...r, answers_summary: answers };
+    const flat: Record<string, unknown> = {};
+    Object.entries(a).forEach(([k, v]) => { flat[`fb::${k}`] = v; });
+    return { ...r, ...flat };
   });
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
