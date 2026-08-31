@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-31 (MRN — Material Return Note — built on `claude/handstock-hc86x7`; `HandStock_X.sql` to re-run on the live project)_
+_Last updated: 2026-08-31 (stock screens follow the reporting tree, #76 merged; `HandStock_X.sql` to run on the live project)_
 
 ---
 
@@ -415,6 +415,14 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     Hand Stock and Material Returns needed no policy of their own:
     `handstock_balance` / `handstock_movements` are already security_invoker
     and inherit, and `mr_read` (0039) already reads this way.
+    "View as" is a client-side identity — the query still runs under the
+    administrator's own session, so RLS cannot scope a preview. The same
+    `previewScoped()` filter #75 gave Spare Requests now narrows Hand Stock
+    (levels + movements), Stock Transfer (stock + transfers; a transfer counts
+    if either side is in scope) and Material Returns while a preview is
+    active, and is a no-op in a real session. `src/lib/access.ts`.
+    **Merged (#76). Still to run on the live project: `HandStock_X.sql`**
+    (carries `0041`) — the stock-side scoping is not in force until it is.
     ⚠️ **Two re-run breaks found on `main`, both pre-existing and left alone**
     (verified by stashing this branch's changes and reproducing):
     `all.sql` is no longer idempotent — `0040_call_tables_split.sql` turns
