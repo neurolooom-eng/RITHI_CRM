@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
-import { csvExport, fmtDate, statusBadge } from '../lib/format';
+import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
+import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
@@ -25,6 +26,11 @@ import './fieldcalls.css';
 // every machine under it. Typing into a machine's field pins that machine to
 // its own value; ↺ hands it back to the header.
 // ===========================================================================
+
+type Tab = 'entries' | 'machines';
+/** One feed per tab: what is loaded, how far it has paged, and its sync stamp. */
+interface Feed { rows: Row[]; at: string; offset: number; more: boolean }
+const PAGE: Record<Tab, number> = { entries: 200, machines: 500 };
 
 const STATES = ['ACTIVE', 'ABOUT TO EXPIRE', 'INACTIVE'] as const;
 const TONES: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -148,52 +154,99 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const canEdit = can('cover.edit');
   const live = supabaseConfigured();
 
-  const [tab, setTab] = useState<'entries' | 'machines'>('entries');
+  const [tab, setTab] = useState<Tab>('entries');
   const [q, setQ] = useState('');
-  const [rows, setRows] = useState<Row[]>([]);
-  const [machines, setMachines] = useState<Row[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
   const [state, setState] = useState('');
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     live ? null : { tone: 'info', text: 'Connect the database in Settings to open this register.' },
   );
+
+  // Each tab is its own feed: rows, how far it has paged, whether another page
+  // may exist, and when its browse set was last synced. Same behaviour as the
+  // Field Call Register — instant from cache, ↻ Refresh, 30-minute auto-sync,
+  // Load more, and CSV export of what is on screen.
+  const cacheKey = (t: Tab) => `cover-${kind}-${t}`;
+  const fromCache = (t: Tab): Feed => {
+    const c = loadCache<Row>(cacheKey(t));
+    return { rows: c?.rows ?? [], at: c?.at ?? '', offset: c?.rows.length ?? 0, more: (c?.rows.length ?? 0) >= PAGE[t] };
+  };
+  const [feeds, setFeeds] = useState<Record<Tab, Feed>>(() => ({ entries: fromCache('entries'), machines: fromCache('machines') }));
+  const feed = feeds[tab];
+  const rows = feeds.entries.rows;
+  const machines = feeds.machines.rows;
+  const setFeed = (t: Tab, patch: Partial<Feed>) => setFeeds((cur) => ({ ...cur, [t]: { ...cur[t], ...patch } }));
+  const filtered = !!q || (tab === 'machines' && !!state);
 
   const [open, setOpen] = useState<Row | null>(null);   // header being viewed
   const [items, setItems] = useState<Row[]>([]);
   const [draft, setDraft] = useState<Row>({});
   const [saving, setSaving] = useState(false);
 
-  const loadEntries = async () => {
+  // One page of a tab, from the server.
+  const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
+    t === 'entries'
+      ? listHeaders(kind, { q }, offset, PAGE.entries)
+      : listMachines(kind, { q, state }, offset, PAGE.machines);
+
+  // Force-sync a tab: first page, and (unfiltered) cache it with a sync stamp.
+  const refresh = async (t: Tab = tab) => {
     if (!live) return;
     setBusy(true);
     try {
-      const r = await listHeaders(kind, { q });
-      setRows(r);
-      setMsg({ tone: r.length ? 'ok' : 'info', text: r.length ? `${r.length} entries.` : 'No entries yet — import the export in Settings → Bulk Data Import, or add one.' });
+      const r = await fetchPage(t, 0);
+      const at = filtered ? feeds[t].at : saveCache(cacheKey(t), r);
+      setFeed(t, { rows: r, offset: r.length, more: r.length >= PAGE[t], at });
+      if (t === 'machines') {
+        const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
+        setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
+      }
+      setMsg(r.length
+        ? { tone: 'ok', text: `${r.length}${r.length >= PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.` }
+        : { tone: 'info', text: filtered ? 'Nothing matched.' : 'Nothing here yet — import the exports in Settings → Bulk Data Import, or add an entry.' });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
   };
 
-  const loadMachines = async () => {
-    if (!live) return;
+  const loadMore = async () => {
     setBusy(true);
     try {
-      const [r, ...cs] = await Promise.all([
-        listMachines(kind, { q, state }),
-        ...STATES.map((s) => countMachines(kind, s, { q })),
-      ]);
-      setMachines(r as Row[]);
-      setCounts(Object.fromEntries(STATES.map((s, i) => [s, cs[i] as number])));
-    } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
+      const r = await fetchPage(tab, feed.offset);
+      const merged = [...feed.rows, ...r];
+      const at = filtered ? feed.at : saveCache(cacheKey(tab), merged);
+      setFeed(tab, { rows: merged, offset: feed.offset + r.length, more: r.length >= PAGE[tab], at });
+    } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); }
     finally { setBusy(false); }
   };
 
+  // Filters query the server live (debounced). With none, the cached browse set
+  // shows immediately and is only re-fetched when it is stale.
   useEffect(() => {
-    const t = window.setTimeout(() => { void (tab === 'entries' ? loadEntries() : loadMachines()); }, q ? 300 : 0);
-    return () => window.clearTimeout(t);
+    if (!live) return;
+    if (filtered) {
+      const t = window.setTimeout(() => { void refresh(tab); }, 300);
+      return () => window.clearTimeout(t);
+    }
+    const cached = fromCache(tab);
+    if (!cached.rows.length || isStale(cached.at)) { void refresh(tab); return; }
+    setFeed(tab, cached);
+    setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(cached.at)}. ↻ Refresh to update.` });
+    if (tab === 'machines') {
+      void Promise.all(STATES.map((x) => countMachines(kind, x, {})))
+        .then((cs) => setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]]))))
+        .catch(() => { /* tiles are a nicety; the table already loaded */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, q, state]);
+
+  // 30-minute background force-sync of whichever tab is open, unfiltered.
+  useEffect(() => {
+    if (!live) return;
+    const id = window.setInterval(() => { if (!filtered) void refresh(tab); }, SYNC_TTL_MS);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, filtered]);
 
   const openEntry = async (h: Row) => {
     setOpen(h); setDraft(h); setItems([]);
@@ -206,7 +259,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     try {
       const saved = await saveHeader(kind, draft);
       setOpen(saved); setDraft(saved);
-      setRows((cur) => cur.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)));
+      setFeed('entries', { rows: feeds.entries.rows.map((r) => (r.id === saved.id ? { ...r, ...saved } : r)) });
       // The header moved, so every machine that inherits from it moved too.
       setItems(await listItems(kind, str(saved[cfg.key])));
       setMsg({ tone: 'ok', text: `${cfg.keyLabel} ${str(saved[cfg.key])} saved — machines following it were updated.` });
@@ -218,7 +271,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (!open?.id || !window.confirm(`Delete ${str(open[cfg.key])} and its ${items.length} machine(s)?`)) return;
     try {
       await deleteHeader(kind, Number(open.id));
-      setRows((cur) => cur.filter((r) => r.id !== open.id));
+      setFeed('entries', { rows: feeds.entries.rows.filter((r) => r.id !== open.id) });
       setOpen(null);
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
   };
@@ -294,12 +347,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           rowsBeforeScroll={16}
           dense
           onRowClick={(r) => void openEntry(r)}
+          onLoadMore={loadMore}
+          moreAvailable={feeds.entries.more}
+          loadingMore={busy}
           emptyText={busy ? 'Loading…' : 'No entries match.'}
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
-              <button className="btn btn-sm" onClick={() => void loadEntries()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+              <button className="btn btn-sm" onClick={() => void refresh('entries')} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               <div className="spacer" />
+              {feeds.entries.at && (
+                <span className="conn-dot conn-off" title={`Last synced ${new Date(feeds.entries.at).toLocaleString()}`}>⟳ {timeAgo(feeds.entries.at)}</span>
+              )}
               {canEdit && (
                 <button className="btn btn-sm btn-primary" onClick={() => { setOpen({}); setDraft({}); setItems([]); }}>+ New entry</button>
               )}
@@ -317,12 +376,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           storageKey={`cover-${kind}-machines`}
           rowsBeforeScroll={16}
           dense
+          onLoadMore={loadMore}
+          moreAvailable={feeds.machines.more}
+          loadingMore={busy}
           emptyText={busy ? 'Loading…' : 'No machines match.'}
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
-              <button className="btn btn-sm" onClick={() => void loadMachines()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+              <button className="btn btn-sm" onClick={() => void refresh('machines')} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               <div className="spacer" />
+              {feeds.machines.at && (
+                <span className="conn-dot conn-off" title={`Last synced ${new Date(feeds.machines.at).toLocaleString()}`}>⟳ {timeAgo(feeds.machines.at)}</span>
+              )}
               {machines.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines)}>⭳ Export CSV</button>
               )}
