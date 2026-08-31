@@ -225,8 +225,16 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
   cascade prefill leaves those blank. Re-map from ProdMaster if needed.
 - **Editable Registration Date on the single-call PM form?** (question).
-- **Reporting solved-branch fields** — confirm required set / Yes-No dropdowns
-  for Add Consumption? / Maintenance Done? / Recomended Filter Changed? (question).
+- **Reporting field spec** — ✅ done. The Update Call form follows the agreed
+  list: fetched call context (UC Number / Call Number / Call Type / Email-ID), a
+  **Service Report** section in spec order, the three statuses (Solved - Report
+  Completed / Unsolved / Solved - Report Pending), pending reason from the master
+  (mandatory when Unsolved), Yes/No dropdowns for Add Consumption? (mandatory),
+  Maintenance Done? (optional) and Recomended Filter Changed? (mandatory), a
+  mandatory manual report on a completed call, Warranty Start Date on
+  installations only, Accessory Serial No suggested from the party's CPX/ASU
+  units, and Name / Contact Number / Designation on sign-off. Consumption lines
+  stay editable (change part or quantity, delete) until the report is saved.
 - **Rotate the Supabase secret key** — it was pasted in chat during setup.
 - **Local `sheets.ts` fallback** — the Apps Script path remains as a fallback when
   Supabase isn't configured; retire once fully off sheets.

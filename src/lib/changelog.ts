@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.9',
+    date: '2026-08-31',
+    title: 'Call Reporting follows the report spec',
+    changes: [
+      'The Update Call form now matches the agreed field list: UC Number, Call Number, Call Type and your email are shown as fetched, and a Service Report section carries Standard Complaint, Complaint Observation, Job Done, Hour Meter Reading, Software Version, the manual report, Add Consumption?, Accessory Serial No and the Maintenance / Filter questions in that order.',
+      'Call Status is now Solved - Report Completed, Unsolved or Solved - Report Pending. A pending reason is picked from the master and is mandatory when the call is Unsolved; on a report-pending call it is filled in for you.',
+      'What is mandatory is now enforced: Complaint Observation, Job Done, Hour Meter Reading, Software Version, Add Consumption? and Recomended Filter Changed? on any report that carries work details — plus the manual report itself once the call is Solved - Report Completed, and the Warranty Start Date on an installation.',
+      'Update Visit Work Details? is locked to Yes on a completed report, and the visiting engineer defaults to you rather than to whoever visited last.',
+      'Warranty Start Date is asked on installation calls only; Accessory Serial No suggests the CPX / ASU units already on that party\u2019s account.',
+      'Consumed spares stay editable until you save \u2014 change the part, change the quantity, or delete the line. Adding one no longer locks it. Answering No to Add Consumption? clears the lines.',
+      'Name, Contact Number and Designation of whoever signed the report are captured on a completed call.',
+    ],
+  },
+  {
     version: '0.8.8',
     date: '2026-08-30',
     title: 'A spare\u2019s own status, and readable approvals',
