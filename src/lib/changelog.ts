@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.20',
+    date: '2026-08-31',
+    title: '“Call Allocated To” lists real people, not demo users',
+    changes: [
+      'The Call Allocated To dropdown no longer shows the old demo “ALMS Service · admin”. It defaults to the machine’s Service Engineer from Party Master (or the engineer on the request), and the list to pick from is the real User Master — with the same list now feeding the Assigned Engineer fields elsewhere.',
+    ],
+  },
+  {
     version: '0.8.19',
     date: '2026-08-31',
     title: 'View as shows the person’s real role',

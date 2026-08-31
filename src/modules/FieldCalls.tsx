@@ -9,9 +9,9 @@ import { CallReportDrawer } from './CallReporting';
 import { SpareRequestDrawer } from './SpareRequests';
 import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
+import { SchemaForm, type FieldDef, type FormValues, type FieldOption } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
-import { csvExport, engineerOptions, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
+import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, setEngineerNamesCache, timeAgo, todayISO } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, sbDirectoryNames } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -110,7 +110,9 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Complaint & allocation
   { name: 'standardComplaint', label: 'Standard Complaint', section: 'Complaint', span: 2 },
   { name: 'complaintReported', label: 'Complaint Reported', type: 'textarea', rows: 2, section: 'Complaint', required: true, span: 2 },
-  { name: 'allocatedTo', label: 'Call Allocated To', type: 'select', options: engineerOptions, section: 'Complaint', span: 1 },
+  // Options are injected from the User Master at render (see injectMasters);
+  // the value is prefilled from Party Master / the request.
+  { name: 'allocatedTo', label: 'Call Allocated To', type: 'select', options: [], section: 'Complaint', span: 1 },
   { name: 'breakdownDate', label: 'Breakdown Date', type: 'date', section: 'Complaint', span: 1 },
 
   // Reporting / risk
@@ -339,7 +341,7 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  const { user, can, isAdmin } = useAuth();
+  const { user, users, can, isAdmin } = useAuth();
   // A Solved call is read-only for everyone except admins.
   const isSolved = (row: Rec) => /solved/i.test(String(row.status ?? ''));
   const canEditRow = (row: Rec) => can('calls.edit') && (isAdmin || !isSolved(row));
@@ -347,11 +349,38 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Master-driven suggestions for the intake form (live from the sheets).
   const partyMaster = useMaster('party');
   const complaintMaster = useMaster('complaint');
+
+  // "Call Allocated To" options come from the User Master, not demo users:
+  // the directory names (user_directory) plus the real login profiles, deduped.
+  // The value itself is prefilled from Party Master (Service Engineer) or the
+  // request — this list is the fallback set to pick / change from.
+  const [engineerNames, setEngineerNames] = useState<FieldOption[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const fromProfiles = users.map((u) => (u.fullName || '').trim()).filter(Boolean);
+    const build = (dir: string[]) => {
+      const seen = new Set<string>();
+      const out: FieldOption[] = [];
+      [...dir, ...fromProfiles].forEach((n) => {
+        const v = n.trim(); const k = v.toLowerCase();
+        if (v && !seen.has(k)) { seen.add(k); out.push({ value: v, label: v }); }
+      });
+      out.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+      return out;
+    };
+    const apply = (opts: FieldOption[]) => { setEngineerNames(opts); setEngineerNamesCache(opts.map((o) => String(o.value))); };
+    if (!supabaseConfigured()) { apply(build([])); return; }
+    void sbDirectoryNames().then((dir) => { if (alive) apply(build(dir)); }).catch(() => { if (alive) apply(build([])); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
+
   const injectMasters = (fs: FieldDef[]) =>
     fs.map((f) =>
       f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
         : f.name === 'standardComplaint' ? { ...f, datalist: complaintMaster.values }
-          : f);
+          : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
+            : f);
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);

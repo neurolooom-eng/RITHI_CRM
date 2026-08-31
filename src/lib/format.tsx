@@ -100,10 +100,22 @@ export function optionsFrom(
   };
 }
 
-// Options for assigning a call to a field engineer / manager, sourced from the
-// users collection. Value is the user's full name so existing call records and
-// lookups keep working.
+// User Master names for assigning an engineer, populated once from Supabase
+// (see setEngineerNamesCache). This keeps the demo `users` collection out of the
+// assignment dropdowns when a database is connected.
+let _engineerNames: string[] = [];
+export function setEngineerNamesCache(names: string[]): void {
+  const seen = new Set<string>();
+  _engineerNames = names
+    .map((n) => String(n ?? '').trim())
+    .filter((n) => n && !seen.has(n.toLowerCase()) && seen.add(n.toLowerCase()));
+}
+
+// Options for assigning a call to an engineer. Prefers the live User Master
+// names (cache above); falls back to the local users collection only offline.
+// Value is the person's full name so existing call records keep matching.
 export function engineerOptions(): FieldOption[] {
+  if (_engineerNames.length) return _engineerNames.map((n) => ({ value: n, label: n }));
   return db
     .list('users')
     .filter((u) => ['engineer', 'manager', 'admin'].includes(String(u.role)) && u.active !== false)
