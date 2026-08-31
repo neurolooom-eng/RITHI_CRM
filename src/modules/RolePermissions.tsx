@@ -3,6 +3,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { ACTIONS, ROLES, permsForRole } from '../lib/rbac';
 import { setRolePerms, supabaseConfigured } from '../lib/supabase';
+import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -49,6 +50,7 @@ export function RolePermissions() {
         if (!res.ok) { setMsg({ tone: 'error', text: `Save failed for ${r.label}: ${res.error}` }); setBusy(false); return; }
       }
       await reloadRoles();
+      logAudit({ action: 'rbac.save', status: 'ok', meta: { roles: ROLES.length } });
       setMsg({ tone: 'ok', text: 'Permissions saved. They apply on each user’s next action / reload.' });
     } catch (e) {
       setMsg({ tone: 'error', text: `Save failed: ${e instanceof Error ? e.message : String(e)}` });

@@ -3,6 +3,7 @@ import { PageHeader, SectionCard, Drawer } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ACTIONS, ROLES, permsForRole } from '../lib/rbac';
 import { updateProfile, sbSendPasswordReset, supabaseConfigured } from '../lib/supabase';
+import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -28,6 +29,7 @@ export function UserAccess() {
     setResetting(u.id); setMsg(null);
     const res = await sbSendPasswordReset(u.email);
     setResetting(null);
+    logAudit({ action: 'user.password.reset_link', target: u.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
     setMsg(res.ok
       ? { tone: 'ok', text: `Reset link sent to ${u.email}. It expires after a short while and can be used once.` }
       : { tone: 'error', text: res.error ?? 'Could not send the reset link.' });
@@ -117,6 +119,7 @@ function EditUser({ user, rolePerms, onClose, onSaved, onError }: {
     // Don't store extras that the role already grants.
     const extras = [...extra].filter((k) => !roleGrants.has(k));
     const res = await updateProfile(user.id, { role, extra_permissions: extras });
+    logAudit({ action: 'user.access.save', target: user.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role, extras: extras.length } });
     setBusy(false);
     if (res.ok) onSaved(`Saved ${user.fullName || user.email}: ${roleLabel(role)}${extras.length ? ` + ${extras.length} extra` : ''}.`);
     else onError(res.error ?? 'Save failed.');

@@ -12,6 +12,216 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.12',
+    date: '2026-08-31',
+    title: 'Every spare on a report is saved, or none is',
+    changes: [
+      'Consumed spares are now written in a single step: a report either records all of them or none, so a visit can no longer come back with one of the two spares you entered.',
+      'If the spares (or the customer feedback) cannot be saved, the report says so instead of closing as though it worked \u2014 and because the visit itself is already filed, pressing Save Report again retries only the part that failed, without filing a second visit.',
+    ],
+  },
+  {
+    version: '0.8.11',
+    date: '2026-08-31',
+    title: 'Call Status follows the latest visit entered',
+    changes: [
+      'A call reads as Unattended until a visit is entered against it \u2014 after that its status is the status of the LATEST VISIT ENTRY, and latest now means most recently entered, not the latest visit date. A visit entered today for last week\u2019s work no longer loses to an older entry someone dated further ahead.',
+      'A call left at \u201cSolved - Report Pending\u201d now shows as Report pending and stays in Pending Calls; it used to read as Solved and disappear.',
+      'Needs migration 0032 (apply bundle: call_requests) to take effect on existing calls.',
+    ],
+  },
+  {
+    version: '0.8.10',
+    date: '2026-08-31',
+    title: 'Call Status and the work-details switch sit together',
+    changes: [
+      'In Update Call, \u201cUpdate Visit Work Details?\u201d has moved out of the Visit block and now sits beside Call Status \u2014 the two decide each other, so they are read together.',
+    ],
+  },
+  {
+    version: '0.8.9',
+    date: '2026-08-31',
+    title: 'Call Reporting follows the report spec',
+    changes: [
+      'The Update Call form now matches the agreed field list: UC Number, Call Number, Call Type and your email are shown as fetched, and a Service Report section carries Standard Complaint, Complaint Observation, Job Done, Hour Meter Reading, Software Version, the manual report, Add Consumption?, Accessory Serial No and the Maintenance / Filter questions in that order.',
+      'Call Status is now Solved - Report Completed, Unsolved or Solved - Report Pending. A pending reason is picked from the master and is mandatory when the call is Unsolved; on a report-pending call it is filled in for you.',
+      'What is mandatory is now enforced: Complaint Observation, Job Done, Hour Meter Reading, Software Version, Add Consumption? and Recomended Filter Changed? on any report that carries work details — plus the manual report itself once the call is Solved - Report Completed, and the Warranty Start Date on an installation.',
+      'Update Visit Work Details? is locked to Yes on a completed report, and the visiting engineer defaults to you rather than to whoever visited last.',
+      'Warranty Start Date is asked on installation calls only; Accessory Serial No suggests the CPX / ASU units already on that party\u2019s account.',
+      'Consumed spares stay editable until you save \u2014 change the part, change the quantity, or delete the line. Adding one no longer locks it. Answering No to Add Consumption? clears the lines.',
+      'Name, Contact Number and Designation of whoever signed the report are captured on a completed call.',
+    ],
+  },
+  {
+    version: '0.8.8',
+    date: '2026-08-30',
+    title: 'A spare\u2019s own status, and readable approvals',
+    changes: [
+      'Opening a spare now shows THAT spare \u2014 its ID and its own status at the top, with the part and quantity. Before, it showed the OR number beside one spare\u2019s status, so an order with one spare at Stores and two still with the RM read as though the whole order was at Stores.',
+      'Underneath it says where the order actually stands \u2014 \u201c3 spares \u2014 2 at RM Approval \u00b7 1 at Stores\u201d \u2014 and lists every spare on it with its own stage.',
+      'The Approvals column is readable: \u201cCommercial: Cleared \u2014 Under CMC \u00b7 mc1233\u201d rather than the raw record.',
+    ],
+  },
+  {
+    version: '0.8.7',
+    date: '2026-08-30',
+    title: 'Fixed: spares stuck at Stores never reached the dispatch queue',
+    changes: [
+      'Spare Requests could show spares sitting at Stores while Pending Dispatch showed an empty queue. The queue was reading a stored stage that can fall out of date; it now works out the stage from the approvals themselves, exactly as the register does, so the two can no longer disagree.',
+      'The stored stage is repaired for every existing spare when the migration runs, which also corrects the stage chips and the tiles on the register.',
+      'Needs migration 0031_pending_dispatch_live_stage.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.8.6',
+    date: '2026-08-30',
+    title: 'Fixed: a register could go blank',
+    changes: [
+      'Adding certain columns to a register \u2014 the ones holding structured data, such as the Commercial/NSM answers \u2014 could blank the whole app instead of showing the column. Those cells now show their content, and an empty one shows nothing.',
+      'This was the cause of the blank Spare Requests page.',
+    ],
+  },
+  {
+    version: '0.8.5',
+    date: '2026-08-30',
+    title: 'A broken screen no longer shows a blank page',
+    changes: [
+      'If a screen hits an error it now says so, on the page, with the reason \u2014 instead of the whole app going white with nothing to go on. The menu keeps working, so you can carry on elsewhere.',
+      'Two buttons on that message actually recover it: Reload, and Clear cached data and reload.',
+      '\u201cForce update\u201d now really does clear the stored rows. It was only clearing the sync markers, so a screen stuck on data saved by an older version stayed stuck however many times you pressed it.',
+    ],
+  },
+  {
+    version: '0.8.4',
+    date: '2026-08-30',
+    title: 'Item Status comes from Product Master',
+    changes: [
+      'On a call, Item Status is filled from the machine\u2019s record in Product Master and locked \u2014 the same as its warranty and contract details \u2014 instead of being picked by hand and possibly contradicting the master.',
+    ],
+  },
+  {
+    version: '0.8.3',
+    date: '2026-08-30',
+    title: 'Every call on a request needs its problem',
+    changes: [
+      'Reported Problem is now mandatory on each of the five calls, so no request reaches the Hotline saying only which machine it is about.',
+    ],
+  },
+  {
+    version: '0.8.1',
+    date: '2026-08-30',
+    title: 'The Declaration form that travels with the parcel',
+    changes: [
+      'Every stock out can now print its Declaration \u2014 \u201cTO WHOMSOEVER IT MAY CONCERN\u201d \u2014 in the same format as the template: what the parcel contains, why it is being sent, its approximate value, that no money changes hands, the spares, and who it is going to.',
+      'The address comes from the User Master \u2014 Address, City, State and Contact No for that engineer \u2014 so it is maintained in one place and right on every parcel. Those four now appear on the User Master screen, and are kept when the sheet is imported.',
+      'If an address is wrong or missing, Stores can correct it on the form and save it back to the User Master, so the next parcel to that engineer is right. Dispatch can edit those four fields and nothing else \u2014 the rest of the directory stays with administrators.',
+      'The approximate value is typed for each parcel (the form calls it approximate, and the catalogue carries no prices), and the purpose sentence can be edited \u2014 not every parcel is a ventilator part.',
+      'Prints on A4 with narrow margins like the challan, and a long parcel list carries the heading and the sender block onto every sheet.',
+      'Needs migrations 0029 and 0030 \u2014 apply the User Directory bundle (the address fields on the User Master) and the RBAC one (who may edit them).',
+    ],
+  },
+  {
+    version: '0.8.0',
+    date: '2026-08-30',
+    title: 'The Delivery Challan prints',
+    changes: [
+      'Booking a stock out now opens its Delivery Challan, laid out like the v2_DCTemplate form — letterhead, the engineer it is going to, the Stock Out number and date, the spares with order number, item code, description and quantity, remarks and both signature blocks.',
+      'It prints on A4 with narrow margins, and when a delivery runs past one sheet the letterhead and the signature block are on every sheet — each one is a complete challan, numbered “Sheet 1 of 3”, with the earlier sheets saying where they carry on.',
+      'Any past stock out can be reprinted from the Stock outs tab.',
+      'One number, not two: the challan is identified by its Stock Out number, exactly as the form and the old sheet did. The separate DC number the previous version generated is gone.',
+      'Needs migration 0028_dc_number_is_stock_out.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.7.9',
+    date: '2026-08-30',
+    title: 'Pending Dispatch — Stores sends a batch, not a spare',
+    changes: [
+      'New Pending Dispatch screen for Stores: every approved spare still waiting, grouped by the engineer it is going to, longest wait first.',
+      'Tick the spares for one engineer — or the whole engineer at once — and send them in a single go. Spares for two different engineers cannot go on one delivery.',
+      'The stock-out number and the DC number are generated for you when the batch is booked out; there is nothing to type and no chance of two people using the same number.',
+      'A spare counts as the engineer’s hand stock the moment it is booked out — no waiting for them to acknowledge it — so it can be used on a call report straight away.',
+      'The Stock outs tab keeps every delivery: which spares went out, to whom, on which DC and whether each has been acknowledged.',
+      'Dispatching from the Spare Requests register now takes you to that engineer’s queue, so there is one place a delivery is made.',
+      'Needs migration 0027_spare_dispatch.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.7.8',
+    date: '2026-08-30',
+    title: 'Commercial and NSM approve on their own forms',
+    changes: [
+      'The Commercial step (formerly Admin Approval) now asks what the Google Form asked: the status, then either a reason for clearing \u2014 with the MC / SA number, or the four Direct PO steps behind it \u2014 or a pending reason, plus any comments.',
+      'NSM has its form too: the status, the reasons behind it (several may apply, with an Other box) and remarks.',
+      '\u201cAdmin Process in Progress\u201d and \u201cPut on HOLD\u201d are new: they record why a spare is waiting without approving it, so it stays in that queue instead of quietly moving on.',
+      'The request view shows what each stage answered, so a spare sitting with Commercial or NSM says why.',
+    ],
+  },
+  {
+    version: '0.7.7',
+    date: '2026-08-30',
+    title: 'Old spare requests, and a Dropped outcome',
+    changes: [
+      'The 26_SpareRequest history can be brought in: every past request and each spare on it, with who approved it, when Stores sent it and on which SO number \u2014 so the register shows the full history, not only what has been raised since.',
+      'Imported requests keep their original OR numbers (OR43016 and the like); the new OR-YYMM-NNNN series carries on separately for anything raised from now on.',
+      'New \u201cDropped\u201d outcome for a spare Stores did not send. It is kept separate from Rejected \u2014 an approver refuses a request, Stores drops a part that was already approved \u2014 and a dropped spare no longer holds its request open.',
+    ],
+  },
+  {
+    version: '0.7.6',
+    date: '2026-08-30',
+    title: 'One machine, one call on a request',
+    changes: [
+      'A serial already chosen on another call of the same request no longer appears in the other Serial No dropdowns \u2014 the same machine cannot be raised twice on one request.',
+      'When every serial of a product is already spoken for, the dropdown says so rather than looking empty.',
+    ],
+  },
+  {
+    version: '0.7.5',
+    date: '2026-08-30',
+    title: 'Pick the product and serial, don\u2019t type them',
+    changes: [
+      'On a call request, Product is now a dropdown of what that party actually owns, and Serial No a dropdown of that party\u2019s serials for the chosen product \u2014 on all five calls. No more typos putting a request on a machine that isn\u2019t there.',
+      'Changing the party clears any product or serial the new party does not have, instead of leaving a stale one behind.',
+      'Call Attended? must be answered before a request can be submitted.',
+    ],
+  },
+  {
+    version: '0.7.4',
+    date: '2026-08-30',
+    title: 'Import the old call registration requests',
+    changes: [
+      'The historical CRN Registration sheet can be imported as exported \u2014 drop it into Bulk Data Import and it loads into the request register: 4,077 requests from January to August, each with the engineer, party, product, serial, complaint and its UCN.',
+      'A request that was registered comes in as Registered with its UCN; one that never was stays Pending and appears in Pending Registrations for the Hotline. Accidental double-submissions in the sheet are dropped.',
+      'The sheet columns the register has no field for \u2014 Any Open Call?, Regional Manager, Comments / Remarks \u2014 are kept with the request rather than lost.',
+    ],
+  },
+  {
+    version: '0.7.3',
+    date: '2026-08-29',
+    title: 'Hand Stock \u2014 the stock level every engineer is carrying',
+    changes: [
+      'Stock Transfer showed what each engineer holds; Hand Stock shows how they came to hold it. One line per engineer and spare with the stock level and every term beside it: stock out from Stores \u2212 consumption \u2212 transfers out + transfers in \u2014 so a figure can be argued with instead of taken on faith.',
+      'Two tabs: Stock Level, one line per engineer and spare with the level and every term behind it; and Movements, the ledger those levels are made of \u2014 every stock out, consumption and transfer, newest first, filterable by kind and engineer and exportable.',
+      'Click a line on Stock Level for its own movement trail: every stock out with its DC, every consumption with its call, every transfer with the engineer on the other side.',
+      'Both screens now read the same derivation, so they cannot disagree. That fixed two ways a balance could be wrong: a spare dispatched against a CALL counted when it was consumed but never when it was issued, leaving the engineer negative and blocking their transfers; and a dispatch from the sheet era, carrying a DC but no date, did not count at all.',
+      'Reporting a call now consumes only from hand stock. The spare picker lists what that engineer is holding and how many, and refuses more \u2014 so a report can no longer consume a part nobody issued. Anything else needs a spare request.',
+      'Filter to what is in hand, settled, or \u201cshort\u201d \u2014 more consumed or handed on than Stores ever issued, which means stock carried from before this register or a spare taken without a DC.',
+      'Access follows the tables underneath: an engineer sees their own stock, an RM their team\u2019s, an admin everyone\u2019s. Needs migration 0023_handstock.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
+    version: '0.7.1',
+    date: '2026-08-29',
+    title: 'Every spare has its own ID',
+    changes: [
+      'Each spare on a request now carries its own reference \u2014 OR-2608-0001-01, OR-2608-0001-02 \u2014 shown as the first column of the register.',
+      'That ID is what the RM approves against and what Stores dispatches against, so two spares on the same OR can go out on different days, each with its own DC number.',
+      'The request view lists every spare by its ID with its own stage, DC and dispatch date, so you can see at a glance which part is where.',
+      'The ID is fixed once issued and unique across the register \u2014 it is what gets quoted on the DC.',
+    ],
+  },
+  {
     version: '0.7.2',
     date: '2026-08-29',
     title: 'Each master list has its own screen',

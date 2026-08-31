@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
@@ -10,9 +11,16 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
-  deriveStage, buildPatch, dispatchPatch, receivePatch, actionable, needsReview, trail,
+  deriveStage, buildPatch, receivePatch, actionable, needsReview, trail,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
+import { logAudit } from '../lib/audit';
+import {
+  COMMERCIAL_STATUSES, CLEARING_REASONS, REASONS_NEEDING_MC_SA, DIRECT_PO_STEPS, PENDING_REASONS,
+  NSM_STATUSES, NSM_REASONS, commercialGaps, commercialPatch, commercialSummary, clearsForStores,
+  nsmGaps, nsmPatch, nsmSummary, nsmClearsForStores, mergeApprovalData,
+  type CommercialAnswer, type NsmAnswer,
+} from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
@@ -171,8 +179,10 @@ export function SpareRequestDrawer({
     };
 
     setBusy(true); setErr('');
+    const t0 = performance.now();
     try {
       const res = await addSpareRequest(req, picks);
+      logAudit({ action: 'spare.request', target: res.uid ?? uid, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, duration_ms: Math.round(performance.now() - t0), meta: { ucn: callFields.ucn, parts: picks.length } });
       if (res.ok) { onSaved?.(callFields.ucn, res.uid ?? uid, res.orNo); onClose(); }
       else setErr(res.error ?? 'Could not submit the request.');
     } catch (e) {
@@ -374,6 +384,9 @@ const COLUMNS: Column<Row>[] = [
 // Supabase shape (spare_request_lines joined with spare_requests) with the
 // approval workflow columns.
 const SUPA_COLUMNS: Column<Row>[] = [
+  // The spare's own ID (OR number + its row). This is the reference quoted on
+  // the DC and used for the RM decision, so it leads the register.
+  { key: 'line_uid', header: 'Spare ID', width: 160, wrap: false },
   { key: 'or_no', header: 'OR No', width: 100, wrap: false },
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'uid', header: 'UID', width: 150, wrap: false },
@@ -392,6 +405,21 @@ const SUPA_COLUMNS: Column<Row>[] = [
   { key: 'dc_number', header: 'DC No', width: 110, wrap: false },
 ];
 
+// What Commercial and NSM answered, as a line of text rather than raw jsonb.
+function approvalCell(row: Row): ReactNode {
+  const d = (row.approval_data ?? {}) as Record<string, unknown>;
+  const c = commercialSummary(d.commercial as CommercialAnswer | undefined);
+  const n = nsmSummary(d.nsm as NsmAnswer | undefined);
+  if (!c && !n) return '';
+  return (
+    <span style={{ fontSize: 12.5 }}>
+      {c && <><b>Commercial:</b> {c}</>}
+      {c && n && <br />}
+      {n && <><b>NSM:</b> {n}</>}
+    </span>
+  );
+}
+
 const stageBadge = (stage: Stage) => <span className={`badge badge-${stageTone(stage)}`}>{stage}</span>;
 
 const CACHE_KEY = 'spareRequests';
@@ -405,11 +433,11 @@ const MINE = 'mine'; // pseudo-stage: "needs my action"
 type Scope = 'line' | 'or';
 type Pending =
   | { kind: 'approve' | 'reject'; row: Row; scope: Scope; lines: number }
-  | { kind: 'dispatch'; row: Row; scope: Scope; lines: number }
   | { kind: 'receive'; row: Row; scope: Scope; lines: number };
 
 export function SpareRequests() {
   const { user, can } = useAuth();
+  const navigate = useNavigate();
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
@@ -422,7 +450,10 @@ export function SpareRequests() {
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [drawer, setDrawer] = useState(false);
-  const [detail, setDetail] = useState<string>(''); // uid of the open request
+  // The row id of the SPARE whose drawer is open. Keyed by the spare, not the
+  // request: each spare has its own stage, so showing one line's status under
+  // the OR number reads as the whole order's status and misleads.
+  const [detail, setDetail] = useState<string>('');
   const [pending, setPending] = useState<Pending | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare requests.' },
@@ -497,26 +528,49 @@ export function SpareRequests() {
       && deriveStage(r) === stage && actionable(r, can, email));
   };
 
-  const runPending = async (p: Pending, input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => {
+  const runPending = async (
+    p: Pending,
+    input: { reason?: string; remarks?: string; commercial?: CommercialAnswer; nsm?: NsmAnswer },
+  ) => {
     setPending(null);
     const { row, scope } = p;
     const stage = deriveStage(row);
+    // The Commercial and NSM steps answer a form rather than a yes/no. Their
+    // "in progress" / "on hold" answers record why without approving, so the
+    // spare stays in that stage's queue.
+    const held = (input.commercial && !clearsForStores(input.commercial))
+              || (input.nsm && !nsmClearsForStores(input.nsm));
+    const formPatch = input.commercial ? commercialPatch(input.commercial, actor)
+                    : input.nsm ? nsmPatch(input.nsm, actor) : null;
     const patch =
-      p.kind === 'dispatch' ? dispatchPatch(input.dc ?? '', actor, input.courier ?? '', input.remarks ?? '')
+      formPatch ? { ...formPatch, approval_data: mergeApprovalData(row.approval_data, formPatch) }
       : p.kind === 'receive' ? receivePatch(actor, input.remarks ?? '')
       : buildPatch(row, p.kind, actor, input.reason ?? '');
-    const what = p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
-      : p.kind === 'dispatch' ? 'dispatched' : 'acknowledged';
+    const what = held ? (input.nsm ? 'put on hold' : 'marked in progress')
+      : p.kind === 'approve' ? 'approved' : p.kind === 'reject' ? 'rejected'
+      : 'acknowledged';
 
     setBusy(true);
+    const t0 = performance.now();
+    // One audit entry per decision, whether it covered one spare or the OR.
+    const audit = (res: { ok: boolean; error?: string; count?: number }) => logAudit({
+      action: `spare.${p.kind}`,
+      target: scope === 'or' ? String(row.or_no ?? row.uid) : String(row.line_uid ?? row.uid),
+      status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+      duration_ms: Math.round(performance.now() - t0),
+      meta: { stage, scope, spares: scope === 'or' ? res.count ?? 0 : 1 },
+    });
+
     try {
       if (scope === 'or') {
         const res = await updateSpareRequestLinesAtStage(String(row.uid), [stage], patch);
+        audit(res);
         if (res.ok) setMsg({ tone: 'ok', text: `${res.count ?? 0} spare${res.count === 1 ? '' : 's'} on ${String(row.or_no ?? row.uid)} ${what}.` });
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       } else {
         const res = await updateSpareRequestLine(row.line_id ?? row.id, patch);
-        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.part ?? 'Spare')} ${what}.` });
+        audit(res);
+        if (res.ok) setMsg({ tone: 'ok', text: `${String(row.line_uid ?? row.part ?? 'Spare')} ${what}.` });
         else { setMsg({ tone: 'error', text: res.error ?? 'Update failed.' }); return; }
       }
       await load();
@@ -530,20 +584,23 @@ export function SpareRequests() {
   const wfButtons = (row: Row, size = 'btn-sm') => {
     const stage = deriveStage(row);
     if (!actionable(row, can, email)) {
-      return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : '—'}</span>;
+      return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
     const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
-    const bulk = (kind: 'approve' | 'dispatch' | 'receive') => siblings > 1 && (
+    const bulk = (kind: 'approve' | 'receive') => siblings > 1 && (
       <button className={`btn ${size}`} title={`Apply to all ${siblings} spares of this OR at this stage`}
         onClick={() => setPending({ kind, row, scope: 'or', lines: siblings })}>
         ⇉ all {siblings}
       </button>
     );
+    // Dispatch happens on Pending Dispatch, not here: the stock-out and DC
+    // numbers are generated for a BATCH, so a spare booked out on its own from
+    // the register would mint a document nobody asked for. This links to the
+    // queue, already filtered to the engineer this spare is going to.
     if (stage === 'Stores') return (
-      <div className="row">
-        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'dispatch', row, scope: 'line', lines: 1 })}>🚚 Dispatch + DC</button>
-        {bulk('dispatch')}
-      </div>
+      <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
+        🚚 Dispatch…
+      </button>
     );
     if (stage === 'Dispatched') return (
       <div className="row">
@@ -588,7 +645,7 @@ export function SpareRequests() {
     const q = search.trim().toLowerCase();
     if (!q) return out;
     const keys = onDb
-      ? ['uid', 'or_no', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
+      ? ['line_uid', 'uid', 'or_no', 'ucn', 'party_name', 'product_name', 'part', 'req_engineer', 'stage', 'status', 'dc_number']
       : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
@@ -597,12 +654,20 @@ export function SpareRequests() {
   const allFields = useMemo(() => {
     const ks = new Set<string>();
     rows.slice(0, 40).forEach((r) => Object.keys(r).forEach((k) => { if (k && !k.startsWith('_') && k !== 'id') ks.add(k); }));
-    return [...ks].map((k) => ({ key: k, header: k }));
+    return [...ks].map((k) => (k === 'approval_data'
+      // The Commercial and NSM answers are jsonb. Raw they are unreadable, so
+      // the column shows what each stage actually answered.
+      ? { key: k, header: 'Approvals', render: (r: Row) => approvalCell(r) }
+      : { key: k, header: k }));
   }, [rows]);
 
-  // All lines of the request open in the detail drawer.
-  const detailLines = useMemo(() => rows.filter((r) => String(r.uid) === detail), [rows, detail]);
-  const detailRow = detailLines[0];
+  // The spare whose drawer is open, and every spare of the same request —
+  // shown alongside it so the order's other parts stay visible.
+  const detailRow = useMemo(() => rows.find((r) => String(r.id) === detail), [rows, detail]);
+  const detailLines = useMemo(
+    () => (detailRow ? rows.filter((r) => String(r.uid) === String(detailRow.uid)) : []),
+    [rows, detailRow],
+  );
 
   return (
     <div>
@@ -646,7 +711,7 @@ export function SpareRequests() {
         allFields={allFields}
         rows={visible}
         getRowId={(r) => r.id}
-        onRowClick={onDb ? (r) => setDetail(String(r.uid)) : undefined}
+        onRowClick={onDb ? (r) => setDetail(String(r.id)) : undefined}
         storageKey="spareRequests"
         rowsBeforeScroll={14}
         dense
@@ -677,7 +742,12 @@ export function SpareRequests() {
         }}
       />
 
-      <Drawer open={!!detail && !!detailRow} onClose={() => setDetail('')} title={`Spare Request — ${String(detailRow?.or_no ?? '') || detail}`} width={720}>
+      <Drawer
+        open={!!detail && !!detailRow}
+        onClose={() => setDetail('')}
+        title={`Spare ${String(detailRow?.line_uid ?? '') || String(detailRow?.or_no ?? '')}`}
+        width={720}
+      >
         {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} />}
       </Drawer>
 
@@ -686,9 +756,24 @@ export function SpareRequests() {
   );
 }
 
+// Where the order's spares actually are — "1 at Stores · 2 at RM Approval".
+// The order has no single status of its own: its spares are approved and
+// dispatched one at a time, so it is only ever a tally.
+function orderSummary(lines: Row[]): string {
+  if (lines.length <= 1) return '1 spare on this order.';
+  const counts = new Map<string, number>();
+  lines.forEach((l) => {
+    const st = deriveStage(l);
+    counts.set(st, (counts.get(st) ?? 0) + 1);
+  });
+  const parts = STAGES.filter((st) => counts.has(st)).map((st) => `${counts.get(st)} at ${st}`);
+  return `${lines.length} spares — ${parts.join(' · ')}.`;
+}
+
 // ---------------------------------------------------------------------------
-// Detail drawer — the request header, every requested part, and the audit
-// trail of who approved / dispatched / received it, plus the next action.
+// Detail drawer — the SPARE that was opened, the other spares on its order,
+// and the trail of who approved / dispatched / received it, plus the next
+// action.
 // ---------------------------------------------------------------------------
 function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action: ReactNode }) {
   const stage = deriveStage(row);
@@ -698,9 +783,19 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
   return (
     <div className="rep-form">
       <section className="rep-sec">
-        <div className="rep-sec-title">Status {stageBadge(stage)}</div>
+        {/* This spare, not the order. Each spare has its own stage — one of
+            three reaching Stores must not read as the whole OR at Stores. */}
+        <div className="rep-sec-title">
+          Spare {String(row.line_uid ?? '')} {stageBadge(stage)}
+        </div>
         <div className="rep-grid">
-          {field('OR No', row.or_no)}
+          {field('Part', row.part)}
+          {field('Qty', row.qty)}
+        </div>
+
+        <div className="rep-sec-title" style={{ marginTop: 14 }}>On order {String(row.or_no ?? '')}</div>
+        <p className="muted" style={{ fontSize: 12.5, margin: '0 0 8px' }}>{orderSummary(lines)}</p>
+        <div className="rep-grid">
           {field('OR Req Date', fmtLongDate(row.or_req_date ?? row.requested_at))}
           {field('Raised by', row.req_engineer)}
           {field('Raised on', fmtLongDate(row.requested_at))}
@@ -729,16 +824,37 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
       </section>
 
       <section className="rep-sec">
-        <div className="rep-sec-title">Parts requested <span className="muted">({lines.length})</span></div>
+        <div className="rep-sec-title">Every spare on this order <span className="muted">({lines.length})</span></div>
         <ul className="rep-spare-list">
           {[...lines]
             .sort((a, b) => Number(a.row_no ?? 0) - Number(b.row_no ?? 0))
-            .map((l) => <li key={l.id}>{String(l.row_no ?? '')}. {String(l.part ?? '')} — qty {String(l.qty ?? '')}</li>)}
+            .map((l) => (
+              <li key={l.id}>
+                <b>{String(l.line_uid ?? l.row_no ?? '')}</b> — {String(l.part ?? '')} · qty {String(l.qty ?? '')}
+                {!!String(l.dc_number ?? '') && <span className="muted"> · DC {String(l.dc_number)}{l.dispatched_at ? ` on ${fmtLongDate(l.dispatched_at)}` : ''}</span>}
+                {' '}{stageBadge(deriveStage(l))}
+              </li>
+            ))}
         </ul>
       </section>
 
       <section className="rep-sec">
         <div className="rep-sec-title">Approval trail</div>
+        {(() => {
+          // What Commercial and NSM answered on their forms — including an
+          // "in progress" or "on hold" answer, which records why the spare is
+          // still sitting in that stage rather than moving on.
+          const d = (row.approval_data ?? {}) as Record<string, unknown>;
+          const c = commercialSummary(d.commercial as CommercialAnswer | undefined);
+          const n = nsmSummary(d.nsm as NsmAnswer | undefined);
+          if (!c && !n) return null;
+          return (
+            <div className="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+              {c && <div><b>Commercial:</b> {c}</div>}
+              {n && <div><b>NSM:</b> {n}</div>}
+            </div>
+          );
+        })()}
         <ol className="wf-trail">
           {trail(row).map((e, i) => (
             <li key={i} className={/reject/i.test(e.outcome) ? 'wf-bad' : 'wf-ok'}>
@@ -764,23 +880,32 @@ function DecisionModal({
 }: {
   pending: Pending | null;
   onClose: () => void;
-  onConfirm: (input: { reason?: string; dc?: string; courier?: string; remarks?: string }) => void;
+  onConfirm: (input: { reason?: string; remarks?: string; commercial?: CommercialAnswer; nsm?: NsmAnswer }) => void;
 }) {
   const [reason, setReason] = useState('');
-  const [dc, setDc] = useState('');
-  const [courier, setCourier] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [com, setCom] = useState<CommercialAnswer>({ status: '' });
+  const [nsm, setNsm] = useState<NsmAnswer>({ status: '', reasons: [] });
   useEffect(() => {
-    if (pending) { setReason(''); setDc(String(pending.row.dc_number ?? '')); setCourier(''); setRemarks(''); }
+    if (pending) {
+      setReason(''); setRemarks('');
+      setCom({ status: '' }); setNsm({ status: '', reasons: [] });
+    }
   }, [pending]);
   if (!pending) return null;
 
   const { kind, row, scope, lines } = pending;
   const per = scope === 'or' ? `all ${lines} spares` : 'this spare';
-  const title = kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
+  const title = kind === 'approve' && (deriveStage(row) === 'Commercial' || deriveStage(row) === 'NSM')
+    ? `${deriveStage(row)} approval — ${per}`
+    : kind === 'approve' ? `Approve ${per} — ${deriveStage(row)}`
     : kind === 'reject' ? `Reject ${per} — ${deriveStage(row)}`
-    : kind === 'dispatch' ? `Dispatch ${per} from Stores` : `Acknowledge receipt of ${per}`;
-  const blocked = (kind === 'reject' && !reason.trim()) || (kind === 'dispatch' && !dc.trim());
+    : `Acknowledge receipt of ${per}`;
+  // Commercial and NSM answer their own form instead of a plain approve.
+  const stage = deriveStage(row);
+  const onForm = kind === 'approve' && (stage === 'Commercial' || stage === 'NSM');
+  const gaps = !onForm ? [] : stage === 'Commercial' ? commercialGaps(com) : nsmGaps(nsm);
+  const blocked = (kind === 'reject' && !reason.trim()) || gaps.length > 0;
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>
@@ -790,33 +915,129 @@ function DecisionModal({
           <br />
           {scope === 'or'
             ? `Applies to every spare on this OR still at ${deriveStage(row)} — ${lines} of them.`
-            : `Applies to this spare only: ${String(row.part ?? '')}.`}
+            : `Applies to this spare only — ${String(row.line_uid ?? '')}: ${String(row.part ?? '')}.`}
           {kind === 'approve' && !needsReview(row.item_status) && deriveStage(row) === 'RM Approval' &&
             <><br />Not AMC/OGP — approving clears Commercial and NSM automatically and sends it to Stores.</>}
           {deriveStage(row) === 'RM Approval' &&
             <><br />Other spares on this OR are unaffected — the RM decides each one separately.</>}
         </p>
+        {onForm && stage === 'Commercial' && (
+          <>
+            <label className="rep-field">
+              <span className="field-label">Admin Status *</span>
+              <select className="select" value={com.status}
+                onChange={(e) => setCom({ status: e.target.value as CommercialAnswer['status'] })}>
+                <option value="">— Choose —</option>
+                {COMMERCIAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            {com.status === 'Cleared for Stores Processing' && (
+              <label className="rep-field">
+                <span className="field-label">Reason for Clearing? *</span>
+                <select className="select" value={com.clearing_reason ?? ''}
+                  onChange={(e) => setCom({ ...com, clearing_reason: e.target.value, mc_sa_number: '', direct_po: {} })}>
+                  <option value="">— Choose —</option>
+                  {CLEARING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+            )}
+
+            {REASONS_NEEDING_MC_SA.includes(com.clearing_reason ?? '') && (
+              <label className="rep-field">
+                <span className="field-label">MC / SA number *</span>
+                <input className="input" value={com.mc_sa_number ?? ''}
+                  onChange={(e) => setCom({ ...com, mc_sa_number: e.target.value })}
+                  placeholder="MCyyyy or SAyyyy — no spaces" />
+              </label>
+            )}
+
+            {com.clearing_reason === 'Direct PO' && (
+              <section className="rep-sec">
+                <div className="rep-sec-title">Process Completed — Direct PO *</div>
+                {DIRECT_PO_STEPS.map((step) => (
+                  <div className="spare-row" key={step}>
+                    <span style={{ flex: 1, fontSize: 13 }}>{step}</span>
+                    {(['Yes', 'No'] as const).map((v) => (
+                      <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                        <input type="radio" name={`po-${step}`} checked={com.direct_po?.[step] === v}
+                          onChange={() => setCom({ ...com, direct_po: { ...(com.direct_po ?? {}), [step]: v } })} />
+                        {v}
+                      </label>
+                    ))}
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {com.status === 'Admin Process in Progress' && (
+              <label className="rep-field">
+                <span className="field-label">Pending Reason *</span>
+                <select className="select" value={com.pending_reason ?? ''}
+                  onChange={(e) => setCom({ ...com, pending_reason: e.target.value })}>
+                  <option value="">— Choose —</option>
+                  {PENDING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+            )}
+
+            <label className="rep-field">
+              <span className="field-label">Additional Comments (if any)</span>
+              <textarea className="input" rows={2} value={com.comments ?? ''}
+                onChange={(e) => setCom({ ...com, comments: e.target.value })} />
+            </label>
+          </>
+        )}
+
+        {onForm && stage === 'NSM' && (
+          <>
+            <label className="rep-field">
+              <span className="field-label">Status *</span>
+              <select className="select" value={nsm.status}
+                onChange={(e) => setNsm({ ...nsm, status: e.target.value as NsmAnswer['status'] })}>
+                <option value="">— Choose —</option>
+                {NSM_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </label>
+
+            <section className="rep-sec">
+              <div className="rep-sec-title">Reason for Approval / Rejection <span className="muted">· any that apply</span></div>
+              {NSM_REASONS.map((r) => (
+                <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '2px 0' }}>
+                  <input type="checkbox" checked={(nsm.reasons ?? []).includes(r)}
+                    onChange={(e) => setNsm({
+                      ...nsm,
+                      reasons: e.target.checked
+                        ? [...(nsm.reasons ?? []), r]
+                        : (nsm.reasons ?? []).filter((x) => x !== r),
+                    })} />
+                  {r}
+                </label>
+              ))}
+              <label className="rep-field">
+                <span className="field-label">Other</span>
+                <input className="input" value={nsm.other ?? ''}
+                  onChange={(e) => setNsm({ ...nsm, other: e.target.value })} />
+              </label>
+            </section>
+
+            <label className="rep-field">
+              <span className="field-label">Remarks</span>
+              <textarea className="input" rows={2} value={nsm.remarks ?? ''}
+                onChange={(e) => setNsm({ ...nsm, remarks: e.target.value })} />
+            </label>
+          </>
+        )}
+
+        {gaps.length > 0 && (
+          <div className="muted" style={{ fontSize: 12.5 }}>{gaps[0]}</div>
+        )}
+
         {kind === 'reject' && (
           <label className="rep-field">
             <span className="field-label">Reason for rejection *</span>
             <input className="input" autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why is this request being rejected?" />
           </label>
-        )}
-        {kind === 'dispatch' && (
-          <>
-            <label className="rep-field">
-              <span className="field-label">DC / stock-out number *</span>
-              <input className="input" autoFocus value={dc} onChange={(e) => setDc(e.target.value)} />
-            </label>
-            <label className="rep-field">
-              <span className="field-label">Courier / mode</span>
-              <input className="input" value={courier} onChange={(e) => setCourier(e.target.value)} />
-            </label>
-            <label className="rep-field">
-              <span className="field-label">Dispatch remarks</span>
-              <input className="input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />
-            </label>
-          </>
         )}
         {kind === 'receive' && (
           <label className="rep-field">
@@ -826,8 +1047,18 @@ function DecisionModal({
         )}
         <div className="rep-actions" style={{ position: 'static' }}>
           <button className="btn" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" disabled={blocked} onClick={() => onConfirm({ reason, dc: dc.trim(), courier, remarks })}>
-            {kind === 'approve' ? '✔ Approve' : kind === 'reject' ? '✖ Reject' : kind === 'dispatch' ? '🚚 Dispatch' : '📥 Confirm receipt'}
+          <button className="btn btn-primary" disabled={blocked}
+            onClick={() => onConfirm({
+              reason, remarks,
+              ...(onForm && stage === 'Commercial' ? { commercial: com } : {}),
+              ...(onForm && stage === 'NSM' ? { nsm } : {}),
+            })}>
+            {onForm && stage === 'Commercial'
+              ? (com.status === 'Admin Process in Progress' ? '⏳ Record progress' : '✔ Clear for Stores')
+              : onForm && stage === 'NSM'
+              ? (nsm.status === 'Put on HOLD' ? '⏸ Put on hold' : '✔ Clear for Stores')
+              : kind === 'approve' ? '✔ Approve' : kind === 'reject' ? '✖ Reject'
+              : '📥 Confirm receipt'}
           </button>
         </div>
       </div>

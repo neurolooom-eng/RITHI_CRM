@@ -1,40 +1,88 @@
-# RITHI CRM — working notes
+# RITHI CRM — working notes for Claude
 
-## Shipping (standing instruction)
+Vite + React + TypeScript front end for the Field Service module. Data lives in
+Supabase (Postgres + RLS + Auth); the Apps Script bridge (`apps-script/CallReg.gs`)
+remains for the sheet-era paths — file uploads to Drive, and reads when Supabase
+isn't connected.
 
-Every change ships end to end without being asked: **commit → merge to `main` → deploy.**
+## Shipping — the default, no need to ask
 
-1. Work on the session's branch, commit with a message that says what changed and why.
-2. Merge the latest `origin/main` in first and resolve conflicts — `main` moves fast,
-   several sessions push to it in parallel.
-3. Push, open the PR, merge it to `main`.
-4. Pushing `main` triggers `.github/workflows/deploy.yml` (GitHub Pages). Confirm the
-   run succeeds; report the version and commit.
+Every change is **committed, merged to `main`, and deployed**. Pushing to `main`
+triggers `.github/workflows/deploy.yml`, which builds and publishes to the
+`gh-pages` branch — that is the live site, so nothing is live until it is on
+`main`. The loop:
 
-Only stop short of this when the change is genuinely unsafe to ship, and say why.
+1. Work on the session's feature branch; `npm run build` must pass (it runs
+   `tsc --noEmit` first).
+2. Commit, push, open the PR.
+3. Merge it into `main`, then confirm the "Deploy to GitHub Pages" run succeeded.
 
-## Before every push
+If `main` moved, merge it in and resolve rather than rebasing. Check `main`
+itself builds **before** merging into it: a branch cut from an old tree can
+revert modules when it lands, and the next merge gets blamed for it. (It has
+happened twice — see the ⚠️ notes in `docs/BACKLOG.md`. Branch protection
+against force-pushes on `main` would turn both from recoverable into
+impossible.)
 
-- `npx tsc --noEmit` and `npx vite build` must both pass.
-- Ran a migration? Apply it to a scratch Postgres **twice** to prove it is idempotent.
-- Touched `supabase/migrations/`? Re-run `node scripts/build-apply-bundles.mjs` and
-  commit the regenerated `supabase/apply/*.sql`.
+### Verifying a SQL change
+
+`npm run build` does not see SQL. After any change under
+`supabase/migrations/`, re-run the bundle generator and apply every migration
+to a throwaway Postgres, then run the suites in `supabase/tests/` — each is
+written so the only errors in its output are the ones labelled `expect ERROR`:
+
+```bash
+node scripts/build-apply-bundles.mjs
+initdb -D /tmp/pg/data -U postgres --auth=trust
+pg_ctl -D /tmp/pg/data -o "-p 55432 -k /tmp/pg" -l /tmp/pg/log start
+psql -h /tmp/pg -p 55432 -U postgres -v ON_ERROR_STOP=1 \
+  -f supabase/tests/_stub.sql $(for f in supabase/migrations/*.sql; do echo -n " -f $f"; done)
+psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
+```
 
 ## Conventions
 
-- **Migrations** are numbered `NNNN_name.sql`. Other sessions add migrations
-  concurrently, so re-check for a number collision after merging `main` and renumber
-  yours if it clashes — the apply bundle is idempotent, so renumbering is safe even
-  after the SQL has been applied to the live project.
-- **Version + changelog**: bump `package.json` and add an entry at the top of
-  `src/lib/changelog.ts` (shown in-app under Version History). `main` often claims the
-  same version from another branch — take the next one above it, don't renumber theirs.
-- **Applying SQL to the live project is the user's step.** Say which bundle to run
-  (`supabase/apply/<module>.sql`, or `_status.sql` first to see what's outstanding).
+- **Migrations** — `supabase/migrations/`, numbered **per module**, so two files
+  can share a number (`0011_spare_intake.sql`, `0011_call_request_actions.sql`).
+  Go by file name, never the number. Other sessions add migrations at the same
+  time, so **re-check for a collision after merging `main`** and renumber if
+  yours is taken — safe even once the SQL has been applied, since the bundles
+  are idempotent.
+- **Apply bundles** — `supabase/apply/*.sql` are GENERATED. Edit the migration,
+  add it to the right module in `scripts/build-apply-bundles.mjs`, re-run
+  `node scripts/build-apply-bundles.mjs`, and commit the result. `_status.sql`
+  is hand-maintained: add a row when a bundle gains a checkable object.
+- **User-visible change** → add a `CHANGELOG` entry in `src/lib/changelog.ts`
+  (in-app Version History) and bump `package.json`. Write it in the user's
+  words, not the code's. `main` has often claimed your version already from
+  another branch: take the next one **above** it rather than renumbering
+  theirs, and keep `package-lock.json`'s two version fields in step.
+- **Applying SQL to the live Supabase project stays the user's step.** Name the
+  bundle to run (`_status.sql` first, then what it flags) — never assume a
+  migration is live because it is merged.
+- **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
+  still pending (a migration to run, a redeploy to do) as part of the change.
+- **CallReg redeploys** — a change to `apps-script/CallReg.gs` is not live until
+  the Web App is redeployed. When a new `/exec` URL arrives, bake it into
+  `DEFAULT_SHEETS_URL` in `src/lib/sheets.ts` and bump `DEFAULT_URL_VERSION`, so
+  every client supersedes its stored URL instead of each device editing Settings.
 
-## Data sources
+## Gotchas
 
-The app reads live data from Supabase, with a Google Apps Script (CallReg) sheet
-fallback; `dataConfigured()` covers either. The local `db.ts` collections are demo
-leftovers — `clearDemoData()` empties them on first load, so any screen still backed by
-one renders blank. Masters, calls, spares and reports are all live.
+- `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
+  It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
+  orderings, deliberately: a **list** of visits reads by `visit_at desc nulls
+  last, id desc`, but the **latest** visit (what a call's status comes from) is
+  the latest ENTRY — `updated_at desc, id desc`, matching
+  `sync_call_last_visit()` in `0032_call_state_by_entry.sql`.
+- A call is **Unattended** only while it has no visit row; after that its status
+  is the latest entry's. `calls.open_state` tests unsolved and report-pending
+  **before** `solved%`, or "Solved - Report Pending" would read as Solved.
+- The Supabase anon/publishable key in `src/lib/supabase.ts` is public by design;
+  access is enforced by RLS. Never ship the service_role key.
+- `script.google.com` is blocked from the sandbox's outbound proxy, so the Apps
+  Script endpoints cannot be probed from here — say so rather than guessing.
+- The local `db.ts` collections are **demo leftovers**, and `clearDemoData()`
+  empties them on load — a screen backed by one renders blank against live
+  data. That is what made Part Master and the in-call spare-consumption picker
+  look empty; both read live tables now. Recognise the symptom quickly.

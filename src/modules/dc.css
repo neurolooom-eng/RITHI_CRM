@@ -1,0 +1,110 @@
+/* ===========================================================================
+   DELIVERY CHALLAN — print stylesheet (v2_DCTemplate).
+   A4, narrow margins, and the letterhead + signature block on every page.
+   Each sheet is a complete <section> (see paginate() in lib/dc.ts): <tfoot>
+   prints only on the last page in Chromium, and a fixed footer repeats without
+   reserving space, so it paints over the last rows — both were tried.
+   =========================================================================== */
+@media print {
+  /* A4 with Excel's "Narrow": 0.25in sides, 0.75in top and bottom. */
+  @page { size: A4 portrait; margin: 0.75in 0.25in; }
+  html, body { background: #fff; }
+  .dc-toolbar, .dc-noprint { display: none !important; }
+  .dc-sheet { box-shadow: none; margin: 0; padding: 0; width: auto; }
+}
+
+.dc-page { background: #f3f4f6; min-height: 100vh; padding: 16px; }
+.dc-toolbar { display: flex; gap: 8px; align-items: center; max-width: 210mm; margin: 0 auto 12px; }
+/* On screen the sheet is shown at A4 width so what you see is what prints. */
+.dc-sheet {
+  width: 210mm; margin: 0 auto; background: #fff; padding: 12mm 6mm;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 10pt;
+}
+
+.dc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.dc-table th, .dc-table td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; }
+/* The letterhead and the signature block are cells, but must not read as a
+   grid — only the item rows carry visible rules. */
+
+.dc-letterhead { display: flex; align-items: center; gap: 10px; border: 1px solid #000; }
+.dc-logo { width: 46mm; padding: 4px 6px; }
+.dc-logo img { width: 100%; display: block; }
+.dc-org { flex: 1; padding: 4px 6px; border-left: 1px solid #000; }
+.dc-org .dc-org-name { font-weight: 700; font-size: 11pt; }
+.dc-org div { line-height: 1.25; font-size: 8pt; }
+
+.dc-title { text-align: center; font-weight: 700; font-size: 13pt; letter-spacing: 0.5px; padding: 6px 0 4px; }
+
+.dc-parties { display: flex; border: 1px solid #000; border-bottom: none; }
+.dc-to { flex: 1; padding: 5px 6px; min-height: 22mm; border-right: 1px solid #000; }
+.dc-to .dc-label { font-size: 8pt; color: #333; }
+.dc-to .dc-name { font-weight: 700; font-size: 11pt; margin-top: 2px; }
+.dc-meta { width: 78mm; }
+.dc-meta div { padding: 4px 6px; border-bottom: 1px solid #000; font-size: 9pt; }
+.dc-meta div:last-child { border-bottom: none; }
+.dc-meta b { font-weight: 700; }
+
+.dc-th { background: #eee; font-weight: 700; text-align: center; font-size: 9pt; }
+.dc-c-sr { width: 12mm; text-align: center; }
+.dc-c-order { width: 32mm; }
+.dc-c-code { width: 34mm; }
+.dc-c-qty { width: 16mm; text-align: right; }
+/* The template's 20-row grid, one sheet's worth. An empty row is short so all
+   twenty plus the letterhead and the signature block come to ~250mm against
+   259mm of usable A4 — the headroom that keeps a sheet off a second page. */
+.dc-empty td { height: 4mm; }
+
+.dc-remarks { border: 1px solid #000; border-top: none; padding: 5px 6px; min-height: 10mm; font-size: 9pt; }
+.dc-signs { display: flex; border: 1px solid #000; border-top: none; }
+.dc-signs > div { flex: 1; padding: 5px 6px; font-size: 8.5pt; line-height: 1.35; }
+.dc-signs > div + div { border-left: 1px solid #000; }
+.dc-sign-space { height: 14mm; }
+.dc-strong { font-weight: 700; }
+/* Each sheet is its own printed page. break-after on all but the last is what
+   guarantees the split lands exactly where paginate() put it.
+   A sheet measures ~247mm against 259mm of usable A4, so the gap between
+   sheets is SCREEN ONLY: 16px of margin in print is enough to tip each sheet
+   onto a second, near-empty page. */
+.dc-pagenote { font-size: 8pt; text-align: right; padding-top: 3px; }
+
+@media screen {
+  .dc-sheet + .dc-sheet { margin-top: 16px; }
+}
+@media print {
+  .dc-sheet { break-after: page; page-break-after: always; margin: 0; }
+  .dc-sheet:last-child { break-after: auto; page-break-after: auto; }
+}
+
+/* ===========================================================================
+   DECLARATION FORM — the second sheet of the template, printed the same way:
+   A4, narrow margins, one complete <section> per page.
+   =========================================================================== */
+/* The fill-in panel is screen only — it collects what the app cannot know. */
+.dc-fillin { margin-bottom: 16px; }
+.dc-fillin h3 { margin: 0 0 10px; font-size: 14px; }
+.dc-fillin .field { display: block; margin-bottom: 10px; }
+.dc-fillin textarea.input { resize: vertical; font-family: inherit; }
+
+.decl-head { display: flex; align-items: center; gap: 12px; border: 1px solid #000; }
+.decl-head .dc-logo { width: 42mm; border-right: 1px solid #000; }
+.decl-title { flex: 1; text-align: center; font-weight: 700; font-size: 13pt; letter-spacing: 0.5px; }
+.decl-meta { width: 62mm; border-left: 1px solid #000; }
+.decl-meta div { display: flex; justify-content: space-between; gap: 8px; padding: 4px 6px; font-size: 9pt; }
+.decl-meta div + div { border-top: 1px solid #000; }
+
+.decl-ids { display: flex; gap: 24px; padding: 6px 2px 2px; font-size: 9.5pt; }
+.decl-heading { font-weight: 700; text-decoration: underline; padding: 8px 2px; font-size: 10.5pt; }
+.decl-body { padding: 0 2px 8px; font-size: 9.5pt; }
+.decl-body p { margin: 0 0 7px; }
+
+.decl-table { margin-top: 2px; }
+.decl-c-sno { width: 16mm; text-align: center; }
+.decl-c-part { width: 42mm; }
+
+.decl-foot { display: flex; gap: 16px; padding-top: 12px; font-size: 9.5pt; }
+.decl-to { flex: 1; }
+.decl-to-label { margin-top: 6px; }
+.decl-from { width: 78mm; }
+.decl-fill-row { display: flex; gap: 10px; }
+.decl-fill-row .field { flex: 1; }

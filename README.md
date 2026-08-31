@@ -31,7 +31,10 @@ The app seeds realistic medical-domain demo data on first login.
 - **Masters** — Party Master · Product Master · Part (spare) Master
 - **Contracts & Warranty** — Warranty Register · Contract Register (AMC/CMC)
 - **Service Calls** — Installation · Preventive (PM) · Breakdown/Field (with **call closure**)
-- **Spares** — Spare Requests · Spare Consumption
+- **Spares** — Spare Requests · Spare Consumption · **Stock Transfer**
+  (engineer → engineer hand-overs) · **Hand Stock** (the stock level per engineer
+  & spare: stock out − consumption − transfers out + transfers in, with the
+  movement behind every figure; call reporting consumes only from it)
 - **Billing** — Quotations · Invoices (line items for **products & spares**, GST, totals, print)
 - **Quality & Analytics** — Customer Feedback · Daily Call Review · Field Failure Report · KPI & Failure-rate Analysis (product-wise)
 - **Administration** — User Access · Settings (themes, design-system defaults, templates)
@@ -76,4 +79,5 @@ Review, Field Failure Report, KPI) are bespoke but reuse the same primitives.
 
 - Replace the client-side store & auth with a real backend + proper password hashing.
 - Bind the official print templates into the placeholders.
-- Add stock decrement on spare consumption and contract-driven PM auto-scheduling.
+- Contract-driven PM auto-scheduling. (Engineer-level stock is live — see **Hand Stock**;
+  what is still missing is warehouse stock: `parts` carries no on-hand quantity.)

@@ -4,7 +4,7 @@ import { bulkInsert, detectTable, parseCSV, shapeRows, tableCount, type ImportTa
 import { supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
-const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'reports', 'user_directory'];
+const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports', 'user_directory'];
 
 interface FileState {
   name: string;

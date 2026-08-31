@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow shipped)_
+_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped; go-live data reset queued)_
 
 ---
 
@@ -120,6 +120,11 @@ preflight their prerequisites, and are idempotent.
   (`0006`, `0009`, `0011_spare_intake`, `0012_spare_auto_approval`) are now
   live on the project. None of these had ever been run: the spare tables were
   still at `0001`, which is why the spare register only ever half-worked.
+- **`0023_handstock.sql`** — the hand-stock views, and `engineer_stock`
+  redefined over them (bundle: **`HandStock_X.sql`**, at the repo root; needs
+  `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
+  module says so and stays empty, and the report form has no stock to consume
+  from.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.
@@ -150,6 +155,12 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   desk over `call_requests`), **Spare Requests** (writes + reads Supabase), in-app **Bulk
   Data Import**, unified **call view** (actions on top + mini-tables keyed by Call
   Number).
+- ✅ **Historical requests imported** — the CRN Registration sheet export
+  (Data2026) drops straight into Bulk Data Import: 4,083 rows → 4,077 (six
+  exact double-submissions deduped on UniqueID), 2,692 requests, Jan–Aug 2026.
+  A row with a UCN loads as **Registered**, one without stays **Pending** and
+  reaches the Hotline desk. Needs `0024_call_request_extra.sql` — the sheet's
+  "Any Open Call?", Regional Manager and Comments / Remarks live in `extra`.
 - ✅ **Call requests + call state** — `0010_call_request_items` (a request is one
   row per call sharing its REQID; `unique_key` is the identity; atomic insert
   via `next_call_reqid()`), `0011_call_request_actions` (map / cancel columns),
@@ -178,6 +189,13 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   first, nulls last) tie-broken by `id`. **Run the `reports` apply bundle**
   (`0010_reports_ordering.sql`) for the indexes behind that sort — the app works
   without it, large loads are just slower.
+
+### Migrations to run (Supabase SQL editor)
+- **`0032_call_state_by_entry.sql`** (apply bundle: `call_requests`) — the call's
+  status now comes from the latest **visit entry** (by entry timestamp), not the
+  latest visit date, and "Solved - Report Pending" no longer reads as Solved.
+  Until it is run, a back-dated visit can still win and a report-pending call
+  drops off Pending Calls.
 
 ### Open items & questions
 - **User Master data + engineer logins** — directory infra is done and `0004`
@@ -214,8 +232,16 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **Product Master gaps** — migration dropped City / State / Service Engineer;
   cascade prefill leaves those blank. Re-map from ProdMaster if needed.
 - **Editable Registration Date on the single-call PM form?** (question).
-- **Reporting solved-branch fields** — confirm required set / Yes-No dropdowns
-  for Add Consumption? / Maintenance Done? / Recomended Filter Changed? (question).
+- **Reporting field spec** — ✅ done. The Update Call form follows the agreed
+  list: fetched call context (UC Number / Call Number / Call Type / Email-ID), a
+  **Service Report** section in spec order, the three statuses (Solved - Report
+  Completed / Unsolved / Solved - Report Pending), pending reason from the master
+  (mandatory when Unsolved), Yes/No dropdowns for Add Consumption? (mandatory),
+  Maintenance Done? (optional) and Recomended Filter Changed? (mandatory), a
+  mandatory manual report on a completed call, Warranty Start Date on
+  installations only, Accessory Serial No suggested from the party's CPX/ASU
+  units, and Name / Contact Number / Designation on sign-off. Consumption lines
+  stay editable (change part or quantity, delete) until the report is saved.
 - **Rotate the Supabase secret key** — it was pasted in chat during setup.
 - **Local `sheets.ts` fallback** — the Apps Script path remains as a fallback when
   Supabase isn't configured; retire once fully off sheets.
@@ -292,10 +318,190 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     running sequence; numbers already issued keep the old `OR47042` form, since
     they are quoted on DCs and in Tally. `0018`/`0019` settled the shape on
     `OR-2608-0001`; the four-digit counter keeps the register sorting correctly.
-  - **Next:** stock decrement on dispatch (needs `parts.on_hand`/price columns
-    first; the ITEM Master import carries only code, description and Active), a
-    stores-side pick/pack view, and consumption reconciliation — flag a received
-    request whose parts were never consumed against the call. Also worth a smoke test
+  - *Phase 7* (`0022_spare_line_uid.sql`): **every spare has its own ID** —
+    `<OR number>-<RowNo>`, e.g. `OR-2608-0001-01`. It leads the register, the RM
+    approves against it and Stores dispatches against it, so two spares on one
+    OR can be dispatched on different days with different DCs (the per-line
+    columns for that have existed since 0016; this adds the reference to quote).
+    Fixed once issued, unique across the register.
+  - *Phase 9* (`0025_spare_dropped_stage.sql`,
+    `scripts/import-spare-history.mjs`): the **26_SpareRequest history imports**
+    — 4,088 requests and 8,480 spare lines back to June 2023, with the approval
+    chain, stores status and SO number per line. Driven by `v2_OR_Req`, which
+    carries every identifying field, so the **57 ORs missing from `v2_ORReq-All`
+    still import in full**. Imported requests keep their original `OR43016`-style
+    numbers; the monthly `OR-YYMM-NNNN` counter is untouched, since its seeding
+    only matches the new format. Each imported spare gets its own ID
+    (`OR43016-01`) from the existing trigger.
+    New terminal **Dropped** stage for a spare Stores did not send — distinct
+    from Rejected (254 of the 272 had the RM's approval first), and it no longer
+    holds its request open.
+    ⚠️ **8 lines are both RM-Rejected and Stores-Dropped**; the derivation calls
+    those Rejected — the approver's decision closed the line — where the sheet's
+    own Status column said Dropped. Every other line matches the sheet exactly
+    (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
+    `spare_line_stage()` if the sheet should win instead.
+    The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 14* (`0031_pending_dispatch_live_stage.sql`): **the dispatch queue
+    computes the stage instead of trusting the column.**
+    Reported symptom: Spare Requests showed three spares at Stores while
+    Pending Dispatch was empty. The two screens were asking different
+    questions — the register derives the stage in the app from the approval
+    columns (`deriveStage`), the queue filtered on `spare_request_lines.stage`,
+    which is a trigger-maintained CACHE of that same derivation. Any write that
+    does not refresh it (a load with triggers off, a row last written before
+    0016/0025 changed the rule) leaves the two disagreeing, and the spare is
+    invisible to Stores while looking perfectly normal in the register.
+    The view now applies `spare_line_stage()` to the columns. The cached column
+    is repaired for every line as well, since the register's chips and tiles
+    and the header roll-up still read it.
+    Reproduced first: with the stored stage forced to 'Commercial' behind the
+    trigger's back, the queue returned 0 rows before and all 3 after — kept as
+    step 12 of `spare_dispatch_test.sql`.
+  - *Phase 13* (`0029_engineer_address.sql`): **the Declaration form**
+    (`/declaration/<stock out>`) — the template's second sheet, the paper that
+    travels with the parcel. Same printing as the challan: A4, narrow margins,
+    one complete `<section>` per sheet (18 rows, the sheet's own grid), so the
+    heading and the sender block are on every page.
+    Three things the form needs and the app did not have, each settled where it
+    belongs:
+    • **the address** — from the **User Master**: `user_directory` gains
+      `address` / `city` / `state` / `phone`. The sheet always had those
+      columns and the User Master screen already showed City/State/Contact, but
+      the table never carried them, so on Supabase they were blank. Now read,
+      shown (Address added to the screen), imported, and **lifted out of
+      `extra`** for a directory imported before they were columns.
+    • **the approximate value** — typed per parcel. The form says approximate,
+      and `parts` carries no price at all.
+    • **the purpose sentence** — the sheet's COVID-era wording is the default
+      and is editable.
+    Dispatch may correct the four address fields from the form and save them
+    back to the User Master; a guard refuses every other column from a
+    non-admin, so the reporting tree cannot be edited through that door.
+    **Split across two migrations, on purpose.** `0029` is the four columns and
+    the `extra` backfill, and ships in the **User Directory** bundle where the
+    User Master lives. `0030_engineer_address_write.sql` is only the rule about
+    writing them, and ships with **RBAC**, because its policy calls
+    `has_perm()` — which RBAC defines and which applies after the directory.
+    (Both were first put in the RBAC bundle, which worked but hid a User Master
+    column change inside "Roles & Permissions". Bundle ORDER is the constraint,
+    and it has now bitten twice: a new object may only reference what its own
+    module already depends on. Splitting the migration, rather than moving it,
+    is the way out.)
+    `0029` drops the write guard around its backfill and puts it back only if
+    it exists, so it is safe both on a first run (no guard yet) and re-run
+    after `0030` (guard restored) — verified by applying the bundles out of
+    order and checking the trigger is still installed.
+  - *Phase 12* (`0028_dc_number_is_stock_out.sql`): **the Delivery Challan
+    prints** (`/dc/<stock out>`), laid out from `v2_DCTemplate.xlsx`.
+    A4, narrow margins (0.25in sides, 0.75in top/bottom), and the letterhead
+    AND the signature block on **every** sheet.
+    That last part decided the implementation. Two browser mechanisms were
+    tried and both fail: a table's `<thead>` repeats, but Chromium prints
+    `<tfoot>` only on the LAST page; and a `position: fixed` footer repeats but
+    reserves no space, so it paints over the final rows (both reproduced, and
+    the second one confirmed in a printed PDF). So the pages are cut in code —
+    `paginate()` in `src/lib/dc.ts` — one complete `<section>` per sheet,
+    20 rows each, which is exactly the template's own grid and exactly what
+    fits: a sheet measures ~250mm against 259mm of usable A4.
+    Verified by printing through headless Chromium: 1/6/20 spares → 1 sheet,
+    21/40 → 2, 41/45/60 → 3, with the letterhead and both signature blocks on
+    every page and no row hidden.
+    **One number, not two.** 0027 minted an SO- and a DC- series on the
+    assumption the challan had its own number. The template says otherwise —
+    it identifies the delivery by **Stock Out No.** and has no DC field — and
+    so does the sheet era, whose `SO NO` column is what the import loaded into
+    `dc_number`. `dc_number` now mirrors the stock out, every existing read
+    (hand stock's movement ref, the trail, the register, the history) keeps
+    working, and `next_dc_number()` is retired. If a distinct challan series is
+    ever wanted, `spare_dispatches_assign_no()` is the one place it comes back.
+    ⚠️ **Still to do:** the workbook's second sheet, the **Declaration form**
+    (for the courier), is not built — it needs a recipient name and address and
+    an approximate value, none of which the app holds. Ask where those come
+    from before building it.
+  - *Phase 11* (`0027_spare_dispatch.sql`): **Pending Dispatch** — the Stores
+    queue as a screen of its own (`/spare-dispatch`), grouped by engineer,
+    longest wait first. Multi-select within a group (or tick the whole
+    engineer) and book the lot out in ONE stock out.
+    New `spare_dispatches` header, one row per stock out, carrying the
+    generated **SO-YYMM-NNNN** and **DC-YYMM-NNNN** numbers, the engineer, the
+    courier and the DC date; `spare_request_lines` gains `dispatch_uid` /
+    `stock_out_no` and keeps `dc_number`, so hand stock, the trail and the
+    imported history all still read.
+    `dispatch_spare_lines()` does the batch atomically and enforces what the
+    screen promises — the caller holds `spare.dispatch`, every line is still
+    waiting at Stores, and the whole batch goes to one engineer (a DC is one
+    delivery to one person).
+    Numbering is the OR/ST upsert counter, so concurrent dispatchers cannot
+    collide. ⚠️ **The DC format is still to be confirmed** — it is produced in
+    exactly one place, `next_dc_number()`, so changing it is a one-function
+    change. A DC *document* (the printable challan) is not built yet, pending
+    that format.
+    Dispatch was removed from the register's own modal: there is now one way
+    to book stock out, so nobody types a DC number by hand. The register's
+    Stores action links to that engineer's queue instead.
+    No change was needed for hand stock or the call-report picker: `0023`
+    already counts a spare from the DISPATCH, not the acknowledgement, so a
+    booked-out spare is in the engineer's hand stock — and therefore in the
+    consumption picker — immediately.
+  - *Phase 10* (`0026_spare_approval_data.sql`): **Commercial and NSM answer
+    their own forms**, transcribed from the two Google Forms.
+    Commercial branches — status → clearing reason → MC/SA number *or* the
+    four-step Direct PO checklist, or a pending reason. NSM is flat — status,
+    multi-select reasons with an *Other*, remarks.
+    Answers live in `spare_request_lines.approval_data` as jsonb keyed by
+    stage, so a form can change without a migration; the decision itself stays
+    in the columns the workflow reads, so stage derivation is untouched.
+    A separate trigger gates each stage's answer by that stage's permission.
+    **New third outcome:** "Admin Process in Progress" / "Put on HOLD" record
+    *why* without approving, so the spare stays in that stage's queue —
+    previously Commercial and NSM could only approve or reject.
+    **Resolved (asked and answered):** the clearing reasons include Under CMC
+    and Under Warranty while `needsReview()` routes only AMC and OGP items to
+    Commercial — which looked like a mismatch, and is not. **Contract entry
+    lags reality:** a machine whose CMC or warranty has not been keyed in yet
+    still reads as OGP, so it lands with Commercial, who clears it as *Under
+    CMC* / *Under Warranty*. Those reasons are how Commercial records that the
+    system is behind the contract. Routing stays AMC + OGP; the form keeps all
+    five reasons. Do not "fix" either one.
+  - *Phase 8* (`0023_handstock.sql`): **Hand Stock** (`/handstock`) — the stock
+    level an engineer is carrying, per spare:
+    **stock out (Stores) − consumption − transfer out + transfer in**.
+    Two tabs: **Stock Level**, one line per engineer and spare with every term
+    as its own column (in-hand / short / settled filters, per-engineer filter,
+    search, CSV, and a per-line movement trail in a drawer); and
+    **Movements**, the ledger those levels are made of — every stock out,
+    consumption and transfer, newest first, filtered by kind and engineer,
+    paged and exportable.
+    It does **not** add a second stock system: `0020_stock_transfer.sql` owns
+    the transfer tables and the `/stock-transfer` screen, and `engineer_stock`
+    — which that screen and its overdraw guard read — is redefined as a view
+    over `handstock_balance`, so the two can never disagree.
+    That consolidation fixed two ways a balance was wrong: only
+    `req_type = 'HandStock'` requests counted as stock in, so a spare
+    dispatched against a **call** was consumed out of a balance it had never
+    been added to (engineer goes negative, transfers refused); and a dispatch
+    carrying a DC but **no `dispatched_at`** — sheet-era rows, imports —
+    counted for nothing. Stock out is now every dispatched line, decided by the
+    *status*, dated by the best timestamp the row has.
+    **Reporting → Spare consumption offers only what that engineer holds**,
+    with the quantity in hand, and refuses more — so a report can no longer
+    consume a spare nobody issued.
+    Movements are matched on the engineer's **name** (case- and
+    space-insensitive) and the part **CODE**; consumption never carried an
+    email, so the report form now writes one for future rows.
+    Requirements are written up in **`HandStock_Req.md`** (repo root), numbered
+    HS-1…HS-40 with the check that proves each one.
+    A **negative** level is shown, not hidden. `supabase/tests/handstock_test.sql`
+    covers it, and `stock_transfer_test.sql` still passes against the
+    redefined view.
+  - **Next:** warehouse-side stock — the *Stores* balance, decremented on
+    dispatch (needs `parts.on_hand`/price columns first; the ITEM Master import
+    carries only code, description and Active) and a stores pick/pack view.
+    Engineer-side stock is now live, so consumption reconciliation is a filter
+    over it (a spare still in hand long after the call closed). A transfer is
+    deliberately immediate — if hand-overs need the receiving engineer to
+    accept them, that is an acknowledgement step on `stock_transfers`. Also worth a smoke test
     on the live project now that the migrations are applied: raise a request,
     approve it as RM, dispatch it, acknowledge it — the RLS paths (`sr_update`,
     the new `sr_delete`) are the part the trigger harness cannot cover.
@@ -328,6 +534,45 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ---
 
+## 🚀 Before go-live
+
+- **Clear all data and re-upload fresh from the sheet CSVs.** Everything in
+  Supabase today is migration/test data loaded while the modules were being
+  built (plus whatever the demo seed left behind). Before go-live, purge the
+  data tables and re-import a clean export of every sheet in one pass through
+  **Bulk Data Import**, so the live system starts from the sheet as the single
+  source of truth.
+  - **Purge, then load in dependency order:** masters / value lists → parties →
+    products → parts (ITEM Master) → user directory → calls (FIELD + INST + PM)
+    → reports (per-visit) → spare requests + lines → consumption → feedback →
+    call requests → stock transfers + lines. Children reference parents, so the
+    order matters. **Hand Stock needs nothing of its own** — a balance is
+    derived (stock out − consumption − transfer out + transfer in), and
+    `engineer_stock` is a view over it, so both come back correct once the
+    ledgers underneath are loaded.
+  - **Keep, do not purge:** Supabase Auth users, `profiles`, `app_roles` /
+    Roles & Permissions, per-user extra access, saved table views, and Admin
+    Config. Those are configuration, not data.
+  - **Reset the counters after loading** so new records continue the series
+    rather than colliding with the imported rows: the UCN counters (F / I / PM);
+    the **Call Number** running number (`0015_call_number.sql`, `CLYY#####`,
+    seeded from the existing series); `next_call_reqid()` for REQID; and the
+    **OR NO** per-month counter table (`0017`–`0019`, `OR-YYMM-NNNN` restarting
+    at 0001 each month) — a fresh load of historical spares must not leave the
+    current month's counter behind the numbers it just imported — and
+    `stock_transfer_counters` (`0020`) for the same reason. Spare line UIDs
+    (`0022`, `<OR number>-<RowNo>`) follow the OR number, so they need no
+    counter of their own.
+  - **Verify against the sheet before opening it up:** row counts per table,
+    a spot-check of back-dated `reg_date` values, call status derivation
+    (`call_state`), and that role scoping still resolves — it matches on exact
+    `User Name` ⇄ `Call Allocated To` strings.
+  - Needs a repeatable purge path (a `supabase/apply/` reset bundle, or a
+    documented SQL snippet) rather than deleting tables by hand — it will
+    likely be run more than once during the dry run.
+
+---
+
 ## 🔧 Operational notes / blockers
 
 - **Redeploy CallReg** after backend changes, re-authorising the Drive scope,
@@ -336,5 +581,26 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **v2Consumption / v2Feedback** are read as tabs of the Call Register spreadsheet
   by default; if they live elsewhere set `cfg_consumption` / `cfg_feedback` or
   share the sheet.
+- ⚠️ **A merge on main reverted four modules** (2026-08-29). The audit-log
+  branch was cut from a much older tree, and merging it took its stale hunks:
+  `SpareRequests.tsx` lost per-spare approvals (leaving calls to `wfButtons` /
+  `runPending` that no longer existed), `FieldCalls.tsx` lost `StateBadge`,
+  `RequestCallRegistration.tsx` lost its product rows, `UserAccess.tsx` lost
+  `sbSendPasswordReset`. **`npm run build` failed on main**, so the Pages
+  deploy was broken too. Repaired here by restoring each file from the commit
+  before that merge and re-applying the audit calls on top. Worth checking a
+  long-lived branch against main before merging it.
+- `0009_audit_log.sql` arrived with no apply bundle, which the generator's
+  coverage check refuses (rightly) — it now has one (`supabase/apply/audit.sql`),
+  and `_status.sql` reports it.
 - Role/visibility matching relies on exact `User Name` ⇄ `Call Allocated To`
   strings (case/space-insensitive). Flag any spelling mismatches.
+- **`supabase/apply/all.sql` is not re-runnable** (the per-module bundles are).
+  On a second run `0012_call_state.sql` recreates `pending_calls` as
+  `select c.*, s.state as open_state`, and by then `0014` has added a real
+  `open_state` column to `calls` — so the view has the name twice and the
+  bundle stops with *“column open_state of relation pending_calls already
+  exists”*. Pre-existing, harmless on a first apply; fix by qualifying that
+  select when `0012` is next touched.
+- **`CallReporting.tsx` was missing its `uploadToDrive` / `MAX_UPLOAD_BYTES`
+  import** — `npm run build` failed on the branch tip. Import added.

@@ -513,6 +513,10 @@ export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]>
       'User Name': r.name, 'Email ID': r.email, 'GMAIL ID': r.gmail, 'Designation': r.designation,
       'RM': r.reporting_manager, 'RGM': r.regional_manager, 'REGION': r.region,
       'Validity': r.validity ? 'TRUE' : 'FALSE',
+      // The delivery address the Declaration form is addressed by
+      // (0029_engineer_address.sql), under the User Master's own headers.
+      'ADDRESS': r.address ?? '', 'CITY': r.city ?? '', 'STATE': r.state ?? '',
+      'Contact  No': r.phone ?? '',
     }));
     if (rows.length < PAGE) break;
   }
@@ -520,6 +524,18 @@ export async function listDirectoryAsUsers(): Promise<Record<string, unknown>[]>
 }
 export async function sbDirectoryNames(): Promise<string[]> {
   return distinctColumn('user_directory', 'name');
+}
+
+// ---- Audit log (admin) -----------------------------------------------------
+export interface AuditFilter { action?: string; email?: string; status?: string }
+export async function queryAudit(filter: AuditFilter, offset = 0, limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('audit_log').select('*').order('at', { ascending: false }).range(offset, offset + limit - 1);
+  if (filter.action) q = q.ilike('action', `%${_san(filter.action)}%`);
+  if (filter.email) q = q.ilike('email', `%${_san(filter.email)}%`);
+  if (filter.status) q = q.eq('status', filter.status);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return data ?? [];
 }
 
 // ---- RBAC (role → permissions) ---------------------------------------------
@@ -555,9 +571,15 @@ export async function sbEngineerNames(): Promise<string[]> {
 }
 
 // ---- reports (Reporting-N equivalent) --------------------------------------
-// Latest visit for a UCN (reports is history; ucn is no longer unique).
+// `reports` is the visit HISTORY (one row per visit, `ucn` is not unique) and
+// has no created_at. Two different orderings, on purpose:
+//   • the LATEST visit — what the call's status comes from — is the latest
+//     ENTRY: `updated_at` (written when the visit is entered) desc, id desc.
+//     The same rule the database uses (0032_call_state_by_entry.sql).
+//   • the register below lists the history by VISIT DATE, which is how it
+//     reads as a list.
 export async function getReport(ucn: string): Promise<{ row: Record<string, unknown> | null }> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(errMsg(error));
   return { row: data ?? null };
 }
@@ -576,7 +598,7 @@ export async function queryReports(filter: ReportFilter, offset = 0, limit = 100
 
 // All visits for a UCN (newest first) — for a report history view.
 export async function reportHistory(ucn: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
@@ -589,7 +611,7 @@ export async function saveReport(ucn: string, patch: Record<string, unknown>): P
 }
 // The latest visit row for a UCN (most recent report), for history/context.
 export async function latestReport(ucn: string): Promise<Record<string, unknown> | null> {
-  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
+  const { data } = await must().from('reports').select('*').eq('ucn', ucn).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(1).maybeSingle();
   return data ?? null;
 }
 
@@ -816,6 +838,87 @@ export async function addStockTransfer(
   return { ok: true, uid };
 }
 
+// ---- stores dispatch ------------------------------------------------------
+// The Stores queue: every spare that has cleared its approvals and has not
+// been booked out yet, with the engineer it is going to. The view is
+// security_invoker, so this returns exactly the lines the caller may already
+// see in the register (0027_spare_dispatch.sql).
+export async function listPendingDispatch(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_pending_dispatch').select('*')
+    .order('engineer', { ascending: true }).order('or_no', { ascending: true })
+    .order('row_no', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// Book a batch out. One round trip: the database generates the stock-out and
+// DC numbers, stamps every line, and rolls the requests up — all in one
+// transaction, so a batch never lands half done.
+export async function dispatchSpareLines(
+  lineIds: number[], courier: string, remarks: string, dcDate: string, actor: string,
+): Promise<{ ok: boolean; dispatch?: Record<string, unknown>; error?: string }> {
+  const { data, error } = await must().rpc('dispatch_spare_lines', {
+    p_line_ids: lineIds, p_courier: courier, p_remarks: remarks, p_dc_date: dcDate, p_actor: actor,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  // A function returning a composite comes back as the row itself; PostgREST
+  // wraps it in an array when the client asks for a set.
+  const row = Array.isArray(data) ? data[0] : data;
+  return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
+}
+
+// The engineer's delivery address — Address / City / State / Contact from the
+// User Master, which is where it is maintained (0029_engineer_address.sql).
+export interface EngineerAddress { address: string; city: string; state: string; phone: string }
+
+export async function engineerAddress(name: string): Promise<EngineerAddress | null> {
+  const key = name.trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('user_directory')
+    .select('name, address, city, state, phone').ilike('name', key).limit(1);
+  if (error) return null;
+  const row = (data ?? [])[0];
+  if (!row) return null;
+  return {
+    address: String(row.address ?? ''), city: String(row.city ?? ''),
+    state: String(row.state ?? ''), phone: String(row.phone ?? ''),
+  };
+}
+
+// Correcting an address is the packer's job, so dispatch may set it. The
+// database allows that column and no other (user_directory_address_guard).
+export async function saveEngineerAddress(
+  name: string, patch: Partial<EngineerAddress>,
+): Promise<{ ok: boolean; error?: string }> {
+  const key = name.trim();
+  if (!key) return { ok: false, error: 'No engineer to save an address for.' };
+  const { data, error } = await must().from('user_directory')
+    .update(patch).ilike('name', key).select('id');
+  if (error) return { ok: false, error: errMsg(error) };
+  if (!(data ?? []).length) return { ok: false, error: `${key} is not in the user directory, so the address has nowhere to live.` };
+  return { ok: true };
+}
+
+// Stock outs already booked, newest first — the Dispatched tab of the screen.
+export async function listSpareDispatches(limit = 500): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_dispatches').select('*')
+    .order('dispatched_at', { ascending: false }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// The spares that went out under one stock out — what a DC prints.
+export async function listDispatchLines(stockOutNo: string): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_request_lines')
+    .select('*, spare_requests!inner(uid, or_no, engineer, engineer_email, ucn, call_number, party_name, product_name, serial)')
+    .eq('dispatch_uid', stockOutNo).order('line_uid', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    return { ...req, ...line, uid: req?.uid };
+  });
+}
+
 export async function listStockTransfers(limit = 1000): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('stock_transfer_lines')
     .select('*, stock_transfers!inner(uid, from_engineer, to_engineer, transfer_date, remarks, status, created_at)')
@@ -829,7 +932,7 @@ export async function listStockTransfers(limit = 1000): Promise<Record<string, u
 
 // Everything associated with one call — keyed by CALL NUMBER (server-side).
 export async function reportsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('visit_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
+  const { data, error } = await must().from('reports').select('*').eq('call_number', callNumber).order('updated_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(200);
   if (error) return [];
   return data ?? [];
 }
@@ -858,6 +961,54 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
   return data ?? [];
 }
 
+// ---- hand stock ------------------------------------------------------------
+// Netted per engineer + spare by Postgres (views from 0023_handstock.sql):
+// Stock Out (Stores) − Consumption − Transfer From + Transfer To. Both views
+// are security_invoker, so the rows a user gets are exactly the ones they may
+// already see in Spare Requests / Consumption. `engineer_stock`, which the
+// Stock Transfer screen and its guard read, is the same derivation — see
+// listEngineerStock above.
+export async function listHandstockBalance(limit = 5000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .order('engineer', { ascending: true }).order('part_code', { ascending: true })
+    .range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// One engineer's stock, for the pickers that may only offer what is in hand
+// (the report form's consumption list, the transfer form).
+export async function handstockForEngineer(engineer: string, limit = 1000): Promise<Record<string, unknown>[]> {
+  const key = engineer.trim().toLowerCase();
+  if (!key) return [];
+  const { data, error } = await must().from('handstock_balance').select('*')
+    .eq('engineer_key', key).gt('on_hand', 0)
+    .order('part_code', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// Every movement, newest first — the Movements tab of the Hand Stock register.
+// Optional engineer / part filters narrow it server-side.
+export async function listAllHandstockMovements(
+  limit = 1000, offset = 0, filter: { engineerKey?: string; partCode?: string } = {},
+): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*');
+  if (filter.engineerKey) q = q.eq('engineer_key', filter.engineerKey);
+  if (filter.partCode) q = q.eq('part_code', filter.partCode);
+  const { data, error } = await q
+    .order('moved_at', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+// The movement history behind one line — every stock-out, consumption and
+// transfer for that engineer and spare, newest first.
+export async function listHandstockMovements(engineerKey: string, partCode = '', limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_movements').select('*').eq('engineer_key', engineerKey);
+  if (partCode) q = q.eq('part_code', partCode);
+  const { data, error } = await q.order('moved_at', { ascending: false, nullsFirst: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
 // ---- consumption / feedback ------------------------------------------------
 export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_consumption').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
@@ -866,6 +1017,16 @@ export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Rec
 }
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+// Every part consumed on one visit, in ONE insert: Postgres writes all the
+// rows or none, so a report can never end up with some of its spares recorded
+// and the rest lost. (Row-at-a-time inserts could fail on the second and, if
+// the caller ignored the result, do exactly that.) No `.select()` — returning
+// rows would need read rights on spare_consumption as well as write.
+export async function addConsumptionRows(rows: Record<string, unknown>[]): Promise<{ ok: boolean; error?: string }> {
+  if (!rows.length) return { ok: true };
+  const { error } = await must().from('spare_consumption').insert(rows);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {

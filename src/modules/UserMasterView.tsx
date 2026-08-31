@@ -23,6 +23,7 @@ const COLUMNS: Column<Row>[] = [
   { key: 'Validity', header: 'Active', width: 70, wrap: false, render: (r) => statusBadge(r['Validity'], VALIDITY_TONES) },
   { key: 'RM', header: 'Reporting Mgr', width: 150 },
   { key: 'Contact  No', header: 'Contact', width: 130, wrap: false },
+  { key: 'ADDRESS', header: 'Address', width: 220 },
   { key: 'CITY', header: 'City', width: 110 },
   { key: 'STATE', header: 'State', width: 110 },
 ];

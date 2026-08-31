@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory';
+export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory' | 'call_requests';
 
 // Minimal CSV parser (quotes, commas, newlines).
 export function parseCSV(text: string): Record<string, string>[] {
@@ -36,6 +36,8 @@ export function detectTable(headers: string[]): ImportTable | null {
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   // Raw User Master export (sheet headers, not the clean file).
   if (H.has('User Name') && (H.has('RM') || H.has('Email ID'))) return 'user_directory';
+  // Raw CRN Registration export (the request sheet's own headers).
+  if (H.has('UNIQUE ID') && H.has('ENGINEER') && H.has('PARTY NAME')) return 'call_requests';
   if (H.has('ucn') && H.has('data')) return 'reports';
   if (H.has('ucn') && H.has('call_type')) return 'calls';
   if (H.has('serial_number') && H.has('item_name')) return 'products';
@@ -68,8 +70,10 @@ function dedupe(rows: Record<string, unknown>[], key: string): Record<string, un
 
 // The User Master arrives either as the clean file (snake_case columns) or as
 // the raw sheet export ("User Name", "RM", "GMAIL ID", …). Map both onto the
-// user_directory columns; anything else (contact, address, city…) is kept in
-// the `extra` jsonb rather than failing the insert on an unknown column.
+// user_directory columns; anything left over is kept in the `extra` jsonb
+// rather than failing the insert on an unknown column.
+// Address / City / State / Contact are real columns since
+// 0029_engineer_address.sql — the Declaration form is addressed by them.
 const DIR_ALIASES: Record<string, string> = {
   name: 'name', 'user name': 'name', username: 'name', 'engineer name': 'name',
   email: 'email', 'email id': 'email', 'email-id': 'email',
@@ -79,9 +83,15 @@ const DIR_ALIASES: Record<string, string> = {
   regional_manager: 'regional_manager', rgm: 'regional_manager', 'regional manager': 'regional_manager',
   region: 'region',
   validity: 'validity', active: 'validity',
+  address: 'address', 'address line': 'address',
+  city: 'city', state: 'state',
+  phone: 'phone', 'contact no': 'phone', contact: 'phone', 'contact number': 'phone', mobile: 'phone',
 };
 function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
-  const out: Record<string, unknown> = { name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '' };
+  const out: Record<string, unknown> = {
+    name: '', email: '', gmail: '', designation: '', reporting_manager: '', regional_manager: '', region: '',
+    address: '', city: '', state: '', phone: '',
+  };
   const extra: Record<string, string> = {};
   let validity = 'true';
   for (const [k, v] of Object.entries(r)) {
@@ -95,6 +105,52 @@ function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
   return out;
 }
 
+// The historical Call Registration Request sheet, imported as exported. Its
+// UNIQUE ID is already REQID-Product-SerialNo, so it lines up with what the app
+// generates; a request that was registered carries its UCN, one that never was
+// stays Pending and shows up in Pending Registrations. Columns the table has no
+// home for are kept in `extra` rather than dropped.
+const CR_SKIP = new Set([
+  'UNIQUE ID', 'ID', 'Timestamp', 'E-Mail ID', 'ENGINEER', 'CALL TYPE', 'PARTY NAME', 'State', 'City',
+  'Standard Complaint', 'Reported Problem', 'PRODUCT', 'SERIAL NO', 'CUSTOMER CONTACT DETAILS',
+  'CUSTOMER CONTACT Number', 'ADDRESS', 'Attended Date', 'PLAN DATE (Visit Planned Date)',
+  'Additional Comments', 'Complaint Date', 'UCN number',
+]);
+function shapeCallRequestRow(r: Record<string, string>): Record<string, unknown> {
+  const g = (k: string) => String(r[k] ?? '').trim();
+  const ucn = g('UCN number');
+  const extra: Record<string, string> = {};
+  for (const [k, v] of Object.entries(r)) {
+    const key = k.trim();
+    if (!CR_SKIP.has(key) && String(v ?? '').trim() !== '') extra[key] = String(v).trim();
+  }
+  return {
+    reqid: g('ID'),
+    unique_key: g('UNIQUE ID'),
+    submitted_at: toTs(g('Timestamp')),
+    email: g('E-Mail ID'),
+    engineer: g('ENGINEER'),
+    call_type: g('CALL TYPE'),
+    party_name: g('PARTY NAME'),
+    state: g('State'),
+    city: g('City'),
+    address: g('ADDRESS'),
+    customer_contact_details: g('CUSTOMER CONTACT DETAILS'),
+    customer_contact_number: g('CUSTOMER CONTACT Number'),
+    product: g('PRODUCT'),
+    serial_no: g('SERIAL NO'),
+    standard_complaint: g('Standard Complaint'),
+    reported_problem: g('Reported Problem'),
+    call_attended: g('Attended Date') ? 'Yes' : '',
+    attended_date: toDate(g('Attended Date')),
+    plan_date: toDate(g('PLAN DATE (Visit Planned Date)')),
+    additional_comments: g('Additional Comments'),
+    ucn,
+    status: ucn ? 'Registered' : 'Pending',
+    extra,
+  };
+}
+
 // Shape raw CSV rows into insert-ready records for a given table.
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
@@ -103,6 +159,10 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
     case 'parties': return raw.filter((r) => r.party_name);
     case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
     case 'products': return raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of PROD_DATES) o[d] = toDate(r[d]); return o; });
+    // A request's identity is its UniqueID (REQID-Product-Serial); the sheet
+    // holds a handful of accidental double-submissions, which the unique index
+    // would reject, so keep the first of each.
+    case 'call_requests': return dedupe(raw.map(shapeCallRequestRow).filter((r) => r.unique_key), 'unique_key');
     case 'calls': return dedupe(raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of CALL_DATES) o[d] = toDate(r[d]); return o; }), 'ucn');
     // Reports = one row per VISIT, keyed by UID (from the row's data). Call Type
     // lives inside `data` (the table has no call_type column).

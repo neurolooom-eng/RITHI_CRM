@@ -18,6 +18,12 @@
 --   0017_spare_or_number_monthly.sql
 --   0018_spare_or_number_padded.sql
 --   0019_spare_or_number_format.sql
+--   0022_spare_line_uid.sql
+--   0025_spare_dropped_stage.sql
+--   0026_spare_approval_data.sql
+--   0027_spare_dispatch.sql
+--   0028_dc_number_is_stock_out.sql
+--   0031_pending_dispatch_live_stage.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -972,5 +978,754 @@ select substring(or_no from 4 for 2) || '/' || substring(or_no from 6 for 2),
  group by 1
 on conflict (period) do update
   set last_no = greatest(public.spare_or_counters.last_no, excluded.last_no);
+
+-- ------------------------------------------------------------------------
+-- 0022_spare_line_uid.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Every spare gets its own ID: <OR number>-<RowNo>, e.g. OR-2608-0001-01.
+--
+-- The approval chain has been per-spare since 0016 — each line carries its own
+-- RM decision, DC number and dispatch date, so two spares on one OR can be
+-- dispatched days apart. What was missing is a stable identifier to quote for
+-- one of them: the RM approves against it, Stores dispatches against it, and
+-- it is what goes on the DC.
+--
+-- Derived from the OR number and the row's position, so it reads as the OR it
+-- belongs to. Assigned once and then fixed, and unique across the register.
+-- ===========================================================================
+
+alter table public.spare_request_lines
+  add column if not exists line_uid text;
+
+-- Two digits is enough: a request carries at most 20 parts (0011).
+create or replace function public.spare_line_uid(p_or_no text, p_row_no int)
+returns text language sql immutable as $$
+  select case
+           when coalesce(trim(p_or_no), '') = '' or p_row_no is null then null
+           else trim(p_or_no) || '-' || lpad(p_row_no::text, 2, '0')
+         end;
+$$;
+grant execute on function public.spare_line_uid(text, int) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Assigned on insert. The trigger name puts it after
+-- spare_request_lines_assign_row_no (which sets row_no) and before
+-- spare_request_lines_set_stage — BEFORE triggers fire in name order.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_lines_set_line_uid()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare or_no text;
+begin
+  if new.line_uid is null or trim(new.line_uid) = '' then
+    select r.or_no into or_no from public.spare_requests r where r.uid = new.request_uid;
+    -- Requests imported before 0011 have no OR number; fall back to the UID so
+    -- every line still has something unique to quote.
+    new.line_uid := coalesce(public.spare_line_uid(or_no, new.row_no),
+                             new.request_uid || '-' || lpad(coalesce(new.row_no, 1)::text, 2, '0'));
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_line_uid on public.spare_request_lines;
+create trigger spare_request_lines_line_uid
+  before insert on public.spare_request_lines
+  for each row execute function public.spare_request_lines_set_line_uid();
+
+-- ---------------------------------------------------------------------------
+-- Backfill. The RBAC guard is dropped around it: this is a data migration, and
+-- in the SQL Editor auth.uid() is NULL so is_admin() is false and the guard
+-- would judge it as an ordinary edit. Recreated after, which also makes this
+-- migration safe to re-run.
+-- ---------------------------------------------------------------------------
+drop trigger if exists spare_request_lines_guard on public.spare_request_lines;
+
+update public.spare_request_lines l
+   set line_uid = coalesce(public.spare_line_uid(r.or_no, l.row_no),
+                           l.request_uid || '-' || lpad(coalesce(l.row_no, 1)::text, 2, '0'))
+  from public.spare_requests r
+ where r.uid = l.request_uid
+   and coalesce(l.line_uid, '') = '';
+
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+
+create unique index if not exists spare_request_lines_line_uid_idx
+  on public.spare_request_lines (line_uid);
+
+-- The ID is quoted on the DC and in the approval trail, so it is fixed once
+-- assigned — like the OR number it derives from.
+create or replace function public.spare_request_lines_uid_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  if new.line_uid is distinct from old.line_uid then
+    raise exception 'The spare ID is assigned once and cannot be changed';
+  end if;
+  if new.row_no is distinct from old.row_no then
+    raise exception 'The spare row number is assigned once and cannot be changed';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_uid_immutable on public.spare_request_lines;
+create trigger spare_request_lines_uid_immutable
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_uid_immutable();
+
+-- ------------------------------------------------------------------------
+-- 0025_spare_dropped_stage.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Dropped — a spare Stores did not send.
+--
+-- Stores can drop a line instead of dispatching it (short supply, part no
+-- longer needed, superseded). That is a different outcome from a rejection:
+-- an approver refuses the request, Stores drops a part that was already
+-- approved. The imported history carries 272 of them, 254 approved by the RM
+-- first, so folding them into Rejected would misreport who ended the line.
+--
+-- Terminal, like Dispatched and Rejected. Checked after Rejected: if an
+-- approver refused the line, that decision is the one that closed it.
+-- ===========================================================================
+
+create or replace function public.spare_line_stage(
+  rm text, commercial text, nsm text, stores text, received timestamptz, item_status text
+) returns text language sql immutable as $$
+  select case
+    when rm ~* 'reject' or commercial ~* 'reject' or nsm ~* 'reject' then 'Rejected'
+    when received is not null                                        then 'Received'
+    when stores ~* 'drop'                                            then 'Dropped'
+    when stores ~* 'dispatch'                                        then 'Dispatched'
+    when rm !~* 'approv|auto'                                        then 'RM Approval'
+    when public.spare_needs_review(item_status)
+     and commercial !~* 'approv|auto'                                then 'Commercial'
+    when public.spare_needs_review(item_status)
+     and nsm !~* 'approv|auto'                                       then 'NSM'
+    else 'Stores'
+  end;
+$$;
+
+-- The request's rolled-up stage: a dropped line is closed, so it no longer
+-- holds the request open. A request is Dropped only when every line is.
+create or replace function public.spare_request_rollup(p_uid text)
+returns void language plpgsql security definer set search_path = public as $$
+declare roll text;
+begin
+  select case
+           when count(*) = 0 then 'RM Approval'
+           when count(*) filter (where stage not in ('Rejected', 'Dropped')) = 0
+             then case when count(*) filter (where stage = 'Dropped') > 0
+                       then 'Dropped' else 'Rejected' end
+           else min(case stage
+                      when 'RM Approval' then 1 when 'Commercial' then 2
+                      when 'NSM'         then 3 when 'Stores'     then 4
+                      when 'Dispatched'  then 5 when 'Received'   then 6
+                    end) filter (where stage not in ('Rejected', 'Dropped'))::text
+         end
+    into roll
+    from public.spare_request_lines where request_uid = p_uid;
+
+  roll := coalesce(case roll
+            when '1' then 'RM Approval' when '2' then 'Commercial'
+            when '3' then 'NSM'         when '4' then 'Stores'
+            when '5' then 'Dispatched'  when '6' then 'Received'
+            else roll end, 'RM Approval');
+
+  perform set_config('app.spare_rollup', '1', true);
+  update public.spare_requests
+     set stage  = roll,
+         status = case when roll = 'Stores' then 'Awaiting Dispatch' else roll end
+   where uid = p_uid and (stage is distinct from roll);
+  perform set_config('app.spare_rollup', '', true);
+end $$;
+
+-- Recompute every line and request against the new rule. The RBAC guard is
+-- dropped around it: this is a data migration, and in the SQL Editor
+-- auth.uid() is NULL so is_admin() is false and the guard would refuse it.
+drop trigger if exists spare_request_lines_guard on public.spare_request_lines;
+
+update public.spare_request_lines l
+   set stage = public.spare_line_stage(
+                 coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+                 coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+                 l.received_at, r.item_status),
+       status = public.spare_line_stage(
+                 coalesce(l.rm_approval, 'Pending'), coalesce(l.commercial_approval, 'Pending'),
+                 coalesce(l.nsm_approval, 'Pending'), coalesce(l.stores_status, 'Pending'),
+                 l.received_at, r.item_status)
+  from public.spare_requests r
+ where r.uid = l.request_uid;
+
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+
+do $$
+declare u text;
+begin
+  for u in select uid from public.spare_requests loop
+    perform public.spare_request_rollup(u);
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0026_spare_approval_data.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Answers from the approval forms, kept whole.
+--
+-- The Commercial (formerly ADMIN) step is a branching form, not a yes/no:
+-- a status, then either a clearing reason — with an MC/SA number or a
+-- four-step Direct PO checklist behind it — or a pending reason. NSM's form
+-- is the same shape.
+--
+-- Storing the answers as jsonb keyed by stage means the forms can gain or
+-- lose questions without a migration each time, while the decision itself
+-- stays in the columns the workflow already reads (commercial_approval and
+-- friends), so nothing about stage derivation changes.
+--
+--   approval_data = { "commercial": { ... }, "nsm": { ... } }
+-- ===========================================================================
+
+alter table public.spare_request_lines
+  add column if not exists approval_data jsonb not null default '{}'::jsonb;
+
+-- Answers are gated like the decision they belong to: a Commercial answer
+-- needs spare.approve_commercial, an NSM answer needs spare.approve_nsm.
+-- A separate trigger from the stage guard, so that one stays untouched.
+create or replace function public.spare_request_lines_answer_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  if new.approval_data is not distinct from old.approval_data then return new; end if;
+
+  if new.approval_data -> 'commercial' is distinct from old.approval_data -> 'commercial'
+     and not public.has_perm('spare.approve_commercial') then
+    raise exception 'RBAC: recording a Commercial answer requires the spare.approve_commercial permission';
+  end if;
+
+  if new.approval_data -> 'nsm' is distinct from old.approval_data -> 'nsm'
+     and not public.has_perm('spare.approve_nsm') then
+    raise exception 'RBAC: recording an NSM answer requires the spare.approve_nsm permission';
+  end if;
+
+  -- Anything else under approval_data still needs a seat in the chain.
+  if not public.can_approve_spares() then
+    raise exception 'RBAC: recording an approval answer requires an approval permission';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_answer_guard on public.spare_request_lines;
+create trigger spare_request_lines_answer_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_answer_guard();
+
+-- Lines still sitting with Commercial because the answer was "Admin Process
+-- in Progress" — the queue the team works from.
+create index if not exists spare_request_lines_commercial_pending_idx
+  on public.spare_request_lines ((approval_data -> 'commercial' ->> 'pending_reason'))
+  where approval_data -> 'commercial' ->> 'pending_reason' is not null;
+
+-- ------------------------------------------------------------------------
+-- 0027_spare_dispatch.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Stores dispatch — one stock-out, many spares, one engineer.
+--
+-- Dispatch is decided per SPARE (0016), but it HAPPENS in batches: the Stores
+-- incharge picks everything waiting for one engineer and books it out in one
+-- go. That batch is a real document, so it gets a row of its own:
+--
+--   spare_dispatches   — one row per stock-out. Carries the STOCK OUT number
+--                        and the DC number, both generated here, and the
+--                        engineer everything in it is going to.
+--   spare_request_lines.dispatch_uid / stock_out_no
+--                      — the line's link back to it. dc_number already existed
+--                        and keeps its meaning, so hand stock, the register,
+--                        the trail and the imported history all still read.
+--
+-- Numbering follows the OR / ST convention already in the app — a monthly
+-- counter, upserted atomically, so concurrent dispatches cannot collide:
+--   SO-YYMM-NNNN   stock out
+--   DC-YYMM-NNNN   delivery challan
+--
+-- NB: the DC FORMAT is still to be confirmed by the business. It is produced
+-- in exactly one place — next_dc_number() — so changing it later is a one
+-- function change and touches no other object.
+--
+-- Nothing here changes what a dispatch MEANS downstream: stores_status stays
+-- 'Dispatched' and dispatched_at is still the moment it left, so
+-- handstock_movements (0023) counts it as stock in the engineer's hands from
+-- the stock-out, with no acknowledgement needed — which is what puts it in
+-- the call report's spare-consumption picker.
+-- ===========================================================================
+
+alter table public.spare_request_lines
+  add column if not exists dispatch_uid text,
+  add column if not exists stock_out_no text;
+
+create table if not exists public.spare_dispatches (
+  id             bigint generated always as identity primary key,
+  uid            text unique not null,           -- SO-YYMM-NNNN (stock out)
+  dc_number      text,                           -- DC-YYMM-NNNN
+  dc_date        date not null default current_date,
+  engineer       text not null,
+  engineer_email text default '',
+  courier        text default '',
+  remarks        text default '',
+  line_count     integer not null default 0,
+  total_qty      numeric not null default 0,
+  dispatched_by  text default '',
+  dispatched_at  timestamptz not null default now(),
+  created_at     timestamptz not null default now(),
+  created_by     uuid references auth.users (id) default auth.uid()
+);
+create index if not exists spare_dispatches_engineer_idx on public.spare_dispatches (lower(btrim(engineer)));
+create index if not exists spare_dispatches_at_idx       on public.spare_dispatches (dispatched_at desc);
+create index if not exists spare_request_lines_dispatch_uid_idx on public.spare_request_lines (dispatch_uid);
+
+-- ---------------------------------------------------------------------------
+-- Numbers. One counter table, two series, both restarting each month. The
+-- upsert is what makes them safe under concurrency: the row is locked by the
+-- ON CONFLICT, so two dispatchers in the same millisecond get 0007 and 0008,
+-- never 0007 twice.
+-- ---------------------------------------------------------------------------
+create table if not exists public.spare_dispatch_counters (
+  series  text not null,
+  period  text not null,
+  last_no integer not null default 0,
+  primary key (series, period)
+);
+alter table public.spare_dispatch_counters enable row level security;  -- definer-only
+
+create or replace function public.next_dispatch_no(p_series text, p_on date)
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  insert into public.spare_dispatch_counters (series, period, last_no)
+       values (p_series, to_char(p_on, 'YYMM'), 1)
+  on conflict (series, period)
+    do update set last_no = public.spare_dispatch_counters.last_no + 1
+  returning last_no into n;
+  return n;
+end $$;
+
+create or replace function public.next_stock_out_no(p_on date default current_date)
+returns text language sql security definer set search_path = public as $$
+  select 'SO-' || to_char(p_on, 'YYMM') || '-'
+      || lpad(public.next_dispatch_no('stock_out', p_on)::text, 4, '0');
+$$;
+
+-- The one place a DC number is made. Format pending business confirmation.
+create or replace function public.next_dc_number(p_on date default current_date)
+returns text language sql security definer set search_path = public as $$
+  select 'DC-' || to_char(p_on, 'YYMM') || '-'
+      || lpad(public.next_dispatch_no('dc', p_on)::text, 4, '0');
+$$;
+
+grant execute on function public.next_stock_out_no(date) to authenticated;
+grant execute on function public.next_dc_number(date)    to authenticated;
+
+create or replace function public.spare_dispatches_assign_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.dc_date is null then new.dc_date := current_date; end if;
+  if new.uid is null or btrim(new.uid) = '' then
+    new.uid := public.next_stock_out_no(new.dc_date);
+  end if;
+  if new.dc_number is null or btrim(new.dc_number) = '' then
+    new.dc_number := public.next_dc_number(new.dc_date);
+  end if;
+  return new;
+end $$;
+drop trigger if exists spare_dispatches_assign_no on public.spare_dispatches;
+create trigger spare_dispatches_assign_no
+  before insert on public.spare_dispatches
+  for each row execute function public.spare_dispatches_assign_no();
+
+-- ---------------------------------------------------------------------------
+-- What Stores is waiting to send. One row per spare that has cleared every
+-- approval and has not been dispatched or dropped, with the engineer it is
+-- going to — which is what the screen groups by.
+--
+-- security_invoker, so the rows a user sees are exactly the lines they may
+-- already read in the register.
+-- ---------------------------------------------------------------------------
+create or replace view public.spare_pending_dispatch as
+select
+  l.id                                        as line_id,
+  l.line_uid,
+  l.request_uid,
+  r.or_no,
+  r.or_req_date,
+  l.row_no,
+  l.part,
+  -- part_code() / handstock_key() (0023) say the same thing, but the hand
+  -- stock module applies AFTER this one in all.sql — so the expressions are
+  -- inlined rather than making the spare bundle depend on that one.
+  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                              as part_code,
+  l.qty,
+  r.req_type,
+  r.item_status,
+  coalesce(r.engineer, '')                    as engineer,
+  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+  coalesce(r.engineer_email, '')              as engineer_email,
+  coalesce(r.ucn, '')                         as ucn,
+  coalesce(r.call_number, '')                 as call_number,
+  coalesce(r.party_name, '')                  as party_name,
+  coalesce(r.product_name, '')                as product_name,
+  coalesce(r.serial, '')                      as serial,
+  coalesce(r.handstock_reason, '')            as handstock_reason,
+  coalesce(r.remarks, '')                     as remarks,
+  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+  coalesce(l.created_at, r.created_at)        as raised_at,
+  -- how long it has been sitting in the Stores queue
+  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+           coalesce(l.created_at, r.created_at))                       as waiting_since
+from public.spare_request_lines l
+join public.spare_requests r on r.uid = l.request_uid
+where l.stage = 'Stores' and coalesce(l.dispatch_uid, '') = '';
+
+alter view public.spare_pending_dispatch set (security_invoker = on);
+grant select on public.spare_pending_dispatch to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Dispatch a batch, atomically.
+--
+-- Everything the Stores incharge ticked goes out under ONE stock-out and ONE
+-- DC, so the whole batch either lands or none of it does. The checks are here
+-- rather than in the screen because the screen is not the only way in:
+--   • the caller must hold spare.dispatch;
+--   • every line must still be waiting at Stores (not already sent, dropped
+--     or rejected while the screen was open);
+--   • every line must be going to the SAME engineer — a DC is one delivery to
+--     one person.
+-- ---------------------------------------------------------------------------
+create or replace function public.dispatch_spare_lines(
+  p_line_ids bigint[],
+  p_courier  text default '',
+  p_remarks  text default '',
+  p_dc_date  date default current_date,
+  p_actor    text default ''
+) returns public.spare_dispatches
+language plpgsql security definer set search_path = public as $$
+declare
+  eng   text;
+  n     integer;
+  qty   numeric;
+  head  public.spare_dispatches;
+  email text;
+begin
+  if not (public.is_admin() or public.has_perm('spare.dispatch')) then
+    raise exception 'RBAC: dispatch requires the spare.dispatch permission';
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing to dispatch: no spares selected';
+  end if;
+
+  select count(*), sum(v.qty), min(v.engineer), min(v.engineer_email)
+    into n, qty, eng, email
+    from public.spare_pending_dispatch v
+   where v.line_id = any (p_line_ids);
+
+  if coalesce(n, 0) <> array_length(p_line_ids, 1) then
+    raise exception
+      'Only % of the % selected spares are still waiting at Stores — refresh and try again',
+      coalesce(n, 0), array_length(p_line_ids, 1);
+  end if;
+  if (select count(distinct v.engineer_key) from public.spare_pending_dispatch v
+       where v.line_id = any (p_line_ids)) <> 1 then
+    raise exception 'A stock out goes to one engineer — select spares for a single engineer';
+  end if;
+
+  insert into public.spare_dispatches
+    (dc_date, engineer, engineer_email, courier, remarks, line_count, total_qty, dispatched_by)
+  values
+    (coalesce(p_dc_date, current_date), eng, coalesce(email, ''), coalesce(p_courier, ''),
+     coalesce(p_remarks, ''), n, coalesce(qty, 0), coalesce(nullif(btrim(p_actor), ''), ''))
+  returning * into head;
+
+  update public.spare_request_lines l
+     set stores_status    = 'Dispatched',
+         dispatch_uid     = head.uid,
+         stock_out_no     = head.uid,
+         dc_number        = head.dc_number,
+         courier          = coalesce(p_courier, ''),
+         dispatch_remarks = coalesce(p_remarks, ''),
+         dispatched_by    = head.dispatched_by,
+         dispatched_at    = head.dispatched_at
+   where l.id = any (p_line_ids);
+
+  return head;
+end $$;
+grant execute on function public.dispatch_spare_lines(bigint[], text, text, date, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The batch columns belong to the dispatch stage: same permission as the DC.
+-- Re-stated in full (0016's guard predates these columns).
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_lines_dispatch_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  if (new.dispatch_uid is distinct from old.dispatch_uid
+      or new.stock_out_no is distinct from old.stock_out_no)
+     and not public.has_perm('spare.dispatch') then
+    raise exception 'RBAC: recording a stock out requires the spare.dispatch permission';
+  end if;
+  return new;
+end $$;
+drop trigger if exists spare_request_lines_dispatch_guard on public.spare_request_lines;
+-- Triggers fire in name order, so this one runs BEFORE
+-- spare_request_lines_guard ('d' < 'g'). Either order is fine: both only
+-- raise, neither changes the row.
+create trigger spare_request_lines_dispatch_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_dispatch_guard();
+
+-- ---------------------------------------------------------------------------
+-- RLS. A dispatch is readable by anyone who can see the spares in it — the
+-- engineer it went to, their line management, and Stores; only spare.dispatch
+-- can write one (the RPC above is the supported route).
+-- ---------------------------------------------------------------------------
+alter table public.spare_dispatches enable row level security;
+
+drop policy if exists sd_read on public.spare_dispatches;
+create policy sd_read on public.spare_dispatches for select
+  using (public.is_admin() or created_by = auth.uid()
+      or public.has_perm('spare.dispatch')
+      or lower(btrim(engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n)));
+
+drop policy if exists sd_insert on public.spare_dispatches;
+create policy sd_insert on public.spare_dispatches for insert
+  with check (public.is_admin() or public.has_perm('spare.dispatch'));
+
+drop policy if exists sd_update on public.spare_dispatches;
+create policy sd_update on public.spare_dispatches for update
+  using (public.is_admin() or public.has_perm('spare.dispatch'))
+  with check (public.is_admin() or public.has_perm('spare.dispatch'));
+
+-- ---------------------------------------------------------------------------
+-- Access. The screen is for whoever already dispatches; append additively so
+-- an admin's later edits to a role are left alone.
+-- ---------------------------------------------------------------------------
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/spare-dispatch"]'::jsonb,
+       updated_at  = now()
+ where coalesce(permissions, '[]'::jsonb) ? 'spare.dispatch'
+   and not coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-dispatch';
+
+-- Lines dispatched before this migration have a DC but no stock out. Give them
+-- their DC number as the stock-out reference so the register is not half
+-- blank; a real SO number only exists for batches booked out through the
+-- screen. Runs with the guard dropped: this is a data migration, not somebody
+-- dispatching, and auth.uid() is NULL in the SQL editor.
+drop trigger if exists spare_request_lines_guard          on public.spare_request_lines;
+drop trigger if exists spare_request_lines_dispatch_guard on public.spare_request_lines;
+update public.spare_request_lines
+   set stock_out_no = dc_number
+ where coalesce(stores_status, '') ~* 'dispatch'
+   and coalesce(stock_out_no, '') = ''
+   and coalesce(dc_number, '') <> '';
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+create trigger spare_request_lines_dispatch_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_dispatch_guard();
+
+-- ------------------------------------------------------------------------
+-- 0028_dc_number_is_stock_out.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- One number on a delivery: the STOCK OUT number.
+--
+-- 0027 minted two series, SO- and DC-, on the assumption that the challan
+-- carried a document number of its own. The DC template says otherwise: the
+-- printed challan identifies itself by **Stock Out No.** and **Stock Out
+-- Date**, and has no DC-number field at all. The sheet-era history says the
+-- same — its column is `SO NO`, and that is what the import loaded into
+-- `dc_number`.
+--
+-- So there is one number. `spare_dispatches.uid` is it, `dc_number` mirrors it
+-- (keeping every existing read — hand stock's movement ref, the approval
+-- trail, the register column, the imported history — working unchanged), and
+-- the separate DC series is retired.
+--
+-- If a distinct challan series is ever wanted, this is where it comes back:
+-- give next_dc_number() its own counter again and stop mirroring below.
+-- ===========================================================================
+
+create or replace function public.spare_dispatches_assign_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.dc_date is null then new.dc_date := current_date; end if;
+  if new.uid is null or btrim(new.uid) = '' then
+    new.uid := public.next_stock_out_no(new.dc_date);
+  end if;
+  -- The challan is the stock out. Not a second series.
+  if new.dc_number is null or btrim(new.dc_number) = '' then
+    new.dc_number := new.uid;
+  end if;
+  return new;
+end $$;
+
+-- next_dc_number() is retired rather than left as a live second series that
+-- nothing calls. Dropped only if 0027 created it, so this is re-runnable.
+drop function if exists public.next_dc_number(date);
+delete from public.spare_dispatch_counters where series = 'dc';
+
+-- Re-point anything 0027 already minted. Only the auto-generated DC- series is
+-- touched; a number typed or imported from the sheet era is left exactly as it
+-- is. Guards are dropped first — this is a data migration, not somebody
+-- dispatching, and auth.uid() is NULL in the SQL editor.
+drop trigger if exists spare_request_lines_guard          on public.spare_request_lines;
+drop trigger if exists spare_request_lines_dispatch_guard on public.spare_request_lines;
+
+update public.spare_request_lines l
+   set dc_number = d.uid
+  from public.spare_dispatches d
+ where l.dispatch_uid = d.uid
+   and l.dc_number ~ '^DC-\d{4}-\d{4}$'
+   and l.dc_number is distinct from d.uid;
+
+update public.spare_dispatches
+   set dc_number = uid
+ where dc_number ~ '^DC-\d{4}-\d{4}$';
+
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+create trigger spare_request_lines_dispatch_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_dispatch_guard();
+
+-- ------------------------------------------------------------------------
+-- 0031_pending_dispatch_live_stage.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- The dispatch queue computes the stage; it no longer trusts the column.
+--
+-- Two screens disagreed: Spare Requests showed three spares at **Stores**
+-- while Pending Dispatch showed an empty queue. They were asking different
+-- questions.
+--
+--   • The register derives the stage in the app, from the approval columns
+--     (src/lib/spareflow.ts, deriveStage).
+--   • The queue filtered on `spare_request_lines.stage` — a column maintained
+--     by trigger, i.e. a CACHE of that same derivation.
+--
+-- A cache can go stale. Anything that writes a line without the trigger
+-- recomputing — a load with triggers disabled, a row last written before a
+-- stage rule changed (0025 added Dropped; 0016 introduced the rule itself) —
+-- leaves `stage` saying one thing while the approvals say another. The
+-- register reads the approvals and shows Stores; the queue reads the stale
+-- column and shows nothing. Exactly the reported symptom.
+--
+-- So the queue now applies spare_line_stage() to the columns, the same way the
+-- app does. A spare that has cleared its approvals appears in the queue even
+-- if its cached stage was never refreshed.
+--
+-- The column is repaired too, since the register's stage chips and KPI tiles
+-- and the request-header roll-up all still read it.
+-- ===========================================================================
+
+create or replace view public.spare_pending_dispatch as
+select
+  l.id                                        as line_id,
+  l.line_uid,
+  l.request_uid,
+  r.or_no,
+  r.or_req_date,
+  l.row_no,
+  l.part,
+  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                              as part_code,
+  l.qty,
+  r.req_type,
+  r.item_status,
+  coalesce(r.engineer, '')                    as engineer,
+  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+  coalesce(r.engineer_email, '')              as engineer_email,
+  coalesce(r.ucn, '')                         as ucn,
+  coalesce(r.call_number, '')                 as call_number,
+  coalesce(r.party_name, '')                  as party_name,
+  coalesce(r.product_name, '')                as product_name,
+  coalesce(r.serial, '')                      as serial,
+  coalesce(r.handstock_reason, '')            as handstock_reason,
+  coalesce(r.remarks, '')                     as remarks,
+  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+  coalesce(l.created_at, r.created_at)        as raised_at,
+  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+           coalesce(l.created_at, r.created_at))                       as waiting_since
+from public.spare_request_lines l
+join public.spare_requests r on r.uid = l.request_uid
+-- Computed, not read: the stage column is a cache and may be stale.
+where public.spare_line_stage(
+        coalesce(l.rm_approval, 'Pending'),
+        coalesce(l.commercial_approval, 'Pending'),
+        coalesce(l.nsm_approval, 'Pending'),
+        coalesce(l.stores_status, 'Pending'),
+        l.received_at,
+        r.item_status) = 'Stores'
+  and coalesce(l.dispatch_uid, '') = '';
+
+alter view public.spare_pending_dispatch set (security_invoker = on);
+grant select on public.spare_pending_dispatch to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Repair every cached stage, and roll the requests up from the repaired lines.
+-- Guards are dropped around it: this is a data migration, not somebody
+-- approving or dispatching, and auth.uid() is NULL in the SQL editor.
+-- ---------------------------------------------------------------------------
+drop trigger if exists spare_request_lines_guard          on public.spare_request_lines;
+drop trigger if exists spare_request_lines_dispatch_guard on public.spare_request_lines;
+
+update public.spare_request_lines l
+   set stage  = public.spare_line_stage(
+                  coalesce(l.rm_approval, 'Pending'),
+                  coalesce(l.commercial_approval, 'Pending'),
+                  coalesce(l.nsm_approval, 'Pending'),
+                  coalesce(l.stores_status, 'Pending'),
+                  l.received_at, r.item_status),
+       status = public.spare_line_stage(
+                  coalesce(l.rm_approval, 'Pending'),
+                  coalesce(l.commercial_approval, 'Pending'),
+                  coalesce(l.nsm_approval, 'Pending'),
+                  coalesce(l.stores_status, 'Pending'),
+                  l.received_at, r.item_status)
+  from public.spare_requests r
+ where r.uid = l.request_uid
+   and l.stage is distinct from public.spare_line_stage(
+                  coalesce(l.rm_approval, 'Pending'),
+                  coalesce(l.commercial_approval, 'Pending'),
+                  coalesce(l.nsm_approval, 'Pending'),
+                  coalesce(l.stores_status, 'Pending'),
+                  l.received_at, r.item_status);
+
+create trigger spare_request_lines_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_guard();
+create trigger spare_request_lines_dispatch_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_dispatch_guard();
+
+do $$
+declare u text;
+begin
+  for u in select uid from public.spare_requests loop
+    perform public.spare_request_rollup(u);
+  end loop;
+end $$;
 
 commit;

@@ -89,10 +89,38 @@ const LOADERS = {
       data: (() => { try { return JSON.parse(x.data); } catch { return {}; } })(),
     })));
   },
+  // Spare history (built by import-spare-history.mjs). Requests first: the
+  // lines reference them by uid. Both tables let their triggers do the work —
+  // or_no is kept because it is supplied, row_no drives the spare ID, and the
+  // stage is computed from the approval columns, so the imported history
+  // derives exactly as a live request would.
+  spare_requests: async () => {
+    const reqs = read('spare_requests.csv');
+    if (reqs) {
+      await insertBatched('spare_requests', dedupe(reqs, 'uid').map((x) => ({
+        ...x, or_req_date: toDate(x.or_req_date) || null, created_at: toTs(x.created_at) || null,
+      })));
+    }
+    const lines = read('spare_request_lines.csv');
+    if (lines) {
+      const known = new Set((reqs ?? []).map((r) => String(r.uid).trim()));
+      const usable = lines.filter((l) => !known.size || known.has(String(l.request_uid).trim()));
+      const skipped = lines.length - usable.length;
+      if (skipped) console.log(`  - spare_request_lines: skipped ${skipped} with no matching request`);
+      await insertBatched('spare_request_lines', usable.map((x) => ({
+        request_uid: x.request_uid, row_no: Number(x.row_no) || null, part: x.part, qty: Number(x.qty) || 1,
+        rm_approval: x.rm_approval, rm_at: toTs(x.rm_at) || null,
+        commercial_approval: x.commercial_approval, commercial_at: toTs(x.commercial_at) || null,
+        nsm_approval: x.nsm_approval, nsm_at: toTs(x.nsm_at) || null,
+        stores_status: x.stores_status, dc_number: x.dc_number || null,
+        dispatched_at: toTs(x.dispatched_at) || null, created_at: toTs(x.created_at) || null,
+      })));
+    }
+  },
 };
 
 const only = process.argv.slice(2);
-const order = ['masters', 'parties', 'products', 'parts', 'calls', 'reports'];
+const order = ['masters', 'parties', 'products', 'parts', 'calls', 'reports', 'spare_requests'];
 const run = only.length ? order.filter((k) => only.includes(k)) : order;
 console.log(`Loading -> ${URL}`);
 for (const k of run) { try { console.log(`• ${k}`); await LOADERS[k](); } catch (e) { console.error(`  aborted ${k}: ${e.message}`); } }

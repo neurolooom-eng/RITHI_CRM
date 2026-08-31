@@ -271,3 +271,42 @@
 .rep-upload > .btn { cursor: pointer; }
 .rep-upload > .btn.is-busy { opacity: .7; pointer-events: none; }
 .rep-upload-file { font-size: 12px; word-break: break-all; }
+
+/* Hand Stock: the tab row reads as tabs, not as another filter chip row —
+   slightly larger, and separated from the filters underneath it. */
+.hs-tabs { margin: 12px 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.hs-tabs .chip { font-size: 13px; padding: 6px 14px; font-weight: 600; }
+
+/* A movement's sign: what came in, what went out. */
+.wf-in  { color: var(--success, #16a34a); font-weight: 600; }
+.wf-out { color: var(--text-muted); font-weight: 600; }
+
+/* Pending Dispatch: an engineer's queue is a card, its spares are tick rows.
+   Deliberately not the shared DataTable — Stores works a group at a time and
+   needs the checkbox and the ageing beside the part, not 12 sortable columns. */
+.queue-card { margin: 10px 0; padding: 10px 12px; }
+.queue-card-click { display: block; width: 100%; text-align: left; cursor: pointer; background: none; border: 1px solid var(--border); }
+.queue-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.queue-head .queue-name { font-size: 14px; }
+.queue-lines { margin-top: 8px; border-top: 1px solid var(--border); }
+.queue-lines-compact { margin-top: 4px; max-height: 260px; overflow-y: auto; }
+.queue-line {
+  display: flex; align-items: center; gap: 10px; padding: 6px 4px;
+  border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.queue-line:last-child { border-bottom: none; }
+.queue-line-on { background: var(--row-hover, rgba(37, 99, 235, 0.06)); }
+.ql-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; min-width: 132px; }
+.ql-part { flex: 1 1 220px; min-width: 160px; }
+.ql-qty { min-width: 44px; text-align: right; font-weight: 600; }
+.ql-meta { flex: 1 1 200px; min-width: 140px; font-size: 12px; }
+/* The action bar sticks to the bottom: the selection can span a long scroll. */
+.dispatch-bar {
+  position: sticky; bottom: 0; z-index: 5; margin-top: 12px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.08);
+}
+
+/* Consumption lines stay editable until the report is saved. */
+.rep-spare-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rep-spare-row .spare-qty { width: 90px; }

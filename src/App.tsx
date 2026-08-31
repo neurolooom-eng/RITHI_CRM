@@ -16,12 +16,18 @@ import { AllMasters } from './modules/AllMasters';
 import { MasterListPage } from './modules/MasterListPage';
 import { Reports } from './modules/Reports';
 import { RolePermissions } from './modules/RolePermissions';
+import { AuditLog } from './modules/AuditLog';
 import { UserMasterView } from './modules/UserMasterView';
 import { PendingRegistrations } from './modules/PendingRegistrations';
 import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
+import { SpareDispatch } from './modules/SpareDispatch';
+import { DeliveryChallan } from './modules/DeliveryChallan';
+import { Declaration } from './modules/Declaration';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { SpareConsumption } from './modules/SpareConsumption';
+import { HandStock } from './modules/HandStock';
 import { StockTransfer } from './modules/StockTransfer';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
@@ -52,6 +58,20 @@ function Shell() {
   if (recovering) return <ResetPassword />;
   if (!user) return <Login />;
 
+  // The challan and the declaration print on their own: no sidebar, no header,
+  // nothing that would land on the paper. Their rows are RLS-scoped, so a stock
+  // out the user may not see simply is not found.
+  if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')) {
+    return (
+      <ErrorBoundary where="printable document">
+        <Routes>
+          <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
+          <Route path="/declaration/:stockOut" element={<Declaration />} />
+        </Routes>
+      </ErrorBoundary>
+    );
+  }
+
   // RBAC route guard: a known module the role can't open is blocked (nav hides
   // it too). Unknown paths fall through to the routes / not-found.
   // Every /masters/<key> screen is the All Masters module (see actionForPath).
@@ -69,6 +89,9 @@ function Shell() {
 
   return (
     <Layout>
+      {/* One screen failing must not blank the whole app — without this a
+          render error unmounts everything and the page just goes white. */}
+      <ErrorBoundary where={location.pathname}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
@@ -94,7 +117,9 @@ function Shell() {
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />
+        <Route path="/spare-dispatch" element={<SpareDispatch />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
+        <Route path="/handstock" element={<HandStock />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />
         <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
@@ -104,8 +129,10 @@ function Shell() {
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
+        <Route path="/audit" element={<AuditLog />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ErrorBoundary>
     </Layout>
   );
 }
@@ -115,7 +142,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <HashRouter>
-          <Shell />
+          <ErrorBoundary>
+            <Shell />
+          </ErrorBoundary>
         </HashRouter>
       </AuthProvider>
     </ThemeProvider>
