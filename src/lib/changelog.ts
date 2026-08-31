@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.27',
+    date: '2026-08-31',
+    title: 'Drop a spare Stores isn’t sending',
+    changes: [
+      'Stores can now Drop an approved spare instead of dispatching it (short supply, no longer needed, superseded) — with a reason. It closes as “Dropped”, distinct from a rejection, and no DC is generated.',
+      '⊘ Drop is on the spare’s row in Spare Requests (at the Stores stage) and as a batch action in Pending Dispatch next to Dispatch. Needs the Dispatch permission.',
+    ],
+  },
+  {
     version: '0.8.26',
     date: '2026-08-31',
     title: 'Customer Feedback shows live data',

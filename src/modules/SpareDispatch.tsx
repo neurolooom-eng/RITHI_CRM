@@ -4,7 +4,7 @@ import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../co
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import {
-  listPendingDispatch, dispatchSpareLines, listSpareDispatches, listDispatchLines, supabaseConfigured,
+  listPendingDispatch, dispatchSpareLines, dropSpareLines, listSpareDispatches, listDispatchLines, supabaseConfigured,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { logAudit } from '../lib/audit';
@@ -149,6 +149,22 @@ export function SpareDispatch() {
     navigate(`/dc/${encodeURIComponent(so)}`);
   };
 
+  // Stores drops the selected lines instead of sending them (no DC generated).
+  const runDrop = async () => {
+    const reason = prompt(`Reason for dropping ${selected.length} spare${selected.length === 1 ? '' : 's'}? (short supply, no longer needed, superseded…)`);
+    if (reason == null) return;
+    setBusy(true);
+    const actor = String(user?.name ?? user?.email ?? '');
+    const ids = selected.map((l) => l.line_id);
+    const res = await dropSpareLines(ids, reason.trim(), actor);
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not drop the spares.' }); return; }
+    logAudit({ action: 'spare.drop', target: String(ids.length), status: 'ok', meta: { spares: ids.length, reason: reason.trim() } });
+    setPicked(new Set());
+    setMsg({ tone: 'ok', text: `Dropped ${ids.length} spare${ids.length === 1 ? '' : 's'} — recorded as not sent.` });
+    await load();
+  };
+
   return (
     <div>
       <PageHeader
@@ -234,6 +250,12 @@ export function SpareDispatch() {
               </div>
               <div className="spacer" />
               <button className="btn btn-sm" onClick={() => setPicked(new Set())}>Clear</button>
+              <button
+                className="btn btn-sm btn-danger"
+                disabled={!mayDispatch || busy || !selected.length}
+                title={mayDispatch ? 'Drop these spares — record as not sent (no DC)' : 'Needs the spare.dispatch permission'}
+                onClick={() => void runDrop()}
+              >⊘ Drop {selected.length}</button>
               <button
                 className="btn btn-sm btn-primary"
                 disabled={!!problem || !mayDispatch || busy}

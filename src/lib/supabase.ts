@@ -933,6 +933,17 @@ export async function dispatchSpareLines(
   return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
 }
 
+// Stores drops approved lines instead of sending them (short supply / no longer
+// needed). Terminal, not a dispatch — no DC is generated. Needs spare.dispatch
+// (the stage guard checks it because stores_status changes).
+export async function dropSpareLines(lineIds: number[], reason: string, actor: string): Promise<{ ok: boolean; error?: string }> {
+  if (!lineIds.length) return { ok: true };
+  const { error } = await must().from('spare_request_lines').update({
+    stores_status: 'Dropped', dispatch_remarks: reason, dispatched_by: actor, dispatched_at: new Date().toISOString(),
+  }).in('id', lineIds);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // The engineer's delivery address — Address / City / State / Contact from the
 // User Master, which is where it is maintained (0029_engineer_address.sql).
 export interface EngineerAddress { address: string; city: string; state: string; phone: string }

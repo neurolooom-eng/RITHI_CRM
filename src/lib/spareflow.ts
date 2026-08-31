@@ -121,6 +121,13 @@ export function receivePatch(actor: string, remarks = ''): Record<string, unknow
   return { received_by: actor, received_at: now, receipt_remarks: remarks };
 }
 
+// Stores drops an approved part instead of sending it (short supply, no longer
+// needed, superseded). Terminal, distinct from a rejection. Needs the reason.
+export function dropPatch(actor: string, reason = ''): Record<string, unknown> {
+  const now = new Date().toISOString();
+  return { stores_status: 'Dropped', dispatch_remarks: reason, dispatched_by: actor, dispatched_at: now };
+}
+
 // ---------------------------------------------------------------------------
 // Audit trail for the detail drawer: one entry per stage that has happened.
 // ---------------------------------------------------------------------------
