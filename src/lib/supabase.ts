@@ -1399,3 +1399,34 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Knowledge Base — team-written field-solution articles (0042_knowledge_base).
+// Anyone signed in reads all and contributes; the author (or an admin) edits.
+// ---------------------------------------------------------------------------
+export interface KbAttachment { name: string; url: string }
+export interface KbArticle {
+  id: number; title: string; body: string; category: string; product: string;
+  tags: string; attachments: KbAttachment[];
+  author_name: string; author_email: string; created_by: string | null;
+  created_at: string; updated_at: string;
+}
+export type KbInput = Pick<KbArticle, 'title' | 'body' | 'category' | 'product' | 'tags' | 'attachments' | 'author_name' | 'author_email'>;
+
+export async function kbList(): Promise<KbArticle[]> {
+  const { data, error } = await must().from('kb_articles').select('*').order('updated_at', { ascending: false }).limit(1000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => ({ ...r, attachments: Array.isArray((r as KbArticle).attachments) ? (r as KbArticle).attachments : [] })) as KbArticle[];
+}
+export async function kbAdd(a: KbInput): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('kb_articles').insert(a);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function kbUpdate(id: number, patch: Partial<KbInput>): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('kb_articles').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function kbDelete(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('kb_articles').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}

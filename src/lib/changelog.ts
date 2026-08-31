@@ -12,13 +12,44 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.42',
+    version: '0.8.45',
     date: '2026-08-31',
     title: 'The database scripts can be re-run without failing',
     changes: [
       'Re-running HandStock_X.sql or the consolidated all.sql on a project that already had Material Returns failed with “cannot drop columns from view”. The hand-stock views are now rebuilt rather than replaced, so either file can be run again safely whatever has already been applied.',
       'The consolidated all.sql also failed part-way on a fresh project (“column engineer_email does not exist”) because the consumption-visibility rule was applied before the column it reads was added. It no longer depends on that ordering.',
       'And once the call tables were split, re-running it failed again at “cannot create index on relation calls” — public.calls is a view now, so the older table-only steps are skipped on a project that has already been split.',
+    ],
+  },
+  {
+    version: '0.8.44',
+    date: '2026-08-31',
+    title: 'Knowledge Base — how-to guide + team field solutions',
+    changes: [
+      'New Knowledge Base page (in the menu under Help, open to everyone): a step-by-step “How to use RITHI CRM” guide covering requesting and updating calls, installations, spares, spare status, customer feedback, passwords, the Build ID and Refresh/Sync/Force-update.',
+      'Field Solutions — the team writes and shares fixes for real field issues. Anyone signed in can add an article and search everyone’s; the author (or an admin) can edit or delete their own.',
+      'Articles are written in a built-in editor with headings, lists, links, images (upload or link) and tables — plus attachment links to files kept in Drive or on Pages.',
+      'Needs a database script run once (knowledge_base.sql) to store the articles.',
+    ],
+  },
+  {
+    version: '0.8.43',
+    date: '2026-08-31',
+    title: 'A manager sees and approves their own team only',
+    changes: [
+      'A Reporting Manager now sees only their own spare requests and those of the engineers reporting to them. Requests from anyone else \u2014 other teams, administrators \u2014 are no longer visible at all, not merely un-approvable.',
+      'Your own request is visible but not yours to approve: it goes to your reporting manager, as it should.',
+      'The desks that process spares for every team \u2014 Commercial, NSM, Stores, Hotline, Spare Coordinator, Tally \u2014 still see everything, and administrators are unaffected.',
+      '\u201cView as\u201d now shows what that person would really see, instead of the administrator\u2019s own data wearing their name.',
+      'Needs migrations 0033_rm_approves_own_team.sql and 0040_spare_read_scope.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.8.42',
+    date: '2026-08-31',
+    title: 'Show password toggle',
+    changes: [
+      'Every password box (sign-in, first-time set password, reset and Profile → Password) now has an eye button to reveal what you typed, so you can check it before submitting.',
     ],
   },
   {

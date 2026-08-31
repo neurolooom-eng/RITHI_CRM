@@ -24,7 +24,6 @@
 --   0034_office_roles_see_all.sql
 --   0035_data_view_all.sql
 --   0037_call_read_scale.sql
---   0038_spare_consumption_scope.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
 --   0021_master_lists.sql
@@ -54,12 +53,16 @@
 --   0028_dc_number_is_stock_out.sql
 --   0031_pending_dispatch_live_stage.sql
 --   0032_stores_sees_pending_dispatch.sql
+--   0033_rm_approves_own_team.sql
+--   0040_spare_read_scope.sql
 --   0036_spare_drop.sql
 --   0020_stock_transfer.sql
 --   0023_handstock.sql
+--   0038_spare_consumption_scope.sql
 --   0039_material_returns.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
+--   0042_knowledge_base.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -1563,43 +1566,6 @@ create policy reports_read on public.reports for select
         )
       )
     )
-  );
-
--- ------------------------------------------------------------------------
--- 0038_spare_consumption_scope.sql
--- ------------------------------------------------------------------------
-
--- ===========================================================================
--- Spare consumption / Hand Stock — scope to my own & my team, like calls.
---
--- cons_read granted every consumption.view holder ALL rows; the client then
--- filtered by engineer, which fails open when the viewer's name/email doesn't
--- resolve. So an engineer could see a peer's consumption (and, via the
--- security_invoker handstock views, a peer's hand stock).
---
--- Now the database scopes it: admins, the office/coordination roles and a
--- data.view_all holder see everything (they reconcile across engineers);
--- everyone else sees only rows they raised, that are for their own email, or
--- that belong to an engineer in their reporting sub-tree. spare_requests and
--- its lines are already scoped this way; the handstock_balance /
--- handstock_movements views are security_invoker, so they inherit this.
--- ===========================================================================
-
--- The email this policy matches on is added by 0023_handstock.sql, which the
--- consolidated file applies long AFTER this one — so add it here too rather
--- than depend on an ordering that does not hold. Idempotent either way.
-alter table public.spare_consumption
-  add column if not exists engineer_email text default '';
-
-drop policy if exists cons_read on public.spare_consumption;
-create policy cons_read on public.spare_consumption for select
-  using (
-    (select public.can_view_all_calls())          -- admin + office roles + data.view_all
-    or created_by = (select auth.uid())
-    or lower(engineer_email) = lower((select auth.email()))
-    or lower(trim(engineer)) in (
-         select lower(trim(n)) from public.visible_engineer_names() as v(n)
-       )
   );
 
 -- ------------------------------------------------------------------------
@@ -4901,6 +4867,149 @@ update public.app_roles
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-requests';
 
 -- ------------------------------------------------------------------------
+-- 0033_rm_approves_own_team.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- An RM approves their own team's spares — and never their own request.
+--
+-- RM approval was gated on the PERMISSION alone: anyone holding
+-- spare.approve_rm could approve any spare they could see. Two things follow
+-- that should not:
+--
+--   • a Reporting Manager could approve a spare raised by someone outside
+--     their team, including one raised by an administrator;
+--   • a Reporting Manager could approve their OWN request, so a manager's
+--     spares had no approver above them.
+--
+-- The rule now: the request's engineer must be someone who reports to the
+-- approver, directly or through the tree — and must not be the approver.
+-- A manager's own request therefore waits for THEIR manager.
+--
+-- visible_engineer_names() (0004) already walks that tree, but it INCLUDES
+-- the caller, which is exactly why self-approval slipped through. The check
+-- below subtracts them.
+--
+-- Coordination roles — Hotline, Spare Coordinator and the like — sit outside
+-- the reporting tree and hold spare.approve_rm as a backstop. They have no
+-- reports, so the sub-tree test would refuse them everything; they keep the
+-- wider remit they have today, minus the self-approval that is now closed for
+-- everyone. If those roles should also be narrowed, this is the one function
+-- to change.
+-- ===========================================================================
+
+-- Does p_name report to the caller (at any depth), and is not the caller?
+create or replace function public.is_my_report(p_name text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.visible_engineer_names() as v(n)
+     where lower(btrim(n)) = lower(btrim(coalesce(p_name, '')))
+       and lower(btrim(n)) <> lower(btrim(coalesce(public.my_dir_name(), '')))
+  );
+$$;
+grant execute on function public.is_my_report(text) to authenticated;
+
+-- Does the caller have anyone reporting to them at all?
+create or replace function public.has_reports()
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.visible_engineer_names() as v(n)
+     where lower(btrim(n)) <> lower(btrim(coalesce(public.my_dir_name(), '')))
+  );
+$$;
+grant execute on function public.has_reports() to authenticated;
+
+-- May the caller give RM approval to a spare raised by p_engineer?
+create or replace function public.spare_rm_may_approve(p_engineer text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select case
+    when public.is_admin() then true
+    -- Never your own request, whoever you are: it goes to your manager.
+    when lower(btrim(coalesce(p_engineer, '')))
+       = lower(btrim(coalesce(public.my_dir_name(), ''))) then false
+    -- A manager is confined to their own tree.
+    when public.has_reports() then public.is_my_report(p_engineer)
+    -- Coordination roles, who are not managers, keep the wider remit.
+    else true
+  end;
+$$;
+grant execute on function public.spare_rm_may_approve(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Enforced as its own trigger rather than by re-stating 0016's guard, which
+-- owns the per-stage permission rules and is long enough already.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_lines_rm_scope_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare req public.spare_requests;
+begin
+  if public.is_admin() then return new; end if;
+  if new.rm_approval is not distinct from old.rm_approval
+     and new.rm_by    is not distinct from old.rm_by
+     and new.rm_at    is not distinct from old.rm_at then
+    return new;                                   -- not an RM decision
+  end if;
+
+  select * into req from public.spare_requests where uid = new.request_uid;
+  if not public.spare_rm_may_approve(req.engineer) then
+    if lower(btrim(coalesce(req.engineer, '')))
+     = lower(btrim(coalesce(public.my_dir_name(), ''))) then
+      raise exception 'You cannot approve your own spare request — it goes to your reporting manager';
+    end if;
+    raise exception '% does not report to you, so their spare is not yours to approve',
+      coalesce(nullif(btrim(req.engineer), ''), 'That engineer');
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_lines_rm_scope_guard on public.spare_request_lines;
+create trigger spare_request_lines_rm_scope_guard
+  before update on public.spare_request_lines
+  for each row execute function public.spare_request_lines_rm_scope_guard();
+
+-- ------------------------------------------------------------------------
+-- 0040_spare_read_scope.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A spare request is visible to its raiser, their management chain, and the
+-- desks that process it — not to every approver.
+--
+-- sr_read granted a blanket `can_approve_spares()`: holding ANY spare approval
+-- permission let you read EVERY spare request. So a Reporting Manager saw
+-- requests raised by people outside their team — administrators included —
+-- and 0039 only stopped them approving those, which still left the data on
+-- screen. Reported: "the Data itself should not be visible."
+--
+-- `can_view_all_calls()` (0034_office_roles_see_all / 0035_data_view_all) is
+-- already the app's answer to "who legitimately sees everyone's work": admin,
+-- an explicit data.view_all grant, and the office roles — Hotline, NSM,
+-- Commercial, Spare Coordinator, Stores Incharge, Tally. Those desks act on
+-- spares from every team, so they must keep seeing them; a manager must not.
+--
+-- What a Reporting Manager is left with is exactly what was asked for:
+--   • their own requests — visible, and NOT approvable (0039 sends those to
+--     their own manager);
+--   • their reporting engineers' requests — visible and approvable;
+--   • nothing else.
+--
+-- spare_request_lines needs no change: srl_read is an EXISTS against
+-- spare_requests, so the lines follow the header. spare_pending_dispatch and
+-- the hand-stock views are security_invoker, so they follow too.
+-- ===========================================================================
+
+drop policy if exists sr_read on public.spare_requests;
+create policy sr_read on public.spare_requests for select
+  using (
+    (select public.can_view_all_calls())          -- admin + office desks + data.view_all
+    or created_by = (select auth.uid())           -- I raised it
+    or lower(engineer_email) = lower((select auth.email()))
+    or lower(btrim(engineer)) in (                -- me and my reporting sub-tree
+         select lower(btrim(n)) from public.visible_engineer_names() as v(n)
+       )
+  );
+
+-- ------------------------------------------------------------------------
 -- 0036_spare_drop.sql
 -- ------------------------------------------------------------------------
 
@@ -5436,6 +5545,43 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-requests'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/handstock';
+
+-- ------------------------------------------------------------------------
+-- 0038_spare_consumption_scope.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Spare consumption / Hand Stock — scope to my own & my team, like calls.
+--
+-- cons_read granted every consumption.view holder ALL rows; the client then
+-- filtered by engineer, which fails open when the viewer's name/email doesn't
+-- resolve. So an engineer could see a peer's consumption (and, via the
+-- security_invoker handstock views, a peer's hand stock).
+--
+-- Now the database scopes it: admins, the office/coordination roles and a
+-- data.view_all holder see everything (they reconcile across engineers);
+-- everyone else sees only rows they raised, that are for their own email, or
+-- that belong to an engineer in their reporting sub-tree. spare_requests and
+-- its lines are already scoped this way; the handstock_balance /
+-- handstock_movements views are security_invoker, so they inherit this.
+-- ===========================================================================
+
+-- The email this policy matches on is added by 0023_handstock.sql, which the
+-- consolidated file applies long AFTER this one — so add it here too rather
+-- than depend on an ordering that does not hold. Idempotent either way.
+alter table public.spare_consumption
+  add column if not exists engineer_email text default '';
+
+drop policy if exists cons_read on public.spare_consumption;
+create policy cons_read on public.spare_consumption for select
+  using (
+    (select public.can_view_all_calls())          -- admin + office roles + data.view_all
+    or created_by = (select auth.uid())
+    or lower(engineer_email) = lower((select auth.email()))
+    or lower(trim(engineer)) in (
+         select lower(trim(n)) from public.visible_engineer_names() as v(n)
+       )
+  );
 
 -- ------------------------------------------------------------------------
 -- 0039_material_returns.sql
@@ -6474,5 +6620,68 @@ end $$;
 grant execute on function public.cover_unpin_inherited() to authenticated;
 
 analyze public.products;
+
+-- ------------------------------------------------------------------------
+-- 0042_knowledge_base.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Knowledge Base — team-written field-solution articles. Anyone signed in can
+-- read every article and contribute one; the author (or an admin) can edit or
+-- delete their own. Stamped with the author so the team knows who to ask.
+-- ===========================================================================
+
+create table if not exists public.kb_articles (
+  id           bigint generated always as identity primary key,
+  title        text not null,
+  body         text not null,
+  category     text default '',      -- Field Issue / How-To / Product Tip / Other
+  product      text default '',      -- optional: the product / model it concerns
+  tags         text default '',      -- optional: comma-separated keywords
+  attachments  jsonb not null default '[]',  -- [{name, url}] — links to files in Drive / on Pages / anywhere
+  author_name  text default '',
+  author_email text default '',
+  created_by   uuid references auth.users (id),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+create index if not exists kb_articles_updated_idx  on public.kb_articles (updated_at desc);
+create index if not exists kb_articles_category_idx  on public.kb_articles (category);
+
+-- Stamp the author on insert (can't be spoofed) and updated_at on every write.
+create or replace function public.kb_before_write()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' and auth.uid() is not null then
+    new.created_by := auth.uid();
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists kb_biu on public.kb_articles;
+create trigger kb_biu before insert or update on public.kb_articles
+  for each row execute function public.kb_before_write();
+
+alter table public.kb_articles enable row level security;
+grant select, insert, update, delete on public.kb_articles to authenticated;
+
+-- Read: everyone signed in. Contribute: any signed-in user (stamped as self).
+-- Edit / delete: the author, or an admin.
+drop policy if exists kb_read on public.kb_articles;
+create policy kb_read on public.kb_articles for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists kb_insert on public.kb_articles;
+create policy kb_insert on public.kb_articles for insert
+  with check (auth.uid() is not null);
+
+drop policy if exists kb_update on public.kb_articles;
+create policy kb_update on public.kb_articles for update
+  using (created_by = auth.uid() or public.is_admin())
+  with check (created_by = auth.uid() or public.is_admin());
+
+drop policy if exists kb_delete on public.kb_articles;
+create policy kb_delete on public.kb_articles for delete
+  using (created_by = auth.uid() or public.is_admin());
 
 commit;

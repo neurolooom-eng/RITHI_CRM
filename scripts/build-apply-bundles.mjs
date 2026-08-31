@@ -71,7 +71,7 @@ const MODULES = {
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
             '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
-            '0035_data_view_all.sql', '0037_call_read_scale.sql', '0038_spare_consumption_scope.sql'],
+            '0035_data_view_all.sql', '0037_call_read_scale.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -95,6 +95,14 @@ const MODULES = {
       '0040_call_tables_split.sql',
       '0041_call_split_hardening.sql',
     ],
+  },
+  knowledge_base: {
+    title: 'Knowledge Base',
+    blurb: ['Team-written field-solution articles (kb_articles): anyone signed in reads',
+            'every article and contributes one; the author or an admin edits or deletes.',
+            'Rich text with images and tables is stored as sanitized HTML on the row.'],
+    needs: ['profiles', 'isAdmin'],
+    files: ['0042_knowledge_base.sql'],
   },
   audit: {
     title: 'Audit Log',
@@ -146,7 +154,9 @@ const MODULES = {
     // MRN lives here rather than in a bundle of its own: it adds a term to the
     // same two views, so a later re-run of this file must carry it or it would
     // redefine them back without returns.
-    files: ['0023_handstock.sql', '0039_material_returns.sql'],
+    // 0038 scopes spare_consumption, whose engineer_email column 0023 adds —
+    // so it belongs here, not in rbac, which applies before this module.
+    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -203,6 +213,8 @@ const MODULES = {
       '0028_dc_number_is_stock_out.sql',
       '0031_pending_dispatch_live_stage.sql',
       '0032_stores_sees_pending_dispatch.sql',
+      '0033_rm_approves_own_team.sql',
+      '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
     ],
   },
@@ -322,7 +334,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'knowledge_base'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
