@@ -17,6 +17,10 @@ export const MASTER_LISTS: MasterListDef[] = [
   { key: 'cancelreason', label: 'Call Cancel Reason', icon: '🚫', valueLabel: 'Reason', usedBy: "Hotline's Cancel request (Pending Registrations)" },
   { key: 'feedbackrating', label: 'Feedback Rating', icon: '⭐', valueLabel: 'Rating', usedBy: 'Customer feedback — ratings' },
   { key: 'orapproval', label: 'Spare Approval Reason', icon: '✅', valueLabel: 'Reason', usedBy: 'Spare approval — reason for approval / rejection' },
+  // Both tagged PER PRODUCT (masters.extra.product); a value tagged COMM is
+  // common to every product. Their own tabs live in Daily Call Review.
+  { key: 'dccrgrouping', label: 'DCCR Complaint Grouping', icon: '🗂️', valueLabel: 'Complaint Grouping', usedBy: 'Daily Call Review — Review 3' },
+  { key: 'rootcause', label: 'Root Cause Key Word', icon: '🔍', valueLabel: 'Root Cause Key Word', usedBy: 'Daily Call Review — Review 3' },
 ];
 
 export const masterListPath = (key: string) => `/masters/${key}`;

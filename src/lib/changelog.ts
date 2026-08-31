@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.51',
+    date: '2026-08-31',
+    title: 'Daily Call Review — the DCCR, in the app',
+    changes: [
+      'New module: Daily Call Review. Every field call now goes through its review here rather than in the register workbook, in the same three stages. Review 1 is the Public Health Threat / Death / Serious Incident answers already given at Call Registration — the review shows them back and takes the registration date as the Review 1 date. Review 2 asks Risk to Patient / Any Clinical Impact, Warranty Failure (1 yr) and Frequent Failure. Review 3 asks Complaint Grouping, Root Cause Key Word and Spare / Consumable / Correction / Calibration. Each stage is dated the day it is completed.',
+      'Any Potential Effect works itself out, exactly as the register formula does: blank until all three Review 2 answers are in, then YES if any of them is YES. When it turns YES the Action Taken reads “FFR Generation” until whoever raises the report types the FFR number over it.',
+      'Review Status says which stage a call is waiting on — Review 2 Pending, Review 3 Pending, or Review Completed — and the register colours it, so what is outstanding today is visible at a glance. Filter by date range, stage, product, engineer, or just the calls with a potential effect.',
+      'Two new masters, both tagged per product: DCCR Complaint Grouping and Root Cause Key Word. Review 3 offers a call only the values for its own product plus anything tagged COMM (common to every product), so the list stays short and right. Both ship with the register\'s own values and have their own tab in the module (and a row in All Masters).',
+      'Export gives the register\'s own 38 columns, in its own order and under its own headings, for whatever the Review Register tab is currently showing.',
+      'Completing a review needs the new “Complete the daily call review” permission, granted by default to Admin, Hotline, NSM, Regional Manager, Reporting Manager and Commercial. Everyone who can open the module can still read every review.',
+      'The old Daily Call Review screen showed sample data and was blank against the live database; this replaces it outright.',
+    ],
+  },
+  {
     version: '0.8.50',
     date: '2026-08-31',
     title: 'Notification bell',

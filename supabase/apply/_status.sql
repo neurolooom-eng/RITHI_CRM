@@ -112,7 +112,13 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.sale_entries')     is not null
      and to_regclass('public.contract_entries') is not null
      and to_regclass('public.machine_cover')    is not null
-     and to_regprocedure('public.sync_product_cover(text)') is not null))
+     and to_regprocedure('public.sync_product_cover(text)') is not null)),
+    (21, 'daily_review (DCCR)', 'call_reviews + field_call_review + the two per-product masters (0044/0046)',
+        (to_regclass('public.call_reviews')      is not null
+     and to_regclass('public.field_call_review') is not null
+     and exists (select 1 from public.master_lists where key in ('dccrgrouping', 'rootcause')))),
+    (22, 'daily_review: values', 'the register''s own DCCR Complaint Grouping / Root Cause Key Word values (0046)',
+        exists (select 1 from public.masters where name in ('dccrgrouping', 'rootcause')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
