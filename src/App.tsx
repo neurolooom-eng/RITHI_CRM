@@ -42,8 +42,8 @@ import {
   productConfig,
   warrantyConfig,
   contractConfig,
-  feedbackConfig,
 } from './modules/schemas';
+import { CustomerFeedback } from './modules/CustomerFeedback';
 
 function Shell() {
   const { user, booting, can, recovering } = useAuth();
@@ -122,7 +122,7 @@ function Shell() {
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />
-        <Route path="/feedback" element={<CrudModule config={feedbackConfig} />} />
+        <Route path="/feedback" element={<CustomerFeedback />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
