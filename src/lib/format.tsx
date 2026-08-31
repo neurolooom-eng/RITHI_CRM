@@ -137,7 +137,14 @@ export function statusBadge(value: unknown, toneMap: Record<string, Tone>): Reac
   return <span className={`badge badge-${tone}`}>{v}</span>;
 }
 
+// Central export gate — set from auth (can('export.data')). Engineers (and any
+// role without the permission) cannot download data from ANY screen.
+let _canExport = true;
+export function setCanExport(v: boolean): void { _canExport = v; }
+export function canExportData(): boolean { return _canExport; }
+
 export function csvExport(filename: string, columns: { key: string; header: string }[], rows: Record<string, unknown>[]) {
+  if (!_canExport) { try { alert('Exporting / downloading data is not permitted for your role.'); } catch { /* ignore */ } return; }
   const esc = (s: unknown) => {
     const v = s == null ? '' : String(s);
     return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;

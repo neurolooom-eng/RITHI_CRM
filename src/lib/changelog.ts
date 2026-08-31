@@ -12,6 +12,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.26',
+    date: '2026-08-31',
+    title: 'Customer Feedback shows live data',
+    changes: [
+      'Customer Feedback was reading the emptied demo list and showed blank. It now reads the live feedback captured on call reports — date, call, party, product, engineer and the answers — with search, role scoping, cache and CSV export.',
+    ],
+  },
+  {
+    version: '0.8.25',
+    date: '2026-08-31',
+    title: 'Team/My calls toggle, export controls, tidier menu',
+    changes: [
+      'Reporting & Regional Managers get a Team calls / My calls switch in the header — flip between your whole reporting tree and just your own calls.',
+      'CSV / data download is now a permission: Admins, Managers and office roles can export; Engineers cannot download anything (the option is blocked for them).',
+      'Master and Master Lists are merged into one “Master” group, and the sidebar has a Collapse all / Expand all control.',
+    ],
+  },
+  {
     version: '0.8.24',
     date: '2026-08-31',
     title: 'Delete a User Master entry',

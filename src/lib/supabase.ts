@@ -1085,6 +1085,16 @@ export async function listConsumptionRows(limit = 1000, offset = 0): Promise<Rec
   if (error) throw new Error(error.message);
   return data ?? [];
 }
+// Customer feedback, newest first (flattens the answers jsonb to a summary).
+export async function listFeedbackRows(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('feedback').select('*').order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((r) => {
+    const a = (r.answers && typeof r.answers === 'object') ? r.answers as Record<string, unknown> : {};
+    const answers = Object.entries(a).map(([k, v]) => `${k.split('-').pop()}: ${v}`).join(' · ');
+    return { ...r, answers_summary: answers };
+  });
+}
 export async function addConsumption(row: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('spare_consumption').insert(row);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };

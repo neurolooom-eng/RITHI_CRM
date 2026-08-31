@@ -28,18 +28,13 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    title: 'Masters',
+    title: 'Master',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
       { to: '/product-master', label: 'Product Master', icon: '🩺' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },
-    ],
-  },
-  {
-    title: 'Master Lists',
-    items: [
       ...MASTER_LISTS.map((l) => ({ to: masterListPath(l.key), label: l.label, icon: l.icon })),
     ],
   },
@@ -159,8 +154,9 @@ function ThemeMenu() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { user, logout, can } = useAuth();
+  const { user, logout, can, managerViewMode, setManagerViewMode } = useAuth();
   const navigate = useNavigate();
+  const isManagerRole = user?.rbacRole === 'rm' || user?.rbacRole === 'rgm';
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('rithi.sidebarCollapsed') === '1'; } catch { return false; }
   });
@@ -182,6 +178,15 @@ export function Layout({ children }: { children: ReactNode }) {
       try { localStorage.setItem('rithi.navGroups', JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
+
+  // Collapse / expand every nav group at once.
+  const allGroupsCollapsed = NAV.every((g) => openGroups[g.title] === false);
+  const toggleAllGroups = () => {
+    const next: Record<string, boolean> = {};
+    NAV.forEach((g) => { next[g.title] = allGroupsCollapsed; }); // if all collapsed → expand (true), else collapse (false)
+    setOpenGroups(next);
+    try { localStorage.setItem('rithi.navGroups', JSON.stringify(next)); } catch { /* ignore */ }
+  };
 
   // Close the mobile drawer whenever the route changes.
   const closeMobile = () => setMobileOpen(false);
@@ -232,6 +237,11 @@ export function Layout({ children }: { children: ReactNode }) {
           )}
         </div>
         <nav className="sidebar-nav">
+          {!collapsed && (
+            <button className="nav-collapse-all" onClick={toggleAllGroups} title={allGroupsCollapsed ? 'Expand all groups' : 'Collapse all groups'}>
+              {allGroupsCollapsed ? '⊞ Expand all' : '⊟ Collapse all'}
+            </button>
+          )}
           {NAV.map((group) => {
             const items = group.items.filter((i) => (!i.adminOnly || can('manage-users')) && can(actionForPath(i.to)));
             if (items.length === 0) return null;
@@ -275,6 +285,15 @@ export function Layout({ children }: { children: ReactNode }) {
           </button>
           <div className="header-crumb">{crumbFor(location.pathname)}</div>
           <ModuleSearch />
+          {isManagerRole && (
+            <button
+              className={`btn btn-ghost btn-sm ${managerViewMode === 'team' ? 'viewas-active' : ''}`}
+              onClick={() => setManagerViewMode(managerViewMode === 'team' ? 'mine' : 'team')}
+              title="Switch between your own calls and your whole team's"
+            >
+              {managerViewMode === 'team' ? '👥 Team calls' : '🙋 My calls'}
+            </button>
+          )}
           <ViewAsControl />
           <ThemeMenu />
 
