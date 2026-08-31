@@ -238,6 +238,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const p = await sbCurrentProfile();
       if (!alive) return;
       const u = p ? profileToUser(p) : null;
+      // A login disabled after they signed in is signed out on the next load.
+      if (u && u.active === false) {
+        void sbSignOut();
+        setSupaUser(null); setAuditUser(null); setSupaUsers([]);
+        if (alive) setSupaBooting(false);
+        return;
+      }
       setSupaUser(u);
       setAuditUser(auditIdentity(u));
       if (p) { const list = await sbListProfiles(); if (alive) setSupaUsers(list.map(profileToUser)); }
@@ -354,6 +361,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const p = await sbCurrentProfile();
       const u = p ? profileToUser(p) : null;
+      // A disabled login (profiles.active = false) can authenticate but must not
+      // be let into the app — a leaver's history stays, their access does not.
+      if (u && u.active === false) {
+        setAuditUser(auditIdentity(u));
+        logAudit({ action: 'login_failed', email: idNorm, status: 'error', error: 'account disabled', duration_ms: Math.round(performance.now() - t0) });
+        await sbSignOut(); setAuditUser(null);
+        return { ok: false, error: 'This login has been disabled. Contact an administrator.' };
+      }
       if (u) { setSupaUser(u); setAuditUser(auditIdentity(u)); const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); }
       logAudit({ action: 'login', status: 'ok', duration_ms: Math.round(performance.now() - t0) });
       return { ok: true };

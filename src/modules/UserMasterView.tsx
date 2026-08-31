@@ -72,10 +72,19 @@ export function UserMasterView() {
     userByEmail.get((r.email || '').toLowerCase()) ?? userByEmail.get((r.gmail || '').toLowerCase());
 
   const [accessFor, setAccessFor] = useState<User | null>(null);   // role + extra permissions
-  const [cloneFrom, setCloneFrom] = useState<User | null>(null);   // create a new login like this one
   const [dataFor, setDataFor] = useState<User | null>(null);       // everything this user entered
-  const [addLogin, setAddLogin] = useState(false);                 // create a fresh login
   const [viewRow, setViewRow] = useState<DirectoryRow | null>(null); // click a row → full record + actions
+
+  // The `edit` drawer is the single create/edit place. For a NEW user it can
+  // also create the sign-in login; a Clone pre-loads a source's permissions.
+  const [mkLogin, setMkLogin] = useState(false);       // create a login on save (new only)
+  const [pwd, setPwd] = useState('123456789');         // that login's starting password
+  const [cloneSrc, setCloneSrc] = useState<User | null>(null); // clone permissions from this login
+  const [dataAccess, setDataAccess] = useState(false); // clone Permissions + Data (grants data.view_all)
+
+  const openNew = () => { setCloneSrc(null); setDataAccess(false); setPwd('123456789'); setMkLogin(true); setEdit(emptyRow()); };
+  const openClone = (src: User) => { setCloneSrc(src); setDataAccess(false); setPwd('123456789'); setMkLogin(true); setEdit({ ...emptyRow(), role: src.rbacRole || 'engineer' }); };
+  const openEdit = (r: DirectoryRow) => { setCloneSrc(null); setMkLogin(false); setEdit({ ...r }); };
 
   const load = async (query = q) => {
     if (!dataConfigured()) return;
@@ -127,14 +136,41 @@ export function UserMasterView() {
     return { ok: true, note };
   };
 
-  // The drawer's Save / Add.
+  // The drawer's Save / Add. A NEW user optionally creates the sign-in login
+  // too (with cloned permissions when opened via Clone); then the directory row
+  // is written. An edit just writes the directory row.
   const save = async (row: DirectoryRow) => {
     setBusy(true);
+    const isNew = row.id === 0;
+    let loginNote = '';
+    if (isNew && mkLogin) {
+      const email = (row.email.trim() || row.gmail.trim());
+      if (!email) { setMsg({ tone: 'error', text: 'A login needs an email — enter the Air Liquide or Gmail ID.' }); setBusy(false); return; }
+      const extras = cloneSrc ? [...(cloneSrc.extraPermissions ?? [])] : [];
+      if (dataAccess && !extras.includes('data.view_all')) extras.push('data.view_all');
+      const res = await sbAdminCreateUser({ email, fullName: row.name.trim(), role: row.role || 'engineer', password: pwd, extraPermissions: extras.length ? extras : undefined });
+      logAudit({ action: cloneSrc ? 'user.clone' : 'user.create', target: email.toLowerCase(), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role: row.role, from: cloneSrc?.email, data: dataAccess } });
+      if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not create the login.' }); setBusy(false); return; }
+      loginNote = res.needsConfirm ? ' Login created — but "Confirm email" is ON, so they must confirm before signing in.'
+        : ` Login created${cloneSrc ? `, cloned from ${cloneSrc.fullName || cloneSrc.email}` : ''} — they sign in with the password and change it under Profile.`;
+      await reloadUsers();
+    }
     const r = await persist(row);
     if (!r.ok) { setMsg({ tone: 'error', text: r.error ?? 'Could not save that user.' }); setBusy(false); return; }
-    setEdit(null);
-    setMsg({ tone: 'ok', text: `${row.id === 0 ? 'Added' : 'Saved'} ${row.name.trim()}.${r.note ? ` They ${r.note}.` : ''}` });
+    setEdit(null); setCloneSrc(null); setMkLogin(false);
+    setMsg({ tone: 'ok', text: `${isNew ? 'Added' : 'Saved'} ${row.name.trim()}.${loginNote || (r.note ? ` They ${r.note}.` : '')}` });
     await load();
+  };
+
+  // Enable / disable a person's sign-in login (keeps all their history).
+  const toggleActive = async (u: User) => {
+    const enable = u.active === false;
+    setBusy(true);
+    const res = await updateProfile(u.id, { active: enable });
+    logAudit({ action: enable ? 'user.login.enable' : 'user.login.disable', target: u.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
+    setBusy(false);
+    if (res.ok) { setMsg({ tone: 'ok', text: `${u.fullName || u.email}'s login is now ${enable ? 'active' : 'disabled'}.` }); await reloadUsers(); }
+    else setMsg({ tone: 'error', text: res.error ?? 'Could not change the login.' });
   };
 
   // ---- the one Edit / Save pair ---------------------------------------------
@@ -260,11 +296,11 @@ export function UserMasterView() {
         const prof = profileFor(r);
         return (
           <div className="row" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
-            <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => setEdit({ ...r })}>⋯</button>
+            <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => openEdit(r)}>⋯</button>
             <button className="btn btn-sm" title={prof ? 'Role & permissions' : 'They must sign in before permissions can be set'}
               disabled={!prof} onClick={() => prof && setAccessFor(prof)}>🔐</button>
             <button className="btn btn-sm" title={prof ? 'Clone this user’s role & permissions to a new login' : 'They must sign in before they can be cloned'}
-              disabled={!prof} onClick={() => prof && setCloneFrom(prof)}>⧉ Clone</button>
+              disabled={!prof} onClick={() => prof && openClone(prof)}>⧉ Clone</button>
             <button className="btn btn-sm" title={prof ? 'See everything this user entered' : 'They must sign in first'}
               disabled={!prof} onClick={() => prof && setDataFor(prof)}>📊</button>
           </div>
@@ -311,8 +347,7 @@ export function UserMasterView() {
           ) : (
             <div className="row">
               <button className="btn" onClick={startEditing} disabled={busy || !dir.length}>✎ Edit</button>
-              <button className="btn" onClick={() => setEdit(emptyRow())}>+ New User</button>
-              <button className="btn btn-primary" onClick={() => setAddLogin(true)}>+ Add Login</button>
+              <button className="btn btn-primary" onClick={openNew}>+ New User</button>
             </div>
           )
         )}
@@ -378,13 +413,43 @@ export function UserMasterView() {
       )}
 
       {edit && (
-        <Drawer open onClose={() => setEdit(null)} title={edit.id ? `Edit ${edit.name || 'user'}` : 'New user'}>
+        <Drawer open onClose={() => { setEdit(null); setCloneSrc(null); setMkLogin(false); }}
+          title={edit.id ? `Edit ${edit.name || 'user'}` : cloneSrc ? `Clone — new user like ${cloneSrc.fullName || cloneSrc.email}` : 'New user'}
+          width={640}>
+          {edit.id === 0 && (
+            <div className="rep-form" style={{ marginBottom: 8 }}>
+              <label className="row" style={{ gap: 8, alignItems: 'center' }}>
+                <input type="checkbox" checked={mkLogin} onChange={(e) => setMkLogin(e.target.checked)} />
+                <b>Create a sign-in login now</b>
+              </label>
+              {mkLogin && (
+                <div className="rep-grid" style={{ marginTop: 6 }}>
+                  <label className="rep-field"><span className="field-label">Starting password</span>
+                    <input className="input" value={pwd} onChange={(e) => setPwd(e.target.value)} /></label>
+                  {cloneSrc && (
+                    <label className="rep-field"><span className="field-label">Clone from {cloneSrc.fullName || cloneSrc.email}</span>
+                      <select className="select" value={dataAccess ? 'data' : 'perms'} onChange={(e) => setDataAccess(e.target.value === 'data')}>
+                        <option value="perms">Permissions only — sees their own data</option>
+                        <option value="data">Permissions + Data — can see all records</option>
+                      </select></label>
+                  )}
+                </div>
+              )}
+              {mkLogin && cloneSrc && (
+                <div className="muted rep-hint">
+                  Copying <b>{roleLabel(cloneSrc.rbacRole || 'engineer')}</b>{cloneSrc.extraPermissions?.length ? ` + ${cloneSrc.extraPermissions.length} extra permission${cloneSrc.extraPermissions.length === 1 ? '' : 's'}` : ''}.
+                  {dataAccess ? ' Plus full data visibility (every record).' : ' They see only their own data.'} Fill the new person’s details below.
+                </div>
+              )}
+              {mkLogin && <div className="muted rep-hint">Creating logins in-app needs Supabase sign-ups enabled and “Confirm email” off. The new user changes the password under Profile → Password.</div>}
+            </div>
+          )}
           <UserForm
             row={edit}
             busy={busy}
             signedInRole={(profileByEmail.get(edit.email.trim().toLowerCase()) ?? profileByEmail.get(edit.gmail.trim().toLowerCase()))?.role}
             onChange={setEdit}
-            onCancel={() => setEdit(null)}
+            onCancel={() => { setEdit(null); setCloneSrc(null); setMkLogin(false); }}
             onSave={() => void save(edit)}
           />
         </Drawer>
@@ -396,14 +461,6 @@ export function UserMasterView() {
           onClose={() => setAccessFor(null)}
           onSaved={async (text) => { setAccessFor(null); setMsg({ tone: 'ok', text }); await reloadUsers(); }}
           onError={(text) => setMsg({ tone: 'error', text })}
-        />
-      )}
-
-      {(addLogin || cloneFrom) && (
-        <CreateLoginDrawer
-          source={cloneFrom}
-          onClose={() => { setAddLogin(false); setCloneFrom(null); }}
-          onDone={async (text, tone) => { setAddLogin(false); setCloneFrom(null); setMsg({ tone, text }); await reloadUsers(); await load(); }}
         />
       )}
 
@@ -432,11 +489,18 @@ export function UserMasterView() {
             <div className="rep-form">
               {/* Actions at the top */}
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
-                {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); setEdit({ ...r }); }}>✏️ Edit</button>}
+                {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); openEdit(r); }}>✏️ Edit</button>}
                 {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
-                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setCloneFrom(prof); }}>⧉ Clone</button>}
+                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); openClone(prof); }}>⧉ Clone</button>}
                 {prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setDataFor(prof); }}>📊 Data</button>}
+                {editable && prof && (
+                  <button className={`btn btn-sm ${prof.active === false ? '' : 'btn-danger'}`} disabled={busy}
+                    onClick={() => { setViewRow(null); void toggleActive(prof); }}>
+                    {prof.active === false ? '🔓 Enable login' : '🔒 Disable login'}
+                  </button>
+                )}
               </div>
+              {prof?.active === false && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 8 }}><span>🔒 This login is <b>disabled</b> — they cannot sign in, but all their records are kept.</span></div>}
               {!prof && <div className="muted rep-hint">This person has not signed in yet, so there is no login to set permissions on, clone, or report data for. Set their role above; it applies when they first sign in.</div>}
               <div className="assoc-scroll">
                 <table className="assoc-table" style={{ minWidth: 320 }}>
@@ -516,65 +580,6 @@ function AccessDrawer({ user, onClose, onSaved, onError }: {
         <div className="rep-actions">
           <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save access'}</button>
-        </div>
-      </div>
-    </Drawer>
-  );
-}
-
-// ---- Add / Clone a login (creates the Supabase account with a default password)
-const CLONE_DEFAULT_PW = '123456789';
-function CreateLoginDrawer({ source, onClose, onDone }: {
-  source: User | null; onClose: () => void; onDone: (t: string, tone: 'ok' | 'info') => void;
-}) {
-  const [email, setEmail] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState(source?.rbacRole || 'engineer');
-  const [password, setPassword] = useState(CLONE_DEFAULT_PW);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  const extras = source?.extraPermissions ?? [];
-
-  const submit = async () => {
-    setErr('');
-    if (!email.trim() || !fullName.trim()) { setErr('Enter a name and email.'); return; }
-    if (password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
-    setBusy(true);
-    const res = await sbAdminCreateUser({ email, fullName, role, password, extraPermissions: source ? extras : undefined });
-    logAudit({ action: source ? 'user.clone' : 'user.create', target: email.trim().toLowerCase(), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role, from: source?.email, extras: extras.length } });
-    setBusy(false);
-    if (!res.ok) { setErr(res.error ?? 'Could not create the login.'); return; }
-    const base = source
-      ? `${fullName.trim()} created with ${roleLabel(role)}${extras.length ? ` + ${extras.length} extra` : ''}, cloned from ${source.fullName || source.email}.`
-      : `${fullName.trim()} created as ${roleLabel(role)}.`;
-    onDone(res.needsConfirm ? `${base} But "Confirm email" is ON in Supabase — they must confirm before signing in.` : `${base} They sign in with the password and change it under Profile.`, res.needsConfirm ? 'info' : 'ok');
-  };
-
-  return (
-    <Drawer open onClose={onClose} title={source ? `Clone ${source.fullName || source.email}` : 'Add Login'} width={520}>
-      <div className="rep-form">
-        {source && (
-          <div className="muted rep-hint">
-            Copying <b>{roleLabel(source.rbacRole || 'engineer')}</b>{extras.length ? ` + ${extras.length} extra permission${extras.length === 1 ? '' : 's'}` : ''} from {source.fullName || source.email}. Enter the new person’s details.
-          </div>
-        )}
-        <div className="rep-grid">
-          <label className="rep-field"><span className="field-label">Full name *</span>
-            <input className="input" value={fullName} autoFocus onChange={(e) => setFullName(e.target.value)} placeholder="New joiner’s name" /></label>
-          <label className="rep-field"><span className="field-label">Email *</span>
-            <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@airliquide.com" /></label>
-          <label className="rep-field"><span className="field-label">Role</span>
-            <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
-              {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-            </select></label>
-          <label className="rep-field"><span className="field-label">Password</span>
-            <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-        </div>
-        <div className="muted rep-hint">Creating logins in-app needs Supabase sign-ups enabled and “Confirm email” off. The new user changes the password under Profile → Password.</div>
-        {err && <div className="field-err">{err}</div>}
-        <div className="rep-actions">
-          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy}>{busy ? 'Creating…' : source ? 'Create clone' : 'Create login'}</button>
         </div>
       </div>
     </Drawer>

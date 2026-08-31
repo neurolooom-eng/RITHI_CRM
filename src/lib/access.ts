@@ -70,8 +70,9 @@ export function useAccessScope(): AccessScope {
 
     // Office / coordination roles (Hotline, NSM, Commercial, Spare Coordinator,
     // Stores, Tally) are not tied to call allocations — they see every call.
-    // Applies in "view as" preview too (identity is the previewed user).
-    if (roleSeesAllCalls(identity.rbacRole)) {
+    // A per-user "View all data" grant (e.g. a Permissions + Data clone) does
+    // the same. Applies in "view as" preview too (identity is the previewed user).
+    if (roleSeesAllCalls(identity.rbacRole) || can('data.view_all')) {
       setScope({ ready: true, all: true, names: new Set(), isManager: true, reports: [], selfName: identity.fullName });
       return;
     }

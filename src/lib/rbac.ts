@@ -92,6 +92,10 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'config.manage', label: 'Admin config' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
   { group: 'Admin', key: 'audit.view', label: 'View audit log' },
+  // Full data visibility (see every record), regardless of allocation. Granted
+  // by role for office roles; also grantable per-user (e.g. a "Permissions +
+  // Data" clone). The DB honours it in can_view_all_calls / spare read policies.
+  { group: 'Admin', key: 'data.view_all', label: 'View all data (every record)' },
 ];
 export const ACTIONS: ActionDef[] = [
   ...FUNCTIONAL_ACTIONS,

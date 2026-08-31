@@ -1100,8 +1100,8 @@ export interface Profile {
   extra_permissions?: string[];
 }
 
-// Admin: set a user's role and/or extra per-user permissions.
-export async function updateProfile(id: string, patch: { role?: string; extra_permissions?: string[] }): Promise<{ ok: boolean; error?: string }> {
+// Admin: set a user's role, extra per-user permissions, and/or active flag.
+export async function updateProfile(id: string, patch: { role?: string; extra_permissions?: string[]; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { error } = await c.from('profiles').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };

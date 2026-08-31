@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.23',
+    date: '2026-08-31',
+    title: 'Disable a leaver’s login; New User & Clone do it all in one form',
+    changes: [
+      'Disable login (🔒) on a user locks them out of signing in while keeping every record they entered; Enable login (🔓) restores it. A disabled login is blocked at sign-in and on the next load.',
+      'New User now fills the full User Master details AND creates the sign-in login in one step (with a starting password). Clone opens the same form pre-filled with the source’s role + permissions — you just add the new person’s details.',
+      'Clone now asks: Permissions only (the new person sees only their own data) or Permissions + Data (they can also see every record). Needs migration 0035_data_view_all.sql for the data option to take effect.',
+    ],
+  },
+  {
     version: '0.8.22',
     date: '2026-08-31',
     title: 'Click a user to open their record',
