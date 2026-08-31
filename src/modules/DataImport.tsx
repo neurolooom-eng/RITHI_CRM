@@ -94,7 +94,9 @@ export function DataImport() {
       <div className="muted" style={{ marginBottom: 12 }}>
         One-time load of the clean migration CSVs. Select the files (the table is
         auto-detected from the columns) and Import. Runs through your admin login.
-        Import into an empty table — re-importing duplicates rows.
+        Import into an empty table — re-importing duplicates rows, except the four
+        sale / contract exports, which are matched on their own number and can be
+        re-run safely.
       </div>
 
       <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>

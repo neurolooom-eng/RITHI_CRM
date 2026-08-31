@@ -22,6 +22,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'Your four AppSheet exports (Sale Entry, Warranty Sale Details, Contract Entry, Contract Details) import as they are, in any order, in Settings → Bulk Data Import. Every column is kept, and the repeated header values are folded back into inheritance afterwards.',
       'Warranty and contract on the machine (what a call form fills in) is now maintained by these registers, so the Product Master follows a contract renewal instead of being keyed twice.',
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
+      'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
     ],
   },
   {
