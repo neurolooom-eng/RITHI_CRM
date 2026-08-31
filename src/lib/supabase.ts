@@ -1464,3 +1464,19 @@ export async function markNotificationsRead(ids?: number[]): Promise<void> {
   if (ids && ids.length) q = q.in('id', ids);
   await q;
 }
+
+// ---------------------------------------------------------------------------
+// Validation execution tracker (0046_validation_results).
+// ---------------------------------------------------------------------------
+export interface ValidationResult { test_id: string; result: string; actual: string; tester: string; notes: string; executed_at: string | null; updated_at: string }
+export async function listValidationResults(): Promise<Record<string, ValidationResult>> {
+  const { data, error } = await must().from('validation_results').select('*');
+  if (error) throw new Error(errMsg(error));
+  const map: Record<string, ValidationResult> = {};
+  (data ?? []).forEach((r) => { map[(r as ValidationResult).test_id] = r as ValidationResult; });
+  return map;
+}
+export async function saveValidationResult(testId: string, patch: { result?: string; actual?: string; tester?: string; notes?: string }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('validation_results').upsert({ test_id: testId, ...patch }, { onConflict: 'test_id' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}

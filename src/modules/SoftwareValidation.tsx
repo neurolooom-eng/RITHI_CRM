@@ -1,8 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { PageHeader } from '../components/ui/ui';
+import { useAuth } from '../lib/auth';
+import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
   VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, ARCHITECTURE, DETAILED, RISKS, TESTS,
-  type Risk,
+  FMEA, FMEA_SCALE, PART11, SUPPLIERS, VSR, type Risk,
 } from '../lib/validation';
 import './softwarevalidation.css';
 
@@ -15,7 +17,7 @@ import './softwarevalidation.css';
 
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
-type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'risk' | 'tests' | 'trace';
+type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'risk' | 'fmea' | 'part11' | 'supplier' | 'tests' | 'trace' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -25,8 +27,12 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'arch', label: 'Architecture Design' },
   { key: 'design', label: 'Detailed Design' },
   { key: 'risk', label: 'Risk Assessment' },
+  { key: 'fmea', label: 'FMEA' },
+  { key: 'part11', label: 'Part 11 Assessment' },
+  { key: 'supplier', label: 'Supplier Assessment' },
   { key: 'tests', label: 'Test Protocol' },
   { key: 'trace', label: 'Traceability' },
+  { key: 'vsr', label: 'Summary Report' },
 ];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -34,10 +40,26 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function SoftwareValidation() {
+  const { can } = useAuth();
+  const canRecord = can('config.manage') || can('manage-users');
   const [tab, setTab] = useState<TabKey>('overview');
   const [all, setAll] = useState(false); // render every section (for printing the full package)
   const show = (k: TabKey) => all || tab === k;
   const printAll = () => { setAll(true); setTimeout(() => { window.print(); setAll(false); }, 60); };
+
+  // Execution results (DB-backed tracker).
+  const [results, setResults] = useState<Record<string, ValidationResult>>({});
+  const loadResults = async () => { if (!supabaseConfigured()) return; try { setResults(await listValidationResults()); } catch { /* not migrated yet */ } };
+  useEffect(() => { void loadResults(); /* eslint-disable-next-line */ }, []);
+  const record = async (testId: string, patch: { result?: string; actual?: string; tester?: string }) => {
+    const res = await saveValidationResult(testId, patch);
+    if (res.ok) void loadResults();
+  };
+  const summary = useMemo(() => {
+    let pass = 0, fail = 0, done = 0;
+    TESTS.forEach((t) => { const r = results[t.id]?.result; if (r === 'Pass') { pass++; done++; } else if (r === 'Fail') { fail++; done++; } else if (r === 'N/A') done++; });
+    return { pass, fail, done, total: TESTS.length };
+  }, [results]);
 
   // Traceability: URS → FRS → Test cases.
   const trace = useMemo(() => URS.map((u) => {
@@ -151,22 +173,103 @@ export function SoftwareValidation() {
         </Section>
       )}
 
-      {/* TESTS */}
-      {show('tests') && (['IQ', 'OQ', 'PQ'] as const).map((phase) => (
-        <Section key={phase} title={`${phase === 'IQ' ? 'Installation' : phase === 'OQ' ? 'Operational' : 'Performance'} Qualification (${phase})`}>
-          {TESTS.filter((t) => t.phase === phase).map((t) => (
-            <div className="sv-test" key={t.id}>
-              <div className="sv-test-head">
-                <b>{t.id}</b> — {t.objective} {riskBadge(t.risk)}
-                <span className="sv-ref">traces: {t.reqs.join(', ')}</span>
-              </div>
-              <ol className="sv-steps">{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
-              <div className="sv-exp"><b>Expected result:</b> {t.expected}</div>
-              <div className="sv-result"><span>Actual result: <span className="sv-blank-inline" /></span><span>Pass / Fail: <span className="sv-blank-inline sm" /></span><span>Tester / Date: <span className="sv-blank-inline" /></span></div>
+      {/* FMEA */}
+      {show('fmea') && (
+        <Section title="Software FMEA (S · O · D · RPN)">
+          <p className="sv-note">{FMEA_SCALE.severity}. {FMEA_SCALE.occurrence}. {FMEA_SCALE.detection}. {FMEA_SCALE.threshold}</p>
+          <div className="sv-scroll">
+            <table className="sv-table sv-wide"><thead><tr>
+              <th>ID</th><th>Item / function</th><th>Failure mode</th><th>Cause</th><th>Effect</th>
+              <th>S</th><th>O</th><th>D</th><th>RPN</th><th>Controls / action</th><th>Resid. RPN</th>
+            </tr></thead>
+              <tbody>{FMEA.map((f) => {
+                const rpn = f.s * f.o * f.d; const after = f.s * f.oa * f.da;
+                const cls = (n: number, sev: number) => n >= 100 || sev >= 8 ? 'sv-risk-high' : n >= 50 ? 'sv-risk-medium' : 'sv-risk-low';
+                return (
+                  <tr key={f.id}>
+                    <td className="sv-id">{f.id}</td><td>{f.item}</td><td>{f.mode}</td><td>{f.cause}</td><td>{f.effect}</td>
+                    <td>{f.s}</td><td>{f.o}</td><td>{f.d}</td>
+                    <td><span className={`sv-risk ${cls(rpn, f.s)}`}>{rpn}</span></td>
+                    <td>{f.controls}. <b>Action:</b> {f.action} <span className="sv-ref">[{f.refs.join(', ')}]</span></td>
+                    <td><span className={`sv-risk ${cls(after, f.s)}`}>{after}</span></td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* PART 11 */}
+      {show('part11') && (
+        <Section title="21 CFR Part 11 assessment (appendix)">
+          <p className="sv-note">Applicability of each Part 11 control to RITHI CRM and how it is met. Electronic signatures (Subpart C) are not currently implemented; approvals are role-authorised actions recorded in the audit trail.</p>
+          <div className="sv-scroll">
+            <table className="sv-table"><thead><tr><th style={{ width: 110 }}>Clause</th><th>Requirement</th><th style={{ width: 80 }}>Applies</th><th>How met</th></tr></thead>
+              <tbody>{PART11.map((p) => <tr key={p.clause}><td className="sv-id">{p.clause}</td><td>{p.requirement}</td><td><span className={`sv-risk ${p.applicable === 'Yes' ? 'sv-risk-low' : p.applicable === 'Partial' ? 'sv-risk-medium' : 'sv-risk-high'}`}>{p.applicable}</span></td><td>{p.howMet}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </Section>
+      )}
+
+      {/* SUPPLIER */}
+      {show('supplier') && (
+        <Section title="Supplier / infrastructure assessment (appendix)">
+          {SUPPLIERS.map((s) => (
+            <div className="sv-test" key={s.name}>
+              <div className="sv-test-head"><b>{s.name}</b> — {s.service} <span className={`sv-risk sv-risk-${s.criticality.toLowerCase()}`}>{s.criticality} criticality</span></div>
+              <ul className="sv-list">{s.criteria.map((c, i) => <li key={i}>{c}</li>)}</ul>
+              <div className="sv-exp"><b>Conclusion:</b> {s.conclusion}</div>
             </div>
           ))}
         </Section>
-      ))}
+      )}
+
+      {/* TESTS + execution tracker */}
+      {show('tests') && (
+        <>
+          <div className="sv-exec-summary">
+            Execution: <b>{summary.done}</b>/{summary.total} recorded · <span className="sv-risk sv-risk-low">{summary.pass} Pass</span> · <span className="sv-risk sv-risk-high">{summary.fail} Fail</span>
+            {!supabaseConfigured() && <span className="sv-ref"> · connect the database to record results</span>}
+            {supabaseConfigured() && !canRecord && <span className="sv-ref"> · results are read-only for your role</span>}
+          </div>
+          {(['IQ', 'OQ', 'PQ'] as const).map((phase) => (
+            <Section key={phase} title={`${phase === 'IQ' ? 'Installation' : phase === 'OQ' ? 'Operational' : 'Performance'} Qualification (${phase})`}>
+              {TESTS.filter((t) => t.phase === phase).map((t) => {
+                const r = results[t.id];
+                return (
+                  <div className="sv-test" key={t.id}>
+                    <div className="sv-test-head">
+                      <b>{t.id}</b> — {t.objective} {riskBadge(t.risk)}
+                      <span className="sv-ref">traces: {t.reqs.join(', ')}</span>
+                      {r?.result && <span className={`sv-risk ${r.result === 'Pass' ? 'sv-risk-low' : r.result === 'Fail' ? 'sv-risk-high' : 'sv-risk-medium'}`}>{r.result}</span>}
+                    </div>
+                    <ol className="sv-steps">{t.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+                    <div className="sv-exp"><b>Expected result:</b> {t.expected}</div>
+                    {canRecord && supabaseConfigured() ? (
+                      <div className="sv-exec">
+                        <select className="select" value={r?.result ?? ''} onChange={(e) => void record(t.id, { result: e.target.value })}>
+                          <option value="">— result —</option><option>Pass</option><option>Fail</option><option>N/A</option>
+                        </select>
+                        <input className="input" placeholder="Actual result / observation" defaultValue={r?.actual ?? ''} onBlur={(e) => { if (e.target.value !== (r?.actual ?? '')) void record(t.id, { actual: e.target.value }); }} />
+                        <input className="input sv-exec-tester" placeholder="Tester" defaultValue={r?.tester ?? ''} onBlur={(e) => { if (e.target.value !== (r?.tester ?? '')) void record(t.id, { tester: e.target.value }); }} />
+                        {r?.executed_at && <span className="sv-ref">{new Date(r.executed_at).toLocaleDateString()}</span>}
+                      </div>
+                    ) : (
+                      <div className="sv-result">
+                        <span>Actual: {r?.actual || <span className="sv-blank-inline" />}</span>
+                        <span>Result: {r?.result || <span className="sv-blank-inline sm" />}</span>
+                        <span>Tester: {r?.tester || <span className="sv-blank-inline" />}</span>
+                        <span>{r?.executed_at ? new Date(r.executed_at).toLocaleDateString() : ''}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Section>
+          ))}
+        </>
+      )}
 
       {/* TRACEABILITY */}
       {show('trace') && (
@@ -184,6 +287,23 @@ export function SoftwareValidation() {
             </table>
           </div>
           {orphanFrs.length > 0 && <p className="sv-note">System requirements without a direct test (verified via higher-level PQ / review): {orphanFrs.map((f) => f.id).join(', ')}.</p>}
+        </Section>
+      )}
+
+      {/* VALIDATION SUMMARY REPORT */}
+      {show('vsr') && (
+        <Section title="Validation Summary Report (template)">
+          <p className="sv-note">Completed after execution. The live execution figures below are drawn from the tracker; the narrative is filled in and approved by QA.</p>
+          <div className="sv-exec-summary">Recorded to date: <b>{summary.done}</b>/{summary.total} · <span className="sv-risk sv-risk-low">{summary.pass} Pass</span> · <span className="sv-risk sv-risk-high">{summary.fail} Fail</span></div>
+          {VSR.map((s, i) => (
+            <div key={i} style={{ marginTop: 10 }}>
+              <div className="sv-h3" style={{ fontSize: 14, border: 'none', display: 'block', marginBottom: 2 }}>{s.heading}</div>
+              {s.body.map((p, j) => <p className="sv-p" key={j}>{p}</p>)}
+            </div>
+          ))}
+          <table className="sv-table" style={{ marginTop: 10 }}><thead><tr><th>Approver role</th><th>Name</th><th>Signature</th><th>Date</th></tr></thead>
+            <tbody>{APPROVALS.filter((a) => a.role !== 'Author' && a.role !== 'IT / Technical').map((a) => <tr key={a.role}><td>{a.role}</td><td className="sv-blank" /><td className="sv-blank" /><td className="sv-blank" /></tr>)}</tbody>
+          </table>
         </Section>
       )}
     </div>

@@ -313,6 +313,41 @@ export const RISKS: RiskRow[] = [
   { id: 'R-12', fn: 'Change control', failure: 'An untested change reaches production', effect: 'Regression in a quality function', sev: 'Medium', controls: 'Version control, build ID, changelog, regression tests; periodic review', residual: 'Low', refs: ['FRS-024'] },
 ];
 
+// ---- Software FMEA (sFMEA) -------------------------------------------------
+// S/O/D on a 1–10 scale; RPN = S × O × D. Action is required when RPN ≥ 100 or
+// Severity ≥ 8 (a high-severity failure is actioned regardless of RPN). S rarely
+// changes with controls (it is inherent to the effect); prevention lowers O,
+// detection lowers D. "After" = residual once the listed controls are in place.
+export const FMEA_SCALE = {
+  severity: 'S 1 = negligible · 5 = record inaccuracy correctable · 8 = quality-record integrity / traceability loss · 10 = regulatory / patient-safety impact',
+  occurrence: 'O 1 = remote · 4 = occasional · 7 = frequent · 10 = almost certain',
+  detection: 'D 1 = detected with near certainty (constraint/test) · 5 = moderate · 10 = not detectable before effect',
+  threshold: 'Action required when RPN ≥ 100 OR Severity ≥ 8.',
+};
+export interface FmeaRow {
+  id: string; item: string; mode: string; cause: string; effect: string;
+  s: number; o: number; d: number;             // initial
+  controls: string; action: string;
+  oa: number; da: number;                        // residual occurrence / detection (S unchanged)
+  refs: string[];
+}
+export const FMEA: FmeaRow[] = [
+  { id: 'FM-01', item: 'Access control (RBAC / RLS)', mode: 'A user reads or edits records outside their authority', cause: 'Missing/incorrect RLS policy; UI-only gating', effect: 'Confidentiality / integrity loss of QMS records', s: 9, o: 3, d: 3, controls: 'Server-side RLS keyed on auth.uid(); least-privilege roles; OQ-02', action: 'Verify RLS on every record table in IQ; negative access tests in OQ', oa: 2, da: 2, refs: ['FRS-003', 'FRS-004', 'IQ-02', 'OQ-02'] },
+  { id: 'FM-02', item: 'Audit trail', mode: 'An action is not logged, or the trail is altered', cause: 'Client omits event; user has write on the log', effect: 'Non-attributable records; Part 11 non-compliance', s: 8, o: 3, d: 4, controls: 'DB-stamped identity; admin-only read; no user update; retention purge', action: 'OQ-09 confirms completeness and tamper-resistance', oa: 2, da: 2, refs: ['FRS-021', 'OQ-09'] },
+  { id: 'FM-03', item: 'Call status', mode: 'Status does not reflect the latest visit', cause: 'Ordering by visit date not entry; trigger not fired', effect: 'Open complaint appears closed; wrong KPI', s: 7, o: 4, d: 4, controls: 'Trigger recomputes from latest entry; generated open_state; OQ-05', action: 'Regression-test status on every call-table change', oa: 2, da: 2, refs: ['FRS-007', 'OQ-05'] },
+  { id: 'FM-04', item: 'Spare approval', mode: 'A stage is approved by an unauthorised role', cause: 'UI shows a button the DB does not enforce', effect: 'Uncontrolled spare release', s: 7, o: 3, d: 3, controls: 'Per-stage DB guard; manager-scoped approval; OQ-07', action: 'Negative approval tests per stage', oa: 2, da: 2, refs: ['FRS-010', 'FRS-011', 'OQ-07'] },
+  { id: 'FM-05', item: 'Identifier assignment', mode: 'Duplicate or missing UCN / Call Number', cause: 'Race on sequence; trigger bypassed on import', effect: 'Records not uniquely traceable', s: 8, o: 2, d: 5, controls: 'DB triggers + UNIQUE(ucn) + shared sequence; OQ-03', action: 'Uniqueness test incl. bulk import path', oa: 1, da: 2, refs: ['FRS-005', 'OQ-03'] },
+  { id: 'FM-06', item: 'Call-type routing', mode: 'A call is filed under the wrong type', cause: 'Routing logic vs data mismatch', effect: 'Wrong workflow and reporting', s: 5, o: 3, d: 3, controls: 'Routing triggers + per-table CHECK; OQ-04', action: 'Mis-file rejection test', oa: 1, da: 2, refs: ['FRS-006', 'OQ-04'] },
+  { id: 'FM-07', item: 'Stock accuracy', mode: 'Overdraw via a movement the user cannot see', cause: 'Guard counts only visible movements', effect: 'Inaccurate inventory records', s: 5, o: 4, d: 4, controls: 'Guard counts every movement regardless of scope; OQ-08', action: 'Over-transfer negative test', oa: 2, da: 2, refs: ['FRS-013', 'OQ-08'] },
+  { id: 'FM-08', item: 'Data access at scale', mode: 'Queries time out as call volume grows', cause: 'Per-row recursive RLS; unindexed scan', effect: 'Records inaccessible', s: 6, o: 5, d: 3, controls: 'Once-per-query RLS (InitPlan); call-table split; PQ-03', action: 'Performance test at production-like volume', oa: 2, da: 2, refs: ['FRS-006', 'PQ-03'] },
+  { id: 'FM-09', item: 'Bulk import', mode: 'PM batch imports wrong or duplicate rows', cause: 'Column mis-map; re-run duplicates', effect: 'Erroneous PM records', s: 6, o: 4, d: 3, controls: 'Preview before commit; DB assigns IDs; admin-only; OQ-14', action: 'Import review + reconciliation step', oa: 2, da: 2, refs: ['FRS-009', 'OQ-14'] },
+  { id: 'FM-10', item: 'Content integrity', mode: 'Malicious HTML stored in a KB article', cause: 'Unsanitised rich text', effect: 'Stored XSS / script injection', s: 6, o: 3, d: 4, controls: 'Allowlist sanitiser on save and render; OQ-13', action: 'Injection test with script/handler payloads', oa: 1, da: 2, refs: ['FRS-025', 'OQ-13'] },
+  { id: 'FM-11', item: 'Availability', mode: 'Data loss with no recoverable backup', cause: 'Backup not taken / never restore-tested', effect: 'Loss of quality records', s: 9, o: 2, d: 6, controls: 'Managed backups; scheduled restore test; PQ-02', action: 'Document RPO/RTO; periodic restore verification', oa: 1, da: 3, refs: ['FRS-023', 'PQ-02'] },
+  { id: 'FM-12', item: 'Change control', mode: 'An untested change reaches production', cause: 'Direct push; no regression', effect: 'Regression in a quality function', s: 6, o: 4, d: 4, controls: 'Version control, build ID, changelog, regression tests; periodic review', action: 'Change-control SOP + release checklist', oa: 2, da: 2, refs: ['FRS-024'] },
+  { id: 'FM-13', item: 'Notifications', mode: 'A notification reaches the wrong user', cause: 'Name→id resolution error', effect: 'Information disclosure (low)', s: 4, o: 3, d: 5, controls: 'Resolve by email then directory; RLS scopes to recipient; OQ-12', action: 'Recipient-scope test', oa: 2, da: 3, refs: ['FRS-020', 'OQ-12'] },
+  { id: 'FM-14', item: 'Session / leaver access', mode: 'A leaver retains access', cause: 'Session not expired; account not disabled', effect: 'Unauthorised access to records', s: 7, o: 3, d: 4, controls: 'Token expiry; inactive-login toggle blocks sign-in & hydrate; OQ-01', action: 'Leaver-deactivation procedure + test', oa: 2, da: 2, refs: ['FRS-002', 'OQ-01'] },
+];
+
 // ---- Test protocol (IQ / OQ / PQ) -----------------------------------------
 export type TestPhase = 'IQ' | 'OQ' | 'PQ';
 export interface TestCase { id: string; phase: TestPhase; reqs: string[]; risk: Risk; objective: string; steps: string[]; expected: string }
@@ -336,4 +371,72 @@ export const TESTS: TestCase[] = [
   { id: 'PQ-01', phase: 'PQ', reqs: ['URS-003', 'URS-004', 'URS-007'], risk: 'High', objective: 'End-to-end field workflow by real users.', steps: ['A user registers a customer call, an engineer reports a visit and requests a spare, approvals dispatch it, the engineer acknowledges and closes the call'], expected: 'The workflow completes; records are consistent, attributable and retrievable.' },
   { id: 'PQ-02', phase: 'PQ', reqs: ['URS-017', 'URS-018'], risk: 'High', objective: 'Record retention & recovery.', steps: ['Retrieve records after the sync/refresh cycle', 'Perform a backup restore in a test project and verify records'], expected: 'Records are complete and retrievable; a restore reproduces the records.' },
   { id: 'PQ-03', phase: 'PQ', reqs: ['URS-013', 'URS-014'], risk: 'Medium', objective: 'Operational reporting & SLA in real use.', steps: ['Run the registers, Reports and Dashboard with production-like volume', 'Confirm SLA highlighting and export controls'], expected: 'Screens load within acceptable time; SLA and export behave per role.' },
+];
+
+// ---- 21 CFR Part 11 assessment (appendix) ---------------------------------
+export interface Part11Row { clause: string; requirement: string; applicable: 'Yes' | 'Partial' | 'N/A'; howMet: string }
+export const PART11: Part11Row[] = [
+  { clause: '§11.10(a)', requirement: 'Validation of systems to ensure accuracy, reliability, consistent intended performance.', applicable: 'Yes', howMet: 'This validation package (URS/FRS, IQ/OQ/PQ, traceability, risk/FMEA).' },
+  { clause: '§11.10(b)', requirement: 'Ability to generate accurate and complete copies of records (human-readable and electronic).', applicable: 'Yes', howMet: 'On-screen views, CSV export (role-gated), and PostgreSQL/Supabase export of the underlying records.' },
+  { clause: '§11.10(c)', requirement: 'Protection of records to enable accurate and ready retrieval throughout the retention period.', applicable: 'Yes', howMet: 'Records held in managed PostgreSQL with backups; retention procedure; audit retention purge is configurable.' },
+  { clause: '§11.10(d)', requirement: 'Limiting system access to authorized individuals.', applicable: 'Yes', howMet: 'Supabase Auth (unique logins), inactive-login lockout, RLS-enforced RBAC.' },
+  { clause: '§11.10(e)', requirement: 'Secure, computer-generated, time-stamped audit trails; retained and available for review/copy.', applicable: 'Yes', howMet: 'audit_log with DB-stamped identity/time; admin-only read; not user-editable.' },
+  { clause: '§11.10(f)', requirement: 'Operational system checks to enforce permitted sequencing of steps.', applicable: 'Yes', howMet: 'Spare approval chain guard; call-status workflow; call-type routing constraints.' },
+  { clause: '§11.10(g)', requirement: 'Authority checks — only authorized individuals may use, sign, access, or perform operations.', applicable: 'Yes', howMet: 'Permission (has_perm) + RLS checks per action (e.g., install.create, approvals, export.data).' },
+  { clause: '§11.10(h)', requirement: 'Device (terminal) checks where appropriate.', applicable: 'N/A', howMet: 'Web application accessed over TLS; no device-specific data source requiring terminal checks.' },
+  { clause: '§11.10(i)', requirement: 'Persons who develop/maintain/use the system have the education, training and experience.', applicable: 'Yes', howMet: 'Training records (procedural); developer competency (procedural).' },
+  { clause: '§11.10(j)', requirement: 'Written policies holding individuals accountable for actions under their electronic signatures.', applicable: 'Partial', howMet: 'Procedural SOP required; the system attributes actions to unique users via the audit trail.' },
+  { clause: '§11.10(k)', requirement: 'Controls over systems documentation (distribution, access, change control).', applicable: 'Yes', howMet: 'Version-controlled source; in-app Version History; controlled migrations; this package under document control.' },
+  { clause: '§11.50 / §11.70', requirement: 'Signature manifestations and signature/record linking (if e-signatures are used).', applicable: 'N/A', howMet: 'The system does not currently implement 21 CFR Part 11 electronic signatures; approvals are role-authorized actions recorded in the audit trail. If e-signatures are introduced, Subpart C applies.' },
+  { clause: '§11.100–300', requirement: 'Electronic signature uniqueness, identity verification, and controls (Subpart C).', applicable: 'N/A', howMet: 'Not applicable until e-signatures are implemented; unique user IDs + password controls already provide the identity basis.' },
+];
+
+// ---- Supplier / vendor assessment (appendix) ------------------------------
+export interface Supplier { name: string; service: string; criticality: Risk; criteria: string[]; conclusion: string }
+export const SUPPLIERS: Supplier[] = [
+  {
+    name: 'Supabase', service: 'Managed PostgreSQL, Authentication, PostgREST API, Edge Functions, backups',
+    criticality: 'High',
+    criteria: [
+      'Hosts all quality records — highest criticality; assessed as a GAMP infrastructure/platform supplier.',
+      'Data centre / cloud controls: SOC 2 Type II (via underlying AWS), encryption at rest and in transit (TLS).',
+      'Access control primitives leveraged by the application: Auth (unique identities) and Row-Level Security enforced in Postgres.',
+      'Backup & point-in-time recovery available per plan; restore to be periodically verified by the customer.',
+      'Availability / status transparency (status page); change notifications.',
+      'Residual customer responsibility: correct RLS configuration, key management (service_role never shipped), backup verification, and this validation.',
+    ],
+    conclusion: 'Acceptable as the platform of record, provided the customer-side controls (RLS configuration, backup verification, access management) are maintained and evidenced. Leverage supplier certifications; qualify the configured use via IQ/OQ.',
+  },
+  {
+    name: 'GitHub (Actions + Pages)', service: 'Source control, CI build (tsc + Vite), static hosting of the web client',
+    criticality: 'Medium',
+    criteria: [
+      'Hosts source and the build/deploy pipeline; does not store quality records (the client is static assets).',
+      'Change control: pull-request/commit history, protected main branch recommended, build provenance (build number/ID surfaced in-app).',
+      'Availability and integrity of the deployed bundle; served over HTTPS.',
+      'Residual customer responsibility: branch protection, review of changes, release identification, and regression testing before merge to main.',
+    ],
+    conclusion: 'Acceptable for source control and hosting the client. Recommend enabling branch protection on main and recording release approvals as part of change control.',
+  },
+  {
+    name: 'Resend (optional)', service: 'Transactional email for the daily digest (if deployed)',
+    criticality: 'Low',
+    criteria: [
+      'Sends operational summary emails; does not create or hold quality records.',
+      'API key held as a function secret (not in the repo); sender domain verification recommended.',
+    ],
+    conclusion: 'Low criticality; acceptable for operational notifications. Not in the GxP record path.',
+  },
+];
+
+// ---- Validation Summary Report (template) ---------------------------------
+export const VSR: { heading: string; body: string[] }[] = [
+  { heading: '1. Purpose', body: ['Summarise the validation activities performed for RITHI CRM and state whether the system is fit for its intended use within the QMS. Completed at the end of execution.'] },
+  { heading: '2. Scope & references', body: ['System, version and build validated: __________. References: this Validation Plan, URS, FRS, Design, Risk/FMEA, IQ/OQ/PQ protocols, and the executed test records.'] },
+  { heading: '3. Summary of activities', body: ['IQ executed on ____ ; OQ executed on ____ ; PQ/UAT executed on ____ . Number of test cases executed: ____ ; passed: ____ ; failed: ____ .'] },
+  { heading: '4. Deviations & dispositions', body: ['List each deviation, its risk assessment, root cause, correction, and disposition (accept / retest / defer). Confirm no open high-risk deviation remains.'] },
+  { heading: '5. Requirements traceability', body: ['Confirm the traceability matrix is complete: every URS is covered by FRS and tests, and every test passed or is dispositioned.'] },
+  { heading: '6. Residual risk statement', body: ['Confirm residual risks (risk assessment + FMEA) are acceptable with the controls verified, and any procedural controls (SOPs, training, backup verification) are in place.'] },
+  { heading: '7. Conclusion & release', body: ['State whether RITHI CRM is validated and released for productive use in the QMS, subject to the maintaining-the-validated-state controls (change control, periodic review, supplier monitoring).'] },
+  { heading: '8. Approval', body: ['Approved by System Owner, Process Owner (Quality), and QA/Validation Lead (wet or Part 11-compliant e-signature), with dates.'] },
 ];

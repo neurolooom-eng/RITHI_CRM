@@ -121,6 +121,14 @@ const MODULES = {
     needs: ['profiles'],
     files: ['0045_notifications.sql'],
   },
+  validation: {
+    title: 'Software Validation',
+    blurb: ['Validation execution tracker (validation_results): stores the executed',
+            'result of each IQ/OQ/PQ test case in the database. Read by signed-in',
+            'users; recorded by admins / config.manage.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0046_validation_results.sql'],
+  },
   audit: {
     title: 'Audit Log',
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
@@ -352,7 +360,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

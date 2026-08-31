@@ -56,3 +56,11 @@
   /* Print every tab is not possible from state; the user prints the open tab.
      Tables and tests avoid page breaks mid-row. */
 }
+
+/* execution tracker */
+.sv-exec-summary { font-size: 13px; margin: 6px 0 14px; padding: 8px 12px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; }
+.sv-exec { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.sv-exec .select { width: 120px; }
+.sv-exec .input { flex: 1; min-width: 160px; font-size: 13px; }
+.sv-exec .sv-exec-tester { flex: 0 0 140px; min-width: 120px; }
+@media print { .sv-exec .select, .sv-exec .input { border: none; } }
