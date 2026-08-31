@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.10',
+    date: '2026-08-31',
+    title: 'Call Status and the work-details switch sit together',
+    changes: [
+      'In Update Call, \u201cUpdate Visit Work Details?\u201d has moved out of the Visit block and now sits beside Call Status \u2014 the two decide each other, so they are read together.',
+    ],
+  },
+  {
     version: '0.8.9',
     date: '2026-08-31',
     title: 'Call Reporting follows the report spec',
