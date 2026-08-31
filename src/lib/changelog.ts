@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.21',
+    date: '2026-08-31',
+    title: 'One User Master — with Clone and a per-user activity view',
+    changes: [
+      'User Access is folded into User Master — one screen for everything. Each signed-in person has a 🔐 Access action (role + extra permissions, the old User Access editor) right on their row.',
+      'Clone (⧉): pick someone leaving — say a Stores Incharge on notice — enter the replacement’s name and email, and it creates their login immediately with the SAME role and permissions, on a default password they change on first sign-in.',
+      'Data view (📊): see everything a person entered — calls they registered, spare requests, dispatches (DC), approvals, reports and consumption — grouped for a clean handover.',
+      '+ Add Login creates a fresh login from User Master too; the separate User Access page now redirects here.',
+    ],
+  },
+  {
     version: '0.8.20',
     date: '2026-08-31',
     title: '“Call Allocated To” lists real people, not demo users',

@@ -83,7 +83,6 @@ export const NAV: NavGroup[] = [
   {
     title: 'Administration',
     items: [
-      { to: '/users', label: 'User Access', icon: '👥', adminOnly: true },
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },

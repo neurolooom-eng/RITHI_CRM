@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
-import { useAuth } from '../lib/auth';
-import { ROLES } from '../lib/rbac';
+import { useAuth, type User } from '../lib/auth';
+import { ROLES, ACTIONS, permsForRole } from '../lib/rbac';
 import { csvExport, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
-  listDirectory, saveDirectoryRow, updateProfile, supabaseConfigured, type DirectoryRow,
+  listDirectory, saveDirectoryRow, updateProfile, sbAdminCreateUser, userActivity,
+  supabaseConfigured, type DirectoryRow, type UserActivity,
 } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -61,6 +62,19 @@ export function UserMasterView() {
     users.forEach((u) => { if (u.email) m.set(u.email.toLowerCase(), { role: u.rbacRole ?? '', id: u.id }); });
     return m;
   }, [users]);
+  // The full login profile behind a directory row (for access / clone / data).
+  const userByEmail = useMemo(() => {
+    const m = new Map<string, User>();
+    users.forEach((u) => { if (u.email) m.set(u.email.toLowerCase(), u); });
+    return m;
+  }, [users]);
+  const profileFor = (r: DirectoryRow): User | undefined =>
+    userByEmail.get((r.email || '').toLowerCase()) ?? userByEmail.get((r.gmail || '').toLowerCase());
+
+  const [accessFor, setAccessFor] = useState<User | null>(null);   // role + extra permissions
+  const [cloneFrom, setCloneFrom] = useState<User | null>(null);   // create a new login like this one
+  const [dataFor, setDataFor] = useState<User | null>(null);       // everything this user entered
+  const [addLogin, setAddLogin] = useState(false);                 // create a fresh login
 
   const load = async (query = q) => {
     if (!dataConfigured()) return;
@@ -235,14 +249,26 @@ export function UserMasterView() {
   ];
   if (editable) {
     liveColumns.push({
-      key: '_edit', header: '', width: 90, sortable: false, wrap: false,
-      render: (r) => (editing
-        // Which rows will be written when Save is pressed.
-        ? (drafts[r.id] && JSON.stringify(drafts[r.id]) !== JSON.stringify(r)
-          ? <span className="badge badge-warning" title="Changed — will be saved">Edited</span>
-          : <span className="muted">—</span>)
-        : <button className="btn btn-sm btn-ghost" title="Open the full form"
-            onClick={(e) => { e.stopPropagation(); setEdit({ ...r }); }}>⋯</button>),
+      key: '_edit', header: 'Actions', width: 190, sortable: false, wrap: false,
+      render: (r) => {
+        if (editing) {
+          return (drafts[r.id] && JSON.stringify(drafts[r.id]) !== JSON.stringify(r)
+            ? <span className="badge badge-warning" title="Changed — will be saved">Edited</span>
+            : <span className="muted">—</span>);
+        }
+        const prof = profileFor(r);
+        return (
+          <div className="row" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>
+            <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => setEdit({ ...r })}>⋯</button>
+            <button className="btn btn-sm" title={prof ? 'Role & permissions' : 'They must sign in before permissions can be set'}
+              disabled={!prof} onClick={() => prof && setAccessFor(prof)}>🔐</button>
+            <button className="btn btn-sm" title={prof ? 'Clone this user’s role & permissions to a new login' : 'They must sign in before they can be cloned'}
+              disabled={!prof} onClick={() => prof && setCloneFrom(prof)}>⧉ Clone</button>
+            <button className="btn btn-sm" title={prof ? 'See everything this user entered' : 'They must sign in first'}
+              disabled={!prof} onClick={() => prof && setDataFor(prof)}>📊</button>
+          </div>
+        );
+      },
     });
   }
 
@@ -284,7 +310,8 @@ export function UserMasterView() {
           ) : (
             <div className="row">
               <button className="btn" onClick={startEditing} disabled={busy || !dir.length}>✎ Edit</button>
-              <button className="btn btn-primary" onClick={() => setEdit(emptyRow())}>+ New User</button>
+              <button className="btn" onClick={() => setEdit(emptyRow())}>+ New User</button>
+              <button className="btn btn-primary" onClick={() => setAddLogin(true)}>+ Add Login</button>
             </div>
           )
         )}
@@ -360,7 +387,203 @@ export function UserMasterView() {
           />
         </Drawer>
       )}
+
+      {accessFor && (
+        <AccessDrawer
+          user={accessFor}
+          onClose={() => setAccessFor(null)}
+          onSaved={async (text) => { setAccessFor(null); setMsg({ tone: 'ok', text }); await reloadUsers(); }}
+          onError={(text) => setMsg({ tone: 'error', text })}
+        />
+      )}
+
+      {(addLogin || cloneFrom) && (
+        <CreateLoginDrawer
+          source={cloneFrom}
+          onClose={() => { setAddLogin(false); setCloneFrom(null); }}
+          onDone={async (text, tone) => { setAddLogin(false); setCloneFrom(null); setMsg({ tone, text }); await reloadUsers(); await load(); }}
+        />
+      )}
+
+      {dataFor && <DataViewDrawer user={dataFor} onClose={() => setDataFor(null)} />}
     </div>
+  );
+}
+
+// ---- Access: role + extra per-user permissions (folds in the old User Access)
+function AccessDrawer({ user, onClose, onSaved, onError }: {
+  user: User; onClose: () => void; onSaved: (t: string) => void; onError: (t: string) => void;
+}) {
+  const { rolePerms } = useAuth();
+  const [role, setRole] = useState(user.rbacRole || 'engineer');
+  const [extra, setExtra] = useState<Set<string>>(new Set(user.extraPermissions ?? []));
+  const [busy, setBusy] = useState(false);
+  const roleGrants = useMemo(() => new Set(permsForRole(role, rolePerms)), [role, rolePerms]);
+  const groups = useMemo(() => {
+    const g: Record<string, typeof ACTIONS> = {};
+    ACTIONS.forEach((a) => { (g[a.group] ??= []).push(a); });
+    return Object.entries(g);
+  }, []);
+  const toggle = (k: string) => setExtra((cur) => { const n = new Set(cur); n.has(k) ? n.delete(k) : n.add(k); return n; });
+
+  const save = async () => {
+    setBusy(true);
+    const extras = [...extra].filter((k) => !roleGrants.has(k));
+    const res = await updateProfile(user.id, { role, extra_permissions: extras });
+    logAudit({ action: 'user.access.save', target: user.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role, extras: extras.length } });
+    setBusy(false);
+    if (res.ok) onSaved(`Saved ${user.fullName || user.email}: ${roleLabel(role)}${extras.length ? ` + ${extras.length} extra` : ''}.`);
+    else onError(res.error ?? 'Save failed.');
+  };
+
+  return (
+    <Drawer open onClose={onClose} title={`Access — ${user.fullName || user.email}`} width={640}>
+      <div className="rep-form">
+        <label className="rep-field" style={{ maxWidth: 320 }}>
+          <span className="field-label">Role</span>
+          <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+            {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </select>
+        </label>
+        <div className="muted rep-hint">The role sets the base access. Tick anything extra this person needs on top.</div>
+        <div className="assoc-scroll" style={{ marginTop: 8 }}>
+          <table className="rbac-table" style={{ minWidth: 420 }}>
+            <thead><tr><th className="rbac-action">Action</th><th>Via role</th><th>Extra</th></tr></thead>
+            <tbody>
+              {groups.map(([group, actions]) => (
+                <Fragment key={group}>
+                  <tr className="rbac-group"><td colSpan={3}>{group}</td></tr>
+                  {actions.map((a) => {
+                    const viaRole = roleGrants.has(a.key);
+                    return (
+                      <tr key={a.key}>
+                        <td className="rbac-action"><span>{a.label}</span><code className="muted">{a.key}</code></td>
+                        <td className="rbac-cell">{viaRole ? '✓' : ''}</td>
+                        <td className="rbac-cell"><input type="checkbox" disabled={viaRole} checked={viaRole || extra.has(a.key)} onChange={() => toggle(a.key)} /></td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="rep-actions">
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save access'}</button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+// ---- Add / Clone a login (creates the Supabase account with a default password)
+const CLONE_DEFAULT_PW = '123456789';
+function CreateLoginDrawer({ source, onClose, onDone }: {
+  source: User | null; onClose: () => void; onDone: (t: string, tone: 'ok' | 'info') => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState(source?.rbacRole || 'engineer');
+  const [password, setPassword] = useState(CLONE_DEFAULT_PW);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const extras = source?.extraPermissions ?? [];
+
+  const submit = async () => {
+    setErr('');
+    if (!email.trim() || !fullName.trim()) { setErr('Enter a name and email.'); return; }
+    if (password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    setBusy(true);
+    const res = await sbAdminCreateUser({ email, fullName, role, password, extraPermissions: source ? extras : undefined });
+    logAudit({ action: source ? 'user.clone' : 'user.create', target: email.trim().toLowerCase(), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role, from: source?.email, extras: extras.length } });
+    setBusy(false);
+    if (!res.ok) { setErr(res.error ?? 'Could not create the login.'); return; }
+    const base = source
+      ? `${fullName.trim()} created with ${roleLabel(role)}${extras.length ? ` + ${extras.length} extra` : ''}, cloned from ${source.fullName || source.email}.`
+      : `${fullName.trim()} created as ${roleLabel(role)}.`;
+    onDone(res.needsConfirm ? `${base} But "Confirm email" is ON in Supabase — they must confirm before signing in.` : `${base} They sign in with the password and change it under Profile.`, res.needsConfirm ? 'info' : 'ok');
+  };
+
+  return (
+    <Drawer open onClose={onClose} title={source ? `Clone ${source.fullName || source.email}` : 'Add Login'} width={520}>
+      <div className="rep-form">
+        {source && (
+          <div className="muted rep-hint">
+            Copying <b>{roleLabel(source.rbacRole || 'engineer')}</b>{extras.length ? ` + ${extras.length} extra permission${extras.length === 1 ? '' : 's'}` : ''} from {source.fullName || source.email}. Enter the new person’s details.
+          </div>
+        )}
+        <div className="rep-grid">
+          <label className="rep-field"><span className="field-label">Full name *</span>
+            <input className="input" value={fullName} autoFocus onChange={(e) => setFullName(e.target.value)} placeholder="New joiner’s name" /></label>
+          <label className="rep-field"><span className="field-label">Email *</span>
+            <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@airliquide.com" /></label>
+          <label className="rep-field"><span className="field-label">Role</span>
+            <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+              {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </select></label>
+          <label className="rep-field"><span className="field-label">Password</span>
+            <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        </div>
+        <div className="muted rep-hint">Creating logins in-app needs Supabase sign-ups enabled and “Confirm email” off. The new user changes the password under Profile → Password.</div>
+        {err && <div className="field-err">{err}</div>}
+        <div className="rep-actions">
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy}>{busy ? 'Creating…' : source ? 'Create clone' : 'Create login'}</button>
+        </div>
+      </div>
+    </Drawer>
+  );
+}
+
+// ---- Data view: everything a user entered (for a handover)
+function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) {
+  const [act, setAct] = useState<UserActivity | null>(null);
+  const [busy, setBusy] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    setBusy(true);
+    userActivity({ id: user.id, email: user.email, name: user.fullName })
+      .then((a) => { if (alive) setAct(a); })
+      .finally(() => { if (alive) setBusy(false); });
+    return () => { alive = false; };
+  }, [user.id, user.email, user.fullName]);
+
+  const s = (v: unknown) => (v == null ? '' : String(v));
+  const d = (v: unknown) => s(v).slice(0, 10);
+  const Section = ({ title, icon, rows, cols }: { title: string; icon: string; rows: Record<string, unknown>[]; cols: { k: string; h: string; f?: (r: Record<string, unknown>) => string }[] }) => (
+    <section className="rep-sec">
+      <div className="rep-sec-title">{icon} {title} <span className="muted">({rows.length})</span></div>
+      {rows.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>None.</div> : (
+        <div className="assoc-scroll">
+          <table className="assoc-table"><thead><tr>{cols.map((c) => <th key={c.k}>{c.h}</th>)}</tr></thead>
+            <tbody>{rows.slice(0, 50).map((r, i) => <tr key={i}>{cols.map((c) => <td key={c.k}>{c.f ? c.f(r) : s(r[c.k])}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+
+  return (
+    <Drawer open onClose={onClose} title={`Activity — ${user.fullName || user.email}`} width={720}>
+      {busy || !act ? <div className="muted" style={{ padding: 16 }}>Loading everything this user entered…</div> : (
+        <div className="rep-form">
+          <div className="muted rep-hint">Everything <b>{user.fullName || user.email}</b> has entered or actioned — useful for a handover.</div>
+          <Section title="Calls registered / allocated" icon="📡" rows={act.calls}
+            cols={[{ k: 'reg_date', h: 'Date', f: (r) => d(r.reg_date) }, { k: 'call_number', h: 'Call No' }, { k: 'party_name', h: 'Party' }, { k: 'product_name', h: 'Product' }, { k: 'allocated_to', h: 'Allocated' }]} />
+          <Section title="Spare requests raised" icon="📦" rows={act.requests}
+            cols={[{ k: 'created_at', h: 'Date', f: (r) => d(r.created_at) }, { k: 'uid', h: 'Req UID' }, { k: 'call_number', h: 'Call No' }, { k: 'status', h: 'Status' }]} />
+          <Section title="Spares dispatched (DC)" icon="🚚" rows={act.dispatches}
+            cols={[{ k: 'dispatched_at', h: 'Date', f: (r) => d(r.dispatched_at) }, { k: 'or_number', h: 'OR' }, { k: 'part', h: 'Part' }, { k: 'dc_number', h: 'DC No' }, { k: 'dispatched_by', h: 'By' }]} />
+          <Section title="Spares approved" icon="✅" rows={act.approvals}
+            cols={[{ k: 'or_number', h: 'OR' }, { k: 'part', h: 'Part' }, { k: 'rm_by', h: 'RM by' }, { k: 'commercial_by', h: 'Comm by' }, { k: 'nsm_by', h: 'NSM by' }]} />
+          <Section title="Reports filed" icon="🗒️" rows={act.reports}
+            cols={[{ k: 'visit_at', h: 'Visit', f: (r) => d(r.visit_at) }, { k: 'ucn', h: 'UCN' }, { k: 'call_status', h: 'Status' }]} />
+          <Section title="Consumption entered" icon="🧾" rows={act.consumption}
+            cols={[{ k: 'created_at', h: 'Date', f: (r) => d(r.created_at) }, { k: 'part', h: 'Part' }, { k: 'qty', h: 'Qty' }]} />
+        </div>
+      )}
+    </Drawer>
   );
 }
 

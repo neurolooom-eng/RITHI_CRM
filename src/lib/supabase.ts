@@ -1112,8 +1112,8 @@ export async function updateProfile(id: string, patch: { role?: string; extra_pe
 // session in this tab is untouched; then the profile is written with the admin's
 // session (RLS: profiles_admin_write). For the user to sign in immediately the
 // Supabase project must allow sign-ups and have "Confirm email" OFF.
-export async function sbAdminCreateUser(input: { email: string; fullName: string; role: string; password: string }):
-  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean }> {
+export async function sbAdminCreateUser(input: { email: string; fullName: string; role: string; password: string; extraPermissions?: string[] }):
+  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean; id?: string }> {
   const admin = getSupabase(); if (!admin) return { ok: false, error: 'Not connected to the database.' };
   const email = input.email.trim().toLowerCase();
   const password = input.password ?? '';
@@ -1137,14 +1137,51 @@ export async function sbAdminCreateUser(input: { email: string; fullName: string
   const uid = data.user?.id;
   if (!uid) return { ok: false, error: 'No account was created (the email may already be in use).' };
 
-  const { error: pErr } = await admin.from('profiles').upsert(
-    { id: uid, email, full_name: input.fullName.trim(), role: input.role },
-    { onConflict: 'id', ignoreDuplicates: true },
-  );
+  const profile: Record<string, unknown> = { id: uid, email, full_name: input.fullName.trim(), role: input.role };
+  if (input.extraPermissions && input.extraPermissions.length) profile.extra_permissions = input.extraPermissions;
+  const { error: pErr } = await admin.from('profiles').upsert(profile, { onConflict: 'id', ignoreDuplicates: true });
   if (pErr) return { ok: false, error: 'Login created, but saving the profile failed: ' + errMsg(pErr) };
   // No session (data.session null) means "Confirm email" is on — the user must
   // confirm before they can sign in.
-  return { ok: true, needsConfirm: !data.session };
+  return { ok: true, needsConfirm: !data.session, id: uid };
+}
+
+// Everything a given user has entered/actioned — for a handover view. Matches on
+// their auth id (calls they created), their name (allocation, reports, spare
+// approvals/dispatch, consumption) and email. Admin session sees all rows (RLS).
+export interface UserActivity {
+  calls: Record<string, unknown>[];
+  requests: Record<string, unknown>[];
+  approvals: Record<string, unknown>[];
+  dispatches: Record<string, unknown>[];
+  reports: Record<string, unknown>[];
+  consumption: Record<string, unknown>[];
+}
+export async function userActivity(u: { id?: string; email?: string; name?: string }): Promise<UserActivity> {
+  const c = getSupabase();
+  const empty: UserActivity = { calls: [], requests: [], approvals: [], dispatches: [], reports: [], consumption: [] };
+  if (!c) return empty;
+  const name = (u.name ?? '').trim();
+  const email = (u.email ?? '').trim();
+  const like = name || email;
+  const rows = async (q: PromiseLike<{ data: unknown; error: unknown }>): Promise<Record<string, unknown>[]> => {
+    try { const { data } = await q; return (data as Record<string, unknown>[]) ?? []; } catch { return []; }
+  };
+  const orName = (cols: string[]) => cols.map((col) => `${col}.ilike.%${_san(like)}%`).join(',');
+
+  const [calls, requests, lines, reports, consumption] = await Promise.all([
+    rows(c.from('calls').select('ucn,call_number,party_name,product_name,allocated_to,reg_date,created_by')
+      .or(`${u.id ? `created_by.eq.${u.id},` : ''}allocated_to.ilike.%${_san(name)}%`).order('reg_date', { ascending: false }).limit(100)),
+    rows(c.from('spare_requests').select('uid,call_number,engineer,status,created_at')
+      .ilike('engineer', `%${_san(like)}%`).order('created_at', { ascending: false }).limit(100)),
+    rows(c.from('spare_request_lines').select('*, spare_requests!inner(call_number,engineer)')
+      .or(orName(['rm_by', 'commercial_by', 'nsm_by', 'dispatched_by'])).limit(200)),
+    rows(c.from('reports').select('uid,ucn,engineer,call_status,visit_at').ilike('engineer', `%${_san(like)}%`).order('visit_at', { ascending: false }).limit(100)),
+    rows(c.from('spare_consumption').select('*').ilike('engineer', `%${_san(like)}%`).order('created_at', { ascending: false }).limit(100)),
+  ]);
+  const approvals = lines.filter((l) => [l.rm_by, l.commercial_by, l.nsm_by].some((v) => String(v ?? '').toLowerCase().includes(like.toLowerCase())));
+  const dispatches = lines.filter((l) => String(l.dispatched_by ?? '').toLowerCase().includes(like.toLowerCase()));
+  return { calls, requests, approvals, dispatches, reports, consumption };
 }
 
 // ---- password reset / invite ----------------------------------------------
