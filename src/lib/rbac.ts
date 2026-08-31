@@ -79,6 +79,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.approve_commercial', label: 'Approve spare — Commercial' },
   { group: 'Spares', key: 'spare.approve_nsm', label: 'Approve spare — NSM' },
   { group: 'Spares', key: 'spare.dispatch', label: 'Dispatch / DC (Stores)' },
+  { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand stock' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
@@ -124,9 +125,9 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
-  // Hotline: register/create calls; no spare requests.
-  hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'masters.view', 'dashboard.view'],
-  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
+  // Hotline: register/create calls; no spare requests. May drop a spare.
+  hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'masters.view', 'dashboard.view'],
+  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],

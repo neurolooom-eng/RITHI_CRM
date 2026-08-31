@@ -585,7 +585,15 @@ export function SpareRequests() {
   // request is sitting at the same stage; the RM stage never offers it.
   const wfButtons = (row: Row, size = 'btn-sm') => {
     const stage = deriveStage(row);
+    // A spare can be DROPPED at any still-open stage by whoever holds spare.drop
+    // (Spare Coordinator / Hotline), even if the current stage is not theirs.
+    const dropActive = ['RM Approval', 'Commercial', 'NSM', 'Stores'].includes(stage);
+    const dropBtn = (can('spare.drop') && dropActive) ? (
+      <button className={`btn ${size}`} title="Drop this spare — not sent (needs a reason)"
+        onClick={() => setPending({ kind: 'drop', row, scope: 'line', lines: 1 })}>⊘ Drop</button>
+    ) : null;
     if (!actionable(row, can, email)) {
+      if (dropBtn) return <div className="row">{dropBtn}</div>;
       return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
     const siblings = canBulkApprove(stage) ? sameStageLines(row).length : 1;
@@ -601,13 +609,12 @@ export function SpareRequests() {
     // queue, already filtered to the engineer this spare is going to.
     if (stage === 'Stores') return (
       <div className="row">
-        <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
-          🚚 Dispatch…
-        </button>
         {can('spare.dispatch') && (
-          <button className={`btn ${size}`} title="Drop this spare — Stores did not send it (no DC)"
-            onClick={() => setPending({ kind: 'drop', row, scope: 'line', lines: 1 })}>⊘ Drop</button>
+          <button className={`btn ${size} btn-primary`} onClick={() => navigate(`/spare-dispatch?engineer=${encodeURIComponent(g(row, 'engineer'))}`)}>
+            🚚 Dispatch…
+          </button>
         )}
+        {dropBtn}
       </div>
     );
     if (stage === 'Dispatched') return (
@@ -621,6 +628,7 @@ export function SpareRequests() {
         <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'approve', row, scope: 'line', lines: 1 })}>✔ Approve</button>
         <button className={`btn ${size}`} onClick={() => setPending({ kind: 'reject', row, scope: 'line', lines: 1 })}>✖ Reject</button>
         {bulk('approve')}
+        {dropBtn}
       </div>
     );
   };

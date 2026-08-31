@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.28',
+    date: '2026-08-31',
+    title: 'Drop a spare at any stage — Spare Coordinator & Hotline',
+    changes: [
+      'A spare can now be Dropped at ANY open stage (RM Approval, Commercial, NSM or Stores), not just at Stores.',
+      'Dropping is limited to the Spare Coordinator and Hotline Engineer (a new spare.drop permission) — separate from Stores dispatch. The ⊘ Drop button shows on the spare’s row for them at every open stage, and in Pending Dispatch. Needs migration 0036_spare_drop.sql + the permission grant.',
+    ],
+  },
+  {
     version: '0.8.27',
     date: '2026-08-31',
     title: 'Drop a spare Stores isn’t sending',

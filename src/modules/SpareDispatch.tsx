@@ -51,6 +51,7 @@ export function SpareDispatch() {
   const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const mayDispatch = can('spare.dispatch');
+  const mayDrop = can('spare.drop');
   const cached = onDb ? loadCache<PendingLine & { id: string }>(CACHE_KEY) : null;
   const [tab, setTab] = useState<Tab>('queue');
   const [lines, setLines] = useState<PendingLine[]>(cached?.rows ?? []);
@@ -250,12 +251,14 @@ export function SpareDispatch() {
               </div>
               <div className="spacer" />
               <button className="btn btn-sm" onClick={() => setPicked(new Set())}>Clear</button>
-              <button
-                className="btn btn-sm btn-danger"
-                disabled={!mayDispatch || busy || !selected.length}
-                title={mayDispatch ? 'Drop these spares — record as not sent (no DC)' : 'Needs the spare.dispatch permission'}
-                onClick={() => void runDrop()}
-              >⊘ Drop {selected.length}</button>
+              {mayDrop && (
+                <button
+                  className="btn btn-sm btn-danger"
+                  disabled={busy || !selected.length}
+                  title="Drop these spares — record as not sent (no DC)"
+                  onClick={() => void runDrop()}
+                >⊘ Drop {selected.length}</button>
+              )}
               <button
                 className="btn btn-sm btn-primary"
                 disabled={!!problem || !mayDispatch || busy}
