@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.47',
+    date: '2026-08-31',
+    title: 'Installations are created by Commercial',
+    changes: [
+      'Creating an Installation call is now restricted to the Commercial team (plus the Hotline registration desk and admins), since installations are triggered by Commercial who are notified first. Everyone else can still see and report installations, just not create one — the “+ New Installation” button only shows for those who may.',
+      'This is enforced by the database too, not just the button, so it holds however a call is created.',
+      'Needs a database script run once (gate_installation_create.sql).',
+    ],
+  },
+  {
     version: '0.8.46',
     date: '2026-08-31',
     title: 'PM Bulk Upload — the monthly batch in one file',

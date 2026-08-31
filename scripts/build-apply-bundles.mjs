@@ -94,6 +94,7 @@ const MODULES = {
       '0032_call_state_by_entry.sql',
       '0040_call_tables_split.sql',
       '0041_call_split_hardening.sql',
+      '0043_installation_create_gate.sql',
     ],
   },
   knowledge_base: {
