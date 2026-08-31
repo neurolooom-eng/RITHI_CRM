@@ -17,6 +17,9 @@ import './fieldcalls.css';
 // one gets (0033_user_directory_role.sql): the role lands on their profile the
 // first time they sign in, and for someone already signed in it is applied to
 // their profile straight away, so User Access agrees with this screen.
+// Editing is in the row itself — click it and the cells become inputs, Enter
+// saves, Esc cancels — since these are one-field corrections read off the list.
+// The drawer (⋯, and + New User) is the same fields in a form.
 // Without a database (sheet source) the screen stays the read-only browse.
 // ===========================================================================
 
@@ -40,7 +43,9 @@ export function UserMasterView() {
   const [dir, setDir] = useState<DirectoryRow[]>([]);
   const [sheetRows, setSheetRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
-  const [edit, setEdit] = useState<DirectoryRow | null>(null);
+  const [edit, setEdit] = useState<DirectoryRow | null>(null);   // the drawer (new user)
+  // Inline edit: the row being edited in place, and the values as typed.
+  const [rowEdit, setRowEdit] = useState<DirectoryRow | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the User Master.' },
   );
@@ -100,16 +105,45 @@ export function UserMasterView() {
     }
 
     setEdit(null);
+    setRowEdit(null);
     setMsg({ tone: 'ok', text: `${isNew ? 'Added' : 'Saved'} ${name}.${note}` });
     await load();
   };
 
+  // Inline editing: a row under edit swaps its cells for inputs, so the common
+  // corrections (a name, a role, a number) are made where you are reading them.
+  const editingThis = (r: DirectoryRow) => rowEdit?.id === r.id && r.id !== 0;
+  const setField = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) =>
+    setRowEdit((d) => (d ? { ...d, [k]: v } : d));
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && rowEdit) { e.preventDefault(); void save(rowEdit); }
+    if (e.key === 'Escape') { e.preventDefault(); setRowEdit(null); }
+  };
+  // A text cell: the value, or an input for it while the row is being edited.
+  const cell = (k: keyof DirectoryRow, placeholder = '') =>
+    (r: DirectoryRow) => (editingThis(r)
+      ? <input className="input" style={{ width: '100%' }} placeholder={placeholder} autoFocus={k === 'name'}
+          value={String(rowEdit?.[k] ?? '')} onKeyDown={keys}
+          onChange={(e) => setField(k, e.target.value as DirectoryRow[typeof k])}
+          onClick={(e) => e.stopPropagation()} />
+      : <>{String(r[k] ?? '')}</>);
+
   const liveColumns: Column<DirectoryRow & Record<string, unknown>>[] = [
-    { key: 'name', header: 'Name', width: 170 },
-    { key: 'designation', header: 'Designation', width: 150 },
+    { key: 'name', header: 'Name', width: 170, render: cell('name', 'As on the call') },
+    { key: 'designation', header: 'Designation', width: 150, render: cell('designation') },
     {
-      key: 'role', header: 'Role', width: 160,
+      key: 'role', header: 'Role', width: 170,
       render: (r) => {
+        if (editingThis(r)) {
+          return (
+            <select className="select" style={{ width: '100%' }} value={rowEdit?.role ?? ''} onKeyDown={keys}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setField('role', e.target.value)}>
+              <option value="">— no role —</option>
+              {ROLES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
+            </select>
+          );
+        }
         const signedIn = profileByEmail.get(r.email.toLowerCase()) ?? profileByEmail.get(r.gmail.toLowerCase());
         // What they will get, and — where it differs — what they have today.
         if (!r.role && !signedIn) return <span className="muted">— not set —</span>;
@@ -125,20 +159,46 @@ export function UserMasterView() {
         ? <span className="badge badge-success">Yes</span>
         : <span className="badge badge-neutral">Not yet</span>),
     },
-    { key: 'email', header: 'Air Liquide ID', width: 200, wrap: false },
-    { key: 'gmail', header: 'Gmail', width: 180, wrap: false },
-    { key: 'region', header: 'Region', width: 80, wrap: false },
-    { key: 'validity', header: 'Active', width: 70, wrap: false, render: (r) => statusBadge(r.validity ? 'TRUE' : 'FALSE', VALIDITY_TONES) },
-    { key: 'reporting_manager', header: 'Reporting Mgr', width: 150 },
-    { key: 'phone', header: 'Contact', width: 130, wrap: false },
-    { key: 'address', header: 'Address', width: 200 },
-    { key: 'city', header: 'City', width: 110 },
-    { key: 'state', header: 'State', width: 110 },
+    { key: 'email', header: 'Air Liquide ID', width: 200, wrap: false, render: cell('email', 'name@airliquide.com') },
+    { key: 'gmail', header: 'Gmail', width: 180, wrap: false, render: cell('gmail', 'name@gmail.com') },
+    { key: 'region', header: 'Region', width: 90, wrap: false, render: cell('region') },
+    {
+      key: 'validity', header: 'Active', width: 90, wrap: false,
+      render: (r) => (editingThis(r)
+        ? (
+          <select className="select" style={{ width: '100%' }} value={rowEdit?.validity ? 'TRUE' : 'FALSE'} onKeyDown={keys}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setField('validity', e.target.value === 'TRUE')}>
+            <option value="TRUE">Yes</option>
+            <option value="FALSE">No</option>
+          </select>
+        )
+        : statusBadge(r.validity ? 'TRUE' : 'FALSE', VALIDITY_TONES)),
+    },
+    { key: 'reporting_manager', header: 'Reporting Mgr', width: 150, render: cell('reporting_manager', 'RM name') },
+    { key: 'regional_manager', header: 'Regional Mgr', width: 150, render: cell('regional_manager', 'RGM name') },
+    { key: 'phone', header: 'Contact', width: 130, wrap: false, render: cell('phone') },
+    { key: 'address', header: 'Address', width: 200, render: cell('address') },
+    { key: 'city', header: 'City', width: 110, render: cell('city') },
+    { key: 'state', header: 'State', width: 110, render: cell('state') },
   ];
   if (editable) {
     liveColumns.push({
-      key: '_edit', header: '', width: 80, sortable: false, wrap: false,
-      render: (r) => <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); setEdit({ ...r }); }}>Edit</button>,
+      key: '_edit', header: '', width: 140, sortable: false, wrap: false,
+      render: (r) => (editingThis(r)
+        ? (
+          <div className="row" onClick={(e) => e.stopPropagation()}>
+            <button className="btn btn-sm btn-primary" disabled={busy || !(rowEdit?.name ?? '').trim()}
+              onClick={() => rowEdit && void save(rowEdit)}>{busy ? '…' : 'Save'}</button>
+            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setRowEdit(null)}>Cancel</button>
+          </div>
+        )
+        : (
+          <div className="row" onClick={(e) => e.stopPropagation()}>
+            <button className="btn btn-sm" onClick={() => setRowEdit({ ...r })}>Edit</button>
+            <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => setEdit({ ...r })}>⋯</button>
+          </div>
+        )),
     });
   }
 
@@ -187,12 +247,17 @@ export function UserMasterView() {
           storageKey="userMaster"
           rowsBeforeScroll={16}
           dense
-          onRowClick={(r) => { if (editable) setEdit({ ...r }); }}
+          onRowClick={(r) => { if (editable && !rowEdit) setRowEdit({ ...r }); }}
           emptyText={busy ? 'Loading…' : 'No users — adjust your search.'}
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder="Name, email, region, designation, role…" />
               <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+              {editable && (
+                <span className="muted">
+                  {rowEdit ? 'Editing — Enter saves, Esc cancels.' : 'Click a row to edit it here; ⋯ opens the full form.'}
+                </span>
+              )}
               <div className="spacer" />
               {visibleDir.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport('user-master.csv',

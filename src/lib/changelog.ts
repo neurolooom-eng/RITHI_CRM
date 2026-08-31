@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.14',
+    date: '2026-08-31',
+    title: 'User Master edits in the row',
+    changes: [
+      'Click a row in User Master and its cells become editable where they are \u2014 name, designation, role, IDs, region, active, managers, contact and address. Enter saves, Esc cancels, and the row goes back to reading normally.',
+      'The full form is still there behind \u22ef on the row, and behind + New User.',
+      'Regional Manager is now a column too, so the reporting tree can be corrected from the list rather than only in the form.',
+    ],
+  },
+  {
     version: '0.8.13',
     date: '2026-08-31',
     title: 'User Master maintains people, and gives them their role',
