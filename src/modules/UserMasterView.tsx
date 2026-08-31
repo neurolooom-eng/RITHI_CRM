@@ -17,9 +17,11 @@ import './fieldcalls.css';
 // one gets (0033_user_directory_role.sql): the role lands on their profile the
 // first time they sign in, and for someone already signed in it is applied to
 // their profile straight away, so User Access agrees with this screen.
-// Editing is in the row itself — click it and the cells become inputs, Enter
-// saves, Esc cancels — since these are one-field corrections read off the list.
-// The drawer (⋯, and + New User) is the same fields in a form.
+// Editing is one mode for the whole table: ✎ Edit turns every cell into an
+// input, one Save writes every row that changed (each row on its own, so a
+// failure names the person), and Cancel drops the lot. Rows that will be
+// written are marked Edited. The drawer (⋯, and + New User) is the same fields
+// in a form, for one person at a time.
 // Without a database (sheet source) the screen stays the read-only browse.
 // ===========================================================================
 
@@ -44,8 +46,11 @@ export function UserMasterView() {
   const [sheetRows, setSheetRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<DirectoryRow | null>(null);   // the drawer (new user)
-  // Inline edit: the row being edited in place, and the values as typed.
-  const [rowEdit, setRowEdit] = useState<DirectoryRow | null>(null);
+  // One Edit for the whole table: every row becomes editable, and one Save
+  // writes everything that changed. `drafts` holds the values as typed, keyed
+  // by row id; a row with no draft is untouched.
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<Record<number, DirectoryRow>>({});
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load the User Master.' },
   );
@@ -78,10 +83,11 @@ export function UserMasterView() {
 
   useEffect(() => { void load(''); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const save = async (row: DirectoryRow) => {
+  // Write one row, and put its role on the person's sign-in if they have one.
+  // Returns what happened so a bulk save can report per row.
+  const persist = async (row: DirectoryRow): Promise<{ ok: boolean; error?: string; note?: string }> => {
     const name = row.name.trim();
-    if (!name) { setMsg({ tone: 'error', text: 'A user needs a name — it is what calls are allotted to.' }); return; }
-    setBusy(true);
+    if (!name) return { ok: false, error: 'A user needs a name — it is what calls are allotted to.' };
     const isNew = row.id === 0;
     const res = await saveDirectoryRow(isNew ? null : row.id, {
       name, email: row.email.trim(), gmail: row.gmail.trim(), designation: row.designation.trim(),
@@ -90,7 +96,7 @@ export function UserMasterView() {
       address: row.address.trim(), city: row.city.trim(), state: row.state.trim(), phone: row.phone.trim(),
     });
     logAudit({ action: isNew ? 'user.directory.add' : 'user.directory.edit', target: name, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error });
-    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save that user.' }); setBusy(false); return; }
+    if (!res.ok) return { ok: false, error: res.error ?? 'Could not save that user.' };
 
     // Already signed in? Apply the role to their profile now, so this screen and
     // User Access never disagree. (A new joiner picks it up on first sign-in.)
@@ -98,34 +104,81 @@ export function UserMasterView() {
     const signedIn = profileByEmail.get(row.email.trim().toLowerCase()) ?? profileByEmail.get(row.gmail.trim().toLowerCase());
     if (row.role && signedIn && signedIn.role !== row.role) {
       const r = await updateProfile(signedIn.id, { role: row.role });
-      if (r.ok) { await reloadUsers(); note = ` Role applied to their sign-in now.`; }
-      else note = ` Their sign-in keeps ${roleLabel(signedIn.role)} — ${r.error ?? 'the role could not be changed'}.`;
+      if (r.ok) { await reloadUsers(); note = 'role applied to their sign-in now'; }
+      else note = `their sign-in keeps ${roleLabel(signedIn.role)} — ${r.error ?? 'the role could not be changed'}`;
     } else if (row.role && !signedIn) {
-      note = ` They get ${roleLabel(row.role)} when they first sign in.`;
+      note = `gets ${roleLabel(row.role)} on first sign-in`;
     }
+    return { ok: true, note };
+  };
 
+  // The drawer's Save / Add.
+  const save = async (row: DirectoryRow) => {
+    setBusy(true);
+    const r = await persist(row);
+    if (!r.ok) { setMsg({ tone: 'error', text: r.error ?? 'Could not save that user.' }); setBusy(false); return; }
     setEdit(null);
-    setRowEdit(null);
-    setMsg({ tone: 'ok', text: `${isNew ? 'Added' : 'Saved'} ${name}.${note}` });
+    setMsg({ tone: 'ok', text: `${row.id === 0 ? 'Added' : 'Saved'} ${row.name.trim()}.${r.note ? ` They ${r.note}.` : ''}` });
     await load();
   };
 
-  // Inline editing: a row under edit swaps its cells for inputs, so the common
-  // corrections (a name, a role, a number) are made where you are reading them.
-  const editingThis = (r: DirectoryRow) => rowEdit?.id === r.id && r.id !== 0;
-  const setField = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) =>
-    setRowEdit((d) => (d ? { ...d, [k]: v } : d));
-  const keys = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && rowEdit) { e.preventDefault(); void save(rowEdit); }
-    if (e.key === 'Escape') { e.preventDefault(); setRowEdit(null); }
+  // ---- the one Edit / Save pair ---------------------------------------------
+  const draftOf = (r: DirectoryRow): DirectoryRow => drafts[r.id] ?? r;
+  const changedRows = useMemo(
+    () => dir.filter((r) => drafts[r.id] && JSON.stringify(drafts[r.id]) !== JSON.stringify(r)),
+    [dir, drafts],
+  );
+
+  const setField = <K extends keyof DirectoryRow>(row: DirectoryRow, k: K, v: DirectoryRow[K]) =>
+    setDrafts((d) => ({ ...d, [row.id]: { ...(d[row.id] ?? row), [k]: v } }));
+
+  const startEditing = () => { setDrafts({}); setEditing(true); };
+
+  const stopEditing = () => {
+    if (changedRows.length && !confirm(`Discard ${changedRows.length} unsaved change${changedRows.length === 1 ? '' : 's'}?`)) return;
+    setDrafts({}); setEditing(false);
   };
-  // A text cell: the value, or an input for it while the row is being edited.
+
+  // One Save for everything that changed. Rows are written one at a time so a
+  // failure names the person it belongs to rather than sinking the whole batch.
+  const saveAll = async () => {
+    if (!changedRows.length) { setDrafts({}); setEditing(false); return; }
+    const nameless = changedRows.find((r) => !drafts[r.id].name.trim());
+    if (nameless) { setMsg({ tone: 'error', text: `${nameless.name || 'A user'} needs a name — it is what calls are allotted to.` }); return; }
+
+    setBusy(true);
+    setMsg({ tone: 'info', text: `Saving ${changedRows.length} change${changedRows.length === 1 ? '' : 's'}…` });
+    const failed: string[] = [];
+    const notes: string[] = [];
+    let saved = 0;
+    for (const r of changedRows) {
+      const res = await persist(drafts[r.id]);
+      if (res.ok) { saved += 1; if (res.note) notes.push(`${drafts[r.id].name.trim()} ${res.note}`); }
+      else failed.push(`${drafts[r.id].name.trim() || r.name}: ${res.error}`);
+    }
+    setBusy(false);
+    if (failed.length) {
+      // Keep the drafts so nothing typed is lost; the ones that saved reload below.
+      setMsg({ tone: 'error', text: `Saved ${saved}; ${failed.length} could not be saved — ${failed.join('; ')}` });
+    } else {
+      setDrafts({}); setEditing(false);
+      setMsg({ tone: 'ok', text: `Saved ${saved} user${saved === 1 ? '' : 's'}.${notes.length ? ` ${notes.join('; ')}.` : ''}` });
+    }
+    await load();
+  };
+
+  // In edit mode every cell is an input, bound to that row's draft. Enter saves
+  // everything; Esc leaves edit mode (asking first if anything was typed).
+  const keys = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); void saveAll(); }
+    if (e.key === 'Escape') { e.preventDefault(); stopEditing(); }
+  };
+  // A text cell: the value, or an input for it while the table is being edited.
   const cell = (k: keyof DirectoryRow, placeholder = '') =>
-    (r: DirectoryRow) => (editingThis(r)
-      ? <input className="input" style={{ width: '100%' }} placeholder={placeholder} autoFocus={k === 'name'}
-          value={String(rowEdit?.[k] ?? '')} onKeyDown={keys}
-          onChange={(e) => setField(k, e.target.value as DirectoryRow[typeof k])}
-          onClick={(e) => e.stopPropagation()} />
+    (r: DirectoryRow) => (editing
+      ? <input className="input" style={{ width: '100%' }} placeholder={placeholder}
+          value={String(draftOf(r)[k] ?? '')} onKeyDown={keys}
+          onChange={(e) => setField(r, k, e.target.value as DirectoryRow[typeof k])} />
       : <>{String(r[k] ?? '')}</>);
 
   const liveColumns: Column<DirectoryRow & Record<string, unknown>>[] = [
@@ -134,11 +187,10 @@ export function UserMasterView() {
     {
       key: 'role', header: 'Role', width: 170,
       render: (r) => {
-        if (editingThis(r)) {
+        if (editing) {
           return (
-            <select className="select" style={{ width: '100%' }} value={rowEdit?.role ?? ''} onKeyDown={keys}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setField('role', e.target.value)}>
+            <select className="select" style={{ width: '100%' }} value={draftOf(r).role ?? ''} onKeyDown={keys}
+              onChange={(e) => setField(r, 'role', e.target.value)}>
               <option value="">— no role —</option>
               {ROLES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
             </select>
@@ -164,11 +216,10 @@ export function UserMasterView() {
     { key: 'region', header: 'Region', width: 90, wrap: false, render: cell('region') },
     {
       key: 'validity', header: 'Active', width: 90, wrap: false,
-      render: (r) => (editingThis(r)
+      render: (r) => (editing
         ? (
-          <select className="select" style={{ width: '100%' }} value={rowEdit?.validity ? 'TRUE' : 'FALSE'} onKeyDown={keys}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setField('validity', e.target.value === 'TRUE')}>
+          <select className="select" style={{ width: '100%' }} value={draftOf(r).validity ? 'TRUE' : 'FALSE'} onKeyDown={keys}
+            onChange={(e) => setField(r, 'validity', e.target.value === 'TRUE')}>
             <option value="TRUE">Yes</option>
             <option value="FALSE">No</option>
           </select>
@@ -184,21 +235,14 @@ export function UserMasterView() {
   ];
   if (editable) {
     liveColumns.push({
-      key: '_edit', header: '', width: 140, sortable: false, wrap: false,
-      render: (r) => (editingThis(r)
-        ? (
-          <div className="row" onClick={(e) => e.stopPropagation()}>
-            <button className="btn btn-sm btn-primary" disabled={busy || !(rowEdit?.name ?? '').trim()}
-              onClick={() => rowEdit && void save(rowEdit)}>{busy ? '…' : 'Save'}</button>
-            <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => setRowEdit(null)}>Cancel</button>
-          </div>
-        )
-        : (
-          <div className="row" onClick={(e) => e.stopPropagation()}>
-            <button className="btn btn-sm" onClick={() => setRowEdit({ ...r })}>Edit</button>
-            <button className="btn btn-sm btn-ghost" title="Open the full form" onClick={() => setEdit({ ...r })}>⋯</button>
-          </div>
-        )),
+      key: '_edit', header: '', width: 90, sortable: false, wrap: false,
+      render: (r) => (editing
+        // Which rows will be written when Save is pressed.
+        ? (drafts[r.id] && JSON.stringify(drafts[r.id]) !== JSON.stringify(r)
+          ? <span className="badge badge-warning" title="Changed — will be saved">Edited</span>
+          : <span className="muted">—</span>)
+        : <button className="btn btn-sm btn-ghost" title="Open the full form"
+            onClick={(e) => { e.stopPropagation(); setEdit({ ...r }); }}>⋯</button>),
     });
   }
 
@@ -229,7 +273,21 @@ export function UserMasterView() {
         title="User Master"
         subtitle="Everyone in the directory, signed in or not — and the role each one is given."
         icon="👤"
-        actions={editable && <button className="btn btn-primary" onClick={() => setEdit(emptyRow())}>+ New User</button>}
+        actions={editable && (
+          editing ? (
+            <div className="row">
+              <button className="btn btn-primary" onClick={() => void saveAll()} disabled={busy || !changedRows.length}>
+                {busy ? 'Saving…' : changedRows.length ? `Save ${changedRows.length} change${changedRows.length === 1 ? '' : 's'}` : 'Save'}
+              </button>
+              <button className="btn" onClick={stopEditing} disabled={busy}>Cancel</button>
+            </div>
+          ) : (
+            <div className="row">
+              <button className="btn" onClick={startEditing} disabled={busy || !dir.length}>✎ Edit</button>
+              <button className="btn btn-primary" onClick={() => setEdit(emptyRow())}>+ New User</button>
+            </div>
+          )
+        )}
       />
 
       {msg && (
@@ -247,7 +305,6 @@ export function UserMasterView() {
           storageKey="userMaster"
           rowsBeforeScroll={16}
           dense
-          onRowClick={(r) => { if (editable && !rowEdit) setRowEdit({ ...r }); }}
           emptyText={busy ? 'Loading…' : 'No users — adjust your search.'}
           toolbar={
             <Toolbar>
@@ -255,7 +312,9 @@ export function UserMasterView() {
               <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               {editable && (
                 <span className="muted">
-                  {rowEdit ? 'Editing — Enter saves, Esc cancels.' : 'Click a row to edit it here; ⋯ opens the full form.'}
+                  {editing
+                    ? `Editing every row — ${changedRows.length || 'no'} change${changedRows.length === 1 ? '' : 's'} so far. Enter saves, Esc cancels.`
+                    : 'Edit changes the whole table at once; ⋯ opens one user in the full form.'}
                 </span>
               )}
               <div className="spacer" />

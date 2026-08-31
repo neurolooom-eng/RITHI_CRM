@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.15',
+    date: '2026-08-31',
+    title: 'User Master: one Edit, one Save',
+    changes: [
+      'Editing is now a single action at the top of User Master. \u270e Edit turns every row editable at once, one Save writes everything you changed, and Cancel drops the lot \u2014 no more editing a row at a time, and no more clicking a row by accident and finding it in edit mode.',
+      'While you edit, each row that will be written is marked Edited, and the toolbar counts the changes so far. Enter saves, Esc cancels.',
+      'Rows are saved one at a time, so if one is refused the message names that person and everything else still goes through \u2014 and what you typed into the failed row is kept.',
+      'The full form is still there behind \u22ef on a row, and behind + New User.',
+    ],
+  },
+  {
     version: '0.8.14',
     date: '2026-08-31',
     title: 'User Master edits in the row',
