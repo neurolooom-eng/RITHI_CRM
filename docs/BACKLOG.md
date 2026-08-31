@@ -19,11 +19,15 @@ _Last updated: 2026-08-31 (MRN — Material Return Note — built on `claude/han
   (PM detection fixed). Validated on PG16 (fresh apply, idempotent, routing +
   returned UCN, RLS scoping, report sync, call-registration suite).
   **⏳ Run `split_call_tables.sql` on the live Supabase project.**
-- **Stage 2 — client (queued):** point each register at its own table (PM reads
-  only `pm_calls`) for the real volume isolation; cross-type screens keep the view.
-- **Stage 3 — cleanup (queued):** decide whether to retire the `calls` view.
-- Related, queued: Commercial-gated Installation creation; Admin/Super-Admin PM
-  bulk upload; daily full-list email digest.
+- **Stage 2 — client (shipped, v0.8.41):** `listCalls`/`searchCalls` read the
+  typed table via `callTable()`, so each register (esp. PM) is isolated;
+  cross-type screens keep the view.
+- **Stage 3 — hardening (built, SQL to run):** `0041_call_split_hardening.sql`
+  adds a per-table CHECK (`call_table_for(call_type)`), so a row can never be
+  misfiled, and drops the redundant per-table call_type index. `calls` view
+  kept (recommended). **⏳ Run `harden_call_split.sql` after the split.**
+- Related, queued (this order): Admin/Super-Admin PM bulk upload → Commercial-
+  gated Installation creation → daily full-list email digest.
 
 ## ✅ Done
 
