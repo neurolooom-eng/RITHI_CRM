@@ -85,6 +85,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
+  { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties / contracts' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
   { group: 'Analytics', key: 'dashboard.view', label: 'View dashboard' },
   { group: 'Analytics', key: 'feedback.view', label: 'View feedback' },
@@ -129,7 +130,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
+  commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit'],
 };
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)

@@ -6,8 +6,9 @@
 // in batches through the signed-in admin session (RLS permits it).
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
+import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory' | 'call_requests';
+export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory' | 'call_requests' | CoverTable;
 
 // Minimal CSV parser (quotes, commas, newlines).
 export function parseCSV(text: string): Record<string, string>[] {
@@ -32,6 +33,9 @@ export function parseCSV(text: string): Record<string, string>[] {
 // Detect which table a clean CSV targets, from its header columns.
 export function detectTable(headers: string[]): ImportTable | null {
   const H = new Set(headers.map((h) => h.trim()));
+  // The four AppSheet sale / contract exports, imported as exported.
+  const cover = detectCoverTable(headers);
+  if (cover) return cover;
   if (H.has('name') && H.has('value')) return 'masters';
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   // Raw User Master export (sheet headers, not the clean file).
@@ -154,6 +158,8 @@ function shapeCallRequestRow(r: Record<string, string>): Record<string, unknown>
 // Shape raw CSV rows into insert-ready records for a given table.
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
+    case 'sale_entries': case 'sale_items': case 'contract_entries': case 'contract_items':
+      return shapeCoverRows(table, raw);
     case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
     case 'user_directory': return raw.map(shapeDirectoryRow).filter((r) => r.name);
     case 'parties': return raw.filter((r) => r.party_name);

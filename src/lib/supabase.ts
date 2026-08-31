@@ -11,7 +11,6 @@
 // ---------------------------------------------------------------------------
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import * as cov from './coverage';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -1332,69 +1331,5 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
     return { ok: true, count: count ?? 0 };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
-}
-
-// ---- warranty / contract coverage -----------------------------------------
-// The Warranty and Contract registers read the machines in `products`: cover
-// is a property of the machine (see src/lib/coverage.ts). Filtering and the
-// status buckets are done in Postgres so a 100k-row Product Master pages.
-export async function sbQueryCoverage(
-  kind: cov.CoverageKind,
-  f: cov.CoverageFilter,
-  offset = 0,
-  limit = 1000,
-): Promise<Record<string, unknown>[]> {
-  const { data, error } = await coverageQuery(must().from('products').select('*'), kind, f)
-    .order(`${kind}_end`, { ascending: false, nullsFirst: false })
-    .order('id', { ascending: false })
-    .range(offset, offset + limit - 1);
-  if (error) throw new Error(errMsg(error));
-  return data ?? [];
-}
-
-// How many machines sit in each status bucket, for the register's tiles.
-// Head requests: counts only, no rows transferred.
-export async function sbCoverageCounts(
-  kind: cov.CoverageKind,
-  f: cov.CoverageFilter,
-): Promise<Record<string, number>> {
-  const one = async (status: cov.CoverageStatusFilter) => {
-    const { count, error } = await coverageQuery(
-      must().from('products').select('id', { count: 'exact', head: true }), kind, { ...f, status },
-    );
-    if (error) throw new Error(errMsg(error));
-    return count ?? 0;
-  };
-  const [active, expiring, expired, none] = await Promise.all(
-    (['active', 'expiring', 'expired', 'none'] as cov.CoverageStatusFilter[]).map(one),
-  );
-  return { active, expiring, expired, none };
-}
-
-// Shared where-clause builder for both of the above: same filters, same
-// status arithmetic, so a tile's count always matches the rows it opens.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function coverageQuery(q: any, kind: cov.CoverageKind, f: cov.CoverageFilter): any {
-  const endCol = `${kind}_end`;
-  const numCol = `${kind}_number`;
-  if (f.serial) q = q.ilike('serial_number', `%${_san(f.serial)}%`);
-  if (f.party) q = q.ilike('party_name', `%${_san(f.party)}%`);
-  if (f.product) q = q.ilike('item_name', `%${_san(f.product)}%`);
-  if (f.number) q = q.ilike(numCol, `%${_san(f.number)}%`);
-  if (f.type && kind === 'contract') q = q.ilike('contract_type', `%${_san(f.type)}%`);
-  if (f.q) {
-    const s = _san(f.q);
-    q = q.or(`serial_number.ilike.%${s}%,item_name.ilike.%${s}%,party_name.ilike.%${s}%,${numCol}.ilike.%${s}%`);
-  }
-  const { today, soon } = cov.coverageCutoffs();
-  switch (f.status) {
-    case 'active': return q.gt(endCol, soon);
-    case 'expiring': return q.gte(endCol, today).lte(endCol, soon);
-    case 'expired': return q.lt(endCol, today);
-    case 'none': return q.is(endCol, null);
-    case 'all': return q;
-    // Default: only machines that carry this kind of cover.
-    default: return q.not(endCol, 'is', null);
   }
 }
