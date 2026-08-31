@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped; go-live data reset queued)_
+_Last updated: 2026-08-31 (MRN — Material Return Note — built on `claude/handstock-hc86x7`; `HandStock_X.sql` to re-run on the live project)_
 
 ---
 
@@ -132,6 +132,14 @@ preflight their prerequisites, and are idempotent.
   `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
   module says so and stays empty, and the report form has no stock to consume
   from.
+- **`0037_material_returns.sql`** — MRN (Material Return Note): the return
+  register, its `MRN-YYMM-NNNN` numbering, the guard that stops an engineer
+  returning more than they hold, and the fifth hand-stock movement that
+  subtracts it. Shipped **inside `HandStock_X.sql`** (re-run that file; it now
+  carries `0023` then `0037`) rather than as its own bundle, because it adds a
+  column to the same two views — a later re-run of the hand-stock file must
+  carry it or it would redefine them back without returns. Until it is run, the
+  Material Returns module says so and stays empty. `_status.sql` row 17.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.

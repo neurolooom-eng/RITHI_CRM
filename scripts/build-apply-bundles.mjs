@@ -70,7 +70,8 @@ const MODULES = {
             'role a User Master row grants when that person first signs in.'],
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
-            '0030_engineer_address_write.sql', '0033_user_directory_role.sql'],
+            '0030_engineer_address_write.sql', '0033_user_directory_role.sql',
+            '0034_office_roles_see_all.sql', '0035_data_view_all.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -99,7 +100,7 @@ const MODULES = {
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0009_audit_log.sql'],
+    files: ['0009_audit_log.sql', '0033_audit_retention.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -125,17 +126,25 @@ const MODULES = {
       '',
       '  Stock Level = Stock Out (Stores) - Consumption',
       '              - Stock Transfer From + Stock Transfer To',
+      '              - Returned to Stores (MRN)',
       '',
       'The movement behind every figure (the DC, the call, the other engineer),',
       'each term of the formula as its own column, and `engineer_stock` --- what',
       'Stock Transfer and its stock guard read --- redefined over the same',
       'derivation, so the two screens cannot disagree.',
       '',
+      'Includes MRN (Material Return Note) --- the return register itself, its',
+      'MRN-YYMM-NNNN numbering, and the guard that stops an engineer returning',
+      'more than they are holding.',
+      '',
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
-    files: ['0023_handstock.sql'],
+    // MRN lives here rather than in a bundle of its own: it adds a term to the
+    // same two views, so a later re-run of this file must carry it or it would
+    // redefine them back without returns.
+    files: ['0023_handstock.sql', '0037_material_returns.sql'],
     tail: () => cookbook(),
   },
   stock_transfer: {
@@ -175,6 +184,7 @@ const MODULES = {
       '0028_dc_number_is_stock_out.sql',
       '0031_pending_dispatch_live_stage.sql',
       '0032_stores_sees_pending_dispatch.sql',
+      '0036_spare_drop.sql',
     ],
   },
 };
