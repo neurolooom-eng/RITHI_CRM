@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.44',
+    date: '2026-08-31',
+    title: 'Knowledge Base — how-to guide + team field solutions',
+    changes: [
+      'New Knowledge Base page (in the menu under Help, open to everyone): a step-by-step “How to use RITHI CRM” guide covering requesting and updating calls, installations, spares, spare status, customer feedback, passwords, the Build ID and Refresh/Sync/Force-update.',
+      'Field Solutions — the team writes and shares fixes for real field issues. Anyone signed in can add an article and search everyone’s; the author (or an admin) can edit or delete their own.',
+      'Articles are written in a built-in editor with headings, lists, links, images (upload or link) and tables — plus attachment links to files kept in Drive or on Pages.',
+      'Needs a database script run once (knowledge_base.sql) to store the articles.',
+    ],
+  },
+  {
     version: '0.8.43',
     date: '2026-08-31',
     title: 'A manager sees and approves their own team only',
@@ -24,7 +35,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.43',
+    version: '0.8.42',
     date: '2026-08-31',
     title: 'Show password toggle',
     changes: [

@@ -96,6 +96,14 @@ const MODULES = {
       '0041_call_split_hardening.sql',
     ],
   },
+  knowledge_base: {
+    title: 'Knowledge Base',
+    blurb: ['Team-written field-solution articles (kb_articles): anyone signed in reads',
+            'every article and contributes one; the author or an admin edits or deletes.',
+            'Rich text with images and tables is stored as sanitized HTML on the row.'],
+    needs: ['profiles', 'isAdmin'],
+    files: ['0042_knowledge_base.sql'],
+  },
   audit: {
     title: 'Audit Log',
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
@@ -326,7 +334,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'knowledge_base'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
