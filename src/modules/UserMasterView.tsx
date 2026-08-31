@@ -75,6 +75,7 @@ export function UserMasterView() {
   const [cloneFrom, setCloneFrom] = useState<User | null>(null);   // create a new login like this one
   const [dataFor, setDataFor] = useState<User | null>(null);       // everything this user entered
   const [addLogin, setAddLogin] = useState(false);                 // create a fresh login
+  const [viewRow, setViewRow] = useState<DirectoryRow | null>(null); // click a row → full record + actions
 
   const load = async (query = q) => {
     if (!dataConfigured()) return;
@@ -332,6 +333,7 @@ export function UserMasterView() {
           storageKey="userMaster"
           rowsBeforeScroll={16}
           dense
+          onRowClick={editing ? undefined : (r) => setViewRow(r)}
           emptyText={busy ? 'Loading…' : 'No users — adjust your search.'}
           toolbar={
             <Toolbar>
@@ -406,6 +408,49 @@ export function UserMasterView() {
       )}
 
       {dataFor && <DataViewDrawer user={dataFor} onClose={() => setDataFor(null)} />}
+
+      {viewRow && (() => {
+        const r = viewRow;
+        const prof = profileFor(r);
+        const rows: [string, string][] = [
+          ['Name', r.name || '—'],
+          ['Designation', r.designation || '—'],
+          ['Role', roleLabel(prof?.rbacRole || r.role)],
+          ['Signed in', prof ? 'Yes' : 'Not yet'],
+          ['Air Liquide ID', r.email || '—'],
+          ['Gmail', r.gmail || '—'],
+          ['Region', r.region || '—'],
+          ['Active', r.validity ? 'Yes' : 'No'],
+          ['Reporting Manager', r.reporting_manager || '—'],
+          ['Regional Manager', r.regional_manager || '—'],
+          ['Contact', r.phone || '—'],
+          ['Address', [r.address, r.city, r.state].filter(Boolean).join(', ') || '—'],
+          ...(prof?.extraPermissions?.length ? [['Extra permissions', `${prof.extraPermissions.length} granted`] as [string, string]] : []),
+        ];
+        return (
+          <Drawer open onClose={() => setViewRow(null)} title={r.name || 'User'} width={560}>
+            <div className="rep-form">
+              {/* Actions at the top */}
+              <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); setEdit({ ...r }); }}>✏️ Edit</button>}
+                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
+                {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setCloneFrom(prof); }}>⧉ Clone</button>}
+                {prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setDataFor(prof); }}>📊 Data</button>}
+              </div>
+              {!prof && <div className="muted rep-hint">This person has not signed in yet, so there is no login to set permissions on, clone, or report data for. Set their role above; it applies when they first sign in.</div>}
+              <div className="assoc-scroll">
+                <table className="assoc-table" style={{ minWidth: 320 }}>
+                  <tbody>
+                    {rows.map(([k, v]) => (
+                      <tr key={k}><td style={{ width: 160, color: 'var(--muted)' }}>{k}</td><td>{v}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </Drawer>
+        );
+      })()}
     </div>
   );
 }

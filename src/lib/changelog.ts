@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.22',
+    date: '2026-08-31',
+    title: 'Click a user to open their record',
+    changes: [
+      'In User Master, clicking a person now opens their full record with the actions at the top — Edit, 🔐 Access, ⧉ Clone and 📊 Data — the same shape as opening a call.',
+    ],
+  },
+  {
     version: '0.8.21',
     date: '2026-08-31',
     title: 'One User Master — with Clone and a per-user activity view',
