@@ -58,7 +58,7 @@ export function detectTable(headers: string[]): ImportTable | null {
 }
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-function toDate(v: unknown): string | null {
+export function toDate(v: unknown): string | null {
   const s = String(v ?? '').trim();
   if (!s) return null;
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;

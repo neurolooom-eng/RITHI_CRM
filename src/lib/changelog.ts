@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.46',
+    date: '2026-08-31',
+    title: 'PM Bulk Upload — the monthly batch in one file',
+    changes: [
+      'New PM Bulk Upload (Service Calls menu, Admin / Super-Admin only): upload the monthly Preventive Maintenance spreadsheet and every row is created as a PM call, with its UCN and Call Number assigned automatically. They land straight in the Preventive (PM) register.',
+      'Columns are matched by common names (Party, Product, Serial, Engineer, PM Due Date, and more); anything extra on the sheet is kept on the call. Download the built-in template to see the expected layout, preview what will be created, then import with a progress bar.',
+    ],
+  },
+  {
     version: '0.8.45',
     date: '2026-08-31',
     title: 'Hand Stock, Stock Transfer and Material Returns follow your team',

@@ -39,6 +39,7 @@ import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
 import { KnowledgeBase } from './modules/KnowledgeBase';
+import { PmBulkUpload } from './modules/PmBulkUpload';
 import { AdminConfig } from './modules/AdminConfig';
 import { productConfig } from './modules/schemas';
 import { WarrantyRegister, ContractRegister } from './modules/CoverRegister';
@@ -130,6 +131,7 @@ function Shell() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
+        <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
         <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
         <Route path="/audit" element={<AuditLog />} />
