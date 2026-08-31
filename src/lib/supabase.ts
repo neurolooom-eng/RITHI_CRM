@@ -694,25 +694,108 @@ export async function latestReport(ucn: string): Promise<Record<string, unknown>
 }
 
 // ---- daily call review (DCCR) ----------------------------------------------
-// `field_call_review` (0044) is one row per FIELD call with its three review
-// stages, what they derive (Any Potential Effect, Action Taken) and which stage
-// is outstanding. Reads are RLS-scoped exactly as the register itself is.
-export async function listCallReviews(limit = 20000): Promise<Record<string, unknown>[]> {
+// `field_call_review` (0044 + 0047) is one row per FIELD call with its three
+// review stages, what they derive (Any Potential Effect, Action Taken), which
+// stage is outstanding, and what the reviewer judges it by — the visits, the
+// spares consumed, the software version and the product's age at failure.
+// Reads are RLS-scoped exactly as the register itself is.
+//
+// It is read A PAGE AT A TIME, newest first, and every filter is applied by
+// the DATABASE. That is not a nicety: the per-call report lookups run for
+// every row the query returns, so asking for the whole register at once costs
+// seconds per page and the screen shows nothing until the last one lands.
+// `field_calls_reg_date_idx` (0047) is what makes the page cheap.
+export interface ReviewFilter {
+  from?: string;          // reg_date >=  (yyyy-mm-dd)
+  to?: string;            // reg_date <=
+  status?: string;        // review_status
+  product?: string;
+  engineer?: string;
+  effectOnly?: boolean;   // Any Potential Effect = YES
+  q?: string;             // free text across the scannable columns
+}
+
+function applyReviewFilter<T extends { eq: (c: string, v: never) => T; gte: (c: string, v: never) => T; lte: (c: string, v: never) => T; or: (f: string) => T }>(
+  q: T, f: ReviewFilter,
+): T {
+  if (f.from) q = q.gte('reg_date', f.from as never);
+  if (f.to) q = q.lte('reg_date', f.to as never);
+  if (f.status) q = q.eq('review_status', f.status as never);
+  if (f.product) q = q.eq('product_name', f.product as never);
+  if (f.engineer) q = q.eq('allocated_to', f.engineer as never);
+  if (f.effectOnly) q = q.eq('any_potential_effect', 'YES' as never);
+  const t = _san(f.q ?? '');
+  if (t) {
+    q = q.or(['ucn', 'call_number', 'party_name', 'serial', 'product_name', 'allocated_to',
+      'standard_complaint', 'complaint_reported', 'complaint_grouping', 'root_cause_keyword']
+      .map((c) => `${c}.ilike.%${t}%`).join(','));
+  }
+  return q;
+}
+
+// One page of the register, newest first.
+export async function listCallReviews(filter: ReviewFilter = {}, offset = 0, limit = 500): Promise<Record<string, unknown>[]> {
+  let q = must().from('field_call_review').select('*')
+    .order('reg_date', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false })
+    .range(offset, offset + limit - 1);
+  q = applyReviewFilter(q as never, filter) as never;
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
+// One call's full review row — what the review drawer reads.
+export async function callReview(ucn: string): Promise<Record<string, unknown> | null> {
+  const { data, error } = await must().from('field_call_review').select('*').eq('ucn', ucn).limit(1).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return data ?? null;
+}
+
+// How many calls sit at each stage across the WHOLE filtered set (not just the
+// page on screen). Read from `field_call_review_summary`, which carries no
+// per-call report lookups, so counting a year of calls is a plain scan.
+export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ total: number; byStatus: Record<string, number>; effects: number }> {
   const PAGE = 1000;
-  const out: Record<string, unknown>[] = [];
-  for (let from = 0; from < limit; from += PAGE) {
-    const { data, error } = await must()
-      .from('field_call_review')
-      .select('*')
-      .order('reg_date', { ascending: false, nullsFirst: false })
-      .order('id', { ascending: false })
-      .range(from, Math.min(from + PAGE, limit) - 1);
+  const byStatus: Record<string, number> = {};
+  let total = 0; let effects = 0;
+  for (let from = 0; ; from += PAGE) {
+    let q = must().from('field_call_review_summary').select('review_status,any_potential_effect').range(from, from + PAGE - 1);
+    q = applyReviewFilter(q as never, filter) as never;
+    const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows);
+    rows.forEach((r) => {
+      const s = String((r as Record<string, unknown>).review_status ?? '');
+      byStatus[s] = (byStatus[s] ?? 0) + 1;
+      if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+    });
+    total += rows.length;
     if (rows.length < PAGE) break;
   }
-  return out;
+  return { total, byStatus, effects };
+}
+
+// The register's Product and Engineer boxes. Read from the whole register
+// (the summary view, which has no per-call lookups) rather than from whatever
+// page is loaded, so a product only used last year is still selectable.
+export async function reviewPickLists(): Promise<{ products: string[]; engineers: string[] }> {
+  const PAGE = 1000;
+  const products = new Set<string>(); const engineers = new Set<string>();
+  for (let from = 0; from < 40000; from += PAGE) {
+    const { data, error } = await must().from('field_call_review_summary')
+      .select('product_name,allocated_to').range(from, from + PAGE - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    rows.forEach((r) => {
+      const p = String((r as Record<string, unknown>).product_name ?? '').trim();
+      const e = String((r as Record<string, unknown>).allocated_to ?? '').trim();
+      if (p) products.add(p);
+      if (e) engineers.add(e);
+    });
+    if (rows.length < PAGE) break;
+  }
+  return { products: [...products].sort(), engineers: [...engineers].sort() };
 }
 
 // One call's review, upserted: the row is created the first time a stage is

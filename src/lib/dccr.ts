@@ -61,6 +61,18 @@ export interface ReviewRow extends Record<string, unknown> {
   open_state: string;
   last_status: string;
   last_visit_at: string | null;
+  // What the reviewer judges the call by — all of it from the report (0047)
+  age_days: number | null;
+  age_group: string;
+  visit_details: string;      // every visit, newest first: "date : what was done"
+  visit_count: number;
+  sw_version: string;
+  observation: string;
+  job_done: string;
+  pending_reason: string;
+  visit_engineer: string;
+  spares_consumed: string;
+  spares_count: number;
   // Review 1
   public_health_threat: string;
   death: string;
@@ -180,7 +192,24 @@ export const DCCR_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'review_status', header: 'Review Status' },
   { key: 'current_call_status', header: 'CURRENT CALL STATUS' },
   { key: 'last_visit_at', header: 'Call Solved Date & Time' },
+  { key: 'visit_details', header: 'VISIT REMARKS (Reporting)' },
+  { key: 'spares_consumed', header: 'SPARES CONSUMED' },
+  { key: 'sw_version', header: 'SW Version' },
+  { key: 'age_days', header: 'Failure within how many days/yrs' },
+  { key: 'age_group', header: 'Failure Within Grouping' },
 ];
+
+// The register's own banding of a product's age at failure. Mirrors
+// failure_age_group() in 0047 — whole years, capped at 5.
+export function ageGroup(days: number | null | undefined): string {
+  if (days == null || days < 0) return '';
+  if (days < 365) return 'With in 1 yr';
+  if (days < 730) return 'More than 1 yr';
+  if (days < 1095) return 'More than 2 yrs';
+  if (days < 1460) return 'More than 3 yrs';
+  if (days < 1825) return 'More than 4 yrs';
+  return 'More than 5 yrs';
+}
 
 // dd-mmm-yyyy, the shape every date in the register carries.
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -236,5 +265,10 @@ export function toExportRow(r: ReviewRow, index: number): Record<string, unknown
     review_status: r.review_status ?? '',
     current_call_status: r.open_state || r.last_status || r.status || '',
     last_visit_at: exportDate(r.last_visit_at, true),
+    visit_details: r.visit_details ?? '',
+    spares_consumed: r.spares_consumed ?? '',
+    sw_version: r.sw_version ?? '',
+    age_days: r.age_days ?? '',
+    age_group: r.age_group ?? '',
   };
 }

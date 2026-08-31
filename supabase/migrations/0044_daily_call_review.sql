@@ -174,7 +174,11 @@ end $$;
 --    soon as all three have been given (they default to NO on the form) and
 --    its date is the call registration date.
 -- ---------------------------------------------------------------------------
-create or replace view public.field_call_review as
+-- Dropped and recreated rather than replaced: 0047 adds columns to this view,
+-- so a re-run of THIS file would otherwise fail with "cannot drop columns from
+-- view". 0047 runs after it and rebuilds the full shape either way.
+drop view if exists public.field_call_review;
+create view public.field_call_review as
 select
   c.id,
   c.ucn,
