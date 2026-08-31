@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.12',
+    date: '2026-08-31',
+    title: 'Every spare on a report is saved, or none is',
+    changes: [
+      'Consumed spares are now written in a single step: a report either records all of them or none, so a visit can no longer come back with one of the two spares you entered.',
+      'If the spares (or the customer feedback) cannot be saved, the report says so instead of closing as though it worked \u2014 and because the visit itself is already filed, pressing Save Report again retries only the part that failed, without filing a second visit.',
+    ],
+  },
+  {
     version: '0.8.11',
     date: '2026-08-31',
     title: 'Call Status follows the latest visit entered',
