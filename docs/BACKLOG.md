@@ -400,6 +400,30 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
     (8,033 Dispatched, 35 Stores, 15 RM, 6 Commercial). One-line change in
     `spare_line_stage()` if the sheet should win instead.
     The CSVs stay out of git (`migration-data/*.csv` is ignored) — customer data.
+  - *Phase 17* (`0041_stock_read_scope.sql`): **the stock screens follow the
+    reporting tree too** — Hand Stock, Stock Transfer, Material Returns.
+    Two gaps after 0040 scoped the spare register:
+    • `engineer_stock` was **not** `security_invoker`, so it ran with the
+      view owner's rights and bypassed RLS entirely. `listAllStock()` feeds
+      the Stock Transfer screen from it, so any signed-in user could read
+      every engineer's stock level whatever the table policies said. Now
+      invoker-rights. `engineer_stock_available()` is SECURITY DEFINER, so the
+      overdraw guard still counts every movement — verified, it still sees
+      another team's 6 valves.
+    • `st_read` tested `is_admin()` alone, so the office desks could not see
+      transfers at all; now `can_view_all_calls()`, as everywhere else.
+    Hand Stock and Material Returns needed no policy of their own:
+    `handstock_balance` / `handstock_movements` are already security_invoker
+    and inherit, and `mr_read` (0039) already reads this way.
+    ⚠️ **Two re-run breaks found on `main`, both pre-existing and left alone**
+    (verified by stashing this branch's changes and reproducing):
+    `all.sql` is no longer idempotent — `0040_call_tables_split.sql` turns
+    `calls` into a view, so a second pass dies at base's `create index ... on
+    public.calls`; and `HandStock_X.sql` re-run dies with *cannot drop columns
+    from view*, because a later migration widens `handstock_balance` and
+    re-running 0023 tries to narrow it back. First runs are clean and live
+    databases are unaffected, but the "bundles are idempotent" guarantee is
+    broken in both. They belong to the call and material-returns work.
   - *Phase 15* (`0032_stores_sees_pending_dispatch.sql`): **Stores Incharge
     could not open Pending Dispatch.** 0027 granted `mod:/spare-dispatch` only
     to roles whose stored list already held `spare.dispatch` — one condition
