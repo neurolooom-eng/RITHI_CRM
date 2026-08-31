@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.56',
+    date: '2026-08-31',
+    title: 'Software Validation prints the full document',
+    changes: [
+      'Printing the Software Validation package now produces the complete, multi-page document instead of a snapshot of the visible screen. Use “Print full package” to include every section; wide tables are fitted and rows are kept from splitting across pages.',
+    ],
+  },
+  {
     version: '0.8.55',
     date: '2026-08-31',
     title: 'Data-integrity hardening for regulated use',
