@@ -1,0 +1,64 @@
+name: Branch preview
+
+# Publishes a feature branch to its own folder on the `gh-pages` branch, so a
+# change can be opened on any device BEFORE it is merged to `main`:
+#
+#   https://<owner>.github.io/RITHI_CRM/preview/<branch>/
+#
+# The live site (the root of gh-pages, built from `main` by deploy.yml) is not
+# touched: this job writes only under `preview/<branch>/` and keeps every other
+# file on the branch. Previews are disposable — delete the folder when a branch
+# is merged, or just leave it; nothing links to it.
+#
+# It works because the build uses a relative base (`base: './'` in
+# vite.config.ts) and HashRouter, so the app runs from any sub-path.
+
+on:
+  push:
+    branches:
+      - 'claude/**'
+      - 'preview/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Two previews may build at once, but they must not push to gh-pages together.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Folder name for this branch: `claude/warranty-contract-x` → `warranty-contract-x`.
+      - name: Slug the branch name
+        id: slug
+        run: |
+          slug=$(echo "${GITHUB_REF_NAME#claude/}" | sed 's|^preview/||; s|[^A-Za-z0-9._-]|-|g')
+          echo "slug=$slug" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Publish to gh-pages/preview
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: preview/${{ steps.slug.outputs.slug }}
+          keep_files: false      # replace this preview's own files…
+          enable_jekyll: false   # …serve assets as-is
+          commit_message: "preview: ${{ github.ref_name }} (${{ github.sha }})"
+
+      - name: Link
+        run: |
+          echo "### Preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/${{ steps.slug.outputs.slug }}/" >> "$GITHUB_STEP_SUMMARY"

@@ -39,11 +39,8 @@ import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
 import { AdminConfig } from './modules/AdminConfig';
-import {
-  productConfig,
-  warrantyConfig,
-  contractConfig,
-} from './modules/schemas';
+import { productConfig } from './modules/schemas';
+import { WarrantyRegister, ContractRegister } from './modules/CoverRegister';
 import { CustomerFeedback } from './modules/CustomerFeedback';
 
 function Shell() {
@@ -102,8 +99,8 @@ function Shell() {
         <Route path="/parts" element={<PartMaster />} />
         <Route path="/masters" element={<AllMasters />} />
         <Route path="/masters/:key" element={<MasterListPage />} />
-        <Route path="/warranties" element={<CrudModule config={warrantyConfig} />} />
-        <Route path="/contracts" element={<CrudModule config={contractConfig} />} />
+        <Route path="/warranties" element={<WarrantyRegister />} />
+        <Route path="/contracts" element={<ContractRegister />} />
         <Route path="/field-calls" element={<FieldCalls />} />
         <Route path="/installations" element={<InstallationCalls />} />
         {/* Call updation is not a separate view — it's call reporting, done via

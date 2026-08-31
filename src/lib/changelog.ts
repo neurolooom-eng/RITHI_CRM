@@ -12,11 +12,26 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.37',
+    version: '0.8.38',
     date: '2026-08-31',
     title: 'MRN: Good + Defective together cannot exceed what you hold',
     changes: [
       'On a Material Return, the Good and Defective boxes were capped separately, so a spare you hold 2 of could be entered as 6 good and 4 defective. They are two halves of one returned quantity: each box is now capped at what is left of that spare once the other box (and any other line on the same MRN) is counted, and a quantity typed over the cap is pulled back with a note saying how many are in hand.',
+    ],
+  },
+  {
+    version: '0.8.37',
+    date: '2026-08-31',
+    title: 'Warranty and Contract registers, live — with the entry as the parent record',
+    changes: [
+      'Warranty Register and Contract Register are real registers now. A Sale Entry (SA) or Contract Entry (MC) is the parent record, and the machines sold or covered under it sit inside it as a table — open an entry to see and edit both together.',
+      'Change something on the entry and every machine under it changes with it: dates, period, PM visits, payment schedule, party, engineer. A machine can still carry its own value where it genuinely differs — type into the field to pin it, ↺ to hand it back to the entry.',
+      'A “By machine” view lists cover per serial with Active / About to expire / Inactive tiles, shows which machines are pinned rather than following their entry, exports to CSV and registers a field call straight from a row.',
+      'Your four AppSheet exports (Sale Entry, Warranty Sale Details, Contract Entry, Contract Details) import as they are, in any order, in Settings → Bulk Data Import. Every column is kept, and the repeated header values are folded back into inheritance afterwards.',
+      'Warranty and contract on the machine (what a call form fills in) is now maintained by these registers, so the Product Master follows a contract renewal instead of being keyed twice.',
+      'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
+      'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
+      'Both tabs work like the Field Call Register: opens from cache with a “synced X ago” stamp, ↻ Refresh, Load more, and Export CSV.',
     ],
   },
   {

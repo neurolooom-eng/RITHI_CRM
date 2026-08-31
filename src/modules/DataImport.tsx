@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { bulkInsert, detectTable, parseCSV, shapeRows, tableCount, type ImportTable } from '../lib/dataImport';
+import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
-const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports', 'user_directory', 'material_returns'];
+const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports',
+  'user_directory', 'material_returns',
+  'sale_entries', 'sale_items', 'contract_entries', 'contract_items'];
+
+// The sale / contract exports. After loading them the copied-down header values
+// are folded back into inheritance and the machine master's cover is refreshed
+// -- see finishCoverImport().
+const COVER_TABLES: ImportTable[] = ['sale_entries', 'sale_items', 'contract_entries', 'contract_items'];
 
 interface FileState {
   name: string;
@@ -24,6 +32,7 @@ export function DataImport() {
   const [counts, setCounts] = useState<Partial<Record<ImportTable, number | null>>>({});
   const [files, setFiles] = useState<FileState[]>([]);
   const [busy, setBusy] = useState(false);
+  const [after, setAfter] = useState('');
 
   const [countErr, setCountErr] = useState('');
   const refreshCounts = async () => {
@@ -74,6 +83,18 @@ export function DataImport() {
       });
       setFiles((cur) => cur.map((x, j) => (j === i ? { ...x, status: res.ok ? 'done' : 'error', error: res.error, done: res.inserted } : x)));
     }
+    // The four AppSheet sale / contract exports land as exported; this then
+    // hands every value that merely repeats its header back to inheritance,
+    // and brings the machine master's cover up to date.
+    if (files.some((f) => f.table && COVER_TABLES.includes(f.table))) {
+      setAfter('Tidying up the imported cover…');
+      try {
+        const r = await finishCoverImport();
+        setAfter(`Normalised ${r.unpinned} item rows (values repeating their entry now follow it) and refreshed cover on ${r.machines} machines.`);
+      } catch (e) {
+        setAfter(`Import loaded, but the tidy-up step failed: ${e instanceof Error ? e.message : String(e)}. Re-run it with the button below.`);
+      }
+    }
     setBusy(false);
     void refreshCounts();
   };
@@ -83,7 +104,9 @@ export function DataImport() {
       <div className="muted" style={{ marginBottom: 12 }}>
         One-time load of the clean migration CSVs. Select the files (the table is
         auto-detected from the columns) and Import. Runs through your admin login.
-        Import into an empty table — re-importing duplicates rows.
+        Import into an empty table — re-importing duplicates rows, except the four
+        sale / contract exports, which are matched on their own number and can be
+        re-run safely.
       </div>
 
       <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -95,6 +118,15 @@ export function DataImport() {
       {countErr && <div className="sheet-banner sheet-banner-error" style={{ marginBottom: 12 }}><span>Count check failed — {countErr} (a “—” means the query errored, not that the table is empty). If the project is paused, open it in Supabase to resume; if you’re signed out, sign in again.</span></div>}
 
       <input type="file" accept=".csv" multiple onChange={(e) => void onPick(e.target.files)} disabled={busy} />
+
+      <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        The four AppSheet exports (Sale Entry, Warranty Sale Details, Contract Entry,
+        Contract Details) are recognised as they come — every column is loaded, into
+        the table's own column where there is one and into <code>extra</code> otherwise.
+        Any order works: a machine whose entry has not been loaded yet gets a stub
+        entry, which the entry file then fills in.
+      </div>
+      {after && <div className="sheet-banner sheet-banner-info" style={{ marginTop: 10 }}><span>{after}</span></div>}
 
       {files.length > 0 && (
         <div className="stack" style={{ gap: 8, marginTop: 12 }}>
@@ -109,9 +141,15 @@ export function DataImport() {
               </span>
             </div>
           ))}
-          <div className="row">
+          <div className="row" style={{ gap: 8 }}>
             <button className="btn btn-primary" onClick={() => void runAll()} disabled={busy || !files.some((f) => f.table && f.status !== 'done')}>
               {busy ? 'Importing…' : `Import ${files.filter((f) => f.table && f.status !== 'done').length} file(s)`}
+            </button>
+            <button className="btn" disabled={busy} title="Fold repeated header values back into inheritance and refresh machine cover"
+              onClick={() => { setAfter('Working…'); void finishCoverImport()
+                .then((r) => setAfter(`Normalised ${r.unpinned} item rows and refreshed cover on ${r.machines} machines.`))
+                .catch((e) => setAfter(`Failed: ${e instanceof Error ? e.message : String(e)}`)); }}>
+              Normalise cover
             </button>
           </div>
         </div>

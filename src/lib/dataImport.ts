@@ -6,8 +6,10 @@
 // in batches through the signed-in admin session (RLS permits it).
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
+import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory' | 'call_requests' | 'material_returns';
+export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory'
+  | 'call_requests' | 'material_returns' | CoverTable;
 
 // Minimal CSV parser (quotes, commas, newlines).
 export function parseCSV(text: string): Record<string, string>[] {
@@ -32,6 +34,9 @@ export function parseCSV(text: string): Record<string, string>[] {
 // Detect which table a clean CSV targets, from its header columns.
 export function detectTable(headers: string[]): ImportTable | null {
   const H = new Set(headers.map((h) => h.trim()));
+  // The four AppSheet sale / contract exports, imported as exported.
+  const cover = detectCoverTable(headers);
+  if (cover) return cover;
   if (H.has('name') && H.has('value')) return 'masters';
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   // Raw User Master export (sheet headers, not the clean file).
@@ -210,6 +215,8 @@ function dedupeMrn(rows: Record<string, unknown>[]): Record<string, unknown>[] {
 // Shape raw CSV rows into insert-ready records for a given table.
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
+    case 'sale_entries': case 'sale_items': case 'contract_entries': case 'contract_items':
+      return shapeCoverRows(table, raw);
     case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
     // MRN: flatten both sheet tabs into one row per returned item. The form-data
     // tab has no item columns, so its rows carry nothing to return and are
@@ -238,19 +245,42 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
 }
 
 export interface ImportProgress { done: number; total: number }
-// Insert shaped rows in batches through the admin session. Reports carry a large
-// jsonb payload, so they use a smaller batch.
+
+// The sale / contract tables have a natural key, so their files are UPSERTED:
+// an import that stopped half way (a timeout, a dropped connection) can simply
+// be run again instead of colliding with the rows that did land.
+const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
+  sale_entries: 'sa_number', sale_items: 'uid',
+  contract_entries: 'mc_number', contract_items: 'uid',
+};
+
+// Rows per request. Every sale / contract item syncs the machine it names, so
+// those batches are kept small enough to finish inside the server's statement
+// timeout; reports carry a large jsonb payload.
+const BATCH: Partial<Record<ImportTable, number>> = {
+  reports: 300, sale_items: 400, contract_items: 400, sale_entries: 500, contract_entries: 500,
+};
+
+// Insert (or upsert) shaped rows in batches through the admin session.
 export async function bulkInsert(
   table: ImportTable, rows: Record<string, unknown>[], onProgress?: (p: ImportProgress) => void,
 ): Promise<{ ok: boolean; inserted: number; error?: string }> {
   const c = getSupabase();
   if (!c) return { ok: false, inserted: 0, error: 'Not connected to Supabase.' };
-  const chunk = table === 'reports' ? 300 : 1000;
+  const chunk = BATCH[table] ?? 1000;
+  const onConflict = CONFLICT_KEY[table];
   let done = 0;
   for (let i = 0; i < rows.length; i += chunk) {
     const slice = rows.slice(i, i + chunk);
-    const { error } = await c.from(table).insert(slice);
-    if (error) return { ok: false, inserted: done, error: `${error.message} (row ~${i})` };
+    const { error } = onConflict
+      ? await c.from(table).upsert(slice, { onConflict })
+      : await c.from(table).insert(slice);
+    if (error) {
+      const hint = /timeout/i.test(error.message)
+        ? ' — the database cancelled the batch. Apply supabase/apply/sales_contracts.sql (it adds the index this import needs), then run the import again; already-loaded rows are updated, not duplicated.'
+        : '';
+      return { ok: false, inserted: done, error: `${error.message} (row ~${i})${hint}` };
+    }
     done += slice.length; onProgress?.({ done, total: rows.length });
   }
   return { ok: true, inserted: done };
