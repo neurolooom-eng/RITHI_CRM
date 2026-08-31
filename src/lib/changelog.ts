@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.41',
+    date: '2026-08-31',
+    title: 'Registers read their own call table (PM isolated)',
+    changes: [
+      'Each register now reads directly from its own call table — the Preventive (PM) register reads only PM calls, Field reads only Field, Installation only Installation — so PM’s large volume never slows the others. Cross-type screens (Pending Calls, Dashboard, KPI) still read across all types. Follows the database split shipped earlier.',
+    ],
+  },
+  {
     version: '0.8.40',
     date: '2026-08-31',
     title: 'MRN: Good + Defective together cannot exceed what you hold',

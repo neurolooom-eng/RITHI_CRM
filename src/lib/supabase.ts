@@ -158,8 +158,8 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
   const PAGE = 1000;
   const out: Record<string, unknown>[] = [];
   for (let from = 0; from < limit; from += PAGE) {
-    let q = must().from('calls').select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
-    if (callType) q = q.eq('call_type', callType);
+    // Read the type's own table (isolated); the union view only for "all".
+    const q = must().from(callTable(callType)).select('*').order('id', { ascending: false }).range(from, Math.min(from + PAGE, limit) - 1);
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
@@ -175,8 +175,7 @@ export async function listCalls(callType = '', limit = 20000): Promise<Record<st
 export interface CallSearch { q?: string; ucn?: string; serial?: string; partyName?: string; productName?: string }
 const _san = (t: string) => t.replace(/[%,()]/g, ' ').trim();
 export async function searchCalls(callType: string, terms: CallSearch, limit = 1000): Promise<Record<string, unknown>[]> {
-  let q = must().from('calls').select('*').order('id', { ascending: false }).limit(limit);
-  if (callType) q = q.eq('call_type', callType);
+  let q = must().from(callTable(callType)).select('*').order('id', { ascending: false }).limit(limit);
   if (terms.ucn) q = q.ilike('ucn', `%${_san(terms.ucn)}%`);
   if (terms.serial) q = q.ilike('serial', `%${_san(terms.serial)}%`);
   if (terms.partyName) q = q.ilike('party_name', `%${_san(terms.partyName)}%`);
@@ -281,6 +280,19 @@ export function callTypeForTab(tab: string): string {
   if (t === 'PM' || t.startsWith('P M') || t.startsWith('PM')) return 'P M VISIT';
   if (t === 'FIELD') return 'FIELD';
   return tab; // already a call_type, or empty (= all)
+}
+
+// The physical table a call_type reads from (mirrors the DB's call_table_for()
+// after the 0040 split). A specific type reads its own table — so the PM
+// register never scans field/installation, and vice-versa; an empty type reads
+// the `calls` union view (all types). Writes always go through `calls` (the
+// INSTEAD OF triggers route them), so this is for reads only.
+export function callTable(callType = ''): string {
+  const t = (callType || '').toUpperCase();
+  if (!t) return 'calls';
+  if (t.startsWith('INSTALL')) return 'installation_calls';
+  if (t.replace(/\s/g, '').startsWith('PM')) return 'pm_calls';
+  return 'field_calls';
 }
 
 // ---- call requests (Request Registration) ----------------------------------
