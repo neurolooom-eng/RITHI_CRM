@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.37',
+    date: '2026-08-31',
+    title: 'MRN: Good + Defective together cannot exceed what you hold',
+    changes: [
+      'On a Material Return, the Good and Defective boxes were capped separately, so a spare you hold 2 of could be entered as 6 good and 4 defective. They are two halves of one returned quantity: each box is now capped at what is left of that spare once the other box (and any other line on the same MRN) is counted, and a quantity typed over the cap is pulled back with a note saying how many are in hand.',
+    ],
+  },
+  {
     version: '0.8.36',
     date: '2026-08-31',
     title: 'Material Returns (MRN) — send a spare back to Stores',

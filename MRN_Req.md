@@ -76,7 +76,11 @@ and the quantity are bound to that engineer's hand stock:
 
 - the spare picker lists **only** the spares with a positive level for the
   chosen engineer, each labelled with how many are in hand;
-- the Good and Defective boxes are capped at that level;
+- the Good and Defective boxes are capped at that level, **together**: they
+  are two halves of one returned quantity, so each box's cap is what is left
+  once the other box on the same line is counted;
+- a quantity typed past the cap is pulled back to it, with a note saying how
+  many are in hand — a number input's `max` does not stop anyone typing;
 - the cap is **per spare across the whole MRN**, so two lines for the same
   spare cannot together exceed it;
 - with nothing in hand, the form says so and refuses to submit.

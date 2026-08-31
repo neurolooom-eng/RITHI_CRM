@@ -243,6 +243,7 @@ function MrnDetail({ rows }: { rows: Row[] }) {
 // to what is left of it once the lines already on this note are counted.
 // ---------------------------------------------------------------------------
 interface Pick extends MrnLineInput { }
+type QtyField = 'good_qty' | 'defective_qty';
 
 function MrnDrawer({
   open, defaultEngineer, onClose, onSaved,
@@ -300,8 +301,30 @@ function MrnDrawer({
   const remainingOf = (part: string, exceptIndex: number) =>
     heldOf(part) - picks.reduce((n, p, i) => (i === exceptIndex || p.part !== part ? n : n + p.good_qty + p.defective_qty), 0);
 
+  // The cap for ONE box. Good and Defective are two halves of a single
+  // returned quantity, so a spare held twice cannot go back as 6 good AND 4
+  // defective: each box is capped at what is left for this line once the
+  // other box on the same line is counted.
+  const capFor = (i: number, field: QtyField) => {
+    const p = picks[i];
+    if (!p?.part) return 0;
+    return Math.max(0, remainingOf(p.part, i) - (field === 'good_qty' ? p.defective_qty : p.good_qty));
+  };
+
   const setPick = (i: number, patch: Partial<Pick>) =>
     setPicks((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+
+  // A number input's `max` does not stop anyone typing past it, so the typed
+  // value is clamped here and the reason is said out loud — silently rewriting
+  // a 6 to a 2 looks like a bug.
+  const setQty = (i: number, field: QtyField, raw: string) => {
+    const typed = Math.max(0, Math.floor(Number(raw) || 0));
+    const cap = capFor(i, field);
+    setPick(i, { [field]: Math.min(typed, cap) } as Partial<Pick>);
+    setErr(typed > cap
+      ? `${(picks[i]?.part ?? '').split('|')[0] || 'That spare'}: only ${heldOf(picks[i]?.part ?? '')} in hand, so at most ${cap} more here.`
+      : '');
+  };
   const addRow = () => setPicks((ps) => [...ps, { part: '', good_qty: 1, defective_qty: 0 }]);
   const removeRow = (i: number) => setPicks((ps) => (ps.length > 1 ? ps.filter((_, j) => j !== i) : ps));
 
@@ -382,7 +405,6 @@ function MrnDrawer({
           )}
 
           {!nothingInHand && picks.map((p, i) => {
-            const left = p.part ? remainingOf(p.part, i) : 0;
             const taken = new Set(picks.filter((_, j) => j !== i).map((x) => x.part).filter(Boolean));
             return (
               <div key={i} className="mrn-row">
@@ -397,17 +419,17 @@ function MrnDrawer({
                 <label className="mrn-qty">
                   <span className="field-label">Good</span>
                   <input
-                    className="input" type="number" min={0} max={Math.max(0, left + p.good_qty)} step={1}
+                    className="input" type="number" min={0} max={p.good_qty + capFor(i, 'good_qty')} step={1}
                     value={p.good_qty} disabled={!p.part}
-                    onChange={(e) => setPick(i, { good_qty: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+                    onChange={(e) => setQty(i, 'good_qty', e.target.value)}
                   />
                 </label>
                 <label className="mrn-qty">
                   <span className="field-label">Defective</span>
                   <input
-                    className="input" type="number" min={0} max={Math.max(0, left + p.defective_qty)} step={1}
+                    className="input" type="number" min={0} max={p.defective_qty + capFor(i, 'defective_qty')} step={1}
                     value={p.defective_qty} disabled={!p.part}
-                    onChange={(e) => setPick(i, { defective_qty: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+                    onChange={(e) => setQty(i, 'defective_qty', e.target.value)}
                   />
                 </label>
                 <span className="muted mrn-held">{p.part ? `of ${heldOf(p.part)} in hand` : ''}</span>
