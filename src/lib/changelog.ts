@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.35',
+    date: '2026-08-31',
+    title: 'Spare consumption & hand stock scoped to you and your team',
+    changes: [
+      'Engineers no longer see a peer’s spare consumption or hand stock — the database now scopes those to what you raised, what is for you, and your reporting team. Admins, the office/coordination roles (Hotline, NSM, Commercial, Spare Coordinator, Stores, Tally) and “Permissions + Data” users still see everything. Spare Requests were already scoped this way.',
+      'Needs a database script run once (fix_spare_scope.sql) to take effect.',
+    ],
+  },
+  {
     version: '0.8.34',
     date: '2026-08-31',
     title: 'Wrap-text toggle on every table; Reports shows every field',
