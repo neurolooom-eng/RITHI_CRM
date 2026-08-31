@@ -28,6 +28,7 @@ import { Declaration } from './modules/Declaration';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SpareConsumption } from './modules/SpareConsumption';
 import { HandStock } from './modules/HandStock';
+import { MaterialReturns } from './modules/MaterialReturns';
 import { StockTransfer } from './modules/StockTransfer';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
@@ -118,6 +119,7 @@ function Shell() {
         <Route path="/spare-dispatch" element={<SpareDispatch />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
+        <Route path="/mrn" element={<MaterialReturns />} />
         <Route path="/stock-transfer" element={<StockTransfer />} />
         <Route path="/feedback" element={<CustomerFeedback />} />
         <Route path="/failure-report" element={<FieldFailureReport />} />

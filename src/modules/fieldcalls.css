@@ -310,3 +310,17 @@
 /* Consumption lines stay editable until the report is saved. */
 .rep-spare-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rep-spare-row .spare-qty { width: 90px; }
+
+/* MRN — one returned spare per row: the spare, its good/defective counts, and
+   what the engineer is holding of it. Wraps on a phone rather than squeezing
+   the two number boxes down to nothing. */
+.mrn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+.mrn-row .mrn-part { flex: 1 1 260px; min-width: 0; }
+.mrn-row .mrn-qty { flex: 0 0 90px; display: flex; flex-direction: column; gap: 2px; }
+.mrn-row .mrn-qty .input { width: 100%; }
+.mrn-row .mrn-held { flex: 0 0 auto; font-size: 12px; padding-bottom: 8px; }
+@media (max-width: 560px) {
+  .mrn-row .mrn-part { flex: 1 1 100%; }
+  .mrn-row .mrn-qty { flex: 1 1 calc(50% - 4px); }
+  .mrn-row .mrn-held { flex: 1 1 100%; padding-bottom: 0; }
+}

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.35',
+    version: '0.8.37',
     date: '2026-08-31',
     title: 'Warranty and Contract registers, live — with the entry as the parent record',
     changes: [
@@ -24,6 +24,27 @@ export const CHANGELOG: ChangeEntry[] = [
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
       'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
       'Both tabs work like the Field Call Register: opens from cache with a “synced X ago” stamp, ↻ Refresh, Load more, and Export CSV.',
+    ],
+  },
+  {
+    version: '0.8.36',
+    date: '2026-08-31',
+    title: 'Material Returns (MRN) — send a spare back to Stores',
+    changes: [
+      'New Material Returns module: raise an MRN for the spares an engineer is sending back to Stores, in Good and/or Defective condition, with the customer, report number and what it was removed from.',
+      'You can only return what you are actually carrying — the spare list is your own hand stock and the quantity is capped at what you hold, across all the lines on one MRN.',
+      'A return takes the spare off your Hand Stock: the stock level now reads Stock Out − Consumption − Transfer From + Transfer To − Returned, with a Returned column, a Returned total and the return listed in the movement trail against its MRN number.',
+      'Each MRN gets its own number (MRN-YYMM-0001, restarting each month); the register lists every returned item, filters by engineer, exports to CSV, and opens a submission to show all of its lines.',
+      'The old MRN sheet can be uploaded from Data Import — the register tab loads as one row per returned item.',
+    ],
+  },
+  {
+    version: '0.8.35',
+    date: '2026-08-31',
+    title: 'Spare consumption & hand stock scoped to you and your team',
+    changes: [
+      'Engineers no longer see a peer’s spare consumption or hand stock — the database now scopes those to what you raised, what is for you, and your reporting team. Admins, the office/coordination roles (Hotline, NSM, Commercial, Spare Coordinator, Stores, Tally) and “Permissions + Data” users still see everything. Spare Requests were already scoped this way.',
+      'Needs a database script run once (fix_spare_scope.sql) to take effect.',
     ],
   },
   {

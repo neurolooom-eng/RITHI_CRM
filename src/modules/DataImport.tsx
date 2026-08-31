@@ -5,7 +5,8 @@ import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
-const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports', 'user_directory',
+const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports',
+  'user_directory', 'material_returns',
   'sale_entries', 'sale_items', 'contract_entries', 'contract_items'];
 
 // The sale / contract exports. After loading them the copied-down header values
@@ -54,7 +55,16 @@ export function DataImport() {
         const raw = parseCSV(text);
         const table = detectTable(Object.keys(raw[0] ?? {}));
         const rows = table ? shapeRows(table, raw) : [];
-        next.push({ name: f.name, table, total: rows.length, done: 0, status: table ? 'ready' : 'error', error: table ? undefined : 'Unrecognised columns', rows });
+        // A recognised file with nothing to insert is worth saying out loud —
+        // the MRN export's form-data tab is all submission headers and no
+        // returned items, so only its register tab carries rows.
+        const empty = !!table && rows.length === 0;
+        const why = !table ? 'Unrecognised columns'
+          : empty && table === 'material_returns'
+            ? 'No returned items in this file — this is the MRN form-data tab (one row per submission). Import the MRN register tab instead.'
+            : empty ? 'Recognised as ' + table + ', but no usable rows.'
+            : undefined;
+        next.push({ name: f.name, table, total: rows.length, done: 0, status: table && !empty ? 'ready' : 'error', error: why, rows });
       } catch (e) {
         next.push({ name: f.name, table: null, total: 0, done: 0, status: 'error', error: e instanceof Error ? e.message : String(e) });
       }
