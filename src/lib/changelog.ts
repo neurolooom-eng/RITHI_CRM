@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.33',
+    date: '2026-08-31',
+    title: 'Honest module counts',
+    changes: [
+      'Module counts never show a wrong number: on screens that load in pages (Field/Installation/PM calls, Reports, Customer Feedback), when more rows exist beyond what is loaded the count reads “1,000+” rather than a misleading exact figure. Screens that load everything still show the exact total.',
+    ],
+  },
+  {
     version: '0.8.32',
     date: '2026-08-31',
     title: 'Pending Calls & Reports load at scale',
