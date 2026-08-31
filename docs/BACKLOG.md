@@ -696,6 +696,32 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 
 ---
 
+## 🩺 Daily Call Review (DCCR) — shipped 2026-08-31
+
+- The module is live: three review stages, the derived Any Potential Effect /
+  Action Taken / Review Status, the two per-product masters, and the export in
+  the register's own 38-column format.
+- **PENDING — SQL to run on the live project.** Run `supabase/apply/_status.sql`
+  first; it now reports `daily_review (DCCR)` and `daily_review: values`. If
+  either says NO, run **`supabase/apply/daily_review.sql`** (0044 + 0045). Until
+  it is applied the module reads nothing — `field_call_review` does not exist.
+- The seed carries the register's own master values (707 groupings, 657 root
+  cause key words, tagged MONNAL T60 / MONNAL T75 / COMM). Source CSVs are kept
+  in `migration-data/dccr/` so the seed can be regenerated.
+- `review.edit` is granted by the migration to admin, hotline, nsm, rgm, rm and
+  commercial. Confirm the matrix in Roles & Permissions matches what the team
+  wants — nobody else can complete a review, though everyone who can open the
+  module reads it.
+- Historic reviews are **not** imported. The register's own 3,850 reviewed calls
+  for 2026 still live in the workbook; if they should be carried over, that is a
+  one-off load into `call_reviews` keyed by UCN (the DCCR export format is the
+  same shape, so it maps column for column).
+- Review 1 is answered on the Call Registration form. A call registered before
+  those three questions were mandatory reads as **Review 1 Pending** — it is
+  completed by editing the call, not from this module.
+
+---
+
 ## 🔧 Operational notes / blockers
 
 - **Redeploy CallReg** after backend changes, re-authorising the Drive scope,

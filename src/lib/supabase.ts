@@ -693,6 +693,41 @@ export async function latestReport(ucn: string): Promise<Record<string, unknown>
   return data ?? null;
 }
 
+// ---- daily call review (DCCR) ----------------------------------------------
+// `field_call_review` (0044) is one row per FIELD call with its three review
+// stages, what they derive (Any Potential Effect, Action Taken) and which stage
+// is outstanding. Reads are RLS-scoped exactly as the register itself is.
+export async function listCallReviews(limit = 20000): Promise<Record<string, unknown>[]> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await must()
+      .from('field_call_review')
+      .select('*')
+      .order('reg_date', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false })
+      .range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+// One call's review, upserted: the row is created the first time a stage is
+// answered. The dates, Any Potential Effect and Action Taken are the database's
+// to set (call_review_stamp), so only the answers are sent.
+export async function saveCallReview(
+  ucn: string,
+  callNumber: string,
+  patch: Record<string, unknown>,
+): Promise<{ ok: boolean; error?: string }> {
+  const row = { ucn, call_number: callNumber ?? '', ...patch };
+  const { error } = await must().from('call_reviews').upsert(row, { onConflict: 'ucn' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- masters (dropdown value-lists) ----------------------------------------
 // App master keys map to different sources: party -> parties, spare -> parts,
 // product -> products, complaint -> the 'standardComplaint' list; the rest are
@@ -755,6 +790,24 @@ export async function listMasterItems(key: string, limit = 5000): Promise<Master
     extra: (r.extra ?? {}) as Record<string, string>,
     added_on: (r.added_on as string) ?? null, added_by: String(r.added_by ?? ''),
   }));
+}
+
+// The values of a PER-PRODUCT master (DCCR Complaint Grouping, Root Cause Key
+// Word) for one product: what is tagged with that product, plus everything
+// tagged COMM — common to every product. Sorted, de-duplicated.
+export async function listMasterValuesForProduct(key: string, product: string, limit = 5000): Promise<string[]> {
+  const items = await listMasterItems(key, limit);
+  const want = String(product ?? '').trim().toUpperCase();
+  const seen = new Set<string>();
+  return items
+    .filter((i) => {
+      const p = String(i.extra?.product ?? '').trim().toUpperCase();
+      if (!p || p === 'COMM') return true;      // untagged / common to every product
+      return want !== '' && p === want;
+    })
+    .map((i) => i.value)
+    .filter((v) => v && !seen.has(v) && seen.add(v))
+    .sort((a, b) => a.localeCompare(b));
 }
 
 export async function addMasterItem(key: string, value: string, extra: Record<string, string> = {}, addedBy = ''): Promise<{ ok: boolean; error?: string }> {
