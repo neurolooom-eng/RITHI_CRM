@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.53',
+    date: '2026-08-31',
+    title: 'The review now finds the visits and the spares',
+    changes: [
+      'A call could show its visits and consumed spares on the Field Call view and yet read “no visit reported yet” and “no spare booked against this call” in its Daily Review. The review was looking them up by UC Number, but a visit and a consumption belong to a call by its Call Number — the same association the Field Call view’s own panels use. Both are now matched by Call Number (or the UCN, for a call that has no Call Number), so what the reviewer sees is what the call actually has.',
+      'The Software Version and the Visit Details on the review come from those same rows, so they were blank for the same reason and are now filled.',
+      'And if the database has not had the review script run against it yet, the review says so plainly instead of showing every call as though nobody had ever attended it.',
+      'Needs a database script run once (daily_review.sql).',
+    ],
+  },
+  {
     version: '0.8.52',
     date: '2026-08-31',
     title: 'The daily review shows the report — and the register opens straight away',

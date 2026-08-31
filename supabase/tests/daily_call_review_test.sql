@@ -125,3 +125,32 @@ select d as days, public.failure_age_group(d) as grouping
 
 \echo '--- 16. The summary view answers the stage counters without the report lookups ---'
 select review_status, count(*) from public.field_call_review_summary group by 1 order by 1;
+
+-- ===========================================================================
+-- 0048 — the visits and spares are matched by CALL NUMBER, not UCN alone.
+-- ===========================================================================
+\echo '--- 17. Visits and consumption keyed by Call Number (no ucn on the row) still map ---'
+insert into public.field_calls (ucn, call_number, reg_date, complaint_date, call_type, party_name,
+                                product_name, serial, warranty_start, public_health_threat, death, serious_incident)
+values ('26H30F0009','R20007-EXTEND-XT-2166','2026-08-30','2026-08-30','FIELD','AIIMS',
+        'EXTEND-XT','2166','2018-10-20','NO','NO','NO');
+insert into public.reports (uid, ucn, call_number, call_status, engineer, visit_at, updated_at, data) values
+  ('CN-1','','R20007-EXTEND-XT-2166','Unsolved','Rithi Admin','2026-08-31','2026-08-31 09:00'::timestamptz,'{}'::jsonb),
+  ('CN-2','','R20007-EXTEND-XT-2166','Solved - Report Completed','Rithi Admin','2026-08-31','2026-08-31 11:00'::timestamptz,
+   jsonb_build_object('Job Done','test','Software Version','2.4.7'));
+insert into public.spare_consumption (ucn, call_number, part, qty, engineer)
+values ('','R20007-EXTEND-XT-2166','EBD-004|HEATER BLOCK BOARD-ORION',1,'Rithi Admin');
+
+\echo 'expect: 2 visits, sw 2.4.7 from the latest, 1 spare — none of it keyed by ucn'
+select visit_count, sw_version, spares_count, spares_consumed
+  from public.field_call_review where ucn = '26H30F0009';
+
+\echo '--- 18. A call with a BLANK call number still maps by its own UCN ---'
+insert into public.field_calls (ucn, call_number, reg_date, call_type, party_name, product_name, serial,
+                                public_health_threat, death, serious_incident)
+values ('26H30F0010','','2026-08-30','FIELD','AIIMS','EXTEND-XT','2167','NO','NO','NO');
+insert into public.reports (uid, ucn, call_number, call_status, engineer, visit_at, updated_at, data)
+values ('UC-1','26H30F0010','','Solved - Report Completed','Rithi Admin','2026-08-31','2026-08-31 12:00'::timestamptz,
+        jsonb_build_object('Job Done','by ucn only'));
+\echo 'expect: 1 visit — and the blank call number must NOT sweep in the other blank-keyed rows'
+select visit_count, visit_details from public.field_call_review where ucn = '26H30F0010';

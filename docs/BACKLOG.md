@@ -727,6 +727,17 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   the last page landed (which is what "it is hanging" was). With
   `field_calls_reg_date_idx` a page is ~0.25 s. If the register ever feels slow
   again, check that index exists before anything else.
+- **Visits and consumption map to a call by CALL NUMBER**, not UCN (0048). The
+  Field Call view's own panels do the same (`reportsByCall` /
+  `spareConsumptionByCall` both filter on `call_number`), and rows from the
+  register may carry no UCN at all. The view matches on either key, with blank
+  keys excluded so an empty `call_number` cannot sweep in every other blank one.
+  Anything else that joins reports or consumption to a call should follow suit.
+- `supabase/tests/_stub.sql` now sets Supabase's own default privileges
+  (`authenticated`/`anon` get blanket DML on `public`, RLS being the gate).
+  Without it a suite that runs `set local role authenticated` fails on
+  "permission denied for table reports" — an artefact of the harness that says
+  nothing about the policy under test.
 - The stage counters read `field_call_review_summary` — the same register
   WITHOUT the report lookups — so counting a year of calls is ~25 ms rather
   than ~3 s. Keep new filterable columns on both views.
