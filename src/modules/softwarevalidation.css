@@ -1,0 +1,58 @@
+/* Software Validation package — uses app theme tokens; print-friendly. */
+.sv { color: var(--text); }
+.sv-doc-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px 14px; margin: 4px 0 14px; font-size: 13px;
+}
+.sv-status { font-size: 11.5px; font-weight: 700; color: #b0710b; background: color-mix(in srgb, #C77A0A 16%, var(--surface)); border-radius: 999px; padding: 3px 10px; }
+
+.sv-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.sv-tab {
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 6px 13px;
+}
+.sv-tab:hover { border-color: var(--primary); }
+.sv-tab.on { background: var(--primary); border-color: var(--primary); color: var(--text-inverse, #fff); }
+
+.sv-sec { margin-bottom: 22px; }
+.sv-h3 { font-size: 16px; margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--primary); display: inline-block; }
+.sv-p { font-size: 14px; line-height: 1.6; margin: 8px 0; max-width: 92ch; }
+.sv-note { font-size: 13px; color: var(--text-muted); font-style: italic; margin: 6px 0 12px; max-width: 92ch; }
+.sv-list { font-size: 14px; line-height: 1.6; margin: 6px 0; padding-left: 22px; }
+.sv-list li { margin: 3px 0; }
+
+.sv-scroll { overflow-x: auto; }
+.sv-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.sv-table.sv-wide { min-width: 900px; }
+.sv-table th { text-align: left; padding: 7px 10px; border-bottom: 2px solid var(--primary); font-size: 12px; vertical-align: bottom; }
+.sv-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: top; line-height: 1.5; }
+.sv-kv td:first-child { color: var(--text-muted); width: 150px; font-weight: 600; }
+.sv-kv td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 13.5px; }
+.sv-id { font-family: ui-monospace, Menlo, monospace; font-size: 12px; white-space: nowrap; font-weight: 600; }
+.sv-ref { font-size: 11.5px; color: var(--text-muted); }
+.sv-gap { color: #c33a2b; }
+.sv-blank { min-width: 90px; background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--surface-alt) 6px, var(--surface-alt) 7px); }
+.sv-blank-inline { display: inline-block; min-width: 120px; border-bottom: 1px dashed var(--border); }
+.sv-blank-inline.sm { min-width: 60px; }
+
+.sv-risk { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 9px; white-space: nowrap; }
+.sv-risk-high { color: #c33a2b; background: color-mix(in srgb, #c33a2b 15%, var(--surface)); }
+.sv-risk-medium { color: #b0710b; background: color-mix(in srgb, #C77A0A 16%, var(--surface)); }
+.sv-risk-low { color: #1e9d57; background: color-mix(in srgb, #1e9d57 15%, var(--surface)); }
+
+.sv-test { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
+.sv-test-head { font-size: 13.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sv-steps { font-size: 13px; line-height: 1.55; margin: 4px 0; padding-left: 22px; }
+.sv-exp { font-size: 13px; background: var(--surface-alt); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.sv-result { display: flex; flex-wrap: wrap; gap: 18px; font-size: 12.5px; color: var(--text-muted); margin-top: 6px; }
+
+@media print {
+  .no-print, .app-header, .sidebar, .app-footer { display: none !important; }
+  .sv-tab { display: none; }
+  .sv-sec, .sv-test { break-inside: avoid; }
+  .sv { color: #000; }
+  /* Print every tab is not possible from state; the user prints the open tab.
+     Tables and tests avoid page breaks mid-row. */
+}

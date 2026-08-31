@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.51',
+    date: '2026-08-31',
+    title: 'Software Validation package (Admin)',
+    changes: [
+      'New Admin → Software Validation page: the computer-system validation package for the software as used in the medical-device QMS — validation plan, a compliance checklist mapped to FDA CSA, ISO/TR 80002-2, GAMP 5 and 21 CFR Part 11, User and System Requirements, Architecture and Detailed Design, a risk assessment, an IQ/OQ/PQ test protocol and a requirements traceability matrix. Print the open tab or the full package.',
+      'It is a DRAFT for QA to review, approve and execute — it does not itself assert a validated state.',
+    ],
+  },
+  {
     version: '0.8.50',
     date: '2026-08-31',
     title: 'Notification bell',

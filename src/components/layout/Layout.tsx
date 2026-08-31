@@ -86,6 +86,7 @@ export const NAV: NavGroup[] = [
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
+      { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
       { to: '/version-history', label: 'Version History', icon: '🗂️' },
     ],
