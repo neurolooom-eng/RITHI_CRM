@@ -9,6 +9,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
+import { useAccessScope, previewScoped } from '../lib/access';
 import {
   balanceTone, byEngineer, movementTone, num, partDescription, summarise,
   type HandstockBalance, type HandstockMovement, type MovementKind,
@@ -81,12 +82,21 @@ const stockBadge = (onHand: number) => (
 );
 
 export function HandStock() {
-  const { can } = useAuth();
+  const { can, viewAs } = useAuth();
+  const scope = useAccessScope();
   const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
   const [tab, setTab] = useState<Tab>('levels');
-  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
+  // The raw rows as fetched — cached and refreshed as before.
+  const [allRows, setAllRows] = useState<Row[]>(cached?.rows ?? []);
+  // What this screen shows. RLS already scoped a real session; this only
+  // narrows the list while an administrator previews as someone else, whose
+  // identity the database never sees. See previewScoped() in lib/access.
+  const rows = useMemo(
+    () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email),
+    [allRows, viewAs, scope],
+  );
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [holding, setHolding] = useState<Holding>('held');
@@ -102,7 +112,7 @@ export function HandStock() {
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
     try {
       const mapped = (await listHandstockBalance()).map(asRow);
-      setRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+      setAllRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
       setMsg({ tone: 'ok', text: `Synced ${mapped.length} engineer/spare line${mapped.length === 1 ? '' : 's'}.` });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
@@ -251,7 +261,13 @@ function Movements({
   engineers: { engineer_key: string; engineer: string }[];
   onMigrationError: () => void;
 }) {
-  const [moves, setMoves] = useState<MoveRow[]>([]);
+  const [allMoves, setAllMoves] = useState<MoveRow[]>([]);
+  const { viewAs } = useAuth();
+  const scope = useAccessScope();
+  const moves = useMemo(
+    () => previewScoped(allMoves, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email),
+    [allMoves, viewAs, scope],
+  );
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [kind, setKind] = useState<MovementKind | ''>('');
@@ -269,12 +285,12 @@ function Movements({
     setBusy(true); setErr('');
     try {
       const page = await fetchPage(0, engineerKey);
-      setMoves(page); setOffset(page.length); setMore(page.length === PAGE);
+      setAllMoves(page); setOffset(page.length); setMore(page.length === PAGE);
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
       if (/handstock|does not exist|schema cache/i.test(text)) onMigrationError();
       else setErr(text);
-      setMoves([]); setMore(false);
+      setAllMoves([]); setMore(false);
     } finally { setBusy(false); }
   };
   useEffect(() => { void load(engineerFilter); /* eslint-disable-next-line */ }, [engineerFilter]);
@@ -283,7 +299,7 @@ function Movements({
     setBusy(true);
     try {
       const page = await fetchPage(offset, engineerFilter);
-      setMoves((m) => [...m, ...page]); setOffset(offset + page.length); setMore(page.length === PAGE);
+      setAllMoves((m) => [...m, ...page]); setOffset(offset + page.length); setMore(page.length === PAGE);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
   };
 

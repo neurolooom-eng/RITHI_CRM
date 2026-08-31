@@ -57,6 +57,7 @@ export const NAV: NavGroup[] = [
       { to: '/pm-calls', label: 'Preventive (PM)', icon: '🗓️' },
       { to: '/pending-calls', label: 'Pending Calls', icon: '🔥' },
       { to: '/reports', label: 'Reports', icon: '🗒️' },
+      { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
     ],
   },
   {
@@ -103,7 +104,7 @@ function ModuleSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () => NAV.flatMap((g) => g.items.filter((it) => it.alwaysOpen || ((!it.adminOnly || can('manage-users')) && can(actionForPath(it.to)))).map((it) => ({ ...it, group: g.title }))),
+    () => NAV.flatMap((g) => g.items.filter((it) => it.alwaysOpen || (it.adminOnly ? can('manage-users') : can(actionForPath(it.to)))).map((it) => ({ ...it, group: g.title }))),
     [can],
   );
   const results = q.trim()
@@ -253,7 +254,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           )}
           {NAV.map((group) => {
-            const items = group.items.filter((i) => i.alwaysOpen || ((!i.adminOnly || can('manage-users')) && can(actionForPath(i.to))));
+            const items = group.items.filter((i) => i.alwaysOpen || (i.adminOnly ? can('manage-users') : can(actionForPath(i.to))));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
             return (

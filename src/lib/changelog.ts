@@ -12,13 +12,45 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.45',
+    version: '0.8.48',
     date: '2026-08-31',
     title: 'The database scripts can be re-run without failing',
     changes: [
       'Re-running HandStock_X.sql or the consolidated all.sql on a project that already had Material Returns failed with “cannot drop columns from view”. The hand-stock views are now rebuilt rather than replaced, so either file can be run again safely whatever has already been applied.',
       'The consolidated all.sql also failed part-way on a fresh project (“column engineer_email does not exist”) because the consumption-visibility rule was applied before the column it reads was added. It no longer depends on that ordering.',
       'And once the call tables were split, re-running it failed again at “cannot create index on relation calls” — public.calls is a view now, so the older table-only steps are skipped on a project that has already been split.',
+    ],
+  },
+  {
+    version: '0.8.47',
+    date: '2026-08-31',
+    title: 'Installations are created by Commercial',
+    changes: [
+      'Creating an Installation call is now restricted to the Commercial team (plus the Hotline registration desk and admins), since installations are triggered by Commercial who are notified first. Everyone else can still see and report installations, just not create one — the “+ New Installation” button only shows for those who may.',
+      'This is enforced by the database too, not just the button, so it holds however a call is created.',
+      'Needs a database script run once (gate_installation_create.sql).',
+    ],
+  },
+  {
+    version: '0.8.46',
+    date: '2026-08-31',
+    title: 'PM Bulk Upload — the monthly batch in one file',
+    changes: [
+      'New PM Bulk Upload (Service Calls menu, Admin / Super-Admin only): upload the monthly Preventive Maintenance spreadsheet and every row is created as a PM call, with its UCN and Call Number assigned automatically. They land straight in the Preventive (PM) register.',
+      'Columns are matched by common names (Party, Product, Serial, Engineer, PM Due Date, and more); anything extra on the sheet is kept on the call. Download the built-in template to see the expected layout, preview what will be created, then import with a progress bar.',
+    ],
+  },
+  {
+    version: '0.8.45',
+    date: '2026-08-31',
+    title: 'Hand Stock, Stock Transfer and Material Returns follow your team',
+    changes: [
+      'The same rule as Spare Requests now applies across the stock screens: a manager sees their own and their reporting engineers\u2019 hand stock, transfers and returns \u2014 and nobody else\u2019s.',
+      'Stock levels were the gap: the figures behind Stock Transfer were read in a way that ignored access rules altogether, so anyone signed in could see every engineer\u2019s stock. They are now scoped like everything else.',
+      'Stock transfers are visible to Stores, Commercial, NSM and the other desks again \u2014 they move stock for every team, and had been shut out.',
+      'The check that stops a transfer overdrawing still counts every movement, so nobody can transfer stock they do not have by virtue of not being able to see it.',
+      '\u201cView as\u201d on these three screens now shows what that person would really see, instead of the administrator\u2019s own stock wearing their name.',
+      'Needs migration 0041_stock_read_scope.sql (apply bundle: HandStock_X.sql).',
     ],
   },
   {

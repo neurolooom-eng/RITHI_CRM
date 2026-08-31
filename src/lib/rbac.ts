@@ -71,6 +71,7 @@ export interface ActionDef { key: string; label: string; group: string }
 const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.view', label: 'View calls' },
   { group: 'Calls', key: 'calls.create', label: 'Create / register calls' },
+  { group: 'Calls', key: 'install.create', label: 'Create installation calls (Commercial)' },
   { group: 'Calls', key: 'calls.edit', label: 'Edit calls' },
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
@@ -128,11 +129,11 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['calls.view', 'calls.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'masters.view', 'dashboard.view'],
+  hotline: ['calls.view', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'masters.view', 'dashboard.view'],
   spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit'],
+  commercial: ['calls.view', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit'],
 };
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)

@@ -37,6 +37,7 @@
 --   0032_call_state_by_entry.sql
 --   0040_call_tables_split.sql
 --   0041_call_split_hardening.sql
+--   0043_installation_create_gate.sql
 --   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -60,6 +61,7 @@
 --   0023_handstock.sql
 --   0038_spare_consumption_scope.sql
 --   0039_material_returns.sql
+--   0041_stock_read_scope.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0042_knowledge_base.sql
@@ -3130,6 +3132,48 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0043_installation_create_gate.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Creating an INSTALLATION call is Commercial's job (they're notified first),
+-- with the Hotline desk that registers calls, and admins. Everyone else may
+-- still see and report installations, but not create one.
+--
+-- Enforced on installation_calls only: field_calls / pm_calls keep calls.create.
+-- The calls view routes an installation insert into installation_calls, so this
+-- governs the view too.
+-- ===========================================================================
+
+do $$ begin
+  if to_regclass('public.installation_calls') is null then
+    raise notice 'calls not split yet (0040) — run split_call_tables.sql first';
+    return;
+  end if;
+  drop policy if exists calls_insert on public.installation_calls;
+  create policy calls_insert on public.installation_calls for insert
+    with check (public.has_perm('install.create'));
+end $$;
+
+-- Grant install.create to the roles that create installations (idempotent).
+do $$
+declare r text;
+begin
+  foreach r in array array['admin', 'commercial', 'hotline'] loop
+    update public.app_roles
+       set permissions = (
+             select jsonb_agg(distinct p)
+               from (
+                 select jsonb_array_elements_text(coalesce(permissions, '[]'::jsonb)) as p
+                 union select 'install.create'
+               ) u
+           ),
+           updated_at = now()
+     where role = r;
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0010_reports_ordering.sql
 -- ------------------------------------------------------------------------
 
@@ -5943,6 +5987,55 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/handstock'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/mrn';
+
+-- ------------------------------------------------------------------------
+-- 0041_stock_read_scope.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Hand Stock, Stock Transfer and Material Returns follow the same rule as
+-- Spare Requests: your own, and your reporting engineers' — nothing else.
+--
+-- After 0040 scoped the spare register, two gaps were left on the stock side.
+--
+-- 1. `engineer_stock` was NOT security_invoker, so it ran with the view
+--    owner's rights and bypassed row-level security altogether. The Stock
+--    Transfer screen reads it through listAllStock() — "every engineer's
+--    holding" — so any signed-in user could see every engineer's stock levels,
+--    whatever the policies on the tables underneath said.
+--
+--    0023 deliberately left it definer-rights because engineer_stock_available()
+--    reads it. That still works: engineer_stock_available() is SECURITY
+--    DEFINER, so inside it the current user is the view's owner, who is not
+--    subject to RLS — the overdraw guard keeps seeing every movement, which is
+--    exactly what a correctness check needs, while the SCREEN sees only what
+--    the person may see.
+--
+-- 2. `st_read` on stock_transfers was scoped to the reporting tree but tested
+--    is_admin() alone, so the office desks — Commercial, NSM, Stores, Hotline,
+--    Spare Coordinator, Tally — could not see transfers at all. Everywhere
+--    else that is can_view_all_calls(); this brings transfers into line.
+--
+-- Hand Stock itself needs no change: handstock_balance and handstock_movements
+-- are already security_invoker, so they inherit from spare_request_lines (via
+-- spare_requests, 0040), spare_consumption (0038) and stock_transfers (below).
+-- Material Returns needs none either: mr_read already reads this way.
+-- ===========================================================================
+
+-- 1. The derived stock level now answers as the person asking.
+alter view public.engineer_stock set (security_invoker = on);
+
+-- 2. Transfers: the desks that move stock for every team can see them.
+drop policy if exists st_read on public.stock_transfers;
+create policy st_read on public.stock_transfers for select
+  using (
+    (select public.can_view_all_calls())          -- admin + office desks + data.view_all
+    or created_by = (select auth.uid())
+    or lower(btrim(from_engineer)) in (
+         select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+    or lower(btrim(to_engineer)) in (
+         select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+  );
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql

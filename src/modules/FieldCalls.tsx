@@ -291,6 +291,7 @@ export interface CallSheetConfig {
   collection: string;   // cache collection name
   storageKey: string;   // table layout key
   csvName: string;
+  createPerm?: string;  // permission to create one (default calls.create)
 }
 
 export const FIELD_CONFIG: CallSheetConfig = {
@@ -315,6 +316,7 @@ export const INST_CONFIG: CallSheetConfig = {
   collection: C.instCalls,
   storageKey: 'instCalls',
   csvName: 'installation-calls.csv',
+  createPerm: 'install.create',   // installations are created by Commercial (+ admin)
 };
 
 export const PM_CONFIG: CallSheetConfig = {
@@ -696,7 +698,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         count={visibleRows.length}
         countMore={moreAvailable}
         actions={
-          can('calls.create') && (
+          can(config.createPerm ?? 'calls.create') && (
             <button
               className="btn btn-primary"
               onClick={() => { setPrefill(undefined); setPrefillKey((k) => k + 1); setPendingRow(null); setDrawer({ mode: 'create' }); }}

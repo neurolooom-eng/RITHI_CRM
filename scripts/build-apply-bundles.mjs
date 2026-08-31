@@ -94,6 +94,7 @@ const MODULES = {
       '0032_call_state_by_entry.sql',
       '0040_call_tables_split.sql',
       '0041_call_split_hardening.sql',
+      '0043_installation_create_gate.sql',
     ],
   },
   knowledge_base: {
@@ -156,7 +157,8 @@ const MODULES = {
     // redefine them back without returns.
     // 0038 scopes spare_consumption, whose engineer_email column 0023 adds —
     // so it belongs here, not in rbac, which applies before this module.
-    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql'],
+    files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql',
+            '0041_stock_read_scope.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
