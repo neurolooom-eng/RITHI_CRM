@@ -4,6 +4,7 @@ import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { queryReports, supabaseConfigured, type ReportFilter } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
+import { ReportDetail } from './ReportDetail';
 
 // ===========================================================================
 // REPORTS — the visit history (one row per visit) from the Supabase `reports`
@@ -26,7 +27,14 @@ const COLUMNS: Column<Row>[] = [
   { key: '_job', header: 'Job Done', width: 320, render: (r) => j(r, 'Job Done') || j(r, 'Complaint Observation') },
 ];
 
-const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.map((p, i) => ({ ...p, id: String(p.uid ?? p.id ?? base + i) } as Row));
+// Flatten the report's `data` jsonb up to the row so every field the engineer
+// filled is available as a column (⚙ Columns) and searchable; `data` is kept
+// for the detail drawer.
+const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.map((p, i) => ({
+  ...((p.data as Record<string, unknown>) ?? {}),
+  ...p,
+  id: String(p.uid ?? p.id ?? base + i),
+} as Row));
 
 export function Reports() {
   const cached = loadCache<Row>(CACHE_KEY);
@@ -100,7 +108,20 @@ export function Reports() {
     } finally { setBusy(false); }
   };
 
-  const allFields = useMemo(() => COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), []);
+  const [detail, setDetail] = useState<Row | null>(null);
+
+  // Every report field is offered as a toggleable column (⚙), discovered from
+  // the data jsonb, on top of the default columns.
+  const allFields = useMemo(() => {
+    const base = COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
+    const seen = new Set(base.map((b) => b.key));
+    const extra: { key: string; header: string }[] = [];
+    rows.slice(0, 120).forEach((r) => {
+      const d = (r.data as Record<string, unknown>) ?? {};
+      Object.keys(d).forEach((k) => { if (k && !seen.has(k)) { seen.add(k); extra.push({ key: k, header: k }); } });
+    });
+    return [...base, ...extra];
+  }, [rows]);
 
   return (
     <div>
@@ -119,6 +140,7 @@ export function Reports() {
         storageKey="reportsView"
         rowsBeforeScroll={16}
         dense
+        onRowClick={(r) => setDetail(r)}
         onLoadMore={loadMore}
         moreAvailable={more}
         loadingMore={busy}
@@ -140,6 +162,7 @@ export function Reports() {
           </Toolbar>
         }
       />
+      {detail && <ReportDetail report={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured } from '../lib/supabase';
 import { deriveStage } from '../lib/spareflow';
+import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -106,6 +107,7 @@ export function CallAssociations({ callNumber }: { callNumber: string }) {
   const [feedback, setFeedback] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [spareDetail, setSpareDetail] = useState<Row | null>(null);
+  const [visitDetail, setVisitDetail] = useState<Row | null>(null);
 
   useEffect(() => {
     if (!callNumber || !supabaseConfigured()) return;
@@ -126,6 +128,7 @@ export function CallAssociations({ callNumber }: { callNumber: string }) {
       <MiniTable
         title="Visit history" icon="🕓" rows={visits}
         empty="No visits reported yet."
+        onRowClick={setVisitDetail}
         cols={[
           { key: 'visit_at', label: 'Visit', fmt: (r) => d(r.visit_at) },
           { key: 'call_status', label: 'Status' },
@@ -172,6 +175,8 @@ export function CallAssociations({ callNumber }: { callNumber: string }) {
           ]}
         />
       )}
+
+      {visitDetail && <ReportDetail report={visitDetail} onClose={() => setVisitDetail(null)} />}
     </div>
   );
 }

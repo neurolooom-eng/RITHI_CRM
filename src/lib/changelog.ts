@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.30',
+    date: '2026-08-31',
+    title: 'See every report field — in Reports and on a call',
+    changes: [
+      'Reports: every field you fill on a report is now available as a column (⚙ Columns to show/hide) and is searchable and exportable; clicking a report row opens a drawer with ALL of its fields.',
+      'Call view: each visit in a call\u2019s Visit history is clickable and opens the same report detail drawer.',
+    ],
+  },
+  {
     version: '0.8.29',
     date: '2026-08-31',
     title: 'Customer Feedback — one column per field',
