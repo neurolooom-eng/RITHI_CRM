@@ -72,14 +72,27 @@ export function stageAction(stage: Stage): string | null {
   }
 }
 
-// True when the signed-in user can move this request forward right now. The
-// engineer acknowledgement is additionally restricted to the raiser's own
-// requests, so an approver's queue doesn't fill with other people's receipts.
-export function actionable(r: SpareReq, can: (action: string) => boolean, email = ''): boolean {
+// True when the signed-in user can move this request forward right now.
+//
+// Two restrictions beyond the permission itself:
+//   • the engineer acknowledgement is the raiser's own, so an approver's queue
+//     doesn't fill with other people's receipts;
+//   • RM approval follows the reporting tree — a manager approves the spares of
+//     the engineers who report to them, and never their own request, which
+//     goes to THEIR manager (`mayRmApprove`, mirroring spare_rm_may_approve()
+//     in 0033_rm_approves_own_team.sql). Omitted, it does not restrict, so
+//     callers that have no reporting scope to hand behave as before.
+export function actionable(
+  r: SpareReq,
+  can: (action: string) => boolean,
+  email = '',
+  mayRmApprove?: (engineer: unknown) => boolean,
+): boolean {
   const stage = deriveStage(r);
   const action = stageAction(stage);
   if (!action || !can(action)) return false;
   if (stage === 'Dispatched') return isOwnRequest(r, email);
+  if (stage === 'RM Approval' && mayRmApprove) return mayRmApprove(r.engineer ?? r.req_engineer);
   return true;
 }
 

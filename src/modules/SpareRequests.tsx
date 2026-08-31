@@ -22,7 +22,7 @@ import {
   type CommercialAnswer, type NsmAnswer,
 } from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
-import { useAccessScope } from '../lib/access';
+import { useAccessScope, allowsAllottee } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
@@ -49,6 +49,7 @@ const REQ_TYPES = ['Call Based', 'HandStock'];
 type Row = Record<string, unknown> & { id: string };
 
 const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
 
 function statusTone(s: string): string {
   const v = s.toLowerCase();
@@ -436,7 +437,7 @@ type Pending =
   | { kind: 'receive'; row: Row; scope: Scope; lines: number };
 
 export function SpareRequests() {
-  const { user, can } = useAuth();
+  const { user, can, viewAs } = useAuth();
   const navigate = useNavigate();
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
@@ -450,6 +451,27 @@ export function SpareRequests() {
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [drawer, setDrawer] = useState(false);
+  // Who this user may give RM approval to: the engineers reporting to them,
+  // and never themselves — a manager's own request goes to THEIR manager.
+  // Mirrors spare_rm_may_approve() in 0033; the database refuses it either way,
+  // this only stops offering a button that would be rejected.
+  //
+  // `scope.reports` is the reporting sub-tree WITHOUT the user. Empty means
+  // they manage nobody: an administrator, or a coordination role (Hotline,
+  // Spare Coordinator) that holds spare.approve_rm as a backstop — those keep
+  // the wider remit, minus their own request.
+  const mayRmApprove = useMemo(() => {
+    const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+    const self = norm(scope.selfName);
+    const team = new Set(scope.reports.map(norm));
+    return (engineer: unknown) => {
+      const who = norm(engineer);
+      if (!who) return true;
+      if (self && who === self) return false;
+      return team.size ? team.has(who) : true;
+    };
+  }, [scope.selfName, scope.reports]);
+
   // The row id of the SPARE whose drawer is open. Keyed by the spare, not the
   // request: each spare has its own stage, so showing one line's status under
   // the OR number reads as the whole order's status and misleads.
@@ -500,7 +522,19 @@ export function SpareRequests() {
   // Role scope: engineer sees own; RM/RGM their team; admin all. On Supabase the
   // rows are already RLS-scoped by the directory, so no extra client filter.
   const scoped = useMemo(() => {
-    if (scope.all || onDb) return rows;
+    if (scope.all) return rows;
+    // On Supabase the rows are already scoped by RLS (0040_spare_read_scope),
+    // so no client filter is needed — EXCEPT while an admin previews as someone
+    // else. "View as" is a client-side identity: the query still runs under the
+    // admin's own session, so without this the preview shows the admin's
+    // visibility and not the previewed person's, which is the one thing the
+    // preview exists to answer.
+    if (onDb) {
+      if (!viewAs) return rows;
+      return rows.filter((r) =>
+        allowsAllottee(scope, g(r, 'engineer') || g(r, 'req_engineer'))
+        || g(r, 'engineer_email').toLowerCase() === norm(viewAs.email));
+    }
     const inTeam = (name: string) => scope.names.has(name.trim().toLowerCase());
     return rows.filter((r) =>
       inTeam(g(r, 'ENGINEER NAME')) ||
@@ -508,7 +542,7 @@ export function SpareRequests() {
       g(r, 'Reporting Manager').toLowerCase() === email ||
       g(r, 'Regional Manager').toLowerCase() === email,
     );
-  }, [rows, scope, email, onDb]);
+  }, [rows, scope, email, onDb, viewAs]);
 
   const loadMore = async () => {
     setBusy(true);
@@ -525,7 +559,7 @@ export function SpareRequests() {
   const sameStageLines = (row: Row): Row[] => {
     const stage = deriveStage(row);
     return rows.filter((r) => String(r.uid) === String(row.uid)
-      && deriveStage(r) === stage && actionable(r, can, email));
+      && deriveStage(r) === stage && actionable(r, can, email, mayRmApprove));
   };
 
   const runPending = async (
@@ -592,7 +626,7 @@ export function SpareRequests() {
       <button className={`btn ${size}`} title="Drop this spare — not sent (needs a reason)"
         onClick={() => setPending({ kind: 'drop', row, scope: 'line', lines: 1 })}>⊘ Drop</button>
     ) : null;
-    if (!actionable(row, can, email)) {
+    if (!actionable(row, can, email, mayRmApprove)) {
       if (dropBtn) return <div className="row">{dropBtn}</div>;
       return <span className="muted">{stage === 'Received' ? '✓ Received' : stage === 'Dispatched' ? '🚚 In transit' : stage === 'Rejected' ? '✕ Rejected' : stage === 'Dropped' ? '⊘ Dropped' : '—'}</span>;
     }
@@ -645,17 +679,17 @@ export function SpareRequests() {
     if (!onDb) return c;
     scoped.forEach((r) => {
       c[deriveStage(r)] = (c[deriveStage(r)] ?? 0) + 1;
-      if (actionable(r, can, email)) c[MINE] += 1;
+      if (actionable(r, can, email, mayRmApprove)) c[MINE] += 1;
     });
     return c;
     // eslint-disable-next-line
-  }, [scoped, onDb, email]);
+  }, [scoped, onDb, email, mayRmApprove]);
 
   const visible = useMemo(() => {
     let out = scoped;
     if (onDb && stageFilter) {
       out = stageFilter === MINE
-        ? out.filter((r) => actionable(r, can, email))
+        ? out.filter((r) => actionable(r, can, email, mayRmApprove))
         : out.filter((r) => deriveStage(r) === stageFilter);
     }
     const q = search.trim().toLowerCase();
@@ -665,7 +699,7 @@ export function SpareRequests() {
       : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
-  }, [scoped, search, onDb, stageFilter, email]);
+  }, [scoped, search, onDb, stageFilter, email, mayRmApprove]);
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
