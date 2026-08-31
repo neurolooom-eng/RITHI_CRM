@@ -61,9 +61,22 @@ begin
   return new;
 end $$;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop trigger if exists calls_biu on public.calls;
 create trigger calls_biu before insert on public.calls
   for each row execute function public.calls_before_insert();
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- Back-fill calls saved before this with no Call Number, each in its own year's
 -- series (a call registered in 2025 gets a CL25 number, not a CL26 one).

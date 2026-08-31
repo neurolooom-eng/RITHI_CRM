@@ -174,9 +174,22 @@ create table if not exists public.calls (
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 create index if not exists calls_allocated_idx on public.calls (lower(allocated_to));
 create index if not exists calls_type_idx on public.calls (call_type);
 create index if not exists calls_serial_idx on public.calls (lower(serial));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- Pending registrations (engineer requests awaiting a UCN) — same shape, no UCN.
 create table if not exists public.pending_registrations (
@@ -313,9 +326,22 @@ begin
   return new;
 end;
 $$;
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop trigger if exists calls_biu on public.calls;
 create trigger calls_biu before insert on public.calls
   for each row execute function public.calls_before_insert();
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ===========================================================================
 -- Row-Level Security
@@ -325,7 +351,20 @@ alter table public.parties               enable row level security;
 alter table public.products              enable row level security;
 alter table public.parts                 enable row level security;
 alter table public.masters               enable row level security;
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls                 enable row level security;
+$calls_sql$;
+end if;
+end $calls_guard$;
 alter table public.pending_registrations enable row level security;
 alter table public.reports               enable row level security;
 alter table public.spare_requests        enable row level security;
@@ -352,6 +391,16 @@ begin
 end $$;
 
 -- calls: scoped read; engineers/admins can insert/update within their scope.
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls
   for select using (public.can_see_call(allocated_to));
@@ -361,6 +410,9 @@ create policy calls_insert on public.calls
 drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls
   for update using (public.can_see_call(allocated_to)) with check (public.can_see_call(allocated_to));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- pending registrations: creator or scope by engineer; any auth can insert.
 drop policy if exists pend_read on public.pending_registrations;

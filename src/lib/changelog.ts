@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.49',
+    version: '0.8.50',
     date: '2026-08-31',
     title: 'Notification bell',
     changes: [
@@ -21,13 +21,23 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.48',
+    version: '0.8.49',
     date: '2026-08-31',
     title: 'SLA targets, editable — and flagged on the Dashboard',
     changes: [
       'New SLA targets in Admin Config: first visit (72h), call closure (5 days), closure when a spare is involved (7 days), closure when the spare is out of CMC/WGP (10 days), and Stores dispatch from final approval (72h). Edit the hours or switch any rule off.',
       'The Dashboard now highlights open calls against the active rules — an “SLA Breached” tile and a “needs attention” list showing which rule and how far over/until, so engineers see what’s slipping.',
       'Needs a database script run once (sla_rules.sql).',
+    ],
+  },
+  {
+    version: '0.8.48',
+    date: '2026-08-31',
+    title: 'The database scripts can be re-run without failing',
+    changes: [
+      'Re-running HandStock_X.sql or the consolidated all.sql on a project that already had Material Returns failed with “cannot drop columns from view”. The hand-stock views are now rebuilt rather than replaced, so either file can be run again safely whatever has already been applied.',
+      'The consolidated all.sql also failed part-way on a fresh project (“column engineer_email does not exist”) because the consumption-visibility rule was applied before the column it reads was added. It no longer depends on that ordering.',
+      'And once the call tables were split, re-running it failed again at “cannot create index on relation calls” — public.calls is a view now, so the older table-only steps are skipped on a project that has already been split.',
     ],
   },
   {

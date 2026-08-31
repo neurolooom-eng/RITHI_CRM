@@ -265,9 +265,22 @@ create table if not exists public.calls (
   created_at            timestamptz not null default now(),
   updated_at            timestamptz not null default now()
 );
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 create index if not exists calls_allocated_idx on public.calls (lower(allocated_to));
 create index if not exists calls_type_idx on public.calls (call_type);
 create index if not exists calls_serial_idx on public.calls (lower(serial));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- Pending registrations (engineer requests awaiting a UCN) — same shape, no UCN.
 create table if not exists public.pending_registrations (
@@ -404,9 +417,22 @@ begin
   return new;
 end;
 $$;
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop trigger if exists calls_biu on public.calls;
 create trigger calls_biu before insert on public.calls
   for each row execute function public.calls_before_insert();
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ===========================================================================
 -- Row-Level Security
@@ -416,7 +442,20 @@ alter table public.parties               enable row level security;
 alter table public.products              enable row level security;
 alter table public.parts                 enable row level security;
 alter table public.masters               enable row level security;
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls                 enable row level security;
+$calls_sql$;
+end if;
+end $calls_guard$;
 alter table public.pending_registrations enable row level security;
 alter table public.reports               enable row level security;
 alter table public.spare_requests        enable row level security;
@@ -443,6 +482,16 @@ begin
 end $$;
 
 -- calls: scoped read; engineers/admins can insert/update within their scope.
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls
   for select using (public.can_see_call(allocated_to));
@@ -452,6 +501,9 @@ create policy calls_insert on public.calls
 drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls
   for update using (public.can_see_call(allocated_to)) with check (public.can_see_call(allocated_to));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- pending registrations: creator or scope by engineer; any auth can insert.
 drop policy if exists pend_read on public.pending_registrations;
@@ -976,6 +1028,16 @@ create policy ar_write on public.app_roles for all
   using (public.has_perm('rbac.manage')) with check (public.has_perm('rbac.manage'));
 
 -- calls: the reporting-tree scope still applies, on top of the action.
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (public.has_perm('calls.view') and public.can_see_call(allocated_to));
@@ -986,6 +1048,9 @@ drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls for update
   using ((public.has_perm('calls.edit') or public.has_perm('calls.report')) and public.can_see_call(allocated_to))
   with check ((public.has_perm('calls.edit') or public.has_perm('calls.report')) and public.can_see_call(allocated_to));
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- pending registrations: Hotline registers them; scope still applies to reads.
 drop policy if exists pend_read on public.pending_registrations;
@@ -1432,6 +1497,16 @@ create policy cons_read on public.spare_consumption for select
 -- ===========================================================================
 
 -- ---- calls: read + update --------------------------------------------------
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (
@@ -1470,8 +1545,9 @@ create policy calls_update on public.calls for update
          )
     )
   );
-
--- ---- reports: read (visible with the parent call) --------------------------
+$calls_sql$;
+end if;
+end $calls_guard$;-- ---- reports: read (visible with the parent call) --------------------------
 -- The recursive set is uncorrelated, so it stays an InitPlan (once); the only
 -- per-report work is the indexed lookup of its call by ucn.
 drop policy if exists reports_read on public.reports;
@@ -2257,6 +2333,16 @@ on conflict do nothing;
 -- when the register is on Supabase.
 -- ===========================================================================
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop policy if exists calls_scoped_read on public.calls;
 create policy calls_scoped_read on public.calls for select
   using (public.can_see_call(allocated_to) or created_by = auth.uid());
@@ -2265,6 +2351,9 @@ drop policy if exists calls_update on public.calls;
 create policy calls_update on public.calls for update
   using (public.can_see_call(allocated_to) or created_by = auth.uid())
   with check (public.can_see_call(allocated_to) or created_by = auth.uid());
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ------------------------------------------------------------------------
 -- 0010_call_request_items.sql
@@ -2422,6 +2511,16 @@ grant select on public.pending_calls to authenticated;
 drop view if exists public.pending_calls;
 drop view if exists public.call_state;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls
   add column if not exists last_status   text default '',
   add column if not exists last_visit_at timestamptz;
@@ -2439,6 +2538,9 @@ alter table public.calls add column open_state text
   ) stored;
 
 create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ---- keep it current -------------------------------------------------------
 -- security definer: a visit by one engineer updates the call regardless of who
@@ -2572,9 +2674,22 @@ begin
   return new;
 end $$;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 drop trigger if exists calls_biu on public.calls;
 create trigger calls_biu before insert on public.calls
   for each row execute function public.calls_before_insert();
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- Back-fill calls saved before this with no Call Number, each in its own year's
 -- series (a call registered in 2025 gets a CL25 number, not a CL26 one).
@@ -2633,6 +2748,16 @@ alter table public.call_requests
 drop view if exists public.pending_calls;
 drop view if exists public.call_state;
 
+do $calls_guard$ begin
+-- 0040_call_tables_split.sql replaces public.calls with a VIEW over the three
+-- typed call tables. What follows is table-only work, so on a project that has
+-- already been split it has to be SKIPPED, not attempted — otherwise replaying
+-- this file (which re-running any bundle does) dies with
+--   ERROR 42809: cannot create index on relation "calls"
+-- or "calls is not a table". On an unsplit project it runs exactly as before.
+if (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relname = 'calls') = 'r' then
+execute $calls_sql$
 alter table public.calls drop column if exists open_state;
 alter table public.calls add column open_state text
   generated always as (
@@ -2646,6 +2771,9 @@ alter table public.calls add column open_state text
   ) stored;
 
 create index if not exists calls_open_idx on public.calls (open_state) where open_state <> 'Solved';
+$calls_sql$;
+end if;
+end $calls_guard$;
 
 -- ---- latest = latest ENTRY -------------------------------------------------
 create or replace function public.sync_call_last_visit(p_ucn text)
@@ -5305,7 +5433,19 @@ grant execute on function public.part_code(text)     to authenticated;
 -- every bit as much stock in the engineer's hands. They count, dated by the
 -- best timestamp the row has.
 -- ---------------------------------------------------------------------------
-create or replace view public.handstock_movements as
+-- These three are REBUILT, not replaced. `create or replace view` may not drop
+-- a column, so once MRN (0039_material_returns.sql) has added `returned` to
+-- the balance, replaying this file with the older column list fails with
+--   ERROR 42P16: cannot drop columns from view
+-- — and replaying it is exactly what re-running the bundle does. Dropping
+-- first makes this file re-runnable whatever shape the views are currently in;
+-- nothing is lost, since all three are derived. Dependants first:
+-- engineer_stock reads the balance, the balance reads the movements.
+drop view if exists public.engineer_stock;
+drop view if exists public.handstock_balance;
+drop view if exists public.handstock_movements;
+
+create view public.handstock_movements as
 -- 1. Stock out from Stores (+)
 select
   'IN'::text                                        as direction,
@@ -5396,7 +5536,7 @@ join public.stock_transfers t on t.uid = l.transfer_uid;
 -- handed on than this module has seen issued — stock carried from before the
 -- register existed, or a spare taken without a DC.
 -- ---------------------------------------------------------------------------
-create or replace view public.handstock_balance as
+create view public.handstock_balance as
 select
   m.engineer_key,
   max(m.engineer)                                                       as engineer,
@@ -5428,7 +5568,7 @@ group by m.engineer_key, m.part_code;
 -- NB: definer-rights functions read this view, so it stays as 0020 created it
 -- — NOT security_invoker.
 -- ---------------------------------------------------------------------------
-create or replace view public.engineer_stock as
+create view public.engineer_stock as
 select b.engineer_key as engineer, b.part, b.on_hand as qty
   from public.handstock_balance b;
 
@@ -5471,6 +5611,12 @@ update public.app_roles
 -- its lines are already scoped this way; the handstock_balance /
 -- handstock_movements views are security_invoker, so they inherit this.
 -- ===========================================================================
+
+-- The email this policy matches on is added by 0023_handstock.sql, which the
+-- consolidated file applies long AFTER this one — so add it here too rather
+-- than depend on an ordering that does not hold. Idempotent either way.
+alter table public.spare_consumption
+  add column if not exists engineer_email text default '';
 
 drop policy if exists cons_read on public.spare_consumption;
 create policy cons_read on public.spare_consumption for select
