@@ -101,6 +101,7 @@ export function PendingCalls() {
         title="Pending Calls"
         subtitle="Every open call across Field, Installation and PM — unattended, unsolved or awaiting a report."
         icon="🔥"
+        count={visible.length}
       />
 
       {msg && (

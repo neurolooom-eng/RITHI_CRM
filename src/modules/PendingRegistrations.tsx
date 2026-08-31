@@ -247,7 +247,7 @@ export function PendingRegistrations() {
 
   return (
     <div>
-      <PageHeader title="Pending Call Registrations" subtitle="Engineer requests awaiting action — map to an existing call, register a new one, or cancel." icon="⏳" />
+      <PageHeader title="Pending Call Registrations" subtitle="Engineer requests awaiting action — map to an existing call, register a new one, or cancel." icon="⏳" count={visible.length} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>

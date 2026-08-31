@@ -84,7 +84,7 @@ export function DailyCallReview() {
 
   return (
     <div>
-      <PageHeader title="Daily Call Review" subtitle="Consolidated view of all calls for a chosen day" icon="📅" />
+      <PageHeader title="Daily Call Review" subtitle="Consolidated view of all calls for a chosen day" icon="📅" count={dayRows.length} />
 
       <div className="filter-bar">
         <div>

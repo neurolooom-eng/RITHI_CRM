@@ -349,6 +349,7 @@ export function UserMasterView() {
         title="User Master"
         subtitle="Everyone in the directory, signed in or not — and the role each one is given."
         icon="👤"
+        count={visibleDir.length}
         actions={editable && (
           editing ? (
             <div className="row">

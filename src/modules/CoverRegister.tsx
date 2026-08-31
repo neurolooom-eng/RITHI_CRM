@@ -257,7 +257,10 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
   return (
     <div>
-      <PageHeader title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon} />
+      {/* The register's size is its entries — the deals — not the machines
+          under them, so the nav count means the same thing on both tabs. */}
+      <PageHeader title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
+        count={tab === 'machines' ? machines.length : rows.length} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>

@@ -127,7 +127,7 @@ export function SpareConsumption() {
 
   return (
     <div>
-      <PageHeader title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" />
+      <PageHeader title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" count={visible.length} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>

@@ -172,6 +172,7 @@ export function SpareDispatch() {
         title="Pending Dispatch"
         subtitle="Approved spares waiting at Stores, grouped by engineer. Tick and book them out in one stock out."
         icon="🚚"
+        count={visible.length}
       />
 
       {msg && (

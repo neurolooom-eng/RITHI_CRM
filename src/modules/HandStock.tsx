@@ -152,6 +152,7 @@ export function HandStock() {
         title="Hand Stock"
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
+        count={visible.length}
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
       />
 

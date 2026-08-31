@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.31',
+    version: '0.8.32',
     date: '2026-08-31',
     title: 'Warranty and Contract registers, live — with the entry as the parent record',
     changes: [
@@ -23,6 +23,15 @@ export const CHANGELOG: ChangeEntry[] = [
       'Warranty and contract on the machine (what a call form fills in) is now maintained by these registers, so the Product Master follows a contract renewal instead of being keyed twice.',
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
       'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
+    ],
+  },
+  {
+    version: '0.8.31',
+    date: '2026-08-31',
+    title: 'Record counts on every screen',
+    changes: [
+      'Each module now shows how many records it holds — a count next to the module name in the left menu and next to the page heading. The count reflects what you can see (your team, your region, your own calls), so a Reporting Manager switching between “Team calls” and “My calls” sees the number change with them.',
+      'Counts cover Field/Installation/PM calls, Pending Calls, Pending & Request Registrations, Reports, Spare Requests, Pending Dispatch, Spare Consumption, Hand Stock, Stock Transfer, Customer Feedback, Field Failure, and the Party / Product / Part / User masters.',
     ],
   },
   {
