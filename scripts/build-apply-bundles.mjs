@@ -129,13 +129,21 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'isAdmin'],
     files: ['0046_validation_results.sql'],
   },
+  data_integrity: {
+    title: 'Data Integrity (audit trail & retention)',
+    blurb: ['Database-enforced audit trail (record_audit) on the quality-record tables',
+            'and a record-retention guard blocking application deletion of quality',
+            'records. Read by admins / audit.view; written only by triggers.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0048_record_audit.sql', '0049_record_retention_guard.sql'],
+  },
   audit: {
     title: 'Audit Log',
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0009_audit_log.sql', '0033_audit_retention.sql'],
+    files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -360,7 +368,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

@@ -33,6 +33,12 @@ const SPARE_COLS: Col[] = [
   { key: 'product_name', header: 'Product' }, { key: 'ucn', header: 'UCN' },
   { key: 'call_number', header: 'Call Number' }, { key: 'waiting_since', header: 'Waiting Since' },
 ];
+// The day's audit trail — an off-database daily archive of who changed what.
+const AUDIT_COLS: Col[] = [
+  { key: 'changed_at', header: 'When' }, { key: 'actor_email', header: 'User' },
+  { key: 'op', header: 'Action' }, { key: 'table_name', header: 'Record type' },
+  { key: 'record_key', header: 'Record' },
+];
 
 const csvCell = (v: unknown) => {
   const s = v == null ? '' : String(v);
@@ -80,7 +86,8 @@ Deno.serve(async (req) => {
   const pmDays = parseInt(Deno.env.get('DIGEST_PM_DAYS') ?? '7', 10) || 7;
   const dueBy = new Date(Date.now() + pmDays * 864e5).toISOString().slice(0, 10);
 
-  let open: Record<string, unknown>[], all: Record<string, unknown>[], pm: Record<string, unknown>[], spares: Record<string, unknown>[];
+  const since = new Date(Date.now() - 864e5).toISOString(); // last 24h
+  let open: Record<string, unknown>[], all: Record<string, unknown>[], pm: Record<string, unknown>[], spares: Record<string, unknown>[], audit: Record<string, unknown>[] = [];
   try {
     open = await fetchAll(() => supabase.from('pending_calls').select(callSel).order('reg_date', { ascending: false }));
     all = await fetchAll(() => supabase.from('calls').select(callSel).order('reg_date', { ascending: false }));
@@ -89,6 +96,10 @@ Deno.serve(async (req) => {
   } catch (e) {
     return new Response(`DB error: ${e instanceof Error ? e.message : String(e)}`, { status: 500 });
   }
+  // The day's audit trail (off-database archive). Optional: absent if record_audit isn't installed.
+  try {
+    audit = await fetchAll(() => supabase.from('record_audit').select(AUDIT_COLS.map((c) => c.key).join(',')).gte('changed_at', since).order('changed_at', { ascending: false }));
+  } catch { audit = []; }
 
   // Open-calls breakdown chips.
   const byType: Record<string, number> = {};
@@ -106,6 +117,7 @@ Deno.serve(async (req) => {
     ${sectionHtml(`PM due within ${pmDays} days`, '🗓️', pm, CALL_COLS)}
     ${sectionHtml('Spares awaiting dispatch', '🚚', spares, SPARE_COLS)}
     ${sectionHtml('Complete call register', '🗂️', all, CALL_COLS, '<div style="color:#5a6b7e;font-size:12px">Full archive attached as CSV.</div>')}
+    ${sectionHtml('Audit trail — last 24 hours', '🔐', audit, AUDIT_COLS, '<div style="color:#5a6b7e;font-size:12px">Off-database daily archive of record changes (who changed what). Full detail attached as CSV — retain per the record-retention procedure.</div>')}
     <div style="color:#8aa0b4;font-size:11px;margin-top:22px">Automated daily digest from RITHI CRM. To change recipients, update the DIGEST_TO secret.</div>
   </div>`;
 
@@ -125,9 +137,10 @@ Deno.serve(async (req) => {
         { filename: `pm-due-${stamp}.csv`, content: b64(toCsv(CALL_COLS, pm)) },
         { filename: `spares-to-dispatch-${stamp}.csv`, content: b64(toCsv(SPARE_COLS, spares)) },
         { filename: `all-calls-${stamp}.csv`, content: b64(toCsv(CALL_COLS, all)) },
+        { filename: `audit-trail-${stamp}.csv`, content: b64(toCsv(AUDIT_COLS, audit)) },
       ],
     }),
   });
   if (!resp.ok) return new Response(`Resend error: ${await resp.text()}`, { status: 502 });
-  return new Response(JSON.stringify({ ok: true, open: open.length, pm: pm.length, spares: spares.length, all: all.length, to: to.length }), { headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ ok: true, open: open.length, pm: pm.length, spares: spares.length, all: all.length, audit: audit.length, to: to.length }), { headers: { 'Content-Type': 'application/json' } });
 });

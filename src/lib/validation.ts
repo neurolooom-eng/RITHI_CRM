@@ -286,7 +286,9 @@ export const DETAILED: { area: string; points: string[] }[] = [
     'handstock_movements / handstock_balance (security_invoker) derive stock from dispatch, consumption, transfers and MRN returns; a stock guard blocks overdraw counting all movements.',
   ] },
   { area: 'Audit & data integrity', points: [
-    'audit_log rows are inserted by clients but the identity is stamped by the database; admin-only read; pg_cron purges beyond the retention window. Records are constrained (unique UCN, FKs) in PostgreSQL.',
+    'A DATABASE-ENFORCED audit trail (record_audit) logs every INSERT/UPDATE/DELETE on the quality-record tables with actor, timestamp and before/after row, via SECURITY DEFINER triggers; it is admin/audit.view read-only and cannot be written or altered by users. The client audit_log additionally records user actions with duration/status.',
+    'Retention is configurable (app_settings.audit_retention_days, default ~10 years) — the earlier 7-day purge is replaced. A daily email digest also archives the day’s audit trail off-database.',
+    'Application deletion of quality records is blocked (record-retention guard); only a controlled DBA/superuser action can remove them, and that too is audited. Records are constrained (unique UCN, FKs) in PostgreSQL.',
   ] },
   { area: 'SLA & notifications', points: [
     'sla_rules (hours + active) evaluated by evaluateCallSla() to on-track/due/breach. notifications created by SECURITY DEFINER triggers on allotment and dispatch; RLS scopes to recipient.',
@@ -440,3 +442,109 @@ export const VSR: { heading: string; body: string[] }[] = [
   { heading: '7. Conclusion & release', body: ['State whether RITHI CRM is validated and released for productive use in the QMS, subject to the maintaining-the-validated-state controls (change control, periodic review, supplier monitoring).'] },
   { heading: '8. Approval', body: ['Approved by System Owner, Process Owner (Quality), and QA/Validation Lead (wet or Part 11-compliant e-signature), with dates.'] },
 ];
+
+// ---- Data Migration Validation --------------------------------------------
+export const DATA_MIGRATION = {
+  objective: 'Demonstrate that data migrated into RITHI CRM (legacy Google-Sheet / AppSheet exports, and bulk uploads such as the monthly PM batch) is complete, accurate and uncorrupted.',
+  method: [
+    'Identify each source (sheet/tab or export file) and its target table; record row counts at source and after load.',
+    'Reconcile counts and key fields; verify identifiers (UCN, Call Number, OR No) are assigned and unique; confirm dates parsed correctly.',
+    'Spot-check a risk-based sample of records field-by-field against the source; verify no truncation or encoding loss.',
+    'Confirm de-duplication behaved as intended and that a re-run of an import does not duplicate already-loaded rows.',
+  ],
+  acceptance: [
+    'Target counts reconcile to source (or discrepancies are explained and dispositioned).',
+    'Sampled records match the source; identifiers unique; no data loss or corruption.',
+    'Migration is documented, reviewed and approved before the migrated data is used for GxP decisions.',
+  ],
+  checks: [
+    { id: 'DM1', check: 'Source inventory and target mapping documented.' },
+    { id: 'DM2', check: 'Row-count reconciliation source ⇄ target recorded.' },
+    { id: 'DM3', check: 'Sample field-level verification performed and retained.' },
+    { id: 'DM4', check: 'Identifier uniqueness and date integrity verified.' },
+    { id: 'DM5', check: 'Re-run/idempotency verified (no duplication).' },
+    { id: 'DM6', check: 'Migration report reviewed and approved.' },
+  ],
+};
+
+// ---- Backup & Restore Qualification ---------------------------------------
+export const BACKUP = {
+  statement: [
+    'Quality records are held in the managed Supabase PostgreSQL project, which provides automated backups (and point-in-time recovery on the applicable plan).',
+    'Recovery objectives are defined by the customer: RPO (max acceptable data loss) = ______ ; RTO (max acceptable downtime) = ______ .',
+    'Restore capability is verified periodically by restoring to a test project and confirming record integrity — a backup is not evidence of recoverability until a restore has been demonstrated.',
+  ],
+  checks: [
+    { id: 'BK1', check: 'Backup schedule and retention confirmed with the platform.' },
+    { id: 'BK2', check: 'RPO/RTO defined and approved for the records held.' },
+    { id: 'BK3', check: 'A restore to a test environment was executed and record integrity verified (date, executor recorded).' },
+    { id: 'BK4', check: 'Restore procedure (SOP) exists and personnel are trained.' },
+  ],
+};
+
+// ---- Security assessment ---------------------------------------------------
+export const SECURITY = {
+  controls: [
+    { area: 'Authentication', control: 'Supabase Auth; unique credentials; first-login password set; token sessions expire; inactive-login lockout for leavers.' },
+    { area: 'Authorisation', control: 'Server-side Row-Level Security keyed on auth.uid() + role permissions; least privilege; enforced independently of the UI.' },
+    { area: 'Transport', control: 'HTTPS/TLS for all client↔platform traffic.' },
+    { area: 'Secrets', control: 'Publishable/anon key is public by design (RLS-enforced); the service_role key is never shipped to the client; Edge-Function secrets held server-side.' },
+    { area: 'Input handling', control: 'Knowledge-Base rich text is allowlist-sanitised on save and render; parameterised database access via PostgREST.' },
+    { area: 'Audit & integrity', control: 'Database-enforced audit trail (record_audit); application deletion of quality records blocked; configurable long audit retention; off-database daily audit archive by email.' },
+    { area: 'Availability', control: 'Managed platform; backups with verified restore.' },
+  ],
+  actions: [
+    'Enable branch protection on the main branch (change control).',
+    'Maintain a dependency inventory (SBOM) and monitor advisories for the front-end libraries.',
+    'Perform a periodic vulnerability assessment / penetration test proportional to risk.',
+    'Hold a Data Processing Agreement with the platform provider (GDPR / India DPDP Act) and record data-residency.',
+  ],
+};
+
+// ---- Data integrity (ALCOA+) ----------------------------------------------
+export const ALCOA: { principle: string; howMet: string }[] = [
+  { principle: 'Attributable', howMet: 'Every record and change is tied to a unique authenticated user via the database audit trail.' },
+  { principle: 'Legible', howMet: 'Records are readable on screen and exportable (CSV); audit entries are structured.' },
+  { principle: 'Contemporaneous', howMet: 'Timestamps are set by the database at the time of the action (server time).' },
+  { principle: 'Original', howMet: 'The PostgreSQL row is the original record; the audit trail preserves before/after.' },
+  { principle: 'Accurate', howMet: 'Constraints, generated status, triggers and validation reduce error; verified by OQ.' },
+  { principle: 'Complete', howMet: 'Audit trail captures create/update/delete; deletion of quality records is prevented.' },
+  { principle: 'Consistent', howMet: 'Workflow sequencing (approval chain, call status) is enforced by the database.' },
+  { principle: 'Enduring', howMet: 'Records held in managed, backed-up storage; long audit retention; email archive.' },
+  { principle: 'Available', howMet: 'Records retrievable throughout the retention period; role-based access.' },
+];
+
+// ---- Configuration specification ------------------------------------------
+export const CONFIG_SPEC: { item: string; where: string; controlled: string }[] = [
+  { item: 'Roles & permissions matrix', where: 'app_roles + per-user extra_permissions', controlled: 'Admin / rbac.manage; changes are audited; baseline exported and approved.' },
+  { item: 'SLA targets', where: 'sla_rules', controlled: 'Admin Config (config.manage); values baselined in this package.' },
+  { item: 'Master value lists', where: 'master_lists / masters', controlled: 'masters.edit; seeded from the approved master workbook.' },
+  { item: 'Audit retention period', where: 'app_settings.audit_retention_days', controlled: 'Config.manage; default 3650 days; set per the retention SOP.' },
+  { item: 'Reporting tree (visibility)', where: 'user_directory (reporting/regional manager)', controlled: 'Admin; drives call/spare/stock scoping.' },
+  { item: 'Release identity', where: 'version / build number / build ID (footer)', controlled: 'CI build; recorded at IQ.' },
+];
+
+// ---- Required SOPs / procedures --------------------------------------------
+export const SOPS: { id: string; title: string; purpose: string }[] = [
+  { id: 'SOP-01', title: 'System use & data entry', purpose: 'How to register calls, report visits, request/approve spares, and the meaning of statuses.' },
+  { id: 'SOP-02', title: 'Access management', purpose: 'Requesting, granting, reviewing and revoking access; leaver deactivation; periodic access review.' },
+  { id: 'SOP-03', title: 'Change control', purpose: 'How changes are requested, risk-assessed, tested (regression), approved and released; release identification.' },
+  { id: 'SOP-04', title: 'Backup & restore', purpose: 'Backup verification and the restore procedure with RPO/RTO.' },
+  { id: 'SOP-05', title: 'Audit-trail review', purpose: 'Periodic review of the audit trail and handling of anomalies.' },
+  { id: 'SOP-06', title: 'Data migration & bulk import', purpose: 'Controls and verification for imports (incl. the monthly PM batch).' },
+  { id: 'SOP-07', title: 'Periodic review', purpose: 'Schedule and criteria for confirming the system remains validated.' },
+  { id: 'SOP-08', title: 'Record retention & decommissioning', purpose: 'Retention periods per record type; controlled archival and decommissioning.' },
+  { id: 'SOP-09', title: 'Incident & CAPA', purpose: 'Logging deviations/incidents and driving corrective/preventive action.' },
+  { id: 'SOP-10', title: 'Training', purpose: 'Role-based training and competency before productive use.' },
+];
+
+// ---- Governance narratives -------------------------------------------------
+export const GOVERNANCE: { heading: string; body: string[] }[] = [
+  { heading: 'Change control', body: ['Source is version-controlled; each release carries a version, build number and build ID (shown in the footer) and an in-app Version History. Every change is requested, risk-assessed for GxP impact, tested (including regression of affected quality functions) and approved before merge to the production branch. Database changes are applied as controlled, idempotent migrations validated before application.'] },
+  { heading: 'Periodic review', body: ['At a defined interval (e.g. annually or on significant change), QA reviews: open changes and their validation, incidents/CAPA, access review, backup/restore evidence, supplier status and the risk assessment, and confirms the system remains fit for use or triggers revalidation.'] },
+  { heading: 'Record retention & decommissioning', body: ['Retention periods are defined per record type in line with regulatory requirements (typically the device lifetime plus the applicable number of years). The audit trail is retained for the same period (configurable). On decommissioning, records are exported/archived in a readable form and retained for the balance of the retention period before controlled destruction.'] },
+  { heading: 'Training', body: ['Users are trained on the relevant SOPs and their role in the system, with training recorded, before productive use. Administrators and approvers receive additional training on their controlled functions.'] },
+];
+
+// ---- CAPA / deviation log (template) --------------------------------------
+export const CAPA_COLUMNS = ['Ref', 'Date', 'Source (test/incident)', 'Description', 'Risk', 'Root cause', 'Correction', 'Preventive action', 'Owner', 'Due', 'Status'];

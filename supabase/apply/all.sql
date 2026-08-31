@@ -26,6 +26,7 @@
 --   0037_call_read_scale.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
+--   0047_audit_retention_compliance.sql
 --   0021_master_lists.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
@@ -68,6 +69,8 @@
 --   0042_knowledge_base.sql
 --   0045_notifications.sql
 --   0046_validation_results.sql
+--   0048_record_audit.sql
+--   0049_record_retention_guard.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -1670,6 +1673,48 @@ begin
   else
     raise notice 'pg_cron is not enabled. Audit rows will NOT auto-delete until you enable pg_cron (Dashboard -> Database -> Extensions) and re-run this file. Until then, run: select public.purge_audit_log();';
   end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0047_audit_retention_compliance.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Audit-log retention for a regulated QMS. The earlier 7-day auto-delete is not
+-- acceptable for medical-device quality records — the audit trail must be kept
+-- for the record retention period. Retention is now a CONFIGURABLE setting,
+-- defaulting to 3650 days (~10 years). The daily purge uses it. The database
+-- audit trail (record_audit, 0048) is NOT purged by this job.
+-- ===========================================================================
+
+create table if not exists public.app_settings (
+  key        text primary key,
+  value      text not null,
+  updated_at timestamptz not null default now()
+);
+insert into public.app_settings (key, value) values ('audit_retention_days', '3650')
+  on conflict (key) do nothing;
+
+alter table public.app_settings enable row level security;
+grant select, insert, update on public.app_settings to authenticated;
+drop policy if exists app_settings_read on public.app_settings;
+create policy app_settings_read on public.app_settings for select using (auth.role() = 'authenticated');
+drop policy if exists app_settings_write on public.app_settings;
+create policy app_settings_write on public.app_settings for all
+  using (public.is_admin() or public.has_perm('config.manage'))
+  with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- Purge uses the configured retention (fallback 3650 days). Redefinition only —
+-- the daily pg_cron job scheduled by 0033 keeps calling this function.
+create or replace function public.purge_audit_log()
+returns integer language plpgsql security definer set search_path = public as $$
+declare removed integer; days integer;
+begin
+  select coalesce(nullif(value, '')::int, 3650) into days from public.app_settings where key = 'audit_retention_days';
+  days := greatest(coalesce(days, 3650), 1);
+  delete from public.audit_log where at < now() - make_interval(days => days);
+  get diagnostics removed = row_count;
+  return removed;
 end $$;
 
 -- ------------------------------------------------------------------------
@@ -6974,5 +7019,115 @@ drop policy if exists valres_write on public.validation_results;
 create policy valres_write on public.validation_results for all
   using (public.is_admin() or public.has_perm('config.manage'))
   with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
+-- 0048_record_audit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Database-enforced audit trail. The client-side audit_log records user actions,
+-- but a defensible Part 11 / QMS audit trail must be created by the database so
+-- it cannot be bypassed or altered. record_audit captures every INSERT / UPDATE
+-- / DELETE on the quality-record tables, with the acting user, timestamp and the
+-- before/after row. It is written only by SECURITY DEFINER triggers, read only
+-- by admins, and never updatable/deletable by users.
+-- ===========================================================================
+
+create table if not exists public.record_audit (
+  id          bigint generated always as identity primary key,
+  table_name  text not null,
+  op          text not null,           -- INSERT | UPDATE | DELETE
+  record_key  text,                    -- ucn / uid / call_number / id
+  actor       uuid,
+  actor_email text,
+  changed_at  timestamptz not null default now(),
+  old_data    jsonb,
+  new_data    jsonb
+);
+create index if not exists record_audit_at_idx  on public.record_audit (changed_at desc);
+create index if not exists record_audit_tbl_idx on public.record_audit (table_name, changed_at desc);
+create index if not exists record_audit_key_idx on public.record_audit (record_key);
+
+create or replace function public.record_audit_fn()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare j jsonb;
+begin
+  if tg_op = 'DELETE' then j := to_jsonb(old); else j := to_jsonb(new); end if;
+  insert into public.record_audit (table_name, op, record_key, actor, actor_email, old_data, new_data)
+  values (
+    tg_table_name, tg_op,
+    coalesce(j->>'ucn', j->>'uid', j->>'line_uid', j->>'call_number', j->>'id'),
+    auth.uid(), auth.email(),
+    case when tg_op <> 'INSERT' then to_jsonb(old) else null end,
+    case when tg_op <> 'DELETE' then to_jsonb(new) else null end
+  );
+  return case when tg_op = 'DELETE' then old else new end;
+end $$;
+
+alter table public.record_audit enable row level security;
+grant select on public.record_audit to authenticated;   -- read only; no insert/update/delete grant
+drop policy if exists record_audit_read on public.record_audit;
+create policy record_audit_read on public.record_audit for select
+  using (public.is_admin() or public.has_perm('audit.view'));
+
+-- Attach to the quality-record tables that exist.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'field_calls', 'installation_calls', 'pm_calls', 'reports',
+    'spare_requests', 'spare_request_lines', 'spare_consumption', 'feedback',
+    'call_requests', 'pending_registrations'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists record_audit_t on public.%I', t);
+      execute format('create trigger record_audit_t after insert or update or delete on public.%I for each row execute function public.record_audit_fn()', t);
+    end if;
+  end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0049_record_retention_guard.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Record-retention guard. Quality records must be retained, not deleted — an
+-- auditor expects that a service record, visit report or spare request cannot
+-- be removed. Hard DELETE on these append-only quality tables is blocked; the
+-- app uses status / cancel / drop workflows instead, which are captured by the
+-- audit trail. (Configuration/operational tables are not covered here.)
+-- ===========================================================================
+
+create or replace function public.block_hard_delete()
+returns trigger language plpgsql as $$
+begin
+  -- Application deletion (the authenticated role, via PostgREST) is blocked for
+  -- retention. Controlled deletion by a DBA/superuser (e.g. an approved archival
+  -- procedure in the SQL editor) is permitted and is still captured by the
+  -- database audit trail.
+  if current_user = 'authenticated' then
+    raise exception
+      'RECORD RETENTION: % records cannot be deleted (row %). Use the defined status / cancel / drop workflow.',
+      tg_table_name,
+      coalesce(to_jsonb(old)->>'ucn', to_jsonb(old)->>'uid', to_jsonb(old)->>'call_number', to_jsonb(old)->>'id');
+  end if;
+  return old;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'field_calls', 'installation_calls', 'pm_calls', 'reports',
+    'spare_requests', 'spare_request_lines', 'spare_consumption', 'feedback'
+  ] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists no_hard_delete on public.%I', t);
+      execute format('create trigger no_hard_delete before delete on public.%I for each row execute function public.block_hard_delete()', t);
+    end if;
+  end loop;
+end $$;
 
 commit;

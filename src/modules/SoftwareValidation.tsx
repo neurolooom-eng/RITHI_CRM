@@ -4,7 +4,8 @@ import { useAuth } from '../lib/auth';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
   VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, ARCHITECTURE, DETAILED, RISKS, TESTS,
-  FMEA, FMEA_SCALE, PART11, SUPPLIERS, VSR, type Risk,
+  FMEA, FMEA_SCALE, PART11, SUPPLIERS, VSR,
+  DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
 } from '../lib/validation';
 import './softwarevalidation.css';
 
@@ -17,7 +18,8 @@ import './softwarevalidation.css';
 
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
-type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'risk' | 'fmea' | 'part11' | 'supplier' | 'tests' | 'trace' | 'vsr';
+type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
+  | 'part11' | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -26,12 +28,19 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'srs', label: 'System Requirements' },
   { key: 'arch', label: 'Architecture Design' },
   { key: 'design', label: 'Detailed Design' },
+  { key: 'config', label: 'Configuration Spec' },
   { key: 'risk', label: 'Risk Assessment' },
   { key: 'fmea', label: 'FMEA' },
   { key: 'part11', label: 'Part 11 Assessment' },
+  { key: 'security', label: 'Security Assessment' },
+  { key: 'alcoa', label: 'Data Integrity' },
+  { key: 'datamig', label: 'Data Migration' },
+  { key: 'backup', label: 'Backup & Recovery' },
   { key: 'supplier', label: 'Supplier Assessment' },
+  { key: 'procedures', label: 'Procedures & Governance' },
   { key: 'tests', label: 'Test Protocol' },
   { key: 'trace', label: 'Traceability' },
+  { key: 'capa', label: 'CAPA / Deviations' },
   { key: 'vsr', label: 'Summary Report' },
 ];
 
@@ -225,6 +234,72 @@ export function SoftwareValidation() {
         </Section>
       )}
 
+      {/* CONFIGURATION SPEC */}
+      {show('config') && (
+        <Section title="Configuration Specification">
+          <p className="sv-note">Controlled configuration items and where each is held. Baseline values are approved in this package and changes are controlled.</p>
+          <table className="sv-table"><thead><tr><th>Item</th><th>Held in</th><th>Control</th></tr></thead>
+            <tbody>{CONFIG_SPEC.map((c) => <tr key={c.item}><td><b>{c.item}</b></td><td className="sv-ref">{c.where}</td><td>{c.controlled}</td></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* SECURITY */}
+      {show('security') && (
+        <Section title="Security Assessment">
+          <table className="sv-table"><thead><tr><th style={{ width: 150 }}>Area</th><th>Control</th></tr></thead>
+            <tbody>{SECURITY.controls.map((c) => <tr key={c.area}><td><b>{c.area}</b></td><td>{c.control}</td></tr>)}</tbody>
+          </table>
+          <div className="sv-h3" style={{ fontSize: 14, marginTop: 14 }}>Recommended actions</div>
+          <ul className="sv-list">{SECURITY.actions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        </Section>
+      )}
+
+      {/* ALCOA+ */}
+      {show('alcoa') && (
+        <Section title="Data Integrity — ALCOA+ assessment">
+          <table className="sv-table"><thead><tr><th style={{ width: 150 }}>Principle</th><th>How it is met</th></tr></thead>
+            <tbody>{ALCOA.map((a) => <tr key={a.principle}><td><b>{a.principle}</b></td><td>{a.howMet}</td></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* DATA MIGRATION */}
+      {show('datamig') && (
+        <Section title="Data Migration Validation">
+          <p className="sv-p">{DATA_MIGRATION.objective}</p>
+          <div className="sv-h3" style={{ fontSize: 14 }}>Method</div>
+          <ul className="sv-list">{DATA_MIGRATION.method.map((m, i) => <li key={i}>{m}</li>)}</ul>
+          <div className="sv-h3" style={{ fontSize: 14 }}>Acceptance criteria</div>
+          <ul className="sv-list">{DATA_MIGRATION.acceptance.map((m, i) => <li key={i}>{m}</li>)}</ul>
+          <table className="sv-table" style={{ marginTop: 8 }}><thead><tr><th style={{ width: 46 }}>#</th><th>Check</th><th style={{ width: 150 }}>Evidence</th><th style={{ width: 90 }}>Result</th></tr></thead>
+            <tbody>{DATA_MIGRATION.checks.map((c) => <tr key={c.id}><td>{c.id}</td><td>{c.check}</td><td className="sv-blank" /><td className="sv-blank" /></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* BACKUP */}
+      {show('backup') && (
+        <Section title="Backup & Restore Qualification">
+          {BACKUP.statement.map((p, i) => <p className="sv-p" key={i}>{p}</p>)}
+          <table className="sv-table" style={{ marginTop: 8 }}><thead><tr><th style={{ width: 46 }}>#</th><th>Check</th><th style={{ width: 150 }}>Evidence</th><th style={{ width: 90 }}>Result</th></tr></thead>
+            <tbody>{BACKUP.checks.map((c) => <tr key={c.id}><td>{c.id}</td><td>{c.check}</td><td className="sv-blank" /><td className="sv-blank" /></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* PROCEDURES & GOVERNANCE */}
+      {show('procedures') && (
+        <>
+          <Section title="Required procedures (SOPs)">
+            <table className="sv-table"><thead><tr><th style={{ width: 84 }}>Ref</th><th>SOP</th><th>Purpose</th></tr></thead>
+              <tbody>{SOPS.map((s) => <tr key={s.id}><td className="sv-id">{s.id}</td><td><b>{s.title}</b></td><td>{s.purpose}</td></tr>)}</tbody>
+            </table>
+          </Section>
+          {GOVERNANCE.map((g, i) => <Section key={i} title={g.heading}>{g.body.map((p, j) => <p className="sv-p" key={j}>{p}</p>)}</Section>)}
+        </>
+      )}
+
       {/* TESTS + execution tracker */}
       {show('tests') && (
         <>
@@ -287,6 +362,18 @@ export function SoftwareValidation() {
             </table>
           </div>
           {orphanFrs.length > 0 && <p className="sv-note">System requirements without a direct test (verified via higher-level PQ / review): {orphanFrs.map((f) => f.id).join(', ')}.</p>}
+        </Section>
+      )}
+
+      {/* CAPA / DEVIATIONS */}
+      {show('capa') && (
+        <Section title="CAPA / Deviation Log">
+          <p className="sv-note">Record each test failure, deviation or incident here, its root cause and corrective/preventive action. No open high-risk item may remain when the Summary Report is approved.</p>
+          <div className="sv-scroll">
+            <table className="sv-table sv-wide"><thead><tr>{CAPA_COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr></thead>
+              <tbody>{Array.from({ length: 6 }).map((_, i) => <tr key={i}>{CAPA_COLUMNS.map((c) => <td key={c} className="sv-blank" style={{ height: 26 }} />)}</tr>)}</tbody>
+            </table>
+          </div>
         </Section>
       )}
 

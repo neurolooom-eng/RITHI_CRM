@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.52',
+    date: '2026-08-31',
+    title: 'Data-integrity hardening for regulated use',
+    changes: [
+      'Audit trail is now created and protected by the database itself: every add/change/delete of a quality record (calls, reports, spares, consumption, feedback, requests) is logged with the user, time and before/after values, and cannot be edited or deleted by users.',
+      'Quality records can no longer be deleted from the app — they are retained; the defined status / cancel / drop workflow is used instead. (A controlled database-administrator action can still archive after the retention period, and that too is logged.)',
+      'Audit-log retention is now a compliant, configurable period (default ~10 years) instead of 7 days.',
+      'The daily digest email now also attaches the day’s audit trail as an off-database archive.',
+      'The Software Validation package gained Configuration Spec, Security, Data-Integrity (ALCOA+), Data-Migration, Backup & Recovery, Procedures/Governance and a CAPA/Deviation log — plus an FMEA and supplier assessments.',
+      'Needs a database script run once (data_integrity_upgrade.sql) and a redeploy of the daily-digest function for the audit archive.',
+    ],
+  },
+  {
     version: '0.8.51',
     date: '2026-08-31',
     title: 'Software Validation package (Admin)',
