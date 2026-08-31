@@ -12,7 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.42',
+    version: '0.8.43',
+    date: '2026-08-31',
+    title: 'A manager sees and approves their own team only',
+    changes: [
+      'A Reporting Manager now sees only their own spare requests and those of the engineers reporting to them. Requests from anyone else \u2014 other teams, administrators \u2014 are no longer visible at all, not merely un-approvable.',
+      'Your own request is visible but not yours to approve: it goes to your reporting manager, as it should.',
+      'The desks that process spares for every team \u2014 Commercial, NSM, Stores, Hotline, Spare Coordinator, Tally \u2014 still see everything, and administrators are unaffected.',
+      '\u201cView as\u201d now shows what that person would really see, instead of the administrator\u2019s own data wearing their name.',
+      'Needs migrations 0033_rm_approves_own_team.sql and 0040_spare_read_scope.sql (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.8.43',
     date: '2026-08-31',
     title: 'Show password toggle',
     changes: [
