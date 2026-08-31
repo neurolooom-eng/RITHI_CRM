@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.12',
+    date: '2026-08-31',
+    title: 'First-time sign-in and a self-cleaning audit log',
+    changes: [
+      'New users can now be invited straight from Supabase: an invite link opens a “Welcome — set your password” screen, the same way a “Forgot password?” reset link does. Either email is all a first-time user needs to get in — no shared temporary password.',
+      'The Audit Log now keeps 7 days of history and deletes anything older automatically. Needs migration 0033 (and pg_cron enabled) to take effect.',
+    ],
+  },
+  {
     version: '0.8.11',
     date: '2026-08-31',
     title: 'Call Status follows the latest visit entered',

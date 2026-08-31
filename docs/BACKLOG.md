@@ -201,8 +201,20 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
 - **User Master data + engineer logins** — directory infra is done and `0004`
   is now **applied** (via the `user_directory` bundle);
   **pending:** import the **User Master CSV** (turns on directory-based scoping +
-  the RM→engineer reporting dropdown), then **bulk-create Supabase Auth logins**
-  for active directory users (script with the secret key, or add in Auth → Users).
+  the RM→engineer reporting dropdown).
+  ✅ **First-time logins are solved:** the app now handles Supabase **invite**
+  links as well as reset links — an invited user lands on a "Welcome — set your
+  password" screen (`recoveryIsInvite` in `supabase.ts`, `ResetPassword.tsx`).
+  ✅ **Bulk provisioning:** `scripts/create-auth-users.mjs` creates confirmed
+  Auth accounts from `user_directory` (or a CSV / a list of emails), upserts a
+  `profiles` row for each, and optionally sends invite emails (`--invite`). Run
+  it locally with the SERVICE_ROLE key. After that, users either get the invite
+  email or click **Forgot password?** to set their password.
+- **Audit-log retention** — ✅ shipped: `0033_audit_retention.sql` adds
+  `purge_audit_log()` and a daily pg_cron job that deletes rows older than 7
+  days. **To run:** apply `0033` in the SQL editor as `postgres`; if pg_cron
+  isn't on, enable it (Dashboard → Database → Extensions) and re-run. The file
+  prints the manual fallback (`select public.purge_audit_log();`) if it can't.
 - **Tighten consumption / feedback RLS** to the specific roles — `cons` / `fb`
   still allow any authenticated write. **Spare approvals are done:**
   `0008_rbac_enforcement` scoped `sr_update` and added a per-stage guard, which

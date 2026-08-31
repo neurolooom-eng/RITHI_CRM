@@ -121,7 +121,7 @@ export function Login() {
         )}
 
       </div>
-      <div className="login-foot muted">User Master login (Air Liquide / Gmail ID) · set password on first sign-in · role-based access</div>
+      <div className="login-foot muted">Sign in with your Air Liquide / Gmail ID · first-time users set a password from their invite or reset-link email · role-based access</div>
     </div>
   );
 }

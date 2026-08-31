@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { recoveryIsInvite } from '../lib/supabase';
 import './login.css';
 
 // ===========================================================================
-// SET A NEW PASSWORD — shown when the user arrives on a password-reset link.
-// The link's tokens are exchanged for a short session at boot (auth.tsx), so
-// all that's left is choosing the password.
+// SET A NEW PASSWORD — shown when the user arrives on a password-reset link or
+// an invite link (a first-time, admin-created account). The link's tokens are
+// exchanged for a short session at boot (auth.tsx), so all that's left is
+// choosing the password.
 // ===========================================================================
 
 export function ResetPassword() {
   const { finishRecovery, cancelRecovery } = useAuth();
+  const invite = recoveryIsInvite();
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
@@ -30,10 +33,10 @@ export function ResetPassword() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-logo">🔑</div>
+          <div className="login-logo">{invite ? '👋' : '🔑'}</div>
           <div>
-            <h1>Set a new password</h1>
-            <div className="muted">Password reset · RITHI CRM</div>
+            <h1>{invite ? 'Welcome — set your password' : 'Set a new password'}</h1>
+            <div className="muted">{invite ? 'First sign-in · RITHI CRM' : 'Password reset · RITHI CRM'}</div>
           </div>
         </div>
         <form onSubmit={submit} className="login-form">
@@ -50,7 +53,7 @@ export function ResetPassword() {
           <button className="btn login-btn" type="button" onClick={cancelRecovery} disabled={busy}>Cancel</button>
         </form>
       </div>
-      <div className="login-foot muted">This link works once. If it has expired, request a new one from the sign-in screen.</div>
+      <div className="login-foot muted">This link works once. If it has expired, {invite ? 'ask an admin to re-invite you.' : 'request a new one from the sign-in screen.'}</div>
     </div>
   );
 }

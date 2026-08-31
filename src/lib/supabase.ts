@@ -1039,12 +1039,18 @@ export async function updateProfile(id: string, patch: { role?: string; extra_pe
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-// ---- password reset --------------------------------------------------------
-// A Supabase recovery link comes back as an implicit-flow fragment:
+// ---- password reset / invite ----------------------------------------------
+// A Supabase auth link comes back as an implicit-flow fragment:
 //   https://app/#access_token=…&refresh_token=…&type=recovery
-// The app routes on the hash, so the tokens are grabbed synchronously at boot
-// (before React or the router runs) and the URL is put back to "#/".
+// `type` is `recovery` for a "forgot password" link, or `invite` / `signup`
+// when an admin invited a brand-new user — all three land the person on the
+// set-password screen. The app routes on the hash, so the tokens are grabbed
+// synchronously at boot (before React or the router runs) and the URL is put
+// back to "#/".
 let pendingRecovery: { access: string; refresh: string } | null = null;
+// Whether the captured link was an invite (a first-time user) vs a reset, so
+// the set-password screen can greet them appropriately.
+let recoveryIsInviteFlag = false;
 // An expired or already-used link comes back as #error=…&error_description=…
 let recoveryError = '';
 
@@ -1055,21 +1061,27 @@ export function takeRecoveryFromUrl(): boolean {
     const p = new URLSearchParams(raw);
     const access = p.get('access_token') ?? '';
     const refresh = p.get('refresh_token') ?? '';
-    const isRecovery = (p.get('type') ?? '') === 'recovery';
+    const type = (p.get('type') ?? '').toLowerCase();
+    // recovery = forgot-password; invite / signup = an admin-created account.
+    const isSetPassword = type === 'recovery' || type === 'invite' || type === 'signup';
     const err = p.get('error_description') ?? p.get('error') ?? '';
     window.location.hash = '#/';
     if (err) {
       recoveryError = /expired|invalid/i.test(err)
-        ? 'That password-reset link has expired or was already used. Request a new one below.'
+        ? 'That link has expired or was already used. Request a new one below, or ask an admin to re-invite you.'
         : err.replace(/\+/g, ' ');
       return false;
     }
-    if (!isRecovery || !access || !refresh) return false;
+    if (!isSetPassword || !access || !refresh) return false;
     pendingRecovery = { access, refresh };
+    recoveryIsInviteFlag = type !== 'recovery';
     return true;
   } catch { return false; }
 }
 export const hasPendingRecovery = (): boolean => pendingRecovery !== null;
+// True when the captured link was an invite/signup (a first-time user setting
+// their password), false for an ordinary password reset.
+export const recoveryIsInvite = (): boolean => recoveryIsInviteFlag;
 // Read (and clear) the message from a failed reset link, for the login screen.
 export function takeRecoveryError(): string { const e = recoveryError; recoveryError = ''; return e; }
 
