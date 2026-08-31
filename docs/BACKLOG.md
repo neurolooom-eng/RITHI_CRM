@@ -63,6 +63,13 @@ _Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock
 
 ### Access & roles
 - User Master login (AL / Gmail ID, set-password-first, Validity=TRUE only).
+- **User Master is maintained in the app** (`0033_user_directory_role.sql`) —
+  admins add and edit directory rows, and each carries the **role** the person
+  is granted: `ensure_my_profile()` builds their profile from that row on first
+  sign-in, and saving applies the role straight away to someone already signed
+  in. Fixes a signed-in user with no profile showing as a bare engineer and
+  never appearing in User Access. The address door (0030) still cannot set a
+  role.
 - Role-based call visibility (engineer = own calls; RM = reporting sub-tree;
   admin = all).
 - Admin **"View as"** engineer preview (persistent banner + exit).

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.13',
+    date: '2026-08-31',
+    title: 'User Master maintains people, and gives them their role',
+    changes: [
+      'User Master was read-only, so a new joiner could not be added and nobody\u2019s details could be corrected in the app. Administrators can now add a user and edit any of them \u2014 name, IDs, designation, reporting and regional manager, region, contact and address, and whether they are active.',
+      'Each user carries a Role. Someone who has never signed in gets that role the moment they first do; someone who has signed in already has it applied to their sign-in as soon as you save.',
+      'The list shows who has actually signed in and which role they hold, so it no longer takes two screens to see whether a person has the access you gave them.',
+      'Fixed: a person who signed in without a profile behind them showed up as a plain engineer and never appeared in User Access at all \u2014 the screen that assigns roles could not see them. Their profile is now created from their User Master row, with the role it carries.',
+      'Setting a delivery address still needs only dispatch, but it can no longer be used to hand out a role: everything except the address stays administrator-only.',
+    ],
+  },
+  {
     version: '0.8.12',
     date: '2026-08-31',
     title: 'Every spare on a report is saved, or none is',
