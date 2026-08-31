@@ -1,4 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+import { setModuleCount } from '../../lib/counts';
 import './ui.css';
 
 export function PageHeader({
@@ -6,18 +8,26 @@ export function PageHeader({
   subtitle,
   actions,
   icon,
+  count,
 }: {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
   icon?: ReactNode;
+  // How many records this screen is showing. Renders a badge next to the title
+  // and feeds the same number to the sidebar nav (keyed by the current route).
+  count?: number;
 }) {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (typeof count === 'number') setModuleCount(pathname, count);
+  }, [pathname, count]);
   return (
     <div className="page-header">
       <div className="page-header-main">
         {icon && <span className="page-header-icon">{icon}</span>}
         <div>
-          <h1 className="page-title">{title}</h1>
+          <h1 className="page-title">{title}{typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}</span>}</h1>
           {subtitle && <div className="page-subtitle">{subtitle}</div>}
         </div>
       </div>

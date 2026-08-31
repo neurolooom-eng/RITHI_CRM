@@ -109,7 +109,7 @@ export function PartyMaster() {
 
   return (
     <div>
-      <PageHeader title="Party Master" subtitle="Customers / parties — cached locally, synced from the database." icon="🏥" />
+      <PageHeader title="Party Master" subtitle="Customers / parties — cached locally, synced from the database." icon="🏥" count={rows.length} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

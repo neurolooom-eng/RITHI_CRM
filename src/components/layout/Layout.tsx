@@ -6,6 +6,7 @@ import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
 import { ViewAsControl, ViewAsBanner } from './ViewAs';
 import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
+import { useModuleCounts } from '../../lib/counts';
 import './layout.css';
 
 interface NavItem {
@@ -155,6 +156,7 @@ function ThemeMenu() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can, managerViewMode, setManagerViewMode } = useAuth();
+  const navCounts = useModuleCounts();
   const navigate = useNavigate();
   const isManagerRole = user?.rbacRole === 'rm' || user?.rbacRole === 'rgm';
   const [collapsed, setCollapsed] = useState(() => {
@@ -270,6 +272,9 @@ export function Layout({ children }: { children: ReactNode }) {
                     >
                       <span className="nav-icon">{item.icon}</span>
                       {!collapsed && <span className="nav-label">{item.label}</span>}
+                      {!collapsed && typeof navCounts[item.to] === 'number' && (
+                        <span className="nav-count">{navCounts[item.to].toLocaleString()}</span>
+                      )}
                     </NavLink>
                   ))}
               </div>

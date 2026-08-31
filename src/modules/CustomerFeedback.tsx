@@ -108,7 +108,7 @@ export function CustomerFeedback() {
 
   return (
     <div>
-      <PageHeader title="Customer Feedback" subtitle="Feedback captured on each call report." icon="⭐" />
+      <PageHeader title="Customer Feedback" subtitle="Feedback captured on each call report." icon="⭐" count={visible.length} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

@@ -110,6 +110,7 @@ export function CrudModule<T extends BaseRecord>({ config }: { config: CrudConfi
         title={config.title}
         subtitle={config.subtitle}
         icon={config.icon}
+        count={visibleRows.length}
         actions={
           can('edit') && (
             <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>

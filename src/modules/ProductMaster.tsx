@@ -120,6 +120,7 @@ export function ProductMaster() {
         title="Product Master"
         subtitle="Search the install base and register a call straight from a product."
         icon="🩺"
+        count={rows.length}
       />
 
       {msg && (

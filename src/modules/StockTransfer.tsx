@@ -277,6 +277,7 @@ export function StockTransfer() {
         title="Stock Transfer"
         subtitle="Move hand-stock between engineers. Stock is derived from what each engineer received and consumed."
         icon="🔄"
+        count={visible.length}
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => setDrawer(true)}>＋ New Transfer</button>}
       />
 

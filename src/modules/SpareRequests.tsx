@@ -691,6 +691,7 @@ export function SpareRequests() {
         title="Spare Requests"
         subtitle="Raise, approve, dispatch and acknowledge spare requests against calls."
         icon="📦"
+        count={visible.length}
         actions={can('spare.request') && <button className="btn btn-primary" onClick={() => setDrawer(true)}>＋ New Spare Request</button>}
       />
 

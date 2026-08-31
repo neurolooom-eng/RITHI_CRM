@@ -114,6 +114,7 @@ export function RequestCallRegistration() {
         title="Request Call Registration"
         subtitle="Every call registration request raised, and what became of it. REQID is assigned automatically."
         icon="📝"
+        count={visible.length}
         actions={can('request.create') ? <button className="btn btn-primary" onClick={() => setNewOpen(true)}>＋ New Request</button> : undefined}
       />
 

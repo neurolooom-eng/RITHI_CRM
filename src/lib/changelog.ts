@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.31',
+    date: '2026-08-31',
+    title: 'Record counts on every screen',
+    changes: [
+      'Each module now shows how many records it holds — a count next to the module name in the left menu and next to the page heading. The count reflects what you can see (your team, your region, your own calls), so a Reporting Manager switching between “Team calls” and “My calls” sees the number change with them.',
+      'Counts cover Field/Installation/PM calls, Pending Calls, Pending & Request Registrations, Reports, Spare Requests, Pending Dispatch, Spare Consumption, Hand Stock, Stock Transfer, Customer Feedback, Field Failure, and the Party / Product / Part / User masters.',
+    ],
+  },
+  {
     version: '0.8.30',
     date: '2026-08-31',
     title: 'See every report field — in Reports and on a call',

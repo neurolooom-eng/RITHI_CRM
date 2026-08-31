@@ -26,6 +26,18 @@
 .page-title {
   font-size: 20px;
 }
+/* record count next to a page heading */
+.page-title-count {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 9px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: middle;
+  color: var(--primary, #2563eb);
+  background: color-mix(in srgb, var(--primary, #2563eb) 14%, transparent);
+}
 .page-subtitle {
   font-size: 13px;
   color: var(--text-muted);

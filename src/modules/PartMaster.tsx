@@ -137,7 +137,7 @@ export function PartMaster() {
 
   return (
     <div>
-      <PageHeader title="Part Master" subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database." icon="🔩" />
+      <PageHeader title="Part Master" subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database." icon="🔩" count={visible.length} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

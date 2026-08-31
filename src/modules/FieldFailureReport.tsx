@@ -65,6 +65,7 @@ export function FieldFailureReport() {
         title="Field Failure Report"
         subtitle="Diagnosed field failures by category & product"
         icon="🧪"
+        count={failures.length}
         actions={
           <button
             className="btn"

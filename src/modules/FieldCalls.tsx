@@ -681,6 +681,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         title={config.title}
         subtitle={config.subtitle}
         icon={config.icon}
+        count={visibleRows.length}
         actions={
           can('calls.create') && (
             <button
