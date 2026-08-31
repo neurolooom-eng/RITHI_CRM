@@ -382,6 +382,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
             : f);
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
+  // Engineers default to seeing only OPEN calls (anything not fully Solved),
+  // keeping their register small; a toggle reveals closed ones. Everyone else
+  // sees all by default. A call is closed only when its state is exactly Solved.
+  const [openOnly, setOpenOnly] = useState(user?.rbacRole === 'engineer');
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Update Call" → Reporting-N
@@ -640,8 +644,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // On Supabase the SERVER already applied the search terms, so the displayed
     // list must stick exactly to what came back — only role-scope (and always
     // the user's own pending rows). On the sheet path we filter client-side.
+    // Open-only: keep anything not fully Solved; a user's own unsynced local
+    // rows always stay so they can finish them.
+    const openOk = (row: Rec) => !openOnly || row._pending === true || String(row.callState ?? '') !== 'Solved';
     const r = cached.filter((row) =>
-      scopeOk(row) &&
+      scopeOk(row) && openOk(row) &&
       (onDb || (
         has(row.ucn, srch.ucn) &&
         has(row.productName, srch.productName) &&
@@ -654,7 +661,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, srch, scope, user?.id, onDb]);
+  }, [cached, srch, scope, user?.id, onDb, openOnly]);
 
   // More rows exist beyond what is loaded (only in the unfiltered browse set),
   // so the count is a lower bound — shown as "N+".
@@ -730,6 +737,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             </div>
             <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
               {busy ? '…' : '↻ Refresh'}
+            </button>
+            <button
+              className={`chip ${openOnly ? 'chip-on' : ''}`}
+              onClick={() => setOpenOnly((o) => !o)}
+              title={openOnly ? 'Showing only open calls — click to include closed (Solved) ones' : 'Showing all calls — click to hide closed ones'}
+            >
+              {openOnly ? '🔵 Open only' : '⚪ All calls'}
             </button>
             {pendingCount > 0 && (
               <button className="btn btn-sm btn-primary" onClick={() => void syncPending()} disabled={busy || !configured}>

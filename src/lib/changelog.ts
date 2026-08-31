@@ -12,11 +12,27 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.38',
+    version: '0.8.40',
     date: '2026-08-31',
     title: 'MRN: Good + Defective together cannot exceed what you hold',
     changes: [
       'On a Material Return, the Good and Defective boxes were capped separately, so a spare you hold 2 of could be entered as 6 good and 4 defective. They are two halves of one returned quantity: each box is now capped at what is left of that spare once the other box (and any other line on the same MRN) is counted, and a quantity typed over the cap is pulled back with a note saying how many are in hand.',
+    ],
+  },
+  {
+    version: '0.8.39',
+    date: '2026-08-31',
+    title: 'Engineers see only open calls by default',
+    changes: [
+      'The Field / Installation / PM registers now default to showing only OPEN calls for engineers — anything not fully Solved — so an engineer’s list stays short even as closed calls pile up. A toggle (“🔵 Open only” / “⚪ All calls”) at the top reveals the closed ones. Managers, office roles and admins still see everything by default.',
+    ],
+  },
+  {
+    version: '0.8.38',
+    date: '2026-08-31',
+    title: 'Reports lists every report field as a column',
+    changes: [
+      'The Reports ⚙ Columns list now comes from the full report field spec, so every field a report can carry is available as a column — even when the currently loaded rows didn’t fill it. Nothing is trimmed to just what the current page contains.',
     ],
   },
   {
