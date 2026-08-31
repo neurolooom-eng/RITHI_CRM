@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.32',
+    version: '0.8.34',
     date: '2026-08-31',
     title: 'Warranty and Contract registers, live — with the entry as the parent record',
     changes: [
@@ -23,6 +23,24 @@ export const CHANGELOG: ChangeEntry[] = [
       'Warranty and contract on the machine (what a call form fills in) is now maintained by these registers, so the Product Master follows a contract renewal instead of being keyed twice.',
       'Editing sales and contracts is its own permission — Admin, Commercial and NSM have it by default; everyone who can see masters can read them.',
       'Importing the two details files no longer times out on a full Product Master, and the four exports can be re-run after a failed import without duplicating what already loaded.',
+      'Both tabs work like the Field Call Register: opens from cache with a “synced X ago” stamp, ↻ Refresh, Load more, and Export CSV.',
+    ],
+  },
+  {
+    version: '0.8.33',
+    date: '2026-08-31',
+    title: 'Honest module counts',
+    changes: [
+      'Module counts never show a wrong number: on screens that load in pages (Field/Installation/PM calls, Reports, Customer Feedback), when more rows exist beyond what is loaded the count reads “1,000+” rather than a misleading exact figure. Screens that load everything still show the exact total.',
+    ],
+  },
+  {
+    version: '0.8.32',
+    date: '2026-08-31',
+    title: 'Pending Calls & Reports load at scale',
+    changes: [
+      'Fixed “Load failed: canceling statement due to statement timeout” on Pending Calls (and the same risk on Reports) as call volume grows. The security check that scopes calls to your reporting tree was being recomputed for every call row; it is now computed once per load, behind an indexed lookup — the same calls stay visible to the same people, just far faster.',
+      'Needs a database script run once (fix_pending_timeout.sql) to take effect.',
     ],
   },
   {

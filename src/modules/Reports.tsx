@@ -125,7 +125,7 @@ export function Reports() {
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} />
+      <PageHeader title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

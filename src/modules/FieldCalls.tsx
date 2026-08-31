@@ -656,6 +656,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return [...r].reverse();
   }, [cached, srch, scope, user?.id, onDb]);
 
+  // More rows exist beyond what is loaded (only in the unfiltered browse set),
+  // so the count is a lower bound — shown as "N+".
+  const searching = !!(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName);
+  const moreAvailable = configured && !searching && cached.filter((r) => r._synced).length >= loadLimit;
+
   const actionsColumn: Column<Rec> = {
     key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,
     render: (row) => (
@@ -682,6 +687,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         subtitle={config.subtitle}
         icon={config.icon}
         count={visibleRows.length}
+        countMore={moreAvailable}
         actions={
           can('calls.create') && (
             <button
@@ -709,7 +715,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         storageKey={config.storageKey}
         rowsBeforeScroll={12}
         onLoadMore={() => { if (onDb) setLoadLimit((l) => l + 800); else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); } }}
-        moreAvailable={configured && !(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName) && cached.filter((r) => r._synced).length >= loadLimit}
+        moreAvailable={moreAvailable}
         loadingMore={busy}
         onRowClick={(r) => setDrawer({ mode: 'view', row: r })}
         emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
