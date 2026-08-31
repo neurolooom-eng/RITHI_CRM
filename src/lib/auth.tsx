@@ -4,6 +4,7 @@ import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser
 import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac } from './rbac';
 import { setAuditUser, logAudit } from './audit';
+import { setCanExport } from './format';
 
 const auditIdentity = (u: User | null) => u ? { actor: u.fullName || u.email, role: (u.rbacRole || legacyToRbac(u.role)), email: u.email } : null;
 
@@ -189,6 +190,9 @@ interface AuthContextValue {
   // that user would see. null when not previewing.
   viewAs: User | null;
   setViewAs: (u: User | null) => void;
+  // Managers (RM/RGM) switch between their own calls and their team's.
+  managerViewMode: 'team' | 'mine';
+  setManagerViewMode: (m: 'team' | 'mine') => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -270,6 +274,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const viewAs = isAdmin ? viewAsRaw : null;
   // Identity the app should behave as (permissions + data scope).
   const effectiveUser = viewAs ?? user;
+
+  const [managerViewMode, setManagerViewModeRaw] = useState<'team' | 'mine'>(() => {
+    try { return localStorage.getItem('rithi.mgrView') === 'mine' ? 'mine' : 'team'; } catch { return 'team'; }
+  });
+  const setManagerViewMode = (m: 'team' | 'mine') => {
+    setManagerViewModeRaw(m);
+    try { localStorage.setItem('rithi.mgrView', m); } catch { /* ignore */ }
+  };
 
   const setViewAs = (u: User | null) => {
     if (u && !isAdmin) return; // only real admins may preview as someone else
@@ -454,9 +466,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return permsForRole(roleKey, rolePerms).includes(canonical) || (u.extraPermissions?.includes(canonical) ?? false);
   };
 
+  // Enforce CSV/download permission centrally (csvExport reads this flag).
+  const mayExport = can('export.data');
+  useEffect(() => { setCanExport(mayExport); }, [mayExport]);
+
   return (
     <AuthContext.Provider
-      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, recovering, finishRecovery, cancelRecovery, realUser, isAdmin, viewAs, setViewAs }}
+      value={{ user, users, booting: supaBooting, login, setPassword, importSheetUsers, logout, createUser, updateUser, removeUser, can, rolePerms, reloadRoles, reloadUsers, recovering, finishRecovery, cancelRecovery, realUser, isAdmin, viewAs, setViewAs, managerViewMode, setManagerViewMode }}
     >
       {children}
     </AuthContext.Provider>

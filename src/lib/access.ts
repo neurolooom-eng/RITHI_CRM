@@ -52,7 +52,7 @@ function loadUserMaster(): Promise<Record<string, unknown>[]> {
 }
 
 export function useAccessScope(): AccessScope {
-  const { user, can, viewAs } = useAuth();
+  const { user, can, viewAs, managerViewMode } = useAuth();
   const [scope, setScope] = useState<AccessScope>(EMPTY);
 
   useEffect(() => {
@@ -127,14 +127,18 @@ export function useAccessScope(): AccessScope {
         });
       }
       const isManager = allowed.size > 0;
-      if (selfName) allowed.add(selfName); // always include one's own calls
+      // A manager viewing "My calls" is scoped to just themselves; "Team"
+      // (default) keeps the whole reporting sub-tree.
+      const names = (isManager && managerViewMode === 'mine')
+        ? new Set([selfName].filter(Boolean))
+        : (selfName ? new Set([...allowed, selfName]) : allowed);
 
-      setScope({ ready: true, all: false, names: allowed, isManager, reports, selfName: selfDisplay || identity.fullName });
+      setScope({ ready: true, all: false, names, isManager, reports, selfName: selfDisplay || identity.fullName });
     });
 
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, viewAs?.id, viewAs?.email]);
+  }, [user?.id, viewAs?.id, viewAs?.email, managerViewMode]);
 
   return scope;
 }

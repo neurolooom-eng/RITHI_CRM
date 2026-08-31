@@ -88,6 +88,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
   { group: 'Analytics', key: 'dashboard.view', label: 'View dashboard' },
   { group: 'Analytics', key: 'feedback.view', label: 'View feedback' },
+  { group: 'Analytics', key: 'export.data', label: 'Export / download CSV' },
   { group: 'Admin', key: 'users.manage', label: 'Manage users' },
   { group: 'Admin', key: 'config.manage', label: 'Admin config' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
@@ -130,6 +131,11 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial'],
 };
+// Everyone but a plain engineer can export / download data by default.
+// (admin already has every functional action, so it is covered.)
+(['nsm', 'rgm', 'rm', 'hotline', 'spare_coordinator', 'stores_incharge', 'tally_coordinator', 'commercial'] as const)
+  .forEach((r) => { if (FUNCTIONAL_DEFAULTS[r] && !FUNCTIONAL_DEFAULTS[r].includes('export.data')) FUNCTIONAL_DEFAULTS[r].push('export.data'); });
+
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
     role,
