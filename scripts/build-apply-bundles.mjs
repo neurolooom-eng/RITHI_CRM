@@ -82,7 +82,7 @@ const MODULES = {
       'views the Call Status column and the Pending Calls module read, and Call',
       'Number assignment (the request UniqueID, or CLYY##### for a direct call).',
     ],
-    needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables'],
+    needs: ['profiles', 'visibleEngineers', 'callTables', 'reportTables', 'rbac'],
     files: [
       '0008_calls_creator_read.sql',
       '0010_call_request_items.sql',
@@ -92,6 +92,7 @@ const MODULES = {
       '0015_call_number.sql',
       '0024_call_request_extra.sql',
       '0032_call_state_by_entry.sql',
+      '0040_call_tables_split.sql',
     ],
   },
   audit: {
