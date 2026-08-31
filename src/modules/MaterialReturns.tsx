@@ -10,6 +10,7 @@ import {
 import { listUsers } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
+import { useAccessScope, previewScoped } from '../lib/access';
 import { engineerKey, num, partDescription, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import './fieldcalls.css';
 
@@ -53,11 +54,20 @@ const COLUMNS: Column<Row>[] = [
 ];
 
 export function MaterialReturns() {
-  const { user, can } = useAuth();
+  const { user, can, viewAs } = useAuth();
+  const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
   const PAGE = 1000;
-  const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
+  // Raw as fetched — cached and refreshed as before.
+  const [allRows, setRows] = useState<Row[]>(cached?.rows ?? []);
+  // RLS scopes a real session; this narrows the list only while an
+  // administrator previews as someone else, whose identity the database
+  // never sees.
+  const rows = useMemo(
+    () => previewScoped(allRows, !!viewAs, scope, ['engineer'], ['engineer_email'], viewAs?.email),
+    [allRows, viewAs, scope],
+  );
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [busy, setBusy] = useState(false);

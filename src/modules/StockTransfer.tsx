@@ -10,6 +10,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
+import { useAccessScope, previewScoped } from '../lib/access';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -219,12 +220,25 @@ const STOCK_COLUMNS: Column<Row>[] = [
 ];
 
 export function StockTransfer() {
-  const { user, can } = useAuth();
+  const { user, can, viewAs } = useAuth();
+  const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
   const [tab, setTab] = useState<'stock' | 'transfers'>('stock');
-  const [transfers, setTransfers] = useState<Row[]>(cached?.rows ?? []);
-  const [stock, setStock] = useState<Row[]>([]);
+  // Raw as fetched — cached and refreshed as before.
+  const [allTransfers, setTransfers] = useState<Row[]>(cached?.rows ?? []);
+  const [allStock, setStock] = useState<Row[]>([]);
+  // What the screen shows. RLS scopes a real session; this narrows the list
+  // only while an administrator previews as someone else, whose identity the
+  // database never sees. A transfer is in scope if EITHER side of it is.
+  const transfers = useMemo(
+    () => previewScoped(allTransfers, !!viewAs, scope, ['from_engineer', 'to_engineer'], [], viewAs?.email),
+    [allTransfers, viewAs, scope],
+  );
+  const stock = useMemo(
+    () => previewScoped(allStock, !!viewAs, scope, ['engineer'], [], viewAs?.email),
+    [allStock, viewAs, scope],
+  );
   const [engineers, setEngineers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);

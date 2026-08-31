@@ -149,6 +149,49 @@ export function allowsAllottee(scope: AccessScope, allottee: unknown): boolean {
   return scope.names.has(norm(allottee));
 }
 
+// ---------------------------------------------------------------------------
+// "View as" preview fidelity.
+//
+// Row-level security scopes what the DATABASE returns, and it answers for the
+// signed-in session. "View as" is a client-side identity: the query still runs
+// as the real user, so an administrator previewing a manager gets their OWN
+// rows back — which is the one question the preview exists to answer, answered
+// wrongly.
+//
+// So while a preview is active, narrow the fetched rows to the previewed
+// person's scope. In a real session this is a no-op: RLS has already done it,
+// and `all` short-circuits for administrators and the office desks.
+//
+// `nameFields` are the columns naming an engineer (a transfer has two: from
+// and to). `emailFields` catch a row that carries the address but not the
+// canonical User Master name.
+export function inPreviewScope(
+  scope: AccessScope,
+  row: unknown,
+  nameFields: string[],
+  emailFields: string[] = [],
+  email = '',
+): boolean {
+  if (scope.all) return true;
+  const r = (row ?? {}) as Record<string, unknown>;
+  if (nameFields.some((f) => scope.names.has(norm(r[f])))) return true;
+  const mine = norm(email);
+  return !!mine && emailFields.some((f) => norm(r[f]) === mine);
+}
+
+// Apply it only while previewing; otherwise hand the rows straight back.
+export function previewScoped<T>(
+  rows: T[],
+  previewing: boolean,
+  scope: AccessScope,
+  nameFields: string[],
+  emailFields: string[] = [],
+  email = '',
+): T[] {
+  if (!previewing || scope.all) return rows;
+  return rows.filter((r) => inPreviewScope(scope, r, nameFields, emailFields, email));
+}
+
 // Short label describing the active scope (for a toolbar chip).
 export function scopeLabel(scope: AccessScope): string {
   if (!scope.ready) return '⏳ Applying access…';
