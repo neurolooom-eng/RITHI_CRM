@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.34',
+    date: '2026-08-31',
+    title: 'Wrap-text toggle on every table; Reports shows every field',
+    changes: [
+      'Every table has a “Wrap: on/off” button (bottom-right). Text wrapping is on by default so long cells stay fully readable; turn it off for compact single-line rows. The choice is remembered per table.',
+      'Reports: the ⚙ Columns list now includes every field found across all loaded reports, not just the first page — nothing gets trimmed from the list.',
+    ],
+  },
+  {
     version: '0.8.33',
     date: '2026-08-31',
     title: 'Honest module counts',
