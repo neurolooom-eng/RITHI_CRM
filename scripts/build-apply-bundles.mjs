@@ -70,7 +70,8 @@ const MODULES = {
             'role a User Master row grants when that person first signs in.'],
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
-            '0030_engineer_address_write.sql', '0033_user_directory_role.sql'],
+            '0030_engineer_address_write.sql', '0033_user_directory_role.sql',
+            '0034_office_roles_see_all.sql', '0035_data_view_all.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -99,7 +100,7 @@ const MODULES = {
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0009_audit_log.sql'],
+    files: ['0009_audit_log.sql', '0033_audit_retention.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -137,6 +138,23 @@ const MODULES = {
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
     files: ['0023_handstock.sql'],
     tail: () => cookbook(),
+  },
+  sales_contracts: {
+    title: 'Sale / Warranty and Contract registers',
+    blurb: ['The two parent/child registers behind machine cover: Sale Entry -> Warranty',
+            'Sale Details, and Contract Entry -> Contract Details.',
+            '',
+            'A value common to the deal is stored once on the HEADER; the matching',
+            'column on an item is an OVERRIDE that is null unless someone pins it, so',
+            'editing a header moves every machine under it. The *_details views serve',
+            'the effective (coalesced) rows, machine_cover answers "what is this serial',
+            'under today", and sync_product_cover() keeps products --- what the call',
+            'form reads --- in step.',
+            '',
+            'Writing needs the `cover.edit` action; the bundle grants it to admin,',
+            'commercial and nsm so an existing project keeps working.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0036_sales_contracts.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -293,7 +311,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
