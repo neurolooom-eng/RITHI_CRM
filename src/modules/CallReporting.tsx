@@ -493,17 +493,10 @@ export function CallReportDrawer({
                   {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}
                 </span>
               </label>
-              <label className="rep-field">
-                <span className="field-label">Update Visit Work Details? *</span>
-                <select className="select" value={updateWork} disabled={solved} onChange={(e) => setUpdateWork(e.target.value)}>
-                  {YESNO.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-                {solved && <span className="muted rep-hint">Always Yes on a completed report.</span>}
-              </label>
             </div>
           </section>
 
-          {/* Status */}
+          {/* Status — with the work-details switch it drives, side by side */}
           <section className="rep-sec">
             <div className="rep-sec-title">Call Status</div>
             <div className="rep-grid">
@@ -514,6 +507,13 @@ export function CallReportDrawer({
                   {STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
                   {status && !STATUS_OPTIONS.includes(status) && <option value={status}>{status}</option>}
                 </select>
+              </label>
+              <label className="rep-field">
+                <span className="field-label">Update Visit Work Details? *</span>
+                <select className="select" value={updateWork} disabled={solved} onChange={(e) => setUpdateWork(e.target.value)}>
+                  {YESNO.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+                {solved && <span className="muted rep-hint">Always Yes on a completed report.</span>}
               </label>
               {(unsolved || reportPending) && (
                 <label className="rep-field rep-span2">
