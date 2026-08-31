@@ -1,0 +1,55 @@
+/* Rich editor + rendered article content. Uses app theme tokens. */
+
+.re-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.re-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  padding: 6px 8px; background: var(--surface-alt); border-bottom: 1px solid var(--border);
+}
+.re-btn {
+  min-width: 30px; height: 30px; padding: 0 8px; font: inherit; font-size: 14px; font-weight: 700;
+  border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); cursor: pointer;
+}
+.re-btn:hover { background: var(--surface); border-color: var(--border); }
+.re-sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
+
+.re-editor-wrap { position: relative; }
+.re-placeholder { position: absolute; top: 12px; left: 14px; color: var(--text-muted); pointer-events: none; font-size: 14.5px; }
+.re-editor {
+  min-height: 220px; max-height: 460px; overflow: auto; padding: 12px 14px;
+  font-size: 14.5px; line-height: 1.6; color: var(--text); outline: none;
+}
+.re-editor:focus { box-shadow: inset 0 0 0 2px var(--primary-soft); }
+
+/* Shared content styling for BOTH the editor and the rendered article. */
+.re-editor, .kb-content {
+  word-break: break-word;
+}
+.re-editor h1, .kb-content h1 { font-size: 22px; margin: 14px 0 8px; }
+.re-editor h2, .kb-content h2 { font-size: 19px; margin: 14px 0 8px; }
+.re-editor h3, .kb-content h3 { font-size: 16px; margin: 12px 0 6px; }
+.re-editor h4, .kb-content h4 { font-size: 14.5px; margin: 12px 0 6px; }
+.re-editor p, .kb-content p { margin: 8px 0; }
+.re-editor ul, .re-editor ol, .kb-content ul, .kb-content ol { margin: 8px 0; padding-left: 26px; }
+.re-editor li, .kb-content li { margin: 3px 0; }
+.re-editor a, .kb-content a { color: var(--primary); text-decoration: underline; }
+.re-editor img, .kb-content img { max-width: 100%; height: auto; border-radius: 8px; margin: 6px 0; border: 1px solid var(--border); }
+.re-editor blockquote, .kb-content blockquote {
+  margin: 10px 0; padding: 6px 14px; border-left: 3px solid var(--primary);
+  background: var(--surface-alt); border-radius: 0 8px 8px 0; color: var(--text-muted);
+}
+.re-editor pre, .kb-content pre {
+  margin: 10px 0; padding: 12px 14px; background: var(--surface-alt); border: 1px solid var(--border);
+  border-radius: 8px; overflow-x: auto; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px;
+}
+.re-editor code, .kb-content code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; }
+.re-editor table, .kb-content table {
+  border-collapse: collapse; margin: 10px 0; width: auto; max-width: 100%; font-size: 13.5px;
+}
+.re-editor th, .re-editor td, .kb-content th, .kb-content td {
+  border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; min-width: 44px;
+}
+.re-editor th, .kb-content th { background: var(--surface-alt); font-weight: 600; }
+.kb-content { font-size: 14.5px; line-height: 1.65; }
+.kb-content > *:first-child { margin-top: 0; }
+/* wide tables scroll rather than push the page sideways */
+.kb-content { overflow-x: auto; }

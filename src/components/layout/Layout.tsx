@@ -14,6 +14,7 @@ interface NavItem {
   label: string;
   icon: string;
   adminOnly?: boolean;
+  alwaysOpen?: boolean; // visible to every role, not RBAC-gated (e.g. help pages)
 }
 interface NavGroup {
   title: string;
@@ -87,6 +88,12 @@ export const NAV: NavGroup[] = [
       { to: '/version-history', label: 'Version History', icon: '🗂️' },
     ],
   },
+  {
+    title: 'Help',
+    items: [
+      { to: '/knowledge-base', label: 'Knowledge Base', icon: '📚', alwaysOpen: true },
+    ],
+  },
 ];
 
 // Global search across all modules (nav items). Jump straight to any screen.
@@ -96,7 +103,7 @@ function ModuleSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () => NAV.flatMap((g) => g.items.filter((it) => (!it.adminOnly || can('manage-users')) && can(actionForPath(it.to))).map((it) => ({ ...it, group: g.title }))),
+    () => NAV.flatMap((g) => g.items.filter((it) => it.alwaysOpen || ((!it.adminOnly || can('manage-users')) && can(actionForPath(it.to)))).map((it) => ({ ...it, group: g.title }))),
     [can],
   );
   const results = q.trim()
@@ -246,7 +253,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           )}
           {NAV.map((group) => {
-            const items = group.items.filter((i) => (!i.adminOnly || can('manage-users')) && can(actionForPath(i.to)));
+            const items = group.items.filter((i) => i.alwaysOpen || ((!i.adminOnly || can('manage-users')) && can(actionForPath(i.to))));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
             return (

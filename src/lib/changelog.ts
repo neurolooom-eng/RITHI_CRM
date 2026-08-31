@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.44',
+    version: '0.8.45',
     date: '2026-08-31',
     title: 'Hand Stock, Stock Transfer and Material Returns follow your team',
     changes: [
@@ -20,7 +20,19 @@ export const CHANGELOG: ChangeEntry[] = [
       'Stock levels were the gap: the figures behind Stock Transfer were read in a way that ignored access rules altogether, so anyone signed in could see every engineer\u2019s stock. They are now scoped like everything else.',
       'Stock transfers are visible to Stores, Commercial, NSM and the other desks again \u2014 they move stock for every team, and had been shut out.',
       'The check that stops a transfer overdrawing still counts every movement, so nobody can transfer stock they do not have by virtue of not being able to see it.',
+      '\u201cView as\u201d on these three screens now shows what that person would really see, instead of the administrator\u2019s own stock wearing their name.',
       'Needs migration 0041_stock_read_scope.sql (apply bundle: HandStock_X.sql).',
+    ],
+  },
+  {
+    version: '0.8.44',
+    date: '2026-08-31',
+    title: 'Knowledge Base — how-to guide + team field solutions',
+    changes: [
+      'New Knowledge Base page (in the menu under Help, open to everyone): a step-by-step “How to use RITHI CRM” guide covering requesting and updating calls, installations, spares, spare status, customer feedback, passwords, the Build ID and Refresh/Sync/Force-update.',
+      'Field Solutions — the team writes and shares fixes for real field issues. Anyone signed in can add an article and search everyone’s; the author (or an admin) can edit or delete their own.',
+      'Articles are written in a built-in editor with headings, lists, links, images (upload or link) and tables — plus attachment links to files kept in Drive or on Pages.',
+      'Needs a database script run once (knowledge_base.sql) to store the articles.',
     ],
   },
   {
@@ -36,7 +48,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.8.43',
+    version: '0.8.42',
     date: '2026-08-31',
     title: 'Show password toggle',
     changes: [
