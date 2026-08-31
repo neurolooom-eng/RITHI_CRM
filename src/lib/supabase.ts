@@ -1430,3 +1430,17 @@ export async function kbDelete(id: number): Promise<{ ok: boolean; error?: strin
   const { error } = await must().from('kb_articles').delete().eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// SLA rules (0044_sla_rules) — configurable service-level targets.
+// ---------------------------------------------------------------------------
+export interface SlaRuleRow { key: string; label: string; target_hours: number; active: boolean; sort_order: number }
+export async function listSlaRules(): Promise<SlaRuleRow[]> {
+  const { data, error } = await must().from('sla_rules').select('*').order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as SlaRuleRow[];
+}
+export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('sla_rules').update(patch).eq('key', key);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}

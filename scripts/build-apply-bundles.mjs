@@ -97,6 +97,14 @@ const MODULES = {
       '0043_installation_create_gate.sql',
     ],
   },
+  sla: {
+    title: 'SLA Rules',
+    blurb: ['Configurable service-level targets (sla_rules): the hours + on/off for',
+            'first visit, closure, closure-with-spare and stores dispatch. Read by',
+            'everyone; edited by admins / config.manage. Highlights open calls.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0044_sla_rules.sql'],
+  },
   knowledge_base: {
     title: 'Knowledge Base',
     blurb: ['Team-written field-solution articles (kb_articles): anyone signed in reads',
@@ -336,7 +344,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'knowledge_base'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

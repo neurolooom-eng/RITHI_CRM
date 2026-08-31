@@ -3,7 +3,10 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, DonutChart, ColumnChart } from '../components/charts/Charts';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { listFieldCalls, listPending, dataConfigured } from '../lib/sheets';
+import { listSlaRules, supabaseConfigured } from '../lib/supabase';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
+import { evaluateCallSla, DEFAULT_SLA_RULES, slaTone, slaLabel, slaWhen, type SlaRule } from '../lib/sla';
+import { fmtLongDate } from '../lib/format';
 
 // ===========================================================================
 // SERVICE DASHBOARD — computed from the live Field + Installation call data
@@ -46,6 +49,12 @@ export function Dashboard() {
   const [pending, setPending] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [slaRules, setSlaRules] = useState<SlaRule[]>(DEFAULT_SLA_RULES);
+
+  useEffect(() => {
+    if (!supabaseConfigured()) return;
+    listSlaRules().then((r) => { if (r.length) setSlaRules(r as SlaRule[]); }).catch(() => { /* keep defaults */ });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +101,16 @@ export function Dashboard() {
 
   const uniqueParties = new Set(all.map((r) => g(r, 'partyName').trim()).filter(Boolean)).size;
 
+  // SLA — evaluate each open call against the active rules, worst first.
+  const slaCalls = useMemo(() => all
+    .map((r) => ({ r, sla: evaluateCallSla(slaRules, { regAt: g(r, 'regDate') || g(r, 'complaintDate'), openState: g(r, 'callState'), itemStatus: g(r, 'itemStatus') }) }))
+    .filter((x) => x.sla.worst === 'breach' || x.sla.worst === 'due')
+    .sort((a, b) => (a.sla.worst === 'breach' ? 0 : 1) - (b.sla.worst === 'breach' ? 0 : 1)
+      || Math.min(...a.sla.parts.map((p) => p.hoursLeft)) - Math.min(...b.sla.parts.map((p) => p.hoursLeft))),
+  [all, slaRules]);
+  const slaBreaches = slaCalls.filter((x) => x.sla.worst === 'breach').length;
+  const slaDue = slaCalls.filter((x) => x.sla.worst === 'due').length;
+
   return (
     <div>
       <PageHeader title="Service Dashboard" subtitle="Live field-service operations at a glance" icon="📊"
@@ -106,11 +125,39 @@ export function Dashboard() {
         <KpiCard label="Installation Calls" value={instS.length} tone="info" icon="🔧" sub="most recent 300" />
         <KpiCard label="Pending Registrations" value={pending == null ? '—' : pending} tone="warning" icon="⏳" sub="awaiting UCN" />
         <KpiCard label="Calls This Month" value={thisMonth} tone="success" icon="📅" />
+        <KpiCard label="SLA Breached" value={slaBreaches} tone={slaBreaches ? 'danger' : 'success'} icon="⏱️" sub={slaDue ? `${slaDue} due soon` : 'your open calls'} />
         <KpiCard label="Public Health Threats" value={phThreat} tone={phThreat ? 'danger' : 'neutral'} icon="⚠️" />
         <KpiCard label="Serious Incidents" value={serious} tone={serious ? 'danger' : 'neutral'} icon="🚨" />
         <KpiCard label="Parties Served" value={uniqueParties} tone="neutral" icon="🏥" />
         <KpiCard label="Engineers Active" value={topEngineers.length} tone="neutral" icon="🧑‍🔧" />
       </KpiGrid>
+
+      {slaCalls.length > 0 && (
+        <SectionCard title={`⏱️ SLA — needs attention (${slaCalls.length})`}>
+          <div className="assoc-scroll">
+            <table className="assoc-table" style={{ minWidth: 620 }}>
+              <thead><tr><th>SLA</th><th>UCN</th><th>Call No</th><th>Party</th><th>Status</th><th>Registered</th><th>Which rule</th></tr></thead>
+              <tbody>
+                {slaCalls.slice(0, 20).map(({ r, sla }, i) => {
+                  const worstPart = [...sla.parts].sort((a, b) => a.hoursLeft - b.hoursLeft)[0];
+                  return (
+                    <tr key={i}>
+                      <td><span className={`badge badge-${slaTone(sla.worst)}`}>{slaLabel(sla.worst)}</span></td>
+                      <td>{g(r, 'ucn')}</td>
+                      <td>{g(r, 'callNumber')}</td>
+                      <td>{g(r, 'partyName')}</td>
+                      <td>{g(r, 'callState')}</td>
+                      <td>{fmtLongDate(g(r, 'regDate'))}</td>
+                      <td className="muted">{worstPart ? `${worstPart.label} · ${slaWhen(worstPart.hoursLeft)}` : ''}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {slaCalls.length > 20 && <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>…and {slaCalls.length - 20} more.</div>}
+        </SectionCard>
+      )}
 
       <div className="dash-grid">
         <SectionCard title="Calls — last 6 months">

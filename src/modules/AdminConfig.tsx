@@ -3,6 +3,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { checkConfig, getConfig, getMasters, listMaster, setConfig, setMasters, type ConfigCheck, type MasterEntry, type SheetConfig } from '../lib/sheets';
 import { clearMasterCache } from '../lib/masters';
 import { DataImport } from './DataImport';
+import { SlaRulesCard } from './SlaRulesCard';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -185,6 +186,8 @@ export function AdminConfig() {
           <button className="btn btn-primary" onClick={() => void saveMasters()} disabled={busy}>Save Masters</button>
         </div>
       </SectionCard>
+
+      <SlaRulesCard />
     </div>
   );
 }
