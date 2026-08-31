@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-29 (Supabase cutover + RBAC + spare workflow + hand stock shipped; go-live data reset queued)_
+_Last updated: 2026-08-31 (MRN — Material Return Note — built on `claude/handstock-hc86x7`; `HandStock_X.sql` to re-run on the live project)_
 
 ---
 
@@ -132,6 +132,14 @@ preflight their prerequisites, and are idempotent.
   `Spare_X.sql` and `stock_transfer` first). Until it is run, the Hand Stock
   module says so and stays empty, and the report form has no stock to consume
   from.
+- **`0039_material_returns.sql`** — MRN (Material Return Note): the return
+  register, its `MRN-YYMM-NNNN` numbering, the guard that stops an engineer
+  returning more than they hold, and the fifth hand-stock movement that
+  subtracts it. Shipped **inside `HandStock_X.sql`** (re-run that file; it now
+  carries `0023` then `0037`) rather than as its own bundle, because it adds a
+  column to the same two views — a later re-run of the hand-stock file must
+  carry it or it would redefine them back without returns. Until it is run, the
+  Material Returns module says so and stays empty. `_status.sql` row 17.
 - `0011_call_request_actions.sql` — cancel/mapping columns on `call_requests`.
 - `0012_call_state.sql` — `call_state` + `pending_calls` views. Until it is
   run, the Call Status column stays blank and Pending Calls says so.
@@ -230,9 +238,19 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   Data Import (auto-map, preserve back-dated `reg_date`). Back-dating already
   works via the clean-CSV importer.
 - **PM Reporting fields** — surface PM-specific report columns in the report form.
-- **Product Master derivation + Warranty/Contract registers** — build from Sale
-  Entry + Warranty Sale + Contract Details/Entry + Ownership Transfer (CSVs
-  received); add warranties/contracts/sales/ownership tables + screens.
+- **Product Master derivation + Warranty/Contract registers** — ✅ shipped
+  (`0036_sales_contracts.sql`). Sale Entry → Warranty Sale Details and Contract
+  Entry → Contract Details are header+item registers: a common value is stored
+  once on the header and the item column is an override, so editing the header
+  moves every machine that follows it (the exports had 692 warranty dates, 402
+  contract statuses and 29 contract types drifted from their own header — those
+  land as pinned overrides and are kept). `machine_cover` answers what a serial
+  is under today, and `sync_product_cover()` keeps `products` — what the call
+  form reads — in step. All four exports import as exported in Bulk Data Import,
+  in any order. **To run:** `supabase/apply/_status.sql`, then
+  `supabase/apply/sales_contracts.sql`, then import the four CSVs.
+  **Still open:** Ownership Transfer (no table yet), and the AMC/CMC renewal
+  flow (raising the next MC from an expiring one).
 - **Pending Calls noise** *(watch)* — a call with no visit reported counts as
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
@@ -558,7 +576,8 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   else the first sheet). Links editable in Admin Config. Confirm the landing tab
   after redeploy; if it isn't the intended one, name it and I'll pin it.
 - Link remaining masters to call registration (Contract Entry, Warranty Sale
-  Entry). ITEM Master is done — it backs Part Master, the spare-request picker
+  Entry) — ✅ the registers now own both, and a machine row registers a field
+  call directly. ITEM Master is done — it backs Part Master, the spare-request picker
   and the in-call consumption picker; "200 All Masters" is done — every list is
   a maintained table in All Masters.
 - **Next on masters:** point the Spare Requests approve/reject dialogs at the

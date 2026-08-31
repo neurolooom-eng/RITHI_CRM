@@ -6,8 +6,10 @@
 // in batches through the signed-in admin session (RLS permits it).
 // ---------------------------------------------------------------------------
 import { getSupabase } from './supabase';
+import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory' | 'call_requests';
+export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory'
+  | 'call_requests' | 'material_returns' | CoverTable;
 
 // Minimal CSV parser (quotes, commas, newlines).
 export function parseCSV(text: string): Record<string, string>[] {
@@ -32,10 +34,19 @@ export function parseCSV(text: string): Record<string, string>[] {
 // Detect which table a clean CSV targets, from its header columns.
 export function detectTable(headers: string[]): ImportTable | null {
   const H = new Set(headers.map((h) => h.trim()));
+  // The four AppSheet sale / contract exports, imported as exported.
+  const cover = detectCoverTable(headers);
+  if (cover) return cover;
   if (H.has('name') && H.has('value')) return 'masters';
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   // Raw User Master export (sheet headers, not the clean file).
   if (H.has('User Name') && (H.has('RM') || H.has('Email ID'))) return 'user_directory';
+  // Raw MRN export. The sheet kept it in two tabs — a form-data tab (one row
+  // per submission) and a register tab (one row per item, repeating the
+  // header). Either is accepted and flattened to one row per returned item;
+  // the register is the fuller of the two.
+  if (H.has('SI Number') && H.has('MRN No')) return 'material_returns';
+  if (H.has('Stock Transfer Number') && H.has('MRN No')) return 'material_returns';
   // Raw CRN Registration export (the request sheet's own headers).
   if (H.has('UNIQUE ID') && H.has('ENGINEER') && H.has('PARTY NAME')) return 'call_requests';
   if (H.has('ucn') && H.has('data')) return 'reports';
@@ -151,10 +162,66 @@ function shapeCallRequestRow(r: Record<string, string>): Record<string, unknown>
   };
 }
 
+// One returned item, from the MRN register export. 'NA' is the sheet's empty
+// cell; it is dropped rather than stored. Quantities come from Good/Defective —
+// the sheet's "Total QTY" is a spreadsheet formula artifact and is ignored.
+const naBlank = (v: unknown) => { const s = String(v ?? '').trim(); return s.toUpperCase() === 'NA' ? '' : s; };
+function shapeMrnRow(r: Record<string, string>): Record<string, unknown> {
+  const code = naBlank(r['Item Code']);
+  const name = naBlank(r['Item Name']);
+  const good = Number(String(r['Good Qty'] ?? '').trim() || 0) || 0;
+  const bad = Number(String(r['Defective Qty'] ?? '').trim() || 0) || 0;
+  return {
+    uid: String(r['SI Number'] ?? r['Stock Transfer Number'] ?? '').trim(),
+    mrn_no: naBlank(r['MRN No']),
+    mrn_date: toDate(r['MRN Date']),
+    engineer: String(r['ENGINEER NAME'] ?? '').trim(),
+    engineer_email: String(r['User Email'] ?? '').trim(),
+    part: code ? `${code}|${name}` : '',
+    item_code: code,
+    item_name: name,
+    // A row with neither quantity is still a returned item on the sheet; the
+    // table's check constraint needs at least one, so an empty pair counts as
+    // one good part, which is what the register means by a bare line.
+    good_qty: good + bad > 0 ? good : 1,
+    defective_qty: bad,
+    customer_name: naBlank(r['Customer Name']),
+    report_no: naBlank(r['Report No']),
+    removed_from_equipment: naBlank(r['Removed from Equip']),
+    handstock_note: naBlank(r['HandStock']),
+    returned_at: toTs(r['Timestamp']) ?? toTs(r['MRN Date']),
+    source: 'import',
+  };
+}
+// The unique index is (uid, part code, row no); number the lines within each
+// submission and drop the sheet's exact duplicates.
+function dedupeMrn(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+  const seen = new Set<string>();
+  const perUid = new Map<string, number>();
+  const out: Record<string, unknown>[] = [];
+  for (const r of rows) {
+    const uid = String(r.uid ?? '');
+    const code = String(r.item_code ?? '');
+    const key = `${uid}|${code}`;
+    if (seen.has(key)) continue;          // same spare twice on one MRN
+    seen.add(key);
+    const n = (perUid.get(uid) ?? 0) + 1;
+    perUid.set(uid, n);
+    out.push({ ...r, row_no: n });
+  }
+  return out;
+}
+
 // Shape raw CSV rows into insert-ready records for a given table.
 export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Record<string, unknown>[] {
   switch (table) {
+    case 'sale_entries': case 'sale_items': case 'contract_entries': case 'contract_items':
+      return shapeCoverRows(table, raw);
     case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
+    // MRN: flatten both sheet tabs into one row per returned item. The form-data
+    // tab has no item columns, so its rows carry nothing to return and are
+    // dropped — the register tab holds every line, header fields included.
+    case 'material_returns': return dedupeMrn(raw.map(shapeMrnRow).filter((r) => r.part));
     case 'user_directory': return raw.map(shapeDirectoryRow).filter((r) => r.name);
     case 'parties': return raw.filter((r) => r.party_name);
     case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
@@ -178,19 +245,42 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
 }
 
 export interface ImportProgress { done: number; total: number }
-// Insert shaped rows in batches through the admin session. Reports carry a large
-// jsonb payload, so they use a smaller batch.
+
+// The sale / contract tables have a natural key, so their files are UPSERTED:
+// an import that stopped half way (a timeout, a dropped connection) can simply
+// be run again instead of colliding with the rows that did land.
+const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
+  sale_entries: 'sa_number', sale_items: 'uid',
+  contract_entries: 'mc_number', contract_items: 'uid',
+};
+
+// Rows per request. Every sale / contract item syncs the machine it names, so
+// those batches are kept small enough to finish inside the server's statement
+// timeout; reports carry a large jsonb payload.
+const BATCH: Partial<Record<ImportTable, number>> = {
+  reports: 300, sale_items: 400, contract_items: 400, sale_entries: 500, contract_entries: 500,
+};
+
+// Insert (or upsert) shaped rows in batches through the admin session.
 export async function bulkInsert(
   table: ImportTable, rows: Record<string, unknown>[], onProgress?: (p: ImportProgress) => void,
 ): Promise<{ ok: boolean; inserted: number; error?: string }> {
   const c = getSupabase();
   if (!c) return { ok: false, inserted: 0, error: 'Not connected to Supabase.' };
-  const chunk = table === 'reports' ? 300 : 1000;
+  const chunk = BATCH[table] ?? 1000;
+  const onConflict = CONFLICT_KEY[table];
   let done = 0;
   for (let i = 0; i < rows.length; i += chunk) {
     const slice = rows.slice(i, i + chunk);
-    const { error } = await c.from(table).insert(slice);
-    if (error) return { ok: false, inserted: done, error: `${error.message} (row ~${i})` };
+    const { error } = onConflict
+      ? await c.from(table).upsert(slice, { onConflict })
+      : await c.from(table).insert(slice);
+    if (error) {
+      const hint = /timeout/i.test(error.message)
+        ? ' — the database cancelled the batch. Apply supabase/apply/sales_contracts.sql (it adds the index this import needs), then run the import again; already-loaded rows are updated, not duplicated.'
+        : '';
+      return { ok: false, inserted: done, error: `${error.message} (row ~${i})${hint}` };
+    }
     done += slice.length; onProgress?.({ done, total: rows.length });
   }
   return { ok: true, inserted: done };

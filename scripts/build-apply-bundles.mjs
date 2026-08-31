@@ -126,18 +126,43 @@ const MODULES = {
       '',
       '  Stock Level = Stock Out (Stores) - Consumption',
       '              - Stock Transfer From + Stock Transfer To',
+      '              - Returned to Stores (MRN)',
       '',
       'The movement behind every figure (the DC, the call, the other engineer),',
       'each term of the formula as its own column, and `engineer_stock` --- what',
       'Stock Transfer and its stock guard read --- redefined over the same',
       'derivation, so the two screens cannot disagree.',
       '',
+      'Includes MRN (Material Return Note) --- the return register itself, its',
+      'MRN-YYMM-NNNN numbering, and the guard that stops an engineer returning',
+      'more than they are holding.',
+      '',
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
-    files: ['0023_handstock.sql'],
+    // MRN lives here rather than in a bundle of its own: it adds a term to the
+    // same two views, so a later re-run of this file must carry it or it would
+    // redefine them back without returns.
+    files: ['0023_handstock.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
+  },
+  sales_contracts: {
+    title: 'Sale / Warranty and Contract registers',
+    blurb: ['The two parent/child registers behind machine cover: Sale Entry -> Warranty',
+            'Sale Details, and Contract Entry -> Contract Details.',
+            '',
+            'A value common to the deal is stored once on the HEADER; the matching',
+            'column on an item is an OVERRIDE that is null unless someone pins it, so',
+            'editing a header moves every machine under it. The *_details views serve',
+            'the effective (coalesced) rows, machine_cover answers "what is this serial',
+            'under today", and sync_product_cover() keeps products --- what the call',
+            'form reads --- in step.',
+            '',
+            'Writing needs the `cover.edit` action; the bundle grants it to admin,',
+            'commercial and nsm so an existing project keeps working.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
@@ -295,7 +320,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

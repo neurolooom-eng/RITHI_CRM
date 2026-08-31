@@ -55,6 +55,9 @@
 --   0036_spare_drop.sql
 --   0020_stock_transfer.sql
 --   0023_handstock.sql
+--   0039_material_returns.sql
+--   0036_sales_contracts.sql
+--   0037_cover_import_speed.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4980,5 +4983,1043 @@ update public.app_roles
        updated_at  = now()
  where coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-requests'
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/handstock';
+
+-- ------------------------------------------------------------------------
+-- 0039_material_returns.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- MRN — Material Return Note.
+--
+-- The engineer sends a spare back to Stores. It is the fifth movement of hand
+-- stock and the second one that takes stock OUT of the engineer's hands:
+--
+--   Stock Level = Stock Out (Stores) − Consumption
+--               − Transfer From + Transfer To
+--               − Returned (MRN)
+--
+-- Shape: the sheet kept this in two tabs — a form-data tab (one row per
+-- submission: SI number, MRN No, MRN Date, engineer) and a register tab (one
+-- row per item, repeating the header). That is flattened here into ONE table,
+-- one row per returned item, carrying its own MRN header fields, grouped by
+-- `uid` so a submission returning five spares is five rows sharing one uid.
+--
+-- An engineer may only return what they are holding: the quantity is capped in
+-- the form and enforced here, so no route can drive a hand-stock level
+-- negative through a return.
+-- ===========================================================================
+
+create table if not exists public.material_returns (
+  id              bigint generated always as identity primary key,
+  uid             text not null,              -- one submission: MRN-YYMM-NNNN (or the sheet's SI number)
+  row_no          int,                        -- the item's position within the submission
+  mrn_no          text default '',            -- the physical MRN slip number the engineer writes
+  mrn_date        date,                       -- the date on that slip
+  engineer        text not null default '',
+  engineer_email  text default '',
+  part            text not null default '',   -- CODE|Description, as everywhere else
+  item_code       text default '',            -- kept as its own column: the sheet exports it separately
+  item_name       text default '',
+  good_qty        numeric not null default 0,
+  defective_qty   numeric not null default 0,
+  -- The rest of the sheet's form fields. All 'NA' in the history, but the form
+  -- asks for them, so they keep their place rather than being dropped.
+  customer_name   text default '',
+  report_no       text default '',
+  removed_from_equipment text default '',
+  handstock_note  text default '',
+  remarks         text default '',
+  source          text default 'app',         -- 'app' | 'import'
+  returned_at     timestamptz not null default now(),
+  created_at      timestamptz not null default now(),
+  created_by      uuid references auth.users (id) default auth.uid(),
+  constraint material_returns_qty_positive check (coalesce(good_qty, 0) + coalesce(defective_qty, 0) > 0)
+);
+
+create index if not exists material_returns_uid_idx      on public.material_returns (uid);
+create index if not exists material_returns_engineer_idx on public.material_returns (lower(btrim(engineer)));
+create index if not exists material_returns_date_idx     on public.material_returns (mrn_date desc nulls last);
+-- The import re-runs; one row per (submission, item) is the natural identity.
+create unique index if not exists material_returns_uid_part_idx
+  on public.material_returns (uid, public.part_code(part), coalesce(row_no, 0));
+
+-- ---------------------------------------------------------------------------
+-- MRN numbers follow the OR / ST convention: MRN-YYMM-NNNN, restarting each
+-- month. The sheet's own SI numbers are kept as-is on imported rows.
+-- ---------------------------------------------------------------------------
+create table if not exists public.material_return_counters (
+  period  text primary key,          -- 'YY/MM'
+  last_no integer not null default 0
+);
+alter table public.material_return_counters enable row level security;  -- definer-only
+
+create or replace function public.next_mrn_uid(p_on date default current_date)
+returns text language plpgsql security definer set search_path = public as $$
+declare p text := to_char(p_on, 'YY/MM'); n integer;
+begin
+  insert into public.material_return_counters (period, last_no) values (p, 1)
+  on conflict (period) do update set last_no = public.material_return_counters.last_no + 1
+  returning last_no into n;
+  return 'MRN-' || to_char(p_on, 'YYMM') || '-' || lpad(n::text, 4, '0');
+end $$;
+grant execute on function public.next_mrn_uid(date) to authenticated;
+
+-- Row numbers restart at 1 within a submission, as they do on a spare request.
+create or replace function public.material_returns_assign_row_no()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if new.uid is null or btrim(new.uid) = '' then
+    new.uid := public.next_mrn_uid(coalesce(new.mrn_date, current_date));
+  end if;
+  if new.row_no is null then
+    select coalesce(max(row_no), 0) + 1 into n from public.material_returns where uid = new.uid;
+    new.row_no := n;
+  end if;
+  -- The item code and the catalogue string are two views of one thing; fill
+  -- whichever the caller left empty rather than letting them drift apart.
+  if btrim(coalesce(new.item_code, '')) = '' then new.item_code := public.part_code(new.part); end if;
+  if btrim(coalesce(new.part, '')) = '' and btrim(coalesce(new.item_code, '')) <> '' then
+    new.part := btrim(new.item_code) || '|' || coalesce(new.item_name, '');
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists material_returns_assign_row_no on public.material_returns;
+create trigger material_returns_assign_row_no
+  before insert on public.material_returns
+  for each row execute function public.material_returns_assign_row_no();
+
+-- ---------------------------------------------------------------------------
+-- A return is a record of something that happened. Correcting one means
+-- another entry, not an edit; only an admin may amend.
+-- ---------------------------------------------------------------------------
+create or replace function public.material_returns_immutable()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  raise exception 'A material return cannot be edited — raise a correcting entry instead';
+end $$;
+
+drop trigger if exists material_returns_immutable on public.material_returns;
+create trigger material_returns_immutable
+  before update on public.material_returns
+  for each row execute function public.material_returns_immutable();
+
+alter table public.material_returns enable row level security;
+
+-- Reading follows the reporting tree, in the same shape as spare consumption
+-- (0038): the reconciling roles see everything, everyone else sees their own
+-- returns and their sub-tree's. The handstock views are security_invoker, so a
+-- peer's return stays out of a peer's movement trail too.
+drop policy if exists mr_read on public.material_returns;
+create policy mr_read on public.material_returns for select
+  using (
+    (select public.can_view_all_calls())        -- admin + office roles + data.view_all
+    or created_by = (select auth.uid())
+    or lower(coalesce(engineer_email, '')) = lower((select auth.email()))
+    or lower(btrim(engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+  );
+
+-- Raising one needs stock.return, and an engineer may only return their own
+-- stock (anyone who may act for others — admin, Stores, an approver — can
+-- record one on their behalf).
+drop policy if exists mr_insert on public.material_returns;
+create policy mr_insert on public.material_returns for insert
+  with check (
+    public.has_perm('stock.return')
+    and (public.is_admin()
+         or public.can_approve_spares()
+         or lower(coalesce(engineer_email, '')) = lower(auth.email()))
+  );
+
+drop policy if exists mr_delete on public.material_returns;
+create policy mr_delete on public.material_returns for delete using (public.is_admin());
+
+grant select, insert on public.material_returns to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Hand stock: the fifth movement.
+--
+-- Both quantities leave the engineer's hands — a defective spare is on its way
+-- back to Stores just as a good one is — so the movement is good + defective.
+-- ---------------------------------------------------------------------------
+create or replace view public.handstock_movements as
+-- 1. Stock out from Stores (+)
+select
+  'IN'::text                                        as direction,
+  'Stock out'::text                                 as movement,
+  public.handstock_key(r.engineer)                  as engineer_key,
+  coalesce(r.engineer, '')                          as engineer,
+  coalesce(r.engineer_email, '')                    as engineer_email,
+  public.part_code(l.part)                          as part_code,
+  coalesce(l.part, '')                              as part,
+  coalesce(l.qty, 0)                                as qty,
+  coalesce(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at)
+                                                    as moved_at,
+  coalesce(nullif(l.dc_number, ''), r.or_no, '')    as ref,
+  'Stores DC'::text                                 as ref_type,
+  coalesce(r.uid, '')                               as ref_uid,
+  coalesce(r.ucn, '')                               as ucn,
+  coalesce(r.call_number, '')                       as call_number,
+  coalesce(r.party_name, '')                        as party_name,
+  coalesce(nullif(l.dispatch_remarks, ''), '')      as remarks
+from public.spare_request_lines l
+join public.spare_requests r on r.uid = l.request_uid
+where coalesce(l.stores_status, '') ~* 'dispatch'
+union all
+-- 2. Consumption on a call (−)
+select
+  'OUT'::text, 'Consumption'::text,
+  public.handstock_key(c.engineer),
+  coalesce(c.engineer, ''),
+  coalesce(c.engineer_email, ''),
+  public.part_code(c.part),
+  coalesce(c.part, ''),
+  coalesce(c.qty, 0),
+  c.created_at,
+  coalesce(nullif(btrim(c.call_number), ''), coalesce(c.ucn, '')),
+  'Call'::text,
+  ''::text,
+  coalesce(c.ucn, ''),
+  coalesce(c.call_number, ''),
+  ''::text,
+  ''::text
+from public.spare_consumption c
+union all
+-- 3. Stock transfer FROM this engineer (−)
+select
+  'OUT'::text, 'Transfer out'::text,
+  public.handstock_key(t.from_engineer),
+  coalesce(t.from_engineer, ''),
+  ''::text,
+  public.part_code(l.part),
+  coalesce(l.part, ''),
+  coalesce(l.qty, 0),
+  coalesce(t.transfer_date::timestamptz, t.created_at),
+  coalesce(t.uid, ''),
+  'Transfer'::text,
+  ''::text,
+  ''::text,
+  ''::text,
+  coalesce(t.to_engineer, ''),                      -- who it went to
+  coalesce(t.remarks, '')
+from public.stock_transfer_lines l
+join public.stock_transfers t on t.uid = l.transfer_uid
+union all
+-- 4. Stock transfer TO this engineer (+)
+select
+  'IN'::text, 'Transfer in'::text,
+  public.handstock_key(t.to_engineer),
+  coalesce(t.to_engineer, ''),
+  ''::text,
+  public.part_code(l.part),
+  coalesce(l.part, ''),
+  coalesce(l.qty, 0),
+  coalesce(t.transfer_date::timestamptz, t.created_at),
+  coalesce(t.uid, ''),
+  'Transfer'::text,
+  ''::text,
+  ''::text,
+  ''::text,
+  coalesce(t.from_engineer, ''),                    -- who it came from
+  coalesce(t.remarks, '')
+from public.stock_transfer_lines l
+join public.stock_transfers t on t.uid = l.transfer_uid
+union all
+-- 5. Returned to Stores on an MRN (−)
+select
+  'OUT'::text, 'Return'::text,
+  public.handstock_key(m.engineer),
+  coalesce(m.engineer, ''),
+  coalesce(m.engineer_email, ''),
+  public.part_code(m.part),
+  coalesce(m.part, ''),
+  coalesce(m.good_qty, 0) + coalesce(m.defective_qty, 0),
+  coalesce(m.mrn_date::timestamptz, m.returned_at, m.created_at),
+  coalesce(nullif(btrim(m.mrn_no), ''), m.uid, ''),
+  'MRN'::text,
+  coalesce(m.uid, ''),
+  ''::text,
+  coalesce(m.report_no, ''),
+  coalesce(m.customer_name, ''),
+  btrim(
+    case when coalesce(m.defective_qty, 0) > 0
+         then 'good ' || coalesce(m.good_qty, 0) || ', defective ' || m.defective_qty || ' · ' else '' end
+    || coalesce(m.remarks, '')
+  )
+from public.material_returns m;
+
+-- ---------------------------------------------------------------------------
+-- The balance gains its own column for what has been returned, so the level
+-- stays arguable term by term.
+--
+-- `create or replace view` cannot insert a column in the middle of an existing
+-- view, so the balance and the view over it are dropped and rebuilt. Both are
+-- derived — there is nothing in them to lose.
+-- ---------------------------------------------------------------------------
+drop view if exists public.engineer_stock;
+drop view if exists public.handstock_balance;
+
+create view public.handstock_balance as
+select
+  m.engineer_key,
+  max(m.engineer)                                                       as engineer,
+  max(m.engineer_email)                                                 as engineer_email,
+  m.part_code,
+  coalesce(max(m.part) filter (where m.movement = 'Stock out'), max(m.part))
+                                                                        as part,
+  sum(case when m.movement = 'Stock out'    then m.qty else 0 end)      as stock_out,
+  sum(case when m.movement = 'Consumption'  then m.qty else 0 end)      as consumed,
+  sum(case when m.movement = 'Transfer in'  then m.qty else 0 end)      as transferred_in,
+  sum(case when m.movement = 'Transfer out' then m.qty else 0 end)      as transferred_out,
+  sum(case when m.movement = 'Return'       then m.qty else 0 end)      as returned,
+  sum(case when m.direction = 'IN' then m.qty else -m.qty end)          as on_hand,
+  max(m.moved_at) filter (where m.direction = 'IN')                     as last_in,
+  max(m.moved_at) filter (where m.direction = 'OUT')                    as last_out,
+  max(m.moved_at)                                                       as last_movement,
+  count(*)                                                              as movements
+from public.handstock_movements m
+where m.engineer_key <> '' and m.part_code <> ''
+group by m.engineer_key, m.part_code;
+
+alter view public.handstock_movements set (security_invoker = on);
+alter view public.handstock_balance   set (security_invoker = on);
+
+grant select on public.handstock_movements to authenticated;
+grant select on public.handstock_balance   to authenticated;
+
+-- `engineer_stock` is a view over the balance (0023), so the Stock Transfer
+-- screen and its overdraw guard pick the return up with no change of their own.
+create view public.engineer_stock as
+select b.engineer_key as engineer, b.part, b.on_hand as qty
+  from public.handstock_balance b;
+grant select on public.engineer_stock to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- An engineer cannot return what they are not holding. Checked AFTER the row
+-- lands, so the view already accounts for it — which also catches a multi-row
+-- insert whose rows would individually pass but together over-draw.
+--
+-- Imported history is exempt: the sheet's returns predate the stock ledger
+-- they would be checked against, and refusing them would make the import
+-- impossible. They are loaded as `source = 'import'`.
+-- ---------------------------------------------------------------------------
+create or replace function public.material_returns_check_stock()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare bal numeric;
+begin
+  if coalesce(new.source, 'app') = 'import' then return null; end if;
+  bal := public.engineer_stock_available(new.engineer, new.part);
+  if bal < 0 then
+    -- bal is the balance AFTER this row, so a negative is the shortfall.
+    raise exception
+      'Material return exceeds hand stock: % would be left with % of %',
+      new.engineer, bal, public.part_code(new.part);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists material_returns_check_stock on public.material_returns;
+create trigger material_returns_check_stock
+  after insert on public.material_returns
+  for each row execute function public.material_returns_check_stock();
+
+-- ---------------------------------------------------------------------------
+-- Access. Neither key is on any role until granted.
+--   mod:/mrn       opens the register.
+--   stock.return   records a return (own stock, unless you may act for others).
+-- Granted additively to the roles that already hold or move spares, plus
+-- Stores, who receive the returned parts.
+-- ---------------------------------------------------------------------------
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["stock.return","mod:/mrn"]'::jsonb,
+       updated_at  = now()
+ where role in ('admin', 'engineer', 'rm', 'rgm', 'spare_coordinator', 'stores_incharge')
+   and not coalesce(permissions, '[]'::jsonb) ? 'stock.return';
+
+-- Anyone who can already open Hand Stock can read the MRN register.
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/mrn"]'::jsonb,
+       updated_at  = now()
+ where coalesce(permissions, '[]'::jsonb) ? 'mod:/handstock'
+   and not coalesce(permissions, '[]'::jsonb) ? 'mod:/mrn';
+
+-- ------------------------------------------------------------------------
+-- 0036_sales_contracts.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- SALE / WARRANTY and CONTRACT registers — header + items.
+--
+-- Four AppSheet exports arrive as two parent/child pairs:
+--
+--   Sale Entry        (SA Number)  →  Warranty Sale Details  (one per machine)
+--   Contract Entry    (MC Number)  →  Contract Details       (one per machine)
+--
+-- The HEADER holds everything common to the deal (party, invoice, period,
+-- payment schedule…); each ITEM is one machine sold or covered under it.
+--
+-- Inheritance is the point of the redesign. In AppSheet every common value was
+-- COPIED onto each child row, so editing the header left the children on the
+-- old value — the export shows the drift: 681 warranty dates, 403 contract
+-- statuses and 244 entry dates disagreeing with their own header. Here a common
+-- value is stored ONCE on the header, and the item's matching column is an
+-- OVERRIDE that is null unless someone deliberately sets it. The effective
+-- value is coalesce(item, header), served by the *_details views — so changing
+-- the header changes every item under it, except the ones deliberately pinned.
+--
+-- Machines whose cover genuinely differs from their header (a unit added to the
+-- deal later, say) keep that value as an override at import, so nothing is lost.
+--
+-- The cover on the machine itself (products.warranty_* / contract_*) is kept in
+-- step by sync_product_cover(): the machine master stays the one place a call
+-- form reads cover from, but the registers are now what maintains it.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. Sale Entry (header) — one sale / delivery to a party.
+-- ---------------------------------------------------------------------------
+create table if not exists public.sale_entries (
+  id               bigint generated always as identity primary key,
+  sa_number        text not null unique,              -- SA Number
+  entry_at         timestamptz,                       -- Timestamp
+  party_name       text default '',
+  sold_through     text default '',
+  invoice_no       text default '',
+  invoice_date     date,
+  warranty_start   date,
+  warranty_end     date,
+  warranty_years   numeric,
+  warranty_months  integer,
+  pm_visits        integer,
+  warranty_status  text default '',                   -- as keyed; the live state is derived
+  other_details    text default '',
+  party_type       text default '',                   -- Type (CUSTOMER / DEALER)
+  profile          text default '',                   -- PRIVATE / GOVERNMENT / DEALER
+  country          text default '',
+  state            text default '',
+  city             text default '',
+  engineer         text default '',                   -- Service Engineer - Initial
+  address          text default '',
+  pincode          text default '',                   -- Inst. Pincode
+  tel1             text default '',
+  tel2             text default '',
+  pan              text default '',
+  gst              text default '',
+  tax              text default '',
+  extra            jsonb not null default '{}',
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  created_by       uuid references auth.users (id) default auth.uid()
+);
+
+-- ---------------------------------------------------------------------------
+-- 2. Warranty Sale Details (items) — one machine on a sale.
+-- Every nullable column that also exists on the header is an OVERRIDE.
+-- ---------------------------------------------------------------------------
+create table if not exists public.sale_items (
+  id               bigint generated always as identity primary key,
+  uid              text not null unique,              -- SA|Product|Serial
+  sa_number        text not null references public.sale_entries (sa_number)
+                     on update cascade on delete cascade,
+  priority         integer default 1,
+  product_code     text default '',
+  product_name     text default '',
+  serial_number    text default '',
+  -- overrides (null = inherit the header)
+  invoice_no       text,
+  invoice_date     date,
+  sold_through     text,
+  warranty_start   date,
+  warranty_end     date,
+  warranty_years   numeric,
+  warranty_months  integer,
+  pm_visits        integer,
+  warranty_status  text,
+  other_details    text,
+  state            text,
+  city             text,
+  engineer         text,
+  -- item-only
+  accessories_included  boolean,
+  consumable_included   boolean,
+  contract_price_fixed  boolean,
+  already_sold_to       text default '',
+  replacement_unit      boolean,
+  replacement_unit_sl   text default '',
+  add_call              text default '',
+  inst_call             text default '',
+  added_by              text default '',
+  extra            jsonb not null default '{}',
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  created_by       uuid references auth.users (id) default auth.uid()
+);
+create index if not exists sale_items_sa_idx     on public.sale_items (sa_number);
+create index if not exists sale_items_serial_idx on public.sale_items (lower(trim(serial_number)));
+create index if not exists sale_entries_party_idx on public.sale_entries (lower(trim(party_name)));
+
+-- ---------------------------------------------------------------------------
+-- 3. Contract Entry (header) and 4. Contract Details (items).
+-- ---------------------------------------------------------------------------
+create table if not exists public.contract_entries (
+  id               bigint generated always as identity primary key,
+  mc_number        text not null unique,              -- MC Number
+  entry_at         timestamptz,                       -- Contract Entry Date
+  party_name       text default '',
+  payment_schedule text default '',
+  bill_generate_at text default '',
+  contract_type    text default '',                   -- CMC / AMC
+  contract_start   date,
+  contract_end     date,
+  contract_years   numeric,
+  contract_months  integer,
+  pm_visits_total  integer,
+  status           text default '',
+  prev_mc_number   text default '',
+  extra            jsonb not null default '{}',
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  created_by       uuid references auth.users (id) default auth.uid()
+);
+
+create table if not exists public.contract_items (
+  id               bigint generated always as identity primary key,
+  uid              text not null unique,              -- MC|Product|Serial
+  mc_number        text not null references public.contract_entries (mc_number)
+                     on update cascade on delete cascade,
+  priority         integer default 2,
+  product_code     text default '',
+  product_name     text default '',
+  serial_number    text default '',
+  -- overrides (null = inherit the header)
+  entry_at         timestamptz,
+  party_name       text,
+  payment_schedule text,
+  bill_generate_at text,
+  contract_type    text,
+  contract_start   date,
+  contract_end     date,
+  contract_years   numeric,
+  contract_months  integer,
+  pm_visits_total  integer,
+  status           text,
+  -- item-only
+  rate                  numeric,
+  item_tax_amount       numeric,
+  total_after_tax       numeric,
+  present_item_status   text default '',              -- OGP / WGP / CMC / AMC
+  last_contract_number  text default '',
+  last_contract_end     date,
+  sa_number             text default '',              -- the sale this machine came from
+  sa_end_date           date,                         -- its warranty end
+  added_by              text default '',
+  extra            jsonb not null default '{}',
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now(),
+  created_by       uuid references auth.users (id) default auth.uid()
+);
+create index if not exists contract_items_mc_idx     on public.contract_items (mc_number);
+create index if not exists contract_items_serial_idx on public.contract_items (lower(trim(serial_number)));
+create index if not exists contract_entries_party_idx on public.contract_entries (lower(trim(party_name)));
+
+-- ---------------------------------------------------------------------------
+-- Item UID and the "|" display strings.
+-- AppSheet keyed a contract item as MC|Product|Serial and showed
+-- Item Details = Product|Serial, Item Details Long = Code|Product|Serial. Both
+-- are derived here rather than stored, so they cannot drift from the item.
+-- ---------------------------------------------------------------------------
+create or replace function public.cover_item_uid(p_head text, p_product text, p_serial text)
+returns text language sql immutable as $$
+  select trim(coalesce(p_head, '')) || '|' || trim(coalesce(p_product, '')) || '|' || trim(coalesce(p_serial, ''));
+$$;
+
+create or replace function public.sale_items_defaults()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.uid is null or trim(new.uid) = '' then
+    new.uid := public.cover_item_uid(new.sa_number, new.product_name, new.serial_number);
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists sale_items_defaults on public.sale_items;
+create trigger sale_items_defaults before insert or update on public.sale_items
+  for each row execute function public.sale_items_defaults();
+
+create or replace function public.contract_items_defaults()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.uid is null or trim(new.uid) = '' then
+    new.uid := public.cover_item_uid(new.mc_number, new.product_name, new.serial_number);
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists contract_items_defaults on public.contract_items;
+create trigger contract_items_defaults before insert or update on public.contract_items
+  for each row execute function public.contract_items_defaults();
+
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql set search_path = public as $$
+begin new.updated_at := now(); return new; end $$;
+drop trigger if exists sale_entries_touch on public.sale_entries;
+create trigger sale_entries_touch before update on public.sale_entries
+  for each row execute function public.touch_updated_at();
+drop trigger if exists contract_entries_touch on public.contract_entries;
+create trigger contract_entries_touch before update on public.contract_entries
+  for each row execute function public.touch_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- Import order must not matter. An item whose header has not been loaded yet
+-- would fail its foreign key, so a stub header is created for it — the real
+-- one fills the columns in when its file is imported (the stub is matched on
+-- SA / MC number, so nothing is duplicated).
+-- ---------------------------------------------------------------------------
+create or replace function public.sale_items_stub_header()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.sale_entries where sa_number = new.sa_number) then
+    insert into public.sale_entries (sa_number) values (new.sa_number) on conflict do nothing;
+  end if;
+  return new;
+end $$;
+drop trigger if exists sale_items_stub_header on public.sale_items;
+create trigger sale_items_stub_header before insert on public.sale_items
+  for each row execute function public.sale_items_stub_header();
+
+create or replace function public.contract_items_stub_header()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from public.contract_entries where mc_number = new.mc_number) then
+    insert into public.contract_entries (mc_number) values (new.mc_number) on conflict do nothing;
+  end if;
+  return new;
+end $$;
+drop trigger if exists contract_items_stub_header on public.contract_items;
+create trigger contract_items_stub_header before insert on public.contract_items
+  for each row execute function public.contract_items_stub_header();
+
+-- ---------------------------------------------------------------------------
+-- Cover state, derived from the effective end date. "ABOUT TO EXPIRE" is the
+-- word the sheets use for the last 60 days, so it is kept.
+-- ---------------------------------------------------------------------------
+create or replace function public.cover_state(p_end date)
+returns text language sql immutable as $$
+  select case
+    when p_end is null then 'NOT COVERED'
+    when p_end < current_date then 'INACTIVE'
+    when p_end <= current_date + 60 then 'ABOUT TO EXPIRE'
+    else 'ACTIVE' end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- The two "details" views: every AppSheet column, with each common value
+-- resolved as coalesce(item override, header). This is what the registers
+-- read, and what an export of the old shape would be rebuilt from.
+-- ---------------------------------------------------------------------------
+create or replace view public.warranty_sale_details as
+select
+  i.id, i.uid, i.sa_number, i.priority,
+  i.product_code, i.product_name, i.serial_number,
+  case when coalesce(i.product_code, '') = '' then '' else i.product_code || '|' end
+    || coalesce(i.product_name, '') || '|' || coalesce(i.serial_number, '')  as item_details_long,
+  coalesce(i.product_name, '') || '|' || coalesce(i.serial_number, '')       as item_details,
+  h.entry_at                                     as sale_entry_date,
+  h.party_name,
+  coalesce(i.sold_through,    h.sold_through)    as sold_through,
+  coalesce(i.invoice_no,      h.invoice_no)      as invoice_no,
+  coalesce(i.invoice_date,    h.invoice_date)    as invoice_date,
+  coalesce(i.warranty_start,  h.warranty_start)  as warranty_start,
+  coalesce(i.warranty_end,    h.warranty_end)    as warranty_end,
+  coalesce(i.warranty_years,  h.warranty_years)  as warranty_years,
+  coalesce(i.warranty_months, h.warranty_months) as warranty_months,
+  coalesce(i.pm_visits,       h.pm_visits)       as pm_visits,
+  coalesce(i.other_details,   h.other_details)   as other_details,
+  coalesce(i.state,           h.state)           as state,
+  coalesce(i.city,            h.city)            as city,
+  coalesce(i.engineer,        h.engineer)        as engineer,
+  coalesce(i.warranty_status, h.warranty_status) as warranty_status_keyed,
+  public.cover_state(coalesce(i.warranty_end, h.warranty_end)) as warranty_state,
+  i.accessories_included, i.consumable_included, i.contract_price_fixed,
+  i.already_sold_to, i.replacement_unit, i.replacement_unit_sl,
+  i.add_call, i.inst_call, i.added_by,
+  h.party_type, h.profile, h.country, h.address, h.pincode, h.tel1, h.tel2, h.pan, h.gst, h.tax,
+  -- which columns this item pins rather than inherits
+  (select array_agg(k) from (values
+     ('invoice_no', i.invoice_no is not null), ('invoice_date', i.invoice_date is not null),
+     ('sold_through', i.sold_through is not null), ('warranty_start', i.warranty_start is not null),
+     ('warranty_end', i.warranty_end is not null), ('warranty_years', i.warranty_years is not null),
+     ('warranty_months', i.warranty_months is not null), ('pm_visits', i.pm_visits is not null),
+     ('warranty_status', i.warranty_status is not null), ('other_details', i.other_details is not null),
+     ('state', i.state is not null), ('city', i.city is not null), ('engineer', i.engineer is not null)
+   ) as t(k, on_) where on_)                     as overridden,
+  i.updated_at
+from public.sale_items i
+join public.sale_entries h on h.sa_number = i.sa_number;
+
+create or replace view public.contract_details as
+select
+  i.id, i.uid, i.mc_number, i.priority,
+  i.product_code, i.product_name, i.serial_number,
+  case when coalesce(i.product_code, '') = '' then '' else i.product_code || '|' end
+    || coalesce(i.product_name, '') || '|' || coalesce(i.serial_number, '')  as item_details_long,
+  coalesce(i.product_name, '') || '|' || coalesce(i.serial_number, '')       as item_details,
+  coalesce(i.entry_at,         h.entry_at)         as contract_entry_date,
+  coalesce(i.party_name,       h.party_name)       as party_name,
+  coalesce(i.payment_schedule, h.payment_schedule) as payment_schedule,
+  coalesce(i.bill_generate_at, h.bill_generate_at) as bill_generate_at,
+  coalesce(i.contract_type,    h.contract_type)    as contract_type,
+  coalesce(i.contract_start,   h.contract_start)   as contract_start,
+  coalesce(i.contract_end,     h.contract_end)     as contract_end,
+  coalesce(i.contract_years,   h.contract_years)   as contract_years,
+  coalesce(i.contract_months,  h.contract_months)  as contract_months,
+  coalesce(i.pm_visits_total,  h.pm_visits_total)  as pm_visits_total,
+  coalesce(i.status,           h.status)           as status_keyed,
+  public.cover_state(coalesce(i.contract_end, h.contract_end)) as contract_state,
+  i.rate, i.item_tax_amount, i.total_after_tax,
+  i.present_item_status, i.last_contract_number, i.last_contract_end,
+  i.sa_number, i.sa_end_date, i.added_by,
+  h.prev_mc_number,
+  (select array_agg(k) from (values
+     ('entry_at', i.entry_at is not null), ('party_name', i.party_name is not null),
+     ('payment_schedule', i.payment_schedule is not null), ('bill_generate_at', i.bill_generate_at is not null),
+     ('contract_type', i.contract_type is not null), ('contract_start', i.contract_start is not null),
+     ('contract_end', i.contract_end is not null), ('contract_years', i.contract_years is not null),
+     ('contract_months', i.contract_months is not null), ('pm_visits_total', i.pm_visits_total is not null),
+     ('status', i.status is not null)
+   ) as t(k, on_) where on_)                       as overridden,
+  i.updated_at
+from public.contract_items i
+join public.contract_entries h on h.mc_number = i.mc_number;
+
+grant select on public.warranty_sale_details to authenticated;
+grant select on public.contract_details      to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- One machine, its current cover: the latest warranty and the latest contract
+-- on that serial. This is the machine-level answer the registers show and what
+-- the product master is synced from.
+-- ---------------------------------------------------------------------------
+create or replace view public.machine_cover as
+with w as (
+  select distinct on (lower(trim(serial_number)))
+         lower(trim(serial_number)) as skey, serial_number, product_name, product_code, party_name,
+         sa_number, warranty_start, warranty_end, state, city, engineer
+    from public.warranty_sale_details
+   where coalesce(serial_number, '') <> ''
+   order by lower(trim(serial_number)), warranty_end desc nulls last, id desc
+), c as (
+  select distinct on (lower(trim(serial_number)))
+         lower(trim(serial_number)) as skey, serial_number, product_name, product_code, party_name,
+         mc_number, contract_type, contract_start, contract_end, present_item_status
+    from public.contract_details
+   where coalesce(serial_number, '') <> ''
+   order by lower(trim(serial_number)), contract_end desc nulls last, id desc
+)
+select
+  coalesce(w.skey, c.skey)                       as serial_key,
+  coalesce(w.serial_number, c.serial_number)     as serial_number,
+  coalesce(c.product_name, w.product_name)       as product_name,
+  coalesce(c.product_code, w.product_code)       as product_code,
+  coalesce(c.party_name, w.party_name)           as party_name,
+  w.sa_number, w.warranty_start, w.warranty_end,
+  public.cover_state(w.warranty_end)             as warranty_state,
+  c.mc_number, c.contract_type, c.contract_start, c.contract_end,
+  public.cover_state(c.contract_end)             as contract_state,
+  c.present_item_status, w.state, w.city, w.engineer,
+  -- What the machine is under TODAY. A live contract outranks a live warranty
+  -- (contract items carry priority 2, warranty items 1 — the same order
+  -- AppSheet used), and OGP means out of both.
+  case
+    when c.contract_end >= current_date then coalesce(nullif(c.contract_type, ''), 'CMC')
+    when w.warranty_end >= current_date then 'WGP'
+    else 'OGP' end                               as item_status
+from w full join c on c.skey = w.skey;
+grant select on public.machine_cover to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Keep products (the machine master the call form reads) in step with the
+-- registers. A sale or contract item is the source; the machine row is the
+-- cache in front of it.
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_product_cover(p_serial text)
+returns void language plpgsql security definer set search_path = public as $$
+declare k text := lower(trim(coalesce(p_serial, ''))); w record; c record;
+begin
+  if k = '' then return; end if;
+  -- Indexed single-serial lookups, not a pass over machine_cover: an import
+  -- fires this once per item, so it has to be cheap.
+  select i.sa_number, coalesce(i.warranty_start, h.warranty_start) as warranty_start,
+         coalesce(i.warranty_end, h.warranty_end) as warranty_end
+    into w
+    from public.sale_items i join public.sale_entries h on h.sa_number = i.sa_number
+   where lower(trim(i.serial_number)) = k
+   order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+  select i.mc_number, coalesce(i.contract_type, h.contract_type) as contract_type,
+         coalesce(i.contract_start, h.contract_start) as contract_start,
+         coalesce(i.contract_end, h.contract_end) as contract_end
+    into c
+    from public.contract_items i join public.contract_entries h on h.mc_number = i.mc_number
+   where lower(trim(i.serial_number)) = k
+   order by coalesce(i.contract_end, h.contract_end) desc nulls last, i.id desc limit 1;
+
+  update public.products p set
+    warranty_number = coalesce(w.sa_number, p.warranty_number),
+    warranty_start  = coalesce(w.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(w.warranty_end,   p.warranty_end),
+    contract_number = coalesce(c.mc_number, p.contract_number),
+    contract_start  = coalesce(c.contract_start, p.contract_start),
+    contract_end    = coalesce(c.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(c.contract_type, ''), p.contract_type),
+    item_status     = case
+      when c.contract_end >= current_date then coalesce(nullif(c.contract_type, ''), 'CMC')
+      when w.warranty_end >= current_date then 'WGP'
+      else 'OGP' end
+  where lower(trim(p.serial_number)) = k;
+end $$;
+grant execute on function public.sync_product_cover(text) to authenticated;
+
+create or replace function public.cover_item_sync()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_product_cover((case when tg_op = 'DELETE' then old else new end).serial_number);
+  if tg_op = 'UPDATE' and old.serial_number is distinct from new.serial_number then
+    perform public.sync_product_cover(old.serial_number);
+  end if;
+  return null;
+end $$;
+drop trigger if exists sale_items_sync_cover on public.sale_items;
+create trigger sale_items_sync_cover after insert or update or delete on public.sale_items
+  for each row execute function public.cover_item_sync();
+drop trigger if exists contract_items_sync_cover on public.contract_items;
+create trigger contract_items_sync_cover after insert or update or delete on public.contract_items
+  for each row execute function public.cover_item_sync();
+
+-- Editing a HEADER changes the cover of every item that inherits from it, so
+-- the machines under it are re-synced in one statement.
+create or replace function public.cover_header_sync()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  if tg_table_name = 'sale_entries' then
+    for r in select serial_number from public.sale_items where sa_number = new.sa_number loop
+      perform public.sync_product_cover(r.serial_number);
+    end loop;
+  else
+    for r in select serial_number from public.contract_items where mc_number = new.mc_number loop
+      perform public.sync_product_cover(r.serial_number);
+    end loop;
+  end if;
+  return null;
+end $$;
+drop trigger if exists sale_entries_sync_cover on public.sale_entries;
+create trigger sale_entries_sync_cover after update on public.sale_entries
+  for each row execute function public.cover_header_sync();
+drop trigger if exists contract_entries_sync_cover on public.contract_entries;
+create trigger contract_entries_sync_cover after update on public.contract_entries
+  for each row execute function public.cover_header_sync();
+
+-- Bulk re-sync, for after an import (the per-row trigger already covers
+-- ordinary edits). Returns how many machines it touched.
+create or replace function public.refresh_product_cover()
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  -- One statement over machine_cover, not one call per machine: after an
+  -- import there are tens of thousands of items to reconcile.
+  update public.products p set
+    warranty_number = coalesce(m.sa_number, p.warranty_number),
+    warranty_start  = coalesce(m.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(m.warranty_end,   p.warranty_end),
+    contract_number = coalesce(m.mc_number, p.contract_number),
+    contract_start  = coalesce(m.contract_start, p.contract_start),
+    contract_end    = coalesce(m.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(m.contract_type, ''), p.contract_type),
+    item_status     = m.item_status
+  from public.machine_cover m
+  where m.serial_key = lower(trim(p.serial_number));
+  get diagnostics n = row_count;
+  return n;
+end $$;
+grant execute on function public.refresh_product_cover() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- After an import, fold the copied-down values back into inheritance.
+--
+-- The AppSheet exports repeat every header value on every child row, and they
+-- are loaded AS EXPORTED so nothing is lost or silently reinterpreted. This
+-- then nulls each item column that merely repeats its header, leaving only the
+-- values that genuinely differ pinned as overrides. Run it after loading the
+-- details files; it is idempotent and safe to re-run.
+-- ---------------------------------------------------------------------------
+create or replace function public.cover_unpin_inherited()
+returns integer language plpgsql security definer set search_path = public as $$
+declare n integer := 0; m integer;
+begin
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number;
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number;
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $$;
+grant execute on function public.cover_unpin_inherited() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- RLS. Reading is for anyone who may see the masters; writing needs the
+-- Commercial action `cover.edit` (Roles & Permissions), because a sale or a
+-- contract is a commercial record, not a service one.
+-- ---------------------------------------------------------------------------
+alter table public.sale_entries     enable row level security;
+alter table public.sale_items       enable row level security;
+alter table public.contract_entries enable row level security;
+alter table public.contract_items   enable row level security;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['sale_entries', 'sale_items', 'contract_entries', 'contract_items'] loop
+    execute format('drop policy if exists %1$s_read on public.%1$s;', t);
+    execute format($f$create policy %1$s_read on public.%1$s for select
+                        using (public.has_perm('masters.view') or public.has_perm('cover.edit') or public.is_admin());$f$, t);
+    execute format('drop policy if exists %1$s_write on public.%1$s;', t);
+    execute format($f$create policy %1$s_write on public.%1$s for all
+                        using (public.has_perm('cover.edit')) with check (public.has_perm('cover.edit'));$f$, t);
+  end loop;
+end $$;
+
+-- Everyone who may open the registers may read them; grant the table rights the
+-- policies then filter.
+grant select on public.sale_entries, public.sale_items,
+                public.contract_entries, public.contract_items to authenticated;
+grant insert, update, delete on public.sale_entries, public.sale_items,
+                public.contract_entries, public.contract_items to authenticated;
+
+-- `cover.edit` is new: give it to the roles that already maintain master data,
+-- so an existing project does not lose access the moment this lands.
+update public.app_roles
+   set permissions = coalesce(permissions, '[]'::jsonb) || '["cover.edit"]'::jsonb
+ where role in ('admin', 'commercial', 'nsm')
+   and not coalesce(permissions, '[]'::jsonb) ? 'cover.edit';
+
+-- ------------------------------------------------------------------------
+-- 0037_cover_import_speed.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Importing the cover registers has to finish inside a statement timeout.
+--
+-- Every sale / contract item syncs the machine it names (sync_product_cover),
+-- which updates `products` by lower(trim(serial_number)) — an EXPRESSION, so
+-- without a matching index each row seq-scanned the whole Product Master. At
+-- ~21k machines that is ~5ms a row: a 1,000-row insert ran for seconds and
+-- Supabase cancelled it ("canceling statement due to statement timeout").
+--
+-- With the index the same 17,321-row file lands in well under a second.
+--
+-- The two post-import functions are given their own statement_timeout as well:
+-- they are single statements over every item row (~35k), and they are run by
+-- `authenticated`, whose timeout is a few seconds.
+-- ===========================================================================
+
+create index if not exists products_serial_key_idx
+  on public.products (lower(trim(serial_number)));
+
+-- machine_cover pairs the two item tables by serial; keep both sides indexed
+-- the same way (0036 created these — repeated here for a project that is
+-- applying only this file).
+create index if not exists sale_items_serial_idx     on public.sale_items (lower(trim(serial_number)));
+create index if not exists contract_items_serial_idx on public.contract_items (lower(trim(serial_number)));
+
+create or replace function public.refresh_product_cover()
+returns integer language plpgsql security definer
+set search_path = public set statement_timeout = '180s' as $$
+declare n integer;
+begin
+  update public.products p set
+    warranty_number = coalesce(m.sa_number, p.warranty_number),
+    warranty_start  = coalesce(m.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(m.warranty_end,   p.warranty_end),
+    contract_number = coalesce(m.mc_number, p.contract_number),
+    contract_start  = coalesce(m.contract_start, p.contract_start),
+    contract_end    = coalesce(m.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(m.contract_type, ''), p.contract_type),
+    item_status     = m.item_status
+  from public.machine_cover m
+  where m.serial_key = lower(trim(p.serial_number));
+  get diagnostics n = row_count;
+  return n;
+end $$;
+grant execute on function public.refresh_product_cover() to authenticated;
+
+create or replace function public.cover_unpin_inherited()
+returns integer language plpgsql security definer
+set search_path = public set statement_timeout = '180s' as $$
+declare n integer := 0; m integer;
+begin
+  update public.sale_items i set
+    invoice_no      = case when i.invoice_no      is not distinct from h.invoice_no      then null else i.invoice_no end,
+    invoice_date    = case when i.invoice_date    is not distinct from h.invoice_date    then null else i.invoice_date end,
+    sold_through    = case when i.sold_through    is not distinct from h.sold_through    then null else i.sold_through end,
+    warranty_start  = case when i.warranty_start  is not distinct from h.warranty_start  then null else i.warranty_start end,
+    warranty_end    = case when i.warranty_end    is not distinct from h.warranty_end    then null else i.warranty_end end,
+    warranty_years  = case when i.warranty_years  is not distinct from h.warranty_years  then null else i.warranty_years end,
+    warranty_months = case when i.warranty_months is not distinct from h.warranty_months then null else i.warranty_months end,
+    pm_visits       = case when i.pm_visits       is not distinct from h.pm_visits       then null else i.pm_visits end,
+    warranty_status = case when i.warranty_status is not distinct from h.warranty_status then null else i.warranty_status end,
+    other_details   = case when i.other_details   is not distinct from h.other_details   then null else i.other_details end,
+    state           = case when i.state           is not distinct from h.state           then null else i.state end,
+    city            = case when i.city            is not distinct from h.city            then null else i.city end,
+    engineer        = case when i.engineer        is not distinct from h.engineer        then null else i.engineer end
+  from public.sale_entries h where h.sa_number = i.sa_number;
+  get diagnostics m = row_count; n := n + m;
+
+  update public.contract_items i set
+    entry_at         = case when i.entry_at         is not distinct from h.entry_at         then null else i.entry_at end,
+    party_name       = case when i.party_name       is not distinct from h.party_name       then null else i.party_name end,
+    payment_schedule = case when i.payment_schedule is not distinct from h.payment_schedule then null else i.payment_schedule end,
+    bill_generate_at = case when i.bill_generate_at is not distinct from h.bill_generate_at then null else i.bill_generate_at end,
+    contract_type    = case when i.contract_type    is not distinct from h.contract_type    then null else i.contract_type end,
+    contract_start   = case when i.contract_start   is not distinct from h.contract_start   then null else i.contract_start end,
+    contract_end     = case when i.contract_end     is not distinct from h.contract_end     then null else i.contract_end end,
+    contract_years   = case when i.contract_years   is not distinct from h.contract_years   then null else i.contract_years end,
+    contract_months  = case when i.contract_months  is not distinct from h.contract_months  then null else i.contract_months end,
+    pm_visits_total  = case when i.pm_visits_total  is not distinct from h.pm_visits_total  then null else i.pm_visits_total end,
+    status           = case when i.status           is not distinct from h.status           then null else i.status end
+  from public.contract_entries h where h.mc_number = i.mc_number;
+  get diagnostics m = row_count; n := n + m;
+  return n;
+end $$;
+grant execute on function public.cover_unpin_inherited() to authenticated;
+
+analyze public.products;
 
 commit;
