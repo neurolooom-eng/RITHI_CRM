@@ -147,6 +147,23 @@ const MODULES = {
     files: ['0023_handstock.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
   },
+  sales_contracts: {
+    title: 'Sale / Warranty and Contract registers',
+    blurb: ['The two parent/child registers behind machine cover: Sale Entry -> Warranty',
+            'Sale Details, and Contract Entry -> Contract Details.',
+            '',
+            'A value common to the deal is stored once on the HEADER; the matching',
+            'column on an item is an OVERRIDE that is null unless someone pins it, so',
+            'editing a header moves every machine under it. The *_details views serve',
+            'the effective (coalesced) rows, machine_cover answers "what is this serial',
+            'under today", and sync_product_cover() keeps products --- what the call',
+            'form reads --- in step.',
+            '',
+            'Writing needs the `cover.edit` action; the bundle grants it to admin,',
+            'commercial and nsm so an existing project keeps working.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql'],
+  },
   stock_transfer: {
     title: 'Stock Transfer',
     blurb: ['Engineer-to-engineer hand-stock transfers, with the stock balance derived',
@@ -303,7 +320,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

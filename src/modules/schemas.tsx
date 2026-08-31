@@ -160,82 +160,10 @@ export const productConfig: CrudConfig<BaseRecord> = {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 4. WARRANTY REGISTRATION
+// 4/5. WARRANTY + CONTRACT REGISTERS live in src/modules/CoverRegister.tsx.
+// They are header + item registers over sale_entries / contract_entries, not
+// flat CRUD over a local collection, so they are not configured here.
 // ---------------------------------------------------------------------------
-export const warrantyConfig: CrudConfig<BaseRecord> = {
-  collection: C.warranties,
-  title: 'Warranty Register',
-  subtitle: 'Register product warranties on sale',
-  icon: '🛡️',
-  singular: 'Warranty',
-  storageKey: 'warranties',
-  searchKeys: ['code', 'serialNo', 'invoiceNo'],
-  onBeforeCreate: (v) => ({ ...v, code: nextCode(C.warranties, 'WTY') }),
-  defaultsForNew: () => ({ status: 'Active', startDate: todayISO() }),
-  columns: [
-    codeCol(),
-    partyCol(),
-    productCol(),
-    { key: 'serialNo', header: 'Serial No.', width: 130, wrap: false },
-    dateCol('startDate', 'Start'),
-    dateCol('endDate', 'Expiry'),
-    statusCol(),
-  ],
-  fields: [
-    { name: 'partyId', label: 'Customer', type: 'select', required: true, section: 'Sale',
-      options: optionsFrom(C.parties, 'name', { codeKey: 'code' }) },
-    { name: 'productId', label: 'Product', type: 'select', required: true, section: 'Sale',
-      options: optionsFrom(C.products, 'name', { codeKey: 'code' }) },
-    { name: 'serialNo', label: 'Serial No.', required: true, section: 'Sale' },
-    { name: 'invoiceNo', label: 'Sale Invoice No.', section: 'Sale' },
-    { name: 'saleDate', label: 'Sale Date', type: 'date', section: 'Sale', defaultValue: todayISO() },
-    { name: 'startDate', label: 'Warranty Start', type: 'date', required: true, section: 'Period' },
-    { name: 'endDate', label: 'Warranty End', type: 'date', required: true, section: 'Period' },
-    { name: 'status', label: 'Status', type: 'select', section: 'Period',
-      options: toOptions(['Active', 'Expiring Soon', 'Expired']), defaultValue: 'Active' },
-    { name: 'coverageNotes', label: 'Coverage Notes', type: 'textarea', span: 2, section: 'Period' },
-  ],
-};
-
-// ---------------------------------------------------------------------------
-// 5. CONTRACT REGISTER (AMC / CMC)
-// ---------------------------------------------------------------------------
-export const contractConfig: CrudConfig<BaseRecord> = {
-  collection: C.contracts,
-  title: 'Contract Register',
-  subtitle: 'AMC / CMC service contracts',
-  icon: '📋',
-  singular: 'Contract',
-  storageKey: 'contracts',
-  searchKeys: ['code', 'serialNo'],
-  onBeforeCreate: (v) => ({ ...v, code: nextCode(C.contracts, 'AMC') }),
-  defaultsForNew: () => ({ status: 'Active', startDate: todayISO() }),
-  columns: [
-    codeCol(),
-    partyCol(),
-    productCol(),
-    { key: 'type', header: 'Type', width: 170 },
-    dateCol('startDate', 'Start'),
-    dateCol('endDate', 'End'),
-    currencyCol('value', 'Value'),
-    statusCol(),
-  ],
-  fields: [
-    { name: 'partyId', label: 'Customer', type: 'select', required: true, section: 'Contract',
-      options: optionsFrom(C.parties, 'name', { codeKey: 'code' }) },
-    { name: 'productId', label: 'Product', type: 'select', required: true, section: 'Contract',
-      options: optionsFrom(C.products, 'name', { codeKey: 'code' }) },
-    { name: 'serialNo', label: 'Equipment Serial No.', section: 'Contract' },
-    { name: 'type', label: 'Contract Type', type: 'select', required: true, section: 'Contract', options: toOptions(CONTRACT_TYPES) },
-    { name: 'startDate', label: 'Start Date', type: 'date', required: true, section: 'Period' },
-    { name: 'endDate', label: 'End Date', type: 'date', required: true, section: 'Period' },
-    { name: 'pmVisitsPerYear', label: 'PM Visits / Year', type: 'number', section: 'Period', defaultValue: 4 },
-    { name: 'value', label: 'Contract Value', type: 'currency', required: true, section: 'Commercial' },
-    { name: 'status', label: 'Status', type: 'select', section: 'Commercial',
-      options: toOptions(['Active', 'Expiring Soon', 'Expired']), defaultValue: 'Active' },
-    { name: 'scope', label: 'Scope of Coverage', type: 'textarea', span: 2, section: 'Commercial' },
-  ],
-};
 
 // ---------------------------------------------------------------------------
 // Shared call fields (installation / PM / breakdown)

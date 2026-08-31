@@ -105,7 +105,14 @@ with checks(sort_order, bundle, provides, present) as (
     (15, 'masters: value lists',   'master_lists registry + masters.added_on (0021)',
         (to_regclass('public.master_lists') is not null
      and exists (select 1 from information_schema.columns
-                  where table_schema='public' and table_name='masters' and column_name='added_on')))
+                  where table_schema='public' and table_name='masters' and column_name='added_on'))),
+    (20, 'sales_contracts: import speed', 'products_serial_key_idx -- without it an item import times out (0037)',
+        exists (select 1 from pg_indexes where schemaname='public' and indexname='products_serial_key_idx')),
+    (19, 'sales_contracts', 'sale_entries / contract_entries + machine_cover + sync_product_cover() (0036)',
+        (to_regclass('public.sale_entries')     is not null
+     and to_regclass('public.contract_entries') is not null
+     and to_regclass('public.machine_cover')    is not null
+     and to_regprocedure('public.sync_product_cover(text)') is not null))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
