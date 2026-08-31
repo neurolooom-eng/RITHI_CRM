@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.32',
+    date: '2026-08-31',
+    title: 'Pending Calls & Reports load at scale',
+    changes: [
+      'Fixed “Load failed: canceling statement due to statement timeout” on Pending Calls (and the same risk on Reports) as call volume grows. The security check that scopes calls to your reporting tree was being recomputed for every call row; it is now computed once per load, behind an indexed lookup — the same calls stay visible to the same people, just far faster.',
+      'Needs a database script run once (fix_pending_timeout.sql) to take effect.',
+    ],
+  },
+  {
     version: '0.8.31',
     date: '2026-08-31',
     title: 'Record counts on every screen',

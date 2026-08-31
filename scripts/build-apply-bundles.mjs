@@ -70,7 +70,8 @@ const MODULES = {
             'role a User Master row grants when that person first signs in.'],
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
-            '0030_engineer_address_write.sql', '0033_user_directory_role.sql'],
+            '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
+            '0035_data_view_all.sql', '0037_call_read_scale.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -99,7 +100,7 @@ const MODULES = {
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0009_audit_log.sql'],
+    files: ['0009_audit_log.sql', '0033_audit_retention.sql'],
   },
   masters: {
     title: 'Master Value Lists',
@@ -175,6 +176,7 @@ const MODULES = {
       '0028_dc_number_is_stock_out.sql',
       '0031_pending_dispatch_live_stage.sql',
       '0032_stores_sees_pending_dispatch.sql',
+      '0036_spare_drop.sql',
     ],
   },
 };

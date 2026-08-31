@@ -16,6 +16,9 @@
 --   0013_all_masters_module.sql
 --   0030_engineer_address_write.sql
 --   0033_user_directory_role.sql
+--   0034_office_roles_see_all.sql
+--   0035_data_view_all.sql
+--   0037_call_read_scale.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -658,5 +661,164 @@ end $$;
 
 revoke all on function public.ensure_my_profile() from public;
 grant execute on function public.ensure_my_profile() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0034_office_roles_see_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Office / coordination roles see every call.
+-- Hotline, NSM, Commercial, Spare Coordinator, Stores Incharge and Tally
+-- Coordinator are not tied to a call's allocation, so they should see all calls
+-- (and, through the policies that reuse can_see_call, all reports / spares).
+-- Engineers, RMs and RGMs stay scoped to their own / their sub-tree's calls.
+-- ===========================================================================
+
+-- True when the signed-in user's role is an office/coordination role (or admin).
+create or replace function public.can_view_all_calls()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin() or exists (
+    select 1 from public.profiles p
+     where p.id = auth.uid()
+       and lower(coalesce(p.role, '')) in
+           ('hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator')
+  );
+$$;
+grant execute on function public.can_view_all_calls() to authenticated;
+
+-- Fold the new bypass into can_see_call (used by calls / reports / spare policies).
+create or replace function public.can_see_call(allottee text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.can_view_all_calls()
+      or coalesce(allottee, '') = ''
+      or lower(trim(allottee)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         );
+$$;
+
+-- ------------------------------------------------------------------------
+-- 0035_data_view_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- data.view_all — a per-user (or per-role) grant for FULL data visibility, used
+-- by a "Permissions + Data" clone. Folded into the read paths so the holder
+-- sees every call, spare request/line, report and consumption row.
+-- ===========================================================================
+
+-- Calls / reports (reports read via can_see_call).
+create or replace function public.can_view_all_calls()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or public.has_perm('data.view_all')
+      or exists (
+        select 1 from public.profiles p
+         where p.id = auth.uid()
+           and lower(coalesce(p.role, '')) in
+               ('hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator')
+      );
+$$;
+
+-- Spare requests (lines read follows the request).
+drop policy if exists sr_read on public.spare_requests;
+create policy sr_read on public.spare_requests for select
+  using (public.is_admin() or public.has_perm('data.view_all') or created_by = auth.uid()
+    or lower(engineer_email) = lower(auth.email())
+    or public.can_approve_spares()
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+
+-- Consumption.
+drop policy if exists cons_read on public.spare_consumption;
+create policy cons_read on public.spare_consumption for select
+  using (public.has_perm('consumption.view') or public.has_perm('data.view_all'));
+
+-- ------------------------------------------------------------------------
+-- 0037_call_read_scale.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Calls / reports read at scale — stop re-deriving the reporting tree per row.
+--
+-- can_see_call(allottee) wraps `allottee in (select ... visible_engineer_names())`
+-- in a scalar function that takes the per-row allocation as its argument. Because
+-- the argument changes per row, the planner treats the whole function as a black
+-- box and evaluates it — including the RECURSIVE tree walk inside
+-- visible_engineer_names() — once for EVERY call row. At 15–18k PM calls a year
+-- (and their reports) that is "canceling statement due to statement timeout" on
+-- Pending Calls and Reports. 0014 removed this cost once; 0034 folding the office
+-- bypass back through can_see_call reintroduced it.
+--
+-- The fix is not new logic, only new SHAPE: inline the visibility test into the
+-- policy so the tree set is an uncorrelated sub-select — an InitPlan Postgres
+-- builds ONCE per query and hash-probes per row — and wrap the no-arg auth
+-- helpers in (select …) so they are evaluated once too (the Supabase RLS
+-- performance pattern). Same rows are visible to the same people; only the plan
+-- changes. can_see_call() itself is left in place for callers not on the hot path.
+-- ===========================================================================
+
+-- ---- calls: read + update --------------------------------------------------
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls for select
+  using (
+    (select public.has_perm('calls.view'))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  );
+
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls for update
+  using (
+    (select (public.has_perm('calls.edit') or public.has_perm('calls.report')))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  )
+  with check (
+    (select (public.has_perm('calls.edit') or public.has_perm('calls.report')))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  );
+
+-- ---- reports: read (visible with the parent call) --------------------------
+-- The recursive set is uncorrelated, so it stays an InitPlan (once); the only
+-- per-report work is the indexed lookup of its call by ucn.
+drop policy if exists reports_read on public.reports;
+create policy reports_read on public.reports for select
+  using (
+    (select public.is_admin())
+    or (
+      (select public.has_perm('calls.view'))
+      and (
+        (select public.can_view_all_calls())
+        or exists (
+          select 1 from public.calls c
+           where c.ucn = reports.ucn
+             and (
+               coalesce(c.allocated_to, '') = ''
+               or lower(trim(c.allocated_to)) in (
+                    select lower(trim(n)) from public.visible_engineer_names() as v(n)
+                  )
+             )
+        )
+      )
+    )
+  );
 
 commit;

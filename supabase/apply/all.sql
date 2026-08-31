@@ -21,7 +21,11 @@
 --   0013_all_masters_module.sql
 --   0030_engineer_address_write.sql
 --   0033_user_directory_role.sql
+--   0034_office_roles_see_all.sql
+--   0035_data_view_all.sql
+--   0037_call_read_scale.sql
 --   0009_audit_log.sql
+--   0033_audit_retention.sql
 --   0021_master_lists.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
@@ -47,6 +51,7 @@
 --   0028_dc_number_is_stock_out.sql
 --   0031_pending_dispatch_live_stage.sql
 --   0032_stores_sees_pending_dispatch.sql
+--   0036_spare_drop.sql
 --   0020_stock_transfer.sql
 --   0023_handstock.sql
 --
@@ -1320,6 +1325,165 @@ revoke all on function public.ensure_my_profile() from public;
 grant execute on function public.ensure_my_profile() to authenticated;
 
 -- ------------------------------------------------------------------------
+-- 0034_office_roles_see_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Office / coordination roles see every call.
+-- Hotline, NSM, Commercial, Spare Coordinator, Stores Incharge and Tally
+-- Coordinator are not tied to a call's allocation, so they should see all calls
+-- (and, through the policies that reuse can_see_call, all reports / spares).
+-- Engineers, RMs and RGMs stay scoped to their own / their sub-tree's calls.
+-- ===========================================================================
+
+-- True when the signed-in user's role is an office/coordination role (or admin).
+create or replace function public.can_view_all_calls()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin() or exists (
+    select 1 from public.profiles p
+     where p.id = auth.uid()
+       and lower(coalesce(p.role, '')) in
+           ('hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator')
+  );
+$$;
+grant execute on function public.can_view_all_calls() to authenticated;
+
+-- Fold the new bypass into can_see_call (used by calls / reports / spare policies).
+create or replace function public.can_see_call(allottee text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.can_view_all_calls()
+      or coalesce(allottee, '') = ''
+      or lower(trim(allottee)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         );
+$$;
+
+-- ------------------------------------------------------------------------
+-- 0035_data_view_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- data.view_all — a per-user (or per-role) grant for FULL data visibility, used
+-- by a "Permissions + Data" clone. Folded into the read paths so the holder
+-- sees every call, spare request/line, report and consumption row.
+-- ===========================================================================
+
+-- Calls / reports (reports read via can_see_call).
+create or replace function public.can_view_all_calls()
+returns boolean language sql stable security definer set search_path = public as $$
+  select public.is_admin()
+      or public.has_perm('data.view_all')
+      or exists (
+        select 1 from public.profiles p
+         where p.id = auth.uid()
+           and lower(coalesce(p.role, '')) in
+               ('hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator')
+      );
+$$;
+
+-- Spare requests (lines read follows the request).
+drop policy if exists sr_read on public.spare_requests;
+create policy sr_read on public.spare_requests for select
+  using (public.is_admin() or public.has_perm('data.view_all') or created_by = auth.uid()
+    or lower(engineer_email) = lower(auth.email())
+    or public.can_approve_spares()
+    or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)));
+
+-- Consumption.
+drop policy if exists cons_read on public.spare_consumption;
+create policy cons_read on public.spare_consumption for select
+  using (public.has_perm('consumption.view') or public.has_perm('data.view_all'));
+
+-- ------------------------------------------------------------------------
+-- 0037_call_read_scale.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Calls / reports read at scale — stop re-deriving the reporting tree per row.
+--
+-- can_see_call(allottee) wraps `allottee in (select ... visible_engineer_names())`
+-- in a scalar function that takes the per-row allocation as its argument. Because
+-- the argument changes per row, the planner treats the whole function as a black
+-- box and evaluates it — including the RECURSIVE tree walk inside
+-- visible_engineer_names() — once for EVERY call row. At 15–18k PM calls a year
+-- (and their reports) that is "canceling statement due to statement timeout" on
+-- Pending Calls and Reports. 0014 removed this cost once; 0034 folding the office
+-- bypass back through can_see_call reintroduced it.
+--
+-- The fix is not new logic, only new SHAPE: inline the visibility test into the
+-- policy so the tree set is an uncorrelated sub-select — an InitPlan Postgres
+-- builds ONCE per query and hash-probes per row — and wrap the no-arg auth
+-- helpers in (select …) so they are evaluated once too (the Supabase RLS
+-- performance pattern). Same rows are visible to the same people; only the plan
+-- changes. can_see_call() itself is left in place for callers not on the hot path.
+-- ===========================================================================
+
+-- ---- calls: read + update --------------------------------------------------
+drop policy if exists calls_scoped_read on public.calls;
+create policy calls_scoped_read on public.calls for select
+  using (
+    (select public.has_perm('calls.view'))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  );
+
+drop policy if exists calls_update on public.calls;
+create policy calls_update on public.calls for update
+  using (
+    (select (public.has_perm('calls.edit') or public.has_perm('calls.report')))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  )
+  with check (
+    (select (public.has_perm('calls.edit') or public.has_perm('calls.report')))
+    and (
+      (select public.can_view_all_calls())
+      or created_by = (select auth.uid())
+      or coalesce(allocated_to, '') = ''
+      or lower(trim(allocated_to)) in (
+           select lower(trim(n)) from public.visible_engineer_names() as v(n)
+         )
+    )
+  );
+
+-- ---- reports: read (visible with the parent call) --------------------------
+-- The recursive set is uncorrelated, so it stays an InitPlan (once); the only
+-- per-report work is the indexed lookup of its call by ucn.
+drop policy if exists reports_read on public.reports;
+create policy reports_read on public.reports for select
+  using (
+    (select public.is_admin())
+    or (
+      (select public.has_perm('calls.view'))
+      and (
+        (select public.can_view_all_calls())
+        or exists (
+          select 1 from public.calls c
+           where c.ucn = reports.ucn
+             and (
+               coalesce(c.allocated_to, '') = ''
+               or lower(trim(c.allocated_to)) in (
+                    select lower(trim(n)) from public.visible_engineer_names() as v(n)
+                  )
+             )
+        )
+      )
+    )
+  );
+
+-- ------------------------------------------------------------------------
 -- 0009_audit_log.sql
 -- ------------------------------------------------------------------------
 
@@ -1370,6 +1534,53 @@ create policy audit_insert on public.audit_log for insert
 -- Only admins read the audit log.
 drop policy if exists audit_read on public.audit_log;
 create policy audit_read on public.audit_log for select using (public.is_admin());
+
+-- ------------------------------------------------------------------------
+-- 0033_audit_retention.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Audit-log retention: keep 7 days, auto-delete anything older.
+-- A daily pg_cron job runs purge_audit_log(). Safe to run in the SQL editor
+-- as the `postgres` role; it enables pg_cron if it isn't already on.
+-- ===========================================================================
+
+-- Delete audit rows older than 7 days. Returns how many were removed.
+create or replace function public.purge_audit_log()
+returns integer
+language plpgsql
+security definer
+set search_path = public as $$
+declare removed integer;
+begin
+  delete from public.audit_log where at < now() - interval '7 days';
+  get diagnostics removed = row_count;
+  return removed;
+end $$;
+
+-- Clear one week of backlog immediately so the policy takes effect now.
+select public.purge_audit_log();
+
+-- Schedule it daily at 00:30 UTC via pg_cron.
+do $$
+begin
+  create extension if not exists pg_cron;
+exception when others then
+  raise notice 'Could not enable pg_cron automatically (%). Enable it in Dashboard -> Database -> Extensions, then re-run this migration.', sqlerrm;
+end $$;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    -- Re-scheduling is idempotent: drop the old job first if present.
+    if exists (select 1 from cron.job where jobname = 'purge-audit-log') then
+      perform cron.unschedule('purge-audit-log');
+    end if;
+    perform cron.schedule('purge-audit-log', '30 0 * * *', 'select public.purge_audit_log();');
+  else
+    raise notice 'pg_cron is not enabled. Audit rows will NOT auto-delete until you enable pg_cron (Dashboard -> Database -> Extensions) and re-run this file. Until then, run: select public.purge_audit_log();';
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0021_master_lists.sql
@@ -4212,6 +4423,100 @@ update public.app_roles
  where (role in ('admin', 'stores_incharge', 'spare_coordinator')
         or coalesce(permissions, '[]'::jsonb) ? 'spare.dispatch')
    and not coalesce(permissions, '[]'::jsonb) ? 'mod:/spare-requests';
+
+-- ------------------------------------------------------------------------
+-- 0036_spare_drop.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- spare.drop — a Spare Coordinator / Hotline may DROP a spare at any stage
+-- (short supply, no longer needed, superseded). It sets stores_status =
+-- 'Dropped' (terminal), and must NOT mint a DC. Distinct from Stores dispatch,
+-- which still needs spare.dispatch. The line guard is widened to allow it.
+-- ===========================================================================
+
+create or replace function public.spare_request_lines_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  changed boolean;
+  auto_ok boolean;
+  req     public.spare_requests;
+begin
+  if public.is_admin() then return new; end if;
+  select * into req from public.spare_requests where uid = new.request_uid;
+
+  auto_ok := not public.spare_needs_review(req.item_status)
+             and public.has_perm('spare.approve_rm');
+
+  changed := new.rm_approval is distinct from old.rm_approval
+          or new.rm_by       is distinct from old.rm_by
+          or new.rm_at       is distinct from old.rm_at;
+  if changed and not public.has_perm('spare.approve_rm') then
+    raise exception 'RBAC: RM approval requires the spare.approve_rm permission';
+  end if;
+
+  changed := new.commercial_approval is distinct from old.commercial_approval
+          or new.commercial_by       is distinct from old.commercial_by
+          or new.commercial_at       is distinct from old.commercial_at;
+  if changed
+     and not public.has_perm('spare.approve_commercial')
+     and not (auto_ok and new.commercial_approval = 'Auto-Approved'
+              and new.commercial_by is not distinct from old.commercial_by) then
+    raise exception 'RBAC: Commercial approval requires the spare.approve_commercial permission';
+  end if;
+
+  changed := new.nsm_approval is distinct from old.nsm_approval
+          or new.nsm_by       is distinct from old.nsm_by
+          or new.nsm_at       is distinct from old.nsm_at;
+  if changed
+     and not public.has_perm('spare.approve_nsm')
+     and not (auto_ok and new.nsm_approval = 'Auto-Approved'
+              and new.nsm_by is not distinct from old.nsm_by) then
+    raise exception 'RBAC: NSM approval requires the spare.approve_nsm permission';
+  end if;
+
+  changed := new.stores_status    is distinct from old.stores_status
+          or new.dc_number        is distinct from old.dc_number
+          or new.dispatched_by    is distinct from old.dispatched_by
+          or new.dispatched_at    is distinct from old.dispatched_at
+          or new.courier          is distinct from old.courier
+          or new.dispatch_remarks is distinct from old.dispatch_remarks;
+  -- Dispatch needs spare.dispatch; a DROP (Dropped, no DC) needs spare.drop.
+  if changed and not public.has_perm('spare.dispatch')
+     and not (public.has_perm('spare.drop')
+              and coalesce(new.stores_status, '') ~* 'drop'
+              and new.dc_number is not distinct from old.dc_number) then
+    raise exception 'RBAC: dispatch / DC requires the spare.dispatch permission (a drop needs spare.drop)';
+  end if;
+
+  changed := new.reject_reason  is distinct from old.reject_reason
+          or new.rejected_stage is distinct from old.rejected_stage;
+  if changed and not public.can_approve_spares() and not public.has_perm('spare.drop') then
+    raise exception 'RBAC: recording a rejection requires an approval permission';
+  end if;
+
+  changed := new.received_by     is distinct from old.received_by
+          or new.received_at     is distinct from old.received_at
+          or new.receipt_remarks is distinct from old.receipt_remarks;
+  if changed then
+    if not public.has_perm('spare.receive') then
+      raise exception 'RBAC: acknowledging receipt requires the spare.receive permission';
+    end if;
+    if not public.is_spare_requester(req) then
+      raise exception 'RBAC: only the engineer who raised the request may acknowledge it';
+    end if;
+    if old.stores_status is null or old.stores_status !~* 'dispatch' then
+      raise exception 'RBAC: a spare can only be acknowledged after it is dispatched';
+    end if;
+  end if;
+
+  if (new.part is distinct from old.part or new.qty is distinct from old.qty)
+     and not public.is_spare_requester(req) then
+    raise exception 'RBAC: only the engineer who raised the request may change its parts';
+  end if;
+
+  return new;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0020_stock_transfer.sql
