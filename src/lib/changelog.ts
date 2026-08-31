@@ -26,6 +26,25 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.8.50',
+    date: '2026-08-31',
+    title: 'Notification bell',
+    changes: [
+      'A bell in the top bar tells you when a call is allotted to you or a spare you requested is dispatched, with an unread count. Open it to see recent notifications; click one to jump straight to it, or mark them all read.',
+      'Needs a database script run once (notifications.sql).',
+    ],
+  },
+  {
+    version: '0.8.49',
+    date: '2026-08-31',
+    title: 'SLA targets, editable — and flagged on the Dashboard',
+    changes: [
+      'New SLA targets in Admin Config: first visit (72h), call closure (5 days), closure when a spare is involved (7 days), closure when the spare is out of CMC/WGP (10 days), and Stores dispatch from final approval (72h). Edit the hours or switch any rule off.',
+      'The Dashboard now highlights open calls against the active rules — an “SLA Breached” tile and a “needs attention” list showing which rule and how far over/until, so engineers see what’s slipping.',
+      'Needs a database script run once (sla_rules.sql).',
+    ],
+  },
+  {
     version: '0.8.48',
     date: '2026-08-31',
     title: 'The database scripts can be re-run without failing',

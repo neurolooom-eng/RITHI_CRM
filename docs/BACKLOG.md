@@ -26,8 +26,20 @@ _Last updated: 2026-08-31 (stock screens follow the reporting tree, #76 merged; 
   adds a per-table CHECK (`call_table_for(call_type)`), so a row can never be
   misfiled, and drops the redundant per-table call_type index. `calls` view
   kept (recommended). **⏳ Run `harden_call_split.sql` after the split.**
-- Related, queued (this order): Admin/Super-Admin PM bulk upload → Commercial-
-  gated Installation creation → daily full-list email digest.
+- Related (all shipped): PM bulk upload (v0.8.46), Commercial-gated Installation
+  creation (v0.8.47), SLA rules engine (v0.8.49), notification bell (v0.8.50).
+
+### Queued — waiting on the user
+- **Deploy the daily digest** — the Edge Function + schedule are in the repo
+  (`supabase/functions/daily-digest/`, built, not deployable from here). Needs a
+  **Resend API key** and the Supabase **CLI** deploy: set the secrets,
+  `supabase functions deploy daily-digest --no-verify-jwt`, then run
+  `schedule_daily_digest.sql`. Steps in `daily-digest-DEPLOY.md`.
+- **RBAC view-matrix** — the user will send a matrix of role × module × level
+  (who can view/create/edit/approve/export what). Translate it into the role
+  defaults in `src/lib/rbac.ts` **and** a `set` SQL that writes the same
+  permissions into `app_roles` (live roles are populated, so a code change alone
+  is not enough — a DB grant is required).
 
 ## ✅ Done
 

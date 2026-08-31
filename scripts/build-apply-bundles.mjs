@@ -101,6 +101,14 @@ const MODULES = {
       '0043_installation_create_gate.sql',
     ],
   },
+  sla: {
+    title: 'SLA Rules',
+    blurb: ['Configurable service-level targets (sla_rules): the hours + on/off for',
+            'first visit, closure, closure-with-spare and stores dispatch. Read by',
+            'everyone; edited by admins / config.manage. Highlights open calls.'],
+    needs: ['profiles', 'rbac', 'isAdmin'],
+    files: ['0044_sla_rules.sql'],
+  },
   knowledge_base: {
     title: 'Knowledge Base',
     blurb: ['Team-written field-solution articles (kb_articles): anyone signed in reads',
@@ -127,7 +135,15 @@ const MODULES = {
             'Writing a review needs the `review.edit` action, granted here to admin,',
             'hotline, NSM, RGM, RM and Commercial.'],
     needs: ['profiles', 'rbac', 'fieldCalls', 'masterLists'],
-    files: ['0044_daily_call_review.sql', '0045_dccr_master_values.sql'],
+    files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql'],
+  },
+  notifications: {
+    title: 'Notifications',
+    blurb: ['Per-user in-app notifications (notifications): a bell that fires when a call',
+            'is allotted to an engineer or a spare they requested is dispatched. Read/',
+            'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
+    needs: ['profiles'],
+    files: ['0045_notifications.sql'],
   },
   audit: {
     title: 'Audit Log',
@@ -360,7 +376,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'knowledge_base'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

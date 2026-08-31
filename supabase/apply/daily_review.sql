@@ -22,7 +22,7 @@
 --
 -- Carries, in order:
 --   0044_daily_call_review.sql
---   0045_dccr_master_values.sql
+--   0046_dccr_master_values.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -86,7 +86,7 @@ begin;
 --   • dccrgrouping — "DCCR Complaint Grouping"
 --   • rootcause    — "Root Cause Key Word"
 -- A value tagged COMM is common to every product. Their values ship in
--- 0045_dccr_master_values.sql.
+-- 0046_dccr_master_values.sql.
 --
 -- Idempotent.
 -- ===========================================================================
@@ -319,11 +319,11 @@ on conflict (key) do update set
   columns = excluded.columns, sort_order = excluded.sort_order, updated_at = now();
 
 -- ------------------------------------------------------------------------
--- 0045_dccr_master_values.sql
+-- 0046_dccr_master_values.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0045 — The DCCR masters' values, as the register carries them.
+-- 0046 — The DCCR masters' values, as the register carries them.
 --
 --   dccrgrouping — DCCR Complaint Grouping
 --   rootcause    — Root Cause Key Word

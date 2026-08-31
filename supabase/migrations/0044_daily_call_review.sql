@@ -28,7 +28,7 @@
 --   • dccrgrouping — "DCCR Complaint Grouping"
 --   • rootcause    — "Root Cause Key Word"
 -- A value tagged COMM is common to every product. Their values ship in
--- 0045_dccr_master_values.sql.
+-- 0046_dccr_master_values.sql.
 --
 -- Idempotent.
 -- ===========================================================================

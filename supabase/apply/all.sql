@@ -39,7 +39,7 @@
 --   0041_call_split_hardening.sql
 --   0043_installation_create_gate.sql
 --   0044_daily_call_review.sql
---   0045_dccr_master_values.sql
+--   0046_dccr_master_values.sql
 --   0010_reports_ordering.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
@@ -66,7 +66,9 @@
 --   0041_stock_read_scope.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
+--   0044_sla_rules.sql
 --   0042_knowledge_base.sql
+--   0045_notifications.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -3209,7 +3211,7 @@ end $$;
 --   • dccrgrouping — "DCCR Complaint Grouping"
 --   • rootcause    — "Root Cause Key Word"
 -- A value tagged COMM is common to every product. Their values ship in
--- 0045_dccr_master_values.sql.
+-- 0046_dccr_master_values.sql.
 --
 -- Idempotent.
 -- ===========================================================================
@@ -3442,11 +3444,11 @@ on conflict (key) do update set
   columns = excluded.columns, sort_order = excluded.sort_order, updated_at = now();
 
 -- ------------------------------------------------------------------------
--- 0045_dccr_master_values.sql
+-- 0046_dccr_master_values.sql
 -- ------------------------------------------------------------------------
 
 -- ===========================================================================
--- 0045 — The DCCR masters' values, as the register carries them.
+-- 0046 — The DCCR masters' values, as the register carries them.
 --
 --   dccrgrouping — DCCR Complaint Grouping
 --   rootcause    — Root Cause Key Word
@@ -8372,6 +8374,54 @@ grant execute on function public.cover_unpin_inherited() to authenticated;
 analyze public.products;
 
 -- ------------------------------------------------------------------------
+-- 0044_sla_rules.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- SLA rules — the service-level targets, editable in Admin Config. Each rule is
+-- a named target in hours with an on/off switch; the app computes each open
+-- call's status (on track / due soon / breached) against the active rules and
+-- highlights it for engineers. The rule LOGIC is fixed (which event each rule
+-- measures); the hours and whether it applies are what admins edit.
+-- ===========================================================================
+
+create table if not exists public.sla_rules (
+  key          text primary key,   -- fixed rule id (see seed)
+  label        text not null,
+  target_hours integer not null,
+  active       boolean not null default true,
+  sort_order   integer not null default 0,
+  updated_at   timestamptz not null default now()
+);
+
+-- Seed the agreed rules (idempotent — an admin's later edits are preserved).
+insert into public.sla_rules (key, label, target_hours, sort_order) values
+  ('first_visit',             'First visit',                         72,  1),
+  ('closure',                 'Call closure',                        120, 2),
+  ('closure_spare',           'Closure — call includes a spare',     168, 3),
+  ('closure_spare_noncover',  'Closure — spare & not in CMC / WGP',  240, 4),
+  ('stores_dispatch',         'Stores dispatch — from final approval', 72, 5)
+on conflict (key) do nothing;
+
+create or replace function public.sla_rules_touch()
+returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end $$;
+drop trigger if exists sla_rules_touch on public.sla_rules;
+create trigger sla_rules_touch before update on public.sla_rules
+  for each row execute function public.sla_rules_touch();
+
+alter table public.sla_rules enable row level security;
+grant select, insert, update, delete on public.sla_rules to authenticated;
+
+drop policy if exists sla_read on public.sla_rules;
+create policy sla_read on public.sla_rules for select using (auth.role() = 'authenticated');
+
+drop policy if exists sla_write on public.sla_rules;
+create policy sla_write on public.sla_rules for all
+  using (public.is_admin() or public.has_perm('config.manage'))
+  with check (public.is_admin() or public.has_perm('config.manage'));
+
+-- ------------------------------------------------------------------------
 -- 0042_knowledge_base.sql
 -- ------------------------------------------------------------------------
 
@@ -8433,5 +8483,105 @@ create policy kb_update on public.kb_articles for update
 drop policy if exists kb_delete on public.kb_articles;
 create policy kb_delete on public.kb_articles for delete
   using (created_by = auth.uid() or public.is_admin());
+
+-- ------------------------------------------------------------------------
+-- 0045_notifications.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- In-app notifications — a per-user bell. The database raises a notification
+-- when a call is allotted to an engineer, or a spare they requested is
+-- dispatched. Each user reads/marks only their own.
+-- ===========================================================================
+
+create table if not exists public.notifications (
+  id              bigint generated always as identity primary key,
+  recipient_id    uuid references auth.users (id),
+  recipient_email text default '',
+  kind            text default '',
+  title           text not null,
+  body            text default '',
+  link            text default '',
+  read            boolean not null default false,
+  created_at      timestamptz not null default now()
+);
+create index if not exists notifications_recipient_idx on public.notifications (recipient_id, read, created_at desc);
+
+alter table public.notifications enable row level security;
+grant select, update on public.notifications to authenticated;
+drop policy if exists notif_read on public.notifications;
+create policy notif_read on public.notifications for select using (recipient_id = auth.uid());
+drop policy if exists notif_update on public.notifications;
+create policy notif_update on public.notifications for update
+  using (recipient_id = auth.uid()) with check (recipient_id = auth.uid());
+-- No insert policy: only the SECURITY DEFINER triggers below create rows.
+
+-- Resolve an engineer (by email, else by directory name) to a login id.
+create or replace function public.notify_resolve_uid(p_email text, p_name text)
+returns uuid language sql stable security definer set search_path = public as $$
+  select coalesce(
+    (select id from public.profiles where lower(email) = lower(nullif(p_email, '')) limit 1),
+    (select p.id from public.profiles p
+       join public.user_directory d on lower(d.email) = lower(p.email)
+      where lower(d.name) = lower(nullif(p_name, '')) limit 1)
+  );
+$$;
+
+-- ---- call allotted ---------------------------------------------------------
+create or replace function public.notify_call_allotted()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare uid uuid;
+begin
+  if coalesce(new.allocated_to, '') = '' then return new; end if;
+  if tg_op = 'UPDATE' and new.allocated_to is not distinct from old.allocated_to then return new; end if;
+  uid := public.notify_resolve_uid(new.allocated_to_email, new.allocated_to);
+  if uid is null then return new; end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (uid, coalesce(new.allocated_to_email, ''), 'call_allotted',
+          'Call allotted to you',
+          concat_ws(' · ', nullif(coalesce(new.ucn, ''), ''), nullif(coalesce(new.party_name, ''), ''), nullif(coalesce(new.product_name, ''), '')),
+          '/' || case public.call_table_for(new.call_type)
+                   when 'installation' then 'installations' when 'pm' then 'pm-calls' else 'field-calls' end);
+  return new;
+end $$;
+
+-- ---- spare dispatched ------------------------------------------------------
+create or replace function public.notify_spare_dispatched()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare uid uuid; r record;
+begin
+  if coalesce(new.stores_status, '') !~* 'dispatch' then return new; end if;
+  if tg_op = 'UPDATE' and coalesce(old.stores_status, '') ~* 'dispatch' then return new; end if;
+  select engineer, engineer_email, ucn, party_name into r
+    from public.spare_requests where uid = new.request_uid;
+  uid := public.notify_resolve_uid(r.engineer_email, r.engineer);
+  if uid is null then return new; end if;
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (uid, coalesce(r.engineer_email, ''), 'spare_dispatched',
+          'Spare dispatched',
+          concat_ws(' · ', nullif(coalesce(new.part, ''), ''), nullif(coalesce(r.ucn, ''), ''), nullif(coalesce(r.party_name, ''), '')),
+          '/spare-requests');
+  return new;
+end $$;
+
+-- ---- attach the triggers ---------------------------------------------------
+do $$
+declare t text;
+begin
+  -- call allotted: on whichever call tables exist (split base tables, else calls).
+  foreach t in array array['field_calls', 'installation_calls', 'pm_calls', 'calls'] loop
+    if to_regclass('public.' || t) is not null
+       and (select relkind from pg_class where oid = ('public.' || t)::regclass) = 'r' then
+      execute format('drop trigger if exists notify_alloc on public.%I', t);
+      execute format('create trigger notify_alloc after insert or update on public.%I for each row execute function public.notify_call_allotted()', t);
+    end if;
+  end loop;
+
+  if to_regclass('public.spare_request_lines') is not null then
+    drop trigger if exists notify_dispatch on public.spare_request_lines;
+    create trigger notify_dispatch after update on public.spare_request_lines
+      for each row execute function public.notify_spare_dispatched();
+  end if;
+end $$;
 
 commit;

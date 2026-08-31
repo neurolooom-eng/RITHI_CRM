@@ -1483,3 +1483,37 @@ export async function kbDelete(id: number): Promise<{ ok: boolean; error?: strin
   const { error } = await must().from('kb_articles').delete().eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// SLA rules (0044_sla_rules) — configurable service-level targets.
+// ---------------------------------------------------------------------------
+export interface SlaRuleRow { key: string; label: string; target_hours: number; active: boolean; sort_order: number }
+export async function listSlaRules(): Promise<SlaRuleRow[]> {
+  const { data, error } = await must().from('sla_rules').select('*').order('sort_order');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as SlaRuleRow[];
+}
+export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('sla_rules').update(patch).eq('key', key);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (0045_notifications) — per-user in-app bell.
+// ---------------------------------------------------------------------------
+export interface AppNotification { id: number; kind: string; title: string; body: string; link: string; read: boolean; created_at: string }
+export async function listNotifications(limit = 30): Promise<AppNotification[]> {
+  const { data, error } = await must().from('notifications').select('id,kind,title,body,link,read,created_at').order('created_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as AppNotification[];
+}
+export async function unreadNotificationCount(): Promise<number> {
+  const { count, error } = await must().from('notifications').select('id', { count: 'exact', head: true }).eq('read', false);
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+export async function markNotificationsRead(ids?: number[]): Promise<void> {
+  let q = must().from('notifications').update({ read: true }).eq('read', false);
+  if (ids && ids.length) q = q.in('id', ids);
+  await q;
+}
