@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.13',
+    date: '2026-08-31',
+    title: 'A Profile page, and adding users from inside the app',
+    changes: [
+      'New "My Profile" page (open it from the account menu, top-right) — your name, role, region, a change-password form, and the theme picker, all in one place.',
+      'Settings is now administrators-only: the database & sheet connection details, templates and data tools no longer show for regular users.',
+      'Admins can add a login from User Access → "+ Add User" (email, name, role, password) — no Supabase console needed. New users sign in and change their password under Profile.',
+    ],
+  },
+  {
     version: '0.8.12',
     date: '2026-08-31',
     title: 'First-time sign-in and a self-cleaning audit log',

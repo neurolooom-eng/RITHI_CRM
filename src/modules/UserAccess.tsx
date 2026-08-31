@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Drawer } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ACTIONS, ROLES, permsForRole } from '../lib/rbac';
-import { updateProfile, sbSendPasswordReset, supabaseConfigured } from '../lib/supabase';
+import { updateProfile, sbSendPasswordReset, sbAdminCreateUser, supabaseConfigured } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
@@ -18,6 +18,7 @@ export function UserAccess() {
   const { users, can, rolePerms, reloadUsers } = useAuth();
   const [q, setQ] = useState('');
   const [edit, setEdit] = useState<User | null>(null);
+  const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [resetting, setResetting] = useState<string | null>(null);
 
@@ -45,7 +46,8 @@ export function UserAccess() {
 
   return (
     <div>
-      <PageHeader title="User Access" subtitle="Map users to roles and grant extra access where needed." icon="👥" />
+      <PageHeader title="User Access" subtitle="Map users to roles and grant extra access where needed." icon="👥"
+        actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>+ Add User</button>} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -92,7 +94,86 @@ export function UserAccess() {
           onError={(text) => setMsg({ tone: 'error', text })}
         />
       )}
+
+      {adding && (
+        <AddUser
+          onClose={() => setAdding(false)}
+          onSaved={async (text) => { setAdding(false); setMsg({ tone: 'ok', text }); await reloadUsers(); }}
+          onInfo={(text) => setMsg({ tone: 'info', text })}
+          onError={(text) => setMsg({ tone: 'error', text })}
+        />
+      )}
     </div>
+  );
+}
+
+const DEFAULT_NEW_PASSWORD = '123456789';
+
+// Create a login from inside the app — no Supabase console, no service key.
+// (Needs the project to allow sign-ups and have "Confirm email" off; see the hint.)
+function AddUser({ onClose, onSaved, onInfo, onError }: {
+  onClose: () => void; onSaved: (t: string) => void; onInfo: (t: string) => void; onError: (t: string) => void;
+}) {
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole] = useState('engineer');
+  const [password, setPassword] = useState(DEFAULT_NEW_PASSWORD);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async () => {
+    setErr('');
+    if (!email.trim()) { setErr('Enter an email.'); return; }
+    if (!fullName.trim()) { setErr('Enter the full name.'); return; }
+    if (password.length < 6) { setErr('Password must be at least 6 characters.'); return; }
+    setBusy(true);
+    const res = await sbAdminCreateUser({ email, fullName, role, password });
+    logAudit({ action: 'user.create', target: email.trim().toLowerCase(), status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role } });
+    setBusy(false);
+    if (!res.ok) { setErr(res.error ?? 'Could not create the user.'); return; }
+    if (res.needsConfirm) {
+      onInfo(`${email.trim()} created, but "Confirm email" is ON in Supabase — they must confirm before signing in. Turn it off for instant logins.`);
+    } else {
+      onSaved(`${fullName.trim()} added. They sign in with this password and can change it under Profile → Password.`);
+    }
+  };
+
+  return (
+    <Drawer open onClose={onClose} title="Add User" width={520}>
+      <div className="rep-form">
+        <section className="rep-sec">
+          <div className="rep-grid">
+            <label className="rep-field">
+              <span className="field-label">Email *</span>
+              <input className="input" value={email} autoFocus onChange={(e) => setEmail(e.target.value)} placeholder="name@airliquide.com" />
+            </label>
+            <label className="rep-field">
+              <span className="field-label">Full name *</span>
+              <input className="input" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="As it should appear" />
+            </label>
+            <label className="rep-field">
+              <span className="field-label">Role</span>
+              <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
+                {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+              </select>
+            </label>
+            <label className="rep-field">
+              <span className="field-label">Password</span>
+              <input className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </label>
+          </div>
+          <div className="muted rep-hint">
+            The user signs in with this password and changes it under <b>Profile → Password</b>.
+            Set it to your region’s default if you like. Creating logins in-app needs Supabase sign-ups enabled and “Confirm email” off.
+          </div>
+          {err && <div className="field-err" style={{ marginTop: 8 }}>{err}</div>}
+        </section>
+        <div className="rep-actions">
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={() => void submit()} disabled={busy}>{busy ? 'Creating…' : 'Create user'}</button>
+        </div>
+      </div>
+    </Drawer>
   );
 }
 

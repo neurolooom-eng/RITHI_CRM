@@ -27,6 +27,7 @@ function profileToUser(p: Profile): User {
     activated: true,
     authSource: 'supabase',
     designation: p.designation,
+    region: p.region,
     reportingManager: p.reporting_manager_email,
     regionalManager: p.regional_manager_email,
     rbacRole: (p.role || 'engineer').toLowerCase(),

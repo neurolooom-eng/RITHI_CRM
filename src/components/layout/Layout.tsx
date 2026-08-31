@@ -87,7 +87,7 @@ export const NAV: NavGroup[] = [
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
-      { to: '/settings', label: 'Settings', icon: '⚙️' },
+      { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
       { to: '/version-history', label: 'Version History', icon: '🗂️' },
     ],
   },
@@ -161,6 +161,7 @@ function ThemeMenu() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can } = useAuth();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('rithi.sidebarCollapsed') === '1'; } catch { return false; }
   });
@@ -293,6 +294,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <b>{user?.fullName}</b>
                   <div className="muted">{user?.email}</div>
                 </div>
+                <button className="user-menu-item" onClick={() => { setMenuOpen(false); navigate('/profile'); }}>My Profile</button>
                 <button className="user-menu-item" onClick={logout}>Sign out</button>
               </div>
             )}

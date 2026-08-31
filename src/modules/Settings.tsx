@@ -1,14 +1,17 @@
-import { useTheme } from '../theme/ThemeProvider';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useCollection } from '../lib/hooks';
 import { TemplatePlaceholder } from './TemplatePlaceholder';
 import { SheetConnection } from './SheetConnection';
 import { DbConnection } from './DbConnection';
 import { useAuth } from '../lib/auth';
-import { ChangePassword } from './ChangePassword';
+
+// ===========================================================================
+// SETTINGS — administrator-only: database & sheet connections, design-system
+// reference, document templates and the data reset. A user's own account,
+// password and theme live on the Profile page instead.
+// ===========================================================================
 
 export function Settings() {
-  const { theme, themes, setThemeId } = useTheme();
   const { can } = useAuth();
   const templates = useCollection('templates');
 
@@ -20,48 +23,29 @@ export function Settings() {
     location.reload();
   };
 
+  // Connection details, keys and templates are sensitive — admins only.
+  if (!can('manage-users')) {
+    return (
+      <div>
+        <PageHeader title="Settings" subtitle="Administrator settings" icon="⚙️" />
+        <SectionCard title="Restricted">
+          <div className="muted">
+            These settings are for administrators. Manage your own account, password and theme on the <b>Profile</b> page.
+          </div>
+        </SectionCard>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="Settings" subtitle="Appearance, design-system defaults & templates" icon="⚙️" />
-
-      <ChangePassword />
-
-      <div style={{ height: 16 }} />
+      <PageHeader title="Settings" subtitle="Connections, design-system defaults & templates" icon="⚙️" />
 
       <DbConnection />
 
       <div style={{ height: 16 }} />
 
       <SheetConnection />
-
-      <div style={{ height: 16 }} />
-
-      <SectionCard title="Color Theme">
-        <div className="muted" style={{ marginBottom: 12 }}>
-          Pick a theme — the whole application re-skins instantly. Light & dark options included.
-        </div>
-        <div className="theme-grid">
-          {themes.map((t) => (
-            <button
-              key={t.id}
-              className={`theme-swatch ${theme.id === t.id ? 'theme-swatch-active' : ''}`}
-              onClick={() => setThemeId(t.id)}
-            >
-              <div className="theme-swatch-bars">
-                <span style={{ background: t.colors.sidebarBg }} />
-                <span style={{ background: t.colors.primary }} />
-                <span style={{ background: t.colors.accent }} />
-                <span style={{ background: t.colors.surface, border: `1px solid ${t.colors.border}` }} />
-              </div>
-              <div className="theme-swatch-name">
-                {t.name}
-                {theme.id === t.id && <span className="badge badge-primary">Active</span>}
-              </div>
-              <div className="muted" style={{ fontSize: 11.5 }}>{t.scheme}</div>
-            </button>
-          ))}
-        </div>
-      </SectionCard>
 
       <div style={{ height: 16 }} />
 
@@ -112,18 +96,15 @@ export function Settings() {
         </div>
       </SectionCard>
 
-      {can('manage-users') && (
-        <>
-          <div style={{ height: 16 }} />
-          <SectionCard title="Data">
-            <div className="row">
-              <div className="muted">Reset all demo records (keeps users & theme).</div>
-              <div className="spacer" />
-              <button className="btn btn-danger" onClick={resetData}>Reset Demo Data</button>
-            </div>
-          </SectionCard>
-        </>
-      )}
+      <div style={{ height: 16 }} />
+
+      <SectionCard title="Data">
+        <div className="row">
+          <div className="muted">Reset all demo records (keeps users & theme).</div>
+          <div className="spacer" />
+          <button className="btn btn-danger" onClick={resetData}>Reset Demo Data</button>
+        </div>
+      </SectionCard>
     </div>
   );
 }

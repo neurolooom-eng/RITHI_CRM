@@ -1027,7 +1027,7 @@ export async function addFeedback(row: Record<string, unknown>): Promise<{ ok: b
 // ---- auth (email + password) ----------------------------------------------
 export interface Profile {
   id: string; email: string; full_name: string; role: string;
-  designation?: string; engineer_code?: string;
+  designation?: string; engineer_code?: string; region?: string;
   reporting_manager_email?: string; regional_manager_email?: string; active?: boolean;
   extra_permissions?: string[];
 }
@@ -1037,6 +1037,46 @@ export async function updateProfile(id: string, patch: { role?: string; extra_pe
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const { error } = await c.from('profiles').update(patch).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Admin: create a login WITHOUT the service key. The new user is signed up on a
+// throwaway client (its own storage, no session persistence) so the admin's own
+// session in this tab is untouched; then the profile is written with the admin's
+// session (RLS: profiles_admin_write). For the user to sign in immediately the
+// Supabase project must allow sign-ups and have "Confirm email" OFF.
+export async function sbAdminCreateUser(input: { email: string; fullName: string; role: string; password: string }):
+  Promise<{ ok: boolean; error?: string; needsConfirm?: boolean }> {
+  const admin = getSupabase(); if (!admin) return { ok: false, error: 'Not connected to the database.' };
+  const email = input.email.trim().toLowerCase();
+  const password = input.password ?? '';
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Enter a valid email address.' };
+  if (password.length < 6) return { ok: false, error: 'Password must be at least 6 characters.' };
+
+  const { url, anon } = getSupabaseCreds();
+  const tmp = createClient(url, anon, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'rithi-provision' },
+  });
+  const { data, error } = await tmp.auth.signUp({
+    email, password, options: { data: { full_name: input.fullName.trim() } },
+  });
+  if (error) {
+    const m = error.message.toLowerCase();
+    if (/already|registered|exists/.test(m)) return { ok: false, error: 'That email already has an account.' };
+    if (/signup|sign-?ups?/.test(m) && /disabled|not allowed/.test(m))
+      return { ok: false, error: 'Sign-ups are turned off in Supabase. Enable Authentication → Sign In / Providers → "Allow new users to sign up", then try again.' };
+    return { ok: false, error: errMsg(error) };
+  }
+  const uid = data.user?.id;
+  if (!uid) return { ok: false, error: 'No account was created (the email may already be in use).' };
+
+  const { error: pErr } = await admin.from('profiles').upsert(
+    { id: uid, email, full_name: input.fullName.trim(), role: input.role },
+    { onConflict: 'id', ignoreDuplicates: true },
+  );
+  if (pErr) return { ok: false, error: 'Login created, but saving the profile failed: ' + errMsg(pErr) };
+  // No session (data.session null) means "Confirm email" is on — the user must
+  // confirm before they can sign in.
+  return { ok: true, needsConfirm: !data.session };
 }
 
 // ---- password reset / invite ----------------------------------------------

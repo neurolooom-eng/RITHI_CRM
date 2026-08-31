@@ -35,6 +35,7 @@ import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { UserAccess } from './modules/UserAccess';
 import { Settings } from './modules/Settings';
+import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
 import { AdminConfig } from './modules/AdminConfig';
 import {
@@ -126,6 +127,7 @@ function Shell() {
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/users" element={<UserAccess />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/admin-config" element={<AdminConfig />} />
         <Route path="/roles" element={<RolePermissions />} />
