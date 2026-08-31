@@ -3,6 +3,7 @@
 //
 //   Stock Level = Stock Out (from Stores) − Consumption
 //               − Stock Transfer From    + Stock Transfer To
+//               − Returned to Stores on an MRN
 //
 // Nothing is entered for a stock level: a Stores dispatch against an OR, a
 // spare consumed on a call, and a hand-over recorded on Stock Transfer are all
@@ -21,6 +22,7 @@ export interface HandstockBalance {
   consumed: number;
   transferred_in: number;
   transferred_out: number;
+  returned: number;
   on_hand: number;
   last_in: string | null;
   last_out: string | null;
@@ -28,7 +30,7 @@ export interface HandstockBalance {
   movements: number;
 }
 
-export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out';
+export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return';
 
 export interface HandstockMovement {
   direction: 'IN' | 'OUT';
@@ -74,8 +76,8 @@ export type StockTone = 'success' | 'neutral' | 'danger';
 export const balanceTone = (onHand: number): StockTone =>
   onHand < 0 ? 'danger' : onHand > 0 ? 'success' : 'neutral';
 
-export const movementTone = (m: MovementKind): 'success' | 'neutral' | 'info' =>
-  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : 'info';
+export const movementTone = (m: MovementKind): 'success' | 'neutral' | 'info' | 'warning' =>
+  m === 'Stock out' ? 'success' : m === 'Consumption' ? 'neutral' : m === 'Return' ? 'warning' : 'info';
 
 export interface HandstockSummary {
   engineers: number;   // people holding at least one spare
@@ -84,22 +86,24 @@ export interface HandstockSummary {
   shortLines: number;  // engineer+spare lines that have gone negative
   stockOut: number;
   consumed: number;
+  returned: number;   // sent back to Stores on an MRN
   transferred: number; // units handed between engineers (counted once)
 }
 
 export function summarise(rows: HandstockBalance[]): HandstockSummary {
   const engineers = new Set<string>();
   const parts = new Set<string>();
-  let onHand = 0; let shortLines = 0; let stockOut = 0; let consumed = 0; let transferred = 0;
+  let onHand = 0; let shortLines = 0; let stockOut = 0; let consumed = 0; let transferred = 0; let returned = 0;
   for (const r of rows) {
     const bal = num(r.on_hand);
     stockOut += num(r.stock_out);
     consumed += num(r.consumed);
+    returned += num(r.returned);
     transferred += num(r.transferred_out); // out and in are the same movement
     if (bal > 0) { engineers.add(r.engineer_key); parts.add(r.part_code); onHand += bal; }
     if (bal < 0) shortLines += 1;
   }
-  return { engineers: engineers.size, partCodes: parts.size, onHand, shortLines, stockOut, consumed, transferred };
+  return { engineers: engineers.size, partCodes: parts.size, onHand, shortLines, stockOut, consumed, transferred, returned };
 }
 
 // One engineer's position, for the per-engineer filter and the transfer form.

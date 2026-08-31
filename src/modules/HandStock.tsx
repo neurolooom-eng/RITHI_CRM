@@ -18,11 +18,11 @@ import './fieldcalls.css';
 // ===========================================================================
 // HAND STOCK — the stock level an engineer is carrying, per spare.
 //
-//   Stock Level = Stock Out (Stores) − Consumption − Transfer From + Transfer To
+//   Stock Level = Stock Out (Stores) − Consumption − Transfer From + Transfer To − Returned
 //
 // Nothing is entered here: the movements are the Stores dispatch on a spare
-// request, the consumption on a call report, and the hand-overs recorded on
-// Stock Transfer. Reads `handstock_balance` / `handstock_movements` (migration
+// request, the consumption on a call report, the hand-overs recorded on Stock
+// Transfer, and the returns recorded on an MRN. Reads `handstock_balance` / `handstock_movements` (migration
 // 0023_handstock.sql), which run with the caller's rights — so an engineer
 // sees their own stock, an RM their sub-tree, an admin everyone's.
 //
@@ -55,6 +55,7 @@ const asRow = (r: Record<string, unknown>): Row => ({
   consumed: num(r.consumed),
   transferred_in: num(r.transferred_in),
   transferred_out: num(r.transferred_out),
+  returned: num(r.returned),
   on_hand: num(r.on_hand),
   last_in: r.last_in ? String(r.last_in) : null,
   last_out: r.last_out ? String(r.last_out) : null,
@@ -143,6 +144,7 @@ export function HandStock() {
     { key: 'consumed', header: 'Consumed', width: 95, align: 'right', wrap: false },
     { key: 'transferred_in', header: 'Transfer in', width: 100, align: 'right', wrap: false },
     { key: 'transferred_out', header: 'Transfer out', width: 105, align: 'right', wrap: false },
+    { key: 'returned', header: 'Returned', width: 95, align: 'right', wrap: false },
     { key: 'last_movement', header: 'Last movement', width: 135, render: (r) => fmtLongDate(r.last_movement) },
   ];
 
@@ -169,6 +171,7 @@ export function HandStock() {
         <KpiCard label="Spares held" value={totals.partCodes} icon="🔩" tone="info" sub="distinct part codes" />
         <KpiCard label="Stock out" value={totals.stockOut} icon="📤" tone="success" sub="issued by Stores on a DC" />
         <KpiCard label="Consumed" value={totals.consumed} icon="🧾" tone="neutral" sub="used on calls" />
+        <KpiCard label="Returned" value={totals.returned} icon="↩️" tone="info" sub="sent back on an MRN" />
         <KpiCard label="Short" value={totals.shortLines} icon="⚠️" tone={totals.shortLines ? 'danger' : 'neutral'} sub="taken without a stock out" />
       </KpiGrid>
 
@@ -313,7 +316,7 @@ function Movements({
     { key: 'remarks', header: 'Remarks', width: 180 },
   ];
 
-  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out'];
+  const KINDS: MovementKind[] = ['Stock out', 'Consumption', 'Transfer in', 'Transfer out', 'Return'];
 
   return (
     <>
@@ -392,9 +395,10 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
           {field('Consumed', row.consumed)}
           {field('Transferred in', row.transferred_in)}
           {field('Transferred out', row.transferred_out)}
+          {field('Returned (MRN)', row.returned)}
         </div>
         <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
-          {row.stock_out} − {row.consumed} − {row.transferred_out} + {row.transferred_in} = <b>{row.on_hand}</b>
+          {row.stock_out} − {row.consumed} − {row.transferred_out} + {row.transferred_in} − {row.returned} = <b>{row.on_hand}</b>
         </p>
         {row.on_hand < 0 && (
           <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
@@ -420,6 +424,7 @@ function MovementTrail({ row, onTransfer }: { row: Row; onTransfer?: () => void 
                 {m.movement === 'Stock out' ? `📤 Stock out ${m.qty}`
                   : m.movement === 'Consumption' ? `🧾 Consumed ${m.qty}`
                   : m.movement === 'Transfer in' ? `⇄ Received ${m.qty}`
+                  : m.movement === 'Return' ? `↩️ Returned ${m.qty}`
                   : `⇄ Handed over ${m.qty}`}
               </b>
               <span className={`badge badge-${movementTone(m.movement)}`} style={{ marginLeft: 6 }}>{m.movement}</span>

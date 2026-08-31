@@ -1041,6 +1041,46 @@ export async function feedbackByCall(callNumber: string): Promise<Record<string,
   return data ?? [];
 }
 
+// ---- material returns (MRN) ------------------------------------------------
+// One row per returned item, grouped by `uid` (MRN-YYMM-NNNN) — the flattened
+// shape of the sheet's two tabs. A return is the fifth hand-stock movement
+// (0039_material_returns.sql), so it needs no separate stock bookkeeping here.
+export interface MrnLineInput {
+  part: string; good_qty: number; defective_qty: number;
+  customer_name?: string; report_no?: string; removed_from_equipment?: string; remarks?: string;
+}
+export async function addMaterialReturn(
+  header: { mrn_no: string; mrn_date?: string; engineer: string; engineer_email?: string; remarks?: string },
+  lines: MrnLineInput[],
+): Promise<{ ok: boolean; uid?: string; error?: string }> {
+  const c = must();
+  // The uid and row numbers are assigned by the database. Ask for the first
+  // row's uid so every line of one submission shares it.
+  const first = { ...header, ...lines[0], source: 'app' };
+  const { data, error } = await c.from('material_returns').insert(first).select('uid').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  const uid = String(data.uid);
+  if (lines.length > 1) {
+    const { error: le } = await c.from('material_returns')
+      .insert(lines.slice(1).map((l, i) => ({ ...header, ...l, uid, row_no: i + 2, source: 'app' })));
+    if (le) {
+      // The stock check runs per row, so a rejected line leaves the rest
+      // standing — take the whole submission back out rather than half of it.
+      await c.from('material_returns').delete().eq('uid', uid);
+      return { ok: false, error: errMsg(le) };
+    }
+  }
+  return { ok: true, uid };
+}
+export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('material_returns').select('*')
+    .order('mrn_date', { ascending: false, nullsFirst: false }).order('uid', { ascending: false })
+    .order('row_no', { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
 // ---- hand stock ------------------------------------------------------------
 // Netted per engineer + spare by Postgres (views from 0023_handstock.sql):
 // Stock Out (Stores) − Consumption − Transfer From + Transfer To. Both views

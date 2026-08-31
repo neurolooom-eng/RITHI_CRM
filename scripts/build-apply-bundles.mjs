@@ -126,17 +126,25 @@ const MODULES = {
       '',
       '  Stock Level = Stock Out (Stores) - Consumption',
       '              - Stock Transfer From + Stock Transfer To',
+      '              - Returned to Stores (MRN)',
       '',
       'The movement behind every figure (the DC, the call, the other engineer),',
       'each term of the formula as its own column, and `engineer_stock` --- what',
       'Stock Transfer and its stock guard read --- redefined over the same',
       'derivation, so the two screens cannot disagree.',
       '',
+      'Includes MRN (Material Return Note) --- the return register itself, its',
+      'MRN-YYMM-NNNN numbering, and the guard that stops an engineer returning',
+      'more than they are holding.',
+      '',
       'Needs the spare workflow through per-spare approvals and the stock-transfer',
       'tables; _status.sql says which of those are missing.',
     ],
     needs: ['spareTables', 'rbac', 'isAdmin', 'approvers', 'spareLineStages', 'transferTables'],
-    files: ['0023_handstock.sql'],
+    // MRN lives here rather than in a bundle of its own: it adds a term to the
+    // same two views, so a later re-run of this file must carry it or it would
+    // redefine them back without returns.
+    files: ['0023_handstock.sql', '0039_material_returns.sql'],
     tail: () => cookbook(),
   },
   stock_transfer: {
