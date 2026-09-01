@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { RichEditor } from '../components/ui/RichEditor';
 import { useAuth } from '../lib/auth';
 import { actionForPath } from '../lib/rbac';
 import { fmtLongDate } from '../lib/format';
+import { fileToDataUrl } from '../lib/image';
 import { sanitizeHtml, htmlToText } from '../lib/sanitizeHtml';
 import {
   kbList, kbAdd, kbUpdate, kbDelete, supabaseConfigured,
-  type KbArticle, type KbAttachment,
+  helpShots, helpShotSet, helpShotClear,
+  type KbArticle, type KbAttachment, type HelpShot,
 } from '../lib/supabase';
 import './knowledgebase.css';
 
@@ -151,6 +153,45 @@ const SECTIONS: Sec[] = [
   },
 ];
 
+// One task's screenshot. Everyone sees the picture + caption; an admin gets an
+// upload / replace / caption / remove strip (the picture is a downscaled data
+// URL saved in help_screenshots). Renders nothing for a non-admin with no shot.
+function HelpShotBlock({ sectionId, title, shot, isAdmin, busy, onUpload, onCaption, onRemove }: {
+  sectionId: string; title: string; shot?: HelpShot; isAdmin: boolean; busy: boolean;
+  onUpload: (id: string, f: File) => void; onCaption: (id: string, c: string) => void; onRemove: (id: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  if (!shot && !isAdmin) return null;
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (f) onUpload(sectionId, f);
+  };
+  return (
+    <div className="kb-shot">
+      {shot ? (
+        <figure className="kb-shot-fig">
+          <img src={shot.image} alt={shot.caption || `${title} — screenshot`} loading="lazy" />
+          {isAdmin
+            ? <input className="input kb-shot-cap" defaultValue={shot.caption} placeholder="Caption (optional)"
+                onBlur={(e) => { if (e.target.value !== shot.caption) onCaption(sectionId, e.target.value); }} />
+            : shot.caption && <figcaption>{shot.caption}</figcaption>}
+        </figure>
+      ) : (
+        <button className="kb-shot-add" onClick={() => fileRef.current?.click()} disabled={busy}>
+          {busy ? 'Uploading…' : '📷 Add a screenshot for this step'}
+        </button>
+      )}
+      {isAdmin && (
+        <div className="kb-shot-actions">
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pick} />
+          {shot && <button className="btn btn-sm" onClick={() => fileRef.current?.click()} disabled={busy}>{busy ? 'Uploading…' : '📷 Replace'}</button>}
+          {shot && <button className="btn btn-sm btn-ghost" onClick={() => onRemove(sectionId)} disabled={busy}>🗑 Remove</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const CATEGORIES = ['Field Issue', 'How-To', 'Product Tip', 'Spares', 'Other'];
 const emptyForm = { title: '', category: 'Field Issue', product: '', tags: '', body: '', attachments: [] as KbAttachment[] };
 
@@ -167,6 +208,42 @@ export function KnowledgeBase() {
   const [search, setSearch] = useState('');
   const [view, setView] = useState<KbArticle | null>(null);
   const [edit, setEdit] = useState<{ id: number | null; form: typeof emptyForm } | null>(null);
+  const [shots, setShots] = useState<Record<string, HelpShot>>({});
+  const [shotBusy, setShotBusy] = useState<string | null>(null);
+
+  // Guide screenshots — best-effort; the static guide still shows if this fails
+  // (e.g. the migration isn't applied yet).
+  useEffect(() => {
+    if (!onDb) return;
+    let live = true;
+    helpShots().then((s) => { if (live) setShots(s); }).catch(() => {});
+    return () => { live = false; };
+  }, [onDb]);
+
+  const uploadShot = async (id: string, f: File) => {
+    setShotBusy(id);
+    try {
+      const image = await fileToDataUrl(f, 1280);
+      const caption = shots[id]?.caption ?? '';
+      const res = await helpShotSet(id, image, caption);
+      if (!res.ok) { setMsg({ tone: 'error', text: /help_screenshots|does not exist|schema cache/i.test(res.error ?? '') ? 'Screenshots need migration 0043_help_screenshots.sql — run it in the Supabase SQL editor.' : (res.error ?? 'Upload failed.') }); return; }
+      setShots((p) => ({ ...p, [id]: { section_id: id, image, caption, updated_at: new Date().toISOString() } }));
+    } finally { setShotBusy(null); }
+  };
+  const captionShot = async (id: string, caption: string) => {
+    const s = shots[id]; if (!s) return;
+    setShots((p) => ({ ...p, [id]: { ...s, caption } }));
+    const res = await helpShotSet(id, s.image, caption);
+    if (!res.ok) setMsg({ tone: 'error', text: res.error ?? 'Could not save the caption.' });
+  };
+  const removeShot = async (id: string) => {
+    if (!confirm('Remove this screenshot?')) return;
+    setShotBusy(id);
+    const res = await helpShotClear(id);
+    setShotBusy(null);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Remove failed.' }); return; }
+    setShots((p) => { const n = { ...p }; delete n[id]; return n; });
+  };
 
   const load = async () => {
     if (!onDb) return;
@@ -276,6 +353,8 @@ export function KnowledgeBase() {
           <div className="kb-who">{s.who}</div>
           <p className="kb-lead">{s.lead}</p>
           <ol className="kb-steps">{s.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
+          <HelpShotBlock sectionId={s.id} title={s.title} shot={shots[s.id]} isAdmin={isAdmin}
+            busy={shotBusy === s.id} onUpload={uploadShot} onCaption={captionShot} onRemove={removeShot} />
           {s.note && <div className={`kb-note ${s.note.tone}`}><span className="kb-ic">{s.note.icon}</span><div>{s.note.body}</div></div>}
           {openable(s.go).length > 0 && (
             <div className="kb-go">

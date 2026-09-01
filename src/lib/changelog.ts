@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.61',
+    date: '2026-09-01',
+    title: 'How-to guide: a screenshot for each task',
+    changes: [
+      'Each task in “How to use RITHI CRM” can now show a screenshot. An admin opens the guide, taps “Add a screenshot for this step”, picks an image (it’s shrunk automatically) and optionally captions it — everyone then sees it under that task. Replace or remove it any time.',
+      'Needs a database script run once (help_screenshots.sql).',
+    ],
+  },
+  {
     version: '0.8.60',
     date: '2026-09-01',
     title: 'How-to guide: working “Open …” buttons',

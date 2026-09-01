@@ -1586,6 +1586,27 @@ export async function kbDelete(id: number): Promise<{ ok: boolean; error?: strin
 }
 
 // ---------------------------------------------------------------------------
+// Help screenshots (0043_help_screenshots) — one picture per how-to task,
+// keyed by the guide section id. Everyone reads; admins set / clear (RLS).
+// ---------------------------------------------------------------------------
+export interface HelpShot { section_id: string; image: string; caption: string; updated_at: string }
+export async function helpShots(): Promise<Record<string, HelpShot>> {
+  const { data, error } = await must().from('help_screenshots').select('section_id,image,caption,updated_at').limit(200);
+  if (error) throw new Error(errMsg(error));
+  const map: Record<string, HelpShot> = {};
+  for (const r of (data ?? []) as HelpShot[]) map[r.section_id] = r;
+  return map;
+}
+export async function helpShotSet(section_id: string, image: string, caption: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('help_screenshots').upsert({ section_id, image, caption }, { onConflict: 'section_id' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function helpShotClear(section_id: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('help_screenshots').delete().eq('section_id', section_id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // SLA rules (0044_sla_rules) — configurable service-level targets.
 // ---------------------------------------------------------------------------
 export interface SlaRuleRow { key: string; label: string; target_hours: number; active: boolean; sort_order: number }

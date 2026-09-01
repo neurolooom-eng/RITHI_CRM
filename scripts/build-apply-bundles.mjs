@@ -116,7 +116,7 @@ const MODULES = {
             'every article and contributes one; the author or an admin edits or deletes.',
             'Rich text with images and tables is stored as sanitized HTML on the row.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0042_knowledge_base.sql'],
+    files: ['0042_knowledge_base.sql', '0043_help_screenshots.sql'],
   },
   daily_review: {
     title: 'Daily Call Review (DCCR)',
