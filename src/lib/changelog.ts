@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.62',
+    date: '2026-09-01',
+    title: 'Hotline sees the whole pending-registration queue',
+    changes: [
+      'A Hotline engineer now sees every pending call-registration request (not just their own), matching the whole call register they already see — so the desk can register or cancel any request. Reporting managers still see their team’s; engineers see their own.',
+      'Needs a database script run once (pending_registrations_view_all.sql).',
+    ],
+  },
+  {
     version: '0.8.61',
     date: '2026-09-01',
     title: 'How-to guide: a screenshot for each task',
