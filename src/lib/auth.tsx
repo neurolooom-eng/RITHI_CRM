@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
 import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
-import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac } from './rbac';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, ROLES } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
 
@@ -78,6 +78,17 @@ export const ROLE_LABELS: Record<Role, string> = {
   engineer: 'Field Engineer',
   viewer: 'Viewer',
 };
+
+// The label to SHOW for a user's role. The coarse Role enum only has four
+// buckets, so on its own it renders every RBAC role (hotline, nsm, commercial,
+// spare_coordinator, …) as its bucket — e.g. Hotline shows as "Field Engineer".
+// Prefer the real RBAC role's label; fall back to the coarse label.
+export function roleLabel(u: { rbacRole?: string; role: Role } | null | undefined): string {
+  if (!u) return '';
+  const rb = (u.rbacRole || '').toLowerCase();
+  const fromRbac = rb ? ROLES.find((r) => r.key === rb)?.label : undefined;
+  return fromRbac || ROLE_LABELS[u.role] || rb || '';
+}
 
 const USERS = 'users';
 const SESSION_KEY = 'rithi.session';

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth, ROLE_LABELS } from '../../lib/auth';
+import { useAuth, roleLabel } from '../../lib/auth';
 import { actionForPath } from '../../lib/rbac';
 import { useTheme } from '../../theme/ThemeProvider';
 import { fmtDateTime } from '../../lib/format';
@@ -319,7 +319,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <span className="user-avatar">{user?.fullName?.[0] ?? '?'}</span>
               <span className="user-meta">
                 <span className="user-name">{user?.fullName}</span>
-                <span className="user-role">{user ? ROLE_LABELS[user.role] : ''}</span>
+                <span className="user-role">{roleLabel(user)}</span>
               </span>
               <span>▾</span>
             </button>

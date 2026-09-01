@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.63',
+    date: '2026-09-01',
+    title: 'Show the real role name (Hotline, NSM, …) everywhere',
+    changes: [
+      'The role shown next to your name and on My Profile now uses the full role — Hotline Engineer, NSM, Commercial, Spare Coordinator, etc. — instead of collapsing them all to “Field Engineer”. This was a display-only issue; permissions were always based on the real role.',
+    ],
+  },
+  {
     version: '0.8.62',
     date: '2026-09-01',
     title: 'Hotline sees the whole pending-registration queue',

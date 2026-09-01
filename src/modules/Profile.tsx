@@ -1,5 +1,5 @@
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { useAuth, ROLE_LABELS } from '../lib/auth';
+import { useAuth, roleLabel } from '../lib/auth';
 import { useTheme } from '../theme/ThemeProvider';
 import { ChangePassword } from './ChangePassword';
 
@@ -16,7 +16,7 @@ export function Profile() {
   const rows: [string, string][] = [
     ['Name', user?.fullName || '—'],
     ['Email', user?.email || '—'],
-    ['Role', user ? (ROLE_LABELS[user.role] ?? user.role) : '—'],
+    ['Role', roleLabel(user) || '—'],
     ...(user?.designation ? [['Designation', user.designation] as [string, string]] : []),
     ...(user?.region ? [['Region', user.region] as [string, string]] : []),
   ];
