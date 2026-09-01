@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-01 (PM Bulk Upload due-month + Added On + per-month PM serial shipped v0.8.57; `pm_schedule_fields.sql` to run on the live project)_
+_Last updated: 2026-09-01 (PM Bulk Upload due-month + Added On + registration date-and-time shipped v0.8.58, numbering unchanged; `pm_schedule_fields.sql` to run on the live project)_
 
 ---
 
@@ -29,18 +29,24 @@ _Last updated: 2026-09-01 (PM Bulk Upload due-month + Added On + per-month PM se
 - Related (all shipped): PM bulk upload (v0.8.46), Commercial-gated Installation
   creation (v0.8.47), SLA rules engine (v0.8.49), notification bell (v0.8.50).
 
-### PM Bulk Upload — due month, Added On, per-month serial (shipped v0.8.57, SQL to run)
+### PM Bulk Upload — due month + registration date & time (shipped v0.8.58, SQL to run)
 - Every uploaded PM row is dated the **1st of a chosen due month** (a
   `<input type="month">` picker, defaulting to the current month — pick a past
   month to **backfill older calls**). Today's date is captured as **Added On**.
-- Each call gets a **per-month PM serial** `PM-YYYY-MM-####` that continues from
-  the highest existing serial for that month, so a January call added after 500
-  existing January ones becomes #501. `0050_pm_schedule_fields.sql` adds
-  `added_on` + `pm_serial` to the three split tables, a `pm_serial_seq` +
-  `next_pm_serial()` generator, a `pm_serial_biu` trigger on `pm_calls`, and
-  rebuilds the `calls`/`pending_calls` views + INSTEAD OF routing triggers.
-  Validated on PG16 (per-month serials, Feb resets to 0001, backfill continues).
-  **⏳ Run `pm_schedule_fields.sql` on the live Supabase project.**
+- **Numbering is unchanged** (UCN + Call Number as before). What orders a batch
+  is a new **registration date-and-time** (`reg_at`): each call a few seconds
+  apart — **00:30 on the 1st, 5s apart** for a fresh month, or **10s after the
+  latest existing call** when adding to a month that already has some — and the
+  **start time + gap are editable** before import. `reg_date` stays a plain date
+  so every date-based view/index keeps working.
+- `0050_pm_schedule_fields.sql` adds `added_on` + `reg_at timestamptz` to the
+  three split tables (reg_at back-filled to midnight of reg_date), drops the
+  earlier per-month-serial trial, makes `calls_before_insert()` derive
+  `reg_date`↔`reg_at`, and rebuilds the `calls`/`pending_calls` views + INSTEAD
+  OF routing. Validated on PG16 (fresh-month 00:30+5s, backdated +10s
+  continuation, derivation both ways, numbering unchanged).
+  **⏳ Run `pm_schedule_fields.sql` on the live Supabase project** (after the
+  split, `split_call_tables.sql`/0040 — the script is a guarded no-op until then).
 - **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
