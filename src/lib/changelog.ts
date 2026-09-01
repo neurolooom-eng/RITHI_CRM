@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.64',
+    date: '2026-09-01',
+    title: 'Search no longer times out',
+    changes: [
+      'Fixes “Search failed: canceling statement due to statement timeout” across the registers, Product Master and party lookups. As the data grew, substring searches were scanning whole tables; they’re now backed by trigram indexes and return quickly.',
+      'Needs a database script run once (search_indexes.sql).',
+    ],
+  },
+  {
     version: '0.8.63',
     date: '2026-09-01',
     title: 'Show the real role name (Hotline, NSM, …) everywhere',

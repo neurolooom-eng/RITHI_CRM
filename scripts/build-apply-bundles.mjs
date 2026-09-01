@@ -170,6 +170,15 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'isAdmin'],
     files: ['0048_record_audit.sql', '0049_record_retention_guard.sql'],
   },
+  performance: {
+    title: 'Search performance (trigram indexes)',
+    blurb: ['pg_trgm trigram indexes so substring searches (product, party, call',
+            'registers) are index-backed instead of full table scans — the fix for',
+            '"canceling statement due to statement timeout" on Search. Runs last so',
+            'every table it indexes already exists; skips the calls view / absent columns.'],
+    needs: [],
+    files: ['0052_search_indexes.sql'],
+  },
   audit: {
     title: 'Audit Log',
     blurb: ['The audit trail: who did what, when, whether it worked and how long it',
@@ -401,7 +410,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity', 'performance'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',
