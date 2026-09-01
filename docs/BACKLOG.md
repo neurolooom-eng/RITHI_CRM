@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-08-31 (stock screens follow the reporting tree, #76 merged; `HandStock_X.sql` to run on the live project)_
+_Last updated: 2026-09-01 (PM Bulk Upload due-month + Added On + per-month PM serial shipped v0.8.57; `pm_schedule_fields.sql` to run on the live project)_
 
 ---
 
@@ -28,6 +28,21 @@ _Last updated: 2026-08-31 (stock screens follow the reporting tree, #76 merged; 
   kept (recommended). **⏳ Run `harden_call_split.sql` after the split.**
 - Related (all shipped): PM bulk upload (v0.8.46), Commercial-gated Installation
   creation (v0.8.47), SLA rules engine (v0.8.49), notification bell (v0.8.50).
+
+### PM Bulk Upload — due month, Added On, per-month serial (shipped v0.8.57, SQL to run)
+- Every uploaded PM row is dated the **1st of a chosen due month** (a
+  `<input type="month">` picker, defaulting to the current month — pick a past
+  month to **backfill older calls**). Today's date is captured as **Added On**.
+- Each call gets a **per-month PM serial** `PM-YYYY-MM-####` that continues from
+  the highest existing serial for that month, so a January call added after 500
+  existing January ones becomes #501. `0050_pm_schedule_fields.sql` adds
+  `added_on` + `pm_serial` to the three split tables, a `pm_serial_seq` +
+  `next_pm_serial()` generator, a `pm_serial_biu` trigger on `pm_calls`, and
+  rebuilds the `calls`/`pending_calls` views + INSTEAD OF routing triggers.
+  Validated on PG16 (per-month serials, Feb resets to 0001, backfill continues).
+  **⏳ Run `pm_schedule_fields.sql` on the live Supabase project.**
+- **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
+  Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Queued — waiting on the user
 - **Deploy the daily digest** — the Edge Function + schedule are in the repo
