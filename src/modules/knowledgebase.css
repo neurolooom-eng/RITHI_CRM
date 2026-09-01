@@ -75,6 +75,9 @@
 .kb-note.warn { background: color-mix(in srgb, #C77A0A 16%, var(--surface)); border-color: transparent; }
 .kb-note.good { background: color-mix(in srgb, #1E9D57 15%, var(--surface)); border-color: transparent; }
 
+/* real "Open <module>" actions for a task */
+.kb-go { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
 @media (max-width: 720px) {
   .kb-sec { padding: 16px; }
   .kb-who { margin-left: 0; }

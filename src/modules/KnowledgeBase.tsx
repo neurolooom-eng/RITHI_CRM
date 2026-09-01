@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { RichEditor } from '../components/ui/RichEditor';
 import { useAuth } from '../lib/auth';
+import { actionForPath } from '../lib/rbac';
 import { fmtLongDate } from '../lib/format';
 import { sanitizeHtml, htmlToText } from '../lib/sanitizeHtml';
 import {
@@ -21,7 +23,12 @@ const B = ({ children }: { children: ReactNode }) => <span className="kb-btn">{c
 const K = ({ children }: { children: ReactNode }) => <span className="kb-key">{children}</span>;
 const Hint = ({ children }: { children: ReactNode }) => <span className="kb-hint">{children}</span>;
 
-interface Sec { id: string; n: string; title: string; who: string; lead: ReactNode; steps: ReactNode[]; note?: { tone: 'tip' | 'warn' | 'good'; icon: string; body: ReactNode } }
+// `go` are real navigation targets for the task — rendered as "Open …" buttons,
+// each shown only if the signed-in role may open that module (or `always`, for
+// a personal screen like the profile). Some tasks (find the Build ID, refresh)
+// have no module to open, so they carry none.
+interface GoTo { to: string; label: string; always?: boolean }
+interface Sec { id: string; n: string; title: string; who: string; lead: ReactNode; steps: ReactNode[]; go?: GoTo[]; note?: { tone: 'tip' | 'warn' | 'good'; icon: string; body: ReactNode } }
 
 const SECTIONS: Sec[] = [
   {
@@ -35,6 +42,7 @@ const SECTIONS: Sec[] = [
       <>More than one machine? Tap <b>Add another</b> and repeat — all share one request.</>,
       <>Tap <b>Submit</b>. It appears under <b>Pending Registrations</b> until the Hotline registers it.</>,
     ],
+    go: [{ to: '/request-registration', label: 'Request Registration' }, { to: '/pending-registrations', label: 'Pending Registrations' }],
     note: { tone: 'tip', icon: '📌', body: <>A request without a UCN stays in <b>Pending Registrations</b>. Once registered, it becomes a call with a UCN in the <b>Field Call Register</b>.</> },
   },
   {
@@ -47,6 +55,7 @@ const SECTIONS: Sec[] = [
       <>Set the <b>Warranty Start Date</b> — this starts the machine’s warranty and is required on an installation.</>,
       <>Set the <b>Call Status</b> to <b>Solved - Report Completed</b> when the install and report are done.</>,
     ],
+    go: [{ to: '/installations', label: 'Installation Calls' }],
     note: { tone: 'tip', icon: '🛡️', body: <>The Warranty Start Date you enter here is what the Warranty Register and every future call read for that machine — get it right.</> },
   },
   {
@@ -60,6 +69,7 @@ const SECTIONS: Sec[] = [
       <>Fill <b>Complaint Observation</b>, <b>Job Done</b>, <b>Hour Meter Reading</b>, <b>Software Version</b>; set <b>Add Consumption?</b> if you fitted spares.</>,
       <>Tap <b>Save</b>. Every visit is kept, so the call’s history builds up.</>,
     ],
+    go: [{ to: '/field-calls', label: 'Field Call Register' }, { to: '/installations', label: 'Installation Calls' }, { to: '/pm-calls', label: 'PM Calls' }],
     note: { tone: 'warn', icon: '⚠️', body: <>A call marked <b>Solved - Report Completed</b> becomes read-only. Finish the report before you set it.</> },
   },
   {
@@ -71,6 +81,7 @@ const SECTIONS: Sec[] = [
       <>Add a line for each different part — they travel together on one request.</>,
       <>Tap <b>Submit</b>. It enters the chain: <b>RM → Commercial → NSM → Stores → Dispatch</b>.</>,
     ],
+    go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
     id: 'approve', n: '5', title: 'Approve a spare request', who: 'Reporting Manager & approvers',
@@ -81,6 +92,7 @@ const SECTIONS: Sec[] = [
       <>Tap <B>✔ Approve</B> to pass it on, or <B>✖ Reject</B> to stop it.<Hint>Rejecting asks for a reason so the engineer knows why.</Hint></>,
       <>Decide each part separately — approve the good ones, reject the rest.</>,
     ],
+    go: [{ to: '/spare-requests', label: 'Spare Requests' }],
     note: { tone: 'tip', icon: '💡', body: <>A Reporting Manager sees and approves only their <b>own team’s</b> spares. Only <b>Spare Coordinator</b> and <b>Hotline</b> can <B>⊘ Drop</B> a spare at any stage.</> },
   },
   {
@@ -92,6 +104,7 @@ const SECTIONS: Sec[] = [
       <>Tap the item to open its detail — the full approval trail, DC number, courier and dates.</>,
       <>When Stores dispatches it, tap <B>Received</B> once it reaches you to close it off.<Hint>The tiles at the top count how many are at each stage.</Hint></>,
     ],
+    go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
     id: 'feedback', n: '7', title: 'Customer feedback', who: 'Any engineer',
@@ -101,6 +114,7 @@ const SECTIONS: Sec[] = [
       <>The questions shown depend on the call type (Installation / PM / Field).</>,
       <>Saved feedback appears under <b>Quality &amp; Analytics → Customer Feedback</b>, one column per question.</>,
     ],
+    go: [{ to: '/feedback', label: 'Customer Feedback' }],
     note: { tone: 'tip', icon: '⭐', body: <>Feedback is scoped like your calls — you see feedback for your own calls; managers and office roles see more.</> },
   },
   {
@@ -112,6 +126,7 @@ const SECTIONS: Sec[] = [
       <>Open the link, type a new password (tap <b>👁️</b> to check it), confirm, and you’re back in.</>,
       <><b>Already signed in?</b> User menu (your name, top-right) → <b>My Profile</b> → <b>Password</b>.</>,
     ],
+    go: [{ to: '/profile', label: 'My Profile', always: true }],
     note: { tone: 'tip', icon: '🔑', body: <>First time signing in? Use the starting password your admin gave you — the app then asks you to set your own.</> },
   },
   {
@@ -140,8 +155,12 @@ const CATEGORIES = ['Field Issue', 'How-To', 'Product Tip', 'Spares', 'Other'];
 const emptyForm = { title: '', category: 'Field Issue', product: '', tags: '', body: '', attachments: [] as KbAttachment[] };
 
 export function KnowledgeBase() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, can } = useAuth();
+  const navigate = useNavigate();
   const onDb = supabaseConfigured();
+  // A task's "Open …" targets the signed-in role may actually reach (admins see
+  // all); `always` targets (a personal screen) are shown to everyone.
+  const openable = (go?: GoTo[]) => (go ?? []).filter((g) => g.always || isAdmin || can(actionForPath(g.to)));
   const [articles, setArticles] = useState<KbArticle[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
@@ -258,6 +277,13 @@ export function KnowledgeBase() {
           <p className="kb-lead">{s.lead}</p>
           <ol className="kb-steps">{s.steps.map((st, i) => <li key={i}>{st}</li>)}</ol>
           {s.note && <div className={`kb-note ${s.note.tone}`}><span className="kb-ic">{s.note.icon}</span><div>{s.note.body}</div></div>}
+          {openable(s.go).length > 0 && (
+            <div className="kb-go">
+              {openable(s.go).map((g) => (
+                <button key={g.to} className="btn btn-primary btn-sm" onClick={() => navigate(g.to)}>Open {g.label} →</button>
+              ))}
+            </div>
+          )}
         </section>
       ))}
 

@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.60',
+    date: '2026-09-01',
+    title: 'How-to guide: working “Open …” buttons',
+    changes: [
+      'Each task in “How to use RITHI CRM” now has a real Open button that takes you straight to the right screen (Request Registration, Installation Calls, the call registers, Spare Requests, Customer Feedback, your Profile). A button only appears if your role can open that screen.',
+    ],
+  },
+  {
     version: '0.8.59',
     date: '2026-09-01',
     title: 'PM Bulk Upload: provide your own Call Number',
