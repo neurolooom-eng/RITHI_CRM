@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.66',
+    date: '2026-09-01',
+    title: 'Fix: booking out a spare failed with a database error',
+    changes: [
+      'Pending Dispatch could not book spares out \u2014 it failed with \u201ccolumn reference \u201cuid\u201d is ambiguous\u201d. The notification trigger that runs when a spare is dispatched used a name that clashed with the request\u2019s own id column, which aborted the update. Stores can book out again.',
+      'Needs a database script run once (notify_uid_fix.sql).',
+    ],
+  },
+  {
     version: '0.8.65',
     date: '2026-09-01',
     title: 'Hotline sees every pending registration request',

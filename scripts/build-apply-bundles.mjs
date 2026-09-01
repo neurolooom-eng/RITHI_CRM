@@ -153,7 +153,7 @@ const MODULES = {
             'is allotted to an engineer or a spare they requested is dispatched. Read/',
             'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
     needs: ['profiles'],
-    files: ['0045_notifications.sql'],
+    files: ['0045_notifications.sql', '0054_notify_uid_ambiguous.sql'],
   },
   validation: {
     title: 'Software Validation',
