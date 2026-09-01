@@ -141,7 +141,8 @@ export function PmBulkUpload() {
         </div>
         <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
           Every row is created as a <b>PM call</b> dated the <b>1st of {month || 'the chosen month'}</b> (the due month — pick a past month to backfill).
-          Today’s date is recorded as <b>Added On</b>. Calls are ordered by their <b>registration date &amp; time</b>: the first at the time above, each next one <b>{stepSec}s</b> later — pre-filled per month (00:30 + 5s for a fresh month, or 10s after the latest existing call) and editable here. The UCN and Call Number are assigned automatically as before.
+          Today’s date is recorded as <b>Added On</b>. Calls are ordered by their <b>registration date &amp; time</b>: the first at the time above, each next one <b>{stepSec}s</b> later — pre-filled per month (00:30 + 5s for a fresh month, or 10s after the latest existing call) and editable here.
+          Include a <b>Call Number</b> column to set your own; leave it blank and one is assigned automatically. (The UCN is always assigned by the system.)
           Recognised columns: {PM_TEMPLATE_HEADERS.join(', ')} — anything else is kept on the call.
         </p>
       </div>
@@ -153,10 +154,11 @@ export function PmBulkUpload() {
           </div>
           <div className="assoc-scroll">
             <table className="assoc-table" style={{ minWidth: 640 }}>
-              <thead><tr><th>Party</th><th>Product</th><th>Serial</th><th>Engineer</th><th>Registered at</th><th>Added On</th><th>Type</th></tr></thead>
+              <thead><tr><th>Call No</th><th>Party</th><th>Product</th><th>Serial</th><th>Engineer</th><th>Registered at</th><th>Added On</th><th>Type</th></tr></thead>
               <tbody>
                 {preview.map((r, i) => (
                   <tr key={i}>
+                    <td>{s(r.call_number) || <span className="muted">auto</span>}</td>
                     <td>{s(r.party_name)}</td><td>{s(r.product_name)}</td><td>{s(r.serial)}</td>
                     <td>{s(r.allocated_to)}</td><td>{fmtAt(r.reg_at)}</td><td>{s(r.added_on)}</td><td>{s(r.call_type)}</td>
                   </tr>

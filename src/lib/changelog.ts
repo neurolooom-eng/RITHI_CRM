@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.59',
+    date: '2026-09-01',
+    title: 'PM Bulk Upload: provide your own Call Number',
+    changes: [
+      'PM Bulk Upload now accepts a Call Number column — the number you put in the sheet is used as-is. Leave it blank on a row and the system assigns one automatically, as before. The UCN is still always assigned by the system. The template and preview show the column.',
+    ],
+  },
+  {
     version: '0.8.58',
     date: '2026-09-01',
     title: 'PM Bulk Upload: due month + registration date & time',

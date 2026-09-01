@@ -13,6 +13,7 @@ const norm = (s: string) => s.trim().toLowerCase();
 
 // call column  ->  accepted header names (lowercased)
 const ALIASES: Record<string, string[]> = {
+  call_number:        ['call number', 'call no', 'call no.', 'callno', 'cl number', 'cl no', 'cl no.', 'call reg number', 'call reg no'],
   party_name:         ['party name', 'party', 'customer', 'customer name', 'hospital', 'account name', 'account'],
   city:               ['city', 'town'],
   state:              ['state'],
@@ -61,9 +62,10 @@ export function pmStartDefaults(month: string, latestRegAt: string | null): { st
 // row is dated the 1st of that month (reg_date), stamped with today as
 // `added_on`, forced to the PM type, and given a registration date-and-time
 // (`reg_at`) starting at `startLocal` and stepping `stepSec` between calls — so
-// the batch keeps a stable order. The database still assigns the UCN and Call
-// Number. Skips rows with no identifying data (the step is applied to KEPT rows,
-// so blank rows leave no gaps).
+// the batch keeps a stable order. A Call Number from the sheet is kept as-is
+// (the database only assigns one when the column is blank); the UCN is always
+// assigned by the database. Skips rows with no identifying data (the step is
+// applied to KEPT rows, so blank rows leave no gaps).
 export function shapePmRows(
   raw: Record<string, string>[],
   month: string,
@@ -112,13 +114,13 @@ export function shapePmRows(
 
 // A starter template so the uploader knows the columns.
 export const PM_TEMPLATE_HEADERS = [
-  'Party Name', 'City', 'State', 'Product', 'Serial No', 'Item Status',
+  'Call Number', 'Party Name', 'City', 'State', 'Product', 'Serial No', 'Item Status',
   'Engineer', 'Engineer Email', 'PM Due Date', 'Standard Complaint',
   'Reported Problem', 'Contact Name', 'Contact Number',
 ];
 export function pmTemplateCsv(): string {
   const sample = [
-    'Apollo Hospital', 'Chennai', 'SOUTH3', 'Ventilator XT', 'VN-4471', 'CMC',
+    'CL2600501', 'Apollo Hospital', 'Chennai', 'SOUTH3', 'Ventilator XT', 'VN-4471', 'CMC',
     'SIVARANI', 'sivarani@example.com', '2026-09-15', 'Preventive Maintenance',
     'Monthly PM visit', 'Nurse Station', '9840000000',
   ];
