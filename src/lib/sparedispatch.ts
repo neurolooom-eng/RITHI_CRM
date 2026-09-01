@@ -20,7 +20,9 @@ export interface PendingLine {
   row_no: number;
   part: string;
   part_code: string;
-  qty: number;
+  qty: number;             // units STILL to send (requested minus dispatched)
+  requested_qty: number;   // what the engineer originally asked for
+  dispatched_qty: number;  // what has already gone out on earlier stock outs
   req_type: string;
   item_status: string;
   engineer: string;
@@ -58,6 +60,7 @@ export function toPendingLine(r: Record<string, unknown>): PendingLine {
     line_id: n(r.line_id), line_uid: s(r.line_uid), request_uid: s(r.request_uid),
     or_no: s(r.or_no), or_req_date: r.or_req_date ? s(r.or_req_date) : null, row_no: n(r.row_no),
     part: s(r.part), part_code: s(r.part_code), qty: n(r.qty),
+    requested_qty: n(r.requested_qty ?? r.qty), dispatched_qty: n(r.dispatched_qty),
     req_type: s(r.req_type), item_status: s(r.item_status),
     engineer: s(r.engineer), engineer_key: s(r.engineer_key), engineer_email: s(r.engineer_email),
     ucn: s(r.ucn), call_number: s(r.call_number), party_name: s(r.party_name),

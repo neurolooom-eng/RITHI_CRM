@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.67',
+    date: '2026-09-01',
+    title: 'Stores can send part of a spare request',
+    changes: [
+      'Pending Dispatch now takes a quantity per spare. If an engineer asked for 2 and only 1 is on the shelf, send the 1 \u2014 the remaining 1 stays in the queue and can go on a later stock out. Each line shows how many are left to send, and \u201cx of y sent\u201d once something has gone.',
+      'The stock out, the DC and the engineer\u2019s hand stock all count what actually went out, not what was asked for. The original request is never rewritten.',
+      'Needs a database script run once (partial_dispatch.sql).',
+    ],
+  },
+  {
     version: '0.8.66',
     date: '2026-09-01',
     title: 'Fix: booking out a spare failed with a database error',

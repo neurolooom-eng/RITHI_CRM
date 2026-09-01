@@ -110,6 +110,15 @@ export function SpareDispatch() {
   // The engineer a batch would go to — the only one in the selection.
   const target = selected[0]?.engineer ?? '';
 
+  // PARTIAL DISPATCH: how many units of each line this stock out carries.
+  // Defaults to everything still outstanding; Stores types a smaller number
+  // when only part of it is on the shelf. The remainder stays in the queue.
+  const [qtyFor, setQtyFor] = useState<Record<number, number>>({});
+  const qtyOf = (l: PendingLine) => Math.min(qtyFor[l.line_id] ?? l.qty, l.qty);
+  const setQty = (id: number, v: number, max: number) =>
+    setQtyFor((cur) => ({ ...cur, [id]: Math.max(1, Math.min(Math.floor(v) || 1, max)) }));
+  const pickedQty = selected.reduce((t, l) => t + qtyOf(l), 0);
+
   const toggle = (id: number) => setPicked((cur) => {
     const next = new Set(cur);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -130,9 +139,11 @@ export function SpareDispatch() {
     setBusy(true);
     const actor = String(user?.name ?? user?.email ?? '');
     const ids = selected.map((l) => l.line_id);
-    const res = await dispatchSpareLines(ids, courier, remarks, dcDate, actor);
+    const qtys = selected.map((l) => qtyOf(l));
+    const res = await dispatchSpareLines(ids, courier, remarks, dcDate, actor, qtys);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' }); return; }
+    setQtyFor({});
     const so = String(res.dispatch?.uid ?? '');
     const dc = String(res.dispatch?.dc_number ?? '');
     logAudit({
@@ -237,6 +248,8 @@ export function SpareDispatch() {
               })}
               onToggle={toggle}
               onToggleAll={() => toggleGroup(q)}
+              qtyOf={qtyOf}
+              onQty={setQty}
             />
           ))}
 
@@ -246,7 +259,7 @@ export function SpareDispatch() {
             <div className="dispatch-bar card card-pad">
               <div>
                 <b>{selected.length}</b> spare{selected.length === 1 ? '' : 's'}
-                {' · '}<b>{selected.reduce((t, l) => t + l.qty, 0)}</b> unit{selected.reduce((t, l) => t + l.qty, 0) === 1 ? '' : 's'}
+                {' · '}<b>{pickedQty}</b> unit{pickedQty === 1 ? '' : 's'}
                 {!problem && <> → <b>{target}</b></>}
                 {problem && <span className="badge badge-warning" style={{ marginLeft: 8 }}>{problem}</span>}
               </div>
@@ -286,13 +299,15 @@ export function SpareDispatch() {
 // ---------------------------------------------------------------------------
 // One engineer's queue: a header that can be ticked whole, and the spares.
 // ---------------------------------------------------------------------------
-function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll }: {
+function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, qtyOf, onQty }: {
   queue: EngineerQueue;
   picked: Set<number>;
   expanded: boolean;
   onExpand: () => void;
   onToggle: (id: number) => void;
   onToggleAll: () => void;
+  qtyOf: (l: PendingLine) => number;
+  onQty: (id: number, v: number, max: number) => void;
 }) {
   const ids = queue.lines.map((l) => l.line_id);
   const on = ids.filter((id) => picked.has(id)).length;
@@ -331,7 +346,22 @@ function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll }:
                 <span className="ql-part">
                   <b>{l.part_code}</b>{partDescription(l.part) && <> — {partDescription(l.part)}</>}
                 </span>
-                <span className="ql-qty">×{l.qty}</span>
+                <span className="ql-qty" onClick={(e) => e.preventDefault()}>
+                  ×
+                  <input
+                    className="input ql-qty-in" type="number" min={1} max={l.qty}
+                    value={qtyOf(l)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => onQty(l.line_id, Number(e.target.value), l.qty)}
+                    title={`Up to ${l.qty} to send${l.dispatched_qty > 0 ? ` (${l.dispatched_qty} of ${l.requested_qty} already sent)` : ''}`}
+                  />
+                  <span className="muted"> / {l.qty}</span>
+                </span>
+                {l.dispatched_qty > 0 && (
+                  <span className="badge badge-info" title="Sent on an earlier stock out">
+                    {l.dispatched_qty} of {l.requested_qty} sent
+                  </span>
+                )}
                 <span className="ql-meta muted">
                   {l.req_type}
                   {l.call_number && ` · call ${l.call_number}`}

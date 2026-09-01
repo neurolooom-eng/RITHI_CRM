@@ -1,0 +1,6 @@
+
+/* partial dispatch: how many units of a line this stock out carries */
+.ql-qty-in {
+  width: 58px; padding: 2px 6px; margin: 0 2px; text-align: center;
+  font-size: 13px; font-weight: 600;
+}

@@ -1086,11 +1086,15 @@ export async function listPendingDispatch(limit = 2000): Promise<Record<string, 
 // Book a batch out. One round trip: the database generates the stock-out and
 // DC numbers, stamps every line, and rolls the requests up — all in one
 // transaction, so a batch never lands half done.
+// `qtys` is parallel to `lineIds` — how many units of each line this stock out
+// carries (partial dispatch). Omit it to send everything still outstanding.
 export async function dispatchSpareLines(
   lineIds: number[], courier: string, remarks: string, dcDate: string, actor: string,
+  qtys?: number[],
 ): Promise<{ ok: boolean; dispatch?: Record<string, unknown>; error?: string }> {
   const { data, error } = await must().rpc('dispatch_spare_lines', {
-    p_line_ids: lineIds, p_courier: courier, p_remarks: remarks, p_dc_date: dcDate, p_actor: actor,
+    p_line_ids: lineIds, p_qtys: qtys ?? null,
+    p_courier: courier, p_remarks: remarks, p_dc_date: dcDate, p_actor: actor,
   });
   if (error) return { ok: false, error: errMsg(error) };
   // A function returning a composite comes back as the row itself; PostgREST
@@ -1152,13 +1156,18 @@ export async function listSpareDispatches(limit = 500): Promise<Record<string, u
 
 // The spares that went out under one stock out — what a DC prints.
 export async function listDispatchLines(stockOutNo: string): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, or_no, engineer, engineer_email, ucn, call_number, party_name, product_name, serial)')
+  // A line can be sent across several stock outs (partial dispatch), so the DC
+  // prints what THIS one carried — spare_dispatch_lines — not the line's whole
+  // requested qty. `qty` is overridden with the quantity actually sent.
+  const { data, error } = await must().from('spare_dispatch_lines')
+    .select('qty, line_uid, part, spare_request_lines!inner(*, spare_requests!inner(uid, or_no, engineer, engineer_email, ucn, call_number, party_name, product_name, serial))')
     .eq('dispatch_uid', stockOutNo).order('line_uid', { ascending: true });
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => {
-    const { spare_requests: req, ...line } = r as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
-    return { ...req, ...line, uid: req?.uid };
+    const row = r as unknown as { qty: unknown; spare_request_lines?: Record<string, unknown> };
+    const line = (row.spare_request_lines ?? {}) as Record<string, unknown> & { spare_requests?: Record<string, unknown> };
+    const { spare_requests: req, ...rest } = line;
+    return { ...req, ...rest, uid: req?.uid, qty: row.qty };
   });
 }
 
