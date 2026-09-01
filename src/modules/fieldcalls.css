@@ -331,3 +331,6 @@
 .pm-preview-head { font-size: 13.5px; color: var(--text-muted); margin: 8px 2px; }
 .pm-bar { height: 8px; background: var(--surface-alt); border-radius: 999px; overflow: hidden; margin-top: 10px; }
 .pm-bar-fill { height: 100%; background: var(--primary); transition: width .2s ease; }
+
+.pm-month { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
+.pm-month .input { width: 155px; }

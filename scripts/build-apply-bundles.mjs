@@ -99,6 +99,7 @@ const MODULES = {
       '0040_call_tables_split.sql',
       '0041_call_split_hardening.sql',
       '0043_installation_create_gate.sql',
+      '0050_pm_schedule_fields.sql',
     ],
   },
   sla: {

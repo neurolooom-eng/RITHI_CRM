@@ -33,8 +33,15 @@ const ALIASES: Record<string, string[]> = {
 };
 const DATE_COLS = new Set(['reg_date', 'complaint_date']);
 
-// Turn raw CSV rows into PM call records. Skips rows with no identifying data.
-export function shapePmRows(raw: Record<string, string>[]): Record<string, unknown>[] {
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+// Turn raw CSV rows into PM call records for a DUE MONTH (YYYY-MM). Every row is
+// dated the 1st of that month (reg_date), records today as `added_on`, and is
+// forced to the PM type; the database assigns the per-month PM serial, UCN and
+// Call Number. Skips rows with no identifying data.
+export function shapePmRows(raw: Record<string, string>[], month: string): Record<string, unknown>[] {
+  const regDate = `${month}-01`;   // 1st of the due month
+  const added = todayISO();
   return raw.map((r) => {
     const byNorm: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) byNorm[norm(k)] = v;
@@ -42,6 +49,7 @@ export function shapePmRows(raw: Record<string, string>[]): Record<string, unkno
     const out: Record<string, unknown> = { call_type: PM_TYPE, status: 'Registered' };
     const used = new Set<string>();
     for (const [col, names] of Object.entries(ALIASES)) {
+      if (col === 'reg_date') continue;   // reg_date comes from the chosen month, not the sheet
       for (const n of names) {
         const v = byNorm[n];
         if (v != null && String(v).trim() !== '') {
@@ -52,7 +60,9 @@ export function shapePmRows(raw: Record<string, string>[]): Record<string, unkno
         }
       }
     }
-    // Keep any column we didn't map, so nothing from the sheet is lost.
+    out.reg_date = regDate;
+    out.added_on = added;
+    // Keep any column we didn't map (incl. a per-row PM due date), so nothing is lost.
     const extra: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) {
       if (!used.has(norm(k)) && String(v ?? '').trim() !== '') extra[k.trim()] = String(v).trim();

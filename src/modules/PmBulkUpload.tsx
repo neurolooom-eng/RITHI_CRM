@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
@@ -20,8 +20,12 @@ export function PmBulkUpload() {
   const onDb = supabaseConfigured();
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState('');
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [rawCount, setRawCount] = useState(0);
+  const [raw, setRaw] = useState<Record<string, string>[]>([]);
+  // Due month (YYYY-MM); defaults to the current month. Pick a past month to
+  // backfill — every call in the batch is dated the 1st of this month.
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const rows = useMemo(() => shapePmRows(raw, month), [raw, month]);
+  const rawCount = raw.length;
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
@@ -42,11 +46,11 @@ export function PmBulkUpload() {
     setFileName(f.name); setMsg(null); setProgress(null);
     try {
       const text = await f.text();
-      const raw = parseCSV(text);
-      const shaped = shapePmRows(raw);
-      setRawCount(raw.length); setRows(shaped);
+      const parsed = parseCSV(text);
+      setRaw(parsed);
+      const shaped = shapePmRows(parsed, month);
       setMsg(shaped.length
-        ? { tone: 'info', text: `${shaped.length} PM call${shaped.length === 1 ? '' : 's'} ready from ${raw.length} row${raw.length === 1 ? '' : 's'}. Review below, then Import.` }
+        ? { tone: 'info', text: `${shaped.length} PM call${shaped.length === 1 ? '' : 's'} ready from ${parsed.length} row${parsed.length === 1 ? '' : 's'}. Check the due month, review below, then Import.` }
         : { tone: 'error', text: 'No usable rows — the file needs at least a Party / Product / Serial column. Download the template for the expected columns.' });
     } catch (err) {
       setMsg({ tone: 'error', text: `Could not read the file: ${err instanceof Error ? err.message : String(err)}` });
@@ -69,7 +73,7 @@ export function PmBulkUpload() {
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: `Imported ${res.inserted} before an error: ${res.error}` }); return; }
     setMsg({ tone: 'ok', text: `Created ${res.inserted} PM call${res.inserted === 1 ? '' : 's'} — each got a UCN and Call Number. They’re in the Preventive (PM) register.` });
-    setRows([]); setFileName('');
+    setRaw([]); setFileName('');
   };
 
   const preview = rows.slice(0, 8);
@@ -92,10 +96,14 @@ export function PmBulkUpload() {
           <button className="btn btn-primary" onClick={() => fileRef.current?.click()} disabled={busy || !onDb}>📄 Choose CSV file</button>
           <input ref={fileRef} type="file" accept=".csv,text/csv" hidden onChange={onFile} />
           <button className="btn" onClick={downloadTemplate}>⭳ Download template</button>
+          <label className="pm-month">Due month
+            <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </label>
           {fileName && <span className="muted">{fileName}</span>}
         </div>
-        <p className="muted" style={{ fontSize: 13, margin: '4px 2px 0' }}>
-          Every row is created as a <b>PM call</b> (type “P M VISIT”). The UCN and Call Number are assigned automatically.
+        <p className="muted" style={{ fontSize: 13, margin: '6px 2px 0' }}>
+          Every row is created as a <b>PM call</b> dated the <b>1st of {month || 'the chosen month'}</b> (the due month — pick a past month to backfill).
+          Today’s date is recorded as <b>Added On</b>, and each call gets a per-month serial (<b>PM-{month || 'YYYY-MM'}-####</b>) plus its UCN and Call Number, assigned automatically.
           Recognised columns: {PM_TEMPLATE_HEADERS.join(', ')} — anything else is kept on the call.
         </p>
       </div>
@@ -107,12 +115,12 @@ export function PmBulkUpload() {
           </div>
           <div className="assoc-scroll">
             <table className="assoc-table" style={{ minWidth: 640 }}>
-              <thead><tr><th>Party</th><th>Product</th><th>Serial</th><th>Engineer</th><th>PM Date</th><th>Type</th></tr></thead>
+              <thead><tr><th>Party</th><th>Product</th><th>Serial</th><th>Engineer</th><th>Reg Date</th><th>Added On</th><th>Type</th></tr></thead>
               <tbody>
                 {preview.map((r, i) => (
                   <tr key={i}>
                     <td>{s(r.party_name)}</td><td>{s(r.product_name)}</td><td>{s(r.serial)}</td>
-                    <td>{s(r.allocated_to)}</td><td>{s(r.reg_date)}</td><td>{s(r.call_type)}</td>
+                    <td>{s(r.allocated_to)}</td><td>{s(r.reg_date)}</td><td>{s(r.added_on)}</td><td>{s(r.call_type)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -123,7 +131,7 @@ export function PmBulkUpload() {
             <button className="btn btn-primary" onClick={() => void doImport()} disabled={busy || !onDb}>
               {busy ? 'Importing…' : `⬆️ Import ${rows.length} PM calls`}
             </button>
-            <button className="btn" onClick={() => { setRows([]); setFileName(''); setMsg(null); }} disabled={busy}>Clear</button>
+            <button className="btn" onClick={() => { setRaw([]); setFileName(''); setMsg(null); }} disabled={busy}>Clear</button>
             {progress && (
               <span className="muted">{progress.done} / {progress.total}</span>
             )}

@@ -96,9 +96,9 @@ const CALL_COLS: Record<string, string> = {
   breakdownDate: 'breakdown_date', personCalling: 'person_calling', publicHealthThreat: 'public_health_threat',
   death: 'death', seriousIncident: 'serious_incident', modeOfReporting: 'mode_of_reporting',
   customerName: 'customer_name', customerNumber: 'customer_number', customerDesignation: 'customer_designation',
-  emailAddress: 'email_address', status: 'status',
+  emailAddress: 'email_address', status: 'status', addedOn: 'added_on', pmSerial: 'pm_serial',
 };
-const DATE_KEYS = new Set(['regDate', 'complaintDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd', 'breakdownDate']);
+const DATE_KEYS = new Set(['regDate', 'complaintDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd', 'breakdownDate', 'addedOn']);
 const CALL_COLS_INV: Record<string, string> = Object.fromEntries(Object.entries(CALL_COLS).map(([k, v]) => [v, k]));
 
 function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
