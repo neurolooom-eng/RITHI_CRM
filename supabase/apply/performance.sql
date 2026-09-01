@@ -96,6 +96,33 @@ begin
   end loop;
 end $$;
 
+-- Btree indexes for the EXACT-match / IN lookups (a trigram index does not
+-- serve `=`/`IN`): the request cascade filters products by party_name (and
+-- item_name) with eq, and openCallsFor looks up calls by serial / party_name
+-- with IN. Without these, those lookups seq-scan and time out too.
+do $$
+declare rec record; idx text;
+begin
+  for rec in
+    select tbl, col from (values
+      ('products','party_name'), ('products','item_name'),
+      ('field_calls','serial'), ('field_calls','party_name'),
+      ('installation_calls','serial'), ('installation_calls','party_name'),
+      ('pm_calls','serial'), ('pm_calls','party_name'),
+      ('calls','serial'), ('calls','party_name')
+    ) as v(tbl, col)
+  loop
+    if to_regclass('public.' || rec.tbl) is null then continue; end if;
+    if (select relkind from pg_class where oid = ('public.' || rec.tbl)::regclass) <> 'r' then continue; end if;
+    if not exists (select 1 from information_schema.columns
+                    where table_schema = 'public' and table_name = rec.tbl and column_name = rec.col) then
+      continue;
+    end if;
+    idx := rec.tbl || '_' || rec.col || '_eq';
+    execute format('create index if not exists %I on public.%I (%I)', idx, rec.tbl, rec.col);
+  end loop;
+end $$;
+
 -- Refresh planner stats so the new indexes are used right away.
 do $$
 declare t text;

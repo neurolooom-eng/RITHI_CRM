@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.65',
+    date: '2026-09-01',
+    title: 'Hotline sees every pending registration request',
+    changes: [
+      'The Pending Registrations queue (call requests without a UCN) now shows every request to Hotline and the office roles \u2014 it was previously limited to requests you raised yourself or your own team\u2019s. Engineers and managers keep their existing scope.',
+      'Needs a database script run once (call_requests_view_all.sql).',
+    ],
+  },
+  {
     version: '0.8.64',
     date: '2026-09-01',
     title: 'Search no longer times out',

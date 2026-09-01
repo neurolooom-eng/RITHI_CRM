@@ -41,6 +41,7 @@
 --   0041_call_split_hardening.sql
 --   0043_installation_create_gate.sql
 --   0050_pm_schedule_fields.sql
+--   0053_call_requests_view_all.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
 --   0047_daily_review_report_context.sql
@@ -3403,6 +3404,30 @@ begin
     end $b$;
   $f$, set_list);
 end $regen$;
+
+-- ------------------------------------------------------------------------
+-- 0053_call_requests_view_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Hotline (and the office roles) must see the whole Pending Registrations
+-- queue. That screen reads call_requests (rows with no UCN yet), gated by
+-- cr_read (0003) — which only showed a user their own requests or an engineer
+-- in their reporting sub-tree, with no office-role bypass. So a Hotline engineer
+-- saw only the request they raised themselves.
+--
+-- Fold can_view_all_calls() (admin / data.view_all / hotline / nsm / commercial
+-- / spare_coordinator / stores_incharge / tally_coordinator) into cr_read, in
+-- line with the call registers and pending_registrations.
+-- ===========================================================================
+
+drop policy if exists cr_read on public.call_requests;
+create policy cr_read on public.call_requests for select using (
+  public.can_view_all_calls()
+  or created_by = auth.uid()
+  or lower(email) = lower(auth.email())
+  or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n))
+);
 
 -- ------------------------------------------------------------------------
 -- 0044_daily_call_review.sql
@@ -9490,6 +9515,33 @@ begin
     idx := rec.tbl || '_' || rec.col || '_trgm';
     execute format('create index if not exists %I on public.%I using gin (%I %s.gin_trgm_ops)',
                    idx, rec.tbl, rec.col, trgm);
+  end loop;
+end $$;
+
+-- Btree indexes for the EXACT-match / IN lookups (a trigram index does not
+-- serve `=`/`IN`): the request cascade filters products by party_name (and
+-- item_name) with eq, and openCallsFor looks up calls by serial / party_name
+-- with IN. Without these, those lookups seq-scan and time out too.
+do $$
+declare rec record; idx text;
+begin
+  for rec in
+    select tbl, col from (values
+      ('products','party_name'), ('products','item_name'),
+      ('field_calls','serial'), ('field_calls','party_name'),
+      ('installation_calls','serial'), ('installation_calls','party_name'),
+      ('pm_calls','serial'), ('pm_calls','party_name'),
+      ('calls','serial'), ('calls','party_name')
+    ) as v(tbl, col)
+  loop
+    if to_regclass('public.' || rec.tbl) is null then continue; end if;
+    if (select relkind from pg_class where oid = ('public.' || rec.tbl)::regclass) <> 'r' then continue; end if;
+    if not exists (select 1 from information_schema.columns
+                    where table_schema = 'public' and table_name = rec.tbl and column_name = rec.col) then
+      continue;
+    end if;
+    idx := rec.tbl || '_' || rec.col || '_eq';
+    execute format('create index if not exists %I on public.%I (%I)', idx, rec.tbl, rec.col);
   end loop;
 end $$;
 
