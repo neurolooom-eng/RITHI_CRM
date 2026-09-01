@@ -4,11 +4,38 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-01 (PM Bulk Upload due-month + Added On + registration date-and-time shipped v0.8.58, numbering unchanged; `pm_schedule_fields.sql` to run on the live project)_
+_Last updated: 2026-09-01 (role/visibility reconciliation, search indexes and the dispatch `uid` fix all APPLIED live; v0.8.66)_
 
 ---
 
 ## 🚧 In progress
+
+### Applied on the live project — 2026-09-01
+Run and confirmed by the user, in this order:
+- **`notify_uid_fix.sql`** (0054) — `notify_spare_dispatched()` declared a plpgsql
+  variable `uid` that clashed with `spare_requests.uid`, so the trigger aborted the
+  UPDATE Pending Dispatch runs: **nobody could book a spare out** ("column
+  reference \"uid\" is ambiguous"). Variable renamed to `v_uid`, column qualified;
+  same rename in `notify_call_allotted()`. Reproduced and fixed on PG16.
+- **`fix_roles.sql`** — one-shot role/visibility reconciliation: merges the
+  baseline permissions into `app_roles` for all nine roles (merge, so admin edits
+  survive), re-asserts `can_view_all_calls()` / `can_see_call()`, and folds the
+  office-role bypass into the read policies for the call registers (select +
+  update), `reports`, **`call_requests`** and `pending_registrations`.
+  ⚠️ The Pending Registrations screen reads **`call_requests`** (via
+  `listCallRequestsAsPending`), *not* `pending_registrations` — two earlier fixes
+  targeted the wrong table. `cr_read` (0003) had no office bypass at all, which is
+  why Hotline saw only her own request. Now 0053.
+- **`search_indexes.sql`** (0052) — pg_trgm trigram indexes for substring ILIKE
+  search *and* plain btree indexes for the `=`/`IN` lookups (products by party for
+  the request cascade, calls by serial for "open calls"). Fixes "canceling
+  statement due to statement timeout" on Search, on Create-New-Call prepare, and
+  the empty product list when picking a party.
+
+**Note for future visibility work:** a role seeing "nothing" is usually the
+`has_perm('calls.view') AND <scope>` gate — `has_perm` only falls back to the
+engineer defaults when the role's `app_roles` row has ZERO permissions, so a row
+with *some* permissions but missing `calls.view` silently blocks everything.
 
 ### Calls table split (3 physical tables)
 - **Stage 1 — DB (built, SQL to run):** `0040_call_tables_split.sql` splits
