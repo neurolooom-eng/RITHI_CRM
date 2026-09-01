@@ -96,7 +96,7 @@ const CALL_COLS: Record<string, string> = {
   breakdownDate: 'breakdown_date', personCalling: 'person_calling', publicHealthThreat: 'public_health_threat',
   death: 'death', seriousIncident: 'serious_incident', modeOfReporting: 'mode_of_reporting',
   customerName: 'customer_name', customerNumber: 'customer_number', customerDesignation: 'customer_designation',
-  emailAddress: 'email_address', status: 'status', addedOn: 'added_on', pmSerial: 'pm_serial',
+  emailAddress: 'email_address', status: 'status', addedOn: 'added_on', regAt: 'reg_at',
 };
 const DATE_KEYS = new Set(['regDate', 'complaintDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd', 'breakdownDate', 'addedOn']);
 const CALL_COLS_INV: Record<string, string> = Object.fromEntries(Object.entries(CALL_COLS).map(([k, v]) => [v, k]));
@@ -185,6 +185,24 @@ export async function searchCalls(callType: string, terms: CallSearch, limit = 1
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(dbToCall);
+}
+
+// Latest registration date-time already recorded for PM calls in a due month
+// (YYYY-MM). The bulk uploader continues a few seconds after this when adding
+// to a month that already has calls; null means the month is empty. Uses the
+// pm_calls (reg_date, reg_at desc) index.
+export async function pmLatestRegAt(month: string): Promise<string | null> {
+  const start = `${month}-01`;
+  const [y, m] = month.split('-').map(Number);
+  const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+  const { data, error } = await must()
+    .from('pm_calls').select('reg_at')
+    .gte('reg_date', start).lt('reg_date', next)
+    .not('reg_at', 'is', null)
+    .order('reg_at', { ascending: false }).limit(1);
+  if (error) throw new Error(errMsg(error));
+  const v = data?.[0]?.reg_at;
+  return v ? String(v) : null;
 }
 
 export interface AddResult { ok: boolean; ucn?: string; record?: Record<string, unknown>; error?: string }

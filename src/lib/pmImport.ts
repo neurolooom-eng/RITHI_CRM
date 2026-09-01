@@ -34,15 +34,47 @@ const ALIASES: Record<string, string[]> = {
 const DATE_COLS = new Set(['reg_date', 'complaint_date']);
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
+const pad = (n: number) => String(n).padStart(2, '0');
 
-// Turn raw CSV rows into PM call records for a DUE MONTH (YYYY-MM). Every row is
-// dated the 1st of that month (reg_date), records today as `added_on`, and is
-// forced to the PM type; the database assigns the per-month PM serial, UCN and
-// Call Number. Skips rows with no identifying data.
-export function shapePmRows(raw: Record<string, string>[], month: string): Record<string, unknown>[] {
+// A Date -> the 'YYYY-MM-DDTHH:mm:ss' a <input type="datetime-local"> wants, in
+// LOCAL time (the same clock the operator reads).
+export function toLocalInput(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// The default first-registration time and the gap between calls for a due month.
+// The call NUMBERING never changes; the registration DATE-AND-TIME is what
+// orders a batch. Two cases, matching the operator's rule:
+//   • the month already has calls  -> continue 10s after the latest one;
+//   • a fresh month (none yet)      -> start at 00:30 on the 1st, 5s apart.
+// Both are pre-filled but editable before import.
+export function pmStartDefaults(month: string, latestRegAt: string | null): { startLocal: string; stepSec: number } {
+  if (latestRegAt) {
+    const d = new Date(latestRegAt);
+    d.setSeconds(d.getSeconds() + 10);
+    return { startLocal: toLocalInput(d), stepSec: 10 };
+  }
+  return { startLocal: `${month}-01T00:30:00`, stepSec: 5 };
+}
+
+// Turn raw CSV rows into PM call records for a DUE MONTH (YYYY-MM). Every kept
+// row is dated the 1st of that month (reg_date), stamped with today as
+// `added_on`, forced to the PM type, and given a registration date-and-time
+// (`reg_at`) starting at `startLocal` and stepping `stepSec` between calls — so
+// the batch keeps a stable order. The database still assigns the UCN and Call
+// Number. Skips rows with no identifying data (the step is applied to KEPT rows,
+// so blank rows leave no gaps).
+export function shapePmRows(
+  raw: Record<string, string>[],
+  month: string,
+  startLocal: string,
+  stepSec: number,
+): Record<string, unknown>[] {
   const regDate = `${month}-01`;   // 1st of the due month
   const added = todayISO();
-  return raw.map((r) => {
+  const startMs = new Date(startLocal).getTime();           // startLocal has no zone -> local
+  const stepMs = Math.max(0, Math.round((stepSec || 0) * 1000));
+  const shaped = raw.map((r) => {
     const byNorm: Record<string, string> = {};
     for (const [k, v] of Object.entries(r)) byNorm[norm(k)] = v;
 
@@ -70,6 +102,12 @@ export function shapePmRows(raw: Record<string, string>[], month: string): Recor
     if (Object.keys(extra).length) out.extra = extra;
     return out;
   }).filter((o) => o.party_name || o.serial || o.product_name);
+
+  // Sequence reg_at across the kept rows only.
+  if (!Number.isNaN(startMs)) {
+    shaped.forEach((o, i) => { o.reg_at = new Date(startMs + i * stepMs).toISOString(); });
+  }
+  return shaped;
 }
 
 // A starter template so the uploader knows the columns.

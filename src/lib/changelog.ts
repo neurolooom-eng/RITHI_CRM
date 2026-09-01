@@ -12,12 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.8.57',
-    date: '2026-08-31',
-    title: 'PM Bulk Upload: due month, Added On, per-month serial',
+    version: '0.8.58',
+    date: '2026-09-01',
+    title: 'PM Bulk Upload: due month + registration date & time',
     changes: [
       'PM Bulk Upload now asks for the due month and dates every call in the batch to the 1st of that month, so a month’s PM calls all share their registration date — pick a past month to backfill older schedules.',
-      'Today’s date is captured separately as Added On, and each PM call gets a per-month serial that continues within its due-month (PM-YYYY-MM-####, so January’s 501st call is PM-2026-01-0501). The UCN and Call Number are still assigned automatically.',
+      'Today’s date is captured separately as Added On. The call numbering is unchanged; instead, each call gets a registration date-and-time a few seconds apart so the batch keeps a stable order — pre-filled per month (00:30 on the 1st, 5s apart for a fresh month, or continuing 10s after the latest existing call when you add to a month that already has some) and editable before import.',
       'Needs a database script run once (pm_schedule_fields.sql).',
     ],
   },
