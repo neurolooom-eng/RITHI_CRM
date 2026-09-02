@@ -196,12 +196,12 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
-    { path: '/product-master', label: 'Product Master', actions: [] },
+    { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
-    { path: '/parts', label: 'Part Master', actions: [] },
+    { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.
-    { path: '/masters', label: 'All Masters (overview)', actions: [] },
+    { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },
@@ -242,9 +242,31 @@ export const PERM_TREE: PermHeader[] = [
   ] },
 ];
 
-// A master value list's own permission. Lists are created in the database, so
-// the key is derived rather than enumerated.
+// A master value list's own permissions. Lists are created in the database, so
+// the keys are derived rather than enumerated: view is the list's module key,
+// and the two actions are what can be done to its values. Both actions inherit
+// from the global `masters.edit` (see can() in auth.tsx and the policies in
+// 0067_master_list_permissions.sql), so a role that maintains every master
+// keeps working without ticking anything list by list.
 export const masterAction = (key: string): string => `mod:/masters/${key}`;
+export const masterEditAction = (key: string): string => `master.${key}.edit`;
+export const masterDeleteAction = (key: string): string => `master.${key}.delete`;
+export const masterListActions = (key: string): string[] => [masterEditAction(key), masterDeleteAction(key)];
+
+// Those keys are built per list, so they are not in ACTIONS — the matrix asks
+// here for their labels.
+export const dynamicActionLabel = (key: string): string | undefined => {
+  const m = /^master\.(.+)\.(edit|delete)$/.exec(key);
+  if (!m) return undefined;
+  return m[2] === 'edit' ? 'Add / edit values in this list' : 'Delete values from this list';
+};
+
+// Does this key inherit from a broader one the role may already hold?
+export const parentAction = (key: string): string | undefined => {
+  if (key.startsWith('mod:/masters/')) return 'mod:/masters';
+  if (/^master\..+\.(edit|delete)$/.test(key)) return 'masters.edit';
+  return undefined;
+};
 
 // Every action the tree accounts for — used to spot one that has been added to
 // the system but not yet placed on a page.

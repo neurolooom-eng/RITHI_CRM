@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.20',
+    date: '2026-09-02',
+    title: 'Roles & Permissions: what can be done in each master, list by list',
+    changes: [
+      'Every master value list now carries its own actions in Roles & Permissions — “Add / edit values” and “Delete values” — not just permission to open it. So a role can be given Call Type to maintain while Cancel Reason stays read-only for them.',
+      'A role that already holds “Edit masters” keeps every list, so nothing anyone can do today is taken away; the per-list switches are there to give narrower access than that.',
+      'The database enforces the same thing, so it holds whether the change is made in the app or not.',
+      'Product Master and Part Master now show their own actions under the Master heading too, instead of appearing to have none.',
+      'Needs a database script run once (masters.sql).',
+    ],
+  },
+  {
     version: '0.9.19',
     date: '2026-09-02',
     title: 'Master lists: deactivate a value, and their own place in Roles',

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
 import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
-import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, ROLES } from './rbac';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
 
@@ -478,8 +478,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const held = (k: string) => granted.includes(k) || (u.extraPermissions?.includes(k) ?? false);
     if (held(canonical)) return true;
     // A single master list is covered by All Masters unless the role has been
-    // narrowed to specific lists.
-    if (canonical.startsWith('mod:/masters/')) return held('mod:/masters');
+    // narrowed to specific lists; a list's own edit / delete action is covered
+    // by the global "Edit masters". Same inheritance the DB policies use.
+    const parent = parentAction(canonical);
+    if (parent) return held(parent);
     return false;
   };
 

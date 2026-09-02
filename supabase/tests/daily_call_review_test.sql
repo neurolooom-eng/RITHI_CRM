@@ -104,6 +104,31 @@ insert into public.reports (uid, ucn, call_status, engineer, visit_at, updated_a
    jsonb_build_object('Job Done','Performed calibration; sensor replaced','Software Version','1.01')),
   ('T-R2','26A02F0001','Solved - Report Completed','AAKASH YADAV','2026-01-05','2026-01-05'::timestamptz,
    jsonb_build_object('Job Done','Ventilator working satisfactorily','Software Version','1.02'));
+-- 0061 caps every consumption line at what the engineer is holding, so the
+-- spares this step reads back have to be issued from Stores first — otherwise
+-- the consumption is refused and `spares_count` silently reads 0.
+insert into auth.users (id, email) values
+  ('66666666-6666-6666-6666-666666666666','dccr_stores@x.com') on conflict do nothing;
+insert into public.profiles (id, email, full_name, role) values
+  ('66666666-6666-6666-6666-666666666666','dccr_stores@x.com','Stores Sam','stores_incharge')
+on conflict (id) do update set role = excluded.role;
+insert into public.spare_requests (uid, engineer, engineer_email, item_status) values
+  ('DCCR-S1','AAKASH YADAV','aakash@x.com','WARRANTY'),
+  ('DCCR-S2','Rithi Admin','admin@x.com','WARRANTY');
+insert into public.spare_request_lines (request_uid, row_no, part, qty) values
+  ('DCCR-S1',1,'MP-010|OXYGEN SENSOR',1),
+  ('DCCR-S1',2,'EBD-020|DAUGHTER BOARD',2),
+  ('DCCR-S2',1,'EBD-004|HEATER BLOCK BOARD-ORION',1);
+update public.spare_request_lines
+   set rm_approval='Approved', rm_by='Hot Hema', rm_at=now(),
+       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved'
+ where request_uid in ('DCCR-S1','DCCR-S2');
+call public.be('dccr_stores@x.com');
+update public.spare_request_lines
+   set stores_status='Dispatched', dc_number='DC-DCCR', dispatched_by='Stores Sam', dispatched_at=now()
+ where request_uid in ('DCCR-S1','DCCR-S2') and stage='Stores';
+call public.be('hot@x.com');
+
 insert into public.spare_consumption (ucn, part, qty, engineer) values
   ('26A02F0001','MP-010|OXYGEN SENSOR', 1, 'AAKASH YADAV'),
   ('26A02F0001','EBD-020|DAUGHTER BOARD', 2, 'AAKASH YADAV');

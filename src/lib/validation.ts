@@ -239,7 +239,7 @@ export const FRS: FReq[] = [
   { id: 'FRS-012', urs: ['URS-008'], title: 'Dispatch & receipt', text: 'Stores dispatch generates a DC and stock-out; the engineer acknowledges receipt. Drop is available at any stage to Spare Coordinator / Hotline only.', risk: 'Medium' },
   { id: 'FRS-013', urs: ['URS-009'], title: 'Stock derivation & guard', text: 'Hand stock = stock-out − consumption − transfer-out + transfer-in − returned. A guard prevents a transfer/return exceeding holdings, counting every movement regardless of visibility.', risk: 'Medium' },
   { id: 'FRS-014', urs: ['URS-009', 'URS-002'], title: 'Stock visibility scope', text: 'Hand stock, transfers and returns are scoped to the reporting tree at the database, so a user sees only their own and their team’s stock.', risk: 'Medium' },
-  { id: 'FRS-015', urs: ['URS-010'], title: 'Master maintenance', text: 'Party/Product/Part/User masters and value lists are editable by authorised roles; edits are gated by masters.edit and audit-logged where applicable.', risk: 'Medium' },
+  { id: 'FRS-015', urs: ['URS-010'], title: 'Master maintenance', text: 'Party/Product/Part/User masters and value lists are editable by authorised roles; edits are gated by masters.edit, or per value list by master.<list>.edit / master.<list>.delete, and audit-logged where applicable. A value already in use is deactivated, not deleted.', risk: 'Medium' },
   { id: 'FRS-016', urs: ['URS-011'], title: 'Cover registers', text: 'Warranty (Sale Entry) and Contract (Contract Entry) registers hold the parent record; machines inherit its values unless individually pinned.', risk: 'Medium' },
   { id: 'FRS-017', urs: ['URS-012'], title: 'Feedback capture', text: 'Feedback answers are stored per question and surfaced as columns in the Customer Feedback view, scoped like calls.', risk: 'Low' },
   { id: 'FRS-018', urs: ['URS-013'], title: 'Reports & export gate', text: 'Visit history is retrievable with field filters; CSV export is blocked unless the user holds export.data.', risk: 'Medium' },
@@ -558,7 +558,7 @@ export const ALCOA: { principle: string; howMet: string }[] = [
 export const CONFIG_SPEC: { item: string; where: string; controlled: string }[] = [
   { item: 'Roles & permissions matrix', where: 'app_roles + per-user extra_permissions', controlled: 'Admin / rbac.manage; changes are audited; baseline exported and approved.' },
   { item: 'SLA targets', where: 'sla_rules', controlled: 'Admin Config (config.manage); values baselined in this package.' },
-  { item: 'Master value lists', where: 'master_lists / masters', controlled: 'masters.edit; seeded from the approved master workbook.' },
+  { item: 'Master value lists', where: 'master_lists / masters', controlled: 'masters.edit, or per list master.<list>.edit / .delete; seeded from the approved master workbook; a used value is deactivated, not deleted.' },
   { item: 'Audit retention period', where: 'app_settings.audit_retention_days', controlled: 'Config.manage; default 3650 days; set per the retention SOP.' },
   { item: 'Reporting tree (visibility)', where: 'user_directory (reporting/regional manager)', controlled: 'Admin; drives call/spare/stock scoping.' },
   { item: 'Release identity', where: 'version / build number / build ID (footer)', controlled: 'CI build; recorded at IQ.' },

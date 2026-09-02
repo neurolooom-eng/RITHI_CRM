@@ -133,6 +133,15 @@ been applied too.
 - **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
+### To run on the live project — pending
+- **`masters.sql`** (bundle: `supabase/apply/masters.sql`; migrations `0066`
+  + `0067`) — `masters.active`, so a master value already in use is
+  **deactivated** rather than deleted, and the **per-list write policies**
+  (`masters_insert` / `masters_update` / `masters_delete`) that let a role be
+  given one value list to maintain instead of all of them. Until it is run, the
+  new per-list switches in Roles & Permissions have nothing enforcing them and
+  Deactivate fails on a missing column. `_status.sql` rows 23 and 24 report it.
+
 ### Queued — waiting on the user
 - **Per-tab permissions — deliberately NOT built (user's call, 2026-09-02).**
   The Roles & Permissions tree goes header → page → View + actions. Tabs within
@@ -244,13 +253,21 @@ been applied too.
   (Party / Product / Part / User) with row counts, and each value list with its
   values, searchable and exportable. Module grant: `0013_all_masters_module.sql`.
 - **Each value list has its own screen** (`/masters/<key>`, Master Lists in the
-  sidebar) — one table per master with Add / Remove, shared with the All Masters
-  overview. All `/masters/*` screens are gated by the one `mod:/masters` action,
-  so a new list needs no permission row.
+  sidebar) — one table per master with Add / Deactivate / Remove, shared with
+  the All Masters overview.
+- **Access is per list.** Roles & Permissions lists every master under the
+  Master heading with three switches — open it (`mod:/masters/<key>`), add /
+  edit its values (`master.<key>.edit`) and delete one (`master.<key>.delete`).
+  Each inherits from the broad key above it, so a role holding `mod:/masters`
+  opens every list and one holding `masters.edit` maintains every list; the
+  per-list keys exist to grant *less* than that. `0067_master_list_permissions.sql`
+  enforces the same split in RLS, so a new list still needs no release.
 - **Value lists are their own maintained tables** (`0014_master_lists.sql`) —
   a `master_lists` registry (label, what one row is called, extra columns) plus
   the `masters` rows; All Masters opens each list as its own table with Add /
-  Remove, gated on `masters.edit`, and clears the dropdown cache on every edit.
+  Deactivate / Remove, gated per list (above), and clears the dropdown cache on
+  every edit. A value in use is deactivated (`masters.active`, 0066) rather than
+  deleted, so the records already carrying it keep making sense.
   Seeded from the **200 All Masters** workbook: calltype 8, complaint 507,
   pendingreason 21, cancelreason 27, feedbackrating 4, **orapproval** 13 (that
   one carries Stage + Status columns in `masters.extra`). A new list needs a

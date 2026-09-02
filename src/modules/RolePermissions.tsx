@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction } from '../lib/rbac';
+import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel,
+  type PermHeader, type PermPage } from '../lib/rbac';
 import { setRolePerms, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -17,7 +18,7 @@ import './fieldcalls.css';
 // specific lists (see can() in auth).
 // ===========================================================================
 
-const label = (key: string) => ACTIONS.find((a) => a.key === key)?.label ?? key;
+const label = (key: string) => ACTIONS.find((a) => a.key === key)?.label ?? dynamicActionLabel(key) ?? key;
 
 export function RolePermissions() {
   const { can, rolePerms, reloadRoles } = useAuth();
@@ -40,8 +41,21 @@ export function RolePermissions() {
     listMasterLists().then(setMasters).catch(() => setMasters([]));
   }, []);
 
+  // The pages a header actually shows: its own, plus one per master value list
+  // where the header carries them.
+  const pagesFor = (head: PermHeader): PermPage[] => [
+    ...head.pages,
+    // Each value list sits directly under Master, as its own page — not nested
+    // inside All Masters. Add / edit and delete are grantable per list; both
+    // still come free with the global "Edit masters".
+    ...(head.lists
+      ? masters.map((m) => ({ path: `/masters/${m.key}`, label: `🗂 ${m.label}`, actions: masterListActions(m.key) }))
+      : []),
+  ];
   const allPageKeys = useMemo(
-    () => PERM_TREE.flatMap((h) => h.pages.map((p) => `${h.title}|${p.path}`)), [],
+    () => PERM_TREE.flatMap((h) => pagesFor(h).map((p) => `${h.title}|${p.path}`)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [masters],
   );
   const expandAll = () => { setOpenHeads(new Set(PERM_TREE.map((h) => h.title))); setOpenPages(new Set(allPageKeys)); };
   const collapseAll = () => { setOpenHeads(new Set()); setOpenPages(new Set()); };
@@ -76,7 +90,8 @@ export function RolePermissions() {
     try {
       for (const r of ROLES) {
         const list = r.key === 'admin'
-          ? [...ACTIONS.map((a) => a.key), ...masters.map((m) => masterAction(m.key))]
+          ? [...ACTIONS.map((a) => a.key),
+             ...masters.flatMap((m) => [masterAction(m.key), ...masterListActions(m.key)])]
           : [...(perms[r.key] ?? [])];
         const res = await setRolePerms(r.key, list, r.label);
         if (!res.ok) { setMsg({ tone: 'error', text: `Save failed for ${r.label}: ${res.error}` }); setBusy(false); return; }
@@ -127,21 +142,17 @@ export function RolePermissions() {
             <tbody>
               {PERM_TREE.map((head) => {
                 const headOpen = openHeads.has(head.title);
+                const pages = pagesFor(head);
                 return (
                   <Fragment key={head.title}>
                     <tr className="rbac-group rbac-head-row" onClick={() => setOpenHeads((s) => toggleIn(s, head.title))}>
                       <td colSpan={ROLES.length + 1}>
                         <span className="rbac-caret">{headOpen ? '⌄' : '›'}</span> {head.title}
-                        <span className="muted"> · {head.pages.length} page{head.pages.length === 1 ? '' : 's'}</span>
+                        <span className="muted"> · {pages.length} page{pages.length === 1 ? '' : 's'}</span>
                       </td>
                     </tr>
 
-                    {headOpen && [
-                      ...head.pages,
-                      // Each value list sits directly under Master, as its own
-                      // page — not nested inside All Masters.
-                      ...(head.lists ? masters.map((m) => ({ path: `/masters/${m.key}`, label: `🗂 ${m.label}`, actions: [] as string[] })) : []),
-                    ].map((page) => {
+                    {headOpen && pages.map((page) => {
                       const pk = `${head.title}|${page.path}`;
                       const pageOpen = openPages.has(pk);
                       const view = page.path ? moduleAction(page.path) : '';

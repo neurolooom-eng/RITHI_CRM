@@ -6,19 +6,24 @@ import { csvExport, fmtDate } from '../lib/format';
 import { listMaster, dataConfigured } from '../lib/sheets';
 import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
 import { clearMasterCache } from '../lib/masters';
+import { masterEditAction, masterDeleteAction } from '../lib/rbac';
 import { usedBy } from './masterLists';
 
 // ===========================================================================
 // One master value list as its own table: every entry, with Add and Remove.
 // Used by each list's own screen and by the All Masters overview.
-// Editing needs `masters.edit`; every change clears that list's dropdown cache
-// so the forms pick it up without a reload.
+// Adding / deactivating needs this list's own edit permission and removing its
+// own delete permission — both of which the global `masters.edit` still grants,
+// so a role that maintains every master needs nothing ticked list by list.
+// Every change clears that list's dropdown cache so the forms pick it up
+// without a reload.
 // ===========================================================================
 
 export function MasterListTable({ list, onCountChange }: { list: MasterList; onCountChange?: (n: number) => void }) {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
-  const editable = live && can('masters.edit');
+  const editable = live && can(masterEditAction(list.key));
+  const removable = live && can(masterDeleteAction(list.key));
 
   const [items, setItems] = useState<MasterItem[]>([]);
   const [search, setSearch] = useState('');
@@ -94,14 +99,16 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
       { key: 'added_on', header: 'Added On', width: 110, wrap: false, render: (r: MasterItem) => (r.added_on ? fmtDate(r.added_on) : '') },
       { key: 'added_by', header: 'Added By', width: 150 },
     ];
-    if (editable) {
+    if (editable || removable) {
       cols.push({
         key: 'active', header: 'Active', width: 80, wrap: false,
         render: (r: MasterItem & Record<string, unknown>) => (
           r.active === false ? <span className="badge badge-neutral">No</span> : <span className="badge badge-success">Yes</span>
         ),
-      },
-      {
+      });
+    }
+    if (editable) {
+      cols.push({
         key: '_active', header: '', width: 120, sortable: false, wrap: false,
         render: (r: MasterItem & Record<string, unknown>) => (
           <button className="btn btn-sm" title={r.active === false ? 'Offer this value again' : 'Stop offering this value'}
@@ -109,8 +116,10 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
             {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
           </button>
         ),
-      },
-      {
+      });
+    }
+    if (removable) {
+      cols.push({
         key: '_remove', header: '', width: 70, sortable: false, wrap: false,
         render: (r: MasterItem) => (
           <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={busy}
@@ -120,7 +129,7 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     }
     return cols;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list, editable, busy]);
+  }, [list, editable, removable, busy]);
 
   const where = usedBy(list.key);
 
@@ -157,7 +166,7 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
         </div>
       ) : (
         <p className="muted" style={{ marginTop: 0 }}>
-          {live ? 'You need the “Edit masters” permission to change this list.' : 'Connect the database to add or remove entries.'}
+          {live ? `You need the “Add / edit values” permission for ${list.label} to change this list.` : 'Connect the database to add or remove entries.'}
         </p>
       )}
 

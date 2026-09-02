@@ -118,7 +118,13 @@ with checks(sort_order, bundle, provides, present) as (
      and to_regclass('public.field_call_review') is not null
      and exists (select 1 from public.master_lists where key in ('dccrgrouping', 'rootcause')))),
     (22, 'daily_review: values', 'the register''s own DCCR Complaint Grouping / Root Cause Key Word values (0046)',
-        exists (select 1 from public.masters where name in ('dccrgrouping', 'rootcause')))
+        exists (select 1 from public.masters where name in ('dccrgrouping', 'rootcause'))),
+    (23, 'masters: deactivate a value', 'masters.active -- a used value is deactivated, not deleted (0066)',
+        exists (select 1 from information_schema.columns
+                 where table_schema='public' and table_name='masters' and column_name='active')),
+    (24, 'masters: permission per list', 'masters_insert / masters_update / masters_delete policies (0067)',
+        (exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_insert')
+     and exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

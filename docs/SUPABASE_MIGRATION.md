@@ -88,7 +88,8 @@ How it works:
   rights (mirrors `SUPER_ADMINS` in `src/lib/auth.tsx`). Maintained in SQL —
   there is deliberately no write policy.
 - Every RLS policy now names the action it needs: `calls.create` to insert a
-  call, `calls.report` to file a report, `masters.edit` to change a master,
+  call, `calls.report` to file a report, `masters.edit` to change any master
+  (or `master.<list>.edit` / `master.<list>.delete` for one value list alone),
   `spare.request` to raise a spare request, `users.manage` for profiles,
   `rbac.manage` for the matrix itself. Reference data (parties / products /
   parts / value lists) stays readable to any signed-in user — engineers need

@@ -144,7 +144,7 @@ export function ProductMaster() {
       </div>
 
       <DataTable<Row>
-        columns={can('edit') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        columns={can('calls.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
         rows={rows}
         getRowId={(r) => r.id}
         storageKey="productMaster"
