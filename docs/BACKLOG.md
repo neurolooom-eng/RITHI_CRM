@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-01 (live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
+_Last updated: 2026-09-02 (spare reconciliation shipped and applied; live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
 
 ---
 
@@ -12,6 +12,19 @@ _Last updated: 2026-09-01 (live project fully caught up: split confirmed applied
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- **`consumption_reconciliation.sql`** (0059–0063, applied 2026-09-02) — the
+  spare reconciliation set:
+  * **Book** a missed spare against a call (RECO on any call row / its drawer,
+    for Spare Coordinator, Hotline, Admin). Parts come from that engineer's hand
+    stock; several at once; UCN, engineer, part and reason all required.
+  * **Adjust** a wrongly reported quantity; **void** an entry made in error by
+    setting it to 0 (deletes stay blocked — the line keeps `was N`, the reason
+    and who changed it, and the spare returns to hand stock).
+  * **Cap:** no consumption line, reported or hand-booked, may exceed the
+    engineer's hand stock. A refused report tells the engineer to ask the Spare
+    Coordinator, so control of the balance sits with the coordinator.
+  * Identity (call, part, engineer, source) can never be changed by an
+    adjustment — to move a line, void it and book the right one.
 - Live state CONFIRMED with `supabase/apply/_state_check.sql`: split applied,
   0041 hardening applied (3 CHECK constraints), reg_at/added_on present,
   37 trigram + 8 btree search indexes, partial dispatch + per-shipment receipt,
