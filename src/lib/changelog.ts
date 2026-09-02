@@ -12,11 +12,13 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.17',
+    version: '0.9.18',
     date: '2026-09-02',
-    title: 'Fix: Pending Dispatch would not collapse',
+    title: 'Part Master: add a part, and deactivate one',
     changes: [
-      'Collapsing an engineer\u2019s queue \u2014 by the card header or Collapse all \u2014 did nothing whenever three or fewer engineers were waiting. A short queue still opens itself when the screen loads, but it can now be closed.',
+      'Part Master now has ＋ Add part, for anyone who may edit masters. The code and description are entered separately and the screen shows exactly how it will be listed \u2014 CODE|Description \u2014 which is the format every spare picker reads.',
+      'A part can be deactivated rather than deleted: it stays on every request, stock out and hand-stock record that already uses it, and stops being offered in the pickers. Reactivate puts it back.',
+      'A duplicate code is refused, since two parts sharing a code make hand stock ambiguous.',
     ],
   },
   {

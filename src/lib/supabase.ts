@@ -1007,6 +1007,47 @@ export async function countRows(table: string, eq?: [string, unknown]): Promise<
 // ---- part master (ITEM Master rows) ----------------------------------------
 // The spare-parts catalogue lives in `parts`; the pickers show `item_detail`
 // ("CODE|Description"). This is the register behind the Part Master view.
+// A part code is stored bare (ECG-022) and shown to pickers as item_detail,
+// "CODE|Description" — that pipe is the format every spare picker splits on, so
+// a code may never contain one. Composed here, once, rather than by each caller.
+export const PART_CODE_RE = /^[A-Z0-9][A-Z0-9\-_.\/]*$/;
+export const normalisePartCode = (code: string) => code.trim().toUpperCase().replace(/\s+/g, '');
+export const composeItemDetail = (code: string, description: string) =>
+  `${normalisePartCode(code)}|${description.trim()}`;
+
+// Refuse a code that already exists (case-insensitively): the catalogue has no
+// unique constraint of its own on older projects, and two parts with one code
+// make hand stock ambiguous.
+export async function partCodeExists(code: string): Promise<boolean> {
+  const { data, error } = await must().from('parts')
+    .select('id').ilike('code', normalisePartCode(code)).limit(1);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).length > 0;
+}
+
+export async function addPart(
+  code: string, description: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = normalisePartCode(code);
+  if (!c) return { ok: false, error: 'Give the part code.' };
+  if (c.includes('|')) return { ok: false, error: 'A part code cannot contain "|" — that separates the code from the description.' };
+  if (!PART_CODE_RE.test(c)) return { ok: false, error: 'Use letters, digits and - _ . / only, starting with a letter or digit.' };
+  if (!description.trim()) return { ok: false, error: 'Give the description.' };
+  if (await partCodeExists(c)) return { ok: false, error: `Part ${c} already exists.` };
+  const { error } = await must().from('parts').insert({
+    code: c, description: description.trim(), item_detail: composeItemDetail(c, description), active: true,
+  });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Parts are never deleted — a code may already be on a spare request, a stock
+// out or an engineer's hand stock. Deactivating keeps the history and takes it
+// out of the pickers.
+export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('parts').update({ active }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export interface PartFilter { q?: string; code?: string; description?: string; active?: string }
 export async function queryParts(filter: PartFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   let q = must().from('parts').select('*').order('code').range(offset, offset + limit - 1);

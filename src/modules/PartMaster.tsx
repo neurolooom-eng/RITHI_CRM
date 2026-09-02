@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar } from '../components/ui/ui';
+import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
-import { queryParts, supabaseConfigured, type PartFilter } from '../lib/supabase';
+import {
+  queryParts, supabaseConfigured, addPart, setPartActive,
+  normalisePartCode, composeItemDetail, PART_CODE_RE, type PartFilter,
+} from '../lib/supabase';
+import { useAuth } from '../lib/auth';
 import { listMaster, dataConfigured } from '../lib/sheets';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 
@@ -135,9 +139,57 @@ export function PartMaster() {
     return [...ks].map((k) => ({ key: k, header: k }));
   }, [rows]);
 
+  // ---- add / deactivate ---------------------------------------------------
+  // A part is never deleted: its code may already be on a spare request, a stock
+  // out or an engineer's hand stock. Deactivating keeps that history and takes
+  // the part out of the pickers.
+  const { can } = useAuth();
+  const mayEdit = can('masters.edit') && live;
+  const [form, setForm] = useState<{ code: string; description: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const formProblem = (): string => {
+    if (!form) return '';
+    const c = normalisePartCode(form.code);
+    if (!c) return 'Give the part code.';
+    if (c.includes('|')) return 'A part code cannot contain "|" — that separates the code from the description.';
+    if (!PART_CODE_RE.test(c)) return 'Use letters, digits and - _ . / only, starting with a letter or digit.';
+    if (!form.description.trim()) return 'Give the description.';
+    return '';
+  };
+
+  const saveNew = async () => {
+    if (!form) return;
+    const problem = formProblem();
+    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
+    setSaving(true);
+    const res = await addPart(form.code, form.description);
+    setSaving(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not add the part.' }); return; }
+    setForm(null);
+    setMsg({ tone: 'ok', text: `Part ${normalisePartCode(form.code)} added.` });
+    await refresh();
+  };
+
+  const toggleActive = async (r: Row) => {
+    const id = Number(r.id);
+    const now = r.active !== false;
+    const code = String(r.code ?? '');
+    if (now && !confirm(`Deactivate ${code}? It stays on every record that already uses it, but stops being offered in the pickers.`)) return;
+    const res = await setPartActive(id, !now);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not update the part.' }); return; }
+    setMsg({ tone: 'ok', text: `${code} ${now ? 'deactivated' : 'reactivated'}.` });
+    await refresh();
+  };
+
   return (
     <div>
-      <PageHeader title="Part Master" subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database." icon="🔩" count={visible.length} />
+      <PageHeader
+        title="Part Master"
+        subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
+        icon="🔩" count={visible.length}
+        actions={mayEdit && <button className="btn btn-primary" onClick={() => setForm({ code: '', description: '' })}>＋ Add part</button>}
+      />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -145,7 +197,15 @@ export function PartMaster() {
         </div>
       )}
       <DataTable<Row>
-        columns={COLUMNS}
+        columns={mayEdit ? [...COLUMNS, {
+          key: '_act', header: '', width: 120, sortable: false, wrap: false, align: 'center',
+          render: (r: Row) => (
+            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); void toggleActive(r); }}
+              title={r.active === false ? 'Put this part back in the pickers' : 'Take this part out of the pickers'}>
+              {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
+            </button>
+          ),
+        }] : COLUMNS}
         allFields={allFields}
         rows={visible}
         getRowId={(r) => r.id}
@@ -179,6 +239,46 @@ export function PartMaster() {
           </Toolbar>
         }
       />
+
+      {form && (
+        <Drawer open onClose={() => setForm(null)} title="Add part" width={560}>
+          <div className="kb-form">
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              The catalogue stores the code and description separately and shows pickers
+              <b> CODE|Description</b>. That pipe is what every spare picker splits on, so a
+              code can never contain one.
+            </p>
+            <div className="field">
+              <label className="field-label">Part code <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" value={form.code} autoFocus
+                onChange={(e) => setForm((f) => f && ({ ...f, code: e.target.value }))}
+                placeholder="ECG-022" />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Letters, digits and - _ . / — stored upper-case. A recycled part is the same code with an R in front (RECG-022).
+              </span>
+            </div>
+            <div className="field">
+              <label className="field-label">Description <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" value={form.description}
+                onChange={(e) => setForm((f) => f && ({ ...f, description: e.target.value }))}
+                placeholder="EARTH CABLE-ORG" />
+            </div>
+            <div className="field">
+              <label className="field-label">Will be listed as</label>
+              <code style={{ fontSize: 13 }}>
+                {form.code || form.description ? composeItemDetail(form.code, form.description) : '—'}
+              </code>
+            </div>
+            {!!formProblem() && <div className="sheet-banner sheet-banner-error"><span>{formProblem()}</span></div>}
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" onClick={() => void saveNew()} disabled={saving || !!formProblem()}>
+                {saving ? 'Saving…' : 'Add part'}
+              </button>
+              <button className="btn" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
     </div>
   );
 }
