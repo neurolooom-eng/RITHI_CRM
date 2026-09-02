@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
+import { Link } from 'react-router-dom';
 import { bulkInsert, detectTable, parseCSV, shapeRows, tableCount, type ImportTable } from '../lib/dataImport';
 import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
@@ -100,7 +101,23 @@ export function DataImport() {
   };
 
   return (
-    <SectionCard title="Bulk Data Import (CSV → Supabase)">
+    <SectionCard title="Cover normalisation (legacy importer)">
+      {/* This panel guesses the target table from a file's HEADERS, which is
+          only ever right by luck: it matches `party_name` and not `Party Name`,
+          so a real AppSheet export reads as "0 rows · Unrecognised columns" and
+          says nothing about why. Bulk Uploads asks which register the file is
+          for instead. What is kept here is the one thing Bulk Uploads does not
+          do: normalising the four AppSheet sale / contract exports into
+          inheritance afterwards. */}
+      <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 12 }}>
+        <span>
+          <b>Loading a register? Use <Link to="/bulk-uploads">Bulk Uploads</Link> instead.</b>{' '}
+          It has an uploader per register — you pick the register rather than hoping this one
+          guesses right from the column names, and it shows you what will be written first.
+          This panel stays for the four AppSheet sale / contract exports and the{' '}
+          <b>Normalise cover</b> step that follows them.
+        </span>
+      </div>
       <div className="muted" style={{ marginBottom: 12 }}>
         One-time load of the clean migration CSVs. Select the files (the table is
         auto-detected from the columns) and Import. Runs through your admin login.

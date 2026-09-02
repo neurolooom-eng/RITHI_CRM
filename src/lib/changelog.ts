@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.27',
+    date: '2026-09-02',
+    title: 'Stop the old importer swallowing files',
+    changes: [
+      'The Bulk Data Import panel in Admin Config guessed which table a file was for from its column names. It matched “party_name” but not “Party Name”, so a real AppSheet export came back as “0 rows · Unrecognised columns” and said nothing about why.',
+      'It now points at Bulk Uploads, where you choose the register yourself and see what will be written before anything is. The panel keeps the one thing Bulk Uploads doesn’t do: normalising the four AppSheet sale / contract exports afterwards.',
+    ],
+  },
+  {
     version: '0.9.26',
     date: '2026-09-02',
     title: 'Stock levels that know what came before',
