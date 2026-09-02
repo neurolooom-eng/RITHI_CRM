@@ -573,6 +573,15 @@ export async function adjustConsumptionQty(
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// Every spare actually issued, one row each, with how long Stores took from the
+// last approval. Backed by the spare_stock_out_lines view.
+export async function listStockOutLines(limit = 5000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_stock_out_lines')
+    .select('*').order('dispatched_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
 // ---- pending registrations -------------------------------------------------
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')
@@ -1147,10 +1156,10 @@ export async function listPendingDispatch(limit = 2000): Promise<Record<string, 
 // carries (partial dispatch). Omit it to send everything still outstanding.
 export async function dispatchSpareLines(
   lineIds: number[], courier: string, remarks: string, dcDate: string, actor: string,
-  qtys?: number[],
+  qtys?: number[], refurb?: boolean[],
 ): Promise<{ ok: boolean; dispatch?: Record<string, unknown>; error?: string }> {
   const { data, error } = await must().rpc('dispatch_spare_lines', {
-    p_line_ids: lineIds, p_qtys: qtys ?? null,
+    p_line_ids: lineIds, p_qtys: qtys ?? null, p_refurb: refurb ?? null,
     p_courier: courier, p_remarks: remarks, p_dc_date: dcDate, p_actor: actor,
   });
   if (error) return { ok: false, error: errMsg(error) };

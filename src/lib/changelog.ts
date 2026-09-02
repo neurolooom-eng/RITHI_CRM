@@ -12,12 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.12',
+    version: '0.9.13',
     date: '2026-09-02',
-    title: 'Stock Transfer shows transfers only',
+    title: 'Stock outs as a line list, and refurbished parts',
     changes: [
-      'The \u201cStock on hand\u201d tab has been removed from Stock Transfer \u2014 balances belong in Hand Stock, and the screen was showing a second copy of them. Stock Transfer now opens straight onto the transfers, with counts for transfers, lines, units moved and engineers involved.',
-      'It also loads faster: it no longer fetches every engineer\u2019s balance on each refresh.',
+      'Stock outs is now a flat list \u2014 one row per spare actually issued, searchable and exportable, with the call, order and courier alongside it.',
+      'Each line shows the days taken to dispatch, measured from the last approval (NSM where the item needs that review, otherwise Commercial or RM) to the stock out, and is coloured once it passes three and seven days.',
+      'Stores can issue a recycled spare in place of a new one: mark it \u267b Refurb as it goes out. It is recorded under the R-prefixed part number with the same description, shown on the stock out and the challan, and the engineer is told the part is refurbished.',
+      'Needs a database script run once (stock_out_lines_and_refurb.sql).',
     ],
   },
   {

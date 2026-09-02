@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
+import { DataTable, type Column } from '../components/table/DataTable';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import {
-  listPendingDispatch, dispatchSpareLines, dropSpareLines, listSpareDispatches, listDispatchLines, supabaseConfigured,
+  listPendingDispatch, dispatchSpareLines, dropSpareLines, supabaseConfigured,
+  listStockOutLines,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { logAudit } from '../lib/audit';
@@ -119,6 +121,17 @@ export function SpareDispatch() {
     setQtyFor((cur) => ({ ...cur, [id]: Math.max(1, Math.min(Math.floor(v) || 1, max)) }));
   const pickedQty = selected.reduce((t, l) => t + qtyOf(l), 0);
 
+  // REFURBISHED: a recycled spare carries the same description under an
+  // R-prefixed part number. Stores marks it as the spare is booked out; the
+  // request keeps saying what was asked for.
+  const [refurbFor, setRefurbFor] = useState<Set<number>>(new Set());
+  const isRefurb = (id: number) => refurbFor.has(id);
+  const toggleRefurb = (id: number) => setRefurbFor((cur) => {
+    const next = new Set(cur);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
   const toggle = (id: number) => setPicked((cur) => {
     const next = new Set(cur);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -140,10 +153,11 @@ export function SpareDispatch() {
     const actor = String(user?.name ?? user?.email ?? '');
     const ids = selected.map((l) => l.line_id);
     const qtys = selected.map((l) => qtyOf(l));
-    const res = await dispatchSpareLines(ids, courier, remarks, dcDate, actor, qtys);
+    const refurb = selected.map((l) => isRefurb(l.line_id));
+    const res = await dispatchSpareLines(ids, courier, remarks, dcDate, actor, qtys, refurb);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Dispatch failed.' }); return; }
-    setQtyFor({});
+    setQtyFor({}); setRefurbFor(new Set());
     const so = String(res.dispatch?.uid ?? '');
     const dc = String(res.dispatch?.dc_number ?? '');
     logAudit({
@@ -250,6 +264,8 @@ export function SpareDispatch() {
               onToggleAll={() => toggleGroup(q)}
               qtyOf={qtyOf}
               onQty={setQty}
+              isRefurb={isRefurb}
+              onRefurb={toggleRefurb}
             />
           ))}
 
@@ -299,7 +315,7 @@ export function SpareDispatch() {
 // ---------------------------------------------------------------------------
 // One engineer's queue: a header that can be ticked whole, and the spares.
 // ---------------------------------------------------------------------------
-function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, qtyOf, onQty }: {
+function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, qtyOf, onQty, isRefurb, onRefurb }: {
   queue: EngineerQueue;
   picked: Set<number>;
   expanded: boolean;
@@ -308,6 +324,8 @@ function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, q
   onToggleAll: () => void;
   qtyOf: (l: PendingLine) => number;
   onQty: (id: number, v: number, max: number) => void;
+  isRefurb: (id: number) => boolean;
+  onRefurb: (id: number) => void;
 }) {
   const ids = queue.lines.map((l) => l.line_id);
   const on = ids.filter((id) => picked.has(id)).length;
@@ -357,6 +375,13 @@ function QueueCard({ queue, picked, expanded, onExpand, onToggle, onToggleAll, q
                   />
                   <span className="muted"> / {l.qty}</span>
                 </span>
+                <button
+                  className={`btn btn-sm ${isRefurb(l.line_id) ? 'btn-primary' : ''}`}
+                  title={isRefurb(l.line_id)
+                    ? 'Issuing the recycled part — the engineer is told it is refurbished'
+                    : 'Issue the recycled equivalent (R-prefixed part number)'}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRefurb(l.line_id); }}
+                >♻ {isRefurb(l.line_id) ? 'Refurbished' : 'Refurb'}</button>
                 {l.dispatched_qty > 0 && (
                   <span className="badge badge-info" title="Sent on an earlier stock out">
                     {l.dispatched_qty} of {l.requested_qty} sent
@@ -443,78 +468,98 @@ function DispatchModal({ open, engineer, lines, busy, onClose, onConfirm }: {
 function StockOuts({ onMigrationError, onPrint, onDeclare }: {
   onMigrationError: () => void; onPrint: (stockOut: string) => void; onDeclare: (stockOut: string) => void;
 }) {
+  // A FLAT list: one row per spare actually issued, not a card per stock out —
+  // that is what Stores reads to see what went where, and it carries the days
+  // it took from the last approval to the dispatch.
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
-  const [detailLines, setDetailLines] = useState<Record<string, unknown>[]>([]);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     setBusy(true);
-    listSpareDispatches()
+    listStockOutLines()
       .then(setRows)
-      .catch((e) => { if (/spare_dispatches|does not exist|schema cache/i.test(String(e))) onMigrationError(); })
+      .catch((e) => {
+        if (/spare_stock_out_lines|spare_dispatches|does not exist|schema cache/i.test(String(e))) onMigrationError();
+      })
       .finally(() => setBusy(false));
     // eslint-disable-next-line
   }, []);
 
-  const openOne = (r: Record<string, unknown>) => {
-    setDetail(r); setDetailLines([]);
-    void listDispatchLines(String(r.uid)).then(setDetailLines).catch(() => setDetailLines([]));
-  };
+  const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => ['stock_out_no', 'dc_number', 'engineer', 'part', 'or_no', 'ucn', 'call_number', 'party_name']
+      .some((k) => g(r, k).toLowerCase().includes(q)));
+  }, [rows, search]);
+
+  // Slow dispatches are the point of the column, so they are coloured.
+  const daysTone = (d: number) => (d >= 7 ? 'danger' : d >= 3 ? 'warning' : 'success');
+
+  const columns: Column<Record<string, unknown>>[] = [
+    { key: 'stock_out_no', header: 'Stock out', width: 130, wrap: false },
+    { key: 'dc_number', header: 'DC', width: 120, wrap: false },
+    { key: 'dc_date', header: 'Date', width: 110, wrap: false, render: (r) => fmtLongDate(r.dc_date) },
+    { key: 'engineer', header: 'Engineer', width: 150 },
+    {
+      key: 'part', header: 'Part', width: 250,
+      render: (r) => (
+        <span>
+          {g(r, 'part')}
+          {String(r.refurbished) === 'true' && (
+            <span className="badge badge-warning" style={{ marginLeft: 6 }} title="Recycled part issued in place of a new one">♻ Refurbished</span>
+          )}
+        </span>
+      ),
+    },
+    { key: 'qty', header: 'Qty', width: 55, align: 'right', wrap: false },
+    {
+      key: 'days_to_dispatch', header: 'Days to dispatch', width: 130, align: 'right', wrap: false,
+      render: (r) => {
+        const d = Number(r.days_to_dispatch);
+        if (!Number.isFinite(d)) return <span className="muted">—</span>;
+        return <span className={`badge badge-${daysTone(d)}`} title="From the last approval (NSM where required) to the stock out">{d}</span>;
+      },
+    },
+    { key: 'or_no', header: 'OR', width: 120, wrap: false },
+    { key: 'call_number', header: 'Call', width: 150, wrap: false },
+    { key: 'party_name', header: 'Party', width: 190 },
+    { key: 'courier', header: 'Courier', width: 110 },
+    { key: 'dispatched_by', header: 'Booked by', width: 130 },
+    {
+      key: '_doc', header: 'Docs', width: 150, sortable: false, wrap: false,
+      render: (r) => (
+        <div className="row" onClick={(e) => e.stopPropagation()}>
+          <button className="btn btn-sm" onClick={() => onPrint(g(r, 'stock_out_no'))}>🖨</button>
+          <button className="btn btn-sm" title="Declaration" onClick={() => onDeclare(g(r, 'stock_out_no'))}>📜</button>
+        </div>
+      ),
+    },
+  ];
 
   if (busy && !rows.length) return <EmptyState title="Loading stock outs…" />;
   if (!rows.length) return <EmptyState title="No stock outs yet" hint="Book a batch out from the Queue tab and it appears here." />;
 
   return (
-    <>
-      {rows.map((r) => (
-        <div key={String(r.uid)} className="card queue-card queue-card-click" onClick={() => openOne(r)}>
-          <div className="queue-head">
-            <span className="ql-id"><b>{String(r.uid)}</b></span>
-            <span><b>{String(r.engineer)}</b></span>
-            <span className="muted">{String(r.line_count)} spare{Number(r.line_count) === 1 ? '' : 's'} · {String(r.total_qty)} units</span>
-            <div className="spacer" />
-            {!!String(r.courier ?? '') && <span className="muted">{String(r.courier)}</span>}
-            <span className="muted">{fmtLongDate(r.dc_date)}</span>
-            <button
-              className="btn btn-sm"
-              onClick={(e) => { e.stopPropagation(); onPrint(String(r.uid)); }}
-            >🖨 Challan</button>
-            <button
-              className="btn btn-sm"
-              title="The declaration that travels with the parcel"
-              onClick={(e) => { e.stopPropagation(); onDeclare(String(r.uid)); }}
-            >📜 Declaration</button>
-          </div>
-        </div>
-      ))}
-
-      <Drawer open={!!detail} onClose={() => setDetail(null)} title={detail ? `Stock out ${String(detail.uid)}` : ''} width={720}>
-        {detail && (
-          <div className="card-pad">
-            <p className="muted" style={{ marginTop: 0 }}>
-              To <b>{String(detail.engineer)}</b> on {fmtLongDate(detail.dc_date)}
-              {String(detail.courier ?? '') && <> · {String(detail.courier)}</>}
-              {String(detail.dispatched_by ?? '') && <> · booked out by {String(detail.dispatched_by)}</>}
-            </p>
-            {!!String(detail.remarks ?? '') && <p className="muted">{String(detail.remarks)}</p>}
-            <button className="btn btn-sm btn-primary" onClick={() => onPrint(String(detail.uid))}>🖨 Print challan</button>
-            {' '}
-            <button className="btn btn-sm" onClick={() => onDeclare(String(detail.uid))}>📜 Declaration</button>
-            <div className="queue-lines queue-lines-compact">
-              {detailLines.map((l) => (
-                <div key={String(l.id)} className="queue-line">
-                  <span className="ql-id">{String(l.line_uid ?? '')}</span>
-                  <span className="ql-part">{String(l.part ?? '')}</span>
-                  <span className="ql-qty">×{String(l.qty ?? '')}</span>
-                  <span className="ql-meta muted">{String(l.received_at ?? '') ? 'acknowledged' : 'not yet acknowledged'}</span>
-                </div>
-              ))}
-              {!detailLines.length && <p className="muted">Loading spares…</p>}
-            </div>
-          </div>
-        )}
-      </Drawer>
-    </>
+    <DataTable<Record<string, unknown>>
+      columns={columns}
+      rows={visible}
+      getRowId={(r) => String(r.line_id)}
+      storageKey="stockOutLines"
+      rowsBeforeScroll={16}
+      dense
+      emptyText="No stock outs match your search."
+      toolbar={
+        <Toolbar>
+          <SearchBox value={search} onChange={setSearch} placeholder="Stock out, DC, engineer, part, call…" />
+          <div className="spacer" />
+          <span className="muted">{visible.length} line{visible.length === 1 ? '' : 's'}</span>
+          {visible.length > 0 && (
+            <button className="btn btn-sm" onClick={() => csvExport('stock-out-lines.csv', columns.filter((c) => c.key !== '_doc').map((c) => ({ key: c.key, header: c.header })), visible)}>⭳ Export CSV</button>
+          )}
+        </Toolbar>
+      }
+    />
   );
 }
