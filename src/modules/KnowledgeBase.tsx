@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { RichEditor } from '../components/ui/RichEditor';
 import { useAuth } from '../lib/auth';
@@ -235,6 +235,7 @@ const emptyForm = { title: '', category: 'Field Issue', product: '', tags: '', b
 export function KnowledgeBase() {
   const { user, isAdmin, can } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const onDb = supabaseConfigured();
   // A task's "Open …" targets the signed-in role may actually reach (admins see
   // all); `always` targets (a personal screen) are shown to everyone.
@@ -290,6 +291,15 @@ export function KnowledgeBase() {
     finally { setBusy(false); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+
+  // Arrived from a call's Supporting Documents panel, which links to one
+  // article by id — open it as soon as the list has loaded.
+  const wanted = (location.state as { openArticle?: number } | null)?.openArticle;
+  useEffect(() => {
+    if (!wanted || !articles.length) return;
+    const a = articles.find((x) => x.id === wanted);
+    if (a) { setView(a); navigate('.', { replace: true, state: null }); }
+  }, [wanted, articles, navigate]);
 
   const canEdit = (a: KbArticle) => isAdmin || (!!user?.id && a.created_by === user.id);
 

@@ -1362,41 +1362,58 @@ create trigger spare_dispatches_assign_no
 -- security_invoker, so the rows a user sees are exactly the lines they may
 -- already read in the register.
 -- ---------------------------------------------------------------------------
-create or replace view public.spare_pending_dispatch as
-select
-  l.id                                        as line_id,
-  l.line_uid,
-  l.request_uid,
-  r.or_no,
-  r.or_req_date,
-  l.row_no,
-  l.part,
-  -- part_code() / handstock_key() (0023) say the same thing, but the hand
-  -- stock module applies AFTER this one in all.sql — so the expressions are
-  -- inlined rather than making the spare bundle depend on that one.
-  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
-                                              as part_code,
-  l.qty,
-  r.req_type,
-  r.item_status,
-  coalesce(r.engineer, '')                    as engineer,
-  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
-  coalesce(r.engineer_email, '')              as engineer_email,
-  coalesce(r.ucn, '')                         as ucn,
-  coalesce(r.call_number, '')                 as call_number,
-  coalesce(r.party_name, '')                  as party_name,
-  coalesce(r.product_name, '')                as product_name,
-  coalesce(r.serial, '')                      as serial,
-  coalesce(r.handstock_reason, '')            as handstock_reason,
-  coalesce(r.remarks, '')                     as remarks,
-  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
-  coalesce(l.created_at, r.created_at)        as raised_at,
-  -- how long it has been sitting in the Stores queue
-  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
-           coalesce(l.created_at, r.created_at))                       as waiting_since
-from public.spare_request_lines l
-join public.spare_requests r on r.uid = l.request_uid
-where l.stage = 'Stores' and coalesce(l.dispatch_uid, '') = '';
+-- Guarded: 0055_partial_dispatch.sql OWNS this view now and appended
+-- requested_qty / dispatched_qty to it. `create or replace view` cannot drop
+-- columns, so re-running this file over a fully-migrated project failed with
+-- "cannot drop columns from view" and took the rest of all.sql down with it.
+-- The later definition supersedes this one, so skipping is a no-op.
+do $spd$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'spare_pending_dispatch'
+                and column_name = 'dispatched_qty') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.spare_pending_dispatch as
+    select
+      l.id                                        as line_id,
+      l.line_uid,
+      l.request_uid,
+      r.or_no,
+      r.or_req_date,
+      l.row_no,
+      l.part,
+      -- part_code() / handstock_key() (0023) say the same thing, but the hand
+      -- stock module applies AFTER this one in all.sql — so the expressions are
+      -- inlined rather than making the spare bundle depend on that one.
+      upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                                  as part_code,
+      l.qty,
+      r.req_type,
+      r.item_status,
+      coalesce(r.engineer, '')                    as engineer,
+      lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+      coalesce(r.engineer_email, '')              as engineer_email,
+      coalesce(r.ucn, '')                         as ucn,
+      coalesce(r.call_number, '')                 as call_number,
+      coalesce(r.party_name, '')                  as party_name,
+      coalesce(r.product_name, '')                as product_name,
+      coalesce(r.serial, '')                      as serial,
+      coalesce(r.handstock_reason, '')            as handstock_reason,
+      coalesce(r.remarks, '')                     as remarks,
+      l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+      coalesce(l.created_at, r.created_at)        as raised_at,
+      -- how long it has been sitting in the Stores queue
+      greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+               coalesce(l.created_at, r.created_at))                       as waiting_since
+    from public.spare_request_lines l
+    join public.spare_requests r on r.uid = l.request_uid
+    where l.stage = 'Stores' and coalesce(l.dispatch_uid, '') = ''
+  $view$;
+end $spd$;
+
 
 alter view public.spare_pending_dispatch set (security_invoker = on);
 grant select on public.spare_pending_dispatch to authenticated;
@@ -1644,45 +1661,62 @@ create trigger spare_request_lines_dispatch_guard
 -- and the request-header roll-up all still read it.
 -- ===========================================================================
 
-create or replace view public.spare_pending_dispatch as
-select
-  l.id                                        as line_id,
-  l.line_uid,
-  l.request_uid,
-  r.or_no,
-  r.or_req_date,
-  l.row_no,
-  l.part,
-  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
-                                              as part_code,
-  l.qty,
-  r.req_type,
-  r.item_status,
-  coalesce(r.engineer, '')                    as engineer,
-  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
-  coalesce(r.engineer_email, '')              as engineer_email,
-  coalesce(r.ucn, '')                         as ucn,
-  coalesce(r.call_number, '')                 as call_number,
-  coalesce(r.party_name, '')                  as party_name,
-  coalesce(r.product_name, '')                as product_name,
-  coalesce(r.serial, '')                      as serial,
-  coalesce(r.handstock_reason, '')            as handstock_reason,
-  coalesce(r.remarks, '')                     as remarks,
-  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
-  coalesce(l.created_at, r.created_at)        as raised_at,
-  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
-           coalesce(l.created_at, r.created_at))                       as waiting_since
-from public.spare_request_lines l
-join public.spare_requests r on r.uid = l.request_uid
--- Computed, not read: the stage column is a cache and may be stale.
-where public.spare_line_stage(
-        coalesce(l.rm_approval, 'Pending'),
-        coalesce(l.commercial_approval, 'Pending'),
-        coalesce(l.nsm_approval, 'Pending'),
-        coalesce(l.stores_status, 'Pending'),
-        l.received_at,
-        r.item_status) = 'Stores'
-  and coalesce(l.dispatch_uid, '') = '';
+-- Guarded: 0055_partial_dispatch.sql OWNS this view now and appended
+-- requested_qty / dispatched_qty to it. `create or replace view` cannot drop
+-- columns, so re-running this file over a fully-migrated project failed with
+-- "cannot drop columns from view" and took the rest of all.sql down with it.
+-- The later definition supersedes this one, so skipping is a no-op.
+do $spd$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'spare_pending_dispatch'
+                and column_name = 'dispatched_qty') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.spare_pending_dispatch as
+    select
+      l.id                                        as line_id,
+      l.line_uid,
+      l.request_uid,
+      r.or_no,
+      r.or_req_date,
+      l.row_no,
+      l.part,
+      upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                                  as part_code,
+      l.qty,
+      r.req_type,
+      r.item_status,
+      coalesce(r.engineer, '')                    as engineer,
+      lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+      coalesce(r.engineer_email, '')              as engineer_email,
+      coalesce(r.ucn, '')                         as ucn,
+      coalesce(r.call_number, '')                 as call_number,
+      coalesce(r.party_name, '')                  as party_name,
+      coalesce(r.product_name, '')                as product_name,
+      coalesce(r.serial, '')                      as serial,
+      coalesce(r.handstock_reason, '')            as handstock_reason,
+      coalesce(r.remarks, '')                     as remarks,
+      l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+      coalesce(l.created_at, r.created_at)        as raised_at,
+      greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+               coalesce(l.created_at, r.created_at))                       as waiting_since
+    from public.spare_request_lines l
+    join public.spare_requests r on r.uid = l.request_uid
+    -- Computed, not read: the stage column is a cache and may be stale.
+    where public.spare_line_stage(
+            coalesce(l.rm_approval, 'Pending'),
+            coalesce(l.commercial_approval, 'Pending'),
+            coalesce(l.nsm_approval, 'Pending'),
+            coalesce(l.stores_status, 'Pending'),
+            l.received_at,
+            r.item_status) = 'Stores'
+      and coalesce(l.dispatch_uid, '') = ''
+  $view$;
+end $spd$;
+
 
 alter view public.spare_pending_dispatch set (security_invoker = on);
 grant select on public.spare_pending_dispatch to authenticated;

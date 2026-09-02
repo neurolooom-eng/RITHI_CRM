@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
-import { reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured } from '../lib/supabase';
+import {
+  reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured,
+  serviceManualsForProduct, kbForCall, type DocRow, type KbLite,
+} from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import { deriveStage } from '../lib/spareflow';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
@@ -7,7 +11,13 @@ import './fieldcalls.css';
 // ===========================================================================
 // CALL ASSOCIATIONS — every record tied to one call (by UCN), shown as small
 // tables in the call's own view: visit history, spares requested, spares
-// consumed, and customer feedback.
+// consumed, customer feedback — and the SUPPORTING DOCUMENTS for the machine.
+//
+// Supporting documents are the reason the document library exists: an engineer
+// opening a call should be handed the service manual for THAT product, plus any
+// knowledge-base article tagged for it, without going looking. Matched on the
+// call's product and its standard complaint; a manual with no product is a
+// general one and is offered on every call.
 // ===========================================================================
 
 type Row = Record<string, unknown>;
@@ -100,7 +110,59 @@ function SpareDetail({ row, onClose }: { row: Row; onClose: () => void }) {
 }
 
 // Keyed by CALL NUMBER — every visit/spare/feedback tied to this call.
-export function CallAssociations({ callNumber }: { callNumber: string }) {
+// The manuals + articles that speak to this machine. Read-only, and quiet when
+// there is nothing to show — an empty panel on every call would be noise.
+function SupportingDocs({ product, complaint }: { product: string; complaint: string }) {
+  const navigate = useNavigate();
+  const [manuals, setManuals] = useState<DocRow[]>([]);
+  const [articles, setArticles] = useState<KbLite[]>([]);
+
+  useEffect(() => {
+    if (!supabaseConfigured()) return;
+    let alive = true;
+    // Either side may be missing (no library applied yet, no articles written);
+    // each resolves to [] on its own rather than taking the panel down.
+    void serviceManualsForProduct(product).then((m) => { if (alive) setManuals(m); }).catch(() => {});
+    void kbForCall(product, complaint).then((a) => { if (alive) setArticles(a); }).catch(() => {});
+    return () => { alive = false; };
+  }, [product, complaint]);
+
+  if (!manuals.length && !articles.length) return null;
+
+  return (
+    <section className="rep-sec">
+      <div className="rep-sec-title">
+        📄 Supporting documents <span className="muted">({manuals.length + articles.length})</span>
+      </div>
+      <div className="assoc-scroll">
+        <table className="assoc-table">
+          <thead><tr><th>Type</th><th>Title</th><th>Covers</th><th>Tags</th></tr></thead>
+          <tbody>
+            {manuals.map((m) => (
+              <tr key={`m${m.id}`}>
+                <td>📘 Service manual</td>
+                <td><a href={m.url} target="_blank" rel="noreferrer">{m.title}</a></td>
+                <td>{m.product || 'Every product'}{m.revision ? ` · Rev ${m.revision}` : ''}</td>
+                <td>{m.tags}</td>
+              </tr>
+            ))}
+            {articles.map((a) => (
+              <tr key={`k${a.id}`} style={{ cursor: 'pointer' }} title="Open in the Knowledge Base"
+                  onClick={() => navigate('/knowledge-base', { state: { openArticle: a.id } })}>
+                <td>📚 Knowledge Base</td>
+                <td>{a.title}</td>
+                <td>{a.product || a.category || '—'}</td>
+                <td>{a.tags}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function CallAssociations({ callNumber, product = '', complaint = '' }: { callNumber: string; product?: string; complaint?: string }) {
   const [visits, setVisits] = useState<Row[]>([]);
   const [requested, setRequested] = useState<Row[]>([]);
   const [consumed, setConsumed] = useState<Row[]>([]);
@@ -124,6 +186,8 @@ export function CallAssociations({ callNumber }: { callNumber: string }) {
   return (
     <div className="rep-form" style={{ marginTop: 8 }}>
       {loading && <div className="muted" style={{ fontSize: 13 }}>Loading associated records…</div>}
+
+      <SupportingDocs product={product} complaint={complaint} />
 
       <MiniTable
         title="Visit history" icon="🕓" rows={visits}

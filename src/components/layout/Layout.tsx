@@ -42,6 +42,13 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    title: 'Documents',
+    items: [
+      { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
+      { to: '/qms', label: 'QMS Documents', icon: '📗' },
+    ],
+  },
+  {
     title: 'Contracts & Warranty',
     items: [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },

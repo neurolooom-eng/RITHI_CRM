@@ -33,6 +33,7 @@
 --   0021_master_lists.sql
 --   0066_master_values_active.sql
 --   0067_master_list_permissions.sql
+--   0070_documents.sql
 --   0008_calls_creator_read.sql
 --   0010_call_request_items.sql
 --   0011_call_request_actions.sql
@@ -2571,6 +2572,151 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0070_documents.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- DOCUMENT LIBRARY — service manuals and QMS documents.
+--
+-- The FILES live in Google Drive (uploaded through the CallReg bridge, the same
+-- path a manual report already takes); what lives here is the CATALOGUE that
+-- makes one findable: which product a manual covers, its revision, and the link.
+-- That is the whole point of the table — an engineer on a call must be handed
+-- THE RIGHT manual for the machine in front of them, and a Drive folder cannot
+-- answer that question.
+--
+-- One table, two kinds:
+--   'service_manual' — keyed by PRODUCT; surfaced on the call as a supporting
+--                      document for the machine the call is against.
+--   'qms'            — the controlled quality documents (SOPs, work
+--                      instructions, forms), carrying a document number,
+--                      revision and effective date.
+-- They differ only in which fields matter and who may maintain them, so they
+-- share the table and split on `kind`.
+--
+-- Maintaining them is two separate rights, because they are two separate jobs:
+--   docs.manage — service manuals and general documents
+--   qms.manage  — the QMS shelf (quality's own)
+-- Everyone signed in READS both: a manual nobody can open is no use in the
+-- field, and a QMS document the team cannot find is not controlled, it is lost.
+-- ===========================================================================
+
+create table if not exists public.documents (
+  id             bigint generated always as identity primary key,
+  kind           text not null default 'service_manual',
+  title          text not null,
+  -- The product/model a manual covers. BLANK deliberately means "every
+  -- product" — a general manual still has to reach every call.
+  product        text not null default '',
+  doc_no         text not null default '',   -- QMS document number
+  revision       text not null default '',
+  effective_date date,
+  tags           text not null default '',   -- comma-separated, matched against a call
+  url            text not null,              -- the Drive link
+  file_name      text not null default '',
+  notes          text not null default '',
+  active         boolean not null default true,
+  uploaded_by      uuid references auth.users (id),
+  uploaded_by_name text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+alter table public.documents add column if not exists effective_date date;
+alter table public.documents add column if not exists notes text not null default '';
+
+-- A call looks a manual up BY PRODUCT, every time a call is opened, so that
+-- lookup gets its own index rather than a scan of the shelf.
+create index if not exists documents_kind_idx     on public.documents (kind);
+create index if not exists documents_product_idx  on public.documents (lower(product));
+create index if not exists documents_active_idx   on public.documents (active);
+
+-- Stamp who uploaded it (cannot be spoofed) and keep updated_at honest.
+create or replace function public.documents_before_write()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    new.uploaded_by := coalesce(new.uploaded_by, auth.uid());
+  else
+    new.uploaded_by := old.uploaded_by;   -- authorship is not editable
+    new.created_at  := old.created_at;
+  end if;
+  new.kind := lower(trim(coalesce(new.kind, 'service_manual')));
+  if new.kind = '' then new.kind := 'service_manual'; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists documents_biu on public.documents;
+create trigger documents_biu before insert or update on public.documents
+  for each row execute function public.documents_before_write();
+
+alter table public.documents enable row level security;
+grant select, insert, update, delete on public.documents to authenticated;
+
+-- Read: everyone signed in, both kinds.
+drop policy if exists documents_read on public.documents;
+create policy documents_read on public.documents for select
+  using (auth.role() = 'authenticated');
+
+-- Write: the right that matches the kind. Admins hold both via has_perm().
+drop policy if exists documents_insert on public.documents;
+create policy documents_insert on public.documents for insert
+  with check (case when kind = 'qms' then public.has_perm('qms.manage')
+                   else public.has_perm('docs.manage') end);
+
+-- Both sides tested, so a document cannot be moved between shelves by someone
+-- who may only maintain one of them.
+drop policy if exists documents_update on public.documents;
+create policy documents_update on public.documents for update
+  using      (case when kind = 'qms' then public.has_perm('qms.manage')
+                   else public.has_perm('docs.manage') end)
+  with check (case when kind = 'qms' then public.has_perm('qms.manage')
+                   else public.has_perm('docs.manage') end);
+
+drop policy if exists documents_delete on public.documents;
+create policy documents_delete on public.documents for delete
+  using (case when kind = 'qms' then public.has_perm('qms.manage')
+              else public.has_perm('docs.manage') end);
+
+-- ---------------------------------------------------------------------------
+-- Grant the new rights to the roles that already do this work, by MERGING into
+-- app_roles — never by overwriting, since an admin may have tuned the role.
+-- Service manuals: the roles that maintain masters. QMS: admin only, until
+-- quality says who else keeps it.
+-- ---------------------------------------------------------------------------
+do $$
+declare r record;
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice 'public.app_roles is not present — run the rbac bundle first';
+    return;
+  end if;
+
+  for r in select role, coalesce(permissions, '[]'::jsonb) as perms from public.app_roles loop
+    if r.role in ('admin', 'hotline', 'nsm', 'spare_coordinator')
+       and not (r.perms ? 'docs.manage') then
+      update public.app_roles
+         set permissions = r.perms || '["docs.manage"]'::jsonb, updated_at = now()
+       where role = r.role;
+    end if;
+    if r.role = 'admin' and not (r.perms ? 'qms.manage') then
+      update public.app_roles
+         set permissions = coalesce(permissions, '[]'::jsonb) || '["qms.manage"]'::jsonb, updated_at = now()
+       where role = r.role;
+    end if;
+  end loop;
+
+  -- And the modules themselves, so the two screens are reachable at all.
+  update public.app_roles
+     set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/service-manuals"]'::jsonb, updated_at = now()
+   where not (coalesce(permissions, '[]'::jsonb) ? 'mod:/service-manuals');
+  update public.app_roles
+     set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/qms"]'::jsonb, updated_at = now()
+   where role in ('admin', 'nsm', 'hotline')
+     and not (coalesce(permissions, '[]'::jsonb) ? 'mod:/qms');
+end $$;
+
+-- ------------------------------------------------------------------------
 -- 0008_calls_creator_read.sql
 -- ------------------------------------------------------------------------
 
@@ -2684,25 +2830,42 @@ end $$;
 -- Both views run with the caller's rights, so calls/reports RLS still applies.
 -- ===========================================================================
 
-create or replace view public.call_state as
-select
-  c.ucn,
-  coalesce(r.call_status, '')                        as last_status,
-  r.visit_at                                         as last_visit_at,
-  case
-    when r.ucn is null                    then 'Unattended'
-    when r.call_status ilike 'solved%'     then 'Solved'
-    when r.call_status ilike '%unsolved%'  then 'Unsolved'
-    else 'Report pending'
-  end                                                as state
-from public.calls c
-left join lateral (
-  select rr.ucn, rr.call_status, rr.visit_at
-  from public.reports rr
-  where rr.ucn = c.ucn
-  order by rr.visit_at desc nulls last, rr.id desc
-  limit 1
-) r on true;
+-- Guarded for the same reason the pending_calls block below is: once
+-- 0014_call_state_denorm.sql has run, IT owns this view and has since grown
+-- columns (reopened_at / reopen_count, 0057). `create or replace view` cannot
+-- drop columns, so re-running this file over a fully-migrated project failed
+-- with "cannot drop columns from view" and took the rest of all.sql down with
+-- it. 0014's definition supersedes this one, so skipping is a no-op.
+do $cs$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.call_state as
+    select
+      c.ucn,
+      coalesce(r.call_status, '')                        as last_status,
+      r.visit_at                                         as last_visit_at,
+      case
+        when r.ucn is null                    then 'Unattended'
+        when r.call_status ilike 'solved%'     then 'Solved'
+        when r.call_status ilike '%unsolved%'  then 'Unsolved'
+        else 'Report pending'
+      end                                                as state
+    from public.calls c
+    left join lateral (
+      select rr.ucn, rr.call_status, rr.visit_at
+      from public.reports rr
+      where rr.ucn = c.ucn
+      order by rr.visit_at desc nulls last, rr.id desc
+      limit 1
+    ) r on true
+  $view$;
+end $cs$;
 
 -- NB: `calls` already has a `state` column (the geographic one), so the call's
 -- open state is exposed here as `open_state`.
@@ -2730,10 +2893,16 @@ begin
   execute 'grant select on public.pending_calls to authenticated';
 end $$;
 
+-- Both views exist by now either way (this file's, or 0014's), so these are
+-- safe; guarded only against a partial state where pending_calls is absent.
 alter view public.call_state set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
+do $g$ begin
+  if to_regclass('public.pending_calls') is not null then
+    grant select on public.pending_calls to authenticated;
+  end if;
+end $g$;
 
 -- ------------------------------------------------------------------------
 -- 0014_call_state_denorm.sql
@@ -7195,41 +7364,58 @@ create trigger spare_dispatches_assign_no
 -- security_invoker, so the rows a user sees are exactly the lines they may
 -- already read in the register.
 -- ---------------------------------------------------------------------------
-create or replace view public.spare_pending_dispatch as
-select
-  l.id                                        as line_id,
-  l.line_uid,
-  l.request_uid,
-  r.or_no,
-  r.or_req_date,
-  l.row_no,
-  l.part,
-  -- part_code() / handstock_key() (0023) say the same thing, but the hand
-  -- stock module applies AFTER this one in all.sql — so the expressions are
-  -- inlined rather than making the spare bundle depend on that one.
-  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
-                                              as part_code,
-  l.qty,
-  r.req_type,
-  r.item_status,
-  coalesce(r.engineer, '')                    as engineer,
-  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
-  coalesce(r.engineer_email, '')              as engineer_email,
-  coalesce(r.ucn, '')                         as ucn,
-  coalesce(r.call_number, '')                 as call_number,
-  coalesce(r.party_name, '')                  as party_name,
-  coalesce(r.product_name, '')                as product_name,
-  coalesce(r.serial, '')                      as serial,
-  coalesce(r.handstock_reason, '')            as handstock_reason,
-  coalesce(r.remarks, '')                     as remarks,
-  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
-  coalesce(l.created_at, r.created_at)        as raised_at,
-  -- how long it has been sitting in the Stores queue
-  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
-           coalesce(l.created_at, r.created_at))                       as waiting_since
-from public.spare_request_lines l
-join public.spare_requests r on r.uid = l.request_uid
-where l.stage = 'Stores' and coalesce(l.dispatch_uid, '') = '';
+-- Guarded: 0055_partial_dispatch.sql OWNS this view now and appended
+-- requested_qty / dispatched_qty to it. `create or replace view` cannot drop
+-- columns, so re-running this file over a fully-migrated project failed with
+-- "cannot drop columns from view" and took the rest of all.sql down with it.
+-- The later definition supersedes this one, so skipping is a no-op.
+do $spd$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'spare_pending_dispatch'
+                and column_name = 'dispatched_qty') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.spare_pending_dispatch as
+    select
+      l.id                                        as line_id,
+      l.line_uid,
+      l.request_uid,
+      r.or_no,
+      r.or_req_date,
+      l.row_no,
+      l.part,
+      -- part_code() / handstock_key() (0023) say the same thing, but the hand
+      -- stock module applies AFTER this one in all.sql — so the expressions are
+      -- inlined rather than making the spare bundle depend on that one.
+      upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                                  as part_code,
+      l.qty,
+      r.req_type,
+      r.item_status,
+      coalesce(r.engineer, '')                    as engineer,
+      lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+      coalesce(r.engineer_email, '')              as engineer_email,
+      coalesce(r.ucn, '')                         as ucn,
+      coalesce(r.call_number, '')                 as call_number,
+      coalesce(r.party_name, '')                  as party_name,
+      coalesce(r.product_name, '')                as product_name,
+      coalesce(r.serial, '')                      as serial,
+      coalesce(r.handstock_reason, '')            as handstock_reason,
+      coalesce(r.remarks, '')                     as remarks,
+      l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+      coalesce(l.created_at, r.created_at)        as raised_at,
+      -- how long it has been sitting in the Stores queue
+      greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+               coalesce(l.created_at, r.created_at))                       as waiting_since
+    from public.spare_request_lines l
+    join public.spare_requests r on r.uid = l.request_uid
+    where l.stage = 'Stores' and coalesce(l.dispatch_uid, '') = ''
+  $view$;
+end $spd$;
+
 
 alter view public.spare_pending_dispatch set (security_invoker = on);
 grant select on public.spare_pending_dispatch to authenticated;
@@ -7477,45 +7663,62 @@ create trigger spare_request_lines_dispatch_guard
 -- and the request-header roll-up all still read it.
 -- ===========================================================================
 
-create or replace view public.spare_pending_dispatch as
-select
-  l.id                                        as line_id,
-  l.line_uid,
-  l.request_uid,
-  r.or_no,
-  r.or_req_date,
-  l.row_no,
-  l.part,
-  upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
-                                              as part_code,
-  l.qty,
-  r.req_type,
-  r.item_status,
-  coalesce(r.engineer, '')                    as engineer,
-  lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
-  coalesce(r.engineer_email, '')              as engineer_email,
-  coalesce(r.ucn, '')                         as ucn,
-  coalesce(r.call_number, '')                 as call_number,
-  coalesce(r.party_name, '')                  as party_name,
-  coalesce(r.product_name, '')                as product_name,
-  coalesce(r.serial, '')                      as serial,
-  coalesce(r.handstock_reason, '')            as handstock_reason,
-  coalesce(r.remarks, '')                     as remarks,
-  l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
-  coalesce(l.created_at, r.created_at)        as raised_at,
-  greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
-           coalesce(l.created_at, r.created_at))                       as waiting_since
-from public.spare_request_lines l
-join public.spare_requests r on r.uid = l.request_uid
--- Computed, not read: the stage column is a cache and may be stale.
-where public.spare_line_stage(
-        coalesce(l.rm_approval, 'Pending'),
-        coalesce(l.commercial_approval, 'Pending'),
-        coalesce(l.nsm_approval, 'Pending'),
-        coalesce(l.stores_status, 'Pending'),
-        l.received_at,
-        r.item_status) = 'Stores'
-  and coalesce(l.dispatch_uid, '') = '';
+-- Guarded: 0055_partial_dispatch.sql OWNS this view now and appended
+-- requested_qty / dispatched_qty to it. `create or replace view` cannot drop
+-- columns, so re-running this file over a fully-migrated project failed with
+-- "cannot drop columns from view" and took the rest of all.sql down with it.
+-- The later definition supersedes this one, so skipping is a no-op.
+do $spd$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'spare_pending_dispatch'
+                and column_name = 'dispatched_qty') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.spare_pending_dispatch as
+    select
+      l.id                                        as line_id,
+      l.line_uid,
+      l.request_uid,
+      r.or_no,
+      r.or_req_date,
+      l.row_no,
+      l.part,
+      upper(btrim(split_part(coalesce(l.part, ''), '|', 1)))
+                                                  as part_code,
+      l.qty,
+      r.req_type,
+      r.item_status,
+      coalesce(r.engineer, '')                    as engineer,
+      lower(btrim(coalesce(r.engineer, '')))      as engineer_key,
+      coalesce(r.engineer_email, '')              as engineer_email,
+      coalesce(r.ucn, '')                         as ucn,
+      coalesce(r.call_number, '')                 as call_number,
+      coalesce(r.party_name, '')                  as party_name,
+      coalesce(r.product_name, '')                as product_name,
+      coalesce(r.serial, '')                      as serial,
+      coalesce(r.handstock_reason, '')            as handstock_reason,
+      coalesce(r.remarks, '')                     as remarks,
+      l.rm_by, l.rm_at, l.commercial_by, l.commercial_at, l.nsm_by, l.nsm_at,
+      coalesce(l.created_at, r.created_at)        as raised_at,
+      greatest(coalesce(l.nsm_at, l.commercial_at, l.rm_at, l.created_at, r.created_at),
+               coalesce(l.created_at, r.created_at))                       as waiting_since
+    from public.spare_request_lines l
+    join public.spare_requests r on r.uid = l.request_uid
+    -- Computed, not read: the stage column is a cache and may be stale.
+    where public.spare_line_stage(
+            coalesce(l.rm_approval, 'Pending'),
+            coalesce(l.commercial_approval, 'Pending'),
+            coalesce(l.nsm_approval, 'Pending'),
+            coalesce(l.stores_status, 'Pending'),
+            l.received_at,
+            r.item_status) = 'Stores'
+      and coalesce(l.dispatch_uid, '') = ''
+  $view$;
+end $spd$;
+
 
 alter view public.spare_pending_dispatch set (security_invoker = on);
 grant select on public.spare_pending_dispatch to authenticated;

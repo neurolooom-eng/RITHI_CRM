@@ -8,25 +8,42 @@
 -- Both views run with the caller's rights, so calls/reports RLS still applies.
 -- ===========================================================================
 
-create or replace view public.call_state as
-select
-  c.ucn,
-  coalesce(r.call_status, '')                        as last_status,
-  r.visit_at                                         as last_visit_at,
-  case
-    when r.ucn is null                    then 'Unattended'
-    when r.call_status ilike 'solved%'     then 'Solved'
-    when r.call_status ilike '%unsolved%'  then 'Unsolved'
-    else 'Report pending'
-  end                                                as state
-from public.calls c
-left join lateral (
-  select rr.ucn, rr.call_status, rr.visit_at
-  from public.reports rr
-  where rr.ucn = c.ucn
-  order by rr.visit_at desc nulls last, rr.id desc
-  limit 1
-) r on true;
+-- Guarded for the same reason the pending_calls block below is: once
+-- 0014_call_state_denorm.sql has run, IT owns this view and has since grown
+-- columns (reopened_at / reopen_count, 0057). `create or replace view` cannot
+-- drop columns, so re-running this file over a fully-migrated project failed
+-- with "cannot drop columns from view" and took the rest of all.sql down with
+-- it. 0014's definition supersedes this one, so skipping is a no-op.
+do $cs$
+begin
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'calls'
+                and column_name = 'open_state') then
+    return;
+  end if;
+
+  execute $view$
+    create or replace view public.call_state as
+    select
+      c.ucn,
+      coalesce(r.call_status, '')                        as last_status,
+      r.visit_at                                         as last_visit_at,
+      case
+        when r.ucn is null                    then 'Unattended'
+        when r.call_status ilike 'solved%'     then 'Solved'
+        when r.call_status ilike '%unsolved%'  then 'Unsolved'
+        else 'Report pending'
+      end                                                as state
+    from public.calls c
+    left join lateral (
+      select rr.ucn, rr.call_status, rr.visit_at
+      from public.reports rr
+      where rr.ucn = c.ucn
+      order by rr.visit_at desc nulls last, rr.id desc
+      limit 1
+    ) r on true
+  $view$;
+end $cs$;
 
 -- NB: `calls` already has a `state` column (the geographic one), so the call's
 -- open state is exposed here as `open_state`.
@@ -54,7 +71,13 @@ begin
   execute 'grant select on public.pending_calls to authenticated';
 end $$;
 
+-- Both views exist by now either way (this file's, or 0014's), so these are
+-- safe; guarded only against a partial state where pending_calls is absent.
 alter view public.call_state set (security_invoker = on);
 
 grant select on public.call_state    to authenticated;
-grant select on public.pending_calls to authenticated;
+do $g$ begin
+  if to_regclass('public.pending_calls') is not null then
+    grant select on public.pending_calls to authenticated;
+  end if;
+end $g$;

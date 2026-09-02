@@ -940,7 +940,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               }
             />
             {drawer.mode === 'view' && !drawer.row?._pending && (drawer.row?.callNumber || drawer.row?.ucn) && (
-              <CallAssociations callNumber={String(drawer.row.callNumber || drawer.row.ucn)} />
+              <CallAssociations
+                callNumber={String(drawer.row.callNumber || drawer.row.ucn)}
+                product={String(drawer.row.productName ?? '')}
+                complaint={String(drawer.row.standardComplaint ?? '')}
+              />
             )}
           </>
         )}

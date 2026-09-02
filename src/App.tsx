@@ -39,6 +39,7 @@ import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
 import { KnowledgeBase } from './modules/KnowledgeBase';
+import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
 import { PmBulkUpload } from './modules/PmBulkUpload';
 import { SoftwareValidation } from './modules/SoftwareValidation';
 import { AdminConfig } from './modules/AdminConfig';
@@ -102,6 +103,8 @@ function Shell() {
         <Route path="/parts" element={<PartMaster />} />
         <Route path="/masters" element={<AllMasters />} />
         <Route path="/masters/:key" element={<MasterListPage />} />
+        <Route path="/service-manuals" element={<ServiceManuals />} />
+        <Route path="/qms" element={<QmsDocuments />} />
         <Route path="/warranties" element={<WarrantyRegister />} />
         <Route path="/contracts" element={<ContractRegister />} />
         <Route path="/field-calls" element={<FieldCalls />} />

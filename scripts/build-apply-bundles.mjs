@@ -195,6 +195,18 @@ const MODULES = {
     needs: ['profiles', 'isAdmin'],
     files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql'],
   },
+  documents: {
+    title: 'Document Library (service manuals & QMS)',
+    blurb: ['The service-manual shelf and the QMS shelf (`documents`). The FILES live',
+            'in Google Drive; this is the catalogue that makes one findable --- above',
+            'all which PRODUCT a manual covers, so a call can hand the engineer the',
+            'manual for the machine in front of them instead of a folder to hunt',
+            'through. Read by everyone signed in; maintained by `docs.manage` for the',
+            'manuals and `qms.manage` for the controlled QMS documents, which are two',
+            'separate jobs. A superseded document is RETIRED, never deleted.'],
+    needs: ['profiles', 'rbac'],
+    files: ['0070_documents.sql'],
+  },
   masters: {
     title: 'Master Value Lists',
     blurb: ['The master lists registry — each value list (Call Type, Standard Complaint,',
@@ -430,7 +442,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity', 'performance'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity', 'performance'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

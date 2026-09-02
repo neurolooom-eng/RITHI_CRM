@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.22',
+    date: '2026-09-02',
+    title: 'Service manuals on the call, and a shelf for QMS documents',
+    changes: [
+      'New Documents section in the left menu. Service Manuals holds one shelf per product; QMS Documents holds the controlled quality documents with their number, revision and effective date.',
+      'The file itself goes to Google Drive, as reports already do. What the app keeps is which product a manual covers — so it can hand the engineer the right one.',
+      'Open any call and it now shows Supporting Documents: the service manual for that machine, plus any Knowledge Base article tagged for that product or complaint. A manual saved with no product is treated as a general one and shows on every call.',
+      'A superseded manual is retired, not deleted — calls were worked from it, so the shelf keeps the record of what the field was told.',
+      'Maintaining the two shelves is two separate permissions: service manuals and QMS documents. Everyone signed in can read both.',
+      'Needs a database script run once (documents.sql).',
+    ],
+  },
+  {
     version: '0.9.21',
     date: '2026-09-02',
     title: 'Tables: real dates and real names in every column',

@@ -134,6 +134,12 @@ been applied too.
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### To run on the live project — pending
+- **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
+  — the **document library**: `documents`, holding the service-manual shelf and
+  the QMS shelf. Until it is run, both screens say the library is missing and a
+  call shows no Supporting Documents (nothing else is affected). It also grants
+  `docs.manage` to admin / hotline / NSM / Spare Coordinator and `qms.manage` to
+  admin, by MERGING into `app_roles`. `_status.sql` row 27.
 - **`user_directory.sql`** (bundle: `supabase/apply/user_directory.sql`;
   migration `0068`) — `app_user_names`, the id -> display-name lookup the
   tables use so **Created By** reads "Rithi Admin" rather than
@@ -288,6 +294,27 @@ been applied too.
   to list the same cleared demo collection). A consumed part is stored by its
   `CODE|Description` catalogue string; the old Amount/Total column and the stock
   decrement are gone — the live `parts` table carries neither price nor on-hand.
+
+### Documents
+- **Service manuals + QMS documents** (`0070_documents.sql`, `/service-manuals`
+  and `/qms`). The FILE goes to **Google Drive** through the CallReg bridge —
+  the same `uploadToDrive` path a manual report takes — and the row here is the
+  catalogue entry that makes it findable. A manual is keyed by **product**; a
+  QMS document by number / revision / effective date.
+  - **The point is the lookup.** Opening a call shows **📄 Supporting
+    documents**: the manual for that machine, plus Knowledge Base articles whose
+    title / product / tags match the call's product or standard complaint. A
+    manual saved with a BLANK product is a general one and is offered on every
+    call — which is why `serviceManualsForProduct()` cannot be a plain equality
+    filter.
+  - Two rights, because they are two jobs: `docs.manage` (manuals) and
+    `qms.manage` (the controlled shelf). Everyone signed in READS both — a
+    manual nobody can open is no use in the field.
+  - A superseded document is **retired, not deleted**: calls were worked from
+    it, and the shelf is the record of what the field was told.
+  - ⚠️ `script.google.com` is blocked from the sandbox, so the Drive upload
+    round-trip has **not** been exercised from here — only the catalogue side.
+    The upload reuses the report path, which is in daily use.
 
 ### UX
 - All tables: column show/hide/reorder/resize (⚙ lists every schema field),

@@ -130,7 +130,9 @@ with checks(sort_order, bundle, provides, present) as (
     (26, 'rbac: NSM is the National SERVICE Manager', 'the app_roles label no longer says Sales (0069)',
         (to_regclass('public.app_roles') is null
       or not exists (select 1 from public.app_roles
-                      where role = 'nsm' and label = 'NSM (National Sales Manager)')))
+                      where role = 'nsm' and label = 'NSM (National Sales Manager)'))),
+    (27, 'documents', 'documents table -- service manuals + QMS, and the call''s supporting docs (0070)',
+        to_regclass('public.documents') is not null)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

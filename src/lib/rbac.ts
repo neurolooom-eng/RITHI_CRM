@@ -31,6 +31,8 @@ export const MODULES: ModuleDef[] = [
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
+  { path: '/service-manuals', label: 'Service Manuals' },
+  { path: '/qms', label: 'QMS Documents' },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
   { path: '/request-registration', label: 'Request Registration' },
@@ -94,6 +96,8 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
   { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties / contracts' },
+  { group: 'Documents', key: 'docs.manage', label: 'Add / edit service manuals' },
+  { group: 'Documents', key: 'qms.manage', label: 'Add / edit QMS documents' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
   { group: 'Analytics', key: 'dashboard.view', label: 'View dashboard' },
   { group: 'Analytics', key: 'feedback.view', label: 'View feedback' },
@@ -128,14 +132,14 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
-  nsm: ['calls.view', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
+  nsm: ['calls.view', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['calls.view', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
-  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
+  hotline: ['calls.view', 'docs.manage', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
+  spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
@@ -202,6 +206,10 @@ export const PERM_TREE: PermHeader[] = [
     // All Masters is just the overview screen; each value list is its own page
     // under this header, so access is given list by list.
     { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
+  ] },
+  { title: 'Documents', pages: [
+    { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
+    { path: '/qms', label: 'QMS Documents', actions: ['qms.manage'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },

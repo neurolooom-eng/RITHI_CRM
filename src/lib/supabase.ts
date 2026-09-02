@@ -1716,6 +1716,70 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
 // Anyone signed in reads all and contributes; the author (or an admin) edits.
 // ---------------------------------------------------------------------------
 export interface KbAttachment { name: string; url: string }
+// ---------------------------------------------------------------------------
+// DOCUMENT LIBRARY — service manuals and QMS documents (0070).
+// The FILE lives in Google Drive; the row here is the catalogue entry that
+// makes it findable — above all, which product a manual covers, so a call can
+// hand the engineer the right one.
+// ---------------------------------------------------------------------------
+export type DocKind = 'service_manual' | 'qms';
+export interface DocRow {
+  id: number; kind: DocKind; title: string; product: string;
+  doc_no: string; revision: string; effective_date: string | null;
+  tags: string; url: string; file_name: string; notes: string; active: boolean;
+  uploaded_by: string | null; uploaded_by_name: string;
+  created_at: string; updated_at: string;
+}
+export type DocInput = Pick<DocRow, 'kind' | 'title' | 'product' | 'doc_no' | 'revision' | 'tags' | 'url' | 'file_name' | 'notes'>
+  & { effective_date?: string | null; uploaded_by_name?: string };
+
+export async function listDocuments(kind?: DocKind, includeInactive = true): Promise<DocRow[]> {
+  const c = getSupabase(); if (!c) return [];
+  let q = c.from('documents').select('*').order('title');
+  if (kind) q = q.eq('kind', kind);
+  if (!includeInactive) q = q.eq('active', true);
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as DocRow[];
+}
+
+// The manuals that apply to one product. A manual with a BLANK product is a
+// general one and applies to every machine, so it comes back too — that is why
+// this cannot be a plain equality filter.
+export async function serviceManualsForProduct(product: string): Promise<DocRow[]> {
+  const c = getSupabase(); if (!c) return [];
+  const p = (product ?? '').trim();
+  const { data, error } = await c.from('documents')
+    .select('*').eq('kind', 'service_manual').eq('active', true).order('title');
+  if (error) return [];
+  const rows = (data ?? []) as DocRow[];
+  if (!p) return rows;
+  const want = p.toLowerCase();
+  return rows.filter((r) => {
+    const owns = (r.product ?? '').trim().toLowerCase();
+    if (!owns) return true;                       // general manual
+    return owns === want || want.includes(owns) || owns.includes(want);
+  });
+}
+
+export async function addDocument(d: DocInput): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { error } = await c.from('documents').insert(d);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function updateDocument(id: number, patch: Partial<DocInput>): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { error } = await c.from('documents').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+// A superseded manual is DEACTIVATED, never deleted: calls already worked from
+// it, and the shelf is a record of what the field was told.
+export async function setDocumentActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { error } = await c.from('documents').update({ active }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 export interface KbArticle {
   id: number; title: string; body: string; category: string; product: string;
   tags: string; attachments: KbAttachment[];
@@ -1729,6 +1793,29 @@ export async function kbList(): Promise<KbArticle[]> {
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map((r) => ({ ...r, attachments: Array.isArray((r as KbArticle).attachments) ? (r as KbArticle).attachments : [] })) as KbArticle[];
 }
+// Knowledge-base articles that speak to one call: the ones tagged for the
+// machine it is against, or for the complaint it was raised with. Matched
+// against title / product / tags, and deliberately NOT against the body — an
+// article that merely mentions the model in passing is noise on a call.
+// Returns the light columns only; the body is fetched when one is opened.
+export interface KbLite { id: number; title: string; category: string; product: string; tags: string; updated_at: string }
+export async function kbForCall(product: string, complaint = ''): Promise<KbLite[]> {
+  const c = getSupabase(); if (!c) return [];
+  const terms = [product, complaint]
+    .map((t) => (t ?? '').trim())
+    .filter((t) => t.length >= 3)
+    .map((t) => t.replace(/[,()*]/g, ' ').trim());
+  if (!terms.length) return [];
+  const clauses = terms.flatMap((t) => [`title.ilike.%${t}%`, `product.ilike.%${t}%`, `tags.ilike.%${t}%`]);
+  const { data, error } = await c.from('kb_articles')
+    .select('id,title,category,product,tags,updated_at')
+    .or(clauses.join(','))
+    .order('updated_at', { ascending: false })
+    .limit(20);
+  if (error) return [];
+  return (data ?? []) as KbLite[];
+}
+
 export async function kbAdd(a: KbInput): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('kb_articles').insert(a);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
