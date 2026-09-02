@@ -12,6 +12,9 @@ _Last updated: 2026-09-01 (role/visibility reconciliation, search indexes and th
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- **`help_screenshots.sql`** (0043, knowledge_base) — the guide's per-task
+  screenshots. Admins can now add/replace/remove a picture on each step of
+  "How to use RITHI CRM"; everyone else sees them.
 - **`notify_uid_fix.sql`** (0054) — `notify_spare_dispatched()` declared a plpgsql
   variable `uid` that clashed with `spare_requests.uid`, so the trigger aborted the
   UPDATE Pending Dispatch runs: **nobody could book a spare out** ("column
