@@ -12,6 +12,11 @@ _Last updated: 2026-09-01 (live project fully caught up: split confirmed applied
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- Live state CONFIRMED with `supabase/apply/_state_check.sql`: split applied,
+  0041 hardening applied (3 CHECK constraints), reg_at/added_on present,
+  37 trigram + 8 btree search indexes, partial dispatch + per-shipment receipt,
+  call re-open. **Run that script before assuming anything is or isn't applied**
+  — twice today a stale note sent us at the wrong problem.
 - **`search_indexes.sql` (re-run)** — the first run had created only the 37
   trigram indexes; the re-run added the 8 btree (`_eq`) ones that serve the
   exact-match / IN lookups (products by party for the request cascade, calls by
