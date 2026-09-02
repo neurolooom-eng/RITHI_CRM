@@ -12,13 +12,11 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.14',
+    version: '0.9.15',
     date: '2026-09-02',
-    title: 'Refurbished spares carry their own part number',
+    title: 'Validation package covers refurbished spares',
     changes: [
-      'A spare issued as refurbished now appears in the engineer\u2019s hand stock under its own R-prefixed part number, and is consumed as that part \u2014 so refurbished and new stock are counted separately.',
-      'The swap is only allowed when the R-part exists in Part Master and is active. If it is missing or inactive the dispatch is refused, naming the part code to add.',
-      'Needs a database script run once (stock_out_lines_and_refurb.sql) \u2014 re-run it if you applied the earlier copy.',
+      'The Software Validation package is revised to 1.2, adding the requirements, design note, risk, FMEA and test protocol for refurbished spares \u2014 including that hand stock is now derived from what was issued \u2014 and for measuring days to dispatch.',
     ],
   },
   {

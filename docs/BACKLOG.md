@@ -12,6 +12,17 @@ _Last updated: 2026-09-02 (spare reconciliation shipped and applied; live projec
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- **`stock_out_lines_and_refurb.sql`** (0064–0065, applied 2026-09-02) — Stock
+  outs became a FLAT list (`spare_stock_out_lines`, one row per spare issued)
+  carrying **days to dispatch**, measured from the last approval (NSM where the
+  item needs that review, else Commercial, else RM) to the stock out.
+  **Refurbished spares:** Stores may issue the recycled equivalent (R + part
+  code, description unchanged); hand stock is now derived from the ISSUE, so the
+  R-part is held and consumed as its own stock line. The swap is refused unless
+  the R-code is in Part Master AND active. The engineer's notification says the
+  part is refurbished.
+  ⚠️ **Operational:** the R-codes must be added to Part Master as ACTIVE before
+  Stores can issue them.
 - **`consumption_reconciliation.sql`** (0059–0063, applied 2026-09-02) — the
   spare reconciliation set:
   * **Book** a missed spare against a call (RECO on any call row / its drawer,
