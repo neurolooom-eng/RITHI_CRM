@@ -134,6 +134,13 @@ been applied too.
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Queued — waiting on the user
+- **Per-tab permissions — deliberately NOT built (user's call, 2026-09-02).**
+  The Roles & Permissions tree goes header → page → View + actions. Tabs within
+  a page (Pending Dispatch's Queue / Stock outs, the Daily Review stages) were
+  asked about and then left out: each needs its own enforcement, and a checkbox
+  that nothing enforces is worse than no checkbox. The tree supports a third
+  level already — the master lists prove it — so adding them later is a matter
+  of naming the tabs and enforcing them, not restructuring.
 - **Split User Access out of User Master** (deferred by the user, 2026-09-01).
   `/users` currently redirects into **User Master**, which carries both the
   directory (name, designation, region, reporting/regional manager, validity)
