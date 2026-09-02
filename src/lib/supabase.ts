@@ -1717,6 +1717,66 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
 // ---------------------------------------------------------------------------
 export interface KbAttachment { name: string; url: string }
 // ---------------------------------------------------------------------------
+// BULK REPORT → CALL MAPPING (recovering lost visit history).
+// ---------------------------------------------------------------------------
+
+// The call keys a recovery sheet needs to match against. Fetched by the keys
+// the sheet actually carries rather than by reading the whole register — a
+// recovery file names a few hundred calls, and `calls` holds every one ever
+// raised.
+export interface CallKeyRow { ucn: string; call_number: string; serial: string; party_name: string; product_name: string }
+export async function callKeysFor(ucns: string[], callNumbers: string[]): Promise<CallKeyRow[]> {
+  const c = getSupabase(); if (!c) return [];
+  const cols = 'ucn,call_number,serial,party_name,product_name';
+  const out = new Map<string, CallKeyRow>();
+  const chunk = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+
+  const u = [...new Set(ucns.map((x) => x.trim()).filter(Boolean))];
+  const n = [...new Set(callNumbers.map((x) => x.trim()).filter(Boolean))];
+  for (const part of chunk(u, 200)) {
+    const { data } = await c.from('calls').select(cols).in('ucn', part);
+    (data ?? []).forEach((r) => out.set(String((r as CallKeyRow).ucn), r as CallKeyRow));
+  }
+  for (const part of chunk(n, 200)) {
+    const { data } = await c.from('calls').select(cols).in('call_number', part);
+    (data ?? []).forEach((r) => out.set(String((r as CallKeyRow).ucn), r as CallKeyRow));
+  }
+  return [...out.values()];
+}
+
+// Upsert recovered visits on `uid`, so re-running the same sheet CORRECTS the
+// rows it loaded before instead of doubling the visit history. `mapped_at`
+// marks them as recovered rather than reported live.
+export interface RecoveredReport {
+  uid: string; ucn: string; call_number: string; call_status: string; pending_reason: string;
+  engineer: string; engineer_email: string; visit_at: string; manual_report: string;
+  source_ref: string; data: Record<string, unknown>;
+}
+export async function upsertRecoveredReports(
+  rows: RecoveredReport[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
+  let written = 0;
+  const SIZE = 100;
+  for (let i = 0; i < rows.length; i += SIZE) {
+    const batch = rows.slice(i, i + SIZE).map((r) => ({ ...r, visit_at: r.visit_at || null, mapped_at: new Date().toISOString() }));
+    const { error } = await c.from('reports').upsert(batch, { onConflict: 'uid' });
+    if (error) {
+      return {
+        ok: false, written,
+        error: /source_ref|mapped_at|schema cache/i.test(errMsg(error))
+          ? 'The reports table is missing source_ref / mapped_at — apply supabase/apply/reports.sql, then run the import again.'
+          : errMsg(error),
+      };
+    }
+    written += batch.length;
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written };
+}
+
+// ---------------------------------------------------------------------------
 // DOCUMENT LIBRARY — service manuals and QMS documents (0070).
 // The FILE lives in Google Drive; the row here is the catalogue entry that
 // makes it findable — above all, which product a manual covers, so a call can

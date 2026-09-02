@@ -179,6 +179,39 @@ the reset from the snapshot.
     `…F0001` / `CL<yy>00001` / id 1, the first request is `R1`, and the spare
     series restarts at `OR-YYMM-0001`.
 
+### Bulk Report Mapping — recovering lost visit history
+- **`/report-mapping`** (admin). A CSV of recovered visits → each matched to its
+  call → AppSheet file references resolved to Drive links → written. Nothing is
+  written until the operator has SEEN what every row resolved to.
+  - **Matched on UCN, then Call Number** — the same two keys and the same
+    precedence 0048 uses, so a recovered visit lands where a live one would.
+    Deliberately NOT on serial or party: a machine has many calls, so that would
+    attach a visit to an arbitrary one. Unmatched and ambiguous rows are held
+    back and listed, never guessed at.
+  - **AppSheet references** come in three shapes and an export mixes them: a
+    `gettablefileurl?...&fileName=` link, the bare `Reports_Images/foo.png`
+    path, or something already a Drive link / id. Only the first two need
+    resolving and both reduce to a FILE NAME, looked up through a new
+    read-only `drivefind` GET action on the bridge (GET, because a GET response
+    is readable cross-origin — no ref/poll dance like the uploads). A name
+    matching more than one file comes back EMPTY: the wrong photo on a service
+    record is worse than none.
+  - **`reports.source_ref`** (0071) keeps the original reference next to the
+    derived link, so a wrong resolution can be re-run rather than being
+    permanent. `mapped_at` marks a visit as recovered, not reported live.
+  - ⚠️ **`reports_uid_key` was PARTIAL** (`where uid is not null`, 0002), and
+    Postgres will not infer a partial index from `on conflict (uid)` — the
+    upsert failed outright until 0071 replaced it with a full unique index
+    (NULLs are distinct, so the sheet-era rows with no uid are unaffected).
+    That upsert is what makes re-running a sheet CORRECT its rows instead of
+    doubling the visit history.
+  - Dates are read **day-first** (`03/04/2026` = 3 April). Letting `Date()` read
+    an Indian export would silently move a visit by a month.
+  - `npm run check:mapping` runs 31 checks over the pure half
+    (`scripts/check-report-mapping.ts`) — there is no test runner in this repo.
+  - ⚠️ `script.google.com` is blocked from the sandbox, so `drivefind` has NOT
+    been exercised end to end. **CallReg.gs must be redeployed** for it to exist.
+
 ### To run on the live project — pending
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
   — the **document library**: `documents`, holding the service-manual shelf and

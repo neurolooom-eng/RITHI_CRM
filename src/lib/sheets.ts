@@ -501,6 +501,46 @@ export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: bool
   return { ok: false, error: 'Upload not confirmed — retry, or check the Drive folder.' };
 }
 
+// Resolve AppSheet file names to Drive links, for the bulk report -> call
+// mapping. Read-only and served over GET, so unlike the uploads above the
+// response IS readable cross-origin and there is no ref/poll dance.
+//
+// Batched, because a recovery sheet has hundreds of rows and one round trip
+// each would take minutes. A name the bridge finds in more than one place comes
+// back EMPTY rather than as a guess — the wrong photo on a service record is
+// worse than none, and the import surfaces it for a human to settle.
+export const DRIVE_FIND_BATCH = 60;
+
+export async function resolveDriveLinks(
+  names: string[],
+  folderId = '',
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; links: Record<string, string>; ambiguous: string[]; error?: string }> {
+  const base = getSheetsUrl();
+  if (!base) return { ok: false, links: {}, ambiguous: [], error: 'No Google Sheet URL configured — set it in Settings.' };
+  const want = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  const links: Record<string, string> = {};
+  const ambiguous: string[] = [];
+  for (let i = 0; i < want.length; i += DRIVE_FIND_BATCH) {
+    const batch = want.slice(i, i + DRIVE_FIND_BATCH);
+    try {
+      const r = await getJson({ action: 'drivefind', names: batch.join('\n'), folderId });
+      if (r.ok) {
+        Object.assign(links, (r.links ?? {}) as Record<string, string>);
+        (r.ambiguous as string[] | undefined)?.forEach((n) => ambiguous.push(n));
+      } else if (i === 0) {
+        return { ok: false, links, ambiguous, error: String(r.error ?? 'Drive lookup failed.') };
+      }
+    } catch (e) {
+      // A later batch failing still leaves the earlier ones usable, so report
+      // rather than throw the whole run away.
+      return { ok: false, links, ambiguous, error: e instanceof Error ? e.message : String(e) };
+    }
+    onProgress?.(Math.min(i + DRIVE_FIND_BATCH, want.length), want.length);
+  }
+  return { ok: true, links, ambiguous };
+}
+
 // Patch an existing call by UCN (record keyed by app keys).
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };

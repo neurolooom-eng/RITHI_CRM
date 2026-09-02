@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.23',
+    date: '2026-09-02',
+    title: 'Bulk Report Mapping — putting recovered visits back on their calls',
+    changes: [
+      'New admin screen: load a spreadsheet of recovered visit reports and attach each one to its call, in bulk.',
+      'Each row is matched on UCN, then on Call Number. A row that cannot be matched without guessing is held back and listed rather than attached to the wrong call — a visit on the wrong machine\u2019s history is worse than a visit still missing.',
+      'AppSheet file references are turned into Drive links on the way in. A file name that matches more than one file in Drive is left blank for you to settle, not guessed at.',
+      'Nothing is written until you have seen what every row resolved to, and re-running the same sheet corrects those rows instead of duplicating them.',
+      'The original AppSheet reference is kept next to the link it produced, so a wrong one can be put right later.',
+      'Needs a database script run once (reports.sql) and the CallReg Web App redeployed.',
+    ],
+  },
+  {
     version: '0.9.22',
     date: '2026-09-02',
     title: 'Service manuals on the call, and a shelf for QMS documents',

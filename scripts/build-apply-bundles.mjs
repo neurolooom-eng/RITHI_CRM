@@ -222,9 +222,13 @@ const MODULES = {
   },
   reports: {
     title: 'Reports',
-    blurb: ['The visit history: the indexes behind its newest-first ordering.'],
+    blurb: ['The visit history: the indexes behind its newest-first ordering, and the',
+            'two columns the bulk report -> call mapping needs --- `source_ref` (the',
+            'AppSheet reference a Drive link was derived from, kept so a wrong one can',
+            'be re-resolved) and `mapped_at` (this visit was recovered in bulk, not',
+            'reported live).'],
     needs: ['profiles'],
-    files: ['0010_reports_ordering.sql'],
+    files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql'],
   },
   handstock: {
     // Written to the repo root as HandStock_X.sql, alongside Spare_1.sql — it

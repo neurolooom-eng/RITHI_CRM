@@ -1,14 +1,15 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.22",
+  "version": "0.9.23",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:mapping": "esbuild scripts/check-report-mapping.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-report-mapping.mjs --log-level=error && node node_modules/.cache/check-report-mapping.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

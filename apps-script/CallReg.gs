@@ -118,6 +118,8 @@ function _dispatchGet(e) {
   // Shared "default for everyone" table views (admin-set), stored in script props.
   // Drive upload hand-off: read back the link for a POSTed file by its ref.
   if (action === 'driveref') return _getRef(e.parameter.ref);
+  // Bulk report mapping: resolve AppSheet file names to Drive links (read-only).
+  if (action === 'drivefind') return _driveFind(e.parameter.names, e.parameter.folderId);
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
   // Writes are also accepted over GET (JSONP) so they work when the browser
@@ -523,6 +525,56 @@ function _driveUpload(body) {
   var url = file.getUrl();
   if (body.ref) _putRef(String(body.ref), url);
   return { ok: true, url: url, name: name };
+}
+
+// ---------------------------------------------------------------------------
+// Drive lookup by FILE NAME — for the bulk report -> call mapping, which is
+// recovering visit history whose attachments are still AppSheet references
+// (`Reports_Images/foo.png`) rather than Drive links.
+//
+// Read-only, and served over GET because a GET response IS readable
+// cross-origin — no ref/poll dance needed, unlike the uploads above.
+//
+// `names` is a newline-separated batch, so a few hundred rows resolve in a
+// handful of calls instead of one call each. An AMBIGUOUS name (the same file
+// name in more than one place) comes back as an empty string rather than a
+// guess: attaching the wrong photo to a service record is worse than attaching
+// none, and the import shows it as unresolved for a human to settle.
+// ---------------------------------------------------------------------------
+function _driveFind(namesRaw, folderId) {
+  var names = String(namesRaw || '').split('\n')
+    .map(function (n) { return n.trim(); })
+    .filter(function (n) { return n.length; })
+    .slice(0, 200);                       // one batch; the client pages
+  if (!names.length) return { ok: false, error: 'names required' };
+
+  var root = null;
+  if (folderId) { try { root = DriveApp.getFolderById(folderId); } catch (e) { return { ok: false, error: 'folder not found: ' + folderId }; } }
+
+  var out = {}, ambiguous = [];
+  for (var i = 0; i < names.length; i++) {
+    var n = names[i];
+    var it = root ? root.getFilesByName(n) : DriveApp.getFilesByName(n);
+    var found = [];
+    while (it.hasNext() && found.length < 3) found.push(it.next());
+    // A folder search only sees that folder's own files, so fall back to a
+    // whole-Drive search by name when a folder was given and came up empty --
+    // AppSheet nests its image folders one level down.
+    if (!found.length && root) {
+      var g = DriveApp.getFilesByName(n);
+      while (g.hasNext() && found.length < 3) found.push(g.next());
+    }
+    if (found.length === 1) {
+      try { found[0].setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy may forbid */ }
+      out[n] = found[0].getUrl();
+    } else if (found.length > 1) {
+      out[n] = '';
+      ambiguous.push(n);
+    } else {
+      out[n] = '';
+    }
+  }
+  return { ok: true, links: out, ambiguous: ambiguous };
 }
 
 // ref -> url hand-off. Cached for 15 min; the property copy is the fallback and
