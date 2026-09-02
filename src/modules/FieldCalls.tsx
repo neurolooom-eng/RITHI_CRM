@@ -349,15 +349,17 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  const { user, users, can, isAdmin } = useAuth();
+  const { user, users, can } = useAuth();
   // A Solved call is read-only for everyone except admins.
   // A call is CLOSED when its latest visit solved it and nobody re-opened it.
   // (calls.status is the registration status, which visits never touch — it is
   // the derived call state that says whether the call is finished.)
   const isSolved = (row: Rec) => String(row.callState ?? '') === 'Solved';
-  const canEditRow = (row: Rec) => can('calls.edit') && (isAdmin || !isSolved(row));
+  // Closed means closed — for admins too. The way back is Re-open, not an
+  // exemption, so a call's history cannot gain a visit that never happened.
+  const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row);
   // A closed call takes no visit entry and no spare request until re-opened.
-  const canWorkRow = (row: Rec) => !isSolved(row) || isAdmin;
+  const canWorkRow = (row: Rec) => !isSolved(row);
   const canReopen = (row: Rec) => isSolved(row) && !row._pending && (can('pending.register') || can('calls.create'));
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
@@ -705,7 +707,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
-    key: '_actions', header: '⚙', width: 132, sortable: false, wrap: false,
+    key: '_actions', header: '⚙', width: 138, sortable: false, wrap: false, align: 'center',
     render: (row) => (
       <div className="row act-row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm btn-icon" title="View this call" onClick={() => setDrawer({ mode: 'view', row })}>👁</button>
@@ -846,7 +848,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               </div>
             )}
             {/* Actions at the top of a call's view (each gated by its own permission) */}
-            {drawer.mode === 'view' && !drawer.row?._pending && (can('calls.report') || can('spare.request') || canEditRow(drawer.row as Rec)) && (
+            {drawer.mode === 'view' && !drawer.row?._pending && (
+              ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec))
+              || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec) || isSolved(drawer.row as Rec)
+            ) && (
               <div className="call-actions-top">
                 {can('calls.report') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>}
                 {can('spare.request') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}

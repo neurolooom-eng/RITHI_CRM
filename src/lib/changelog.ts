@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.1',
+    date: '2026-09-02',
+    title: 'Closed means closed, for admins too',
+    changes: [
+      'A closed call kept offering Visit Entry, Request Spares and Edit to admins. It no longer does \u2014 the way back into a closed call is Re-open, for everyone, so its history cannot gain a visit that never happened.',
+      'The register\u2019s action icons are centred and evenly sized instead of drifting left at odd widths.',
+    ],
+  },
+  {
     version: '0.9.0',
     date: '2026-09-01',
     title: 'Closed calls stay closed \u2014 unless the Hotline re-opens them',
