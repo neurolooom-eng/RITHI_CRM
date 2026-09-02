@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.25',
+    date: '2026-09-02',
+    title: 'Ownership Transfer, recovered warranty details, and a tidier Admin Config',
+    changes: [
+      'New Ownership Transfer register: when a machine moves from one customer to another, record the hand-over. Product Master follows it automatically, and the history answers \u201cwho owned this machine when that call was raised\u201d \u2014 which until now nothing could.',
+      'Leave \u201cFrom\u201d blank and it is filled in from whoever holds the machine now, so a historical list can be loaded in date order. A back-dated transfer loaded afterwards does not undo a later one, and calls already raised keep the customer they were raised under.',
+      'Additional Entry Details: for a machine whose Sale Entry was lost, record its warranty (and contract) directly so Product Master still shows it. Used only where the Sale and Contract registers are silent \u2014 load the real paperwork later and it takes over automatically, while the recovered entry stays on record with a note of where it came from.',
+      'Both are also in Bulk Uploads, for loading them in one go.',
+      'Admin Config: the Sheet Links and Master Value List panels are gone. They pointed at Google Sheets nothing reads any more \u2014 a stale setting is worse than none, because it invites someone to fix a dropdown by editing a link that has no effect. Value lists are maintained under Master; the bridge URL is in Settings.',
+      'Needs a database script run once (sales_contracts.sql).',
+    ],
+  },
+  {
     version: '0.9.24',
     date: '2026-09-02',
     title: 'Bulk Uploads — one uploader per register',

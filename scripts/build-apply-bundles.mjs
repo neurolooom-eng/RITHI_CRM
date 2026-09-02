@@ -286,7 +286,7 @@ const MODULES = {
             'Writing needs the `cover.edit` action; the bundle grants it to admin,',
             'commercial and nsm so an existing project keeps working.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql'],
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

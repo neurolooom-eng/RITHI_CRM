@@ -1717,6 +1717,50 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
 // ---------------------------------------------------------------------------
 export interface KbAttachment { name: string; url: string }
 // ---------------------------------------------------------------------------
+// OWNERSHIP TRANSFER (0072) and ADDITIONAL ENTRY DETAILS (0073).
+// ---------------------------------------------------------------------------
+export interface OwnershipTransfer {
+  id: number; serial_number: string; item_name: string; from_party: string; to_party: string;
+  transfer_date: string | null; reference_no: string; reason: string; remarks: string;
+  document_url: string; recorded_by_name: string; created_at: string;
+}
+export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
+  const c = getSupabase(); if (!c) return [];
+  let q = c.from('ownership_transfers').select('*').order('transfer_date', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(2000);
+  if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as OwnershipTransfer[];
+}
+export async function addOwnershipTransfer(t: Partial<OwnershipTransfer>): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { error } = await c.from('ownership_transfers').insert(t);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export interface AdditionalEntry {
+  id: number; serial_number: string; item_name: string; party_name: string;
+  warranty_number: string; warranty_start: string | null; warranty_end: string | null;
+  contract_number: string; contract_type: string; contract_start: string | null; contract_end: string | null;
+  source_note: string; document_url: string; remarks: string; recorded_by_name: string; created_at: string;
+}
+export async function listAdditionalEntries(serial = ''): Promise<AdditionalEntry[]> {
+  const c = getSupabase(); if (!c) return [];
+  let q = c.from('product_additional_entries').select('*').order('created_at', { ascending: false }).limit(2000);
+  if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as AdditionalEntry[];
+}
+// Upserts on the machine: a second entry for a serial is a CORRECTION of the
+// first, not another record.
+export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  const { error } = await c.from('product_additional_entries').upsert(e, { onConflict: 'serial_number' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // INDIVIDUAL REGISTER UPLOADS — write shaped rows to whichever table the
 // register named. Upserts where the table has a natural key, so a run that
 // stopped half way can simply be run again; plain inserts where it has none,

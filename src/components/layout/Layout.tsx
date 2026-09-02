@@ -53,6 +53,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/warranties', label: 'Warranty Register', icon: '🛡️' },
       { to: '/contracts', label: 'Contract Register', icon: '📋' },
+      { to: '/ownership-transfer', label: 'Ownership Transfer', icon: '🔁' },
     ],
   },
   {

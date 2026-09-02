@@ -75,7 +75,22 @@ UPLOADS.forEach((d) => {
     console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not a column it fills`); fail++;
   }
 });
-eq('registers defined', UPLOADS.length, 22);
+eq('registers defined', UPLOADS.length, 24);
+
+console.log('\n-- ownership transfer --');
+const ot = shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1', 'To Party': 'HOSP TWO', 'Transfer Date': '01/06/2024' }]);
+eq('from party may be blank (filled in by the database)', ot.rows[0].from_party, undefined);
+eq('transfer date day-first', ot.rows[0].transfer_date, '2024-06-01');
+eq('a row with no destination is held back',
+   shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no to party');
+
+console.log('\n-- recovered warranty --');
+const ae = shapeUpload(def('product_additional_entries'), [
+  { 'Serial No': 'SN-2', 'Warranty Start': '01-Apr-2019', 'Warranty End': '31-Mar-2021', 'Source': "Customer's invoice" },
+]);
+eq('dd-Mon-yyyy read', [ae.rows[0].warranty_start, ae.rows[0].warranty_end], ['2019-04-01', '2021-03-31']);
+eq('provenance kept', ae.rows[0].source_note, "Customer's invoice");
+eq('upserts on the machine', def('product_additional_entries').conflict, 'serial_number');
 eq('grouped in reading order', uploadGroups(UPLOADS).map((g) => g.title),
    ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover']);
 

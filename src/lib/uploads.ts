@@ -351,6 +351,33 @@ export const UPLOADS: UploadDef[] = [
     cols: [{ to: 'code', from: ['code', 'part no', 'part code'], required: true },
            { to: 'item_detail', from: ['item detail', 'description', 'part description'], required: true }] },
 
+  // ---- ownership & recovered cover
+  { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
+    requires: 'Product Master',
+    note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one.',
+    cols: [
+      { to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
+      { to: 'to_party', from: ['to party', 'new party', 'transferred to'], required: true },
+      TEXT('from_party', 'from party', 'old party', 'transferred from'),
+      TEXT('item_name', 'item name', 'product name', 'product'),
+      DATE('transfer_date', 'transfer date', 'date'),
+      TEXT('reference_no', 'reference no', 'reference', 'document no'),
+      TEXT('reason'), TEXT('remarks'), TEXT('document_url', 'document', 'document link'),
+    ] },
+  { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
+    table: 'product_additional_entries', conflict: 'serial_number', requires: 'Product Master',
+    note: 'For machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
+    cols: [
+      { to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
+      TEXT('item_name', 'item name', 'product name'), TEXT('party_name', 'party name', 'customer'),
+      TEXT('warranty_number', 'warranty number', 'sa number', 'invoice no'),
+      DATE('warranty_start', 'warranty start'), DATE('warranty_end', 'warranty end'),
+      TEXT('contract_number', 'contract number', 'mc number'), TEXT('contract_type', 'contract type'),
+      DATE('contract_start', 'contract start'), DATE('contract_end', 'contract end'),
+      TEXT('source_note', 'source note', 'source'), TEXT('document_url', 'document', 'document link'),
+      TEXT('remarks'),
+    ] },
+
   // ---- cover
   { key: 'sale_entries', label: 'Sale Entry', group: 'Cover', table: 'sale_entries', conflict: 'sa_number',
     cols: [{ to: 'sa_number', from: ['sa number', 'sa no'], required: true }], extraInto: 'extra' },

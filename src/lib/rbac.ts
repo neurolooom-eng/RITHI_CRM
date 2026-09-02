@@ -35,6 +35,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/qms', label: 'QMS Documents' },
   { path: '/warranties', label: 'Warranty Register' },
   { path: '/contracts', label: 'Contract Register' },
+  { path: '/ownership-transfer', label: 'Ownership Transfer' },
   { path: '/request-registration', label: 'Request Registration' },
   { path: '/pending-registrations', label: 'Pending Registrations' },
   { path: '/field-calls', label: 'Field Call Register' },
@@ -98,6 +99,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
   { group: 'Masters', key: 'cover.edit', label: 'Edit sales / warranties / contracts' },
+  { group: 'Masters', key: 'ownership.transfer', label: 'Transfer a machine between customers' },
   { group: 'Documents', key: 'docs.manage', label: 'Add / edit service manuals' },
   { group: 'Documents', key: 'qms.manage', label: 'Add / edit QMS documents' },
   { group: 'Analytics', key: 'reports.view', label: 'View reports' },
@@ -140,11 +142,11 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['calls.view', 'docs.manage', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
+  hotline: ['calls.view', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
   spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
-  commercial: ['calls.view', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
+  commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
 };
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)
@@ -216,6 +218,7 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: [] },
+    { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit'] },
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },

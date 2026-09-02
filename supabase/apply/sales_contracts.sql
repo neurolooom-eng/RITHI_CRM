@@ -20,6 +20,8 @@
 -- Carries, in order:
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
+--   0072_ownership_transfer.sql
+--   0073_product_additional_entries.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -722,5 +724,305 @@ end $$;
 grant execute on function public.cover_unpin_inherited() to authenticated;
 
 analyze public.products;
+
+-- ------------------------------------------------------------------------
+-- 0072_ownership_transfer.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- OWNERSHIP TRANSFER — a machine moves from one party to another.
+--
+-- `products` carries ONE party per serial: who owns the machine now. That is
+-- what every call, warranty and contract reads. But a machine that changes
+-- hands leaves no trace of it — the old owner is simply overwritten, and the
+-- question "who had this machine when that call was raised" becomes
+-- unanswerable. For a medical device that is a traceability gap, not an
+-- inconvenience.
+--
+-- So the MOVEMENT is the record, and `products.party_name` is derived from it:
+--   * the register keeps every hand-over, with its date and its paperwork
+--   * a trigger moves the machine to the new party, so the two cannot disagree
+--   * `from_party` is filled in from `products` when the sheet omits it, which
+--     is what makes a bulk load of historical transfers usable
+--
+-- Calls already raised keep the party they were raised under — they happened
+-- under the old owner, and rewriting them would be falsifying the record.
+-- ===========================================================================
+
+create table if not exists public.ownership_transfers (
+  id             bigint generated always as identity primary key,
+  serial_number  text not null,
+  item_name      text not null default '',
+  from_party     text not null default '',
+  to_party       text not null,
+  transfer_date  date,
+  reference_no   text not null default '',   -- the customer's paperwork
+  reason         text not null default '',
+  remarks        text not null default '',
+  document_url   text not null default '',   -- Drive link to the hand-over document
+  recorded_by      uuid references auth.users (id),
+  recorded_by_name text not null default '',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  constraint ownership_transfer_parties_differ check (btrim(lower(from_party)) is distinct from btrim(lower(to_party)))
+);
+
+create index if not exists ownership_transfers_serial_idx on public.ownership_transfers (lower(serial_number));
+create index if not exists ownership_transfers_date_idx   on public.ownership_transfers (transfer_date desc nulls last, id desc);
+
+-- ---------------------------------------------------------------------------
+-- Fill in what the sheet left out, then move the machine.
+--
+-- The order matters: `from_party` has to be read BEFORE products is updated, or
+-- a bulk load of several transfers for one machine would record every hop as
+-- starting from the same party.
+-- ---------------------------------------------------------------------------
+create or replace function public.ownership_transfer_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_serial text := btrim(coalesce(new.serial_number, ''));
+begin
+  if v_serial = '' then
+    raise exception 'An ownership transfer needs the machine serial number.';
+  end if;
+  if btrim(coalesce(new.to_party, '')) = '' then
+    raise exception 'An ownership transfer needs the party it is going to.';
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.recorded_by := coalesce(new.recorded_by, auth.uid());
+    -- Who holds it now, per the machine master — the truthful "from".
+    if btrim(coalesce(new.from_party, '')) = '' then
+      select coalesce(p.party_name, '') into new.from_party
+        from public.products p
+       where lower(btrim(p.serial_number)) = lower(v_serial)
+       limit 1;
+    end if;
+    if btrim(coalesce(new.item_name, '')) = '' then
+      select coalesce(p.item_name, '') into new.item_name
+        from public.products p
+       where lower(btrim(p.serial_number)) = lower(v_serial)
+       limit 1;
+    end if;
+  else
+    new.recorded_by := old.recorded_by;   -- authorship is not editable
+    new.created_at  := old.created_at;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists ownership_transfer_biu on public.ownership_transfers;
+create trigger ownership_transfer_biu before insert or update on public.ownership_transfers
+  for each row execute function public.ownership_transfer_apply();
+
+-- The machine follows the LATEST transfer, applied after the row lands so the
+-- "from" above was read against the previous state.
+create or replace function public.ownership_transfer_move()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_serial text := lower(btrim(coalesce(new.serial_number, '')));
+begin
+  -- Only the most recent transfer for this machine decides who holds it, so a
+  -- back-dated row loaded after a later one does not undo it.
+  if exists (
+    select 1 from public.ownership_transfers t
+     where lower(btrim(t.serial_number)) = v_serial
+       and t.id <> new.id
+       and (coalesce(t.transfer_date, '0001-01-01') > coalesce(new.transfer_date, '0001-01-01')
+        or (coalesce(t.transfer_date, '0001-01-01') = coalesce(new.transfer_date, '0001-01-01') and t.id > new.id))
+  ) then
+    return null;
+  end if;
+
+  update public.products p
+     set party_name = new.to_party
+   where lower(btrim(p.serial_number)) = v_serial
+     and coalesce(p.party_name, '') is distinct from new.to_party;
+  return null;
+end $$;
+
+drop trigger if exists ownership_transfer_aiu on public.ownership_transfers;
+create trigger ownership_transfer_aiu after insert or update on public.ownership_transfers
+  for each row execute function public.ownership_transfer_move();
+
+-- ---------------------------------------------------------------------------
+-- Access. Moving a machine between customers changes what every future call,
+-- warranty and contract reads, so it is its own right rather than folded into
+-- masters.edit. Everyone signed in may READ the history — it is the answer to
+-- "who owned this when".
+-- ---------------------------------------------------------------------------
+alter table public.ownership_transfers enable row level security;
+grant select, insert, update, delete on public.ownership_transfers to authenticated;
+
+drop policy if exists ownership_read on public.ownership_transfers;
+create policy ownership_read on public.ownership_transfers for select
+  using (auth.role() = 'authenticated');
+
+drop policy if exists ownership_write on public.ownership_transfers;
+create policy ownership_write on public.ownership_transfers for all
+  using (public.has_perm('ownership.transfer'))
+  with check (public.has_perm('ownership.transfer'));
+
+-- Grant it where the work already sits, by MERGING — never overwriting, since
+-- an admin may have tuned the role.
+do $$
+declare r record;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+  for r in select role, coalesce(permissions, '[]'::jsonb) as perms from public.app_roles loop
+    if r.role in ('admin', 'commercial', 'hotline') and not (r.perms ? 'ownership.transfer') then
+      update public.app_roles set permissions = r.perms || '["ownership.transfer"]'::jsonb, updated_at = now()
+       where role = r.role;
+    end if;
+  end loop;
+  update public.app_roles
+     set permissions = coalesce(permissions, '[]'::jsonb) || '["mod:/ownership-transfer"]'::jsonb, updated_at = now()
+   where not (coalesce(permissions, '[]'::jsonb) ? 'mod:/ownership-transfer');
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0073_product_additional_entries.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- ADDITIONAL ENTRY DETAILS — warranty for a machine whose sale entry is lost.
+--
+-- `sync_product_cover()` (0036) derives a machine's warranty and contract from
+-- the Sale and Contract registers. That is right when the paperwork exists. For
+-- an older machine whose Sale Entry never made it into the system, it leaves
+-- the machine with no warranty at all — and a call against it reads as
+-- out-of-warranty, which is a commercial decision made on missing data.
+--
+-- This is the second source: warranty (and contract) recorded directly against
+-- a serial, for machines that have no entry to derive from. It is NOT a way to
+-- overrule the registers — `sync_product_cover` reads it only where a real Sale
+-- or Contract item is absent, so the moment the paperwork is loaded the
+-- authoritative record wins and this stops being consulted.
+--
+-- `source_note` records WHERE the detail came from (the customer's copy, an old
+-- invoice, an engineer's file). A recovered warranty date with no provenance is
+-- an assertion; with one it is evidence.
+-- ===========================================================================
+
+create table if not exists public.product_additional_entries (
+  id              bigint generated always as identity primary key,
+  serial_number   text not null,
+  item_name       text not null default '',
+  party_name      text not null default '',
+  warranty_number text not null default '',
+  warranty_start  date,
+  warranty_end    date,
+  contract_number text not null default '',
+  contract_type   text not null default '',
+  contract_start  date,
+  contract_end    date,
+  source_note     text not null default '',   -- where this detail came from
+  document_url    text not null default '',
+  remarks         text not null default '',
+  recorded_by      uuid references auth.users (id),
+  recorded_by_name text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- One recovered entry per machine: a second one is a correction of the first,
+-- not another record, so the upload can upsert on it.
+create unique index if not exists product_additional_entries_serial_uniq
+  on public.product_additional_entries (lower(btrim(serial_number)));
+
+create or replace function public.product_additional_entry_biu()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if btrim(coalesce(new.serial_number, '')) = '' then
+    raise exception 'An additional entry needs the machine serial number.';
+  end if;
+  if tg_op = 'INSERT' then new.recorded_by := coalesce(new.recorded_by, auth.uid());
+  else new.recorded_by := old.recorded_by; new.created_at := old.created_at; end if;
+  new.updated_at := now();
+  return new;
+end $$;
+drop trigger if exists product_additional_entry_biu on public.product_additional_entries;
+create trigger product_additional_entry_biu before insert or update on public.product_additional_entries
+  for each row execute function public.product_additional_entry_biu();
+
+-- Push it onto the machine as soon as it is recorded, so Product Master shows
+-- it without waiting for a cover re-sync.
+create or replace function public.product_additional_entry_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.sync_product_cover(new.serial_number);
+  return null;
+end $$;
+drop trigger if exists product_additional_entry_aiu on public.product_additional_entries;
+create trigger product_additional_entry_aiu after insert or update on public.product_additional_entries
+  for each row execute function public.product_additional_entry_apply();
+
+-- ---------------------------------------------------------------------------
+-- Teach sync_product_cover the second source.
+--
+-- Ranked BELOW the real registers on purpose: a Sale Item wins wherever one
+-- exists, so loading the genuine paperwork later silently corrects a recovered
+-- guess rather than being blocked by it. Same shape as the original (0036) —
+-- indexed single-serial lookups, because an import fires this once per item.
+-- ---------------------------------------------------------------------------
+create or replace function public.sync_product_cover(p_serial text)
+returns void language plpgsql security definer set search_path = public as $$
+declare k text := lower(trim(coalesce(p_serial, ''))); w record; c record; a record;
+begin
+  if k = '' then return; end if;
+
+  select i.sa_number, coalesce(i.warranty_start, h.warranty_start) as warranty_start,
+         coalesce(i.warranty_end, h.warranty_end) as warranty_end
+    into w
+    from public.sale_items i join public.sale_entries h on h.sa_number = i.sa_number
+   where lower(trim(i.serial_number)) = k
+   order by coalesce(i.warranty_end, h.warranty_end) desc nulls last, i.id desc limit 1;
+
+  select i.mc_number, coalesce(i.contract_type, h.contract_type) as contract_type,
+         coalesce(i.contract_start, h.contract_start) as contract_start,
+         coalesce(i.contract_end, h.contract_end) as contract_end
+    into c
+    from public.contract_items i join public.contract_entries h on h.mc_number = i.mc_number
+   where lower(trim(i.serial_number)) = k
+   order by coalesce(i.contract_end, h.contract_end) desc nulls last, i.id desc limit 1;
+
+  -- The recovered detail, used only where the registers are silent.
+  if to_regclass('public.product_additional_entries') is not null then
+    select e.warranty_number, e.warranty_start, e.warranty_end,
+           e.contract_number, e.contract_type, e.contract_start, e.contract_end
+      into a
+      from public.product_additional_entries e
+     where lower(btrim(e.serial_number)) = k limit 1;
+  end if;
+
+  update public.products p set
+    warranty_number = coalesce(w.sa_number, nullif(a.warranty_number, ''), p.warranty_number),
+    warranty_start  = coalesce(w.warranty_start, a.warranty_start, p.warranty_start),
+    warranty_end    = coalesce(w.warranty_end,   a.warranty_end,   p.warranty_end),
+    contract_number = coalesce(c.mc_number, nullif(a.contract_number, ''), p.contract_number),
+    contract_start  = coalesce(c.contract_start, a.contract_start, p.contract_start),
+    contract_end    = coalesce(c.contract_end,   a.contract_end,   p.contract_end),
+    contract_type   = coalesce(nullif(c.contract_type, ''), nullif(a.contract_type, ''), p.contract_type),
+    item_status     = case
+      when coalesce(c.contract_end, a.contract_end) >= current_date
+        then coalesce(nullif(c.contract_type, ''), nullif(a.contract_type, ''), 'CMC')
+      when coalesce(w.warranty_end, a.warranty_end) >= current_date then 'WARRANTY'
+      else p.item_status end
+  where lower(trim(p.serial_number)) = k;
+end $$;
+grant execute on function public.sync_product_cover(text) to authenticated;
+
+alter table public.product_additional_entries enable row level security;
+grant select, insert, update, delete on public.product_additional_entries to authenticated;
+
+drop policy if exists pae_read on public.product_additional_entries;
+create policy pae_read on public.product_additional_entries for select
+  using (auth.role() = 'authenticated');
+
+-- Same right that governs the Sale and Contract registers: this IS cover data,
+-- recorded by a different route.
+drop policy if exists pae_write on public.product_additional_entries;
+create policy pae_write on public.product_additional_entries for all
+  using (public.has_perm('cover.edit'))
+  with check (public.has_perm('cover.edit'));
 
 commit;

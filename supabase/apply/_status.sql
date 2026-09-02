@@ -132,7 +132,15 @@ with checks(sort_order, bundle, provides, present) as (
       or not exists (select 1 from public.app_roles
                       where role = 'nsm' and label = 'NSM (National Sales Manager)'))),
     (27, 'documents', 'documents table -- service manuals + QMS, and the call''s supporting docs (0070)',
-        to_regclass('public.documents') is not null)
+        to_regclass('public.documents') is not null),
+    (28, 'reports: bulk mapping', 'reports.source_ref + a NON-partial uid index the upsert can infer (0071)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='reports' and column_name='source_ref')
+     and exists (select 1 from pg_indexes where schemaname='public' and indexname='reports_uid_uniq'))),
+    (29, 'ownership transfer', 'ownership_transfers -- where each machine has been (0072)',
+        to_regclass('public.ownership_transfers') is not null),
+    (30, 'additional entry details', 'product_additional_entries -- warranty for a lost Sale Entry (0073)',
+        to_regclass('public.product_additional_entries') is not null)
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
