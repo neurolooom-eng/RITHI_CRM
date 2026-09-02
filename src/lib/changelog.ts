@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.4',
+    date: '2026-09-01',
+    title: 'Book a spare against a call without the engineer\u2019s report',
+    changes: [
+      'Admin and Spare Coordinator can add a consumption line straight against a call from Spare Consumption \u2014 for a spare that was fitted but never reported, or to correct a stock count. Enter the UCN or Call Number and it pulls in the call and the engineer.',
+      'These entries are flagged \u201cReconciliation\u201d in the register so they are never mistaken for something the engineer wrote, and they carry who recorded them and why. They reduce the engineer\u2019s hand stock exactly as a reported consumption does.',
+      'Needs a database script run once (consumption_reconciliation.sql).',
+    ],
+  },
+  {
     version: '0.9.3',
     date: '2026-09-02',
     title: 'Report dates read like every other date',

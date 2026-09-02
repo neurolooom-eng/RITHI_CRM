@@ -101,6 +101,8 @@ const MODULES = {
       '0043_installation_create_gate.sql',
       '0050_pm_schedule_fields.sql',
       '0053_call_requests_view_all.sql',
+      '0057_call_reopen.sql',
+      '0058_close_reopened_call.sql',
     ],
   },
   sla: {
@@ -233,7 +235,8 @@ const MODULES = {
     // 0038 scopes spare_consumption, whose engineer_email column 0023 adds —
     // so it belongs here, not in rbac, which applies before this module.
     files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql',
-            '0041_stock_read_scope.sql', '0055_partial_dispatch.sql', '0056_receive_per_shipment.sql'],
+            '0041_stock_read_scope.sql', '0055_partial_dispatch.sql', '0056_receive_per_shipment.sql',
+            '0059_consumption_reconciliation.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

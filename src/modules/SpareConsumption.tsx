@@ -3,7 +3,10 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
-import { listConsumptionRows, supabaseConfigured } from '../lib/supabase';
+import {
+  listConsumptionRows, supabaseConfigured, addReconciliationConsumption, searchCalls,
+} from '../lib/supabase';
+import { Drawer } from '../components/ui/ui';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
@@ -23,7 +26,7 @@ const UCN_KEYS = ['UC Number', 'UCN', 'UC No'];
 const ENGINEER_KEYS = ['Visiting Service Engineer', 'ENGINEER NAME', 'Engineer', 'engineer', 'Service Engineer', 'Allocated To', 'Call Allocated To'];
 const EMAIL_KEYS = ['Engineer Email', 'Email address', 'Email-ID', 'Email ID'];
 const PREFERRED = [
-  'ucn', 'call_number', 'part', 'qty', 'engineer', 'created_at', // Supabase shape
+  'ucn', 'call_number', 'part', 'qty', 'engineer', 'source', 'created_at', // Supabase shape
   'UC Number', 'Call Number', 'Party Name', 'Product Name', 'Product Serial Number',
   'Spare', 'Part Number', 'Part Description', 'Qty', 'Quantity', 'Consumption Date', 'Date', 'Timestamp',
   'Visiting Service Engineer', 'ENGINEER NAME',
@@ -49,6 +52,61 @@ export function SpareConsumption() {
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare consumption.' },
   );
+
+  // RECONCILIATION: Admin / Spare Coordinator book a spare against a call
+  // straight into consumption, without waiting for the engineer's report. The
+  // row is flagged so it is never mistaken for something the engineer wrote.
+  const { can } = useAuth();
+  const mayReconcile = can('consumption.reconcile');
+  const emptyForm = { ucn: '', call_number: '', part: '', qty: '1', engineer: '', remarks: '' };
+  const [form, setForm] = useState<typeof emptyForm | null>(null);
+  const [saving, setSaving] = useState(false);
+  const setF = (k: keyof typeof emptyForm, v: string) => setForm((f) => f && ({ ...f, [k]: v }));
+
+  // Typing a UCN or call number fills in the call's engineer, so a
+  // reconciliation lands against the right person's hand stock.
+  const lookupCall = async (term: string) => {
+    const t = term.trim();
+    if (!t || !onDb) return;
+    try {
+      const hits = await searchCalls('', { q: t }, 5);
+      const hit = hits.find((c) => String(c.ucn ?? '').toLowerCase() === t.toLowerCase()
+                               || String(c.callNumber ?? '').toLowerCase() === t.toLowerCase()) ?? hits[0];
+      if (!hit) return;
+      setForm((f) => f && ({
+        ...f,
+        ucn: String(hit.ucn ?? f.ucn),
+        call_number: String(hit.callNumber ?? f.call_number),
+        engineer: f.engineer || String(hit.allocatedTo ?? ''),
+      }));
+    } catch { /* leave what was typed */ }
+  };
+
+  const saveReconciliation = async () => {
+    if (!form) return;
+    if (!form.ucn.trim() && !form.call_number.trim()) {
+      setMsg({ tone: 'error', text: 'Give the UCN or the Call Number this spare was used on.' }); return;
+    }
+    if (!form.part.trim()) { setMsg({ tone: 'error', text: 'Pick the part.' }); return; }
+    const qty = Number(form.qty);
+    if (!Number.isFinite(qty) || qty <= 0) { setMsg({ tone: 'error', text: 'Quantity must be more than zero.' }); return; }
+    setSaving(true);
+    const res = await addReconciliationConsumption({
+      ucn: form.ucn, call_number: form.call_number, part: form.part, qty,
+      engineer: form.engineer, remarks: form.remarks,
+      recorded_by: String(user?.fullName ?? user?.email ?? ''),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setMsg({ tone: 'error', text: /permission|policy/i.test(res.error ?? '')
+        ? 'Your role cannot add a reconciliation line (needs consumption.reconcile).'
+        : (res.error ?? 'Could not save.') });
+      return;
+    }
+    setForm(null);
+    setMsg({ tone: 'ok', text: `Reconciliation recorded — ${qty} x ${form.part} against ${form.ucn || form.call_number}.` });
+    await load();
+  };
 
   const load = async () => {
     if (onDb) {
@@ -122,6 +180,13 @@ export function SpareConsumption() {
   const columns: Column<Row>[] = baseCols.map((k) => ({
     key: k, header: k, width: UCN_KEYS.includes(k) ? 120 : 150, wrap: !UCN_KEYS.includes(k),
     ...(DATEISH.test(k) ? { render: (r: Row) => fmtLongDate(r[k]) } : {}),
+    // A reconciliation line was booked by the office, not written by the
+    // engineer on a call report — say so plainly.
+    ...(k === 'source' ? {
+      render: (r: Row) => (g(r, 'source') === 'Reconciliation'
+        ? <span className="badge badge-warning" title="Booked by the office, not from a call report">Reconciliation</span>
+        : <span className="muted">Report</span>),
+    } : {}),
   }));
   const allFields = headerKeys.map((k) => ({ key: k, header: k }));
 
@@ -152,6 +217,11 @@ export function SpareConsumption() {
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="UCN, part, party, engineer…" />
             <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+            {mayReconcile && onDb && (
+              <button className="btn btn-sm btn-primary" onClick={() => setForm({ ...emptyForm })}>
+                ＋ Add consumption
+              </button>
+            )}
             <div className="spacer" />
             {lastSync && <span className="conn-dot conn-off">⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
@@ -160,6 +230,58 @@ export function SpareConsumption() {
           </Toolbar>
         }
       />
+
+      {form && (
+        <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={560}>
+          <div className="kb-form">
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Books a spare against a call without waiting for the engineer's report. It is
+              recorded as a <b>Reconciliation</b> line and reduces that engineer's hand stock,
+              exactly as a reported consumption does.
+            </p>
+            <div className="field">
+              <label className="field-label">UCN</label>
+              <input className="input" value={form.ucn} autoFocus
+                onChange={(e) => setF('ucn', e.target.value)}
+                onBlur={(e) => void lookupCall(e.target.value)}
+                placeholder="26H29F0003 — tab out to pull the call in" />
+            </div>
+            <div className="field">
+              <label className="field-label">Call Number</label>
+              <input className="input" value={form.call_number}
+                onChange={(e) => setF('call_number', e.target.value)}
+                onBlur={(e) => void lookupCall(e.target.value)}
+                placeholder="R18514-ORION-G-557" />
+            </div>
+            <div className="field">
+              <label className="field-label">Part</label>
+              <input className="input" value={form.part} onChange={(e) => setF('part', e.target.value)}
+                placeholder="ECG-022|EARTH CABLE-ORG" />
+            </div>
+            <div className="field">
+              <label className="field-label">Quantity</label>
+              <input className="input" type="number" min={1} step={1} style={{ width: 120 }}
+                value={form.qty} onChange={(e) => setF('qty', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">Engineer (whose stock this comes off)</label>
+              <input className="input" value={form.engineer} onChange={(e) => setF('engineer', e.target.value)}
+                placeholder="Filled from the call — change if it was someone else" />
+            </div>
+            <div className="field">
+              <label className="field-label">Why (recorded with the entry)</label>
+              <input className="input" value={form.remarks} onChange={(e) => setF('remarks', e.target.value)}
+                placeholder="e.g. fitted on site, never reported; stock count correction" />
+            </div>
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" onClick={() => void saveReconciliation()} disabled={saving}>
+                {saving ? 'Saving…' : 'Record consumption'}
+              </button>
+              <button className="btn" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
     </div>
   );
 }

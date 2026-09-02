@@ -533,6 +533,26 @@ export async function callByUcn(ucn: string): Promise<Record<string, unknown> | 
   return data ? dbToCall(data) : null;
 }
 
+// A reconciliation consumption line: the office booking a spare against a call
+// directly, without the engineer's report. Flagged `source = 'Reconciliation'`
+// so it is never mistaken for something the engineer wrote; the insert policy
+// requires consumption.reconcile.
+export interface ConsumptionInput {
+  ucn: string; call_number: string; part: string; qty: number;
+  engineer: string; remarks?: string; recorded_by?: string;
+}
+export async function addReconciliationConsumption(
+  c: ConsumptionInput,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('spare_consumption').insert({
+    ucn: c.ucn.trim(), call_number: c.call_number.trim(), part: c.part.trim(),
+    qty: c.qty, engineer: c.engineer.trim(),
+    remarks: (c.remarks ?? '').trim(), recorded_by: (c.recorded_by ?? '').trim(),
+    source: 'Reconciliation',
+  });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- pending registrations -------------------------------------------------
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')

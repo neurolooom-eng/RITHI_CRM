@@ -86,6 +86,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
+  { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
   { group: 'Masters', key: 'masters.view', label: 'View masters' },
   { group: 'Masters', key: 'masters.edit', label: 'Edit masters' },
@@ -131,7 +132,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
   hotline: ['calls.view', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'masters.view', 'dashboard.view', 'review.edit'],
-  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
+  spare_coordinator: ['calls.view', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],

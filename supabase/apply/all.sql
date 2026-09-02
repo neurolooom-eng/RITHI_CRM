@@ -42,6 +42,8 @@
 --   0043_installation_create_gate.sql
 --   0050_pm_schedule_fields.sql
 --   0053_call_requests_view_all.sql
+--   0057_call_reopen.sql
+--   0058_close_reopened_call.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
 --   0047_daily_review_report_context.sql
@@ -72,6 +74,7 @@
 --   0041_stock_read_scope.sql
 --   0055_partial_dispatch.sql
 --   0056_receive_per_shipment.sql
+--   0059_consumption_reconciliation.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0044_sla_rules.sql
@@ -3431,6 +3434,226 @@ create policy cr_read on public.call_requests for select using (
   or lower(email) = lower(auth.email())
   or lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n))
 );
+
+-- ------------------------------------------------------------------------
+-- 0057_call_reopen.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Re-opening a closed call.
+--
+-- A call whose latest visit says Solved is finished: no more visit entries,
+-- spare requests or edits. Sometimes it isn't really finished — the fault
+-- returns, or the visit was entered against the wrong call — so the Hotline
+-- can RE-OPEN it. A re-opened call counts as open again and carries a flag
+-- (`reopen_count`) that makes "how many calls were re-opened?" a filter rather
+-- than an archaeology exercise.
+--
+-- `open_state` itself is left alone: it is a generated column with views
+-- hanging off it (field_call_review …), and re-opening is a fact ABOUT the
+-- call, not another visit outcome. The effective state — open_state, or
+-- 'Reopened' while a re-open is outstanding — is exposed by `call_state` and
+-- `pending_calls`, which is what the registers read.
+--
+-- A re-open is spent by the next visit entry: once visited again the call's
+-- state comes from that visit, as usual.
+-- ===========================================================================
+
+do $reopen$
+declare
+  t      text;
+  tables text[] := case when to_regclass('public.field_calls') is not null
+                        then array['field_calls', 'installation_calls', 'pm_calls']
+                        else array['calls'] end;
+begin
+  if to_regclass('public.field_calls') is null
+     and (select c.relkind from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relname = 'calls') <> 'r' then
+    raise notice 'calls is neither a table nor split — nothing to alter';
+    return;
+  end if;
+
+  foreach t in array tables loop
+    execute format('alter table public.%I add column if not exists reopened_at timestamptz', t);
+    execute format('alter table public.%I add column if not exists reopen_count integer not null default 0', t);
+    execute format('create index if not exists %I on public.%I (reopen_count) where reopen_count > 0',
+                   t || '_reopen_idx', t);
+  end loop;
+
+  -- A view built with select * fixed its column list when it was created, so
+  -- it has to be replaced to carry the two new columns. Replacing (rather than
+  -- dropping) keeps the INSTEAD OF triggers attached.
+  if to_regclass('public.field_calls') is not null then
+    create or replace view public.calls as
+      select * from public.field_calls
+      union all select * from public.installation_calls
+      union all select * from public.pm_calls;
+  end if;
+end $reopen$;
+
+-- The view's INSTEAD OF functions were generated from the column list as it
+-- was; regenerate so a write through `calls` carries the new columns too.
+do $regen$
+declare ins_cols text; ins_vals text; set_list text;
+begin
+  if to_regclass('public.field_calls') is null then return; end if;
+  select string_agg(quote_ident(column_name), ', ' order by ordinal_position),
+         string_agg(
+           case when column_default is not null
+                then format('coalesce(new.%I, %s)', column_name, column_default)
+                else 'new.' || quote_ident(column_name) end,
+           ', ' order by ordinal_position),
+         string_agg(quote_ident(column_name) || ' = new.' || quote_ident(column_name), ', ' order by ordinal_position)
+    into ins_cols, ins_vals, set_list
+    from information_schema.columns
+   where table_schema = 'public' and table_name = 'field_calls'
+     and is_generated = 'NEVER' and column_name <> 'id';
+
+  execute format($f$
+    create or replace function public.calls_view_insert() returns trigger language plpgsql as $b$
+    begin
+      case public.call_table_for(new.call_type)
+        when 'installation' then
+          insert into public.installation_calls (%1$s) values (%2$s)
+            returning id, ucn, call_number, reg_date, created_by, open_state, added_on, reg_at
+            into new.id, new.ucn, new.call_number, new.reg_date, new.created_by, new.open_state, new.added_on, new.reg_at;
+        when 'pm' then
+          insert into public.pm_calls (%1$s) values (%2$s)
+            returning id, ucn, call_number, reg_date, created_by, open_state, added_on, reg_at
+            into new.id, new.ucn, new.call_number, new.reg_date, new.created_by, new.open_state, new.added_on, new.reg_at;
+        else
+          insert into public.field_calls (%1$s) values (%2$s)
+            returning id, ucn, call_number, reg_date, created_by, open_state, added_on, reg_at
+            into new.id, new.ucn, new.call_number, new.reg_date, new.created_by, new.open_state, new.added_on, new.reg_at;
+      end case;
+      return new;
+    end $b$;
+  $f$, ins_cols, ins_vals);
+
+  execute format($f$
+    create or replace function public.calls_view_update() returns trigger language plpgsql as $b$
+    begin
+      case public.call_table_for(old.call_type)
+        when 'installation' then update public.installation_calls set %1$s where ucn = old.ucn;
+        when 'pm'           then update public.pm_calls           set %1$s where ucn = old.ucn;
+        else                     update public.field_calls        set %1$s where ucn = old.ucn;
+      end case;
+      return new;
+    end $b$;
+  $f$, set_list);
+end $regen$;
+
+-- ---- a visit entry spends the re-open --------------------------------------
+create or replace function public.sync_call_last_visit(p_ucn text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.calls c
+     set last_status   = coalesce(r.call_status, ''),
+         last_visit_at = r.visit_at,
+         reopened_at   = null
+    from (
+      select call_status, visit_at
+        from public.reports
+       where ucn = p_ucn
+       order by updated_at desc nulls last, id desc
+       limit 1
+    ) r
+   where c.ucn = p_ucn;
+
+  if not found then  -- no visits left (or none matched): back to Unattended
+    update public.calls set last_status = '', last_visit_at = null where ucn = p_ucn;
+  end if;
+end $$;
+
+-- ---- re-open ---------------------------------------------------------------
+-- The Hotline (pending.register) or anyone who may create calls. Security
+-- definer so the re-open lands even where the caller may not write the row.
+create or replace function public.reopen_call(p_ucn text, p_reason text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare v_solved boolean; v_reopened timestamptz;
+begin
+  if not (public.has_perm('pending.register') or public.has_perm('calls.create')) then
+    raise exception 'RBAC: your role cannot re-open a call';
+  end if;
+
+  select open_state = 'Solved', reopened_at into v_solved, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_solved is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is not null then raise exception 'Call % is already re-opened', p_ucn; end if;
+  if not v_solved then raise exception 'Call % is not closed, so there is nothing to re-open', p_ucn; end if;
+
+  update public.calls
+     set reopened_at = now(), reopen_count = coalesce(reopen_count, 0) + 1
+   where ucn = p_ucn;
+
+  return p_ucn;
+end $$;
+grant execute on function public.reopen_call(text, text) to authenticated;
+
+-- ---- views: effective state, re-open included ------------------------------
+drop view if exists public.pending_calls;
+drop view if exists public.call_state;
+
+create view public.call_state as
+  select ucn, last_status, last_visit_at, reopened_at, reopen_count,
+         case when reopened_at is not null then 'Reopened' else open_state end as state
+    from public.calls;
+
+create view public.pending_calls as
+  select * from public.calls where open_state <> 'Solved' or reopened_at is not null;
+
+alter view public.call_state    set (security_invoker = on);
+alter view public.pending_calls set (security_invoker = on);
+
+grant select on public.call_state    to authenticated;
+grant select on public.pending_calls to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0058_close_reopened_call.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Closing a re-opened call again, without inventing a visit.
+--
+-- A call is often re-opened only to correct it — the complaint was typed
+-- wrong, the wrong machine was picked. Once corrected there was no way back:
+-- the state comes from the latest visit, so the only route to Closed was to
+-- enter a visit that never happened.
+--
+-- `close_reopened_call` withdraws the re-open instead: `reopened_at` is
+-- cleared, so the call falls back to what its last visit said (Solved), and
+-- nothing is added to its visit history.
+--
+-- The re-open count is given back. `reopened_at` is only set while NO visit
+-- has followed the re-open — once one is entered, sync_call_last_visit clears
+-- it and the count stands. So a re-open that is withdrawn never led to a
+-- visit: it was an edit, and "how many calls were re-opened" should not count
+-- it.
+-- ===========================================================================
+
+create or replace function public.close_reopened_call(p_ucn text, p_reason text default '')
+returns text language plpgsql security definer set search_path = public as $$
+declare v_reopened timestamptz; v_found boolean;
+begin
+  if not (public.has_perm('pending.register') or public.has_perm('calls.create')) then
+    raise exception 'RBAC: your role cannot close a re-opened call';
+  end if;
+
+  select true, reopened_at into v_found, v_reopened
+    from public.calls where ucn = p_ucn;
+  if v_found is null then raise exception 'No call with UCN %', p_ucn; end if;
+  if v_reopened is null then
+    raise exception 'Call % is not re-opened — close it by entering the visit that solved it', p_ucn;
+  end if;
+
+  update public.calls
+     set reopened_at  = null,
+         reopen_count = greatest(coalesce(reopen_count, 0) - 1, 0)
+   where ucn = p_ucn;
+
+  return p_ucn;
+end $$;
+grant execute on function public.close_reopened_call(text, text) to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0044_daily_call_review.sql
@@ -8795,6 +9018,78 @@ begin
   return n;
 end $$;
 grant execute on function public.receive_spare_shipments(bigint[], text, text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0059_consumption_reconciliation.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- RECONCILIATION CONSUMPTION — an Admin / Spare Coordinator can book a spare
+-- against a call directly into consumption, without waiting for the engineer's
+-- call report.
+--
+-- These rows are stock adjustments made by the office, not something the
+-- engineer wrote, so they are FLAGGED: `source` is 'Reconciliation' rather than
+-- the default 'Report'. Hand stock already treats consumption as stock leaving
+-- the engineer's hands, so a reconciliation line corrects the balance the same
+-- way a reported one does — the flag is what keeps the two tellable apart.
+--
+-- Guarded by its own permission (consumption.reconcile) so an engineer cannot
+-- write one, and stamped with who entered it. spare_consumption is already an
+-- audited table (0048), so every reconciliation carries a full before/after
+-- trail.
+-- ===========================================================================
+
+alter table public.spare_consumption
+  add column if not exists source      text not null default 'Report',   -- Report | Reconciliation
+  add column if not exists remarks     text default '',                  -- why the adjustment was made
+  add column if not exists recorded_by text default '';                  -- who entered it (name)
+
+create index if not exists spare_consumption_source_idx on public.spare_consumption (source);
+
+-- Stamp the author so the register's Created By stops coming back empty.
+create or replace function public.consumption_before_insert()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.created_by is null then new.created_by := auth.uid(); end if;
+  if coalesce(new.source, '') = '' then new.source := 'Report'; end if;
+  return new;
+end $$;
+drop trigger if exists consumption_biu on public.spare_consumption;
+create trigger consumption_biu before insert on public.spare_consumption
+  for each row execute function public.consumption_before_insert();
+
+-- Writing a RECONCILIATION line needs the new permission; an ordinary reported
+-- line keeps the existing rule (the engineer reporting, or Stores).
+drop policy if exists cons_write on public.spare_consumption;
+create policy cons_write on public.spare_consumption for insert
+  with check (
+    case when coalesce(source, 'Report') = 'Reconciliation'
+         then public.has_perm('consumption.reconcile')
+         else (public.has_perm('calls.report') or public.has_perm('spare.dispatch'))
+    end
+  );
+
+-- Grant it to the roles that do the reconciling (merge — anything an admin has
+-- already tuned on these roles is kept).
+do $$
+declare r text;
+begin
+  foreach r in array array['admin', 'spare_coordinator'] loop
+    insert into public.app_roles as ar (role, label, permissions)
+    values (r, initcap(replace(r, '_', ' ')), '["consumption.reconcile"]'::jsonb)
+    on conflict (role) do update set
+      permissions = (
+        select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+        from (
+          select jsonb_array_elements_text(ar.permissions) as v
+          union
+          select 'consumption.reconcile' as v
+        ) u
+      ),
+      updated_at = now();
+  end loop;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
