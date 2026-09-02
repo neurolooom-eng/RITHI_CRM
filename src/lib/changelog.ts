@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.35',
+    date: '2026-09-02',
+    title: 'Bulk Uploads says what it is actually doing with a column',
+    changes: [
+      'A column with no field of its own was listed as “Columns this register does not know”, which read like a failure on a load that was entirely correct. Where the register keeps those columns — as the visit registers do — it now says “Kept on the row”, and says plainly that nothing is lost.',
+      'Field Reports was one of these: all 7,509 rows load, and Job Done, Complaint Observation, Hour Meter Reading and Software Version are all stored with the visit, which is where the app reads them from.',
+      'Only a register with nowhere to put a column now says so, and suggests it may be the wrong register for the file.',
+      'The recognised-column list shows each field by its own name rather than by whichever heading was matched first.',
+    ],
+  },
+  {
     version: '0.9.34',
     date: '2026-09-02',
     title: 'Visit reports from the call registers',

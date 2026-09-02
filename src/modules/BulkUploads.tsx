@@ -77,7 +77,9 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
             <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}>
               {open ? '⌄' : '›'} {s.rows.length} ready
               {s.skipped.length ? ` · ${s.skipped.length} held back` : ''}
-              {s.unmatched.length ? ` · ${s.unmatched.length} unknown column${s.unmatched.length === 1 ? '' : 's'}` : ''}
+              {s.unmatched.length
+                ? ` · ${s.unmatched.length} ${def.extraInto ? 'kept on the row' : 'ignored'}`
+                : ''}
             </button>
             <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length} onClick={() => void write()}>
               ⤵ Upload {s.rows.length}
@@ -109,12 +111,26 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
               <b>Set by this register, so the file's own value is ignored:</b> {s.stamped.join(', ')}.
             </p>
           )}
+          {/* A column with no field of its own is NOT a problem when the
+              register keeps it — the visit's own answers (Job Done, Hour Meter,
+              Software Version) live exactly there, and that is where the app
+              reads them from. Calling it "does not know" read like a failure on
+              a load that was entirely correct. */}
           {s.unmatched.length > 0 && (
             <p style={{ margin: '4px 0' }}>
-              <b>Columns this register does not know:</b> {s.unmatched.join(', ')}.{' '}
-              {def.extraInto
-                ? 'They are kept on the row as written.'
-                : 'They are ignored — if you expected them to load, this may be the wrong register for this file.'}
+              {def.extraInto ? (
+                <>
+                  <b>Kept on the row ({s.unmatched.length}):</b> {s.unmatched.join(', ')}.{' '}
+                  These have no field of their own, so they are stored with the record exactly
+                  as written — nothing is lost.
+                </>
+              ) : (
+                <>
+                  <b>Not loaded ({s.unmatched.length}):</b> {s.unmatched.join(', ')}.{' '}
+                  This register has nowhere to put them. If you expected them to load, this may
+                  be the wrong register for this file.
+                </>
+              )}
             </p>
           )}
           {s.skipped.length > 0 && (
@@ -125,7 +141,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
             </p>
           )}
           <p className="muted" style={{ margin: '4px 0' }}>
-            <b>Recognised columns:</b> {def.cols.map((c) => c.from[0] + (c.required ? ' *' : '')).join(' · ')}
+            <b>Recognised columns:</b> {def.cols.map((c) => c.to + (c.required ? ' *' : '')).join(' · ')}
           </p>
           {s.rows.length > 0 && (
             <pre style={{ margin: '4px 0', overflowX: 'auto', maxHeight: 140, background: 'var(--surface-2, #f6f6f6)', padding: 8 }}>
