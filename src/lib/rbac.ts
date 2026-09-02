@@ -43,6 +43,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/pending-calls', label: 'Pending Calls' },
   { path: '/reports', label: 'Reports' },
   { path: '/report-mapping', label: 'Bulk Report Mapping', admin: true },
+  { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-dispatch', label: 'Pending Dispatch' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
@@ -225,6 +226,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/pending-calls', label: 'Pending Calls', actions: [] },
     { path: '/reports', label: 'Reports', actions: ['reports.view'] },
     { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
+    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
   ] },
   { title: 'Spares', pages: [
     { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },

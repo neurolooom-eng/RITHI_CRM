@@ -1717,6 +1717,50 @@ export async function pingSupabase(): Promise<{ ok: boolean; error?: string; cou
 // ---------------------------------------------------------------------------
 export interface KbAttachment { name: string; url: string }
 // ---------------------------------------------------------------------------
+// INDIVIDUAL REGISTER UPLOADS — write shaped rows to whichever table the
+// register named. Upserts where the table has a natural key, so a run that
+// stopped half way can simply be run again; plain inserts where it has none,
+// which the screen says out loud before you press the button.
+// ---------------------------------------------------------------------------
+export async function uploadRows(
+  table: string,
+  rows: Record<string, unknown>[],
+  conflict?: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, written: 0, error: 'Database not connected.' };
+  // Reports carry a large jsonb payload and every cover item re-syncs the
+  // machine it names, so those batches stay small enough to finish inside the
+  // server's statement timeout.
+  const SIZE = /reports|_items$/.test(table) ? 300 : 500;
+  let written = 0;
+  for (let i = 0; i < rows.length; i += SIZE) {
+    const slice = rows.slice(i, i + SIZE);
+    const { error } = conflict
+      ? await c.from(table).upsert(slice, { onConflict: conflict })
+      : await c.from(table).insert(slice);
+    if (error) {
+      const m = errMsg(error);
+      const hint = /timeout/i.test(m)
+        ? ' — the database cancelled the batch. Re-run it: rows already written are updated, not duplicated.'
+        : /schema cache|does not exist/i.test(m)
+          ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
+          : '';
+      return { ok: false, written, error: `${m} (row ~${i + 1})${hint}` };
+    }
+    written += slice.length;
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written };
+}
+
+export async function countTable(table: string): Promise<number | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { count, error } = await c.from(table).select('*', { count: 'exact', head: true });
+  return error ? null : (count ?? 0);
+}
+
+// ---------------------------------------------------------------------------
 // BULK REPORT → CALL MAPPING (recovering lost visit history).
 // ---------------------------------------------------------------------------
 

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.24',
+    date: '2026-09-02',
+    title: 'Bulk Uploads — one uploader per register',
+    changes: [
+      'New admin screen with a separate uploader for every register: the three call registers, the three visit-report registers, spares (request, lines with their RM / Commercial / NSM approvals, stock out, consumption, MRN, stock transfer), feedback, the DCCR register, the masters and the cover registers.',
+      'Every master value list gets its own uploader too — Call Type, Standard Complaint, Pending Reason and the rest. The list is stamped from the uploader you picked, which is the thing a spreadsheet\u2019s headers can never tell us: a Call Type sheet and a Pending Reason sheet look identical.',
+      'Same for the call registers: a PM sheet uploaded under PM Calls is stamped PM and cannot land as a field call.',
+      'Every file previews before anything is written — how many rows are ready, which were held back and why, and any column the register did not recognise. That last one is what catches a file loaded against the wrong register.',
+      'Dates read day-first (03/04/2026 is 3 April), and registers with a natural key can be re-run safely; the ones without say so plainly.',
+    ],
+  },
+  {
     version: '0.9.23',
     date: '2026-09-02',
     title: 'Bulk Report Mapping — putting recovered visits back on their calls',

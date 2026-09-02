@@ -41,6 +41,7 @@ import { VersionHistory } from './modules/VersionHistory';
 import { KnowledgeBase } from './modules/KnowledgeBase';
 import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
 import { ReportMapping } from './modules/ReportMapping';
+import { BulkUploads } from './modules/BulkUploads';
 import { PmBulkUpload } from './modules/PmBulkUpload';
 import { SoftwareValidation } from './modules/SoftwareValidation';
 import { AdminConfig } from './modules/AdminConfig';
@@ -105,6 +106,7 @@ function Shell() {
         <Route path="/masters" element={<AllMasters />} />
         <Route path="/masters/:key" element={<MasterListPage />} />
         <Route path="/report-mapping" element={<ReportMapping />} />
+        <Route path="/bulk-uploads" element={<BulkUploads />} />
         <Route path="/service-manuals" element={<ServiceManuals />} />
         <Route path="/qms" element={<QmsDocuments />} />
         <Route path="/warranties" element={<WarrantyRegister />} />
