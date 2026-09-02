@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.8.68',
+    date: '2026-09-01',
+    title: 'Acknowledge each spare delivery as it arrives',
+    changes: [
+      'When a spare comes in more than one delivery, the engineer now confirms each one as it lands \u2014 \u201cMark received\u201d appears as soon as something has been sent, instead of waiting for the whole quantity. The spare is only marked Received once every unit has been confirmed.',
+      'Spare Requests gains a Sent column showing \u201c1 of 2\u201d while a request is part-delivered, and how many units are still to be confirmed.',
+      'Needs a database script run once (receive_per_shipment.sql).',
+    ],
+  },
+  {
     version: '0.8.67',
     date: '2026-09-01',
     title: 'Stores can send part of a spare request',

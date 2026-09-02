@@ -7,11 +7,11 @@ import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../li
 import { listTabRows, sheetsConfigured, listUsers } from '../lib/sheets';
 import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
-  searchCalls, supabaseConfigured,
+  searchCalls, supabaseConfigured, receiveSpareShipments,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
-  deriveStage, buildPatch, receivePatch, dropPatch, actionable, needsReview, trail,
+  deriveStage, buildPatch, receivePatch, dropPatch, actionable, needsReview, trail, awaitingReceipt,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
@@ -397,6 +397,25 @@ const SUPA_COLUMNS: Column<Row>[] = [
   { key: 'product_name', header: 'Product', width: 120 },
   { key: 'part', header: 'Part', width: 180 },
   { key: 'qty', header: 'Qty', width: 55, align: 'right', wrap: false },
+  // Partial dispatch: what has actually gone out, and what the engineer has
+  // still to acknowledge. Blank until a line is part-sent, so the common case
+  // stays uncluttered.
+  {
+    key: 'dispatched_qty', header: 'Sent', width: 110, wrap: false,
+    render: (r) => {
+      const sent = Number(g(r, 'dispatched_qty')) || 0;
+      const want = Number(g(r, 'qty')) || 0;
+      if (!sent) return <span className="muted">—</span>;
+      const owed = awaitingReceipt(r);
+      return (
+        <span title={owed ? `${owed} delivered, not yet acknowledged` : undefined}>
+          {sent === want ? <span className="badge badge-success">all {sent}</span>
+                         : <span className="badge badge-warning">{sent} of {want}</span>}
+          {owed > 0 && <span className="badge badge-info" style={{ marginLeft: 4 }}>{owed} to confirm</span>}
+        </span>
+      );
+    },
+  },
   { key: 'item_status', header: 'Item', width: 70, wrap: false },
   { key: 'stage', header: 'Stage', width: 130, wrap: false, render: (r) => stageBadge(deriveStage(r)) },
   { key: 'rm_approval', header: 'RM', width: 100, render: (r) => badge(g(r, 'rm_approval')) },
@@ -598,6 +617,19 @@ export function SpareRequests() {
     });
 
     try {
+      // Receipt follows the stock: acknowledge the SHIPMENTS on this line (or on
+      // every line of the OR at this stage), not just the line's own flag.
+      if (p.kind === 'receive') {
+        const ids = (scope === 'or' ? sameStageLines(row) : [row])
+          .map((l) => Number((l as Row).line_id ?? (l as Row).id))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const res = await receiveSpareShipments(ids, actor, input.remarks ?? '');
+        audit(res);
+        if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not acknowledge.' }); return; }
+        setMsg({ tone: 'ok', text: `${res.count ?? 0} delivery${(res.count ?? 0) === 1 ? '' : ' lines'} acknowledged.` });
+        await load();
+        return;
+      }
       if (scope === 'or') {
         const res = await updateSpareRequestLinesAtStage(String(row.uid), [stage], patch);
         audit(res);
@@ -651,10 +683,13 @@ export function SpareRequests() {
         {dropBtn}
       </div>
     );
-    if (stage === 'Dispatched') return (
+    if (stage === 'Dispatched' || awaitingReceipt(row) > 0) return (
       <div className="row">
-        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'receive', row, scope: 'line', lines: 1 })}>📥 Mark received</button>
+        <button className={`btn ${size} btn-primary`} onClick={() => setPending({ kind: 'receive', row, scope: 'line', lines: 1 })}>
+          📥 Mark received{awaitingReceipt(row) > 0 && stage !== 'Dispatched' ? ` (${awaitingReceipt(row)})` : ''}
+        </button>
         {bulk('receive')}
+        {dropBtn}
       </div>
     );
     return (

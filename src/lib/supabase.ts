@@ -1103,6 +1103,19 @@ export async function dispatchSpareLines(
   return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
 }
 
+// The engineer acknowledges every outstanding SHIPMENT on these lines. A line
+// whose whole quantity is now confirmed closes as Received; one still waiting
+// for a balance stays at Stores.
+export async function receiveSpareShipments(
+  lineIds: number[], actor: string, remarks = '',
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const { data, error } = await must().rpc('receive_spare_shipments', {
+    p_line_ids: lineIds, p_actor: actor, p_remarks: remarks,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, count: Number(data ?? 0) };
+}
+
 // Stores drops approved lines instead of sending them (short supply / no longer
 // needed). Terminal, not a dispatch — no DC is generated. Needs spare.dispatch
 // (the stage guard checks it because stores_status changes).

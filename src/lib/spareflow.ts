@@ -72,6 +72,13 @@ export function stageAction(stage: Stage): string | null {
   }
 }
 
+// PARTIAL DISPATCH: units delivered on a stock out but not yet acknowledged by
+// the engineer. Receipt follows the stock, so a line can have something to
+// acknowledge while it is still at Stores waiting for its balance.
+const num = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+export const awaitingReceipt = (r: SpareReq): number =>
+  Math.max(num((r as Record<string, unknown>).dispatched_qty) - num((r as Record<string, unknown>).received_qty), 0);
+
 // True when the signed-in user can move this request forward right now.
 //
 // Two restrictions beyond the permission itself:
@@ -89,6 +96,9 @@ export function actionable(
   mayRmApprove?: (engineer: unknown) => boolean,
 ): boolean {
   const stage = deriveStage(r);
+  // Anything delivered and not yet acknowledged is the engineer's to confirm —
+  // even at Stores, where a part-sent line waits for the rest.
+  if (awaitingReceipt(r) > 0 && can('spare.receive') && isOwnRequest(r, email)) return true;
   const action = stageAction(stage);
   if (!action || !can(action)) return false;
   if (stage === 'Dispatched') return isOwnRequest(r, email);
