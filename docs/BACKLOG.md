@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-01 (role/visibility, search indexes, dispatch `uid` fix, partial dispatch + per-shipment receipt, and guide screenshots all APPLIED live)_
+_Last updated: 2026-09-01 (live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
 
 ---
 
@@ -12,6 +12,13 @@ _Last updated: 2026-09-01 (role/visibility, search indexes, dispatch `uid` fix, 
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- **`search_indexes.sql` (re-run)** — the first run had created only the 37
+  trigram indexes; the re-run added the 8 btree (`_eq`) ones that serve the
+  exact-match / IN lookups (products by party for the request cascade, calls by
+  serial for "open calls"). A trigram index cannot serve `=`/`IN`.
+- **`pm_schedule_fields.sql`** (0050) — `reg_at` + `added_on`.
+- **`harden_call_split.sql`** (0041) — per-table CHECK so a call can never be
+  filed under the wrong type.
 - **`partial_dispatch.sql`** (0055) — Stores can send fewer units than were
   requested; the line stays queued for its remainder. `dispatched_qty` on the
   line, a `spare_dispatch_lines` table (a line can span several stock outs),
@@ -55,8 +62,8 @@ with *some* permissions but missing `calls.view` silently blocks everything.
 live project — verified with `check_db_state.sql`. The "SQL to run" notes below
 were STALE: `0044_daily_call_review.sql` cannot even run without `field_calls`,
 so the split necessarily went in with the Daily Call Review work.
-**Do not run `split_call_tables.sql` again.** Stage 3 hardening (0041) is still
-not detected and remains optional.
+**Do not run `split_call_tables.sql` again.** Stage 3 hardening (0041) has since
+been applied too.
 
 - **Stage 1 — DB (applied):** `0040_call_tables_split.sql` splits
   `calls` into `field_calls` / `installation_calls` / `pm_calls`. `calls`
@@ -72,7 +79,7 @@ not detected and remains optional.
 - **Stage 3 — hardening (built, SQL to run):** `0041_call_split_hardening.sql`
   adds a per-table CHECK (`call_table_for(call_type)`), so a row can never be
   misfiled, and drops the redundant per-table call_type index. `calls` view
-  kept (recommended). **⏳ Run `harden_call_split.sql` after the split.**
+  kept (recommended). ✅ Applied live (2026-09-01).
 - Related (all shipped): PM bulk upload (v0.8.46), Commercial-gated Installation
   creation (v0.8.47), SLA rules engine (v0.8.49), notification bell (v0.8.50).
 
@@ -92,19 +99,12 @@ not detected and remains optional.
   `reg_date`↔`reg_at`, and rebuilds the `calls`/`pending_calls` views + INSTEAD
   OF routing. Validated on PG16 (fresh-month 00:30+5s, backdated +10s
   continuation, derivation both ways, numbering unchanged).
-  **⏳ STILL TO RUN: `pm_schedule_fields.sql`.** The split is applied, so it is
-  no longer a no-op — `reg_at` / `added_on` are confirmed MISSING live, which
-  means PM Bulk Upload's due-month + registration date-and-time do not work yet.
+  ✅ **Applied live (2026-09-01)** — `reg_at` / `added_on` are in place, so PM
+  Bulk Upload's due-month + registration date-and-time are now functional.
 - **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Queued — waiting on the user
-- **⚠️ Re-run `search_indexes.sql`** — the live project has the 37 trigram
-  indexes but **0 of the btree (`_eq`) ones**, i.e. the FIRST version of the
-  script was run. The btree indexes are what serve the exact-match/IN lookups:
-  products by party (the request-a-call cascade) and calls by serial (the
-  "open calls" column). Until they exist, picking a Party still returns no
-  products / times out. The current script creates btree FIRST, then trigram.
 - **Split User Access out of User Master** (deferred by the user, 2026-09-01).
   `/users` currently redirects into **User Master**, which carries both the
   directory (name, designation, region, reporting/regional manager, validity)
