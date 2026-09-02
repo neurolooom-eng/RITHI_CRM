@@ -199,7 +199,7 @@ export function SpareConsumption() {
     const id = Number(adjust.row._dbId);
     const qty = Number(adjust.qty);
     if (!Number.isFinite(id) || id <= 0) { setMsg({ tone: 'error', text: 'This line has no database id — Refresh and try again.' }); return; }
-    if (!Number.isFinite(qty) || qty <= 0) { setMsg({ tone: 'error', text: 'Quantity must be more than zero.' }); return; }
+    if (!Number.isFinite(qty) || qty < 0) { setMsg({ tone: 'error', text: 'Quantity cannot be negative — use 0 to void the line.' }); return; }
     if (qty > adjust.max) { setMsg({ tone: 'error', text: `Only ${adjust.max} possible — the rest is not in that engineer's hand stock.` }); return; }
     if (!adjust.reason.trim()) { setMsg({ tone: 'error', text: 'Say why the quantity is being adjusted.' }); return; }
     setAdjusting(true);
@@ -310,9 +310,10 @@ export function SpareConsumption() {
   if (qtyCol) {
     qtyCol.render = (r: Row) => {
       const orig = g(r, 'original_qty');
+      const voided = Number(g(r, 'qty')) === 0;
       return (
         <span title={orig ? `Engineer reported ${orig}; adjusted by ${g(r, 'adjusted_by') || 'the office'}` : undefined}>
-          {g(r, 'qty')}
+          {voided ? <span className="badge badge-neutral">Voided</span> : g(r, 'qty')}
           {!!orig && <span className="badge badge-warning" style={{ marginLeft: 6 }}>was {orig}</span>}
         </span>
       );
@@ -378,11 +379,12 @@ export function SpareConsumption() {
             </div>
             <div className="field">
               <label className="field-label">Quantity <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
-              <input className="input" type="number" min={1} max={adjust.max} style={{ width: 140 }}
+              <input className="input" type="number" min={0} max={adjust.max} style={{ width: 140 }}
                 value={adjust.qty} autoFocus
                 onChange={(e) => setAdjust((a) => a && ({ ...a, qty: e.target.value }))} />
               <span className="muted" style={{ fontSize: 12 }}>
-                Reported {g(adjust.row, 'original_qty') || g(adjust.row, 'qty')} · up to {adjust.max} (what is in hand)
+                Reported {g(adjust.row, 'original_qty') || g(adjust.row, 'qty')} · up to {adjust.max} (what is in hand).
+                Set it to <b>0</b> to void the line — it stays on record and the spare goes back to the engineer's stock.
               </span>
             </div>
             <div className="field">

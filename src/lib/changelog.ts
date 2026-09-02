@@ -12,13 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.9',
+    version: '0.9.10',
     date: '2026-09-02',
-    title: 'Correct a reported spare quantity, with the change kept',
+    title: 'Void a spare booked in error',
     changes: [
-      'Spare Coordinator, Hotline and Admin can now adjust the quantity on a consumption line the engineer already reported \u2014 the \u270e beside the line. Until now the line could not be changed at all, so a wrong quantity stayed wrong and the stock balance with it.',
-      'The line keeps what was originally reported, the reason, and who changed it \u2014 shown as \u201cwas 2\u201d next to the quantity \u2014 and the full before/after is written to the audit trail.',
-      'Only the quantity can move: the call, part, engineer and source are fixed, and it cannot be raised beyond what that engineer has in hand.',
+      'A consumption line entered by mistake can now be set to 0 \u2014 it is marked Voided, stays on record with what it was and why, and the spare goes back into the engineer\u2019s hand stock. Quality records are never deleted, so voiding is how a wrong entry is undone.',
+      'Creating a line at zero is still refused, and a quantity can never go negative.',
       'Needs a database script run once (consumption_reconciliation.sql) \u2014 re-run it if you applied an earlier copy.',
     ],
   },

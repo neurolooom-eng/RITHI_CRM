@@ -239,7 +239,8 @@ const MODULES = {
             '0059_consumption_reconciliation.sql',
             '0060_reconcile_within_handstock.sql',
             '0061_cap_all_consumption.sql',
-            '0062_adjust_consumption_qty.sql'],
+            '0062_adjust_consumption_qty.sql',
+            '0063_void_consumption_line.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
