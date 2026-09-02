@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-01 (role/visibility reconciliation, search indexes and the dispatch `uid` fix all APPLIED live; v0.8.66)_
+_Last updated: 2026-09-01 (role/visibility, search indexes, dispatch `uid` fix, partial dispatch + per-shipment receipt, and guide screenshots all APPLIED live)_
 
 ---
 
@@ -12,6 +12,16 @@ _Last updated: 2026-09-01 (role/visibility reconciliation, search indexes and th
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:
+- **`partial_dispatch.sql`** (0055) — Stores can send fewer units than were
+  requested; the line stays queued for its remainder. `dispatched_qty` on the
+  line, a `spare_dispatch_lines` table (a line can span several stock outs),
+  existing dispatches back-filled, `spare_pending_dispatch.qty` = the REMAINDER,
+  hand stock counts what was dispatched, `dispatch_spare_lines(..., p_qtys)`
+  rejects over-sending.
+- **`receive_per_shipment.sql`** (0056) — the engineer acknowledges each delivery
+  as it lands (`received_qty` on the line, receipt stamps per shipment,
+  `receive_spare_shipments()`); the line only turns **Received** once every unit
+  is confirmed, so the stage logic is unchanged.
 - **`help_screenshots.sql`** (0043, knowledge_base) — the guide's per-task
   screenshots. Admins can now add/replace/remove a picture on each step of
   "How to use RITHI CRM"; everyone else sees them.
