@@ -92,11 +92,19 @@ with checks(sort_order, bundle, provides, present) as (
     (15, 'handstock', 'handstock_balance + handstock_movements, and engineer_stock over them (0023)',
         (to_regclass('public.handstock_balance')   is not null
      and to_regclass('public.handstock_movements') is not null)),
-    (16, 'rbac: all-masters module', 'mod:/masters granted to the master-register roles (0013)',
-        (to_regclass('public.app_roles') is not null
-     and not exists (select 1 from public.app_roles
-                      where coalesce(permissions, '[]'::jsonb) ? 'mod:/parts'
-                        and not coalesce(permissions, '[]'::jsonb) ? 'mod:/masters'))),
+    -- 0013 is a pure DATA grant with no object to look for, so this can only be
+    -- inferred. It used to read "no role has mod:/parts without mod:/masters",
+    -- which was right when the two always travelled together — but since 0067
+    -- masters can be granted LIST BY LIST, and an admin narrowing a role to
+    -- Part Master without All Masters is now a deliberate, supported setting.
+    -- Flagging that as a missing migration sent people to re-run a grant that
+    -- would silently widen a role they had just narrowed. So this now tests the
+    -- only thing that genuinely means "never applied": that NO role at all can
+    -- open All Masters.
+    (16, 'rbac: all-masters module', 'at least one role holds mod:/masters (0013). Per-role narrowing is expected — see 0067.',
+        (to_regclass('public.app_roles') is null
+      or exists (select 1 from public.app_roles
+                  where coalesce(permissions, '[]'::jsonb) ? 'mod:/masters'))),
     (17, 'handstock: material returns (MRN)', 'material_returns table + the Return arm on the balance (0039)',
         (to_regclass('public.material_returns') is not null
      and exists (select 1 from information_schema.columns
