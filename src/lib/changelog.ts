@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.31',
+    date: '2026-09-02',
+    title: 'Field Reports, and the “(F)” columns on PM calls',
+    changes: [
+      'PM calls: where a column has both a plain and an “(F)” version, the (F) one now wins — it is the maintained one. Call Type and the complaints agree either way, but Call Allocated To differs on 1,556 of 7,029 rows, so those calls would have gone to an engineer who no longer has them.',
+      'Field Reports now reads the export as written: Visiting Service Engineer, Email-ID, Call Pending Reason, and both dates — “Visit Date & Time” for when the visit happened and “Visit Entry Date” for when it was written up.',
+      'That second one decides things: a call takes its status from the latest ENTRY, so without it every recovered report would have carried the same timestamp and an arbitrary one would have set each call’s status.',
+      'Dates now read in every shape these exports use — 03-September-2026, 08 06 2026 and 03/09/2026 — still day-first, so 03/04 is 3 April.',
+      'Everything the engineer wrote (Job Done, Complaint Observation, Hour Meter, Software Version and the rest) is kept on the visit as written.',
+    ],
+  },
+  {
     version: '0.9.30',
     date: '2026-09-02',
     title: 'Bulk Uploads: DCCR, Installation and PM registers',

@@ -86,27 +86,42 @@ const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5,
 // Day-first, always. These are Indian exports: reading 03/04/2026 as 4 March
 // instead of 3 April moves a record by a month and nothing downstream notices.
 export function toDate(v: unknown): string | null {
+  const p = parseParts(v);
+  return p ? `${p.y}-${pad(p.mo)}-${pad(p.d)}` : null;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// One parser for every shape these exports actually use, so a date is read the
+// same way whether it lands in a date column or a timestamp one:
+//   2026-09-03            ISO
+//   03-September-2026     day, full or short month name, year  (any separator)
+//   08 06 2026            day month year, SPACE separated — the Visit Date
+//   03/09/2026            day first, always: these are Indian exports, and
+//                         reading 03/04 as 4 March would move a visit a month
+// with an optional hh:mm[:ss] after any of them.
+function parseParts(v: unknown): { y: number; mo: number; d: number; hh: number; mi: number; ss: number } | null {
   const s = String(v ?? '').trim();
   if (!s) return null;
-  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = /^(\d{1,2})[-/ ]([A-Za-z]{3,})[-/ ](\d{4})/.exec(s);
-  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return `${m[3]}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
-  m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/.exec(s);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const t = /[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  const time = { hh: Number(t?.[1] ?? 0), mi: Number(t?.[2] ?? 0), ss: Number(t?.[3] ?? 0) };
+
+  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
+  if (m) return { y: +m[1], mo: +m[2], d: +m[3], ...time };
+
+  m = /^(\d{1,2})[-/. ]([A-Za-z]{3,})[-/. ](\d{4})/.exec(s);
+  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return { y: +m[3], mo, d: +m[1], ...time }; }
+
+  m = /^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/.exec(s);
+  if (m) { const mo = +m[2]; if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d: +m[1], ...time }; }
+
   return null;
 }
 
 export function toTs(v: unknown): string | null {
-  const s = String(v ?? '').trim();
-  if (!s) return null;
-  const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
-  if (m) {
-    const [, d, mo, y, hh = '0', mi = '0', ss = '0'] = m;
-    const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mi), Number(ss));
-    return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
-  }
-  const dt = new Date(s);
+  const p = parseParts(v);
+  if (!p) return null;
+  const dt = new Date(p.y, p.mo - 1, p.d, p.hh, p.mi, p.ss);
   return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
 }
 
@@ -255,9 +270,20 @@ const CALL_COLS: Col[] = [
   TEXT('product_name', 'product name', 'product', 'model'),
   TEXT('serial', 'product serial number', 'item serial number', 'serial no', 'serial number', 'sr no'),
   TEXT('item_status', 'item status'),
-  TEXT('standard_complaint', 'standard complaint'),
-  TEXT('complaint_reported', 'complaint reported', 'reported problem'),
-  TEXT('allocated_to', 'call allocated to', 'allocated to', 'engineer'),
+  // The "(F)" columns are the FORMULA-maintained ones and are what the register
+  // currently holds, so they are listed FIRST and win where a file has both. On
+  // the PM export the two agree for complaint and call type, but `Call
+  // Allocated To (F)` differs from the plain column on 1,556 of 7,029 rows —
+  // the plain one is stale, and preferring it would have allocated those calls
+  // to an engineer who no longer has them.
+  //
+  // Written out rather than built with TEXT(), because TEXT() prepends the
+  // COLUMN NAME as the first alias — `standard_complaint` normalises to
+  // "standard complaint" and so matched the plain header before the (F) one was
+  // ever tried. The helper is a convenience, not a place to hide precedence.
+  { to: 'standard_complaint', from: ['standard complaint (f)', 'standard_complaint', 'standard complaint'] },
+  { to: 'complaint_reported', from: ['complaint reported (f)', 'complaint_reported', 'complaint reported', 'reported problem'] },
+  { to: 'allocated_to', from: ['call allocated to (f)', 'allocated_to', 'call allocated to', 'allocated to', 'engineer'] },
   TEXT('allocated_to_email', 'allocated to email', 'engineer email'),
   TEXT('warranty_number', 'warranty number'),
   DATE('warranty_start', 'warranty start date', 'warranty start'),
@@ -283,9 +309,16 @@ const REPORT_COLS: Col[] = [
   { to: 'ucn', from: ['ucn', 'uc number'], required: true },
   TEXT('call_number', 'call number'),
   TEXT('call_status', 'call status', 'status'),
-  TEXT('pending_reason', 'pending reason'),
-  TEXT('engineer', 'engineer name'), TEXT('engineer_email', 'engineer email'),
-  TS('visit_at', 'visit date', 'date of visit'),
+  TEXT('pending_reason', 'call pending reason', 'pending reason'),
+  TEXT('engineer', 'visiting service engineer', 'engineer name'),
+  TEXT('engineer_email', 'email id', 'engineer email'),
+  TS('visit_at', 'visit date & time', 'visit date and time', 'visit date', 'date of visit'),
+  // WHEN THE ENTRY WAS MADE, which is not the same as when the visit happened —
+  // and it is what decides a call's status. `sync_call_last_visit` (0032) takes
+  // the LATEST ENTRY by updated_at, so leaving this to default to the import
+  // moment would give all 7,509 rows the same timestamp and let an arbitrary
+  // one decide every call.
+  TS('updated_at', 'visit entry date', 'entry date', 'updated at'),
   TEXT('manual_report', 'manual report', 'attachment'),
 ];
 

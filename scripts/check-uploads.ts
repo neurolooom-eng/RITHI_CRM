@@ -113,6 +113,30 @@ eq('...and an explicit registration date outranks it',
    shapeUpload(def('field_calls'), [{ 'UCN': 'X', 'Call Registeration Date': '05/03/2026', 'Timestamp': '02-Jan-2026 12:54:54' }]).rows[0].reg_date,
    '2026-03-05');
 
+console.log('\n-- the (F) columns are the maintained ones and win --');
+const pmF = shapeUpload(def('pm_calls'), [{
+  'UC Number': '24I01P0053', 'Call Allocated To': 'SHAHABAS', 'Call Allocated To (F)': 'ANUGRAH',
+  'Standard Complaint': 'PM', 'Standard Complaint (F)': 'SCHEDULED PM VISIT',
+}]);
+eq('the (F) engineer wins over the stale one', pmF.rows[0].allocated_to, 'ANUGRAH');
+eq('...and the (F) complaint too', pmF.rows[0].standard_complaint, 'SCHEDULED PM VISIT');
+eq('the stale column is kept aside', (pmF.rows[0].extra as Record<string, unknown>)['Call Allocated To'], 'SHAHABAS');
+
+console.log('\n-- the real Field Report export headers --');
+const fr = shapeUpload(def('field_reports'), [{
+  'UID': 'M_3698', 'UC Number': '26F15F0034', 'Call Number': 'R17697-MONNAL T75-10261',
+  'Visit Date & Time': '08 06 2026', 'Visit Entry Date': '03-September-2026 01:45:36',
+  'Visiting Service Engineer': 'A Kumar', 'Email-ID': 'a@x.com',
+  'Call Status': 'Solved - Report Completed', 'CALL PENDING REASON': 'AWAITING SPARE',
+  'Job Done': 'replaced sensor',
+}]);
+eq('space-separated dd mm yyyy is the visit', String(fr.rows[0].visit_at).slice(0, 10), '2026-06-08');
+eq('dd-Month-yyyy hh:mm:ss is the ENTRY', String(fr.rows[0].updated_at).slice(0, 10), '2026-09-03');
+eq('the visiting engineer is the engineer', fr.rows[0].engineer, 'A Kumar');
+eq('Email-ID is the engineer email', fr.rows[0].engineer_email, 'a@x.com');
+eq('call pending reason read', fr.rows[0].pending_reason, 'AWAITING SPARE');
+eq('what the engineer wrote is kept', fr.rows[0].data, { 'Job Done': 'replaced sensor' });
+
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
   'UC Number': '26A02F0001', 'CALL NUMBER': 'CL1',
