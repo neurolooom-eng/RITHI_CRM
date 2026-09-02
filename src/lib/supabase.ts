@@ -1776,7 +1776,11 @@ export async function uploadRows(
   // Reports carry a large jsonb payload and every cover item re-syncs the
   // machine it names, so those batches stay small enough to finish inside the
   // server's statement timeout.
-  const SIZE = /reports|_items$/.test(table) ? 300 : 500;
+  // Reports carry a large jsonb payload and every cover item re-syncs the
+  // machine it names, so those stay small. The history tables have no per-row
+  // trigger at all, so they go up in larger batches — 44,000 rows is 22
+  // requests rather than 88.
+  const SIZE = /reports|_items$/.test(table) ? 300 : /_history$|_opening$/.test(table) ? 2000 : 500;
   let written = 0;
   for (let i = 0; i < rows.length; i += SIZE) {
     const slice = rows.slice(i, i + SIZE);

@@ -140,7 +140,15 @@ with checks(sort_order, bundle, provides, present) as (
     (29, 'ownership transfer', 'ownership_transfers -- where each machine has been (0072)',
         to_regclass('public.ownership_transfers') is not null),
     (30, 'additional entry details', 'product_additional_entries -- warranty for a lost Sale Entry (0073)',
-        to_regclass('public.product_additional_entries') is not null)
+        to_regclass('public.product_additional_entries') is not null),
+    (31, 'handstock: opening pools', 'handstock_opening + the Opening arm on handstock_movements (0074)',
+        (to_regclass('public.handstock_opening') is not null
+     and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
+                  and definition ilike '%handstock_opening%'))),
+    (32, 'handstock: historical consumption', 'spare_consumption_history + its arm -- the pre-2026 record, uncapped (0075)',
+        (to_regclass('public.spare_consumption_history') is not null
+     and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
+                  and definition ilike '%spare_consumption_history%')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

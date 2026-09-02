@@ -46,6 +46,15 @@ eq('only the complete row loads', cons.rows.length, 1);
 eq('skipped rows name the file row', cons.skipped, [{ row: 3, why: 'no part' }, { row: 4, why: 'no qty' }]);
 eq('unrecognised column kept in data', cons.rows[0].data, { 'Job Note': 'kept' });
 
+console.log('\n-- several aliases present at once: the FIRST wins, the rest are kept --');
+const party = shapeUpload(def('parties'), [
+  { 'Party Name': 'HOSP', 'Type': 'CUSTOMER', 'Profile': 'GOVERNMENT', 'Address': 'Main St', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' },
+]);
+eq('Type beats Profile (alias order)', party.rows[0].party_type, 'CUSTOMER');
+eq('Address beats Billing Address', party.rows[0].address, 'Main St');
+eq('the losing aliases are kept, not dropped', party.rows[0].extra,
+   { 'Profile': 'GOVERNMENT', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' });
+
 console.log('\n-- a mis-picked register is visible before writing --');
 const wrong = shapeUpload(def('stock_transfers'), [{ 'UID': 'T1', 'From Engineer': 'A', 'To Engineer': 'B', 'Totally Unknown': 'x' }]);
 eq('unmatched headers reported', wrong.unmatched, ['Totally Unknown']);
@@ -71,11 +80,33 @@ eq('blank call type does not unset the stamp',
 console.log('\n-- every register is coherent --');
 UPLOADS.forEach((d) => {
   if (!d.cols.some((c) => c.required)) { console.log(`  ✗ ${d.key} has no required column`); fail++; }
-  if (d.conflict && !d.conflict.split(',').every((k) => d.cols.some((c) => c.to === k) || Object.keys(d.stamp ?? {}).includes(k))) {
-    console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not a column it fills`); fail++;
+  const keys = d.conflictFrom ?? d.conflict?.split(',') ?? [];
+  if (d.conflict && !keys.every((k) => d.cols.some((c) => c.to === k) || Object.keys(d.stamp ?? {}).includes(k))) {
+    console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not derived from anything it fills`); fail++;
   }
 });
-eq('registers defined', UPLOADS.length, 24);
+eq('registers defined', UPLOADS.length, 26);
+
+console.log('\n-- historical consumption --');
+const hist = shapeUpload(def('spare_consumption_history'), [
+  { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Qty': '2', 'Source': 'AppSheet 2023', 'Row ID': 'R7', 'Date': '15/03/2023', 'Job Note': 'kept' },
+  { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Qty': '1' },
+]);
+eq('the sourced row loads, the unsourced is held back', [hist.rows.length, hist.skipped[0].why], [1, 'no source']);
+eq('ref carried for re-run matching', hist.rows[0].ref, 'R7');
+eq('unknown columns kept', hist.rows[0].data, { 'Job Note': 'kept' });
+eq('upserts on source + ref', def('spare_consumption_history').conflictFrom, ['source', 'ref']);
+
+console.log('\n-- opening stock pools --');
+const hso = shapeUpload(def('handstock_opening'), [
+  { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Stock Level': '5', 'Source': 'WinMax HS', 'As On': '01/06/2022' },
+  { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Stock Level': '3', 'Source': '22 H2' },
+  { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Stock Level': '2' },
+]);
+eq('two labelled pools load, the unlabelled one is held back', hso.rows.length, 2);
+eq('the unlabelled row says why', hso.skipped[0].why, 'no source');
+eq('pools stay distinct (not deduped together)', hso.rows.map((r) => r.source), ['WinMax HS', '22 H2']);
+eq('as-of read day-first', hso.rows[0].as_of, '2022-06-01');
 
 console.log('\n-- ownership transfer --');
 const ot = shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1', 'To Party': 'HOSP TWO', 'Transfer Date': '01/06/2024' }]);

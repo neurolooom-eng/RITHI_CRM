@@ -37,6 +37,11 @@ export interface UploadDef {
   stamp?: Record<string, unknown>;
   /** Upsert key, where the table has one. Without it a re-run DUPLICATES. */
   conflict?: string;
+  /** The conflict target is COMPUTED by the database (generated columns) from
+   *  fields this register does fill — so the key is not a column of its own.
+   *  `conflictFrom` names the fields it is derived from, which is what the
+   *  coherence check verifies instead. */
+  conflictFrom?: string[];
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** What has to be loaded first, because rows here point at it. */
@@ -109,11 +114,22 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   const claimed = new Set<string>();
   const headers = Object.keys(raw[0] ?? {});
 
-  // header -> column, resolved once for the whole file rather than per row
+  // header -> column, resolved once for the whole file rather than per row.
+  //
+  // ONE header per column, chosen by ALIAS PRIORITY. A real export often has
+  // several of a column's aliases at once — the AppSheet Party Master carries
+  // both `Type` and `Profile`, and both `Address` and `Billing Address`. Binding
+  // all of them to the same column let whichever came last in the row overwrite
+  // the others, so `Type: CUSTOMER` silently became `Profile: GOVERNMENT`.
+  // Now the earliest alias that the file actually has wins, and the rest fall
+  // through to `extraInto` where they are kept rather than fighting over a column.
   const bind = new Map<string, Col>();
   def.cols.forEach((c) => {
-    const want = new Set(c.from.map(norm));
-    headers.forEach((h) => { if (want.has(norm(h)) && !bind.has(h)) { bind.set(h, c); claimed.add(h); } });
+    const byName = new Map(headers.map((h) => [norm(h), h]));
+    for (const alias of c.from) {
+      const h = byName.get(norm(alias));
+      if (h && !bind.has(h)) { bind.set(h, c); claimed.add(h); return; }
+    }
   });
 
   raw.forEach((r, i) => {
@@ -309,6 +325,34 @@ export const UPLOADS: UploadDef[] = [
       { to: 'row_no', from: ['row no', 'si number'], type: 'int' },
     ] },
 
+  { key: 'handstock_opening', label: 'Opening Stock (WinMax HS / yearly pools)', group: 'Spares',
+    table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
+    conflictFrom: ['engineer', 'part', 'source'],
+    note: 'The hand stock that pre-dates the movement history. Each pool is ADDITIVE and sits alongside the others — WinMax HS (struck June 2022), then 22 H2, 23, 24, 25. Give every row its Source: re-loading a corrected sheet replaces THAT pool rather than adding a second one, and an unlabelled balance cannot be audited.',
+    cols: [
+      { to: 'engineer', from: ['engineer', 'engineer name'], required: true },
+      { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
+      { to: 'qty', from: ['qty', 'quantity', 'stock', 'stock level', 'balance'], type: 'num', required: true },
+      { to: 'source', from: ['source', 'pool', 'stock level name', 'period'], required: true },
+      DATE('as_of', 'as of', 'as on', 'date'),
+      TEXT('remarks'),
+    ] },
+
+  { key: 'spare_consumption_history', label: 'Consumption — historical (pre-2026)', group: 'Spares',
+    table: 'spare_consumption_history', conflict: 'source_key,ref', conflictFrom: ['source', 'ref'],
+    extraInto: 'data',
+    note: 'The consumption that pre-dates this system. It is NOT capped and NOT reconciled — it is the record of what happened, not a control point — and it consolidates into Stock Levels alongside the opening pools. Give every row a Source, and a Ref from that source where you have one: without a Ref a re-run cannot match the row and would add it again.',
+    cols: [
+      { to: 'engineer', from: ['engineer', 'engineer name'], required: true },
+      { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
+      { to: 'qty', from: ['qty', 'quantity', 'consumed'], type: 'num', required: true },
+      { to: 'source', from: ['source', 'pool', 'period', 'data set'], required: true },
+      TEXT('ref', 'ref', 'row id', 'unique id', 'reference'),
+      TS('consumed_at', 'consumed on', 'date', 'consumption date', 'visit date'),
+      TEXT('ucn'), TEXT('call_number', 'call number'), TEXT('party_name', 'party name'),
+      TEXT('remarks'),
+    ] },
+
   // ---- quality
   { key: 'feedback', label: 'Customer Feedback', group: 'Quality', table: 'feedback',
     requires: 'Field Calls', extraInto: 'answers',
@@ -339,9 +383,14 @@ export const UPLOADS: UploadDef[] = [
     ] },
 
   // ---- registers with their own screens
-  { key: 'parties', label: 'Party Master', group: 'Masters', table: 'parties',
-    cols: [{ to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
-           TEXT('city'), TEXT('state'), TEXT('address')] },
+  { key: 'parties', label: 'Party Master', group: 'Masters', table: 'parties', extraInto: 'extra',
+    note: 'The AppSheet export loads as exported. Everything the table has no column for — Type, Profile, Country, Route, the telephone/email/PAN/GST fields, the contact person — is kept on the row rather than dropped.',
+    cols: [
+      { to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
+      TEXT('city'), TEXT('state'),
+      TEXT('party_type', 'type', 'profile'),
+      TEXT('address', 'billing address'),
+    ] },
   { key: 'products', label: 'Product Master', group: 'Masters', table: 'products',
     cols: [{ to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
            { to: 'item_name', from: ['item name', 'product name', 'product', 'model'], required: true },

@@ -212,6 +212,33 @@ the reset from the snapshot.
   - ⚠️ `script.google.com` is blocked from the sandbox, so `drivefind` has NOT
     been exercised end to end. **CallReg.gs must be redeployed** for it to exist.
 
+### Stock levels before the movement history (0074 + 0075)
+Hand stock is derived from movements. Raw spare data starts **June 2022**, so
+everything before it existed only as balances — and because consumption is
+CAPPED at hand stock (0061), an engineer holding pre-2022 stock could not report
+fitting it. Two tables fix that, both consolidated as ARMS of
+`handstock_movements` so the balance, the movement trail, `engineer_stock`, the
+transfer guard and the cap all inherit them untouched:
+- **`handstock_opening`** — the opening pools. WinMax HS (struck June 2022) and
+  the 22 H2 / 23 / 24 / 25 levels **alongside** it. **Additive, not
+  restatements** (confirmed by the user): they sit beside one another and beside
+  the movements, and nothing double-counts because there are no movements before
+  June 2022. Unique on (engineer, part, source) so re-loading a corrected sheet
+  replaces THAT pool.
+- **`spare_consumption_history`** — the ~44,000 pre-2026 consumption rows, in
+  their own table with **no cap and no reconciliation**. Applying today's cap
+  retrospectively would have refused most of the history, silently dropping real
+  consumption to satisfy a rule that did not exist when it happened — and the
+  cap runs a derivation PER ROW, so 44,000 rows would each aggregate the whole
+  movement history. Measured: **44,000 rows insert in 0.9 s**. Reconciliation
+  stays on the 2026 entries in `spare_consumption`, which is where the control
+  point belongs.
+- ⚠️ Both needed a **stored** `source_key` (`lower(btrim(source))`) rather than
+  an expression index: `on conflict` cannot infer an expression index, so the
+  upload's upsert would have been refused — the same trap the partial
+  `reports_uid_key` sprang in 0071. `check:uploads` now verifies every
+  register's conflict key is derived from something it fills.
+
 ### To run on the live project — pending
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
   — the **document library**: `documents`, holding the service-manual shelf and

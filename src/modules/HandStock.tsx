@@ -52,6 +52,7 @@ const asRow = (r: Record<string, unknown>): Row => ({
   engineer_email: String(r.engineer_email ?? ''),
   part_code: String(r.part_code ?? ''),
   part: String(r.part ?? ''),
+  opening: num(r.opening),
   stock_out: num(r.stock_out),
   consumed: num(r.consumed),
   transferred_in: num(r.transferred_in),
@@ -150,6 +151,10 @@ export function HandStock() {
     { key: 'part_code', header: 'Spare', width: 115, wrap: false },
     { key: 'part', header: 'Description', width: 235, accessor: (r) => partDescription(r.part) || r.part, render: (r) => partDescription(r.part) || r.part },
     { key: 'on_hand', header: 'Stock level', width: 100, align: 'right', wrap: false, render: (r) => stockBadge(r.on_hand) },
+    // Stock the engineer was already carrying before the movement history
+    // begins (WinMax HS and the yearly pools) — shown separately so a level
+    // that comes from an opening balance is legible, not just correct.
+    { key: 'opening', header: 'Opening', width: 90, align: 'right', wrap: false },
     { key: 'stock_out', header: 'Stock out', width: 95, align: 'right', wrap: false },
     { key: 'consumed', header: 'Consumed', width: 95, align: 'right', wrap: false },
     { key: 'transferred_in', header: 'Transfer in', width: 100, align: 'right', wrap: false },

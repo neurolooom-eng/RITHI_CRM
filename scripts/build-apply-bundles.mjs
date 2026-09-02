@@ -268,7 +268,7 @@ const MODULES = {
             '0062_adjust_consumption_qty.sql',
             '0063_void_consumption_line.sql',
             '0064_stock_out_lines_and_refurb.sql',
-            '0065_refurb_stock_and_part_master.sql'],
+            '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.26',
+    date: '2026-09-02',
+    title: 'Stock levels that know what came before',
+    changes: [
+      'Hand stock was derived purely from movements this system recorded, so an engineer carrying stock from before June 2022 showed as holding nothing \u2014 and because consumption is capped at hand stock, they could not report fitting a part they genuinely had.',
+      'Opening Stock now records those pools \u2014 WinMax HS, struck as the opening balance in June 2022, and the 22 H2 / 23 / 24 / 25 levels alongside it. They are additive, each labelled with its source, and re-loading a corrected sheet replaces that pool rather than adding a second one. Stock Levels shows an Opening column so a figure that came from a pool is legible, not just correct.',
+      'Consumption from before 2026 goes into its own register: it is the record of what happened, not a control point, so it is neither capped nor reconciled \u2014 applying today\u2019s cap retrospectively would have silently dropped real consumption. It still consolidates into Stock Levels. 44,000 rows load in about a second.',
+      'Reconciliation stays exactly where it belongs: on the 2026 entries, capped at the consolidated level.',
+      'The app now points at the redeployed CallReg Web App, so no device needs its URL changed by hand.',
+      'Needs a database script run once (HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.25',
     date: '2026-09-02',
     title: 'Ownership Transfer, recovered warranty details, and a tidier Admin Config',

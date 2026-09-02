@@ -18,6 +18,9 @@ export interface HandstockBalance {
   engineer_email: string;
   part_code: string;
   part: string;
+  // What the engineer was already carrying before the movement history begins
+  // (WinMax HS, and the yearly pools alongside it — 0074).
+  opening: number;
   stock_out: number;
   consumed: number;
   transferred_in: number;
