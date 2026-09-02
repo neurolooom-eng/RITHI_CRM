@@ -50,15 +50,22 @@ Run and confirmed by the user, in this order:
 engineer defaults when the role's `app_roles` row has ZERO permissions, so a row
 with *some* permissions but missing `calls.view` silently blocks everything.
 
-### Calls table split (3 physical tables)
-- **Stage 1 — DB (built, SQL to run):** `0040_call_tables_split.sql` splits
+### Calls table split (3 physical tables) — ✅ APPLIED LIVE (confirmed 2026-09-01)
+`calls` is a VIEW over `field_calls` / `installation_calls` / `pm_calls` on the
+live project — verified with `check_db_state.sql`. The "SQL to run" notes below
+were STALE: `0044_daily_call_review.sql` cannot even run without `field_calls`,
+so the split necessarily went in with the Daily Call Review work.
+**Do not run `split_call_tables.sql` again.** Stage 3 hardening (0041) is still
+not detected and remains optional.
+
+- **Stage 1 — DB (applied):** `0040_call_tables_split.sql` splits
   `calls` into `field_calls` / `installation_calls` / `pm_calls`. `calls`
   becomes a UNION view with INSTEAD OF routing triggers, so the app is
   unchanged; `pending_calls` / `call_state` rebuilt over the union; RLS + the
   UCN/call-number/last-visit machinery live per table; UCN letters now F/I/P
   (PM detection fixed). Validated on PG16 (fresh apply, idempotent, routing +
   returned UCN, RLS scoping, report sync, call-registration suite).
-  **⏳ Run `split_call_tables.sql` on the live Supabase project.**
+  ✅ Applied (see above).
 - **Stage 2 — client (shipped, v0.8.41):** `listCalls`/`searchCalls` read the
   typed table via `callTable()`, so each register (esp. PM) is isolated;
   cross-type screens keep the view.
@@ -85,12 +92,19 @@ with *some* permissions but missing `calls.view` silently blocks everything.
   `reg_date`↔`reg_at`, and rebuilds the `calls`/`pending_calls` views + INSTEAD
   OF routing. Validated on PG16 (fresh-month 00:30+5s, backdated +10s
   continuation, derivation both ways, numbering unchanged).
-  **⏳ Run `pm_schedule_fields.sql` on the live Supabase project** (after the
-  split, `split_call_tables.sql`/0040 — the script is a guarded no-op until then).
+  **⏳ STILL TO RUN: `pm_schedule_fields.sql`.** The split is applied, so it is
+  no longer a no-op — `reg_at` / `added_on` are confirmed MISSING live, which
+  means PM Bulk Upload's due-month + registration date-and-time do not work yet.
 - **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Queued — waiting on the user
+- **⚠️ Re-run `search_indexes.sql`** — the live project has the 37 trigram
+  indexes but **0 of the btree (`_eq`) ones**, i.e. the FIRST version of the
+  script was run. The btree indexes are what serve the exact-match/IN lookups:
+  products by party (the request-a-call cascade) and calls by serial (the
+  "open calls" column). Until they exist, picking a Party still returns no
+  products / times out. The current script creates btree FIRST, then trigram.
 - **Split User Access out of User Master** (deferred by the user, 2026-09-01).
   `/users` currently redirects into **User Master**, which carries both the
   directory (name, designation, region, reporting/regional manager, validity)
