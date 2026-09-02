@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.38',
+    date: '2026-09-02',
+    title: 'A request no longer offers a different hospital’s machine',
+    changes: [
+      'On the Hotline desk, “Open calls for this machine” matched on the serial number alone. A request for an ORION-G serial 201 at V-Care Hyderabad was shown an open VEGA serial 201 at Star Multispeciality Varansi — a different machine at a different hospital, one click from being mapped onto it.',
+      'It now matches the machine: model and serial together. Serials repeat — there are eleven machines numbered “219” in the install base — so the number alone was never enough to tell two machines apart. Spelling of a model (ORION-G, ORION G, ORIONG) is treated as one.',
+      'When an upload fails because a database script has not been run, it now says which script rather than repeating the database’s “no unique or exclusion constraint”.',
+    ],
+  },
+  {
     version: '0.9.37',
     date: '2026-09-02',
     title: 'Part Master loads, and re-uploading a master no longer duplicates it',

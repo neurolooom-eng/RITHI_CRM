@@ -10,6 +10,8 @@
 // to the client.
 // ---------------------------------------------------------------------------
 
+import { machineKey } from './machine';
+export { machineKey } from './machine';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const URL_KEY = 'rithi.supabase.url';
@@ -487,11 +489,20 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
   return out;
 }
 
-// Open calls on any of these serials (or parties, when a request has no
+// Open calls on any of these machines (or parties, when a request has no
 // serial) — the Hotline's "is there already a call for this?" check.
-export async function openCallsFor(serials: string[], parties: string[] = []): Promise<OpenCall[]> {
+//
+// The QUERY is by serial, which is the indexed column; the MATCH is on model +
+// serial. Without that filter the desk offered an open call for another
+// machine that merely shares a number: a request for ORION-G 201 at one
+// hospital was shown a VEGA 201 at another, one click from being mapped to it.
+export interface MachineRef { product: string; serial: string }
+export async function openCallsFor(machines: MachineRef[], parties: string[] = []): Promise<OpenCall[]> {
   const c = must();
-  const ser = [...new Set(serials.map((s) => s.trim()).filter(Boolean))];
+  const ser = [...new Set(machines.map((m) => String(m.serial ?? '').trim()).filter(Boolean))];
+  const want = new Set(machines
+    .filter((m) => String(m.serial ?? '').trim())
+    .map((m) => machineKey(m.product, m.serial)));
   const par = [...new Set(parties.map((s) => s.trim()).filter(Boolean))];
   if (!ser.length && !par.length) return [];
 
@@ -514,6 +525,11 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
   rows.forEach((r) => {
     const ucn = String(r.ucn ?? '');
     if (!ucn || byUcn.has(ucn)) return;
+    // Drop a call that only shares the serial. A call with no product recorded
+    // cannot be told apart, so it is kept rather than hidden — the desk can see
+    // it and judge.
+    if (want.size && String(r.serial ?? '').trim() && String(r.product_name ?? '').trim()
+        && !want.has(machineKey(r.product_name, r.serial))) return;
     byUcn.set(ucn, {
       ucn, callType: String(r.call_type ?? ''), partyName: String(r.party_name ?? ''),
       productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
@@ -1804,11 +1820,18 @@ export async function uploadRows(
       : await c.from(table).insert(slice);
     if (error) {
       const m = errMsg(error);
-      const hint = /timeout/i.test(m)
-        ? ' — the database cancelled the batch. Re-run it: rows already written are updated, not duplicated.'
-        : /schema cache|does not exist/i.test(m)
-          ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
-          : '';
+      // The ON CONFLICT message names nothing useful — "no unique or exclusion
+      // constraint" tells an operator neither which index nor which script. It
+      // means the migration carrying that index has not been applied, so say so.
+      const hint = /no unique or exclusion constraint/i.test(m)
+        ? ` — this register matches on ${conflict}, and the index it needs is not on this project yet.`
+          + ' Run supabase/apply/_status.sql in the SQL editor: it names the bundle to apply.'
+          + ' Nothing was written, so re-run the upload once the script is in.'
+        : /timeout/i.test(m)
+          ? ' — the database cancelled the batch. Re-run it: rows already written are updated, not duplicated.'
+          : /schema cache|does not exist/i.test(m)
+            ? ` — the ${table} table (or a column of it) is not on this project. Run supabase/apply/_status.sql to see what is missing.`
+            : '';
       return { ok: false, written, error: `${m} (row ~${i + 1})${hint}` };
     }
     written += slice.length;

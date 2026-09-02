@@ -153,11 +153,14 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.handstock_opening') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
                   and definition ilike '%handstock_opening%'))),
-    (35, 'parts + products: natural keys', 'parts.code_key and products.machine_key, so a re-upload corrects (0079)',
-        (exists (select 1 from information_schema.columns
-                  where table_schema='public' and table_name='parts' and column_name='code_key')
-     and exists (select 1 from information_schema.columns
-                  where table_schema='public' and table_name='products' and column_name='machine_key'))),
+    -- Tests the INDEXES, not just the columns. 0079 deliberately SKIPS building
+    -- an index when the table already holds duplicates (it cannot be built), and
+    -- says so in a NOTICE — which the Supabase editor makes easy to miss. The
+    -- column would be there and this row would read "yes" while the upload still
+    -- failed with "no unique or exclusion constraint". The index is what matters.
+    (35, 'parts + products: natural keys', 'parts_code_key_uniq + products_machine_key_uniq — the upsert needs these (0079)',
+        (exists (select 1 from pg_indexes where schemaname='public' and indexname='parts_code_key_uniq')
+     and exists (select 1 from pg_indexes where schemaname='public' and indexname='products_machine_key_uniq'))),
     (34, 'consumption: GRIR / traceability', 'spare_consumption.grir + source_ref, so a re-load corrects (0078)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_consumption' and column_name='grir')

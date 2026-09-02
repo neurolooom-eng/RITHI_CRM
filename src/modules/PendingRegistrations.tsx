@@ -4,7 +4,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { addFieldCall, listPending, searchProducts, setPendingUcn, dataConfigured } from '../lib/sheets';
-import { cancelCallRequest, callByUcn, openCallsFor, supabaseConfigured, type OpenCall } from '../lib/supabase';
+import { cancelCallRequest, callByUcn, openCallsFor, machineKey, supabaseConfigured, type OpenCall } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { useMaster } from '../lib/masters';
 import { productToCallPrefill } from '../lib/fieldcall';
@@ -135,19 +135,26 @@ export function PendingRegistrations() {
     if (!supabaseConfigured() || !list.length) return;
     try {
       const found = await openCallsFor(
-        list.map((r) => g(r, 'SERIAL NO', 'Serial')),
+        list.map((r) => ({ product: g(r, 'PRODUCT', 'Product'), serial: g(r, 'SERIAL NO', 'Serial') })),
         list.map((r) => g(r, 'PARTY NAME')),
       );
-      const bySerial = new Map<string, OpenCall[]>();
+      // Keyed by MACHINE (model + serial), not by serial: a serial on its own
+      // belongs to several different machines.
+      const byMachine = new Map<string, OpenCall[]>();
       const byParty = new Map<string, OpenCall[]>();
       found.forEach((c) => {
-        if (c.serial) bySerial.set(norm(c.serial), [...(bySerial.get(norm(c.serial)) ?? []), c]);
+        if (c.serial) {
+          const k = machineKey(c.productName, c.serial);
+          byMachine.set(k, [...(byMachine.get(k) ?? []), c]);
+        }
         byParty.set(norm(c.partyName), [...(byParty.get(norm(c.partyName)) ?? []), c]);
       });
       const out: Record<string, OpenCall[]> = {};
       list.forEach((r) => {
-        const serial = norm(g(r, 'SERIAL NO', 'Serial'));
-        const hit = serial ? bySerial.get(serial) : byParty.get(norm(g(r, 'PARTY NAME')));
+        const serial = g(r, 'SERIAL NO', 'Serial').trim();
+        const hit = serial
+          ? byMachine.get(machineKey(g(r, 'PRODUCT', 'Product'), serial))
+          : byParty.get(norm(g(r, 'PARTY NAME')));
         if (hit?.length) out[r.id] = hit;
       });
       setOpenCalls(out);
