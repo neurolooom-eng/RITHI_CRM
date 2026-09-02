@@ -134,6 +134,18 @@ been applied too.
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### To run on the live project — pending
+- **`user_directory.sql`** (bundle: `supabase/apply/user_directory.sql`;
+  migration `0068`) — `app_user_names`, the id -> display-name lookup the
+  tables use so **Created By** reads "Rithi Admin" rather than
+  `6680c358-d798-…`. `profiles` only lets most people read themselves, which is
+  why this has to be its own view; it is read-only by construction (it selects
+  from a SECURITY DEFINER function, so nothing can be written through it into
+  `profiles`) and exposes id + name and nothing else. Until it is run the
+  tables keep showing the UUID — nothing else breaks. `_status.sql` row 25.
+- **`rbac.sql`** (bundle: `supabase/apply/rbac.sql`; migration `0069`) — renames
+  the NSM role to **National SERVICE Manager**. 0008's upsert deliberately keeps
+  a label an admin has set, so the live row does not change until this runs.
+  `_status.sql` row 26.
 - **`masters.sql`** (bundle: `supabase/apply/masters.sql`; migrations `0066`
   + `0067`) — `masters.active`, so a master value already in use is
   **deactivated** rather than deleted, and the **per-list write policies**

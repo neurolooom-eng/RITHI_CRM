@@ -124,7 +124,13 @@ with checks(sort_order, bundle, provides, present) as (
                  where table_schema='public' and table_name='masters' and column_name='active')),
     (24, 'masters: permission per list', 'masters_insert / masters_update / masters_delete policies (0067)',
         (exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_insert')
-     and exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete')))
+     and exists (select 1 from pg_policy where polrelid = to_regclass('public.masters') and polname = 'masters_delete'))),
+    (25, 'user_directory: who created a row', 'app_user_names -- id -> name, so tables show a name not a UUID (0068)',
+        to_regclass('public.app_user_names') is not null),
+    (26, 'rbac: NSM is the National SERVICE Manager', 'the app_roles label no longer says Sales (0069)',
+        (to_regclass('public.app_roles') is null
+      or not exists (select 1 from public.app_roles
+                      where role = 'nsm' and label = 'NSM (National Sales Manager)')))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

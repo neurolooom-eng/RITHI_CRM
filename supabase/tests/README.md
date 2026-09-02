@@ -32,6 +32,14 @@ deactivating a value is an update so the edit key covers it, and that the
 global `masters.edit` still covers every list. These are RLS policies, so the
 suite runs its writes under `set local role authenticated`.
 
+`app_user_names_test.sql` exercises the id -> name lookup (`0068`) the tables
+use to show WHO created a row: that an ordinary engineer, who may read only
+their own `profiles` row, still resolves everyone's name; that a blank
+`full_name` falls back to the email rather than to nothing; that the view is
+**read-only by construction** (it selects from a SECURITY DEFINER function, so
+no write can be routed through it into `profiles` past that policy); and that
+`anon` cannot read it at all.
+
 These are plain `psql` scripts, not a test framework: each step prints what it
 did, and the steps that must fail are labelled `expect ERROR`. Read the output.
 
@@ -54,11 +62,12 @@ psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/spare_workflow_test.sql
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/call_requests_test.sql
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/handstock_test.sql
 psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/master_list_permissions_test.sql
+psql -h /tmp/pgt -p 55432 -U postgres -f supabase/tests/app_user_names_test.sql
 ```
 
 Note the harness connects as superuser, which bypasses RLS, so by default a
 suite exercises the **triggers**, not the row-level policies. A suite that
 means to test a policy has to say `set local role authenticated` inside a
-transaction first — `master_list_permissions_test.sql` and
-`daily_call_review_test.sql` do. Policy changes still want a check against a
+transaction first — `master_list_permissions_test.sql`,
+`app_user_names_test.sql` and `daily_call_review_test.sql` do. Policy changes still want a check against a
 real Supabase project.

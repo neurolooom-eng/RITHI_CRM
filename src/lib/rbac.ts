@@ -9,7 +9,7 @@
 export interface RoleDef { key: string; label: string }
 export const ROLES: RoleDef[] = [
   { key: 'admin', label: 'Admin / Super Admin' },
-  { key: 'nsm', label: 'NSM (National Sales Manager)' },
+  { key: 'nsm', label: 'NSM (National Service Manager)' },
   { key: 'rgm', label: 'Regional Manager' },
   { key: 'rm', label: 'Reporting Manager' },
   { key: 'engineer', label: 'Engineer' },

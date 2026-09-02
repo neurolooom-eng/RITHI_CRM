@@ -20,6 +20,7 @@
 --   0035_data_view_all.sql
 --   0037_call_read_scale.sql
 --   0051_pending_registrations_view_all.sql
+--   0069_nsm_service_manager.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -236,7 +237,7 @@ declare
     'commercial',        to_jsonb(array['calls.view','consumption.view','reports.view','feedback.view','dashboard.view','masters.view','spare.approve_commercial'] || open_mods)
   );
   labels jsonb := jsonb_build_object(
-    'admin','Admin / Super Admin', 'nsm','NSM (National Sales Manager)', 'rgm','Regional Manager',
+    'admin','Admin / Super Admin', 'nsm','NSM (National Service Manager)', 'rgm','Regional Manager',
     'rm','Reporting Manager', 'engineer','Engineer', 'hotline','Hotline Engineer',
     'spare_coordinator','Spare Coordinator', 'stores_incharge','Stores Incharge',
     'tally_coordinator','Tally Coordinator', 'commercial','Commercial');
@@ -872,5 +873,32 @@ create policy pend_read on public.pending_registrations for select
     or (public.has_perm('calls.view')        -- a manager: requests for an engineer in their reporting sub-tree
         and lower(trim(engineer)) in (select lower(trim(n)) from public.visible_engineer_names() as v(n)))
   );
+
+-- ------------------------------------------------------------------------
+-- 0069_nsm_service_manager.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- NSM is the National SERVICE Manager, not the National Sales Manager.
+--
+-- 0008 seeded the label, and its upsert deliberately keeps a label an admin has
+-- already set (`coalesce(nullif(existing.label,''), excluded.label)`) — so
+-- correcting the seed does nothing to a project where the row already exists.
+-- This corrects the stored label in place, and ONLY that exact wording, so a
+-- name an admin chose themselves is left alone.
+-- ===========================================================================
+
+do $$
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice 'public.app_roles is not present — run the rbac bundle first';
+    return;
+  end if;
+
+  update public.app_roles
+     set label = 'NSM (National Service Manager)', updated_at = now()
+   where role = 'nsm'
+     and label = 'NSM (National Sales Manager)';
+end $$;
 
 commit;

@@ -130,7 +130,7 @@ declare
     'commercial',        to_jsonb(array['calls.view','consumption.view','reports.view','feedback.view','dashboard.view','masters.view','spare.approve_commercial'] || open_mods)
   );
   labels jsonb := jsonb_build_object(
-    'admin','Admin / Super Admin', 'nsm','NSM (National Sales Manager)', 'rgm','Regional Manager',
+    'admin','Admin / Super Admin', 'nsm','NSM (National Service Manager)', 'rgm','Regional Manager',
     'rm','Reporting Manager', 'engineer','Engineer', 'hotline','Hotline Engineer',
     'spare_coordinator','Spare Coordinator', 'stores_incharge','Stores Incharge',
     'tally_coordinator','Tally Coordinator', 'commercial','Commercial');

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.21',
+    date: '2026-09-02',
+    title: 'Tables: real dates and real names in every column',
+    changes: [
+      'Any date or time column added from the ⚙ Columns picker — Created At, Updated At and the rest — now reads in the app format, dd-mmm-yyyy hh:mm:ss, instead of the raw “2026-09-02T06:44:28.719905+00:00”. This applies to every table in the app, not one screen.',
+      'Created By (and any other “who did this” column) now shows the person’s name instead of their internal ID.',
+      'NSM is the National SERVICE Manager. The role was labelled “National Sales Manager” everywhere; it now reads correctly in Roles & Permissions, User Master and the database.',
+      'Needs two database scripts run once (user_directory.sql and rbac.sql).',
+    ],
+  },
+  {
     version: '0.9.20',
     date: '2026-09-02',
     title: 'Roles & Permissions: what can be done in each master, list by list',

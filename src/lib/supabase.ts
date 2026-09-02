@@ -1676,6 +1676,23 @@ export async function sbListProfiles(): Promise<Profile[]> {
   if (error) return [];
   return (data ?? []) as Profile[];
 }
+// id -> display name for EVERY user, so a table can show who created a row
+// instead of the raw UUID that was stamped into created_by. `profiles` only
+// lets you read yourself unless you manage users, which is why this reads the
+// `app_user_names` view (0068) instead. Missing view -> empty map, and the
+// tables keep showing the UUID rather than breaking.
+export async function listUserNames(): Promise<Record<string, string>> {
+  const c = getSupabase(); if (!c) return {};
+  const { data, error } = await c.from('app_user_names').select('id,name');
+  if (error) return {};
+  const out: Record<string, string> = {};
+  (data ?? []).forEach((r) => {
+    const row = r as { id?: string; name?: string };
+    if (row.id && row.name) out[row.id] = row.name;
+  });
+  return out;
+}
+
 // Notify on sign-in/sign-out (Supabase persists the session across reloads).
 export function sbOnAuthChange(cb: () => void): () => void {
   const c = getSupabase(); if (!c) return () => {};

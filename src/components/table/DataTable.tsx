@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '../../lib/auth';
+import { formatSmartDate } from '../../lib/format';
+import { useUserNames, looksLikeUserId, nameForUserId } from '../../lib/userNames';
 import { getView, setView, sheetsConfigured, type TableView } from '../../lib/sheets';
 import './table.css';
 
@@ -66,12 +68,26 @@ export interface DataTableProps<T> {
 //
 // Only raw values go through this. A column's own render() may legitimately
 // return elements or arrays of them, and is left untouched.
-const rawCell = (v: unknown): ReactNode => {
+//
+// A raw value is also STORED, not presented. A timestamp arrives as
+// "2026-09-02T06:44:28.719905+00:00" and created_by as the author's UUID —
+// neither is what the column means to show. So a value that is unmistakably one
+// of those (an anchored ISO shape; a UUID we hold a name for) is rendered the
+// way the rest of the app renders it: the app date format, and the person's
+// name. Anything else is passed through untouched, and an unknown id still
+// shows as itself rather than going blank.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
+const rawCell = (v: unknown, names: Record<string, string> = {}): ReactNode => {
   if (v !== null && typeof v === 'object') {
     try {
       const text = JSON.stringify(v);
       return text === '{}' || text === '[]' ? '' : text;
     } catch { return ''; }   // circular, or otherwise unserialisable
+  }
+  if (typeof v === 'string') {
+    const t = v.trim();
+    if (ISO_DATE_RE.test(t)) return formatSmartDate(t);
+    if (looksLikeUserId(t)) return nameForUserId(t, names);
   }
   return v as ReactNode;
 };
@@ -118,6 +134,8 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
   const { can } = useAuth();
+  // Resolves created_by / recorded_by UUIDs to names (see rawCell).
+  const userNameMap = useUserNames();
 
   // Base (curated) columns + every other schema/data field as an addable column
   // (hidden by default). This makes the ⚙ Columns picker list all fields.
@@ -149,12 +167,12 @@ export function DataTable<T>({
         key: k,
         header: labelFor(k),
         width: 140,
-        render: own ?? ((r: T) => rawCell((r as Record<string, unknown>)[k] ?? '')),
+        render: own ?? ((r: T) => rawCell((r as Record<string, unknown>)[k] ?? '', userNameMap)),
       };
     });
     return [...columns, ...extra];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [columns, extraKeys]);
+  }, [columns, extraKeys, userNameMap]);
   const defaultHidden = useMemo(() => new Set(extraKeys), [extraKeys]);
   const viewActiveRef = useRef(false);
 
@@ -574,7 +592,7 @@ export function DataTable<T>({
                     ? c.render(row)
                     : c.accessor
                       ? c.accessor(row)
-                      : rawCell((row as Record<string, unknown>)[c.key]);
+                      : rawCell((row as Record<string, unknown>)[c.key], userNameMap);
                   return (
                     <td
                       key={c.key}
