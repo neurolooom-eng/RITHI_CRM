@@ -12,13 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.7',
-    date: '2026-09-01',
-    title: 'RECO on a call \u2014 book its spares straight into consumption',
+    version: '0.9.8',
+    date: '2026-09-02',
+    title: 'RECO is on the call\u2019s detail view too',
     changes: [
-      'Every call in the registers now has a RECO action (\ud83e\uddfe) for Spare Coordinator, Hotline Engineer and Admin. It opens the reconciliation entry with that call\u2019s UCN, Call Number and engineer already filled in, so a correction can never be typed against the wrong call.',
-      'The part list shows the full part number, and still offers only what that engineer is holding.',
-      'Needs a database script run once (consumption_reconciliation.sql) \u2014 re-run it if you applied an earlier copy, as it now also grants the Hotline Engineer.',
+      'The RECO action was only on the register row. It is now also at the top of a call\u2019s detail drawer and on its footer, so you can reconcile without closing the call you are reading.',
+      'It is offered on closed calls as well \u2014 a reconciliation is usually after the fact, for a spare fitted but never reported.',
     ],
   },
   {

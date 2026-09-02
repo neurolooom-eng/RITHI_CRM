@@ -412,6 +412,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
   const navigate = useNavigate();
+  // RECO — hand the call over to Spare Consumption so the reconciliation is
+  // booked against this exact UCN, never a typed one. Offered wherever the call
+  // is: the row actions, the view drawer and its footer.
+  const mayReco = can('consumption.reconcile');
+  const gotoReco = (row: Rec) => navigate(
+    `/spare-consumption?ucn=${encodeURIComponent(String(row.ucn ?? ''))}`
+    + `&call=${encodeURIComponent(String(row.callNumber ?? ''))}`
+    + `&engineer=${encodeURIComponent(String(row.allocatedTo ?? ''))}`,
+  );
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
   // On Supabase we show the recent set by default and run SEARCH server-side
@@ -741,13 +750,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         {/* RECO — Spare Coordinator / Hotline / Admin book a spare against this
             call straight into consumption. Carries the call across, so the
             reconciliation is never typed against the wrong UCN. */}
-        {can('consumption.reconcile') && !row._pending && (
-          <button
-            className="btn btn-sm btn-icon" title="Reconcile — book spares consumed on this call"
-            onClick={() => navigate(`/spare-consumption?ucn=${encodeURIComponent(String(row.ucn ?? ''))}`
-              + `&call=${encodeURIComponent(String(row.callNumber ?? ''))}`
-              + `&engineer=${encodeURIComponent(String(row.allocatedTo ?? ''))}`)}
-          >🧾</button>
+        {mayReco && !row._pending && (
+          <button className="btn btn-sm btn-icon" title="Reconcile — book spares consumed on this call"
+            onClick={() => gotoReco(row)}>🧾</button>
         )}
         {canReopen(row) && (
           <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>
@@ -885,11 +890,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {drawer.mode === 'view' && !drawer.row?._pending && (
               ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec))
               || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec)
-              || canCloseReopen(drawer.row as Rec) || isSolved(drawer.row as Rec)
+              || canCloseReopen(drawer.row as Rec) || isSolved(drawer.row as Rec) || mayReco
             ) && (
               <div className="call-actions-top">
                 {can('calls.report') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>}
                 {can('spare.request') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
+                {mayReco && <button className="btn btn-sm" title="Reconcile — book spares consumed on this call" onClick={() => gotoReco(drawer.row as Rec)}>🧾 Reco</button>}
                 {canReopen(drawer.row as Rec) && <button className="btn btn-sm" title="Put this closed call back on the open list" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>}
                 {canCloseReopen(drawer.row as Rec) && <button className="btn btn-sm" title="The re-open was only to correct the call — put it back to closed without entering a visit" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>}
                 {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
@@ -911,7 +917,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
-                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec) || canCloseReopen(drawer.row as Rec)) ? (
+                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec) || canCloseReopen(drawer.row as Rec) || mayReco) ? (
                   <>
                     {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
                     {!drawer.row?._pending && can('calls.report') && canWorkRow(drawer.row as Rec) && (
@@ -919,6 +925,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     )}
                     {!drawer.row?._pending && can('spare.request') && canWorkRow(drawer.row as Rec) && (
                       <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
+                    )}
+                    {mayReco && !drawer.row?._pending && (
+                      <button type="button" className="btn" onClick={() => gotoReco(drawer.row as Rec)}>🧾 Reco</button>
                     )}
                     {canReopen(drawer.row as Rec) && (
                       <button type="button" className="btn" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>
