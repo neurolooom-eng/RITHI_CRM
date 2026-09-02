@@ -268,7 +268,7 @@ const MODULES = {
             '0062_adjust_consumption_qty.sql',
             '0063_void_consumption_line.sql',
             '0064_stock_out_lines_and_refurb.sql',
-            '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0077_upsert_targets.sql', '0078_consumption_grir.sql'],
+            '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
@@ -286,7 +286,7 @@ const MODULES = {
             'Writing needs the `cover.edit` action; the bundle grants it to admin,',
             'commercial and nsm so an existing project keeps working.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql'],
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0077_upsert_targets.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

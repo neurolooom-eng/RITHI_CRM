@@ -17,6 +17,12 @@
 -- installation_calls / pm_calls, each of which already has <table>_ucn_key and
 -- still fires calls_biu (call number, reg date). That is strictly better: the
 -- upsert works AND the stamping trigger still runs.
+--
+-- LIVES IN THE sales_contracts MODULE, not handstock, although it fixes a table
+-- from each. `product_additional_entries` is created by 0073 in
+-- sales_contracts, which ALL_ORDER runs AFTER handstock — so from handstock this
+-- file ran before the table existed and all.sql died on it. The later module is
+-- the one where both tables are present.
 -- ===========================================================================
 
 -- ---- product_additional_entries: expression index -> stored column ---------
