@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.0',
+    date: '2026-09-01',
+    title: 'Closed calls stay closed \u2014 unless the Hotline re-opens them',
+    changes: [
+      'Call Status now shows what the call actually says \u2014 \u201cSolved - Report Completed\u201d, not just \u201cSolved\u201d \u2014 keeping the colour that tells you whether it is finished.',
+      'A closed call takes no visit entry, no spare request and no edit. The Hotline can re-open one, and it goes straight back onto the open list.',
+      'Every re-open is counted on the call, so \u201c\u21bb Re-opened\u201d in the register filters to exactly those calls, with the tally on the chip.',
+      '\u201cUpdate Call\u201d is now called \u201cVisit Entry\u201d, which is what it records.',
+      'The register\u2019s Actions column uses icons, so every action fits without pushing the call off the screen.',
+    ],
+  },
+  {
     version: '0.8.68',
     date: '2026-09-01',
     title: 'Acknowledge each spare delivery as it arrives',

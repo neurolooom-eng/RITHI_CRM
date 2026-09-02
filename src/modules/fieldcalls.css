@@ -334,3 +334,7 @@
 
 .pm-month { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
 .pm-month .input { width: 155px; }
+
+/* Register actions: icon buttons, so four actions fit a narrow column. */
+.act-row { gap: 3px; flex-wrap: nowrap; }
+.btn-icon { padding: 3px 7px; min-width: 0; line-height: 1.5; font-size: 13px; }

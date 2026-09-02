@@ -11,7 +11,7 @@ import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 
 // ===========================================================================
-// CALL REPORTING — "Update Call" against a Field / Installation / PM call.
+// CALL REPORTING — "Visit Entry" against a Field / Installation / PM call.
 // Saves to the Supabase `reports` table (one row per VISIT; the form fields
 // live in the `data` jsonb). The shape follows the Call Reporting field spec:
 //
@@ -166,7 +166,7 @@ export function CallReportDrawer({
   const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1' });
   const [feedback, setFeedback] = useState<Record<string, string>>({});
 
-  // Reports are a HISTORY (one row per visit). Each Update Call starts a fresh
+  // Reports are a HISTORY (one row per visit). Each Visit Entry starts a fresh
   // visit; prior visits are context (and the last manual report).
   const [priorVisits, setPriorVisits] = useState<Record<string, unknown>[]>([]);
   useEffect(() => {
@@ -463,7 +463,7 @@ export function CallReportDrawer({
   };
 
   return (
-    <Drawer open={open} onClose={onClose} title={ucn ? `Update Call — ${ucn}` : 'Update Call'} width={820}>
+    <Drawer open={open} onClose={onClose} title={ucn ? `Visit Entry — ${ucn}` : 'Visit Entry'} width={820}>
       <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
       {priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
