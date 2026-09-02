@@ -167,6 +167,30 @@ eq('Consumed Qty is the authoritative quantity', cons2.rows[0].qty, 2);
 eq('the export row id becomes the key', cons2.rows[0].source_ref, 'v2_N1-e2fdf5c5');
 eq('...so a re-run corrects rather than duplicates', def('spare_consumption').conflict, 'source_ref');
 
+console.log('\n-- the real ITEM Master (Part Master) --');
+const pm2 = shapeUpload(def('parts'), [
+  { 'Item Code': 'ACC-0081', 'Item Name': 'REUSABLE PATIENT TUBING',
+    'Item Details': 'ACC-0081|REUSABLE PATIENT TUBING', 'Active/Inactive?': 'Inactive',
+    'Added On': '09-May-2023 15:13:28', 'Purchase Cost': '15' },
+  { 'Item Code': 'EM-600', 'Item Name': 'BUZZER MH1-OR', 'Active/Inactive?': 'Active' },
+]);
+eq('Item Code is the code', pm2.rows[0].code, 'ACC-0081');
+eq('"Inactive" means not active', pm2.rows[0].active, false);
+eq('"Active" means active', pm2.rows[1].active, true);
+eq('a file with no Item Details builds one', pm2.rows[1].item_detail, 'EM-600|BUZZER MH1-OR');
+eq('the cost and the rest are kept', (pm2.rows[0].extra as Record<string, unknown>)['Purchase Cost'], '15');
+eq('matched on the part code', def('parts').conflictFrom, ['code']);
+
+console.log('\n-- a machine is model + serial, not serial alone --');
+const prod = shapeUpload(def('products'), [
+  { 'Item Name': 'VEGA', 'Item Serial Number': '219', 'Party Name': 'A' },
+  { 'Item Name': 'ORION-G', 'Item Serial Number': '219', 'Party Name': 'B' },
+  { 'Item Name': 'VEGA', 'Item Serial Number': '219', 'Party Name': 'C' },
+]);
+eq('the same serial on two models is two machines', prod.rows.length, 2);
+eq('the same model+serial twice is one', prod.rows.filter((x) => x.item_name === 'VEGA').length, 1);
+eq('...and the last one wins', prod.rows.find((x) => x.item_name === 'VEGA')?.party_name, 'C');
+
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
   'UC Number': '26A02F0001', 'CALL NUMBER': 'CL1',

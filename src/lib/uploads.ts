@@ -139,8 +139,10 @@ export function toTs(v: unknown): string | null {
   return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
 }
 
-const TRUE = new Set(['y', 'yes', 'true', '1', 't']);
-const FALSE = new Set(['n', 'no', 'false', '0', 'f']);
+// A register spells a yes/no its own way — the ITEM Master says
+// Active / Inactive, not Yes / No.
+const TRUE = new Set(['y', 'yes', 'true', '1', 't', 'active', 'enabled', 'live']);
+const FALSE = new Set(['n', 'no', 'false', '0', 'f', 'inactive', 'disabled', 'retired']);
 
 export function coerce(v: unknown, type: ColType = 'text'): unknown {
   const s = String(v ?? '').trim();
@@ -590,7 +592,8 @@ export const UPLOADS: UploadDef[] = [
       TEXT('address', 'billing address'),
     ] },
   { key: 'products', label: 'Product Master', group: 'Masters', table: 'products', extraInto: 'extra',
-    note: 'The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
+    conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
+    note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
     cols: [
       // `Item Serial Number` is what the AppSheet export calls it.
       { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial', 'product serial number'], required: true },
@@ -604,9 +607,19 @@ export const UPLOADS: UploadDef[] = [
       DATE('contract_start', 'contract start date', 'contract start'),
       DATE('contract_end', 'contract end date', 'contract end'),
     ] },
-  { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts',
-    cols: [{ to: 'code', from: ['code', 'part no', 'part code'], required: true },
-           { to: 'item_detail', from: ['item detail', 'description', 'part description'], required: true }] },
+  { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts', extraInto: 'extra',
+    conflict: 'code_key', conflictFrom: ['code'],
+    note: 'Matched on the part code, so re-loading a corrected sheet updates those parts rather than adding them again. A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers.',
+    cols: [
+      { to: 'code', from: ['item code', 'code', 'part no', 'part code'], required: true },
+      // `Item Details` is already the CODE|Description string the app stores;
+      // where a file has only the two halves, it is built from them.
+      { to: 'item_detail', from: ['item details', 'item detail', 'part description'], required: true,
+        derive: (o) => (o.code && o.description ? `${o.code}|${o.description}` : '') },
+      TEXT('description', 'item name', 'description'),
+      { to: 'active', from: ['active/inactive?', 'active inactive', 'active', 'status'], type: 'bool' },
+      TS('created_at', 'added on'),
+    ] },
 
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',

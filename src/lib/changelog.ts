@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.37',
+    date: '2026-09-02',
+    title: 'Part Master loads, and re-uploading a master no longer duplicates it',
+    changes: [
+      'Part Master read nothing from the ITEM Master export: it looks for “Item Code” and “Item Details”, which is what the file calls them. All 1,324 parts load now, with the part code, name, the CODE|Description the app uses, and the date each was added.',
+      'A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers. 219 of the 1,324 are.',
+      'Part Master and Product Master had no key at all, so a second upload added every row again — 1,324 parts and 19,253 machines, only visible later when every picker showed everything twice. Parts now match on their code, and a machine on its model plus its serial.',
+      'That last one matters: serials repeat. There are eleven machines called “219” in the install base, so the serial alone was never enough to tell two machines apart.',
+      'Needs a database script run once (masters.sql).',
+    ],
+  },
+  {
     version: '0.9.36',
     date: '2026-09-02',
     title: 'GRIR on consumed spares; duplicate call requests fixed',
