@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -361,6 +361,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // A closed call takes no visit entry and no spare request until re-opened.
   const canWorkRow = (row: Rec) => !isSolved(row);
   const canReopen = (row: Rec) => isSolved(row) && !row._pending && (can('pending.register') || can('calls.create'));
+  // A call re-opened only to correct it is closed again by withdrawing the
+  // re-open — entering a visit that never happened is not the way back.
+  const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
+  const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && (can('pending.register') || can('calls.create'));
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
   const partyMaster = useMaster('party');
@@ -704,6 +708,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
+  // Withdraw a re-open: the call goes back to what its last visit said.
+  const closeReopen = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    if (!confirm(`Close ${ucn} again? It goes back to “${String(row.lastStatus || 'Solved')}” — use this when the call was re-opened only to correct it, not visited.`)) return;
+    const t0 = performance.now();
+    const res = await closeReopenedCall(ucn);
+    logAudit({ action: 'calls.close_reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not close ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} closed again.` });
+    setDrawer(null);
+    void refresh();
+  };
+
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
@@ -720,6 +738,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         )}
         {canReopen(row) && (
           <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>
+        )}
+        {canCloseReopen(row) && (
+          <button className="btn btn-sm btn-icon" title="Close again — the re-open was only to correct the call" onClick={() => void closeReopen(row)}>🔒</button>
         )}
         {isSolved(row) && !canReopen(row) && <span className="muted" title="Closed — Solved">🔒</span>}
         {row._pending && (can('calls.create') || can('calls.edit')) && (
@@ -850,12 +871,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             {/* Actions at the top of a call's view (each gated by its own permission) */}
             {drawer.mode === 'view' && !drawer.row?._pending && (
               ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec))
-              || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec) || isSolved(drawer.row as Rec)
+              || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec)
+              || canCloseReopen(drawer.row as Rec) || isSolved(drawer.row as Rec)
             ) && (
               <div className="call-actions-top">
                 {can('calls.report') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>}
                 {can('spare.request') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
                 {canReopen(drawer.row as Rec) && <button className="btn btn-sm" title="Put this closed call back on the open list" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>}
+                {canCloseReopen(drawer.row as Rec) && <button className="btn btn-sm" title="The re-open was only to correct the call — put it back to closed without entering a visit" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>}
                 {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
                 {isSolved(drawer.row as Rec) && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Closed — {String((drawer.row as Rec).lastStatus || 'Solved')}</span>}
               </div>
@@ -875,7 +898,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
-                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec)) ? (
+                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec) || canCloseReopen(drawer.row as Rec)) ? (
                   <>
                     {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
                     {!drawer.row?._pending && can('calls.report') && canWorkRow(drawer.row as Rec) && (
@@ -886,6 +909,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     )}
                     {canReopen(drawer.row as Rec) && (
                       <button type="button" className="btn" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>
+                    )}
+                    {canCloseReopen(drawer.row as Rec) && (
+                      <button type="button" className="btn" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>
                     )}
                   </>
                 ) : undefined
