@@ -334,3 +334,11 @@
 
 .pm-month { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-muted); }
 .pm-month .input { width: 155px; }
+
+/* Register actions: icon buttons, so four actions fit a narrow column. */
+.act-row { display: flex; gap: 3px; flex-wrap: nowrap; align-items: center; justify-content: center; }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 24px; padding: 0; min-width: 0; font-size: 13px; line-height: 1;
+}
+.act-row .muted { display: inline-flex; align-items: center; height: 24px; font-size: 13px; }

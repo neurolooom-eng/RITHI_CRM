@@ -110,8 +110,11 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   out._id = row.id;
   // Denormalised call state (0014) — rides along with every call the register
   // already loads, so no second query is needed to colour the list.
-  out.callState = row.open_state ?? '';
+  // A re-opened call is open again whatever its last visit said (0057).
+  out.callState = row.reopened_at ? 'Reopened' : row.open_state ?? '';
   out.lastStatus = row.last_status ?? '';
+  out.reopenedAt = row.reopened_at ?? '';
+  out.reopenCount = Number(row.reopen_count ?? 0);
   out.lastVisitAt = row.last_visit_at ?? '';
   return out;
 }
@@ -440,7 +443,7 @@ export async function cancelCallRequest(id: number, reason: string, by = ''): Pr
 // A call's state comes from its LATEST visit (view `call_state`, migration
 // 0012): Unattended (no visit yet), Unsolved, Report pending, or Solved.
 // Everything but Solved counts as OPEN.
-export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved';
+export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved' | 'Reopened';
 export const OPEN_STATES: CallState[] = ['Unattended', 'Unsolved', 'Report pending'];
 
 export interface OpenCall {
@@ -466,7 +469,7 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows.map((r) => ({ ...dbToCall(r), state: String(r.open_state ?? '') })));
+    out.push(...rows.map((r) => ({ ...dbToCall(r), state: r.reopened_at ? 'Reopened' : String(r.open_state ?? '') })));
     if (rows.length < PAGE) break;
   }
   return out;
@@ -481,7 +484,7 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
   if (!ser.length && !par.length) return [];
 
   const rows: Record<string, unknown>[] = [];
-  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state';
+  const cols = 'ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state,reopened_at';
   for (const part of chunked(ser)) {
     const { data, error } = await c.from('pending_calls').select(cols).in('serial', part).limit(1000);
     if (error) throw new Error(errMsg(error));
@@ -504,10 +507,24 @@ export async function openCallsFor(serials: string[], parties: string[] = []): P
       productName: String(r.product_name ?? ''), serial: String(r.serial ?? ''),
       allocatedTo: String(r.allocated_to ?? ''), regDate: String(r.reg_date ?? ''),
       complaint: String(r.complaint_reported ?? ''),
-      state: (String(r.open_state ?? 'Unattended') as Exclude<CallState, 'Solved'>),
+      state: ((r.reopened_at ? 'Reopened' : String(r.open_state ?? 'Unattended')) as Exclude<CallState, 'Solved'>),
     });
   });
   return [...byUcn.values()].sort((a, b) => (b.regDate || '').localeCompare(a.regDate || ''));
+}
+
+// Re-open a closed call (Hotline). The DB checks the permission and that the
+// call really is closed, and counts the re-open on the call.
+export async function reopenCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('reopen_call', { p_ucn: ucn, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// Withdraw a re-open (the call was re-opened only to correct it). The call
+// falls back to what its last visit said; no visit is invented.
+export async function closeReopenedCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('close_reopened_call', { p_ucn: ucn, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // Does this UCN exist? (manual mapping is free text, so it is worth checking.)
@@ -698,7 +715,7 @@ export async function reportHistory(ucn: string): Promise<Record<string, unknown
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
-// Each Update Call is a new VISIT row (reports = history), keyed by a fresh uid.
+// Each Visit Entry is a new VISIT row (reports = history), keyed by a fresh uid.
 export async function saveReport(ucn: string, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const uid = `WEB-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`.toUpperCase();
   const row = { uid, ucn, ...patch, updated_at: new Date().toISOString() };

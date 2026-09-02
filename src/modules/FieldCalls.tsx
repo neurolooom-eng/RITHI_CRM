@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, sbDirectoryNames } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -138,8 +138,14 @@ const COLUMNS: Column<Rec>[] = [
   {
     // Filled from the `call_state` view after the register loads — a call is
     // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
-    key: 'callState', header: 'Call Status', width: 130, wrap: false,
-    render: (r) => <StateBadge state={String(r.callState ?? '')} />,
+    key: 'callState', header: 'Call Status', width: 170, wrap: false,
+    render: (r) => (
+      <StateBadge
+        state={String(r.callState ?? '')}
+        label={String(r.callState) === 'Reopened' ? 'Reopened' : String(r.lastStatus || r.callState || '')}
+        title={Number(r.reopenCount ?? 0) > 0 ? `Re-opened ${r.reopenCount}×` : undefined}
+      />
+    ),
   },
   { key: 'callNumber', header: 'Call Number', width: 170 },
   { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
@@ -343,10 +349,22 @@ export function PMCalls() {
 
 function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const cached = useCollection<Rec>(config.collection);
-  const { user, users, can, isAdmin } = useAuth();
+  const { user, users, can } = useAuth();
   // A Solved call is read-only for everyone except admins.
-  const isSolved = (row: Rec) => /solved/i.test(String(row.status ?? ''));
-  const canEditRow = (row: Rec) => can('calls.edit') && (isAdmin || !isSolved(row));
+  // A call is CLOSED when its latest visit solved it and nobody re-opened it.
+  // (calls.status is the registration status, which visits never touch — it is
+  // the derived call state that says whether the call is finished.)
+  const isSolved = (row: Rec) => String(row.callState ?? '') === 'Solved';
+  // Closed means closed — for admins too. The way back is Re-open, not an
+  // exemption, so a call's history cannot gain a visit that never happened.
+  const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row);
+  // A closed call takes no visit entry and no spare request until re-opened.
+  const canWorkRow = (row: Rec) => !isSolved(row);
+  const canReopen = (row: Rec) => isSolved(row) && !row._pending && (can('pending.register') || can('calls.create'));
+  // A call re-opened only to correct it is closed again by withdrawing the
+  // re-open — entering a visit that never happened is not the way back.
+  const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
+  const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && (can('pending.register') || can('calls.create'));
   const scope = useAccessScope();
   // Master-driven suggestions for the intake form (live from the sheets).
   const partyMaster = useMaster('party');
@@ -388,9 +406,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // keeping their register small; a toggle reveals closed ones. Everyone else
   // sees all by default. A call is closed only when its state is exactly Solved.
   const [openOnly, setOpenOnly] = useState(user?.rbacRole === 'engineer');
+  const [reopenedOnly, setReopenedOnly] = useState(false);
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
-  const [report, setReport] = useState<Rec | null>(null); // "Update Call" → Reporting-N
+  const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
   // On Supabase we show the recent set by default and run SEARCH server-side
@@ -649,8 +668,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // Open-only: keep anything not fully Solved; a user's own unsynced local
     // rows always stay so they can finish them.
     const openOk = (row: Rec) => !openOnly || row._pending === true || String(row.callState ?? '') !== 'Solved';
+    const reopenOk = (row: Rec) => !reopenedOnly || Number(row.reopenCount ?? 0) > 0;
     const r = cached.filter((row) =>
-      scopeOk(row) && openOk(row) &&
+      scopeOk(row) && openOk(row) && reopenOk(row) &&
       (onDb || (
         has(row.ucn, srch.ucn) &&
         has(row.productName, srch.productName) &&
@@ -663,27 +683,68 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, srch, scope, user?.id, onDb, openOnly]);
+  }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly]);
+
+  // How many of the loaded calls have been re-opened at least once.
+  const reopenedCount = useMemo(() => cached.filter((r) => Number(r.reopenCount ?? 0) > 0).length, [cached]);
 
   // More rows exist beyond what is loaded (only in the unfiltered browse set),
   // so the count is a lower bound — shown as "N+".
   const searching = !!(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName);
   const moreAvailable = configured && !searching && cached.filter((r) => r._synced).length >= loadLimit;
 
+  // Re-open a closed call: the Hotline's way back in when the fault returns or
+  // a visit was entered against the wrong call.
+  const reopen = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    if (!confirm(`Re-open call ${ucn}? It goes back on the open list and is counted as re-opened.`)) return;
+    const t0 = performance.now();
+    const res = await reopenCall(ucn);
+    logAudit({ action: 'calls.reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not re-open ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} re-opened.` });
+    setDrawer(null);
+    void refresh();
+  };
+
+  // Withdraw a re-open: the call goes back to what its last visit said.
+  const closeReopen = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    if (!confirm(`Close ${ucn} again? It goes back to “${String(row.lastStatus || 'Solved')}” — use this when the call was re-opened only to correct it, not visited.`)) return;
+    const t0 = performance.now();
+    const res = await closeReopenedCall(ucn);
+    logAudit({ action: 'calls.close_reopen', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not close ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} closed again.` });
+    setDrawer(null);
+    void refresh();
+  };
+
   const actionsColumn: Column<Rec> = {
-    key: '_actions', header: 'Actions', width: 290, sortable: false, wrap: false,
+    // Icons, not words: the column has to fit four actions without stealing the
+    // width the call itself needs. Every button keeps a title for its meaning.
+    key: '_actions', header: '⚙', width: 138, sortable: false, wrap: false, align: 'center',
     render: (row) => (
-      <div className="row" onClick={(e) => e.stopPropagation()}>
-        <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'view', row })}>View</button>
-        {canEditRow(row) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row })}>Edit</button>}
-        {can('calls.report') && !row._pending && (
-          <button className="btn btn-sm btn-primary" title="Update / report this call" onClick={() => setReport(row)}>📝 Update</button>
+      <div className="row act-row" onClick={(e) => e.stopPropagation()}>
+        <button className="btn btn-sm btn-icon" title="View this call" onClick={() => setDrawer({ mode: 'view', row })}>👁</button>
+        {canEditRow(row) && <button className="btn btn-sm btn-icon" title="Edit this call" onClick={() => setDrawer({ mode: 'edit', row })}>✏️</button>}
+        {can('calls.report') && !row._pending && canWorkRow(row) && (
+          <button className="btn btn-sm btn-icon btn-primary" title="Visit Entry — record a visit against this call" onClick={() => setReport(row)}>📝</button>
         )}
-        {can('spare.request') && !row._pending && (
-          <button className="btn btn-sm" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦 Spare</button>
+        {can('spare.request') && !row._pending && canWorkRow(row) && (
+          <button className="btn btn-sm btn-icon" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦</button>
         )}
+        {canReopen(row) && (
+          <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>
+        )}
+        {canCloseReopen(row) && (
+          <button className="btn btn-sm btn-icon" title="Close again — the re-open was only to correct the call" onClick={() => void closeReopen(row)}>🔒</button>
+        )}
+        {isSolved(row) && !canReopen(row) && <span className="muted" title="Closed — Solved">🔒</span>}
         {row._pending && (can('calls.create') || can('calls.edit')) && (
-          <button className="btn btn-sm btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
+          <button className="btn btn-sm btn-icon btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
         )}
       </div>
     ),
@@ -747,6 +808,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             >
               {openOnly ? '🔵 Open only' : '⚪ All calls'}
             </button>
+            <button
+              className={`chip ${reopenedOnly ? 'chip-on' : ''}`}
+              onClick={() => setReopenedOnly((o) => !o)}
+              title="Calls that were closed and put back on the list"
+            >
+              ↻ Re-opened{reopenedCount ? <b>{reopenedCount}</b> : null}
+            </button>
             {pendingCount > 0 && (
               <button className="btn btn-sm btn-primary" onClick={() => void syncPending()} disabled={busy || !configured}>
                 ⇪ Sync {pendingCount} pending
@@ -801,12 +869,18 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               </div>
             )}
             {/* Actions at the top of a call's view (each gated by its own permission) */}
-            {drawer.mode === 'view' && !drawer.row?._pending && (can('calls.report') || can('spare.request') || canEditRow(drawer.row as Rec)) && (
+            {drawer.mode === 'view' && !drawer.row?._pending && (
+              ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec))
+              || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec)
+              || canCloseReopen(drawer.row as Rec) || isSolved(drawer.row as Rec)
+            ) && (
               <div className="call-actions-top">
-                {can('calls.report') && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>}
-                {can('spare.request') && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
+                {can('calls.report') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>}
+                {can('spare.request') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
+                {canReopen(drawer.row as Rec) && <button className="btn btn-sm" title="Put this closed call back on the open list" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>}
+                {canCloseReopen(drawer.row as Rec) && <button className="btn btn-sm" title="The re-open was only to correct the call — put it back to closed without entering a visit" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>}
                 {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
-                {isSolved(drawer.row as Rec) && !isAdmin && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Solved — read-only</span>}
+                {isSolved(drawer.row as Rec) && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Closed — {String((drawer.row as Rec).lastStatus || 'Solved')}</span>}
               </div>
             )}
             {drawer.mode === 'create' && configured && (
@@ -824,14 +898,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
               footer={
-                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || can('calls.report') || can('spare.request')) ? (
+                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec) || canCloseReopen(drawer.row as Rec)) ? (
                   <>
                     {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
-                    {!drawer.row?._pending && can('calls.report') && (
-                      <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Update Call</button>
+                    {!drawer.row?._pending && can('calls.report') && canWorkRow(drawer.row as Rec) && (
+                      <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>
                     )}
-                    {!drawer.row?._pending && can('spare.request') && (
+                    {!drawer.row?._pending && can('spare.request') && canWorkRow(drawer.row as Rec) && (
                       <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
+                    )}
+                    {canReopen(drawer.row as Rec) && (
+                      <button type="button" className="btn" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>
+                    )}
+                    {canCloseReopen(drawer.row as Rec) && (
+                      <button type="button" className="btn" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>
                     )}
                   </>
                 ) : undefined

@@ -12,6 +12,45 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.3',
+    date: '2026-09-02',
+    title: 'Report dates read like every other date',
+    changes: [
+      'A visit report showed its dates as stored \u2014 \u201c9/1/2026, 6:07:16 PM\u201d and \u201c2026-09-01\u201d. They now follow the app format: dd-mmm-yyyy with the time when there is one, both for visits already recorded and for new ones.',
+      'Only fields whose name says date or time are reformatted; everything else the engineer typed is shown exactly as entered.',
+    ],
+  },
+  {
+    version: '0.9.2',
+    date: '2026-09-02',
+    title: 'Close a re-opened call again',
+    changes: [
+      'A call re-opened only to correct it \u2014 wrong complaint, wrong machine \u2014 can now be closed again with \u201c\ud83d\udd12 Close again\u201d. It goes back to what its last visit said, and no visit is invented to get it there.',
+      'Withdrawing a re-open gives the re-open count back, so the \u201cRe-opened\u201d filter keeps counting the calls that genuinely came back rather than the ones that were merely edited.',
+    ],
+  },
+  {
+    version: '0.9.1',
+    date: '2026-09-02',
+    title: 'Closed means closed, for admins too',
+    changes: [
+      'A closed call kept offering Visit Entry, Request Spares and Edit to admins. It no longer does \u2014 the way back into a closed call is Re-open, for everyone, so its history cannot gain a visit that never happened.',
+      'The register\u2019s action icons are centred and evenly sized instead of drifting left at odd widths.',
+    ],
+  },
+  {
+    version: '0.9.0',
+    date: '2026-09-01',
+    title: 'Closed calls stay closed \u2014 unless the Hotline re-opens them',
+    changes: [
+      'Call Status now shows what the call actually says \u2014 \u201cSolved - Report Completed\u201d, not just \u201cSolved\u201d \u2014 keeping the colour that tells you whether it is finished.',
+      'A closed call takes no visit entry, no spare request and no edit. The Hotline can re-open one, and it goes straight back onto the open list.',
+      'Every re-open is counted on the call, so \u201c\u21bb Re-opened\u201d in the register filters to exactly those calls, with the tally on the chip.',
+      '\u201cUpdate Call\u201d is now called \u201cVisit Entry\u201d, which is what it records.',
+      'The register\u2019s Actions column uses icons, so every action fits without pushing the call off the screen.',
+    ],
+  },
+  {
     version: '0.8.68',
     date: '2026-09-01',
     title: 'Acknowledge each spare delivery as it arrives',
