@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.30',
+    date: '2026-09-02',
+    title: 'Bulk Uploads: DCCR, Installation and PM registers',
+    changes: [
+      'DCCR Register loaded nothing because the export calls the UCN “UC Number”. It now reads the whole register — Risk to Patient, Warranty Failure, both review dates, Complaint Grouping, Root Cause Key Word and the spare category — however the headings are punctuated.',
+      'Installation Calls loaded with no warranty start date, which is the one thing an installation exists to record. The export has both a “Warranty Start Date” column and a “Warranty Start Date?” label column, and the wrong one was winning. An exact heading now beats a loosely-matched one.',
+      'Installation and PM calls also had no registration date, because those exports keep it in “Timestamp”. That is now read — and an explicit registration date still wins where the file has one.',
+      'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are computed by the register, so the file’s own copies are ignored rather than loaded.',
+    ],
+  },
+  {
     version: '0.9.29',
     date: '2026-09-02',
     title: 'Bulk Uploads: the registers that would not load',

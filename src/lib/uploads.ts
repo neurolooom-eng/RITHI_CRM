@@ -61,10 +61,25 @@ export interface UploadDef {
 
 // ---- coercion -------------------------------------------------------------
 
-// Header punctuation is decoration, not meaning: the real exports carry
-// `Death?`, `Serious Incident?` and `PO No.`, and a question mark is not a
-// different column from the same name without one.
-const norm = (h: string) => h.trim().toLowerCase().replace(/[?.!:;#*]/g, '').replace(/[\s_/-]+/g, ' ').trim();
+// Headers are matched in TWO passes, and the order matters more than it looks.
+//
+// `strict` only tidies whitespace and underscores. `loose` also throws away
+// punctuation and bracketed suffixes, because the real exports carry `Death?`,
+// `Serious Incident?`, `PO No.` and `WARRANTY FAILURE (1YR)` — none of which is
+// a different column from the same name without its decoration.
+//
+// But loosening alone is not safe: the Installation Call export has BOTH
+// `Warranty Start Date` (the date) and `Warranty Start Date?` (a yes/no flag),
+// which loosen to the same thing. Matching loosely in one pass bound the flag
+// and every installation loaded with NO warranty start date — the one field an
+// installation exists to record. So an exact name always wins over a loosened
+// one, and within a pass the earlier column in the file wins.
+const strict = (h: string) => h.trim().toLowerCase().replace(/[\s_]+/g, ' ').trim();
+const loose = (h: string) => h.trim().toLowerCase()
+  .replace(/\([^)]*\)/g, ' ')
+  .replace(/[?.!:;#*'"]/g, '')
+  .replace(/[\s_/,-]+/g, ' ').trim();
+const norm = loose;
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
@@ -144,19 +159,22 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
 
   // header -> column, resolved once for the whole file rather than per row.
   //
-  // ONE header per column, chosen by ALIAS PRIORITY. A real export often has
-  // several of a column's aliases at once — the AppSheet Party Master carries
-  // both `Type` and `Profile`, and both `Address` and `Billing Address`. Binding
-  // all of them to the same column let whichever came last in the row overwrite
-  // the others, so `Type: CUSTOMER` silently became `Profile: GOVERNMENT`.
-  // Now the earliest alias that the file actually has wins, and the rest fall
-  // through to `extraInto` where they are kept rather than fighting over a column.
-  const bind = new Map<string, Col>();
+  // ONE header per column, chosen by ALIAS PRIORITY then by exactness. A real
+  // export often has several of a column's aliases at once — the AppSheet Party
+  // Master carries both `Type` and `Profile`, and both `Address` and `Billing
+  // Address`. Binding all of them to the same column let whichever came last in
+  // the row overwrite the others, so `Type: CUSTOMER` silently became
+  // `Profile: GOVERNMENT`. The losers fall through to `extraInto`, kept rather
+  // than fighting over a column.
+  //
+  // A header may feed MORE than one column where both name it (Timestamp is
+  // both the registration date and its time), so this maps header -> columns.
+  const bind = new Map<string, Col[]>();
+  const first = (fn: (h: string) => string, want: string) => headers.find((h) => fn(h) === want);
   def.cols.forEach((c) => {
-    const byName = new Map(headers.map((h) => [norm(h), h]));
     for (const alias of c.from) {
-      const h = byName.get(norm(alias));
-      if (h && !bind.has(h)) { bind.set(h, c); claimed.add(h); return; }
+      const h = first(strict, strict(alias)) ?? first(loose, loose(alias));
+      if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); return; }
     }
   });
 
@@ -165,11 +183,13 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     const extra: Record<string, unknown> = {};
 
     Object.entries(r).forEach(([h, v]) => {
-      const col = bind.get(h);
-      if (col) {
-        const val = coerce(v, col.type);
-        // Never let a blank cell overwrite a stamped constant.
-        if (val !== null && val !== '') out[col.to] = val;
+      const cols = bind.get(h);
+      if (cols) {
+        cols.forEach((col) => {
+          const val = coerce(v, col.type);
+          // Never let a blank cell overwrite a stamped constant.
+          if (val !== null && val !== '') out[col.to] = val;
+        });
       } else if (def.extraInto) {
         const s = String(v ?? '').trim();
         if (s) extra[h.trim()] = s;
@@ -227,7 +247,7 @@ const CALL_COLS: Col[] = [
   TEXT('call_number', 'call number', 'call no'),
   // "Registeration" is how the export spells it — matched as written rather
   // than corrected, because the file is what it is.
-  DATE('reg_date', 'call registeration date', 'call registration date', 'registration date', 'reg date', 'date of registration'),
+  DATE('reg_date', 'call registeration date', 'call registration date', 'registration date', 'reg date', 'date of registration', 'timestamp'),
   DATE('complaint_date', 'complaint date'),
   DATE('breakdown_date', 'breakdown date'),
   TEXT('party_name', 'party name', 'customer', 'party'),
@@ -252,7 +272,10 @@ const CALL_COLS: Col[] = [
   TEXT('mode_of_reporting', 'mode of complaint reporting', 'mode of reporting'),
   TEXT('customer_name', 'customer name'), TEXT('customer_number', 'customer number'),
   TEXT('customer_designation', 'customer designation'), TEXT('email_address', 'email address'),
-  DATE('added_on', 'added on'), TS('reg_at', 'registration date time', 'reg at'),
+  DATE('added_on', 'call added on', 'added on'),
+  // Last resort on both: the AppSheet forms stamp `Timestamp` when the call was
+  // raised, and it is the only registration moment those exports carry.
+  TS('reg_at', 'registration date time', 'reg at', 'timestamp'),
 ];
 
 const REPORT_COLS: Col[] = [
@@ -412,19 +435,19 @@ export const UPLOADS: UploadDef[] = [
     ] },
   { key: 'call_reviews', label: 'DCCR Register', group: 'Quality', table: 'call_reviews',
     conflict: 'ucn', requires: 'Field Calls',
-    note: 'Review Status, Any Potential Effect and Action Taken are DERIVED — they are computed from the answers below and cannot be loaded.',
+    note: 'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are DERIVED — the register computes them from the answers below, so the file\u2019s own copies are ignored rather than loaded. Everything else the file carries (call details, visit remarks, spares consumed, the failure-age columns) belongs to the call and its visits, not to the review, and is ignored here too.',
     cols: [
-      { to: 'ucn', from: ['ucn'], required: true },
+      { to: 'ucn', from: ['uc number', 'ucn', 'uc no'], required: true },
       TEXT('call_number', 'call number'),
-      TEXT('risk_to_patient', 'risk to patient'),
+      TEXT('risk_to_patient', 'risk to patient any clinical impact', 'risk to patient'),
       TEXT('warranty_failure', 'warranty failure'),
       TEXT('frequent_failure', 'frequent failure'),
-      DATE('review2_at', 'review 2 date'), TEXT('review2_by', 'review 2 by'),
+      DATE('review2_at', 'date of review 2', 'review 2 date'), TEXT('review2_by', 'review 2 by'),
       TEXT('complaint_grouping', 'complaint grouping', 'dccr complaint grouping'),
       TEXT('root_cause_keyword', 'root cause key word', 'root cause keyword'),
-      TEXT('spare_category', 'spare category'),
-      TEXT('service_observation', 'service observation'),
-      DATE('review3_at', 'review 3 date'), TEXT('review3_by', 'review 3 by'),
+      TEXT('spare_category', 'spare consumable correction calibration', 'spare category'),
+      TEXT('service_observation', 'service dept observation', 'service observation'),
+      DATE('review3_at', 'date of review 3', 'review 3 date'), TEXT('review3_by', 'review 3 by'),
     ] },
 
   // ---- registers with their own screens

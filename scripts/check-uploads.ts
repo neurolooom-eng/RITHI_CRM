@@ -96,6 +96,41 @@ eq('mode of complaint reporting is read', fc.rows[0].mode_of_reporting, 'PHONE')
 eq('Call Type is STAMPED, not unknown', [fc.rows[0].call_type, fc.stamped], ['FIELD', ['Call Type']]);
 eq('nothing left unrecognised', fc.unmatched, []);
 
+console.log('\n-- an exact header beats a punctuation-stripped one --');
+// The Installation Call export carries BOTH `Warranty Start Date` (the date)
+// and `Warranty Start Date?` (a label). Matching loosely in one pass bound the
+// label, and every installation loaded with no warranty start date.
+const inst = shapeUpload(def('installation_calls'), [{
+  'UCN': '26A02I0001', 'Warranty Start Date': '24-December-2025',
+  'Warranty Start Date?': 'Installation Call Solved Date',
+  'Timestamp': '02-Jan-2026 12:54:54', 'Death?': 'NO',
+}]);
+eq('the real date column wins', inst.rows[0].warranty_start, '2025-12-24');
+eq('the label column is kept aside', (inst.rows[0].extra as Record<string, unknown>)['Warranty Start Date?'], 'Installation Call Solved Date');
+eq('a ?-suffixed column with no exact twin still matches', inst.rows[0].death, 'NO');
+eq('Timestamp is the registration moment', [inst.rows[0].reg_date, String(inst.rows[0].reg_at).slice(0, 10)], ['2026-01-02', '2026-01-02']);
+eq('...and an explicit registration date outranks it',
+   shapeUpload(def('field_calls'), [{ 'UCN': 'X', 'Call Registeration Date': '05/03/2026', 'Timestamp': '02-Jan-2026 12:54:54' }]).rows[0].reg_date,
+   '2026-03-05');
+
+console.log('\n-- the real DCCR export headers --');
+const dc = shapeUpload(def('call_reviews'), [{
+  'UC Number': '26A02F0001', 'CALL NUMBER': 'CL1',
+  'RISK TO PATIENT/ANY CLINICAL IMPACT': 'NO', 'WARRANTY FAILURE (1YR)': 'YES',
+  'DATE OF REVIEW 2': '23-Jul-2026', 'DATE OF REVIEW 3': '10-Jan-2026',
+  'COMPLAINT GROUPING': 'SCREEN : HANGING ISSUE', 'ROOT CAUSE KEY WORD': 'DAUGHTER BOARD',
+  'SPARE / CONSUMABLE / CORRECTION / CALIBRATION': 'SPARE', 'Service Dept Observation': 'seen',
+  'Review Status': 'Review Completed', 'ANY POTENTIAL EFFECT': 'NO',
+}]);
+eq('UC Number is the ucn', dc.rows[0].ucn, '26A02F0001');
+eq('a bracketed suffix is not a different column', dc.rows[0].warranty_failure, 'YES');
+eq('a slashed name is not a different column', dc.rows[0].risk_to_patient, 'NO');
+eq('dd-Mon-yyyy review dates', [dc.rows[0].review2_at, dc.rows[0].review3_at], ['2026-07-23', '2026-01-10']);
+eq('the two DCCR master fields land', [dc.rows[0].complaint_grouping, dc.rows[0].root_cause_keyword],
+   ['SCREEN : HANGING ISSUE', 'DAUGHTER BOARD']);
+eq('spare category from its long header', dc.rows[0].spare_category, 'SPARE');
+eq('DERIVED columns are not loaded', [dc.rows[0].review_status, dc.rows[0].any_potential_effect], [undefined, undefined]);
+
 console.log('\n-- every register is coherent --');
 UPLOADS.forEach((d) => {
   // A register with its own shaper declares no columns — it owns the job.
