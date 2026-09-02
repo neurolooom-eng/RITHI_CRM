@@ -136,12 +136,16 @@ export function RolePermissions() {
                       </td>
                     </tr>
 
-                    {headOpen && head.pages.map((page) => {
+                    {headOpen && [
+                      ...head.pages,
+                      // Each value list sits directly under Master, as its own
+                      // page — not nested inside All Masters.
+                      ...(head.lists ? masters.map((m) => ({ path: `/masters/${m.key}`, label: `🗂 ${m.label}`, actions: [] as string[] })) : []),
+                    ].map((page) => {
                       const pk = `${head.title}|${page.path}`;
                       const pageOpen = openPages.has(pk);
                       const view = page.path ? moduleAction(page.path) : '';
-                      const masterKeys = page.masters ? masters.map((m) => masterAction(m.key)) : [];
-                      const childKeys = [...page.actions, ...masterKeys];
+                      const childKeys = [...page.actions];
                       const hasChildren = childKeys.length > 0;
                       return (
                         <Fragment key={pk}>
@@ -154,8 +158,7 @@ export function RolePermissions() {
                               </button>
                               {hasChildren && (
                                 <span className="muted rbac-count">
-                                  {page.actions.length ? `${page.actions.length} action${page.actions.length === 1 ? '' : 's'}` : ''}
-                                  {page.masters && masters.length ? `${page.actions.length ? ' · ' : ''}${masters.length} lists` : ''}
+                                  {page.actions.length} action{page.actions.length === 1 ? '' : 's'}
                                 </span>
                               )}
                             </td>
@@ -170,15 +173,6 @@ export function RolePermissions() {
                                 <span>{label(a)}</span><code className="muted">{a}</code>
                               </td>
                               {cells(a)}
-                            </tr>
-                          ))}
-
-                          {pageOpen && page.masters && masters.map((m) => (
-                            <tr key={m.key} className="rbac-child">
-                              <td className="rbac-action rbac-indent">
-                                <span>🗂 {m.label}</span><code className="muted">{masterAction(m.key)}</code>
-                              </td>
-                              {cells(masterAction(m.key))}
                             </tr>
                           ))}
 

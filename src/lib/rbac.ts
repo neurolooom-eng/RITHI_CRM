@@ -183,22 +183,25 @@ export const permsForRole = (role: string, config: Record<string, string[]>): st
 // `view` is always the module's own mod: key, kept separate from the actions so
 // seeing a page and acting on it are granted independently.
 // ---------------------------------------------------------------------------
-export interface PermPage { path: string; label: string; actions: string[]; masters?: boolean }
-export interface PermHeader { title: string; pages: PermPage[] }
+export interface PermPage { path: string; label: string; actions: string[] }
+// `lists: true` — the header also carries one page per master value list, read
+// from the registry at render time so a list added later needs no code change.
+export interface PermHeaderOpts { lists?: boolean }
+export interface PermHeader extends PermHeaderOpts { title: string; pages: PermPage[] }
 
 export const PERM_TREE: PermHeader[] = [
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
   ] },
-  { title: 'Master', pages: [
+  { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
     { path: '/product-master', label: 'Product Master', actions: [] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: [] },
-    // Every value list under All Masters is listed individually, so access can
-    // be given list by list rather than all-or-nothing.
-    { path: '/masters', label: 'All Masters', actions: [], masters: true },
+    // All Masters is just the overview screen; each value list is its own page
+    // under this header, so access is given list by list.
+    { path: '/masters', label: 'All Masters (overview)', actions: [] },
   ] },
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },

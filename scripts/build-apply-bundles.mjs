@@ -196,7 +196,7 @@ const MODULES = {
             'Pending Reason, Cancel Reason, Feedback, Spare Approval Reason) as its own',
             'maintained table, seeded from the "200 All Masters" workbook.'],
     needs: ['profiles', 'rbac'],
-    files: ['0021_master_lists.sql'],
+    files: ['0021_master_lists.sql', '0066_master_values_active.sql'],
   },
   reports: {
     title: 'Reports',

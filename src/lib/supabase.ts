@@ -905,7 +905,9 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
   if (name === 'product') return distinctColumn('products', 'item_name');
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
-  const { data, error } = await c.from('masters').select('value').in('name', names).limit(limit);
+  // Pickers only ever offer LIVE values; a deactivated one stays on the records
+  // that already carry it but is not offered again.
+  const { data, error } = await c.from('masters').select('value').in('name', names).neq('active', false).limit(limit);
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.value)).filter(Boolean))];
 }
@@ -917,7 +919,7 @@ export async function listAllMasterValues(max = 20000): Promise<{ name: string; 
   const out: { name: string; value: string }[] = [];
   const PAGE = 1000;
   for (let from = 0; from < max; from += PAGE) {
-    const { data, error } = await c.from('masters').select('name,value').order('name').range(from, from + PAGE - 1);
+    const { data, error } = await c.from('masters').select('name,value').neq('active', false).order('name').range(from, from + PAGE - 1);
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
     rows.forEach((r) => {
@@ -935,7 +937,7 @@ export async function listAllMasterValues(max = 20000): Promise<{ name: string; 
 // one entry is called, and the extra columns that list carries in
 // `masters.extra` (Spare Approval Reason has Stage + Status).
 export interface MasterList { key: string; label: string; value_label: string; columns: { key: string; label: string }[]; sort_order: number; active: boolean }
-export interface MasterItem { id: number; name: string; value: string; extra: Record<string, string>; added_on: string | null; added_by: string }
+export interface MasterItem { id: number; name: string; value: string; extra: Record<string, string>; added_on: string | null; added_by: string; active?: boolean }
 
 export async function listMasterLists(): Promise<MasterList[]> {
   const { data, error } = await must().from('master_lists').select('*').eq('active', true).order('sort_order');
@@ -956,6 +958,7 @@ export async function listMasterItems(key: string, limit = 5000): Promise<Master
     id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
     extra: (r.extra ?? {}) as Record<string, string>,
     added_on: (r.added_on as string) ?? null, added_by: String(r.added_by ?? ''),
+    active: r.active !== false,
   }));
 }
 
@@ -994,6 +997,14 @@ export async function deleteMasterItem(id: number): Promise<{ ok: boolean; error
   const { error } = await must().from('masters').delete().eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// Deactivate rather than delete: the value is already on calls, reports and
+// spare requests that must keep making sense.
+export async function setMasterItemActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('masters').update({ active }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 
 // Row count of a master table (head request — no rows transferred).
 export async function countRows(table: string, eq?: [string, unknown]): Promise<number> {

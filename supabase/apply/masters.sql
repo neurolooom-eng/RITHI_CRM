@@ -10,6 +10,7 @@
 --
 -- Carries, in order:
 --   0021_master_lists.sql
+--   0066_master_values_active.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -684,5 +685,25 @@ insert into public.masters (name, value, extra, added_on, added_by) values
   ('orapproval', 'Direct PO', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN'),
   ('orapproval', 'OGP', '{"stage": "ADMIN", "status": "Cleared for Stores Processing"}'::jsonb, '2023-09-30'::date, 'RITHI ADMIN')
 on conflict do nothing;
+
+-- ------------------------------------------------------------------------
+-- 0066_master_values_active.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Master value lists gain an ACTIVE flag, as the part catalogue already has.
+--
+-- A value that is no longer used cannot simply be deleted: it is already on
+-- calls, reports and spare requests, and removing it would leave those records
+-- referring to something that no longer exists. Deactivating keeps the history
+-- and takes the value out of the pickers — the same rule the parts catalogue
+-- follows, and the same rule the rest of this system follows for records that
+-- matter.
+-- ===========================================================================
+
+alter table public.masters
+  add column if not exists active boolean not null default true;
+
+create index if not exists masters_active_idx on public.masters (name, active);
 
 commit;

@@ -4,7 +4,7 @@ import { Toolbar } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { csvExport, fmtDate } from '../lib/format';
 import { listMaster, dataConfigured } from '../lib/sheets';
-import { addMasterItem, deleteMasterItem, listMasterItems, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
+import { addMasterItem, deleteMasterItem, setMasterItemActive, listMasterItems, supabaseConfigured, type MasterItem, type MasterList } from '../lib/supabase';
 import { clearMasterCache } from '../lib/masters';
 import { usedBy } from './masterLists';
 
@@ -57,6 +57,18 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     else { setMsg({ tone: 'error', text: r.error ?? 'Could not add that entry.' }); setBusy(false); }
   };
 
+  // A value already used on calls, reports and spare requests is deactivated,
+  // not deleted — those records must keep making sense. Delete stays for a
+  // value added by mistake and never used.
+  const setActive = async (item: MasterItem, active: boolean) => {
+    const label = String(item.value ?? '');
+    if (!active && !confirm(`Deactivate "${label}"? It stays on every record that already uses it, but stops being offered.`)) return;
+    setBusy(true);
+    const r = await setMasterItemActive(item.id, active);
+    if (r.ok) { setMsg({ tone: 'ok', text: `"${label}" ${active ? 'reactivated' : 'deactivated'}.` }); await load(); }
+    else { setMsg({ tone: 'error', text: r.error ?? 'Could not update that entry.' }); setBusy(false); }
+  };
+
   const remove = async (item: MasterItem) => {
     if (!confirm(`Remove “${item.value}” from ${list.label}?`)) return;
     setBusy(true);
@@ -84,6 +96,21 @@ export function MasterListTable({ list, onCountChange }: { list: MasterList; onC
     ];
     if (editable) {
       cols.push({
+        key: 'active', header: 'Active', width: 80, wrap: false,
+        render: (r: MasterItem & Record<string, unknown>) => (
+          r.active === false ? <span className="badge badge-neutral">No</span> : <span className="badge badge-success">Yes</span>
+        ),
+      },
+      {
+        key: '_active', header: '', width: 120, sortable: false, wrap: false,
+        render: (r: MasterItem & Record<string, unknown>) => (
+          <button className="btn btn-sm" title={r.active === false ? 'Offer this value again' : 'Stop offering this value'}
+            onClick={(e) => { e.stopPropagation(); void setActive(r, r.active === false); }}>
+            {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
+          </button>
+        ),
+      },
+      {
         key: '_remove', header: '', width: 70, sortable: false, wrap: false,
         render: (r: MasterItem) => (
           <button className="btn btn-ghost btn-sm" title="Remove from this list" disabled={busy}

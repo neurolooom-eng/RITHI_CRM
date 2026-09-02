@@ -12,13 +12,13 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.18',
+    version: '0.9.19',
     date: '2026-09-02',
-    title: 'Part Master: add a part, and deactivate one',
+    title: 'Master lists: deactivate a value, and their own place in Roles',
     changes: [
-      'Part Master now has ＋ Add part, for anyone who may edit masters. The code and description are entered separately and the screen shows exactly how it will be listed \u2014 CODE|Description \u2014 which is the format every spare picker reads.',
-      'A part can be deactivated rather than deleted: it stays on every request, stock out and hand-stock record that already uses it, and stops being offered in the pickers. Reactivate puts it back.',
-      'A duplicate code is refused, since two parts sharing a code make hand stock ambiguous.',
+      'Every master value list can now deactivate an entry instead of deleting it. The value stays on every call, report and spare request that already uses it, and simply stops being offered in the pickers. Reactivate puts it back, and the list screen still shows both.',
+      'In Roles & Permissions each master list is now its own page directly under the Master heading, rather than being buried inside \u201cAll Masters\u201d \u2014 which is now just the overview screen it always was.',
+      'Needs a database script run once (master_values_active.sql).',
     ],
   },
   {
