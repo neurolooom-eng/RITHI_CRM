@@ -520,6 +520,13 @@ export async function reopenCall(ucn: string, reason = ''): Promise<{ ok: boolea
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// Withdraw a re-open (the call was re-opened only to correct it). The call
+// falls back to what its last visit said; no visit is invented.
+export async function closeReopenedCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('close_reopened_call', { p_ucn: ucn, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // Does this UCN exist? (manual mapping is free text, so it is worth checking.)
 export async function callByUcn(ucn: string): Promise<Record<string, unknown> | null> {
   const { data } = await must().from('calls').select('*').eq('ucn', ucn).maybeSingle();

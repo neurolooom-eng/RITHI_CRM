@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.2',
+    date: '2026-09-02',
+    title: 'Close a re-opened call again',
+    changes: [
+      'A call re-opened only to correct it \u2014 wrong complaint, wrong machine \u2014 can now be closed again with \u201c\ud83d\udd12 Close again\u201d. It goes back to what its last visit said, and no visit is invented to get it there.',
+      'Withdrawing a re-open gives the re-open count back, so the \u201cRe-opened\u201d filter keeps counting the calls that genuinely came back rather than the ones that were merely edited.',
+    ],
+  },
+  {
     version: '0.9.1',
     date: '2026-09-02',
     title: 'Closed means closed, for admins too',
