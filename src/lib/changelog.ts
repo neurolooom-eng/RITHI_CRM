@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.39',
+    date: '2026-09-02',
+    title: 'The registers that would not upload: Part Master, Ownership Transfer, MRN, Stock Transfer',
+    changes: [
+      'Part Master is now keyed on CODE|Description, not the code alone — the register uses YR134500 for two genuinely different parts (a loudspeaker and a speaker), so keying on the code would have merged them and lost one. All 1,324 load, both of those included.',
+      'Ownership Transfer read nothing: the export calls its columns Party Name (FROM) and Party Name (TO), which lose their brackets and look identical unless matched exactly. They are now matched exactly, so a hand-over cannot be recorded backwards.',
+      'MRN Register reads the export as written — Item Details is the part, and the Part Details column beside it is a spreadsheet formula with the quantities glued on, so it is left alone.',
+      'Stock Transfer failed entirely on two rows that transfer from an engineer to themselves — “Negtive Stock Clearing” and “Winmax HS Discrepancy”. Those are stock adjustments, not transfers, and belong in Opening Stock. They are now held back by name and the other 338 load.',
+      'Consumption can be re-loaded: a corrected sheet updates those lines instead of being refused for want of an adjustment reason on every row.',
+      'Every register now keeps the columns its export carries that have no field of their own, rather than dropping them.',
+      'Needs database scripts run once (masters.sql, sales_contracts.sql, HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.38',
     date: '2026-09-02',
     title: 'A request no longer offers a different hospital’s machine',

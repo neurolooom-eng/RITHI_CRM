@@ -158,9 +158,21 @@ with checks(sort_order, bundle, provides, present) as (
     -- says so in a NOTICE — which the Supabase editor makes easy to miss. The
     -- column would be there and this row would read "yes" while the upload still
     -- failed with "no unique or exclusion constraint". The index is what matters.
-    (35, 'parts + products: natural keys', 'parts_code_key_uniq + products_machine_key_uniq — the upsert needs these (0079)',
-        (exists (select 1 from pg_indexes where schemaname='public' and indexname='parts_code_key_uniq')
+    -- Tests the INDEXES, not the columns: 0079/0081/0082 SKIP building one when
+    -- the table already holds duplicates, and say so in a NOTICE the Supabase
+    -- editor makes easy to miss. The column would be there, this would read
+    -- "yes", and the upload would still fail on ON CONFLICT.
+    --
+    -- parts is keyed on CODE|Description, not the code: the real register uses
+    -- YR134500 for two different parts (0082).
+    (35, 'parts + products: natural keys', 'parts_item_detail_key_uniq + products_machine_key_uniq — the upsert needs these (0082)',
+        (exists (select 1 from pg_indexes where schemaname='public' and indexname='parts_item_detail_key_uniq')
      and exists (select 1 from pg_indexes where schemaname='public' and indexname='products_machine_key_uniq'))),
+    (36, 'uploads: extra columns kept', 'ownership_transfers.extra + stock_transfers.extra (0080)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='ownership_transfers' and column_name='extra')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='stock_transfers' and column_name='extra'))),
     (34, 'consumption: GRIR / traceability', 'spare_consumption.grir + source_ref, so a re-load corrects (0078)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_consumption' and column_name='grir')

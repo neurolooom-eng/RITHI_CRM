@@ -57,6 +57,11 @@ export interface UploadDef {
   conflictFrom?: string[];
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
+  /** A last look at the whole shaped row: return why it cannot be loaded, or ''.
+   *  For rules that span COLUMNS, which a per-column check cannot see — a stock
+   *  transfer from an engineer to themselves is refused by the database, and one
+   *  such row failed the entire batch. Held back and named here instead. */
+  reject?: (row: Record<string, unknown>) => string;
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
   /** A register whose file needs more than a column map. The four AppSheet
@@ -251,6 +256,8 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
       skipped.push({ row: i + 2, why: `no ${missing.map((c) => c.from[0]).join(', ')}` });   // +2: header row, 1-based
       return;
     }
+    const bad = def.reject?.(out);
+    if (bad) { skipped.push({ row: i + 2, why: bad }); return; }
     rows.push(out);
   });
 
@@ -481,7 +488,7 @@ export const UPLOADS: UploadDef[] = [
       TEXT('dispatched_by', 'dispatched by'), TS('dispatched_at', 'dispatched at', 'dispatch date'),
     ] },
   { key: 'spare_consumption', label: 'Consumption', group: 'Spares', table: 'spare_consumption',
-    requires: 'Field Calls', extraInto: 'data', conflict: 'source_ref',
+    requires: 'Field Calls', extraInto: 'data', conflict: 'source_ref_key', conflictFrom: ['source_ref'],
     note: 'Matched on the export\u2019s own row id, so re-loading a corrected sheet updates those lines rather than adding them again. GRIR / Traceability is carried through — it is which part was actually fitted, not just which kind.',
     cols: [
       { to: 'part', from: ['spares used', 'part', 'part no', 'spare'], required: true },
@@ -496,22 +503,40 @@ export const UPLOADS: UploadDef[] = [
       TS('created_at', 'visit date & time', 'consumed on', 'date'),
     ] },
   { key: 'material_returns', label: 'MRN Register', group: 'Spares', table: 'material_returns',
-    note: 'Also loadable from Data Import, which reads the sheet export as exported.',
+    note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. The export has no unique row id (its SI Number repeats), so load it once.',
     cols: [
-      { to: 'part', from: ['part', 'part no', 'spare'], required: true },
+      // `Item Details` is Item Code|Item Name, which is how a part is stored.
+      { to: 'part', from: ['item details', 'part details clean', 'part', 'part no', 'spare'], required: true,
+        derive: (o) => (o.item_code && o.item_name ? `${o.item_code}|${o.item_name}` : '') },
+      TEXT('item_code', 'item code'), TEXT('item_name', 'item name'),
       TEXT('mrn_no', 'mrn no'), DATE('mrn_date', 'mrn date'),
-      TEXT('engineer'), TEXT('uid', 'reference'),
-      NUM('good_qty', 'good'), NUM('defective_qty', 'defective'),
-      TEXT('customer_name', 'customer'), TEXT('report_no', 'report no'),
-      TEXT('removed_from_equipment', 'removed from equip'), TEXT('remarks'),
+      TEXT('engineer', 'engineer name', 'engineer'),
+      TEXT('engineer_email', 'user email', 'engineer email'),
+      TEXT('uid', 'si number', 'reference'),
+      { to: 'row_no', from: ['row no', 'si no'], type: 'int' },
+      NUM('good_qty', 'good qty', 'good'), NUM('defective_qty', 'defective qty', 'defective'),
+      TEXT('customer_name', 'customer name', 'customer'), TEXT('report_no', 'report no'),
+      TEXT('removed_from_equipment', 'removed from equip', 'removed from equipment'),
+      TEXT('handstock_note', 'handstock'),
+      TEXT('remarks'),
+      TS('returned_at', 'timestamp', 'returned at'),
     ] },
   { key: 'stock_transfers', label: 'Stock Transfer Register', group: 'Spares', table: 'stock_transfers',
-    conflict: 'uid',
+    conflict: 'uid', extraInto: 'extra',
+    // The database refuses a transfer to the same engineer, and one such row
+    // failed the whole batch. Held back by name instead — and it is genuinely
+    // not a transfer.
+    reject: (r) => {
+      const a = String(r.from_engineer ?? '').trim().toLowerCase();
+      const b = String(r.to_engineer ?? '').trim().toLowerCase();
+      return a && a === b ? `from and to are the same engineer (${String(r.from_engineer ?? '')})` : '';
+    },
     cols: [
-      { to: 'uid', from: ['uid', 'stock transfer number', 'transfer no'], required: true },
+      { to: 'uid', from: ['stock transfer number', 'uid', 'transfer no'], required: true },
       { to: 'from_engineer', from: ['from engineer', 'from'], required: true },
       { to: 'to_engineer', from: ['to engineer', 'to'], required: true },
-      DATE('transfer_date', 'transfer date', 'date'), TEXT('remarks'), TEXT('status'),
+      DATE('transfer_date', 'transfer date', 'timestamp', 'date'),
+      TEXT('remarks', 'additional remarks', 'remarks'), TEXT('status'),
     ] },
   { key: 'stock_transfer_lines', label: 'Stock Transfer Lines', group: 'Spares', table: 'stock_transfer_lines',
     requires: 'Stock Transfer Register',
@@ -608,8 +633,8 @@ export const UPLOADS: UploadDef[] = [
       DATE('contract_end', 'contract end date', 'contract end'),
     ] },
   { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts', extraInto: 'extra',
-    conflict: 'code_key', conflictFrom: ['code'],
-    note: 'Matched on the part code, so re-loading a corrected sheet updates those parts rather than adding them again. A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers.',
+    conflict: 'item_detail_key', conflictFrom: ['item_detail'],
+    note: 'Matched on CODE|Description — the same thing a consumption line and an engineer\u2019s hand stock reference. Not on the code alone: the register uses YR134500 for two different parts, so the code would have merged them. Re-loading a corrected sheet updates those parts, rather than adding them again. A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers.',
     cols: [
       { to: 'code', from: ['item code', 'code', 'part no', 'part code'], required: true },
       // `Item Details` is already the CODE|Description string the app stores;
@@ -623,16 +648,20 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
-    requires: 'Product Master',
-    note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one.',
+    requires: 'Product Master', extraInto: 'extra',
+    note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Everything else the export carries (the SA and warranty context, engineer, city) is kept on the row.',
     cols: [
-      { to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
-      { to: 'to_party', from: ['to party', 'new party', 'transferred to'], required: true },
-      TEXT('from_party', 'from party', 'old party', 'transferred from'),
-      TEXT('item_name', 'item name', 'product name', 'product'),
-      DATE('transfer_date', 'transfer date', 'date'),
-      TEXT('reference_no', 'reference no', 'reference', 'document no'),
-      TEXT('reason'), TEXT('remarks'), TEXT('document_url', 'document', 'document link'),
+      { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial'], required: true },
+      // `Party Name (TO)` and `Party Name (FROM)` both lose their brackets under
+      // loose matching and collapse to "party name" — so the bracketed forms are
+      // listed FIRST and matched exactly, before loosening can confuse the two.
+      { to: 'to_party', from: ['party name (to)', 'party name to', 'to party', 'new party', 'transferred to'], required: true },
+      { to: 'from_party', from: ['party name (from)', 'party name from', 'from party', 'old party', 'transferred from'] },
+      TEXT('item_name', 'product details', 'item details', 'item name', 'product name', 'product'),
+      DATE('transfer_date', 'transfer date', 'ot date', 'date'),
+      TEXT('reference_no', 'ot number', 'reference no', 'reference', 'document no'),
+      TEXT('reason'), TEXT('remarks'),
+      TEXT('document_url', 'file upload', 'document', 'document link'),
     ] },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'serial_key', conflictFrom: ['serial_number'], requires: 'Product Master',

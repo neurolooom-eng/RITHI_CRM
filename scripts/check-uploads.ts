@@ -165,7 +165,10 @@ eq('the real row loads, the filler row does not', cons2.rows.length, 1);
 eq('traceability is carried', cons2.rows[0].grir, 'GR-2026-118');
 eq('Consumed Qty is the authoritative quantity', cons2.rows[0].qty, 2);
 eq('the export row id becomes the key', cons2.rows[0].source_ref, 'v2_N1-e2fdf5c5');
-eq('...so a re-run corrects rather than duplicates', def('spare_consumption').conflict, 'source_ref');
+// On the NULLABLE source_ref_key, not the raw column: NULLs are distinct in a
+// unique index, so app-entered lines (which have no source ref) coexist while
+// imported lines stay unique — and the index is full, so it can be inferred.
+eq('...so a re-run corrects rather than duplicates', def('spare_consumption').conflict, 'source_ref_key');
 
 console.log('\n-- the real ITEM Master (Part Master) --');
 const pm2 = shapeUpload(def('parts'), [
@@ -179,7 +182,15 @@ eq('"Inactive" means not active', pm2.rows[0].active, false);
 eq('"Active" means active', pm2.rows[1].active, true);
 eq('a file with no Item Details builds one', pm2.rows[1].item_detail, 'EM-600|BUZZER MH1-OR');
 eq('the cost and the rest are kept', (pm2.rows[0].extra as Record<string, unknown>)['Purchase Cost'], '15');
-eq('matched on the part code', def('parts').conflictFrom, ['code']);
+// On CODE|Description, not the code: the real register uses YR134500 for two
+// different parts (LOUDSPEAKER V2-MT50 and SPEAKER V2-MT75), so the code would
+// have merged them — and a unique index on it would have refused the load.
+eq('matched on CODE|Description', def('parts').conflictFrom, ['item_detail']);
+eq('two parts sharing a code both survive',
+   shapeUpload(def('parts'), [
+     { 'Item Code': 'YR134500', 'Item Name': 'LOUDSPEAKER V2-MT50', 'Item Details': 'YR134500|LOUDSPEAKER V2-MT50' },
+     { 'Item Code': 'YR134500', 'Item Name': 'SPEAKER V2-MT75', 'Item Details': 'YR134500|SPEAKER V2-MT75' },
+   ]).rows.length, 2);
 
 console.log('\n-- a machine is model + serial, not serial alone --');
 const prod = shapeUpload(def('products'), [
@@ -190,6 +201,29 @@ const prod = shapeUpload(def('products'), [
 eq('the same serial on two models is two machines', prod.rows.length, 2);
 eq('the same model+serial twice is one', prod.rows.filter((x) => x.item_name === 'VEGA').length, 1);
 eq('...and the last one wins', prod.rows.find((x) => x.item_name === 'VEGA')?.party_name, 'C');
+
+console.log('\n-- a transfer to the same engineer is not a transfer --');
+const st = shapeUpload(def('stock_transfers'), [
+  { 'Stock Transfer Number': 'ST387', 'From': 'PRATIK', 'To': 'SAIKIRAN' },
+  { 'Stock Transfer Number': 'ST999', 'From': 'eBizWiz Admin', 'To': 'eBizWiz Admin' },
+]);
+eq('the real transfer loads', st.rows.length, 1);
+eq('the self-transfer is held back by name', st.skipped[0].why, 'from and to are the same engineer (eBizWiz Admin)');
+
+console.log('\n-- ownership transfer: FROM and TO must not be confused --');
+const ot2 = shapeUpload(def('ownership_transfers'), [{
+  'Item Serial Number': '2354', 'Party Name (FROM)': 'HOSP ONE', 'Party Name (TO)': 'HOSP TWO',
+  'OT Number': 'OT-118', 'Product Details': 'ORION-G', 'File Upload': 'https://drive/x',
+  'SA Number': 'SA9765', 'ENGINEER': 'A Kumar',
+}]);
+eq('the TO party is the destination', ot2.rows[0].to_party, 'HOSP TWO');
+eq('the FROM party is the origin', ot2.rows[0].from_party, 'HOSP ONE');
+eq('serial and machine read', [ot2.rows[0].serial_number, ot2.rows[0].item_name], ['2354', 'ORION-G']);
+eq('the OT number is the reference', ot2.rows[0].reference_no, 'OT-118');
+eq('the upload is the document', ot2.rows[0].document_url, 'https://drive/x');
+eq('the rest is kept, not dropped', ot2.rows[0].extra, { 'SA Number': 'SA9765', 'ENGINEER': 'A Kumar' });
+eq('a row with no destination is held back',
+   shapeUpload(def('ownership_transfers'), [{ 'Item Serial Number': 'X' }]).skipped[0].why, 'no party name (to)');
 
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
@@ -276,8 +310,9 @@ console.log('\n-- ownership transfer --');
 const ot = shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1', 'To Party': 'HOSP TWO', 'Transfer Date': '01/06/2024' }]);
 eq('from party may be blank (filled in by the database)', ot.rows[0].from_party, undefined);
 eq('transfer date day-first', ot.rows[0].transfer_date, '2024-06-01');
+// The reason names the header the file should carry.
 eq('a row with no destination is held back',
-   shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no to party');
+   shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no party name (to)');
 
 console.log('\n-- recovered warranty --');
 const ae = shapeUpload(def('product_additional_entries'), [
