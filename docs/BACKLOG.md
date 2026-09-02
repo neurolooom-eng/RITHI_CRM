@@ -81,6 +81,19 @@ with *some* permissions but missing `calls.view` silently blocks everything.
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Queued — waiting on the user
+- **Split User Access out of User Master** (deferred by the user, 2026-09-01).
+  `/users` currently redirects into **User Master**, which carries both the
+  directory (name, designation, region, reporting/regional manager, validity)
+  and the sign-in side (role, extra permissions, create-login, clone).
+  The merge was suspected of causing a role bug, but it was **not** the cause —
+  the coarse `Role` enum (`admin|manager|engineer|viewer`) was collapsing every
+  RBAC role, so Hotline/NSM/Commercial all displayed as "Field Engineer".
+  Fixed display-side in **v0.8.63** (`roleLabel()` prefers the real `rbacRole`);
+  the merged screen itself already offers the full role list and flags a
+  directory-vs-sign-in mismatch. So the split is a **presentation preference,
+  not a defect** — pick it up only if the combined screen proves unwieldy in use.
+  If done: keep one write path (the directory row is what grants the role on
+  first sign-in), or the two screens will disagree.
 - **Deploy the daily digest** — the Edge Function + schedule are in the repo
   (`supabase/functions/daily-digest/`, built, not deployable from here). Needs a
   **Resend API key** and the Supabase **CLI** deploy: set the secrets,
