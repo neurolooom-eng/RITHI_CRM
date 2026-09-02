@@ -237,7 +237,8 @@ const MODULES = {
     files: ['0023_handstock.sql', '0038_spare_consumption_scope.sql', '0039_material_returns.sql',
             '0041_stock_read_scope.sql', '0055_partial_dispatch.sql', '0056_receive_per_shipment.sql',
             '0059_consumption_reconciliation.sql',
-            '0060_reconcile_within_handstock.sql'],
+            '0060_reconcile_within_handstock.sql',
+            '0061_cap_all_consumption.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {

@@ -12,13 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.5',
+    version: '0.9.6',
     date: '2026-09-01',
-    title: 'Book spares against a call without the engineer\u2019s report',
+    title: 'Spares consumed can never exceed what the engineer holds',
     changes: [
-      'Admin and Spare Coordinator can add consumption straight against a call from Spare Consumption \u2014 for spares fitted but never reported, or to correct a stock count. Enter the UCN and it pulls in the call and the engineer.',
-      'Parts are chosen from what that engineer is actually holding, showing the quantity in hand, and a line cannot exceed it. Several parts can be booked in one go.',
-      'Every field is required \u2014 UCN, engineer, parts and the reason \u2014 and the entry is flagged \u201cReconciliation\u201d in the register with who recorded it, so it is never mistaken for something the engineer wrote. It comes off the engineer\u2019s hand stock exactly as a reported consumption does.',
+      'A call report can no longer consume more of a part than the engineer has in hand \u2014 a mistyped quantity used to push the balance negative unnoticed. If it is refused, the Spare Coordinator corrects the hand stock (a dispatch, a transfer, or a reconciliation line) and the report then goes through, so control of the balance sits with the coordinator.',
+      'Admin and Spare Coordinator can book spares against a call directly from Spare Consumption, choosing from what that engineer actually holds, several parts at once. UCN, engineer, parts and the reason are all required, and the entry is flagged \u201cReconciliation\u201d with who recorded it.',
       'Needs a database script run once (consumption_reconciliation.sql).',
     ],
   },
