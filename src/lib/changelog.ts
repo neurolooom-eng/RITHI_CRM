@@ -12,12 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.11',
+    version: '0.9.12',
     date: '2026-09-02',
-    title: 'Documentation brought up to date',
+    title: 'Stock Transfer shows transfers only',
     changes: [
-      'The how-to guide covers the new spare handling: sending part of a request, confirming each delivery as it arrives, and reconciling spares on a call (including correcting a quantity or voiding an entry made in error).',
-      'The Software Validation package is revised to 1.1, adding the requirements, design, risk assessment, FMEA and test protocols for partial issue, acknowledged receipt, reconciliation, the hand-stock cap, call re-opening and PM due-month scheduling.',
+      'The \u201cStock on hand\u201d tab has been removed from Stock Transfer \u2014 balances belong in Hand Stock, and the screen was showing a second copy of them. Stock Transfer now opens straight onto the transfers, with counts for transfers, lines, units moved and engineers involved.',
+      'It also loads faster: it no longer fetches every engineer\u2019s balance on each refresh.',
     ],
   },
   {

@@ -5,7 +5,7 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import { listUsers } from '../lib/sheets';
 import {
-  listEngineerStock, listAllStock, addStockTransfer, listStockTransfers,
+  listEngineerStock, addStockTransfer, listStockTransfers,
   supabaseConfigured, type StockRow,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -200,7 +200,9 @@ function TransferDrawer({
 }
 
 // ---------------------------------------------------------------------------
-// Register: stock on hand, and the transfers that moved it.
+// Register: the transfers themselves. Stock on hand is NOT shown here — it is
+// the Hand Stock module's job, and duplicating it made this screen fetch every
+// engineer's balance on every load to render a second copy of that table.
 // ---------------------------------------------------------------------------
 const TRANSFER_COLUMNS: Column<Row>[] = [
   { key: 'uid', header: 'Transfer No', width: 140, wrap: false },
@@ -213,31 +215,19 @@ const TRANSFER_COLUMNS: Column<Row>[] = [
   { key: 'remarks', header: 'Remarks', width: 200 },
 ];
 
-const STOCK_COLUMNS: Column<Row>[] = [
-  { key: 'engineer', header: 'Engineer', width: 200 },
-  { key: 'part', header: 'Part', width: 260 },
-  { key: 'qty', header: 'In hand', width: 90, align: 'right', wrap: false },
-];
-
 export function StockTransfer() {
   const { user, can, viewAs } = useAuth();
   const scope = useAccessScope();
   const onDb = supabaseConfigured();
   const cached = onDb ? loadCache<Row>(CACHE_KEY) : null;
-  const [tab, setTab] = useState<'stock' | 'transfers'>('stock');
   // Raw as fetched — cached and refreshed as before.
   const [allTransfers, setTransfers] = useState<Row[]>(cached?.rows ?? []);
-  const [allStock, setStock] = useState<Row[]>([]);
   // What the screen shows. RLS scopes a real session; this narrows the list
   // only while an administrator previews as someone else, whose identity the
   // database never sees. A transfer is in scope if EITHER side of it is.
   const transfers = useMemo(
     () => previewScoped(allTransfers, !!viewAs, scope, ['from_engineer', 'to_engineer'], [], viewAs?.email),
     [allTransfers, viewAs, scope],
-  );
-  const stock = useMemo(
-    () => previewScoped(allStock, !!viewAs, scope, ['engineer'], [], viewAs?.email),
-    [allStock, viewAs, scope],
   );
   const [engineers, setEngineers] = useState<string[]>([]);
   const [search, setSearch] = useState('');
@@ -252,10 +242,9 @@ export function StockTransfer() {
     if (!onDb) return;
     setBusy(true);
     try {
-      const [t, s] = await Promise.all([listStockTransfers(1000), listAllStock()]);
+      const t = await listStockTransfers(1000);
       const tRows = t.map((x, i) => ({ ...x, id: `${g(x as Row, 'uid')}-${i}` } as Row));
       setTransfers(tRows); setLastSync(saveCache(CACHE_KEY, tRows));
-      setStock(s.map((x, i) => ({ ...x, id: `${x.engineer}-${x.part}-${i}` } as unknown as Row)));
       setMsg(null);
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
@@ -273,23 +262,27 @@ export function StockTransfer() {
     // eslint-disable-next-line
   }, []);
 
-  const rows = tab === 'stock' ? stock : transfers;
-  const columns = tab === 'stock' ? STOCK_COLUMNS : TRANSFER_COLUMNS;
+  const columns = TRANSFER_COLUMNS;
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    const keys = tab === 'stock' ? ['engineer', 'part'] : ['uid', 'from_engineer', 'to_engineer', 'part', 'remarks'];
-    return rows.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
-  }, [rows, search, tab]);
+    if (!q) return transfers;
+    const keys = ['uid', 'from_engineer', 'to_engineer', 'part', 'remarks'];
+    return transfers.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
+  }, [transfers, search]);
 
-  const holders = useMemo(() => new Set(stock.map((r) => g(r, 'engineer'))).size, [stock]);
-  const totalQty = useMemo(() => stock.reduce((n, r) => n + Number(r.qty ?? 0), 0), [stock]);
+  // Counted from the transfers themselves, so the screen needs nothing but them.
+  const movements = useMemo(() => new Set(transfers.map((r) => g(r, 'uid'))).size, [transfers]);
+  const movedQty = useMemo(() => transfers.reduce((n, r) => n + Number(r.qty ?? 0), 0), [transfers]);
+  const people = useMemo(
+    () => new Set(transfers.flatMap((r) => [g(r, 'from_engineer'), g(r, 'to_engineer')]).filter(Boolean)).size,
+    [transfers],
+  );
 
   return (
     <div>
       <PageHeader
         title="Stock Transfer"
-        subtitle="Move hand-stock between engineers. Stock is derived from what each engineer received and consumed."
+        subtitle="Move hand-stock between engineers. Balances live in Hand Stock."
         icon="🔄"
         count={visible.length}
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => setDrawer(true)}>＋ New Transfer</button>}
@@ -303,35 +296,29 @@ export function StockTransfer() {
       )}
 
       <KpiGrid>
-        <KpiCard label="Engineers holding stock" value={holders} icon="👷" tone="primary" />
-        <KpiCard label="Part lines in hand" value={stock.length} icon="📦" tone="info" />
-        <KpiCard label="Total units in hand" value={totalQty} icon="Σ" tone="success" />
-        <KpiCard label="Transfer lines" value={transfers.length} icon="🔄" tone="neutral" />
+        <KpiCard label="Transfers" value={movements} icon="🔄" tone="primary" />
+        <KpiCard label="Transfer lines" value={transfers.length} icon="📦" tone="info" />
+        <KpiCard label="Units moved" value={movedQty} icon="Σ" tone="success" />
+        <KpiCard label="Engineers involved" value={people} icon="👷" tone="neutral" />
       </KpiGrid>
-
-      <div className="stage-chips">
-        <button className={`chip ${tab === 'stock' ? 'chip-on' : ''}`} onClick={() => setTab('stock')}>Stock on hand <b>{stock.length}</b></button>
-        <button className={`chip ${tab === 'transfers' ? 'chip-on' : ''}`} onClick={() => setTab('transfers')}>Transfers <b>{transfers.length}</b></button>
-      </div>
 
       <DataTable<Row>
         columns={columns}
         rows={visible}
         getRowId={(r) => r.id}
-        storageKey={`stockTransfer-${tab}`}
+        storageKey="stockTransfer-transfers"
         rowsBeforeScroll={14}
         dense
-        emptyText={tab === 'stock'
-          ? 'No stock in hand. Stock appears once an engineer acknowledges a HandStock spare request.'
-          : 'No stock transfers yet.'}
+        emptyText="No stock transfers yet."
+
         toolbar={
           <Toolbar>
-            <SearchBox value={search} onChange={setSearch} placeholder={tab === 'stock' ? 'Engineer, part…' : 'Transfer no, engineer, part…'} />
+            <SearchBox value={search} onChange={setSearch} placeholder="Transfer no, engineer, part…" />
             <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
             {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {visible.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport(`${tab === 'stock' ? 'stock-on-hand' : 'stock-transfers'}.csv`, columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }
