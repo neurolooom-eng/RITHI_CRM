@@ -133,6 +133,28 @@ been applied too.
 - **Deferred (feasibility):** auto-generate the monthly PM schedule from Product
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
+### Go-live cutover
+- **`supabase/apply/_reset_for_production.sql`** — empties the data produced
+  while testing and keeps the people and the setup (`profiles`,
+  `user_directory`, `app_roles`, `app_settings`, `sla_rules`, `master_lists`).
+  Hand-maintained, NOT generated. Points worth knowing before running it:
+  - It uses **TRUNCATE**, not DELETE, because `0049` blocks the application role
+    from deleting quality records on purpose. That is also why it is a script
+    the user runs in the SQL editor and not anything the app can do.
+  - `TRUNCATE ... RESTART IDENTITY` does **not** reach three sequences, because
+    they are not owned by the column that uses them: `ucn_seq` (the last four
+    digits of every UCN), `call_req_seq` (the REQID) and `call_split_id_seq`
+    (0040 made the id shared across field / installation / pm so the `calls`
+    union view has unique ids). The script `setval`s them explicitly — without
+    that the test run's count stays visible in production UCNs.
+  - Clearing `masters` also clears the values **0046 seeded** (DCCR Complaint
+    Grouping / Root Cause Key Word). Re-run `daily_review.sql` afterwards, or
+    the Daily Call Review's dropdowns come up empty and it does not look like a
+    data problem.
+  - Verified end to end on a throwaway PG16: after the reset the first call is
+    `…F0001` / `CL<yy>00001` / id 1, the first request is `R1`, and the spare
+    series restarts at `OR-YYMM-0001`.
+
 ### To run on the live project — pending
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
   — the **document library**: `documents`, holding the service-manual shelf and
