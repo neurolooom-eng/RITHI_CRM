@@ -69,6 +69,46 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 
 ## Gotchas
 
+- **Check what is actually applied before diagnosing anything.** Run
+  `supabase/apply/_state_check.sql` (read-only). Most "role bugs" this project
+  has produced were a migration that had not been run, and `docs/BACKLOG.md`
+  claimed the opposite twice — once nearly causing a needless rebuild of the
+  live `calls` tables. The backlog is a record, not evidence.
+- **Pending Registrations reads `call_requests`, not `pending_registrations`.**
+  `listPending()` → `listCallRequestsAsPending()`. Two fixes were aimed at the
+  wrong table before this surfaced; `pending_registrations` is the sheet-era
+  table. Its policy is `cr_read` (0003).
+- **A role that sees NOTHING is usually the `has_perm` gate, not the scope.**
+  The call policies are `has_perm('calls.view') AND <visibility>`. `has_perm`
+  falls back to the `engineer` defaults only when the role's `app_roles` row has
+  ZERO permissions — a row with *some* permissions but missing `calls.view`
+  silently blocks everything. Grant by MERGING into `app_roles`, never by
+  overwriting: an admin may have tuned the role.
+- **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
+  commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
+  policy only benefits from it if it actually calls it — `cr_read` did not.
+- **Every migration must be listed in a module in `build-apply-bundles.mjs`,**
+  or the generator refuses to build. A migration in no module is also missing
+  from every apply bundle, so a rebuilt project silently lacks it (0057/0058
+  shipped that way).
+- **Module ORDER matters for a fresh apply.** A migration that redefines
+  something owned by a later module gets overwritten by it — put it in a module
+  that runs afterwards (`ALL_ORDER`). `0055` sits in `handstock`, not
+  `spare_requests`, for exactly this reason.
+- **`create or replace view` can only APPEND columns.** Inserting one in the
+  middle fails with "cannot change name of view column"; add at the end, or drop
+  and recreate (and then everything depending on the view must be rebuilt too).
+- **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
+  does not serve equality, so `products.party_name =` (the request cascade) went
+  on timing out until btree indexes were added alongside the trigram ones.
+- **Hand stock is derived, never stored** — issued − consumed ± transfers −
+  returns. Consumption is therefore the control point: a DB trigger caps every
+  consumption line at the engineer's balance. Reported lines are capped too;
+  the Spare Coordinator corrects the stock, not the engineer.
+- **Quality records are never deleted** (0049 blocks it). A wrong consumption
+  line is VOIDED — quantity set to 0, the row retained with its original
+  quantity, reason and author, and the stock returns.
+
 - `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
   It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
   orderings, deliberately: a **list** of visits reads by `visit_at desc nulls

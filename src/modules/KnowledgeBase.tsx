@@ -109,7 +109,44 @@ const SECTIONS: Sec[] = [
     go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
-    id: 'feedback', n: '7', title: 'Customer feedback', who: 'Any engineer',
+    id: 'partial', n: '7', title: 'Send part of a spare request', who: 'Stores',
+    lead: <>If only some of what was asked for is on the shelf, send that much now — the rest stays in the queue and goes on a later stock out.</>,
+    steps: [
+      <>Open <b>Spares → Pending Dispatch</b> and tick the spares for one engineer.</>,
+      <>On the line, set the quantity box to what you are actually sending — it will not let you exceed what is still due.<Hint>A line already part-sent shows <b>1 of 2 sent</b>.</Hint></>,
+      <>Tap <B>🚚 Dispatch</B> and complete the courier and DC details.</>,
+      <>The DC prints what <i>this</i> stock out carried. The balance stays in the queue for next time.</>,
+    ],
+    go: [{ to: '/spare-dispatch', label: 'Pending Dispatch' }],
+    note: { tone: 'tip', icon: '📦', body: <>The engineer's hand stock rises by what you actually sent, not by what was requested.</> },
+  },
+  {
+    id: 'receive', n: '8', title: 'Confirm a spare you received', who: 'Any engineer',
+    lead: <>Confirm each delivery as it reaches you. A spare that arrives in two deliveries is confirmed twice.</>,
+    steps: [
+      <>Open <b>Spares → Spare Requests</b> and find the spare.</>,
+      <>Tap <B>📥 Mark received</B> — it appears as soon as something has been sent, even if the rest is still to come.</>,
+      <>Add a note if the condition or the count was not as expected.</>,
+      <>The spare shows <b>Received</b> only once every unit has been confirmed.</>,
+    ],
+    go: [{ to: '/spare-requests', label: 'Spare Requests' }],
+  },
+  {
+    id: 'reco', n: '9', title: 'Reconcile spares on a call', who: 'Spare Coordinator · Hotline · Admin',
+    lead: <>Put the stock record right when a spare was fitted but never reported, when the quantity is wrong, or when something was booked in error.</>,
+    steps: [
+      <>Find the call in any register and tap <B>🧾</B> (also in the call's own view).<Hint>It carries the UCN, call number and engineer across for you.</Hint></>,
+      <>Pick the part from that engineer's hand stock — the list only offers what they are actually holding — and set the quantity.</>,
+      <>Add more parts with <b>＋ Add another part</b> if several went on the same call.</>,
+      <>Type <b>why</b>. It is required, and it is kept with the entry.</>,
+      <><b>Wrong quantity already reported?</b> In <b>Spares → Spare Consumption</b>, tap <B>✎</B> on the line and correct it.</>,
+      <><b>Booked in error?</b> Set the quantity to <b>0</b>. The line is kept and marked <b>Voided</b>, and the spare goes back to the engineer's stock.</>,
+    ],
+    go: [{ to: '/spare-consumption', label: 'Spare Consumption' }],
+    note: { tone: 'warn', icon: '⚠️', body: <>Nothing is ever deleted — a correction keeps what it was, who changed it and why. An engineer cannot consume more than they hold; if their report is refused, fix the hand stock here first.</> },
+  },
+  {
+    id: 'feedback', n: '10', title: 'Customer feedback', who: 'Any engineer',
     lead: <>Feedback is captured on the call report, at the customer’s end. It’s then visible in the Customer Feedback screen.</>,
     steps: [
       <>While updating a call (step 3), fill the <b>Customer Feedback</b> questions with the customer — ratings and yes/no on the service and product.</>,
@@ -120,7 +157,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '⭐', body: <>Feedback is scoped like your calls — you see feedback for your own calls; managers and office roles see more.</> },
   },
   {
-    id: 'password', n: '8', title: 'Reset your password', who: 'Any engineer',
+    id: 'password', n: '11', title: 'Reset your password', who: 'Any engineer',
     lead: <>Reset it from sign-in if you’re locked out, or change it any time from your profile. The 👁️ button reveals what you typed.</>,
     steps: [
       <><b>Locked out?</b> On the sign-in screen tap <B>Forgot password?</B>.</>,
@@ -132,7 +169,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '🔑', body: <>First time signing in? Use the starting password your admin gave you — the app then asks you to set your own.</> },
   },
   {
-    id: 'build', n: '9', title: 'Find the Build ID (for support)', who: 'When something looks wrong',
+    id: 'build', n: '12', title: 'Find the Build ID (for support)', who: 'When something looks wrong',
     lead: <>The <b>Build ID</b> tells support exactly which version you’re on. It lives in the <b>footer</b> at the very bottom of every page.</>,
     steps: [
       <>Scroll to the very bottom of any screen.</>,
@@ -142,7 +179,7 @@ const SECTIONS: Sec[] = [
     ],
   },
   {
-    id: 'sync', n: '10', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
+    id: 'sync', n: '13', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
     lead: <>The app loads instantly from a copy on your device, then syncs the latest. Three controls, gentlest to strongest.</>,
     steps: [
       <><B>↻ Refresh</B> — on a screen’s toolbar. Pulls that screen’s latest rows now. Use it first if a list looks behind.</>,

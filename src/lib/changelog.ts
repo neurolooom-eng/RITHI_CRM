@@ -12,13 +12,12 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.10',
+    version: '0.9.11',
     date: '2026-09-02',
-    title: 'Void a spare booked in error',
+    title: 'Documentation brought up to date',
     changes: [
-      'A consumption line entered by mistake can now be set to 0 \u2014 it is marked Voided, stays on record with what it was and why, and the spare goes back into the engineer\u2019s hand stock. Quality records are never deleted, so voiding is how a wrong entry is undone.',
-      'Creating a line at zero is still refused, and a quantity can never go negative.',
-      'Needs a database script run once (consumption_reconciliation.sql) \u2014 re-run it if you applied an earlier copy.',
+      'The how-to guide covers the new spare handling: sending part of a request, confirming each delivery as it arrives, and reconciling spares on a call (including correcting a quantity or voiding an entry made in error).',
+      'The Software Validation package is revised to 1.1, adding the requirements, design, risk assessment, FMEA and test protocols for partial issue, acknowledged receipt, reconciliation, the hand-stock cap, call re-opening and PM due-month scheduling.',
     ],
   },
   {

@@ -103,6 +103,7 @@ export function SoftwareValidation() {
               <tr><td>Owner</td><td>{VAL_META.owner}</td></tr>
               <tr><td>Intended use</td><td>{VAL_META.intendedUse}</td></tr>
               <tr><td>Software category</td><td>{VAL_META.gampCategory}</td></tr>
+              <tr><td>Revision</td><td>{VAL_META.revision}</td></tr>
             </tbody></table>
           </Section>
           <Section title="2. Regulatory & standards basis">
