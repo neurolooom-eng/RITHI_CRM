@@ -17,6 +17,8 @@ const PAGE = 1000;
 type Row = Record<string, unknown> & { id: string };
 
 const COLUMNS: Column<Row>[] = [
+  // Assigned once, on first load, and never reassigned (0076).
+  { key: 'party_key', header: 'Key', width: 95, wrap: false },
   { key: 'party_name', header: 'Party Name', width: 300 },
   { key: 'city', header: 'City', width: 150 },
   { key: 'state', header: 'State', width: 150 },

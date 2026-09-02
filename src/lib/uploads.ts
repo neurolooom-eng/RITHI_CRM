@@ -384,7 +384,8 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- registers with their own screens
   { key: 'parties', label: 'Party Master', group: 'Masters', table: 'parties', extraInto: 'extra',
-    note: 'The AppSheet export loads as exported. Everything the table has no column for — Type, Profile, Country, Route, the telephone/email/PAN/GST fields, the contact person — is kept on the row rather than dropped.',
+    conflict: 'name_key', conflictFrom: ['party_name'],
+    note: 'The AppSheet export loads as exported. Everything the table has no column for — Type, Profile, Country, Route, the telephone/email/PAN/GST fields, the contact person — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again.',
     cols: [
       { to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
       TEXT('city'), TEXT('state'),

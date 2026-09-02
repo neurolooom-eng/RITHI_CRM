@@ -67,7 +67,6 @@ export const NAV: NavGroup[] = [
       { to: '/pending-calls', label: 'Pending Calls', icon: '🔥' },
       { to: '/reports', label: 'Reports', icon: '🗒️' },
       { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
-      { to: '/bulk-uploads', label: 'Bulk Uploads', icon: '⤵', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
     ],
   },
@@ -95,6 +94,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
+      { to: '/bulk-uploads', label: 'Bulk Uploads', icon: '⤵', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },

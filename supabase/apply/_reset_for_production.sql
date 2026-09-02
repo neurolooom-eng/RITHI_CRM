@@ -90,7 +90,8 @@ truncate table
   public.spare_or_counters,
   public.spare_dispatch_counters,
   public.material_return_counters,
-  public.stock_transfer_counters;
+  public.stock_transfer_counters,
+  public.party_key_seq;   -- so production starts again at Party-1
 
 -- (b) Three SEQUENCES that TRUNCATE ... RESTART IDENTITY cannot reach, because
 --     they are not owned by the column that uses them. Without these the test

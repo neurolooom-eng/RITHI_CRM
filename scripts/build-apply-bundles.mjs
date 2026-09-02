@@ -218,7 +218,7 @@ const MODULES = {
             'to add or change values and master.<list>.delete to remove one, with the',
             'global `masters.edit` still granting both on every list.'],
     needs: ['profiles', 'rbac'],
-    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql'],
+    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql'],
   },
   reports: {
     title: 'Reports',

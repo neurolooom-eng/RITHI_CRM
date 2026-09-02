@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.28',
+    date: '2026-09-02',
+    title: 'Every party gets a key — and uploading twice stops duplicating',
+    changes: [
+      'Each customer now has a short key: Party-1, Party-2, Party-3 and so on. Given on first load and never changed, so it is safe to quote and to refer to.',
+      'More importantly, Party Master had no unique constraint at all — re-running an upload added a second copy of every row. On a 5,874-row master you would only notice later, when every picker showed everything twice. Parties are now matched on their name, so re-loading a corrected sheet updates them instead.',
+      'Re-uploading no longer burns key numbers either: a row that was already there keeps its key, and only genuinely new parties take the next one.',
+      'Bulk Uploads has moved to Administration, next to Admin Config.',
+      'Needs a database script run once (masters.sql).',
+    ],
+  },
+  {
     version: '0.9.27',
     date: '2026-09-02',
     title: 'Stop the old importer swallowing files',

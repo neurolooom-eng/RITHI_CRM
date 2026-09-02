@@ -153,6 +153,10 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.handstock_opening') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
                   and definition ilike '%handstock_opening%'))),
+    (33, 'parties: key + de-duplication', 'parties.party_key (Party-1, Party-2 …) and the name_key unique index (0076)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='parties' and column_name='party_key')
+     and exists (select 1 from pg_indexes where schemaname='public' and indexname='parties_name_key_uniq'))),
     (32, 'handstock: historical consumption', 'spare_consumption_history + its arm -- the pre-2026 record, uncapped (0075)',
         (to_regclass('public.spare_consumption_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
