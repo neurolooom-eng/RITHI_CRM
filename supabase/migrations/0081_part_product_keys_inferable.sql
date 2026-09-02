@@ -15,6 +15,12 @@
 --
 -- `scripts/check-upsert-targets.mjs` now checks every register's conflict target
 -- against a real database, so this class cannot ship again by inspection alone.
+--
+-- LIVES IN THE handstock MODULE. It fixes indexes on parts and products (created
+-- in masters, an EARLIER module — fine) and on spare_consumption.source_ref,
+-- which 0078 adds HERE. From masters it ran before that column existed and
+-- all.sql died on it. 0082 follows it in the same module, since it drops an
+-- index this file creates and must not run first.
 -- ===========================================================================
 
 drop index if exists public.parts_code_key_uniq;

@@ -218,7 +218,7 @@ const MODULES = {
             'to add or change values and master.<list>.delete to remove one, with the',
             'global `masters.edit` still granting both on every list.'],
     needs: ['profiles', 'rbac'],
-    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql', '0079_part_product_keys.sql', '0081_part_product_keys_inferable.sql', '0082_part_key_is_item_detail.sql'],
+    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql', '0079_part_product_keys.sql'],
   },
   reports: {
     title: 'Reports',
@@ -268,7 +268,7 @@ const MODULES = {
             '0062_adjust_consumption_qty.sql',
             '0063_void_consumption_line.sql',
             '0064_stock_out_lines_and_refurb.sql',
-            '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql'],
+            '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql', '0081_part_product_keys_inferable.sql', '0082_part_key_is_item_detail.sql'],
     tail: () => cookbook(),
   },
   sales_contracts: {
