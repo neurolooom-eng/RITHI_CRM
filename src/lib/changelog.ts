@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.29',
+    date: '2026-09-02',
+    title: 'Bulk Uploads: the registers that would not load',
+    changes: [
+      'The three call registers wrote through the Calls view, which cannot be upserted — so they were refused outright, and had they worked a re-run would have duplicated every call. They now write to their own table, with the call number and registration date still stamped for you.',
+      'Field Calls now reads the export as it is actually written: Call Registeration Date, Product Serial Number, Call Allocated To, Warranty/Contract Start & End Date, Mode of Complaint Reporting, and “Death?” / “Serious Incident?” with their question marks. Those were silently unrecognised, so calls would have loaded with no registration date and no serial.',
+      'A column the register sets for you — Call Type on a call register, the list name on a master — is no longer listed as unrecognised. It said a correct load looked wrong.',
+      'Product Master reads Item Serial Number, and now keeps the warranty and contract dates instead of dropping them.',
+      'Sale Details, Contract Details, Sale Entry and Contract Entry now use the importer written for those exact AppSheet exports — it works out the Sale Details key the file does not carry, and stubs an entry for a machine whose header row has not been loaded yet, so the files can go in any order.',
+      'Recovered warranty details and historical consumption could not be re-run without duplicating; both now match properly.',
+      'Needs a database script run once (sales_contracts.sql, then HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.28',
     date: '2026-09-02',
     title: 'Every party gets a key — and uploading twice stops duplicating',

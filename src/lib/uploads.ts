@@ -15,6 +15,8 @@
 // apart; a table of column definitions cannot.
 // ---------------------------------------------------------------------------
 
+import { shapeCoverRows, type CoverTable } from './coverImport';
+
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
 
 export interface Col {
@@ -46,12 +48,23 @@ export interface UploadDef {
   extraInto?: string;
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
+  /** A register whose file needs more than a column map. The four AppSheet
+   *  sale / contract exports are the case: `coverImport.ts` was written for
+   *  exactly those files and does things a column map cannot — it DERIVES the
+   *  sale-item uid from SA|Product|Serial (the export carries no uid at all),
+   *  stubs a header row for an item whose entry has not been loaded yet, and
+   *  sorts the header values a child repeats from the ones it overrides.
+   *  Re-declaring that as columns would have been a worse copy of it. */
+  shape?: (raw: Record<string, unknown>[]) => Record<string, unknown>[];
   note?: string;
 }
 
 // ---- coercion -------------------------------------------------------------
 
-const norm = (h: string) => h.trim().toLowerCase().replace(/[\s_]+/g, ' ');
+// Header punctuation is decoration, not meaning: the real exports carry
+// `Death?`, `Serious Incident?` and `PO No.`, and a question mark is not a
+// different column from the same name without one.
+const norm = (h: string) => h.trim().toLowerCase().replace(/[?.!:;#*]/g, '').replace(/[\s_/-]+/g, ' ').trim();
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 
@@ -106,9 +119,24 @@ export interface ShapeResult {
   /** Headers in the file that no column claimed — shown so a mis-picked
    *  register is obvious BEFORE anything is written. */
   unmatched: string[];
+  /** Headers the register deliberately overrides (Call Type on a call
+   *  register). Not a problem, and not listed as one. */
+  stamped?: string[];
 }
 
 export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): ShapeResult {
+  // A register with its own shaper owns the whole job — it knows which columns
+  // it consumed, so there is nothing useful to report as "unmatched".
+  if (def.shape) {
+    const out = def.shape(raw);
+    return {
+      rows: out,
+      skipped: raw.length > out.length
+        ? [{ row: 0, why: `${raw.length - out.length} row(s) without the key this register needs, or duplicated within the file` }]
+        : [],
+      unmatched: [],
+    };
+  }
   const rows: Record<string, unknown>[] = [];
   const skipped: { row: number; why: string }[] = [];
   const claimed = new Set<string>();
@@ -163,7 +191,17 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // batch ("cannot affect row a second time").
   const deduped = def.conflict ? dedupe(rows, def.conflict) : rows;
 
-  return { rows: deduped, skipped, unmatched: headers.filter((h) => !claimed.has(h)) };
+  // A header naming something the register STAMPS (Call Type on a call
+  // register, the list name on a master) is not unrecognised — it is
+  // deliberately ignored, because the register is the authority on it. Listing
+  // it as unknown made a correct load look wrong.
+  const stamped = new Set(Object.keys(def.stamp ?? {}).map(norm));
+  return {
+    rows: deduped,
+    skipped,
+    unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h))),
+    stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
+  };
 }
 
 function dedupe(rows: Record<string, unknown>[], key: string): Record<string, unknown>[] {
@@ -187,25 +225,31 @@ const NUM = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], 
 const CALL_COLS: Col[] = [
   { to: 'ucn', from: ['ucn', 'uc number', 'uc no', 'unique call number'], required: true },
   TEXT('call_number', 'call number', 'call no'),
-  DATE('reg_date', 'registration date', 'reg date', 'date of registration'),
+  // "Registeration" is how the export spells it — matched as written rather
+  // than corrected, because the file is what it is.
+  DATE('reg_date', 'call registeration date', 'call registration date', 'registration date', 'reg date', 'date of registration'),
   DATE('complaint_date', 'complaint date'),
   DATE('breakdown_date', 'breakdown date'),
   TEXT('party_name', 'party name', 'customer', 'party'),
   TEXT('city'), TEXT('state'),
   TEXT('product_name', 'product name', 'product', 'model'),
-  TEXT('serial', 'serial no', 'serial number', 'sr no'),
+  TEXT('serial', 'product serial number', 'item serial number', 'serial no', 'serial number', 'sr no'),
   TEXT('item_status', 'item status'),
   TEXT('standard_complaint', 'standard complaint'),
   TEXT('complaint_reported', 'complaint reported', 'reported problem'),
-  TEXT('allocated_to', 'allocated to', 'engineer'),
+  TEXT('allocated_to', 'call allocated to', 'allocated to', 'engineer'),
   TEXT('allocated_to_email', 'allocated to email', 'engineer email'),
-  TEXT('warranty_number', 'warranty number'), DATE('warranty_start', 'warranty start'), DATE('warranty_end', 'warranty end'),
-  TEXT('contract_number', 'contract number'), DATE('contract_start', 'contract start'), DATE('contract_end', 'contract end'),
+  TEXT('warranty_number', 'warranty number'),
+  DATE('warranty_start', 'warranty start date', 'warranty start'),
+  DATE('warranty_end', 'warranty end date', 'warranty end'),
+  TEXT('contract_number', 'contract number'),
+  DATE('contract_start', 'contract start date', 'contract start'),
+  DATE('contract_end', 'contract end date', 'contract end'),
   TEXT('contract_type', 'contract type'),
   TEXT('person_calling', 'person calling'),
   TEXT('public_health_threat', 'public health threat'),
   TEXT('death'), TEXT('serious_incident', 'serious incident'),
-  TEXT('mode_of_reporting', 'mode of reporting'),
+  TEXT('mode_of_reporting', 'mode of complaint reporting', 'mode of reporting'),
   TEXT('customer_name', 'customer name'), TEXT('customer_number', 'customer number'),
   TEXT('customer_designation', 'customer designation'), TEXT('email_address', 'email address'),
   DATE('added_on', 'added on'), TS('reg_at', 'registration date time', 'reg at'),
@@ -225,12 +269,12 @@ const REPORT_COLS: Col[] = [
 export const UPLOADS: UploadDef[] = [
   // ---- calls. One table behind three registers; the call type is STAMPED
   // from the register you picked, so a PM sheet cannot land as a field call.
-  { key: 'field_calls', label: 'Field Calls', group: 'Calls', table: 'calls',
+  { key: 'field_calls', label: 'Field Calls', group: 'Calls', table: 'field_calls',
     cols: CALL_COLS, stamp: { call_type: 'FIELD' }, conflict: 'ucn', extraInto: 'extra',
-    note: 'Call type is stamped FIELD. The calls view routes each row to its own table.' },
-  { key: 'installation_calls', label: 'Installation Calls', group: 'Calls', table: 'calls',
+    note: 'Written straight to the field-call table rather than through the `calls` view: a view cannot be upserted, so going through it meant a re-run duplicated every call. The call number and registration date are still stamped by the database.' },
+  { key: 'installation_calls', label: 'Installation Calls', group: 'Calls', table: 'installation_calls',
     cols: CALL_COLS, stamp: { call_type: 'INSTALLATION' }, conflict: 'ucn', extraInto: 'extra' },
-  { key: 'pm_calls', label: 'PM Calls', group: 'Calls', table: 'calls',
+  { key: 'pm_calls', label: 'PM Calls', group: 'Calls', table: 'pm_calls',
     cols: CALL_COLS, stamp: { call_type: 'PM' }, conflict: 'ucn', extraInto: 'extra' },
 
   // ---- visit reports. One table; the register only says which calls they are
@@ -347,7 +391,8 @@ export const UPLOADS: UploadDef[] = [
       { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
       { to: 'qty', from: ['qty', 'quantity', 'consumed'], type: 'num', required: true },
       { to: 'source', from: ['source', 'pool', 'period', 'data set'], required: true },
-      TEXT('ref', 'ref', 'row id', 'unique id', 'reference'),
+      // Required: without it a re-run cannot match the row and would load it again.
+      { to: 'ref', from: ['ref', 'row id', 'unique id', 'reference'], required: true },
       TS('consumed_at', 'consumed on', 'date', 'consumption date', 'visit date'),
       TEXT('ucn'), TEXT('call_number', 'call number'), TEXT('party_name', 'party name'),
       TEXT('remarks'),
@@ -392,11 +437,21 @@ export const UPLOADS: UploadDef[] = [
       TEXT('party_type', 'type', 'profile'),
       TEXT('address', 'billing address'),
     ] },
-  { key: 'products', label: 'Product Master', group: 'Masters', table: 'products',
-    cols: [{ to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
-           { to: 'item_name', from: ['item name', 'product name', 'product', 'model'], required: true },
-           TEXT('party_name', 'party name', 'customer'),
-           TEXT('item_status', 'item status'), TEXT('city'), TEXT('state')] },
+  { key: 'products', label: 'Product Master', group: 'Masters', table: 'products', extraInto: 'extra',
+    note: 'The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
+    cols: [
+      // `Item Serial Number` is what the AppSheet export calls it.
+      { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial', 'product serial number'], required: true },
+      { to: 'item_name', from: ['item name', 'product name', 'product', 'model'], required: true },
+      TEXT('party_name', 'party name', 'customer'),
+      TEXT('item_status', 'item status', 'warranty status', 'contract status'),
+      TEXT('warranty_number', 'warranty number'),
+      DATE('warranty_start', 'warranty start date', 'warranty start'),
+      DATE('warranty_end', 'warranty end date', 'warranty end'),
+      TEXT('contract_number', 'contract number'), TEXT('contract_type', 'contract type'),
+      DATE('contract_start', 'contract start date', 'contract start'),
+      DATE('contract_end', 'contract end date', 'contract end'),
+    ] },
   { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts',
     cols: [{ to: 'code', from: ['code', 'part no', 'part code'], required: true },
            { to: 'item_detail', from: ['item detail', 'description', 'part description'], required: true }] },
@@ -415,7 +470,7 @@ export const UPLOADS: UploadDef[] = [
       TEXT('reason'), TEXT('remarks'), TEXT('document_url', 'document', 'document link'),
     ] },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
-    table: 'product_additional_entries', conflict: 'serial_number', requires: 'Product Master',
+    table: 'product_additional_entries', conflict: 'serial_key', conflictFrom: ['serial_number'], requires: 'Product Master',
     note: 'For machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
     cols: [
       { to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
@@ -430,15 +485,23 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- cover
   { key: 'sale_entries', label: 'Sale Entry', group: 'Cover', table: 'sale_entries', conflict: 'sa_number',
-    cols: [{ to: 'sa_number', from: ['sa number', 'sa no'], required: true }], extraInto: 'extra' },
+    note: 'The AppSheet export loads as exported — every column into the table\u2019s own column where there is one, and into `extra` otherwise. Any order works: a machine whose entry has not been loaded yet gets a stub entry, which the entry file then fills in.',
+    shape: (raw) => shapeCoverRows('sale_entries' as CoverTable, raw as Record<string, string>[]),
+    cols: [] },
   { key: 'sale_items', label: 'Sale Details', group: 'Cover', table: 'sale_items', conflict: 'uid',
     requires: 'Sale Entry',
-    cols: [{ to: 'uid', from: ['uid', 'row id'], required: true }], extraInto: 'extra' },
+    note: 'The AppSheet export loads as exported — every column into the table\u2019s own column where there is one, and into `extra` otherwise. Any order works: a machine whose entry has not been loaded yet gets a stub entry, which the entry file then fills in.',
+    shape: (raw) => shapeCoverRows('sale_items' as CoverTable, raw as Record<string, string>[]),
+    cols: [] },
   { key: 'contract_entries', label: 'Contract Entry', group: 'Cover', table: 'contract_entries', conflict: 'mc_number',
-    cols: [{ to: 'mc_number', from: ['mc number', 'mc no'], required: true }], extraInto: 'extra' },
+    note: 'The AppSheet export loads as exported — every column into the table\u2019s own column where there is one, and into `extra` otherwise. Any order works: a machine whose entry has not been loaded yet gets a stub entry, which the entry file then fills in.',
+    shape: (raw) => shapeCoverRows('contract_entries' as CoverTable, raw as Record<string, string>[]),
+    cols: [] },
   { key: 'contract_items', label: 'Contract Details', group: 'Cover', table: 'contract_items', conflict: 'uid',
     requires: 'Contract Entry',
-    cols: [{ to: 'uid', from: ['uid', 'row id'], required: true }], extraInto: 'extra' },
+    note: 'The AppSheet export loads as exported — every column into the table\u2019s own column where there is one, and into `extra` otherwise. Any order works: a machine whose entry has not been loaded yet gets a stub entry, which the entry file then fills in.',
+    shape: (raw) => shapeCoverRows('contract_items' as CoverTable, raw as Record<string, string>[]),
+    cols: [] },
 ];
 
 // ---- master value lists ---------------------------------------------------

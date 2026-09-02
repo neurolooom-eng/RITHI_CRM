@@ -77,11 +77,31 @@ console.log('\n-- a blank cell never clears a stamp --');
 eq('blank call type does not unset the stamp',
    shapeUpload(def('installation_calls'), [{ 'UCN': 'X', 'call_type': '' }]).rows[0].call_type, 'INSTALLATION');
 
+console.log('\n-- the real Field Call export headers --');
+const fc = shapeUpload(def('field_calls'), [{
+  'UCN': '26A02F0001', 'Call Number': 'CL2303042-VEGA-36',
+  'Call Registeration Date': '02/01/2026', 'Product Serial Number': '36',
+  'Warranty Start Date': '01/04/2023', 'Warranty End Date': '31/03/2024',
+  'Contract Start Date': '01/04/2024', 'Contract End Date': '31/03/2025',
+  'Call Type': 'PM VISIT', 'Call Allocated To': 'A KUMAR',
+  'Public Health Threat?': 'NO', 'Death?': 'NO', 'Serious Incident?': 'NO',
+  'Mode of Complaint Reporting': 'PHONE', 'Party Name': 'METRO', 'Product Name': 'VEGA',
+}]);
+eq('registration date (their spelling) is read', fc.rows[0].reg_date, '2026-01-02');
+eq('product serial number is read', fc.rows[0].serial, '36');
+eq('warranty + contract dates read', [fc.rows[0].warranty_start, fc.rows[0].contract_end], ['2023-04-01', '2025-03-31']);
+eq('call allocated to is read', fc.rows[0].allocated_to, 'A KUMAR');
+eq('a trailing ? is not a different column', [fc.rows[0].public_health_threat, fc.rows[0].death, fc.rows[0].serious_incident], ['NO', 'NO', 'NO']);
+eq('mode of complaint reporting is read', fc.rows[0].mode_of_reporting, 'PHONE');
+eq('Call Type is STAMPED, not unknown', [fc.rows[0].call_type, fc.stamped], ['FIELD', ['Call Type']]);
+eq('nothing left unrecognised', fc.unmatched, []);
+
 console.log('\n-- every register is coherent --');
 UPLOADS.forEach((d) => {
-  if (!d.cols.some((c) => c.required)) { console.log(`  ✗ ${d.key} has no required column`); fail++; }
+  // A register with its own shaper declares no columns — it owns the job.
+  if (!d.shape && !d.cols.some((c) => c.required)) { console.log(`  ✗ ${d.key} has no required column`); fail++; }
   const keys = d.conflictFrom ?? d.conflict?.split(',') ?? [];
-  if (d.conflict && !keys.every((k) => d.cols.some((c) => c.to === k) || Object.keys(d.stamp ?? {}).includes(k))) {
+  if (!d.shape && d.conflict && !keys.every((k) => d.cols.some((c) => c.to === k) || Object.keys(d.stamp ?? {}).includes(k))) {
     console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not derived from anything it fills`); fail++;
   }
 });
@@ -92,7 +112,8 @@ const hist = shapeUpload(def('spare_consumption_history'), [
   { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Qty': '2', 'Source': 'AppSheet 2023', 'Row ID': 'R7', 'Date': '15/03/2023', 'Job Note': 'kept' },
   { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Qty': '1' },
 ]);
-eq('the sourced row loads, the unsourced is held back', [hist.rows.length, hist.skipped[0].why], [1, 'no source']);
+// `ref` is required too now: without it a re-run cannot match the row.
+eq('the sourced row loads, the unsourced is held back', [hist.rows.length, hist.skipped[0].why], [1, 'no source, ref']);
 eq('ref carried for re-run matching', hist.rows[0].ref, 'R7');
 eq('unknown columns kept', hist.rows[0].data, { 'Job Note': 'kept' });
 eq('upserts on source + ref', def('spare_consumption_history').conflictFrom, ['source', 'ref']);
@@ -121,7 +142,10 @@ const ae = shapeUpload(def('product_additional_entries'), [
 ]);
 eq('dd-Mon-yyyy read', [ae.rows[0].warranty_start, ae.rows[0].warranty_end], ['2019-04-01', '2021-03-31']);
 eq('provenance kept', ae.rows[0].source_note, "Customer's invoice");
-eq('upserts on the machine', def('product_additional_entries').conflict, 'serial_number');
+// On the STORED serial_key, not the raw column: `on conflict` cannot infer the
+// expression index the first version relied on (0077).
+eq('upserts on the machine', def('product_additional_entries').conflict, 'serial_key');
+eq('...derived from the column the file supplies', def('product_additional_entries').conflictFrom, ['serial_number']);
 eq('grouped in reading order', uploadGroups(UPLOADS).map((g) => g.title),
    ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover']);
 

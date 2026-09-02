@@ -104,6 +104,11 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 
       {open && s && (
         <div style={{ marginTop: 8, fontSize: 12 }}>
+          {!!s.stamped?.length && (
+            <p className="muted" style={{ margin: '4px 0' }}>
+              <b>Set by this register, so the file's own value is ignored:</b> {s.stamped.join(', ')}.
+            </p>
+          )}
           {s.unmatched.length > 0 && (
             <p style={{ margin: '4px 0' }}>
               <b>Columns this register does not know:</b> {s.unmatched.join(', ')}.{' '}
