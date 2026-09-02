@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.3',
+    date: '2026-09-02',
+    title: 'Report dates read like every other date',
+    changes: [
+      'A visit report showed its dates as stored \u2014 \u201c9/1/2026, 6:07:16 PM\u201d and \u201c2026-09-01\u201d. They now follow the app format: dd-mmm-yyyy with the time when there is one, both for visits already recorded and for new ones.',
+      'Only fields whose name says date or time are reformatted; everything else the engineer typed is shown exactly as entered.',
+    ],
+  },
+  {
     version: '0.9.2',
     date: '2026-09-02',
     title: 'Close a re-opened call again',
