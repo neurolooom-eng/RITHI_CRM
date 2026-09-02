@@ -43,7 +43,9 @@ const cons = shapeUpload(def('spare_consumption'), [
   { 'Part': 'TP-2|Y', 'Qty': '' },
 ]);
 eq('only the complete row loads', cons.rows.length, 1);
-eq('skipped rows name the file row', cons.skipped, [{ row: 3, why: 'no part' }, { row: 4, why: 'no qty' }]);
+// The reason names the HEADER the file should carry, not the database column —
+// that is what the operator has to go and look for.
+eq('skipped rows name the file row', cons.skipped, [{ row: 3, why: 'no spares used' }, { row: 4, why: 'no consumed qty' }]);
 eq('unrecognised column kept in data', cons.rows[0].data, { 'Job Note': 'kept' });
 
 console.log('\n-- several aliases present at once: the FIRST wins, the rest are kept --');
@@ -151,6 +153,20 @@ eq('a call with NO visit is not made to look attended', [pmr.rows.length, pmr.sk
 eq('the attachment is kept', pmr.rows[0].manual_report, '42v4ReportingP_Images/v2_N1.jpg');
 eq('what the engineer wrote is kept', pmr.rows[0].data, { 'Job Done': 'CHECKED THE UNIT FULLY' });
 
+console.log('\n-- consumption, with GRIR / traceability --');
+const cons2 = shapeUpload(def('spare_consumption'), [
+  { 'UID': 'v2_N1-e2fdf5c5', 'UC Number': '26C23F0028', 'Call Number': 'R16813-EXTEND-XT',
+    'Spares Used': 'MP-010|OXYGEN SENSOR', 'QTY': '1.00', 'Consumed Qty': '2',
+    'GRIR / Traceability': 'GR-2026-118', 'Visiting Service Engineer': 'FRANKLIN',
+    'Visit Date & Time': '02-July-2026', 'Part Code': '#VALUE!' },
+  { 'Part Code': '#VALUE!', 'PM DCCR': '2', 'Duplicate?': 'No' },   // a filler row
+]);
+eq('the real row loads, the filler row does not', cons2.rows.length, 1);
+eq('traceability is carried', cons2.rows[0].grir, 'GR-2026-118');
+eq('Consumed Qty is the authoritative quantity', cons2.rows[0].qty, 2);
+eq('the export row id becomes the key', cons2.rows[0].source_ref, 'v2_N1-e2fdf5c5');
+eq('...so a re-run corrects rather than duplicates', def('spare_consumption').conflict, 'source_ref');
+
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
   'UC Number': '26A02F0001', 'CALL NUMBER': 'CL1',
@@ -182,26 +198,33 @@ eq('registers defined', UPLOADS.length, 27);
 
 console.log('\n-- call registration requests --');
 const cr = shapeUpload(def('call_requests'), [
-  { 'UNIQUE ID': 'U-1', 'Timestamp': '02-Jan-2026 12:54:54', 'PARTY NAME': 'METRO',
+  { 'ID': 'R15818', 'UNIQUE ID': 'R15818-ORION-G-1099', 'Timestamp': '02-Jan-2026 12:54:54', 'PARTY NAME': 'METRO',
     'Product Serial Number': '2354', 'UC Number': '26A02F0001', 'Reported Problem': 'no power',
     'Something Else': 'kept' },
   { 'PARTY NAME': 'NO KEY' },
 ]);
-eq('the keyed row loads, the unkeyed is held back', [cr.rows.length, cr.skipped[0].why], [1, 'no unique key']);
+eq('the request id is taken from the file', cr.rows[0].reqid, 'R15818');
+eq('the keyed row loads, the unkeyed is held back', [cr.rows.length, cr.skipped[0].why], [1, 'no id']);
+// unique_key is rebuilt by the database from reqid + product + serial, so
+// sending the file's copy would be a lie about what decides the match.
+eq('unique_key is not sent — the database builds it', def('call_requests').cols.some((c) => c.to === 'unique_key'), false);
 eq('a registered request keeps its UCN', cr.rows[0].ucn, '26A02F0001');
 eq('serial and party read', [cr.rows[0].serial_no, cr.rows[0].party_name], ['2354', 'METRO']);
-eq('unknown columns are kept', cr.rows[0].extra, { 'Something Else': 'kept' });
+// The file's own UNIQUE ID rides along as provenance — the database rebuilds
+// the real one, but what the source called this row is worth keeping.
+eq('unknown columns are kept', cr.rows[0].extra,
+   { 'UNIQUE ID': 'R15818-ORION-G-1099', 'Something Else': 'kept' });
 
 // The real export keeps cancellations in the UCN column.
 const crc = shapeUpload(def('call_requests'), [
-  { 'UNIQUE ID': 'U-1', 'UCN number': '26A02F0001' },
-  { 'UNIQUE ID': 'U-2', 'UCN number': 'Request cancel' },
+  { 'ID': 'R1', 'UCN number': '26A02F0001' },
+  { 'ID': 'R2', 'UCN number': 'Request cancel' },
 ]);
 eq('a UCN-shaped value is the UCN', crc.rows[0].ucn, '26A02F0001');
 eq('"Request cancel" is NOT filed as a UCN', crc.rows[1].ucn, undefined);
 eq('...but it is kept, not lost', (crc.rows[1].extra as Record<string, unknown>)['UCN number'], 'Request cancel');
-eq('E-Mail ID matches Email ID', shapeUpload(def('call_requests'), [{ 'UNIQUE ID': 'U', 'E-Mail ID': 'a@x.com' }]).rows[0].email, 'a@x.com');
-eq('the export\u2019s ID column is the request id', shapeUpload(def('call_requests'), [{ 'UNIQUE ID': 'U', 'ID': 'R15847' }]).rows[0].reqid, 'R15847');
+eq('E-Mail ID matches Email ID', shapeUpload(def('call_requests'), [{ 'ID': 'R1', 'E-Mail ID': 'a@x.com' }]).rows[0].email, 'a@x.com');
+eq('the export\u2019s ID column is the request id', shapeUpload(def('call_requests'), [{ 'ID': 'R15847' }]).rows[0].reqid, 'R15847');
 
 console.log('\n-- historical consumption --');
 const hist = shapeUpload(def('spare_consumption_history'), [

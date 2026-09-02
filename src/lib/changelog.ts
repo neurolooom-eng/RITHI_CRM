@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.36',
+    date: '2026-09-02',
+    title: 'GRIR on consumed spares; duplicate call requests fixed',
+    changes: [
+      'When an engineer records a spare on a visit — or the Spare Coordinator books one on a reconciliation — they can now enter its GRIR / traceability: which part was actually fitted, not just which kind. That is the difference between “an oxygen sensor was replaced” and being able to say which sensor went into which machine when a batch is questioned.',
+      'Call requests were loading twice. The database builds each request’s match key from its request id, and the first upload did not read the id column — so every request came in again under a different key. The id is now required: a file without one is refused outright rather than quietly duplicating the register.',
+      'Request Call Registration showed only 1,000 requests however many there were. It now reads the whole register, in pages, and has Load more and a Last synced indicator alongside Refresh.',
+      'The Consumption upload carries GRIR through and matches on the export’s own row id, so re-loading a corrected sheet updates those lines instead of adding them again.',
+      'Needs a database script run once (HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.35',
     date: '2026-09-02',
     title: 'Bulk Uploads says what it is actually doing with a column',

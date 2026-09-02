@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
-import { csvExport, fmtDateTime, fmtLongDate } from '../lib/format';
+import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
@@ -79,18 +79,31 @@ export function RequestCallRegistration() {
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load requests.' },
   );
 
-  const load = async () => {
+  // The register is read newest-first in pages. `limit` is what "Load more"
+  // raises; it is a lower bound on what exists, not a page size.
+  const SYNC_KEY = 'rithi.sync.callRequests';
+  const [limit, setLimit] = useState(2000);
+  const [lastSync, setLastSync] = useState(() => { try { return localStorage.getItem(SYNC_KEY) ?? ''; } catch { return ''; } });
+
+  const load = async (n = limit) => {
     if (!supabaseConfigured()) return;
     setBusy(true);
     try {
-      const r = await listCallRequests();
+      const r = await listCallRequests(n);
       setRows(r.map((x, i) => ({ ...x, id: String(x.id ?? i) })) as Row[]);
+      const now = new Date().toISOString();
+      try { localStorage.setItem(SYNC_KEY, now); } catch { /* ignore */ }
+      setLastSync(now);
       setMsg(null);
     } catch (e) {
       setMsg({ tone: 'error', text: `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { void load(limit); /* eslint-disable-next-line */ }, [limit]);
+
+  // More exist beyond what is loaded — only meaningful with no filter applied,
+  // since a filtered view is a subset of what was fetched, not of the register.
+  const moreAvailable = rows.length >= limit;
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -115,6 +128,7 @@ export function RequestCallRegistration() {
         subtitle="Every call registration request raised, and what became of it. REQID is assigned automatically."
         icon="📝"
         count={visible.length}
+        countMore={moreAvailable && !q.trim() && !status}
         actions={can('request.create') ? <button className="btn btn-primary" onClick={() => setNewOpen(true)}>＋ New Request</button> : undefined}
       />
 
@@ -133,6 +147,9 @@ export function RequestCallRegistration() {
         rowsBeforeScroll={16}
         dense
         onRowClick={(r) => setDetail(r)}
+        onLoadMore={() => setLimit((l) => l + 2000)}
+        moreAvailable={moreAvailable}
+        loadingMore={busy}
         emptyText={busy ? 'Loading…' : 'No requests yet — raise one with New Request.'}
         toolbar={
           <Toolbar>
@@ -145,6 +162,9 @@ export function RequestCallRegistration() {
               ))}
             </div>
             <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
+            {lastSync && (
+              <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>
+            )}
             <button
               className="btn btn-sm"
               onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}

@@ -164,8 +164,10 @@ export function CallReportDrawer({
   const [stock, setStock] = useState<HandstockBalance[]>([]);
   const [stockErr, setStockErr] = useState('');
   const [stockBusy, setStockBusy] = useState(false);
-  const [spares, setSpares] = useState<{ part: string; qty: string }[]>([]);
-  const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1' });
+  // GRIR / traceability rides with each line: which part was actually fitted,
+  // not just which kind — the answer to "which sensor went into this machine".
+  const [spares, setSpares] = useState<{ part: string; qty: string; grir: string }[]>([]);
+  const [spareDraft, setSpareDraft] = useState({ part: '', qty: '1', grir: '' });
   const [feedback, setFeedback] = useState<Record<string, string>>({});
 
   // Reports are a HISTORY (one row per visit). Each Visit Entry starts a fresh
@@ -179,7 +181,7 @@ export function CallReportDrawer({
     // reset to a blank new visit
     setStatus(''); setPendingReason(''); setUpdateWork('Yes'); setManualLink(''); setUploading(false); setVisitSaved(false); setSparesSaved(false);
     setWork({}); setSignoff({});
-    setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1' }); setFeedback({});
+    setVisitDate(todayISO()); setSpares([]); setSpareDraft({ part: '', qty: '1', grir: '' }); setFeedback({});
     setEngineer(selfName || String(call?.allocatedTo ?? ''));
     reportsByCall(callNumber || ucn).then((rows) => {
       if (cancelled) return;
@@ -218,7 +220,7 @@ export function CallReportDrawer({
   // Turning Add Consumption? back to No drops the lines with it, so a report
   // never carries spares the engineer has said they did not use.
   useEffect(() => {
-    if (!wantsConsumption) { setSpares([]); setSpareDraft({ part: '', qty: '1' }); }
+    if (!wantsConsumption) { setSpares([]); setSpareDraft({ part: '', qty: '1', grir: '' }); }
   }, [wantsConsumption]);
 
   // The stock belongs to whoever made the visit, so it reloads with the
@@ -258,20 +260,22 @@ export function CallReportDrawer({
     const left = remainingOf(part);
     if (left <= 0) { setErr(`${part} is not in ${engineer || 'the engineer'}'s hand stock.`); return; }
     if (n > left) { setErr(`Only ${left} of that spare left in hand stock.`); return; }
-    setSpares((s) => [...s, { part, qty: String(n) }]);
-    setSpareDraft({ part: '', qty: '1' });
+    setSpares((s) => [...s, { part, qty: String(n), grir: spareDraft.grir.trim() }]);
+    setSpareDraft({ part: '', qty: '1', grir: '' });
     setErr('');
   };
 
   // Nothing is committed until the report is saved, so a line added by mistake
   // can be repointed at another spare, re-counted, or dropped.
-  const editSpare = (i: number, patch: Partial<{ part: string; qty: string }>) => {
+  const editSpare = (i: number, patch: Partial<{ part: string; qty: string; grir: string }>) => {
     setErr('');
     setSpares((rows) => rows.map((r, n) => {
       if (n !== i) return r;
       const next = { ...r, ...patch };
       const left = remainingOf(next.part, i);
-      if (patch.part) return { part: next.part, qty: String(Math.min(Number(r.qty) || 1, Math.max(1, left))) };
+      // Repointing at another spare re-counts against THAT spare's stock, but
+      // the traceability belongs to the line and travels with it.
+      if (patch.part) return { ...next, qty: String(Math.min(Number(r.qty) || 1, Math.max(1, left))) };
       const want = Math.floor(Number(next.qty) || 0);
       if (next.qty === '') return { ...next };
       if (want > left) { setErr(`Only ${left} of ${next.part} left in hand stock.`); return { ...next, qty: String(Math.max(1, left)) }; }
@@ -364,6 +368,7 @@ export function CallReportDrawer({
       // Save Report again retries just this.
       const cons = sparesSaved ? { ok: true as const } : await addConsumptionRows(spares.map((sp) => ({
         ucn, call_number: String(call?.callNumber ?? ''), part: sp.part, qty: Number(sp.qty) || 1,
+        grir: sp.grir ?? '',
         engineer, engineer_email: user?.email ?? '', data: {},
       })));
       if (cons.ok) setSparesSaved(true);
@@ -595,6 +600,9 @@ export function CallReportDrawer({
                         value={s.qty} onChange={(e) => editSpare(i, { qty: e.target.value })}
                         onBlur={() => editSpare(i, { qty: s.qty || '1' })}
                       />
+                      <input className="input spare-grir" placeholder="GRIR / traceability"
+                        title="Which part was actually fitted — batch, goods-receipt or serial number"
+                        value={s.grir} onChange={(e) => editSpare(i, { grir: e.target.value })} />
                       <button className="btn btn-ghost btn-sm" title="Remove this spare" onClick={() => removeSpare(i)}>🗑</button>
                     </li>
                   ))}
@@ -603,7 +611,7 @@ export function CallReportDrawer({
               <div className="spare-row">
                 <select
                   className="select spare-part" value={spareDraft.part}
-                  onChange={(e) => setSpareDraft({ part: e.target.value, qty: '1' })}
+                  onChange={(e) => setSpareDraft((d) => ({ ...d, part: e.target.value, qty: '1' }))}
                   disabled={stockBusy || stock.length === 0}
                 >
                   <option value="">
@@ -619,6 +627,11 @@ export function CallReportDrawer({
                   value={spareDraft.qty} onChange={(e) => setSpareDraft((d) => ({ ...d, qty: e.target.value }))}
                   disabled={!spareDraft.part}
                 />
+                <input className="input spare-grir" placeholder="GRIR / traceability"
+                  title="Which part was actually fitted — batch, goods-receipt or serial number"
+                  value={spareDraft.grir}
+                  onChange={(e) => setSpareDraft((d) => ({ ...d, grir: e.target.value }))}
+                  disabled={!spareDraft.part} />
                 <button className="btn btn-sm" onClick={addSpare} disabled={!spareDraft.part}>＋ Add</button>
               </div>
               {stockErr

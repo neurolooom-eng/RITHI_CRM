@@ -133,6 +133,8 @@
 /* ---- Spare request rows ------------------------------------------------- */
 .spare-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
 .spare-row .spare-part { flex: 1 1 auto; min-width: 0; }
+/* GRIR / traceability sits with the spare it belongs to. */
+.spare-row .spare-grir { flex: 0 1 190px; min-width: 120px; }
 .spare-row .spare-qty { flex: 0 0 80px; width: 80px; }
 
 /* ---- Pending → Register split view ------------------------------------- */

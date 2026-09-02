@@ -253,9 +253,16 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   });
 
   // A re-run must correct rather than duplicate, so the last of a repeated key
-  // wins inside the file too — otherwise the upsert would fight itself in one
-  // batch ("cannot affect row a second time").
-  const deduped = def.conflict ? dedupe(rows, def.conflict) : rows;
+  // wins inside the file too — otherwise the upsert fights itself in one batch
+  // ("cannot affect row a second time").
+  //
+  // Deduped on what the key is DERIVED FROM, not on the key column: several
+  // registers never send the key at all. call_requests' `unique_key` is rebuilt
+  // by the database from reqid + product + serial, and parties' `name_key` from
+  // the party name — deduping on a column the row does not carry silently
+  // dedupes nothing.
+  const dedupeOn = def.conflictFrom ?? (def.conflict ? def.conflict.split(',') : []);
+  const deduped = dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
 
   // A header naming something the register STAMPS (Call Type on a call
   // register, the list name on a master) is not unrecognised — it is
@@ -270,12 +277,14 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   };
 }
 
-function dedupe(rows: Record<string, unknown>[], key: string): Record<string, unknown>[] {
+function dedupe(rows: Record<string, unknown>[], keys: string[]): Record<string, unknown>[] {
   const by = new Map<string, Record<string, unknown>>();
   const out: Record<string, unknown>[] = [];
   rows.forEach((r) => {
-    const k = String(r[key] ?? '');
-    if (!k) { out.push(r); return; }
+    const k = keys.map((x) => String(r[x] ?? '')).join('\u0000');
+    // A row missing every part of the key cannot collide with anything, so it
+    // is kept rather than collapsed onto the other keyless rows.
+    if (!keys.some((x) => String(r[x] ?? '').trim())) { out.push(r); return; }
     by.set(k, r);
   });
   return [...out, ...by.values()];
@@ -390,11 +399,16 @@ export const UPLOADS: UploadDef[] = [
     cols: REPORT_COLS, conflict: 'uid', extraInto: 'data', requires: 'PM Calls' },
 
   { key: 'call_requests', label: 'Call Registration Requests', group: 'Calls', table: 'call_requests',
-    conflict: 'unique_key', extraInto: 'extra',
-    note: 'The Hotline desk: one row per machine on a request. Matched on Unique Key — the export\u2019s own id — so a re-load corrects rather than duplicating. A request that was already registered keeps its UCN, which is what links it to the call.',
+    conflict: 'unique_key', conflictFrom: ['reqid', 'product', 'serial_no'], extraInto: 'extra',
+    note: 'The Hotline desk: one row per machine on a request. The file MUST carry the request id (its `ID` column): the database builds the match key from it, so without one every load creates a fresh request and a re-load duplicates the lot. A request that was already registered keeps its UCN, which is what links it to the call.',
     cols: [
-      { to: 'unique_key', from: ['unique key', 'unique id', 'uniqueid', 'uid', 'row id'], required: true },
-      TEXT('reqid', 'reqid', 'req id', 'request id', 'id'),
+      // REQUIRED. `unique_key` is not sent at all — call_requests_biu (0003)
+      // rebuilds it from reqid + product + serial on every write, so whatever
+      // the file says is overwritten. That is fine while the request id comes
+      // from the file, and a disaster when it does not: the database generates
+      // one, the key is different every run, and the whole file loads again as
+      // new requests. Requiring it turns a silent duplication into "no id".
+      { to: 'reqid', from: ['id', 'reqid', 'req id', 'request id'], required: true },
       TS('submitted_at', 'timestamp', 'submitted at', 'request date'),
       TEXT('email', 'e mail id', 'email id', 'email'),
       TEXT('engineer', 'engineer name', 'requested by'),
@@ -465,15 +479,19 @@ export const UPLOADS: UploadDef[] = [
       TEXT('dispatched_by', 'dispatched by'), TS('dispatched_at', 'dispatched at', 'dispatch date'),
     ] },
   { key: 'spare_consumption', label: 'Consumption', group: 'Spares', table: 'spare_consumption',
-    requires: 'Field Calls', extraInto: 'data',
-    note: 'This register has no natural key, so a re-run ADDS rows rather than correcting them. Load it once, and check the count before and after.',
+    requires: 'Field Calls', extraInto: 'data', conflict: 'source_ref',
+    note: 'Matched on the export\u2019s own row id, so re-loading a corrected sheet updates those lines rather than adding them again. GRIR / Traceability is carried through — it is which part was actually fitted, not just which kind.',
     cols: [
-      { to: 'part', from: ['part', 'part no', 'spare'], required: true },
-      { to: 'qty', from: ['qty', 'quantity'], type: 'num', required: true },
-      TEXT('ucn'), TEXT('call_number', 'call number'),
-      TEXT('engineer'), TEXT('engineer_email', 'engineer email'),
+      { to: 'part', from: ['spares used', 'part', 'part no', 'spare'], required: true },
+      // `Consumed Qty` is the authoritative one where both are present.
+      { to: 'qty', from: ['consumed qty', 'qty', 'quantity'], type: 'num', required: true },
+      { to: 'source_ref', from: ['uid', 'row id', 'unique id'] },
+      TEXT('ucn', 'uc number', 'ucn'), TEXT('call_number', 'call number'),
+      TEXT('engineer', 'visiting service engineer', 'engineer'),
+      TEXT('engineer_email', 'e mail id', 'email id', 'engineer email'),
+      TEXT('grir', 'grir traceability', 'grir / traceability', 'grir', 'traceability'),
       TEXT('remarks'), TEXT('recorded_by', 'recorded by'),
-      TS('created_at', 'consumed on', 'date'),
+      TS('created_at', 'visit date & time', 'consumed on', 'date'),
     ] },
   { key: 'material_returns', label: 'MRN Register', group: 'Spares', table: 'material_returns',
     note: 'Also loadable from Data Import, which reads the sheet export as exported.',

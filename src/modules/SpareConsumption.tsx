@@ -61,8 +61,9 @@ export function SpareConsumption() {
   // it — the same rule the database enforces.
   const { can } = useAuth();
   const mayReconcile = can('consumption.reconcile');
-  type Line = { part: string; qty: string };
-  const emptyForm = { ucn: '', call_number: '', engineer: '', remarks: '', lines: [{ part: '', qty: '1' }] as Line[] };
+  // GRIR / traceability belongs to the LINE: which part was actually fitted.
+  type Line = { part: string; qty: string; grir: string };
+  const emptyForm = { ucn: '', call_number: '', engineer: '', remarks: '', lines: [{ part: '', qty: '1', grir: '' }] as Line[] };
   const [form, setForm] = useState<typeof emptyForm | null>(null);
   const [stock, setStock] = useState<StockRow[]>([]);
   const [stockBusy, setStockBusy] = useState(false);
@@ -71,7 +72,7 @@ export function SpareConsumption() {
     setForm((f) => f && ({ ...f, [k]: v }));
   const setLine = (i: number, k: keyof Line, v: string) =>
     setForm((f) => f && ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
-  const addLine = () => setForm((f) => f && ({ ...f, lines: [...f.lines, { part: '', qty: '1' }] }));
+  const addLine = () => setForm((f) => f && ({ ...f, lines: [...f.lines, { part: '', qty: '1', grir: '' }] }));
   const dropLine = (i: number) => setForm((f) => f && ({ ...f, lines: f.lines.filter((_, j) => j !== i) }));
 
   const onHand = (part: string) => stock.find((r) => r.part === part)?.qty ?? 0;
@@ -109,7 +110,7 @@ export function SpareConsumption() {
         ucn: String(hit.ucn ?? f.ucn),
         call_number: String(hit.callNumber ?? f.call_number),
         engineer: f.engineer || eng,
-        lines: f.engineer && f.engineer !== eng ? f.lines : [{ part: '', qty: '1' }],
+        lines: f.engineer && f.engineer !== eng ? f.lines : [{ part: '', qty: '1', grir: '' }],
       }));
       await loadStock(eng);
       setMsg(null);
@@ -142,7 +143,7 @@ export function SpareConsumption() {
     const res = await addReconciliationConsumption({
       ucn: form.ucn, call_number: form.call_number, engineer: form.engineer,
       remarks: form.remarks, recorded_by: String(user?.fullName ?? user?.email ?? ''),
-      lines: form.lines.filter((l) => l.part.trim()).map((l) => ({ part: l.part, qty: Number(l.qty) })),
+      lines: form.lines.filter((l) => l.part.trim()).map((l) => ({ part: l.part, qty: Number(l.qty), grir: l.grir })),
     });
     setSaving(false);
     if (!res.ok) {
@@ -165,7 +166,7 @@ export function SpareConsumption() {
     const engineer = params.get('engineer') ?? '';
     setForm({
       ucn, call_number: params.get('call') ?? '', engineer,
-      remarks: '', lines: [{ part: '', qty: '1' }],
+      remarks: '', lines: [{ part: '', qty: '1', grir: '' }],
     });
     void loadStock(engineer);
     // Clear them so a refresh does not reopen the drawer.
@@ -451,6 +452,9 @@ export function SpareConsumption() {
                     max={l.part ? remainingFor(i, l.part) : undefined}
                     value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)}
                     title={l.part ? `Up to ${remainingFor(i, l.part)}` : 'Pick a part first'} />
+                  <input className="input" style={{ width: 180 }} placeholder="GRIR / traceability"
+                    title="Which part was actually fitted — batch, goods-receipt or serial number"
+                    value={l.grir} onChange={(e) => setLine(i, 'grir', e.target.value)} />
                   <button className="btn btn-ghost btn-sm" title="Remove this part"
                     onClick={() => dropLine(i)} disabled={form.lines.length === 1}>✕</button>
                 </div>

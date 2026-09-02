@@ -385,11 +385,23 @@ export async function addCallRequestBatch(base: Record<string, unknown>, items: 
 // Every call request, whatever its outcome — the Request Registration register.
 // Rows keep the app's camelCase shape; `status` is Pending / Mapped /
 // Registered / Cancelled.
+// PAGED, in 1,000-row requests. PostgREST caps a response at 1,000 rows however
+// large the `limit` says — so a plain .limit(2000) silently returned 1,000 and
+// the register looked like it held a thousand requests when it held four
+// thousand. `listCalls` already pages for exactly this reason.
 export async function listCallRequests(limit = 2000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('call_requests').select('*')
-    .order('submitted_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => ({
+  const PAGE = 1000;
+  const raw: Record<string, unknown>[] = [];
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await must().from('call_requests').select('*')
+      .order('submitted_at', { ascending: false, nullsFirst: false }).order('id', { ascending: false })
+      .range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) throw new Error(errMsg(error));
+    const page = data ?? [];
+    raw.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return raw.map((r) => ({
     id: r.id, reqid: r.reqid, uniqueKey: r.unique_key, submittedAt: r.submitted_at,
     engineer: r.engineer, email: r.email, callType: r.call_type,
     partyName: r.party_name, state: r.state, city: r.city, address: r.address,
@@ -537,7 +549,7 @@ export async function callByUcn(ucn: string): Promise<Record<string, unknown> | 
 // directly, without the engineer's report. Flagged `source = 'Reconciliation'`
 // so it is never mistaken for something the engineer wrote; the insert policy
 // requires consumption.reconcile.
-export interface ReconcileLine { part: string; qty: number }
+export interface ReconcileLine { part: string; qty: number; grir?: string }
 export interface ReconcileInput {
   ucn: string; call_number: string; engineer: string; remarks?: string; recorded_by?: string;
   lines: ReconcileLine[];
@@ -553,6 +565,9 @@ export async function addReconciliationConsumption(
     .map((l) => ({
       ucn: c.ucn.trim(), call_number: c.call_number.trim(),
       part: l.part.trim(), qty: l.qty, engineer: c.engineer.trim(),
+      // Which part was actually fitted, not just which kind — the point of
+      // recording it at all.
+      grir: (l.grir ?? '').trim(),
       remarks: (c.remarks ?? '').trim(), recorded_by: (c.recorded_by ?? '').trim(),
       source: 'Reconciliation',
     }));
