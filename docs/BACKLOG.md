@@ -134,6 +134,30 @@ been applied too.
   Master (due-date + contract cover per machine) instead of a spreadsheet upload.
 
 ### Go-live cutover
+Run in this order: **`_backup_before_reset.sql`** → **`_reset_for_production.sql`**
+→ (if section 2 was run) **`daily_review.sql`**. `_restore_from_backup.sql` undoes
+the reset from the snapshot.
+- **`supabase/apply/_backup_before_reset.sql`** — snapshots every table the
+  reset empties into a `bak` schema in the same project, and refuses to run
+  twice rather than overwriting an older snapshot. It is a fallback for a
+  SQL-editor-only cutover, NOT a real backup: it is in the same database, so it
+  covers the reset and nothing else. The header carries the `pg_dump` line.
+- **`supabase/apply/_restore_from_backup.sql`** — puts the snapshot back. Three
+  things it has to get right that a plain `insert … select *` does not, all of
+  them found by testing the round trip rather than by reading:
+  - every `id` here is **GENERATED ALWAYS**, so the insert needs
+    `OVERRIDING SYSTEM VALUE` — without it the restore is refused, and a plain
+    insert that dropped the id would silently RENUMBER every row.
+  - **GENERATED columns must be excluded** from the column list
+    (`field_calls.open_state`, `call_reviews.review2_done`/`review3_done`/
+    `any_potential_effect`). Listing one fails the whole restore with "cannot
+    insert a non-DEFAULT value into column"; they recompute themselves.
+  - write triggers are disabled during the restore (they would restamp
+    `updated_at` / `created_by`), and every sequence is moved **past** the
+    restored ids afterwards or the next real insert collides.
+  - Verified: seed → snapshot → reset → restore returns identical ids, UCNs and
+    quantities, recomputed `open_state`, and a following insert takes the next
+    free id.
 - **`supabase/apply/_reset_for_production.sql`** — empties the data produced
   while testing and keeps the people and the setup (`profiles`,
   `user_directory`, `app_roles`, `app_settings`, `sla_rules`, `master_lists`).

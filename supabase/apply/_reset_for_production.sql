@@ -5,8 +5,12 @@
 -- is, User Master and access stay as they are, and every record produced while
 -- testing is removed so the fresh upload starts on an empty register.
 --
--- ⚠️  IRREVERSIBLE. Take a backup first (Supabase → Database → Backups, or
---     `pg_dump`). Nothing below can be undone from inside the app.
+-- ⚠️  IRREVERSIBLE on its own. RUN `_backup_before_reset.sql` FIRST — it
+--     snapshots every table this empties into a `bak` schema, and
+--     `_restore_from_backup.sql` puts it back exactly (same ids, same UCNs).
+--     That snapshot lives in the SAME database, so it covers you against this
+--     script and nothing else: take a `pg_dump` or a Supabase Backups snapshot
+--     as well. Nothing below can be undone from inside the app.
 --
 -- ⚠️  Run it in the Supabase SQL EDITOR, not from the app. `0049` blocks the
 --     application role from deleting quality records on purpose. This uses
