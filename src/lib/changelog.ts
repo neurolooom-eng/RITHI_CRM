@@ -12,13 +12,11 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.16',
+    version: '0.9.17',
     date: '2026-09-02',
-    title: 'Roles & Permissions, grouped the way the app is',
+    title: 'Fix: Pending Dispatch would not collapse',
     changes: [
-      'The matrix is now a tree: menu header \u2192 page \u2192 what can be done on it, collapsible at every level, with Expand all / Collapse all. Each page\u2019s \u201cView\u201d (permission to open it) is separate from the actions beneath it, and a tick box per page sets everything on that page for a role at once.',
-      'The table header and the action column stay put while you scroll, so a tick is never orphaned from its role or its action.',
-      'Every master value list can now be granted individually \u2014 all of them are listed under All Masters. A list still follows All Masters unless you turn that off and pick lists instead, so existing roles are unchanged.',
+      'Collapsing an engineer\u2019s queue \u2014 by the card header or Collapse all \u2014 did nothing whenever three or fewer engineers were waiting. A short queue still opens itself when the screen loads, but it can now be closed.',
     ],
   },
   {

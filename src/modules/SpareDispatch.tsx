@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -59,6 +59,11 @@ export function SpareDispatch() {
   const [lines, setLines] = useState<PendingLine[]>(cached?.rows ?? []);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // A short queue opens itself the first time it loads — but only as a STARTING
+  // point. It used to be `open.has(key) || queues.length <= 3`, which meant that
+  // with three or fewer engineers the open set was ignored and neither Collapse
+  // all nor the card header could ever close one.
+  const seededOpen = useRef(false);
   // The register links here with ?engineer=…, so "Dispatch…" on a spare lands
   // on that engineer's queue instead of the whole list.
   const [params] = useSearchParams();
@@ -105,6 +110,13 @@ export function SpareDispatch() {
   }, [lines, search]);
 
   const queues = useMemo(() => groupByEngineer(visible), [visible]);
+  // Seed once, on the first load that has anything in it: a short queue starts
+  // open, and from then on the open set is the only thing that decides.
+  useEffect(() => {
+    if (seededOpen.current || !queues.length) return;
+    seededOpen.current = true;
+    if (queues.length <= 3) setOpen(new Set(queues.map((q) => q.engineer_key)));
+  }, [queues]);
   const totals = useMemo(() => summarise(lines), [lines]);
   const selected = useMemo(() => selectedFrom(lines, picked), [lines, picked]);
   const problem = selectionProblem(selected);
@@ -254,7 +266,7 @@ export function SpareDispatch() {
               key={q.engineer_key}
               queue={q}
               picked={picked}
-              expanded={open.has(q.engineer_key) || queues.length <= 3}
+              expanded={open.has(q.engineer_key)}
               onExpand={() => setOpen((cur) => {
                 const next = new Set(cur);
                 if (next.has(q.engineer_key)) next.delete(q.engineer_key); else next.add(q.engineer_key);
