@@ -561,6 +561,18 @@ export async function addReconciliationConsumption(
   return error ? { ok: false, error: errMsg(error) } : { ok: true, count: rows.length };
 }
 
+// Correct the quantity on an existing consumption line (reconciliation). The
+// database keeps the original, stamps who/when, refuses a raise beyond the
+// engineer's hand stock, and logs the before/after in the audit trail.
+export async function adjustConsumptionQty(
+  id: number, qty: number, reason: string, by: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('spare_consumption')
+    .update({ qty, adjustment_reason: reason.trim(), adjusted_by: by.trim() })
+    .eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- pending registrations -------------------------------------------------
 export async function listPending(limit = 300): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('pending_registrations')

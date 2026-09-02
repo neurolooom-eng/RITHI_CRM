@@ -12,12 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.8',
+    version: '0.9.9',
     date: '2026-09-02',
-    title: 'RECO is on the call\u2019s detail view too',
+    title: 'Correct a reported spare quantity, with the change kept',
     changes: [
-      'The RECO action was only on the register row. It is now also at the top of a call\u2019s detail drawer and on its footer, so you can reconcile without closing the call you are reading.',
-      'It is offered on closed calls as well \u2014 a reconciliation is usually after the fact, for a spare fitted but never reported.',
+      'Spare Coordinator, Hotline and Admin can now adjust the quantity on a consumption line the engineer already reported \u2014 the \u270e beside the line. Until now the line could not be changed at all, so a wrong quantity stayed wrong and the stock balance with it.',
+      'The line keeps what was originally reported, the reason, and who changed it \u2014 shown as \u201cwas 2\u201d next to the quantity \u2014 and the full before/after is written to the audit trail.',
+      'Only the quantity can move: the call, part, engineer and source are fixed, and it cannot be raised beyond what that engineer has in hand.',
+      'Needs a database script run once (consumption_reconciliation.sql) \u2014 re-run it if you applied an earlier copy.',
     ],
   },
   {

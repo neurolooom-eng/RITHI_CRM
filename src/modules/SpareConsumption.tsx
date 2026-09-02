@@ -6,7 +6,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   listConsumptionRows, supabaseConfigured, addReconciliationConsumption, searchCalls,
-  listEngineerStock, type StockRow,
+  listEngineerStock, adjustConsumptionQty, type StockRow,
 } from '../lib/supabase';
 import { Drawer } from '../components/ui/ui';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -173,12 +173,53 @@ export function SpareConsumption() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params, mayReconcile, onDb]);
 
+  // ADJUST an existing line's quantity — the other half of reconciliation, for
+  // when the engineer reported the wrong number. Only the quantity moves; the
+  // database keeps the original, the reason and who changed it.
+  const [adjust, setAdjust] = useState<{ row: Row; qty: string; reason: string; max: number } | null>(null);
+  const [adjusting, setAdjusting] = useState(false);
+
+  const openAdjust = async (row: Row) => {
+    const cur = Number(g(row, 'qty')) || 0;
+    setAdjust({ row, qty: String(cur), reason: '', max: cur });
+    // Raising it consumes more, so the ceiling is what is still in hand plus
+    // what this line already accounts for.
+    const eng = pick(row, ENGINEER_KEYS);
+    if (eng && onDb) {
+      try {
+        const st = await listEngineerStock(eng);
+        const inHand = st.find((r) => r.part === g(row, 'part'))?.qty ?? 0;
+        setAdjust((a) => a && ({ ...a, max: cur + inHand }));
+      } catch { /* leave the ceiling at the current quantity */ }
+    }
+  };
+
+  const saveAdjust = async () => {
+    if (!adjust) return;
+    const id = Number(adjust.row._dbId);
+    const qty = Number(adjust.qty);
+    if (!Number.isFinite(id) || id <= 0) { setMsg({ tone: 'error', text: 'This line has no database id — Refresh and try again.' }); return; }
+    if (!Number.isFinite(qty) || qty <= 0) { setMsg({ tone: 'error', text: 'Quantity must be more than zero.' }); return; }
+    if (qty > adjust.max) { setMsg({ tone: 'error', text: `Only ${adjust.max} possible — the rest is not in that engineer's hand stock.` }); return; }
+    if (!adjust.reason.trim()) { setMsg({ tone: 'error', text: 'Say why the quantity is being adjusted.' }); return; }
+    setAdjusting(true);
+    const res = await adjustConsumptionQty(id, qty, adjust.reason, String(user?.fullName ?? user?.email ?? ''));
+    setAdjusting(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not adjust.' }); return; }
+    const was = g(adjust.row, 'qty');
+    setAdjust(null);
+    setMsg({ tone: 'ok', text: `Quantity adjusted from ${was} to ${qty}. The change is kept on the line and in the audit trail.` });
+    await load();
+  };
+
   const load = async () => {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
       try {
         const r = await listConsumptionRows(PAGE, 0);
-        const mapped = r.map((x, i) => ({ ...x, id: `${pick(x, UCN_KEYS)}-${i}` } as Row));
+        // The table needs a stable string key, but the DB id is what an
+        // adjustment updates — keep both.
+        const mapped = r.map((x, i) => ({ ...x, _dbId: x.id, id: `${pick(x, UCN_KEYS)}-${i}` } as Row));
         setRows(mapped); setOffset(mapped.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, mapped));
         setMsg({ tone: 'ok', text: `Synced ${mapped.length} consumption lines.` });
       } catch (e) {
@@ -253,6 +294,30 @@ export function SpareConsumption() {
         : <span className="muted">Report</span>),
     } : {}),
   }));
+  // Reconcilers get a per-line adjust action; everyone sees when a line has
+  // been corrected, so an amended quantity is never silently different from
+  // what the engineer reported.
+  if (mayReconcile && onDb) {
+    columns.unshift({
+      key: '_adj', header: '⚙', width: 46, sortable: false, wrap: false, align: 'center',
+      render: (r: Row) => (
+        <button className="btn btn-sm btn-icon" title="Adjust this quantity (reconciliation)"
+          onClick={(e) => { e.stopPropagation(); void openAdjust(r); }}>✎</button>
+      ),
+    });
+  }
+  const qtyCol = columns.find((c) => c.key === 'qty');
+  if (qtyCol) {
+    qtyCol.render = (r: Row) => {
+      const orig = g(r, 'original_qty');
+      return (
+        <span title={orig ? `Engineer reported ${orig}; adjusted by ${g(r, 'adjusted_by') || 'the office'}` : undefined}>
+          {g(r, 'qty')}
+          {!!orig && <span className="badge badge-warning" style={{ marginLeft: 6 }}>was {orig}</span>}
+        </span>
+      );
+    };
+  }
   const allFields = headerKeys.map((k) => ({ key: k, header: k }));
 
   return (
@@ -295,6 +360,46 @@ export function SpareConsumption() {
           </Toolbar>
         }
       />
+
+      {adjust && (
+        <Drawer open onClose={() => setAdjust(null)} title="Adjust quantity (reconciliation)" width={560}>
+          <div className="kb-form">
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Corrects the quantity on a line the engineer already reported. Only the quantity
+              changes — the call, part and engineer stay as they are. What it was, why, and who
+              changed it are kept on the line and in the audit trail.
+            </p>
+            <div className="field">
+              <label className="field-label">Line</label>
+              <div className="muted" style={{ fontSize: 13 }}>
+                <b>{g(adjust.row, 'part')}</b><br />
+                {pick(adjust.row, UCN_KEYS)} · {pick(adjust.row, ENGINEER_KEYS)}
+              </div>
+            </div>
+            <div className="field">
+              <label className="field-label">Quantity <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" type="number" min={1} max={adjust.max} style={{ width: 140 }}
+                value={adjust.qty} autoFocus
+                onChange={(e) => setAdjust((a) => a && ({ ...a, qty: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Reported {g(adjust.row, 'original_qty') || g(adjust.row, 'qty')} · up to {adjust.max} (what is in hand)
+              </span>
+            </div>
+            <div className="field">
+              <label className="field-label">Why <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" value={adjust.reason}
+                onChange={(e) => setAdjust((a) => a && ({ ...a, reason: e.target.value }))}
+                placeholder="e.g. engineer keyed 2, actually fitted 4" />
+            </div>
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" onClick={() => void saveAdjust()} disabled={adjusting}>
+                {adjusting ? 'Saving…' : 'Save adjustment'}
+              </button>
+              <button className="btn" onClick={() => setAdjust(null)} disabled={adjusting}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
 
       {form && (
         <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={720}>
