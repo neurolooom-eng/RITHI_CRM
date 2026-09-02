@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.32',
+    date: '2026-09-02',
+    title: 'Fixed the crash on a second “Load more”, and Call Requests can be uploaded',
+    changes: [
+      'The Field Call register crashed the page the second time you pressed Load more. The offline copy is kept in the browser, which holds about 5 MB — and a register of imported calls, each carrying its whole original row, goes past that. The failure was not caught, so it took the whole page down.',
+      'It is caught now: if the register is too big to keep offline, the app drops the offline copy and carries on with the data in memory. Nothing is lost — the live data is in the database and is re-read each time you open the screen.',
+      'Loading a page of calls also used to rewrite the entire offline copy once per row — 800 times for 800 calls, over a list that kept growing. That is why it went from slow to dead. A page is one write now: 6,000 calls load in about a tenth of a second.',
+      'New in Bulk Uploads: Call Registration Requests. Matched on the export’s own unique id, and a request that was already registered keeps its UCN, which is what ties it to the call.',
+    ],
+  },
+  {
     version: '0.9.31',
     date: '2026-09-02',
     title: 'Field Reports, and the “(F)” columns on PM calls',

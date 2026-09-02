@@ -30,9 +30,29 @@ class Database {
     return data;
   }
 
+  // Persistence is a CONVENIENCE, not the source of truth — the live data is in
+  // Supabase and is re-fetched on load. So a storage failure must never take the
+  // app down with it.
+  //
+  // It did: localStorage holds ~5 MB, and one register's worth of imported calls
+  // (each carrying its whole AppSheet row in `extra`) goes past that. The
+  // unguarded setItem threw QuotaExceededError out of the load, and the page
+  // crashed on the second "Load more". The in-memory cache is kept either way,
+  // so the screen keeps working; only the offline copy is lost.
+  private quotaWarned = false;
   private write(collection: string, data: BaseRecord[]) {
     this.cache.set(collection, data);
-    localStorage.setItem(PREFIX + collection, JSON.stringify(data));
+    try {
+      localStorage.setItem(PREFIX + collection, JSON.stringify(data));
+    } catch (e) {
+      if (!this.quotaWarned) {
+        this.quotaWarned = true;
+        console.warn(`[db] ${collection} is too large for local storage (${e instanceof Error ? e.name : 'error'}) — kept in memory for this session only.`);
+      }
+      // Drop the stale copy rather than leave a half-truth on disk: a partial
+      // cache read back on the next load is worse than no cache at all.
+      try { localStorage.removeItem(PREFIX + collection); } catch { /* nothing more to do */ }
+    }
     this.emit(collection);
   }
 
@@ -83,6 +103,28 @@ class Database {
       collection,
       this.read(collection).filter((r) => r.id !== id),
     );
+  }
+
+  // Insert many rows in ONE write.
+  //
+  // `insert` rewrites — and re-serialises — the whole collection every time, so
+  // loading a page of 800 calls one row at a time did that 800 times, over a
+  // growing array. Quadratic, and the reason a second "Load more" took the page
+  // from slow to dead. Loading a page is one write now.
+  insertMany(collection: string, records: Partial<BaseRecord>[]): void {
+    if (!records.length) return;
+    const now = new Date().toISOString();
+    const add = records.map((r) => ({
+      ...r, id: r.id ?? genId(), createdAt: now, updatedAt: now,
+    })) as BaseRecord[];
+    this.write(collection, [...this.read(collection), ...add]);
+  }
+
+  // Remove everything matching, in one write — for the same reason.
+  removeWhere(collection: string, match: (r: BaseRecord) => boolean): void {
+    const data = this.read(collection);
+    const kept = data.filter((r) => !match(r));
+    if (kept.length !== data.length) this.write(collection, kept);
   }
 
   // Replace an entire collection (updates cache + storage + notifies).

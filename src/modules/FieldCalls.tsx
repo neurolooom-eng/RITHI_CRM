@@ -453,14 +453,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     try {
       const rows = await listFieldCalls('', limit, config.tab);
       // Replace the synced cache; keep locally-pending rows.
-      db.list(config.collection)
-        .filter((r) => (r as Rec)._synced)
-        .forEach((r) => db.remove(config.collection, r.id));
+      db.removeWhere(config.collection, (r) => !!(r as Rec)._synced);
       // Insert oldest-first so the newest sit on top after the reverse in
-      // visibleRows, and freshly-added calls also appear at the top.
-      [...rows]
-        .reverse()
-        .forEach((r) => db.insert(config.collection, { ...r, id: String(r.ucn || genId()), _synced: true }));
+      // visibleRows, and freshly-added calls also appear at the top. ONE write:
+      // a row at a time re-serialised the whole collection per row.
+      db.insertMany(config.collection,
+        [...rows].reverse().map((r) => ({ ...r, id: String(r.ucn || genId()), _synced: true })));
       const now = new Date().toISOString();
       try { localStorage.setItem(syncKey, now); } catch { /* ignore */ }
       setLastSync(now);
@@ -501,8 +499,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     if (!onDb) return;
     const active = !!(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName);
     const applyRows = (rows: Rec[]) => {
-      db.list(config.collection).filter((r) => (r as Rec)._synced).forEach((r) => db.remove(config.collection, r.id));
-      [...rows].reverse().forEach((r) => db.insert(config.collection, { ...r, id: String(r.ucn || genId()), _synced: true }));
+      db.removeWhere(config.collection, (r) => !!(r as Rec)._synced);
+      db.insertMany(config.collection,
+        [...rows].reverse().map((r) => ({ ...r, id: String(r.ucn || genId()), _synced: true })));
     };
     const t = window.setTimeout(async () => {
       setBusy(true);

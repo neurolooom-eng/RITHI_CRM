@@ -164,7 +164,19 @@ UPLOADS.forEach((d) => {
     console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not derived from anything it fills`); fail++;
   }
 });
-eq('registers defined', UPLOADS.length, 26);
+eq('registers defined', UPLOADS.length, 27);
+
+console.log('\n-- call registration requests --');
+const cr = shapeUpload(def('call_requests'), [
+  { 'UNIQUE ID': 'U-1', 'Timestamp': '02-Jan-2026 12:54:54', 'PARTY NAME': 'METRO',
+    'Product Serial Number': '2354', 'UC Number': '26A02F0001', 'Reported Problem': 'no power',
+    'Something Else': 'kept' },
+  { 'PARTY NAME': 'NO KEY' },
+]);
+eq('the keyed row loads, the unkeyed is held back', [cr.rows.length, cr.skipped[0].why], [1, 'no unique key']);
+eq('a registered request keeps its UCN', cr.rows[0].ucn, '26A02F0001');
+eq('serial and party read', [cr.rows[0].serial_no, cr.rows[0].party_name], ['2354', 'METRO']);
+eq('unknown columns are kept', cr.rows[0].extra, { 'Something Else': 'kept' });
 
 console.log('\n-- historical consumption --');
 const hist = shapeUpload(def('spare_consumption_history'), [
