@@ -33,6 +33,11 @@ export interface Col {
    *  NOT written to this column — it falls through to `extraInto`, where it can
    *  still be seen, rather than being filed as something it is not. */
   when?: (v: string) => boolean;
+  /** Computed from the row AFTER the file's own columns are mapped, and only
+   *  when the file supplied nothing. Lets a register whose export carries no row
+   *  id of its own still be re-runnable: the derived key is the same on every
+   *  run, where a generated one would load the file again as new rows. */
+  derive?: (out: Record<string, unknown>) => unknown;
 }
 
 export interface UploadDef {
@@ -231,6 +236,14 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
 
     if (def.extraInto) out[def.extraInto] = extra;
 
+    // Fill in what the file did not carry, from what it did.
+    def.cols.forEach((c) => {
+      if (c.derive && (out[c.to] === undefined || out[c.to] === '' || out[c.to] === null)) {
+        const v = c.derive(out);
+        if (v !== undefined && v !== null && v !== '') out[c.to] = v;
+      }
+    });
+
     const missing = def.cols.filter((c) => c.required && (out[c.to] === undefined || out[c.to] === '' || out[c.to] === null));
     if (missing.length) {
       skipped.push({ row: i + 2, why: `no ${missing.map((c) => c.from[0]).join(', ')}` });   // +2: header row, 1-based
@@ -323,21 +336,36 @@ const CALL_COLS: Col[] = [
 ];
 
 const REPORT_COLS: Col[] = [
-  { to: 'uid', from: ['uid', 'row id', 'unique id', 'key'], required: true },
+  // The call registers carry their latest visit but no row id of their own, so
+  // one is DERIVED from the call and the visit date. It is the same on every
+  // run — a generated id would load the file again as new visits — and it stays
+  // distinct where a call has more than one visit.
+  { to: 'uid', from: ['uid', 'row id', 'unique id', 'key'], required: true,
+    derive: (o) => (o.ucn
+      ? `IMP-${o.ucn}${o.visit_at ? '-' + String(o.visit_at).slice(0, 19).replace(/[:T-]/g, '') : ''}`
+      : '') },
   { to: 'ucn', from: ['ucn', 'uc number'], required: true },
   TEXT('call_number', 'call number'),
   TEXT('call_status', 'call status', 'status'),
   TEXT('pending_reason', 'call pending reason', 'pending reason'),
   TEXT('engineer', 'visiting service engineer', 'engineer name'),
   TEXT('engineer_email', 'email id', 'engineer email'),
-  TS('visit_at', 'visit date & time', 'visit date and time', 'visit date', 'date of visit'),
+  // REQUIRED, and this is a data-integrity rule rather than a convenience: a
+  // call is Unattended only until it has a visit row, so loading a row with no
+  // visit would mark an unattended call as attended. On the PM register 1,368
+  // of 7,038 rows are exactly that — a call with no visit yet.
+  { to: 'visit_at', from: ['visit date & time', 'visit date and time', 'visit date', 'date of visit'],
+    type: 'ts', required: true },
   // WHEN THE ENTRY WAS MADE, which is not the same as when the visit happened —
   // and it is what decides a call's status. `sync_call_last_visit` (0032) takes
   // the LATEST ENTRY by updated_at, so leaving this to default to the import
   // moment would give all 7,509 rows the same timestamp and let an arbitrary
   // one decide every call.
   TS('updated_at', 'visit entry date', 'entry date', 'updated at'),
-  TEXT('manual_report', 'manual report', 'attachment'),
+  // `Service Report` is what the PM/Installation registers call the attachment.
+  // It arrives as an AppSheet path, not a link — Bulk Report Mapping is the way
+  // to turn those into Drive links; here it is at least kept rather than lost.
+  TEXT('manual_report', 'manual report', 'service report', 'attachment'),
 ];
 
 export const UPLOADS: UploadDef[] = [

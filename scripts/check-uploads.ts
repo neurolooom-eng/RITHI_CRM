@@ -137,6 +137,20 @@ eq('Email-ID is the engineer email', fr.rows[0].engineer_email, 'a@x.com');
 eq('call pending reason read', fr.rows[0].pending_reason, 'AWAITING SPARE');
 eq('what the engineer wrote is kept', fr.rows[0].data, { 'Job Done': 'replaced sensor' });
 
+console.log('\n-- a call register carries its latest visit, with no row id --');
+const pmr = shapeUpload(def('pm_reports'), [
+  { 'UC Number': '24I01P0053', 'Visit Date & Time': '02-April-2026',
+    'Visiting Service Engineer': 'VICTORY MEDICAL SYSTEMS', 'Call Status': 'Solved - Report Completed',
+    'Job Done': 'CHECKED THE UNIT FULLY', 'Service Report': '42v4ReportingP_Images/v2_N1.jpg' },
+  { 'UC Number': '24I01P0099', 'Call Status': 'Unsolved' },   // no visit yet
+]);
+eq('a key is derived from the call and the visit', pmr.rows[0].uid, 'IMP-24I01P0053-20260402000000');
+eq('the same file twice derives the SAME key', shapeUpload(def('pm_reports'), [
+  { 'UC Number': '24I01P0053', 'Visit Date & Time': '02-April-2026' }]).rows[0].uid, 'IMP-24I01P0053-20260402000000');
+eq('a call with NO visit is not made to look attended', [pmr.rows.length, pmr.skipped[0].why], [1, 'no visit date & time']);
+eq('the attachment is kept', pmr.rows[0].manual_report, '42v4ReportingP_Images/v2_N1.jpg');
+eq('what the engineer wrote is kept', pmr.rows[0].data, { 'Job Done': 'CHECKED THE UNIT FULLY' });
+
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
   'UC Number': '26A02F0001', 'CALL NUMBER': 'CL1',

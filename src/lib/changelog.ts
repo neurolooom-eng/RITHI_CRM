@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.34',
+    date: '2026-09-02',
+    title: 'Visit reports from the call registers',
+    changes: [
+      'The PM and Installation registers carry their latest visit but no row id of their own, so nothing would load. A key is now worked out from the call and the visit date — the same key every time, so re-loading the file corrects those visits instead of adding them again.',
+      'A row with no visit date is now held back rather than loaded. A call counts as unattended until it has a visit, so loading an empty one would have marked 1,368 PM calls as attended when nobody has been yet.',
+      'The Service Report attachment is kept rather than dropped. It arrives as an AppSheet path, so use Bulk Report Mapping for these files if you want those turned into Drive links.',
+    ],
+  },
+  {
     version: '0.9.33',
     date: '2026-09-02',
     title: 'Call Registration Requests upload',
