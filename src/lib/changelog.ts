@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.33',
+    date: '2026-09-02',
+    title: 'Call Registration Requests upload',
+    changes: [
+      'The request export loads as written — Unique ID, the request id, timestamp, engineer, party, product, serial, complaint, contact details, attended and plan dates.',
+      'The export keeps cancellations in the same column as the UCN: on 52 of 4,159 rows it says “Request cancel” rather than a call number. Only a real UCN is taken as one; the rest is kept alongside the row so you can see it, instead of being filed as a call that does not exist.',
+      'Column names now match however they are punctuated — “E-Mail ID” and “Email ID” are the same column.',
+    ],
+  },
+  {
     version: '0.9.32',
     date: '2026-09-02',
     title: 'Fixed the crash on a second “Load more”, and Call Requests can be uploaded',

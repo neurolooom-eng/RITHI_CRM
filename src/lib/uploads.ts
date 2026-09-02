@@ -27,6 +27,12 @@ export interface Col {
   type?: ColType;
   /** A row without this is not loaded — it would be a fragment, not a record. */
   required?: boolean;
+  /** Take the value only when this passes. A real column is not always used for
+   *  one thing: the Call Request export's `UCN number` holds a UCN on 4,016
+   *  rows and the words "Request cancel" on the other 52. A value that fails is
+   *  NOT written to this column — it falls through to `extraInto`, where it can
+   *  still be seen, rather than being filed as something it is not. */
+  when?: (v: string) => boolean;
 }
 
 export interface UploadDef {
@@ -79,6 +85,9 @@ const loose = (h: string) => h.trim().toLowerCase()
   .replace(/\([^)]*\)/g, ' ')
   .replace(/[?.!:;#*'"]/g, '')
   .replace(/[\s_/,-]+/g, ' ').trim();
+// Last resort: letters and digits only, so `E-Mail ID` and `Email ID` are the
+// same column. Tried after the other two, never instead of them.
+const squash = (h: string) => loose(h).replace(/[^a-z0-9]/g, '');
 const norm = loose;
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
@@ -188,7 +197,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   const first = (fn: (h: string) => string, want: string) => headers.find((h) => fn(h) === want);
   def.cols.forEach((c) => {
     for (const alias of c.from) {
-      const h = first(strict, strict(alias)) ?? first(loose, loose(alias));
+      const h = first(strict, strict(alias)) ?? first(loose, loose(alias)) ?? first(squash, squash(alias));
       if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); return; }
     }
   });
@@ -200,11 +209,20 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     Object.entries(r).forEach(([h, v]) => {
       const cols = bind.get(h);
       if (cols) {
+        let usedBy = 0;
         cols.forEach((col) => {
+          const raw = String(v ?? '').trim();
+          if (col.when && raw && !col.when(raw)) return;   // not this column's kind of value
+          usedBy += 1;
           const val = coerce(v, col.type);
           // Never let a blank cell overwrite a stamped constant.
           if (val !== null && val !== '') out[col.to] = val;
         });
+        // Claimed by a column that refused it — keep it rather than lose it.
+        if (!usedBy && def.extraInto) {
+          const t = String(v ?? '').trim();
+          if (t) extra[h.trim()] = t;
+        }
       } else if (def.extraInto) {
         const s = String(v ?? '').trim();
         if (s) extra[h.trim()] = s;
@@ -348,9 +366,9 @@ export const UPLOADS: UploadDef[] = [
     note: 'The Hotline desk: one row per machine on a request. Matched on Unique Key — the export\u2019s own id — so a re-load corrects rather than duplicating. A request that was already registered keeps its UCN, which is what links it to the call.',
     cols: [
       { to: 'unique_key', from: ['unique key', 'unique id', 'uniqueid', 'uid', 'row id'], required: true },
-      TEXT('reqid', 'reqid', 'req id', 'request id'),
+      TEXT('reqid', 'reqid', 'req id', 'request id', 'id'),
       TS('submitted_at', 'timestamp', 'submitted at', 'request date'),
-      TEXT('email', 'email id', 'email'),
+      TEXT('email', 'e mail id', 'email id', 'email'),
       TEXT('engineer', 'engineer name', 'requested by'),
       TEXT('call_type', 'call type'),
       TEXT('party_name', 'party name', 'customer'),
@@ -367,7 +385,10 @@ export const UPLOADS: UploadDef[] = [
       DATE('attended_date', 'attended date'), DATE('plan_date', 'plan date'),
       TEXT('additional_comments', 'additional comments', 'remarks'),
       // A request already turned into a call carries its UCN; that is the link.
-      TEXT('ucn', 'uc number', 'ucn'),
+      // The export keeps cancellations in the SAME column ("Request cancel" on
+      // 52 of 4,159 rows), so only a UCN-shaped value is taken as one — the rest
+      // is kept alongside the row instead of being filed as a call number.
+      { to: 'ucn', from: ['ucn number', 'uc number', 'ucn'], when: (v) => /^\d{2}[A-Za-z]\d{2}[A-Za-z]\d{4}$/.test(v) },
       TEXT('status', 'status'),
       TEXT('cancel_reason', 'cancel reason', 'cancellation reason'),
     ] },

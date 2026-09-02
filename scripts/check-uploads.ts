@@ -178,6 +178,17 @@ eq('a registered request keeps its UCN', cr.rows[0].ucn, '26A02F0001');
 eq('serial and party read', [cr.rows[0].serial_no, cr.rows[0].party_name], ['2354', 'METRO']);
 eq('unknown columns are kept', cr.rows[0].extra, { 'Something Else': 'kept' });
 
+// The real export keeps cancellations in the UCN column.
+const crc = shapeUpload(def('call_requests'), [
+  { 'UNIQUE ID': 'U-1', 'UCN number': '26A02F0001' },
+  { 'UNIQUE ID': 'U-2', 'UCN number': 'Request cancel' },
+]);
+eq('a UCN-shaped value is the UCN', crc.rows[0].ucn, '26A02F0001');
+eq('"Request cancel" is NOT filed as a UCN', crc.rows[1].ucn, undefined);
+eq('...but it is kept, not lost', (crc.rows[1].extra as Record<string, unknown>)['UCN number'], 'Request cancel');
+eq('E-Mail ID matches Email ID', shapeUpload(def('call_requests'), [{ 'UNIQUE ID': 'U', 'E-Mail ID': 'a@x.com' }]).rows[0].email, 'a@x.com');
+eq('the export\u2019s ID column is the request id', shapeUpload(def('call_requests'), [{ 'UNIQUE ID': 'U', 'ID': 'R15847' }]).rows[0].reqid, 'R15847');
+
 console.log('\n-- historical consumption --');
 const hist = shapeUpload(def('spare_consumption_history'), [
   { 'Engineer': 'A Kumar', 'Part': 'WM-1|Valve', 'Qty': '2', 'Source': 'AppSheet 2023', 'Row ID': 'R7', 'Date': '15/03/2023', 'Job Note': 'kept' },
