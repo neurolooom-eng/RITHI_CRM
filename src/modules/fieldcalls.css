@@ -347,3 +347,36 @@
    identified by its code, so a truncated option is unusable. */
 .reco-line { display: grid; grid-template-columns: 1fr 110px 34px; gap: 8px; align-items: center; margin-bottom: 8px; }
 .reco-line .select { width: 100%; min-width: 0; }
+
+/* ---- Roles & Permissions: the module tree ------------------------------- */
+/* The matrix is long, so the header must stay put while scrolling; the wrapper
+   has to be the scroll container for `position: sticky` to have anything to
+   stick to. The first column sticks sideways too, or a role's column tells you
+   nothing about which action it belongs to. */
+.rbac-scroll-tall { max-height: 70vh; overflow: auto; }
+.rbac-table thead th { z-index: 3; box-shadow: inset 0 -1px 0 var(--border, #e2e8f0); }
+.rbac-tree td.rbac-action, .rbac-tree th.rbac-action {
+  position: sticky; left: 0; z-index: 2; background: var(--surface, #fff); min-width: 300px;
+}
+.rbac-tree thead th.rbac-action { z-index: 4; background: var(--surface-2, #f7f9fb); }
+
+.rbac-tools { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+
+.rbac-head-row { cursor: pointer; }
+.rbac-head-row:hover td { background: var(--surface-alt, #eef2f6); }
+.rbac-caret { display: inline-block; width: 14px; color: var(--text-muted, #64748b); }
+
+.rbac-page-row td { background: var(--surface, #fff); }
+.rbac-page-row td.rbac-page { font-weight: 600; }
+.rbac-toggle {
+  background: none; border: 0; padding: 0; font: inherit; color: inherit;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+}
+.rbac-toggle:disabled { cursor: default; }
+.rbac-count { font-size: 11px; margin-left: 6px; }
+/* The page's own View box reads as the heavier decision it is. */
+.rbac-view-box { accent-color: var(--primary, #0f766e); }
+
+.rbac-child td { background: var(--surface-alt, #fafbfc); }
+.rbac-indent { padding-left: 28px !important; }
+.rbac-bulk td { border-top-style: dashed; }

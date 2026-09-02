@@ -474,7 +474,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const roleKey = u.rbacRole || legacyToRbac(u.role);
     if (roleKey === 'admin') return true;
     const canonical = toCanonical(action);
-    return permsForRole(roleKey, rolePerms).includes(canonical) || (u.extraPermissions?.includes(canonical) ?? false);
+    const granted = permsForRole(roleKey, rolePerms);
+    const held = (k: string) => granted.includes(k) || (u.extraPermissions?.includes(k) ?? false);
+    if (held(canonical)) return true;
+    // A single master list is covered by All Masters unless the role has been
+    // narrowed to specific lists.
+    if (canonical.startsWith('mod:/masters/')) return held('mod:/masters');
+    return false;
   };
 
   // Enforce CSV/download permission centrally (csvExport reads this flag).

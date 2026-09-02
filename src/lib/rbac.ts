@@ -61,8 +61,11 @@ export const moduleAction = (path: string): string => `mod:${path}`;
 // Each master value list has its own screen (/masters/<key>), but they are one
 // module: whoever may open All Masters may open any of its lists. Keeps the
 // role matrix from growing a row per list.
-export const actionForPath = (path: string): string =>
-  moduleAction(path.startsWith('/masters/') ? '/masters' : path);
+// A master list has its own key (mod:/masters/<key>) so access can be given
+// list by list. It INHERITS from All Masters: can() treats mod:/masters as
+// granting every list, so existing roles keep working and an admin restricts by
+// turning the parent off and picking lists instead.
+export const actionForPath = (path: string): string => moduleAction(path);
 const ADMIN_MODULES = MODULES.filter((m) => m.admin).map((m) => moduleAction(m.path));
 const NON_ADMIN_MODULES = MODULES.filter((m) => !m.admin).map((m) => moduleAction(m.path));
 const ALL_MODULES = MODULES.map((m) => moduleAction(m.path));
@@ -169,3 +172,77 @@ export const permsForRole = (role: string, config: Record<string, string[]>): st
   if (stored && stored.length) return stored;
   return DEFAULT_PERMS[role] ?? DEFAULT_PERMS.engineer;
 };
+
+// ---------------------------------------------------------------------------
+// PERMISSION TREE — the shape the Roles & Permissions screen is edited in:
+// Header (the left-nav group) -> Sub-page (module) -> View + the actions that
+// belong to that page. Grouping by module is what makes the matrix legible:
+// "what can this role do in Spare Requests" is a question about one page, not
+// about a flat list of thirty actions.
+//
+// `view` is always the module's own mod: key, kept separate from the actions so
+// seeing a page and acting on it are granted independently.
+// ---------------------------------------------------------------------------
+export interface PermPage { path: string; label: string; actions: string[]; masters?: boolean }
+export interface PermHeader { title: string; pages: PermPage[] }
+
+export const PERM_TREE: PermHeader[] = [
+  { title: 'Overview', pages: [
+    { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
+    { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
+  ] },
+  { title: 'Master', pages: [
+    { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
+    { path: '/product-master', label: 'Product Master', actions: [] },
+    { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
+    { path: '/parts', label: 'Part Master', actions: [] },
+    // Every value list under All Masters is listed individually, so access can
+    // be given list by list rather than all-or-nothing.
+    { path: '/masters', label: 'All Masters', actions: [], masters: true },
+  ] },
+  { title: 'Contracts & Warranty', pages: [
+    { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },
+    { path: '/contracts', label: 'Contract Register', actions: [] },
+  ] },
+  { title: 'Service Calls', pages: [
+    { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },
+    { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register'] },
+    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.report'] },
+    { path: '/installations', label: 'Installation Calls', actions: ['install.create'] },
+    { path: '/pm-calls', label: 'Preventive (PM)', actions: [] },
+    { path: '/pending-calls', label: 'Pending Calls', actions: [] },
+    { path: '/reports', label: 'Reports', actions: ['reports.view'] },
+  ] },
+  { title: 'Spares', pages: [
+    { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },
+    { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch'] },
+    { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
+    { path: '/handstock', label: 'Hand Stock', actions: [] },
+    { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return'] },
+    { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer'] },
+  ] },
+  { title: 'Quality & Analytics', pages: [
+    { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
+    { path: '/failure-report', label: 'Field Failure Report', actions: [] },
+    { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
+  ] },
+  { title: 'Administration', pages: [
+    { path: '/users', label: 'User Access', actions: [] },
+    { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
+    { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
+    { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
+    { path: '/settings', label: 'Settings', actions: [] },
+    { path: '/version-history', label: 'Version History', actions: [] },
+  ] },
+  { title: 'Across the system', pages: [
+    { path: '', label: 'Not tied to one page', actions: ['data.view_all', 'export.data'] },
+  ] },
+];
+
+// A master value list's own permission. Lists are created in the database, so
+// the key is derived rather than enumerated.
+export const masterAction = (key: string): string => `mod:/masters/${key}`;
+
+// Every action the tree accounts for — used to spot one that has been added to
+// the system but not yet placed on a page.
+export const TREE_ACTION_KEYS = new Set(PERM_TREE.flatMap((h) => h.pages.flatMap((p) => p.actions)));

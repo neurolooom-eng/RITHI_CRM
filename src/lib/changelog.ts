@@ -12,11 +12,13 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.15',
+    version: '0.9.16',
     date: '2026-09-02',
-    title: 'Validation package covers refurbished spares',
+    title: 'Roles & Permissions, grouped the way the app is',
     changes: [
-      'The Software Validation package is revised to 1.2, adding the requirements, design note, risk, FMEA and test protocol for refurbished spares \u2014 including that hand stock is now derived from what was issued \u2014 and for measuring days to dispatch.',
+      'The matrix is now a tree: menu header \u2192 page \u2192 what can be done on it, collapsible at every level, with Expand all / Collapse all. Each page\u2019s \u201cView\u201d (permission to open it) is separate from the actions beneath it, and a tick box per page sets everything on that page for a role at once.',
+      'The table header and the action column stay put while you scroll, so a tick is never orphaned from its role or its action.',
+      'Every master value list can now be granted individually \u2014 all of them are listed under All Masters. A list still follows All Masters unless you turn that off and pick lists instead, so existing roles are unchanged.',
     ],
   },
   {
