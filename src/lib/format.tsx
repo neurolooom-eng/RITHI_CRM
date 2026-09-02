@@ -71,17 +71,6 @@ export function timeAgo(iso: unknown): string {
 export const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
 
-// Generate the next sequential human code for a collection, e.g. PTY-0001.
-export function nextCode(collection: string, prefix: string): string {
-  const rows = db.list(collection);
-  let max = 0;
-  rows.forEach((r) => {
-    const code = String((r as Record<string, unknown>).code ?? '');
-    const m = code.match(/(\d+)$/);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
-  });
-  return `${prefix}-${String(max + 1).padStart(4, '0')}`;
-}
 
 // Build select options from another collection.
 export function optionsFrom(

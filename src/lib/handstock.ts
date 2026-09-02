@@ -64,7 +64,6 @@ export const num = (v: unknown): number => {
 // A spare's catalogue string is "CODE|Description"; only the code identifies
 // it, and the description is what a human reads. Both must match Postgres's
 // part_code() / handstock_key(), which is how the two sides are joined.
-export const partCode = (part: unknown): string => String(part ?? '').split('|')[0]!.trim().toUpperCase();
 export const partDescription = (part: unknown): string => {
   const s = String(part ?? '');
   const i = s.indexOf('|');

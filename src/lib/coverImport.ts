@@ -17,6 +17,8 @@
 // stub header (0036_sales_contracts.sql), which the header file then fills in.
 // ===========================================================================
 
+import { toIsoDate, toIsoTimestamp } from './dates';
+
 export type CoverTable = 'sale_entries' | 'sale_items' | 'contract_entries' | 'contract_items';
 
 // Spreadsheet error text is not data.
@@ -26,32 +28,15 @@ const str = (v: unknown): string => {
   return JUNK.has(s) ? '' : s;
 };
 
-const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-
-// The exports mix "2-Sep-2023", "02/09/2023", "01 November 2023" and
-// "31-Oct-2016 00:00:00" — often in the same column.
-export function toDate(v: unknown): string | null {
-  const s = str(v);
-  if (!s) return null;
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = s.match(/^(\d{1,2})[-/ ]([A-Za-z]+)[-/ ](\d{4})/);
-  if (m) {
-    const mo = MONTHS[m[2].slice(0, 3).toLowerCase()];
-    if (mo) return `${m[3]}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  }
-  m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  return null;
-}
-
-// Same date, keeping the time of day when the export carries one.
-export function toTimestamp(v: unknown): string | null {
-  const d = toDate(v);
-  if (!d) return null;
-  const t = str(v).match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  return t ? `${d}T${t[1].padStart(2, '0')}:${t[2]}:${t[3] ?? '00'}Z` : `${d}T00:00:00Z`;
-}
+// Dates come from ./dates, the one parser every import shares.
+//
+// `toTimestamp` writes the export's wall-clock time AS IF IT WERE UTC ('utc'),
+// which is what this importer has always done. The other importers read it as
+// local time instead, which differs by the timezone offset. That disagreement
+// is deliberately preserved here, not resolved, until it is confirmed which is
+// right for this data — see the note on toIsoTimestamp.
+export const toDate = (v: unknown): string | null => toIsoDate(str(v));
+export const toTimestamp = (v: unknown): string | null => toIsoTimestamp(str(v), 'utc');
 
 // "7,51,192.00" (Indian grouping) is a number; "" and "#REF!" are not.
 export function toNum(v: unknown): number | null {

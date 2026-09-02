@@ -26,6 +26,9 @@
 // reported rather than guessed at — a wrong link on a quality record is worse
 // than an absent one.
 
+import { toIsoTimestamp } from './dates';
+import { loose, findHeaderFor } from './headers';
+
 export type RefKind = 'empty' | 'drive-link' | 'drive-id' | 'appsheet-url' | 'appsheet-path' | 'other-url' | 'unknown';
 
 export interface ParsedRef {
@@ -143,37 +146,24 @@ const ALIASES: Record<string, string[]> = {
   pending_reason: ['pending_reason', 'pending reason'],
   engineer: ['engineer', 'engineer name', 'attended by', 'allocated to'],
   engineer_email: ['engineer_email', 'engineer email', 'email'],
-  visit_at: ['visit_at', 'visit date', 'visit_date', 'date of visit', 'attended date', 'date'],
+  // The same headings Bulk Uploads' report registers read — keep the two lists
+  // in step, or a file loads on one screen and not the other.
+  visit_at: ['visit_at', 'visit date & time', 'visit date and time', 'visit date', 'visit_date', 'date of visit', 'attended date', 'date'],
   manual_report: ['manual_report', 'manual report', 'report', 'attachment', 'file', 'document', 'photo', 'image'],
 };
 
+// The same three-pass header matcher every importer uses (./headers), so a
+// heading this tool reads is the same heading Bulk Uploads reads — `UC Number`,
+// `Visit Date & Time`, `Death?` and the rest match here too.
 export function pick(row: Record<string, unknown>, field: keyof typeof ALIASES): string {
-  const want = ALIASES[field];
-  for (const k of Object.keys(row)) {
-    const key = k.trim().toLowerCase().replace(/\s+/g, ' ');
-    if (want.includes(key)) {
-      const v = String(row[k] ?? '').trim();
-      if (v) return v;
-    }
-  }
-  return '';
+  const h = findHeaderFor(Object.keys(row), ALIASES[field]);
+  return h ? String(row[h] ?? '').trim() : '';
 }
 
-/** A date the database will accept, or '' — never a half-parsed guess. */
+/** A date the database will accept, or '' — never a half-parsed guess. The
+ *  one shared parser (./dates), read as local time as this tool always has. */
 export function toTimestamp(v: unknown): string {
-  const s = String(v ?? '').trim();
-  if (!s) return '';
-  // dd/mm/yyyy and dd-mm-yyyy, which is what these exports carry. Read as
-  // day-first deliberately: an Indian export of 03/04/2026 is 3 April, and
-  // letting Date() read it as 4 March would silently move a visit by a month.
-  const m = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?/.exec(s);
-  if (m) {
-    const [, d, mo, y, hh = '0', mi = '0', ss = '0'] = m;
-    const dt = new Date(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mi), Number(ss));
-    return Number.isNaN(dt.getTime()) ? '' : dt.toISOString();
-  }
-  const dt = new Date(s);
-  return Number.isNaN(dt.getTime()) ? '' : dt.toISOString();
+  return toIsoTimestamp(v, 'local') ?? '';
 }
 
 export interface MappedRow {
@@ -197,7 +187,7 @@ export interface MappedRow {
 // Everything that is not a recognised column is kept in `data`, exactly as the
 // visit history already does — a recovered report should carry as much of what
 // the engineer wrote as the export still has.
-const KNOWN = new Set(Object.values(ALIASES).flat());
+const KNOWN = new Set(Object.values(ALIASES).flat().map(loose));
 
 export function shapeRow(raw: Record<string, unknown>, calls: CallKey[], rowNo: number): MappedRow {
   const ref = parseRef(pick(raw, 'manual_report'));
@@ -205,9 +195,8 @@ export function shapeRow(raw: Record<string, unknown>, calls: CallKey[], rowNo: 
 
   const data: Record<string, unknown> = {};
   Object.keys(raw).forEach((k) => {
-    const key = k.trim().toLowerCase().replace(/\s+/g, ' ');
     const v = String(raw[k] ?? '').trim();
-    if (v && !KNOWN.has(key)) data[k.trim()] = v;
+    if (v && !KNOWN.has(loose(k))) data[k.trim()] = v;
   });
 
   const visit_at = toTimestamp(pick(raw, 'visit_at'));

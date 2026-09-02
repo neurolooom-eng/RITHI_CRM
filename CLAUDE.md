@@ -125,4 +125,21 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 - The local `db.ts` collections are **demo leftovers**, and `clearDemoData()`
   empties them on load — a screen backed by one renders blank against live
   data. That is what made Part Master and the in-call spare-consumption picker
-  look empty; both read live tables now. Recognise the symptom quickly.
+  look empty; both read live tables now. The last two demo-backed screens
+  (Field Failure Report, KPI & Failure Analysis) are honest placeholders until
+  they get a table; the CRUD demo scaffolding (`CrudModule`, `schemas.tsx`,
+  `CallExtras`) is gone. Recognise the symptom quickly.
+- **One parser, one matcher.** Every importer reads dates through
+  `src/lib/dates.ts` (day-first, always) and headers through
+  `src/lib/headers.ts` (strict → loose → squash); CSV through `csv.ts`. Do not
+  add a private `toDate` or header normaliser to a module — there used to be
+  four date parsers and they had started to disagree. The one open question,
+  whether a wall-clock export time is local or UTC, is a parameter of
+  `toIsoTimestamp`, not a per-file habit.
+- **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
+  Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
+  User Master directory, and the MRN two-tab flattening. Do not add a table to
+  both — two importers for one table is how a good file came back as "0 rows".
+- **Verify an upsert target against a database, not by reading the SQL.**
+  `npm run check:upserts -- "<psql args>"` rejects partial indexes, expression
+  indexes and views. That class shipped six times by inspection alone.

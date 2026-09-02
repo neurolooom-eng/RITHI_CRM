@@ -16,6 +16,8 @@
 // ---------------------------------------------------------------------------
 
 import { shapeCoverRows, type CoverTable } from './coverImport';
+import { toIsoDate, toIsoTimestamp } from './dates';
+import { loose, findHeaderFor } from './headers';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
 
@@ -77,75 +79,15 @@ export interface UploadDef {
 
 // ---- coercion -------------------------------------------------------------
 
-// Headers are matched in TWO passes, and the order matters more than it looks.
-//
-// `strict` only tidies whitespace and underscores. `loose` also throws away
-// punctuation and bracketed suffixes, because the real exports carry `Death?`,
-// `Serious Incident?`, `PO No.` and `WARRANTY FAILURE (1YR)` — none of which is
-// a different column from the same name without its decoration.
-//
-// But loosening alone is not safe: the Installation Call export has BOTH
-// `Warranty Start Date` (the date) and `Warranty Start Date?` (a yes/no flag),
-// which loosen to the same thing. Matching loosely in one pass bound the flag
-// and every installation loaded with NO warranty start date — the one field an
-// installation exists to record. So an exact name always wins over a loosened
-// one, and within a pass the earlier column in the file wins.
-const strict = (h: string) => h.trim().toLowerCase().replace(/[\s_]+/g, ' ').trim();
-const loose = (h: string) => h.trim().toLowerCase()
-  .replace(/\([^)]*\)/g, ' ')
-  .replace(/[?.!:;#*'"]/g, '')
-  .replace(/[\s_/,-]+/g, ' ').trim();
-// Last resort: letters and digits only, so `E-Mail ID` and `Email ID` are the
-// same column. Tried after the other two, never instead of them.
-const squash = (h: string) => loose(h).replace(/[^a-z0-9]/g, '');
+// Header matching lives in ./headers — shared with every importer so none of
+// them can disagree about which column is which.
 const norm = loose;
 
-const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+// Dates live in ./dates — one parser for every import. Kept under the names
+// the registers and the checks already use.
+export const toDate = (v: unknown): string | null => toIsoDate(v);
+export const toTs = (v: unknown): string | null => toIsoTimestamp(v, 'local');
 
-// Day-first, always. These are Indian exports: reading 03/04/2026 as 4 March
-// instead of 3 April moves a record by a month and nothing downstream notices.
-export function toDate(v: unknown): string | null {
-  const p = parseParts(v);
-  return p ? `${p.y}-${pad(p.mo)}-${pad(p.d)}` : null;
-}
-
-const pad = (n: number) => String(n).padStart(2, '0');
-
-// One parser for every shape these exports actually use, so a date is read the
-// same way whether it lands in a date column or a timestamp one:
-//   2026-09-03            ISO
-//   03-September-2026     day, full or short month name, year  (any separator)
-//   08 06 2026            day month year, SPACE separated — the Visit Date
-//   03/09/2026            day first, always: these are Indian exports, and
-//                         reading 03/04 as 4 March would move a visit a month
-// with an optional hh:mm[:ss] after any of them.
-function parseParts(v: unknown): { y: number; mo: number; d: number; hh: number; mi: number; ss: number } | null {
-  const s = String(v ?? '').trim();
-  if (!s) return null;
-  const t = /[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(s);
-  const time = { hh: Number(t?.[1] ?? 0), mi: Number(t?.[2] ?? 0), ss: Number(t?.[3] ?? 0) };
-
-  let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
-  if (m) return { y: +m[1], mo: +m[2], d: +m[3], ...time };
-
-  m = /^(\d{1,2})[-/. ]([A-Za-z]{3,})[-/. ](\d{4})/.exec(s);
-  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return { y: +m[3], mo, d: +m[1], ...time }; }
-
-  m = /^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/.exec(s);
-  if (m) { const mo = +m[2]; if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d: +m[1], ...time }; }
-
-  return null;
-}
-
-export function toTs(v: unknown): string | null {
-  const p = parseParts(v);
-  if (!p) return null;
-  const dt = new Date(p.y, p.mo - 1, p.d, p.hh, p.mi, p.ss);
-  return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
-}
-
-// A register spells a yes/no its own way — the ITEM Master says
-// Active / Inactive, not Yes / No.
 const TRUE = new Set(['y', 'yes', 'true', '1', 't', 'active', 'enabled', 'live']);
 const FALSE = new Set(['n', 'no', 'false', '0', 'f', 'inactive', 'disabled', 'retired']);
 
@@ -206,12 +148,9 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // A header may feed MORE than one column where both name it (Timestamp is
   // both the registration date and its time), so this maps header -> columns.
   const bind = new Map<string, Col[]>();
-  const first = (fn: (h: string) => string, want: string) => headers.find((h) => fn(h) === want);
   def.cols.forEach((c) => {
-    for (const alias of c.from) {
-      const h = first(strict, strict(alias)) ?? first(loose, loose(alias)) ?? first(squash, squash(alias));
-      if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); return; }
-    }
+    const h = findHeaderFor(headers, c.from);
+    if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); }
   });
 
   raw.forEach((r, i) => {

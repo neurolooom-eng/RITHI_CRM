@@ -7,7 +7,6 @@ import { clearDemoData } from './lib/seed';
 import { Layout } from './components/layout/Layout';
 import { Login } from './modules/Login';
 import { ResetPassword } from './modules/ResetPassword';
-import { CrudModule } from './modules/CrudModule';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
 import { PartyMaster } from './modules/PartyMaster';
@@ -46,7 +45,6 @@ import { OwnershipTransfer } from './modules/OwnershipTransfer';
 import { PmBulkUpload } from './modules/PmBulkUpload';
 import { SoftwareValidation } from './modules/SoftwareValidation';
 import { AdminConfig } from './modules/AdminConfig';
-import { productConfig } from './modules/schemas';
 import { WarrantyRegister, ContractRegister } from './modules/CoverRegister';
 import { CustomerFeedback } from './modules/CustomerFeedback';
 
@@ -102,7 +100,6 @@ function Shell() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
         <Route path="/parties" element={<PartyMaster />} />
-        <Route path="/products" element={<CrudModule config={productConfig} />} />
         <Route path="/parts" element={<PartMaster />} />
         <Route path="/masters" element={<AllMasters />} />
         <Route path="/masters/:key" element={<MasterListPage />} />

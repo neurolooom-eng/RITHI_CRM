@@ -1,6 +1,11 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups } from '../src/lib/uploads';
+import { parseDateParts, toIsoDate, toIsoTimestamp } from '../src/lib/dates';
+import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
+import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
+import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
+import { machineKey } from '../src/lib/machine';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -9,6 +14,39 @@ const eq = (label: string, got: unknown, want: unknown) => {
   else console.log(`  ✓ ${label}`);
 };
 const def = (k: string) => UPLOADS.find((d) => d.key === k)!;
+
+console.log('\n-- ONE date parser, read the same way by every importer --');
+for (const [label, v] of [['ISO', '2026-09-03'], ['dd-Month-yyyy', '03-September-2026'], ['dd Mon yyyy', '03 Sep 2026'],
+                          ['dd mm yyyy (spaces)', '03 09 2026'], ['dd/mm/yyyy', '03/09/2026'], ['dd.mm.yyyy', '03.09.2026']] as const) {
+  eq(`${label} -> 2026-09-03 everywhere`,
+     [toIsoDate(v), toDate(v), coverDate(v), mappingTs(v).slice(0, 10)],
+     ['2026-09-03', '2026-09-03', '2026-09-03', '2026-09-03']);
+}
+eq('day-first, not US: 03/04 is 3 April', toIsoDate('03/04/2026'), '2026-04-03');
+eq('13/04 is 13 April (day-first), not swapped', toIsoDate('13/04/2026'), '2026-04-13');
+eq('04/13 (US order) is refused, never re-read as 13 April', toIsoDate('04/13/2026'), null);
+eq('the time of day is carried', parseDateParts('03-Sep-2026 14:30:15')?.hh, 14);
+eq('...and its absence is known', parseDateParts('03-Sep-2026')?.hasTime, false);
+eq('junk is null, never a guess', [toIsoDate('n/a'), toIsoDate(''), toIsoDate('#REF!')], [null, null, null]);
+
+console.log('\n-- the one OPEN disagreement, made explicit rather than hidden --');
+const wall = '02-Jan-2026 12:54:54';
+const utc = toIsoTimestamp(wall, 'utc');
+const local = toIsoTimestamp(wall, 'local');
+eq('"utc" writes the wall-clock literally', utc, '2026-01-02T12:54:54Z');
+eq('cover import still does what it always did (utc)', coverTs(wall), utc);
+eq('uploads and report mapping still read local', [toTs(wall), mappingTs(wall)], [local, local]);
+const offsetMin = new Date(2026, 0, 2, 12, 54, 54).getTimezoneOffset();
+eq('and the two differ by exactly this machine\u2019s offset',
+   (new Date(utc!).getTime() - new Date(local!).getTime()) / 60000, offsetMin);
+
+console.log('\n-- ONE header matcher, shared --');
+eq('strict then loose then squash', findHeaderFor(['Warranty Start Date?', 'Warranty Start Date'], ['warranty start date']), 'Warranty Start Date');
+eq('E-Mail ID is Email ID', findHeaderFor(['E-Mail ID'], ['email id']), 'E-Mail ID');
+eq('report mapping uses it too', pick({ 'UC Number': '26A02F0001' }, 'ucn'), '26A02F0001');
+eq('...including loosened headings', pick({ 'Visit Date & Time': '08 06 2026' }, 'visit_at'), '08 06 2026');
+eq('strict/loose/squash agree on a plain name', [strict('Call Number'), loose('Call Number'), squash('Call Number')], ['call number', 'call number', 'callnumber']);
+eq('machine identity uses the same squash', machineKey('ORION-G', ' 201 '), 'oriong|201');
 
 console.log('\n-- coercion --');
 eq('day-first date', toDate('03/04/2026'), '2026-04-03');

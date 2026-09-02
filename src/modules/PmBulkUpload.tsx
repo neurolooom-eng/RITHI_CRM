@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
-import { supabaseConfigured, pmLatestRegAt } from '../lib/supabase';
-import { parseCSV, bulkInsert } from '../lib/dataImport';
+import { supabaseConfigured, pmLatestRegAt, uploadRows } from '../lib/supabase';
+import { parseCSV } from '../lib/csv';
 import { shapePmRows, pmStartDefaults, pmTemplateCsv, PM_TEMPLATE_HEADERS } from '../lib/pmImport';
 import './fieldcalls.css';
 
@@ -98,10 +98,13 @@ export function PmBulkUpload() {
   const doImport = async () => {
     if (!rows.length) return;
     setBusy(true); setProgress({ done: 0, total: rows.length }); setMsg({ tone: 'info', text: 'Importing…' });
-    const res = await bulkInsert('calls', rows, (p) => setProgress(p));
+    // The same writer every upload uses. Through the `calls` view, insert-only,
+    // exactly as before: the batch is new calls, the database assigns each its
+    // UCN and Call Number on the way in, and there is no key to re-run against.
+    const res = await uploadRows('calls', rows, undefined, (done, total) => setProgress({ done, total }));
     setBusy(false);
-    if (!res.ok) { setMsg({ tone: 'error', text: `Imported ${res.inserted} before an error: ${res.error}` }); return; }
-    setMsg({ tone: 'ok', text: `Created ${res.inserted} PM call${res.inserted === 1 ? '' : 's'} — each got a UCN and Call Number. They’re in the Preventive (PM) register.` });
+    if (!res.ok) { setMsg({ tone: 'error', text: `Imported ${res.written} before an error: ${res.error}` }); return; }
+    setMsg({ tone: 'ok', text: `Created ${res.written} PM call${res.written === 1 ? '' : 's'} — each got a UCN and Call Number. They’re in the Preventive (PM) register.` });
     setRaw([]); setFileName('');
   };
 

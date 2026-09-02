@@ -15,7 +15,8 @@
 //
 // Pure, and its own module so it can be tested without the Supabase client.
 // ---------------------------------------------------------------------------
-const squash = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+import { squash as squashText } from './headers';
+const squash = (v: unknown) => squashText(String(v ?? ''));
 
 export const machineKey = (product: unknown, serial: unknown): string =>
   `${squash(product)}|${squash(serial)}`;

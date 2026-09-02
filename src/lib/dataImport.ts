@@ -8,28 +8,15 @@
 import { getSupabase } from './supabase';
 import { detectCoverTable, shapeCoverRows, type CoverTable } from './coverImport';
 
-export type ImportTable = 'masters' | 'parties' | 'products' | 'parts' | 'calls' | 'reports' | 'user_directory'
-  | 'call_requests' | 'material_returns' | CoverTable;
+// Only what Bulk Uploads does not do: the four AppSheet cover exports (which
+// need the Normalise step after them), the User Master directory, and the MRN
+// sheet's two-tab flattening. Everything else — masters, parties, parts,
+// products, calls, reports, call requests — is a register in Bulk Uploads,
+// where the target is CHOSEN rather than guessed from the headers. Two
+// importers for the same table was how a good file came back as "0 rows".
+export type ImportTable = 'user_directory' | 'material_returns' | CoverTable;
 
-// Minimal CSV parser (quotes, commas, newlines).
-export function parseCSV(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [], field = '', q = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (q) { if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; } else field += c; }
-    else if (c === '"') q = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c === '\r') { /* skip */ }
-    else field += c;
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  if (!rows.length) return [];
-  const headers = rows[0].map((h) => h.trim());
-  return rows.slice(1).filter((r) => r.some((v) => String(v).trim() !== ''))
-    .map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ''])));
-}
+export { parseCSV } from './csv';
 
 // Detect which table a clean CSV targets, from its header columns.
 export function detectTable(headers: string[]): ImportTable | null {
@@ -37,7 +24,6 @@ export function detectTable(headers: string[]): ImportTable | null {
   // The four AppSheet sale / contract exports, imported as exported.
   const cover = detectCoverTable(headers);
   if (cover) return cover;
-  if (H.has('name') && H.has('value')) return 'masters';
   if (H.has('name') && H.has('reporting_manager')) return 'user_directory';
   // Raw User Master export (sheet headers, not the clean file).
   if (H.has('User Name') && (H.has('RM') || H.has('Email ID'))) return 'user_directory';
@@ -47,44 +33,16 @@ export function detectTable(headers: string[]): ImportTable | null {
   // the register is the fuller of the two.
   if (H.has('SI Number') && H.has('MRN No')) return 'material_returns';
   if (H.has('Stock Transfer Number') && H.has('MRN No')) return 'material_returns';
-  // Raw CRN Registration export (the request sheet's own headers).
-  if (H.has('UNIQUE ID') && H.has('ENGINEER') && H.has('PARTY NAME')) return 'call_requests';
-  if (H.has('ucn') && H.has('data')) return 'reports';
-  if (H.has('ucn') && H.has('call_type')) return 'calls';
-  if (H.has('serial_number') && H.has('item_name')) return 'products';
-  if (H.has('item_detail') && H.has('code')) return 'parts';
-  if (H.has('party_name')) return 'parties';
   return null;
 }
 
-const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
-export function toDate(v: unknown): string | null {
-  const s = String(v ?? '').trim();
-  if (!s) return null;
-  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = s.match(/^(\d{1,2})[-/ ]([A-Za-z]+)[-/ ](\d{4})/);
-  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return `${m[3]}-${String(mo).padStart(2, '0')}-${m[1].padStart(2, '0')}`; }
-  m = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  return null;
-}
-const toTs = (v: unknown) => { const d = toDate(v); return d ? d + 'T00:00:00Z' : null; };
+import { toIsoDate } from './dates';
+export const toDate = toIsoDate;
+// A DATE written as a midnight UTC instant — what the MRN shaper has always
+// stored for returned_at. Date-only, so the timezone question (see
+// toIsoTimestamp) does not arise here: there is no time of day to shift.
+const toTs = (v: unknown) => { const d = toIsoDate(v); return d ? d + 'T00:00:00Z' : null; };
 
-const CALL_DATES = ['reg_date', 'complaint_date', 'warranty_start', 'warranty_end', 'contract_start', 'contract_end', 'breakdown_date'];
-const PROD_DATES = ['warranty_start', 'warranty_end', 'contract_start', 'contract_end'];
-
-function dedupe(rows: Record<string, unknown>[], key: string): Record<string, unknown>[] {
-  const seen = new Set<string>(); const out: Record<string, unknown>[] = [];
-  for (const r of rows) { const k = String(r[key] ?? '').trim().toLowerCase(); if (!k || seen.has(k)) continue; seen.add(k); out.push(r); }
-  return out;
-}
-
-// The User Master arrives either as the clean file (snake_case columns) or as
-// the raw sheet export ("User Name", "RM", "GMAIL ID", …). Map both onto the
-// user_directory columns; anything left over is kept in the `extra` jsonb
-// rather than failing the insert on an unknown column.
-// Address / City / State / Contact are real columns since
-// 0029_engineer_address.sql — the Declaration form is addressed by them.
 const DIR_ALIASES: Record<string, string> = {
   name: 'name', 'user name': 'name', username: 'name', 'engineer name': 'name',
   email: 'email', 'email id': 'email', 'email-id': 'email',
@@ -121,50 +79,6 @@ function shapeDirectoryRow(r: Record<string, string>): Record<string, unknown> {
 // generates; a request that was registered carries its UCN, one that never was
 // stays Pending and shows up in Pending Registrations. Columns the table has no
 // home for are kept in `extra` rather than dropped.
-const CR_SKIP = new Set([
-  'UNIQUE ID', 'ID', 'Timestamp', 'E-Mail ID', 'ENGINEER', 'CALL TYPE', 'PARTY NAME', 'State', 'City',
-  'Standard Complaint', 'Reported Problem', 'PRODUCT', 'SERIAL NO', 'CUSTOMER CONTACT DETAILS',
-  'CUSTOMER CONTACT Number', 'ADDRESS', 'Attended Date', 'PLAN DATE (Visit Planned Date)',
-  'Additional Comments', 'Complaint Date', 'UCN number',
-]);
-function shapeCallRequestRow(r: Record<string, string>): Record<string, unknown> {
-  const g = (k: string) => String(r[k] ?? '').trim();
-  const ucn = g('UCN number');
-  const extra: Record<string, string> = {};
-  for (const [k, v] of Object.entries(r)) {
-    const key = k.trim();
-    if (!CR_SKIP.has(key) && String(v ?? '').trim() !== '') extra[key] = String(v).trim();
-  }
-  return {
-    reqid: g('ID'),
-    unique_key: g('UNIQUE ID'),
-    submitted_at: toTs(g('Timestamp')),
-    email: g('E-Mail ID'),
-    engineer: g('ENGINEER'),
-    call_type: g('CALL TYPE'),
-    party_name: g('PARTY NAME'),
-    state: g('State'),
-    city: g('City'),
-    address: g('ADDRESS'),
-    customer_contact_details: g('CUSTOMER CONTACT DETAILS'),
-    customer_contact_number: g('CUSTOMER CONTACT Number'),
-    product: g('PRODUCT'),
-    serial_no: g('SERIAL NO'),
-    standard_complaint: g('Standard Complaint'),
-    reported_problem: g('Reported Problem'),
-    call_attended: g('Attended Date') ? 'Yes' : '',
-    attended_date: toDate(g('Attended Date')),
-    plan_date: toDate(g('PLAN DATE (Visit Planned Date)')),
-    additional_comments: g('Additional Comments'),
-    ucn,
-    status: ucn ? 'Registered' : 'Pending',
-    extra,
-  };
-}
-
-// One returned item, from the MRN register export. 'NA' is the sheet's empty
-// cell; it is dropped rather than stored. Quantities come from Good/Defective —
-// the sheet's "Total QTY" is a spreadsheet formula artifact and is ignored.
 const naBlank = (v: unknown) => { const s = String(v ?? '').trim(); return s.toUpperCase() === 'NA' ? '' : s; };
 function shapeMrnRow(r: Record<string, string>): Record<string, unknown> {
   const code = naBlank(r['Item Code']);
@@ -217,30 +131,8 @@ export function shapeRows(table: ImportTable, raw: Record<string, string>[]): Re
   switch (table) {
     case 'sale_entries': case 'sale_items': case 'contract_entries': case 'contract_items':
       return shapeCoverRows(table, raw);
-    case 'masters': return raw.map((r) => ({ name: r.name, value: r.value })).filter((r) => r.name && r.value);
-    // MRN: flatten both sheet tabs into one row per returned item. The form-data
-    // tab has no item columns, so its rows carry nothing to return and are
-    // dropped — the register tab holds every line, header fields included.
     case 'material_returns': return dedupeMrn(raw.map(shapeMrnRow).filter((r) => r.part));
     case 'user_directory': return raw.map(shapeDirectoryRow).filter((r) => r.name);
-    case 'parties': return raw.filter((r) => r.party_name);
-    case 'parts': return raw.map((r) => ({ ...r, active: String(r.active).toLowerCase() === 'true' }));
-    case 'products': return raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of PROD_DATES) o[d] = toDate(r[d]); return o; });
-    // A request's identity is its UniqueID (REQID-Product-Serial); the sheet
-    // holds a handful of accidental double-submissions, which the unique index
-    // would reject, so keep the first of each.
-    case 'call_requests': return dedupe(raw.map(shapeCallRequestRow).filter((r) => r.unique_key), 'unique_key');
-    case 'calls': return dedupe(raw.map((r) => { const o: Record<string, unknown> = { ...r }; for (const d of CALL_DATES) o[d] = toDate(r[d]); return o; }), 'ucn');
-    // Reports = one row per VISIT, keyed by UID (from the row's data). Call Type
-    // lives inside `data` (the table has no call_type column).
-    case 'reports': return dedupe(raw.map((r) => {
-      const d = (() => { try { return JSON.parse(r.data) as Record<string, unknown>; } catch { return {} as Record<string, unknown>; } })();
-      const uid = String(r.uid || d['UID'] || '').trim();
-      return {
-        uid, ucn: r.ucn, call_number: r.call_number, call_status: r.call_status, pending_reason: r.pending_reason,
-        engineer: r.engineer, engineer_email: r.engineer_email, visit_at: toTs(r.visit_at), data: d,
-      };
-    }).filter((r) => r.uid), 'uid');
   }
 }
 
@@ -258,7 +150,7 @@ const CONFLICT_KEY: Partial<Record<ImportTable, string>> = {
 // those batches are kept small enough to finish inside the server's statement
 // timeout; reports carry a large jsonb payload.
 const BATCH: Partial<Record<ImportTable, number>> = {
-  reports: 300, sale_items: 400, contract_items: 400, sale_entries: 500, contract_entries: 500,
+  sale_items: 400, contract_items: 400, sale_entries: 500, contract_entries: 500,
 };
 
 // Insert (or upsert) shaped rows in batches through the admin session.

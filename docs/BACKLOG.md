@@ -239,6 +239,30 @@ transfer guard and the cap all inherit them untouched:
   `reports_uid_key` sprang in 0071. `check:uploads` now verifies every
   register's conflict key is derived from something it fills.
 
+### Consolidation pass (v0.9.40)
+- **One date parser** — `src/lib/dates.ts`. coverImport, dataImport, uploads and
+  reportMapping each had their own; they had started to disagree (only one read
+  space-separated `08 06 2026`). All four now delegate. Behaviour is preserved:
+  the cover importer still writes a wall-clock time as if UTC and the others
+  still read it as local — the disagreement is now a visible parameter
+  (`toIsoTimestamp(v, 'utc' | 'local')`) awaiting a decision, not two habits.
+- **One header matcher** — `src/lib/headers.ts` (strict → loose → squash).
+  Bulk Report Mapping now recognises the same headings Bulk Uploads does
+  (`UC Number`, `Visit Date & Time`, `Death?`); it was strict-only.
+- **One CSV parser** — `src/lib/csv.ts`.
+- **Legacy Data Import trimmed** to what Bulk Uploads does not do: cover
+  exports + Normalise, user_directory, MRN two-tab flattening. Seven duplicated
+  shapers removed.
+- **Dead code removed**: `CrudModule`, `schemas.tsx` (7 of 8 configs were
+  never routed), `CallExtras` (wrote consumption to localStorage, bypassing the
+  cap — reachable only from the unrouted configs), the `/products` demo route,
+  `seedDemoData`, `nextCode`, `partCode`.
+- **FFR + KPI** are honest placeholders (they rendered blank from the emptied
+  demo collections). Both still need a table — see queued.
+- **Two conflicts NOT resolved here, put to the user**: (1) imported wall-clock
+  timestamps as local vs UTC; (2) `format.tsx` reads a non-ISO date month-first
+  for display while every importer is day-first.
+
 ### To run on the live project — pending
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
   — the **document library**: `documents`, holding the service-manual shelf and

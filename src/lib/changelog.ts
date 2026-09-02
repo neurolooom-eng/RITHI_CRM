@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.40',
+    date: '2026-09-03',
+    title: 'Same rules everywhere: one date reader, one column matcher',
+    changes: [
+      'Every upload now reads dates the same way — day-first, in every shape the exports use. There used to be four separate readers and they had started to differ: only one of them understood “08 06 2026”.',
+      'Every upload matches column headings the same way too. Bulk Report Mapping now recognises the same headings Bulk Uploads does — UC Number, Visit Date & Time, Death? — where before it needed the exact name.',
+      'The old Data Import panel now only handles what Bulk Uploads does not: the four sale / contract exports, the User Master directory and the MRN sheet. Everything else was a second, weaker importer for the same tables.',
+      'Field Failure Report and KPI & Failure Analysis now say plainly that they are not built on live data yet, instead of showing empty charts. Both are on the backlog.',
+      'Removed a hidden demo product screen and its scaffolding. Its spare-consumption panel wrote to the browser only, bypassing the hand-stock cap — it was not reachable from the menu, but it should not have existed.',
+    ],
+  },
+  {
     version: '0.9.39',
     date: '2026-09-02',
     title: 'The registers that would not upload: Part Master, Ownership Transfer, MRN, Stock Transfer',

@@ -6,8 +6,8 @@ import { finishCoverImport } from '../lib/cover';
 import { supabaseConfigured } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 
-const TABLES: ImportTable[] = ['masters', 'parties', 'products', 'parts', 'calls', 'call_requests', 'reports',
-  'user_directory', 'material_returns',
+// Only what Bulk Uploads does not do. See ImportTable.
+const TABLES: ImportTable[] = ['user_directory', 'material_returns',
   'sale_entries', 'sale_items', 'contract_entries', 'contract_items'];
 
 // The sale / contract exports. After loading them the copied-down header values
