@@ -27,11 +27,20 @@ const TYPES: { key: string; label: string }[] = [
   { key: 'INSTALLATION CALL', label: 'Installation' },
   { key: 'P M VISIT', label: 'PM' },
 ];
-const STATES: (CallState | '')[] = ['', 'Unattended', 'Unsolved', 'Report pending'];
+const STATES: (CallState | '')[] = ['', 'Unattended', 'Unsolved', 'Report pending', 'Reopened'];
 
 const COLUMNS: Column<Row>[] = [
   { key: 'ucn', header: 'UCN', width: 120, wrap: false },
-  { key: 'state', header: 'Call Status', width: 130, wrap: false, render: (r) => <StateBadge state={String(r.state ?? '')} /> },
+  {
+    key: 'state', header: 'Call Status', width: 170, wrap: false,
+    render: (r) => (
+      <StateBadge
+        state={String(r.state ?? '')}
+        label={String(r.state) === 'Reopened' ? 'Reopened' : String(r.lastStatus || r.state || '')}
+        title={Number(r.reopenCount ?? 0) > 0 ? `Re-opened ${r.reopenCount}×` : undefined}
+      />
+    ),
+  },
   { key: 'callType', header: 'Type', width: 120, wrap: false },
   { key: 'regDate', header: 'Registered', width: 150, render: (r) => fmtLongSmart(r.regDate) },
   { key: 'complaintDate', header: 'Complaint Date', width: 140, render: (r) => fmtLongDate(r.complaintDate) },
@@ -112,7 +121,7 @@ export function PendingCalls() {
       )}
 
       <div className="pc-summary">
-        {(['Unattended', 'Unsolved', 'Report pending'] as CallState[]).map((s) => (
+        {(['Unattended', 'Unsolved', 'Report pending', 'Reopened'] as CallState[]).map((s) => (
           <button
             key={s}
             className={`pc-tile ${state === s ? 'pc-tile-on' : ''}`}
