@@ -7,7 +7,7 @@ import { useMaster } from '../lib/masters';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope } from '../lib/access';
-import { todayISO } from '../lib/format';
+import { todayISO, fmtLongDateTime } from '../lib/format';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -116,7 +116,9 @@ export function CallReportDrawer({
   const [sparesSaved, setSparesSaved] = useState(false);
 
   // Visit + status
-  const [visitEntry] = useState(() => new Date().toLocaleString());
+  // Stamped in the app's long format (dd-mmm-yyyy hh:mm:ss), not the browser
+  // locale — it is stored as text on the visit and read back everywhere.
+  const [visitEntry] = useState(() => fmtLongDateTime(new Date()));
   const [visitDate, setVisitDate] = useState(todayISO());
   const [engineer, setEngineer] = useState('');
   const [updateWork, setUpdateWork] = useState('Yes');
