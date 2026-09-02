@@ -12,14 +12,13 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.13',
+    version: '0.9.14',
     date: '2026-09-02',
-    title: 'Stock outs as a line list, and refurbished parts',
+    title: 'Refurbished spares carry their own part number',
     changes: [
-      'Stock outs is now a flat list \u2014 one row per spare actually issued, searchable and exportable, with the call, order and courier alongside it.',
-      'Each line shows the days taken to dispatch, measured from the last approval (NSM where the item needs that review, otherwise Commercial or RM) to the stock out, and is coloured once it passes three and seven days.',
-      'Stores can issue a recycled spare in place of a new one: mark it \u267b Refurb as it goes out. It is recorded under the R-prefixed part number with the same description, shown on the stock out and the challan, and the engineer is told the part is refurbished.',
-      'Needs a database script run once (stock_out_lines_and_refurb.sql).',
+      'A spare issued as refurbished now appears in the engineer\u2019s hand stock under its own R-prefixed part number, and is consumed as that part \u2014 so refurbished and new stock are counted separately.',
+      'The swap is only allowed when the R-part exists in Part Master and is active. If it is missing or inactive the dispatch is refused, naming the part code to add.',
+      'Needs a database script run once (stock_out_lines_and_refurb.sql) \u2014 re-run it if you applied the earlier copy.',
     ],
   },
   {
