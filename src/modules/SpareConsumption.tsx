@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
@@ -155,6 +156,23 @@ export function SpareConsumption() {
     await load();
   };
 
+  // Arriving from a call's RECO action: the UCN / call / engineer come in on the
+  // query string, so the entry is never typed against the wrong call.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const ucn = params.get('ucn') ?? '';
+    if (!ucn || !mayReconcile || !onDb) return;
+    const engineer = params.get('engineer') ?? '';
+    setForm({
+      ucn, call_number: params.get('call') ?? '', engineer,
+      remarks: '', lines: [{ part: '', qty: '1' }],
+    });
+    void loadStock(engineer);
+    // Clear them so a refresh does not reopen the drawer.
+    setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, mayReconcile, onDb]);
+
   const load = async () => {
     if (onDb) {
       setBusy(true); setMsg({ tone: 'info', text: 'Loading spare consumption…' });
@@ -279,7 +297,7 @@ export function SpareConsumption() {
       />
 
       {form && (
-        <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={640}>
+        <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={720}>
           <div className="kb-form">
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
               Books spares against a call without waiting for the engineer's report — for a part
@@ -314,7 +332,7 @@ export function SpareConsumption() {
             <div className="field">
               <label className="field-label">Parts used <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
               {form.lines.map((l, i) => (
-                <div className="kb-att-row" key={i}>
+                <div className="reco-line" key={i}>
                   <select className="select" value={l.part} disabled={!stock.length}
                     onChange={(e) => setLine(i, 'part', e.target.value)}>
                     <option value="">{stock.length ? '— pick a part —' : 'Enter the UCN first'}</option>

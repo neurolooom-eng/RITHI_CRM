@@ -1244,12 +1244,12 @@ create policy cons_write on public.spare_consumption for insert
     end
   );
 
--- Grant it to the roles that do the reconciling (merge — anything an admin has
--- already tuned on these roles is kept).
+-- Grant it to the roles that do the reconciling: Spare Coordinator, Hotline
+-- and Admin (merge — anything already tuned on these roles is kept).
 do $$
 declare r text;
 begin
-  foreach r in array array['admin', 'spare_coordinator'] loop
+  foreach r in array array['admin', 'spare_coordinator', 'hotline'] loop
     insert into public.app_roles as ar (role, label, permissions)
     values (r, initcap(replace(r, '_', ' ')), '["consumption.reconcile"]'::jsonb)
     on conflict (role) do update set

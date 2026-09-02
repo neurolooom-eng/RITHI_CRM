@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
+import { useNavigate } from 'react-router-dom';
 import { SpareRequestDrawer } from './SpareRequests';
 import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -410,6 +411,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
+  const navigate = useNavigate();
   const [spareFor, setSpareFor] = useState<Rec | null>(null); // "Request Spare" → 26_SpareRequest
   const [busy, setBusy] = useState(false);
   // On Supabase we show the recent set by default and run SEARCH server-side
@@ -735,6 +737,17 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         )}
         {can('spare.request') && !row._pending && canWorkRow(row) && (
           <button className="btn btn-sm btn-icon" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦</button>
+        )}
+        {/* RECO — Spare Coordinator / Hotline / Admin book a spare against this
+            call straight into consumption. Carries the call across, so the
+            reconciliation is never typed against the wrong UCN. */}
+        {can('consumption.reconcile') && !row._pending && (
+          <button
+            className="btn btn-sm btn-icon" title="Reconcile — book spares consumed on this call"
+            onClick={() => navigate(`/spare-consumption?ucn=${encodeURIComponent(String(row.ucn ?? ''))}`
+              + `&call=${encodeURIComponent(String(row.callNumber ?? ''))}`
+              + `&engineer=${encodeURIComponent(String(row.allocatedTo ?? ''))}`)}
+          >🧾</button>
         )}
         {canReopen(row) && (
           <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>

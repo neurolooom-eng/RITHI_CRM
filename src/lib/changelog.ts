@@ -12,13 +12,13 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.6',
+    version: '0.9.7',
     date: '2026-09-01',
-    title: 'Spares consumed can never exceed what the engineer holds',
+    title: 'RECO on a call \u2014 book its spares straight into consumption',
     changes: [
-      'A call report can no longer consume more of a part than the engineer has in hand \u2014 a mistyped quantity used to push the balance negative unnoticed. If it is refused, the Spare Coordinator corrects the hand stock (a dispatch, a transfer, or a reconciliation line) and the report then goes through, so control of the balance sits with the coordinator.',
-      'Admin and Spare Coordinator can book spares against a call directly from Spare Consumption, choosing from what that engineer actually holds, several parts at once. UCN, engineer, parts and the reason are all required, and the entry is flagged \u201cReconciliation\u201d with who recorded it.',
-      'Needs a database script run once (consumption_reconciliation.sql).',
+      'Every call in the registers now has a RECO action (\ud83e\uddfe) for Spare Coordinator, Hotline Engineer and Admin. It opens the reconciliation entry with that call\u2019s UCN, Call Number and engineer already filled in, so a correction can never be typed against the wrong call.',
+      'The part list shows the full part number, and still offers only what that engineer is holding.',
+      'Needs a database script run once (consumption_reconciliation.sql) \u2014 re-run it if you applied an earlier copy, as it now also grants the Hotline Engineer.',
     ],
   },
   {
