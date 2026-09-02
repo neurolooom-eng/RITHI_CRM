@@ -537,20 +537,28 @@ export async function callByUcn(ucn: string): Promise<Record<string, unknown> | 
 // directly, without the engineer's report. Flagged `source = 'Reconciliation'`
 // so it is never mistaken for something the engineer wrote; the insert policy
 // requires consumption.reconcile.
-export interface ConsumptionInput {
-  ucn: string; call_number: string; part: string; qty: number;
-  engineer: string; remarks?: string; recorded_by?: string;
+export interface ReconcileLine { part: string; qty: number }
+export interface ReconcileInput {
+  ucn: string; call_number: string; engineer: string; remarks?: string; recorded_by?: string;
+  lines: ReconcileLine[];
 }
+// Several parts can be booked in one go; they are inserted together so a batch
+// never lands half done. The database caps each line at the engineer's hand
+// stock and insists on a real UCN, so a bad line fails the whole insert.
 export async function addReconciliationConsumption(
-  c: ConsumptionInput,
-): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await must().from('spare_consumption').insert({
-    ucn: c.ucn.trim(), call_number: c.call_number.trim(), part: c.part.trim(),
-    qty: c.qty, engineer: c.engineer.trim(),
-    remarks: (c.remarks ?? '').trim(), recorded_by: (c.recorded_by ?? '').trim(),
-    source: 'Reconciliation',
-  });
-  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+  c: ReconcileInput,
+): Promise<{ ok: boolean; count?: number; error?: string }> {
+  const rows = c.lines
+    .filter((l) => l.part.trim() && l.qty > 0)
+    .map((l) => ({
+      ucn: c.ucn.trim(), call_number: c.call_number.trim(),
+      part: l.part.trim(), qty: l.qty, engineer: c.engineer.trim(),
+      remarks: (c.remarks ?? '').trim(), recorded_by: (c.recorded_by ?? '').trim(),
+      source: 'Reconciliation',
+    }));
+  if (!rows.length) return { ok: false, error: 'Add at least one part.' };
+  const { error } = await must().from('spare_consumption').insert(rows);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true, count: rows.length };
 }
 
 // ---- pending registrations -------------------------------------------------

@@ -5,6 +5,7 @@ import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   listConsumptionRows, supabaseConfigured, addReconciliationConsumption, searchCalls,
+  listEngineerStock, type StockRow,
 } from '../lib/supabase';
 import { Drawer } from '../components/ui/ui';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -53,18 +54,46 @@ export function SpareConsumption() {
     (onDb || sheetsConfigured()) ? null : { tone: 'info', text: 'Connect the database in Settings to load spare consumption.' },
   );
 
-  // RECONCILIATION: Admin / Spare Coordinator book a spare against a call
-  // straight into consumption, without waiting for the engineer's report. The
-  // row is flagged so it is never mistaken for something the engineer wrote.
+  // RECONCILIATION: Admin / Spare Coordinator book spares against a call
+  // straight into consumption, without waiting for the engineer's report. Parts
+  // come from what that engineer is actually holding, and a line cannot exceed
+  // it — the same rule the database enforces.
   const { can } = useAuth();
   const mayReconcile = can('consumption.reconcile');
-  const emptyForm = { ucn: '', call_number: '', part: '', qty: '1', engineer: '', remarks: '' };
+  type Line = { part: string; qty: string };
+  const emptyForm = { ucn: '', call_number: '', engineer: '', remarks: '', lines: [{ part: '', qty: '1' }] as Line[] };
   const [form, setForm] = useState<typeof emptyForm | null>(null);
+  const [stock, setStock] = useState<StockRow[]>([]);
+  const [stockBusy, setStockBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const setF = (k: keyof typeof emptyForm, v: string) => setForm((f) => f && ({ ...f, [k]: v }));
+  const setF = (k: 'ucn' | 'call_number' | 'engineer' | 'remarks', v: string) =>
+    setForm((f) => f && ({ ...f, [k]: v }));
+  const setLine = (i: number, k: keyof Line, v: string) =>
+    setForm((f) => f && ({ ...f, lines: f.lines.map((l, j) => (j === i ? { ...l, [k]: v } : l)) }));
+  const addLine = () => setForm((f) => f && ({ ...f, lines: [...f.lines, { part: '', qty: '1' }] }));
+  const dropLine = (i: number) => setForm((f) => f && ({ ...f, lines: f.lines.filter((_, j) => j !== i) }));
 
-  // Typing a UCN or call number fills in the call's engineer, so a
-  // reconciliation lands against the right person's hand stock.
+  const onHand = (part: string) => stock.find((r) => r.part === part)?.qty ?? 0;
+  // A part already used on another line eats into what is left for this one.
+  const remainingFor = (i: number, part: string) => {
+    if (!part) return 0;
+    const used = (form?.lines ?? []).reduce((t, l, j) =>
+      t + (j !== i && l.part === part ? (Number(l.qty) || 0) : 0), 0);
+    return Math.max(onHand(part) - used, 0);
+  };
+
+  // Load what this engineer is holding; the part list is only ever their stock.
+  const loadStock = async (engineer: string) => {
+    const name = engineer.trim();
+    if (!name || !onDb) { setStock([]); return; }
+    setStockBusy(true);
+    try { setStock(await listEngineerStock(name)); }
+    catch { setStock([]); }
+    finally { setStockBusy(false); }
+  };
+
+  // The UCN identifies the call; tabbing out pulls in its call number and the
+  // engineer it is allotted to, then that engineer's hand stock.
   const lookupCall = async (term: string) => {
     const t = term.trim();
     if (!t || !onDb) return;
@@ -72,29 +101,47 @@ export function SpareConsumption() {
       const hits = await searchCalls('', { q: t }, 5);
       const hit = hits.find((c) => String(c.ucn ?? '').toLowerCase() === t.toLowerCase()
                                || String(c.callNumber ?? '').toLowerCase() === t.toLowerCase()) ?? hits[0];
-      if (!hit) return;
+      if (!hit) { setMsg({ tone: 'error', text: `No call found for ${t}.` }); return; }
+      const eng = String(hit.allocatedTo ?? '');
       setForm((f) => f && ({
         ...f,
         ucn: String(hit.ucn ?? f.ucn),
         call_number: String(hit.callNumber ?? f.call_number),
-        engineer: f.engineer || String(hit.allocatedTo ?? ''),
+        engineer: f.engineer || eng,
+        lines: f.engineer && f.engineer !== eng ? f.lines : [{ part: '', qty: '1' }],
       }));
+      await loadStock(eng);
+      setMsg(null);
     } catch { /* leave what was typed */ }
+  };
+
+  const formProblem = (): string => {
+    if (!form) return '';
+    if (!form.ucn.trim()) return 'The UCN is required — a reconciliation is booked against a call.';
+    if (!form.engineer.trim()) return 'No engineer — enter the UCN so the call fills it in.';
+    const picked = form.lines.filter((l) => l.part.trim());
+    if (!picked.length) return 'Add at least one part.';
+    if (!form.remarks.trim()) return 'Give the reason — every hand-booked line records why.';
+    for (const [i, l] of form.lines.entries()) {
+      if (!l.part.trim()) continue;
+      const q = Number(l.qty);
+      if (!Number.isFinite(q) || q <= 0) return `Quantity for ${l.part} must be more than zero.`;
+      if (q > remainingFor(i, l.part)) {
+        return `${l.part}: only ${onHand(l.part)} in ${form.engineer}'s hand stock.`;
+      }
+    }
+    return '';
   };
 
   const saveReconciliation = async () => {
     if (!form) return;
-    if (!form.ucn.trim() && !form.call_number.trim()) {
-      setMsg({ tone: 'error', text: 'Give the UCN or the Call Number this spare was used on.' }); return;
-    }
-    if (!form.part.trim()) { setMsg({ tone: 'error', text: 'Pick the part.' }); return; }
-    const qty = Number(form.qty);
-    if (!Number.isFinite(qty) || qty <= 0) { setMsg({ tone: 'error', text: 'Quantity must be more than zero.' }); return; }
+    const problem = formProblem();
+    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
     setSaving(true);
     const res = await addReconciliationConsumption({
-      ucn: form.ucn, call_number: form.call_number, part: form.part, qty,
-      engineer: form.engineer, remarks: form.remarks,
-      recorded_by: String(user?.fullName ?? user?.email ?? ''),
+      ucn: form.ucn, call_number: form.call_number, engineer: form.engineer,
+      remarks: form.remarks, recorded_by: String(user?.fullName ?? user?.email ?? ''),
+      lines: form.lines.filter((l) => l.part.trim()).map((l) => ({ part: l.part, qty: Number(l.qty) })),
     });
     setSaving(false);
     if (!res.ok) {
@@ -103,8 +150,8 @@ export function SpareConsumption() {
         : (res.error ?? 'Could not save.') });
       return;
     }
-    setForm(null);
-    setMsg({ tone: 'ok', text: `Reconciliation recorded — ${qty} x ${form.part} against ${form.ucn || form.call_number}.` });
+    setForm(null); setStock([]);
+    setMsg({ tone: 'ok', text: `Reconciliation recorded — ${res.count} part${res.count === 1 ? '' : 's'} against ${form.ucn}.` });
     await load();
   };
 
@@ -232,49 +279,71 @@ export function SpareConsumption() {
       />
 
       {form && (
-        <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={560}>
+        <Drawer open onClose={() => setForm(null)} title="Add consumption (reconciliation)" width={640}>
           <div className="kb-form">
             <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-              Books a spare against a call without waiting for the engineer's report. It is
-              recorded as a <b>Reconciliation</b> line and reduces that engineer's hand stock,
-              exactly as a reported consumption does.
+              Books spares against a call without waiting for the engineer's report — for a part
+              fitted but never reported, or a stock correction. Saved as a <b>Reconciliation</b> line
+              and taken off that engineer's hand stock, exactly as a reported consumption is.
             </p>
+
             <div className="field">
-              <label className="field-label">UCN</label>
+              <label className="field-label">UCN <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
               <input className="input" value={form.ucn} autoFocus
                 onChange={(e) => setF('ucn', e.target.value)}
                 onBlur={(e) => void lookupCall(e.target.value)}
                 placeholder="26H29F0003 — tab out to pull the call in" />
+              {!!form.call_number && (
+                <span className="muted" style={{ fontSize: 12 }}>Call {form.call_number}</span>
+              )}
             </div>
+
             <div className="field">
-              <label className="field-label">Call Number</label>
-              <input className="input" value={form.call_number}
-                onChange={(e) => setF('call_number', e.target.value)}
-                onBlur={(e) => void lookupCall(e.target.value)}
-                placeholder="R18514-ORION-G-557" />
-            </div>
-            <div className="field">
-              <label className="field-label">Part</label>
-              <input className="input" value={form.part} onChange={(e) => setF('part', e.target.value)}
-                placeholder="ECG-022|EARTH CABLE-ORG" />
-            </div>
-            <div className="field">
-              <label className="field-label">Quantity</label>
-              <input className="input" type="number" min={1} step={1} style={{ width: 120 }}
-                value={form.qty} onChange={(e) => setF('qty', e.target.value)} />
-            </div>
-            <div className="field">
-              <label className="field-label">Engineer (whose stock this comes off)</label>
-              <input className="input" value={form.engineer} onChange={(e) => setF('engineer', e.target.value)}
+              <label className="field-label">Engineer (whose hand stock this comes off) <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              <input className="input" value={form.engineer}
+                onChange={(e) => setF('engineer', e.target.value)}
+                onBlur={(e) => void loadStock(e.target.value)}
                 placeholder="Filled from the call — change if it was someone else" />
+              <span className="muted" style={{ fontSize: 12 }}>
+                {stockBusy ? 'Loading hand stock…'
+                  : form.engineer && stock.length === 0 ? 'Nothing in this engineer\u2019s hand stock.'
+                  : stock.length ? `${stock.length} part${stock.length === 1 ? '' : 's'} in hand` : ''}
+              </span>
             </div>
+
             <div className="field">
-              <label className="field-label">Why (recorded with the entry)</label>
+              <label className="field-label">Parts used <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
+              {form.lines.map((l, i) => (
+                <div className="kb-att-row" key={i}>
+                  <select className="select" value={l.part} disabled={!stock.length}
+                    onChange={(e) => setLine(i, 'part', e.target.value)}>
+                    <option value="">{stock.length ? '— pick a part —' : 'Enter the UCN first'}</option>
+                    {stock.map((r) => (
+                      <option key={r.part} value={r.part}>{r.part} — {r.qty} in hand</option>
+                    ))}
+                  </select>
+                  <input className="input" type="number" min={1} step={1} style={{ width: 110 }}
+                    max={l.part ? remainingFor(i, l.part) : undefined}
+                    value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)}
+                    title={l.part ? `Up to ${remainingFor(i, l.part)}` : 'Pick a part first'} />
+                  <button className="btn btn-ghost btn-sm" title="Remove this part"
+                    onClick={() => dropLine(i)} disabled={form.lines.length === 1}>✕</button>
+                </div>
+              ))}
+              <button className="btn btn-sm" onClick={addLine} disabled={!stock.length}>＋ Add another part</button>
+            </div>
+
+            <div className="field">
+              <label className="field-label">Why <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
               <input className="input" value={form.remarks} onChange={(e) => setF('remarks', e.target.value)}
                 placeholder="e.g. fitted on site, never reported; stock count correction" />
             </div>
+
+            {!!formProblem() && <div className="sheet-banner sheet-banner-error"><span>{formProblem()}</span></div>}
+
             <div className="kb-form-actions">
-              <button className="btn btn-primary" onClick={() => void saveReconciliation()} disabled={saving}>
+              <button className="btn btn-primary" onClick={() => void saveReconciliation()}
+                disabled={saving || !!formProblem()}>
                 {saving ? 'Saving…' : 'Record consumption'}
               </button>
               <button className="btn" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
