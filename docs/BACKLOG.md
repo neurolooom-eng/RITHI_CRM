@@ -272,7 +272,14 @@ additional entries (0073), opening pools (0074), consumption history (0075),
 GRIR (0078+0081), spare import (0084) and the OR-number key (**0085**). The
 Party Master and Spare Request uploads were confirmed unblocked by 0086/0085.
 
-FOUR remain, each with the upload or screen it is holding up:
+FIVE remain, each with the upload or screen it is holding up:
+
+- **[`Spare_1.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql)**
+  (re-run; migration `0087`) — **Spare Request Lines will not upload without it**:
+  every line whose request is in neither export takes 0084's stub, and the stub
+  is invisible to the command inserting the line, so `srl_insert` refused row 1
+  and with it all 8,571. `is_admin()` now sits OUTSIDE that EXISTS. `_status.sql`
+  row 40.
 
 - **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
   (migration `0082`) — `parts_item_detail_key_uniq` + `products_machine_key_uniq`.

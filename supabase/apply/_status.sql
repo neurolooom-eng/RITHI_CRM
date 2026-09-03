@@ -204,6 +204,18 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_indexes where schemaname='public' and indexname='parties_name_key_uniq')
      and coalesce(pg_get_functiondef(to_regprocedure('public.next_party_key()'))
                     ilike '%where singleton%', false))),
+    -- The stub a line's trigger creates is invisible to the very command that
+    -- is inserting the line, so `srl_insert` must not need to SEE it. Until
+    -- this is applied, one line whose request is in neither export refuses the
+    -- whole upload with "Your role does not have permission for this action."
+    (40, 'spare lines: a stub parent is allowed', 'srl_insert lets an admin write a line whose request is not here yet (0087)',
+        -- is_admin() must sit OUTSIDE the EXISTS: inside it, an EXISTS with no
+        -- visible row is false however permissive its predicate is.
+        exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='spare_request_lines'
+                   and policyname='srl_insert'
+                   and position('is_admin' in with_check) > 0
+                   and position('is_admin' in with_check) < position('EXISTS' in with_check))),
     (39, 'spare requests: keyed on the OR number', 'uid filled from the OR number, and a line finding its request by it (0085)',
         (coalesce(pg_get_functiondef(to_regprocedure('public.spare_requests_assign_or_no()'))
                     ilike '%new.uid :=%', false)
