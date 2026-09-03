@@ -221,6 +221,8 @@ with checks(sort_order, bundle, provides, present) as (
     -- WinMax HS + SO + ST received - Consumption - ST sent - MRN. Every term
     -- had a home except the SO: the issue side was only ever derived from a
     -- spare REQUEST, which exists for 2026 and for nothing before it.
+    (43, 'hand stock: read indexes', 'the balance is DERIVED, and indexed for it — halves a per-engineer read (0091)',
+        (select count(*) from pg_indexes where schemaname='public' and right(indexname, 7) = '_hs_idx') >= 8),
     (42, 'hand stock: the issue history', 'spare_issue_history + its arm, which does not re-count a 2026 request line (0090)',
         (to_regclass('public.spare_issue_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
