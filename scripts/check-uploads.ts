@@ -453,5 +453,14 @@ console.log('\n-- a batch is one shape --');
   eq('and no rows produce no requests', byColumnSet([]).length, 0);
 }
 
+console.log('\n-- hand stock belongs to an active engineer --');
+// The WinMax export's User Name column holds dealers and customers as well as
+// engineers — 252,592 of its 257,130 parts. Both opening-stock registers filter
+// against the ACTIVE User Master before writing, and a register that quietly
+// lost that step would give every dealer a hand-stock balance again.
+['handstock_winmax', 'handstock_opening'].forEach((k) => {
+  eq(`${k} filters to active User Master names`, def(k).prepare, 'handstock-engineers');
+});
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

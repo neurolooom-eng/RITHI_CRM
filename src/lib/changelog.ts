@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.71',
+    date: '2026-09-04',
+    title: 'Opening stock is loaded for active engineers only',
+    changes: [
+      'The WinMax export\u2019s \u201cUser Name\u201d column is not a list of engineers \u2014 it holds dealers and customers too, and on this project 252,592 of its 257,130 parts sit under names like \u201cA AND M HEALTH CARE C\u201d. Every one of them was given a hand-stock balance on a screen that only means anything for the people who carry parts.',
+      'Both Opening Stock registers now load a row only if its name is an ACTIVE user in the User Master, and the names left out are listed BEFORE anything is written \u2014 so the number you approve is the number that goes in. It catches a mistyped name in a pool you prepared yourself, too.',
+      'For what is already loaded, run supabase/apply/_handstock_opening_engineers.sql: it names what it removes, removes it, and prints the balance before and after. Safe to re-run, and it refuses outright if the User Master is not loaded rather than emptying every balance there is.',
+    ],
+  },
+  {
     version: '0.9.70',
     date: '2026-09-04',
     title: 'KPIs from the record: failure rate per machine, spares by cover and by region',
