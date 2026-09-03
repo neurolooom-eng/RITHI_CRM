@@ -222,6 +222,32 @@ export function Layout({ children }: { children: ReactNode }) {
   // `rithi.cache.` is the important one and was missing: every register restores
   // its rows from there before the network answers, so a force update that left
   // them in place could not clear a screen stuck on stale data.
+  // ---- is this tab still the current build? --------------------------------
+  //
+  // The build writes `version.json` beside index.html. A tab asks for it on
+  // focus and every few minutes; if the build ID has moved, the update is
+  // ANNOUNCED rather than left to be noticed. A fix can be deployed, confirmed
+  // deployed, and still be invisible to the person who reported the fault --
+  // that happened, twice, and cost a round trip each time.
+  const [newBuild, setNewBuild] = useState<string | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const check = async () => {
+      try {
+        const url = new URL('version.json', document.baseURI);
+        url.searchParams.set('ts', String(Date.now()));
+        const r = await fetch(url.toString(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const v = await r.json() as { buildId?: string; version?: string };
+        if (!stop && v.buildId && v.buildId !== __BUILD_ID__) setNewBuild(v.version ?? '');
+      } catch { /* offline, or a stale tab: nothing to say */ }
+    };
+    void check();
+    const id = window.setInterval(check, 5 * 60 * 1000);
+    window.addEventListener('focus', check);
+    return () => { stop = true; window.clearInterval(id); window.removeEventListener('focus', check); };
+  }, []);
+
   const [refreshing, setRefreshing] = useState(false);
   const forceRefresh = async () => {
     setRefreshing(true);
@@ -249,6 +275,15 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className={`app-shell ${collapsed ? 'app-collapsed' : ''} ${mobileOpen ? 'app-mobile-open' : ''}`}>
+      {newBuild && (
+        <div className="app-newbuild">
+          <span>A newer version{newBuild ? ` (v${newBuild})` : ''} is out — this tab is still on v{__APP_VERSION__}.</span>
+          <button className="btn btn-sm" disabled={refreshing} onClick={() => void forceRefresh()}>
+            {refreshing ? 'Updating…' : '⟳ Update now'}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setNewBuild(null)} title="Hide until the next check">✕</button>
+        </div>
+      )}
       {mobileOpen && <div className="sidebar-backdrop" onClick={closeMobile} />}
       <aside className="sidebar">
         <div className="sidebar-brand">
