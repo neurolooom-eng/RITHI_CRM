@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.45',
+    date: '2026-09-03',
+    title: 'Standard Complaint is a dropdown',
+    changes: [
+      'Standard Complaint on a call \u2014 Field, Installation and PM \u2014 is now picked from the Standard Complaint master instead of typed. A call that already carries a complaint outside the list keeps it; opening the call does not quietly change it.',
+      'The same on Request Registration, so a request and the call it becomes are filled the same way.',
+      'If the master has no values the field says so and stays typeable, rather than showing an empty picker that looks like a broken screen. The go-live reset empties every value list \u2014 Standard Complaint included \u2014 so they have to be re-loaded under Admin \u2192 Bulk Uploads \u2192 Master Value Lists.',
+    ],
+  },
+  {
     version: '0.9.44',
     date: '2026-09-03',
     title: 'Party Master and Spare Request upload again',

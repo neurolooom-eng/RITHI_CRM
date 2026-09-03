@@ -396,10 +396,29 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
+  // Standard Complaint is a MASTER list, so it is CHOSEN, not typed. The select
+  // renderer keeps a value the record already carries even when it is not on the
+  // list, so an imported call is never silently rewritten by opening it.
+  //
+  // When the master has no values the field falls back to free text and SAYS
+  // why. A picker that is simply empty looks like a broken screen; the thing to
+  // fix is the list, and the form should point at it. (The go-live reset
+  // TRUNCATES `masters`, so every value list comes back empty until it is
+  // re-loaded — that is what this note is usually telling you.)
+  const complaintField = (f: FieldDef): FieldDef =>
+    complaintMaster.values.length
+      ? { ...f, type: 'select' as const, options: OPT(complaintMaster.values) }
+      : {
+        ...f,
+        help: complaintMaster.ready
+          ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists.'
+          : 'Loading the Standard Complaint master…',
+      };
+
   const injectMasters = (fs: FieldDef[]) =>
     fs.map((f) =>
       f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
-        : f.name === 'standardComplaint' ? { ...f, datalist: complaintMaster.values }
+        : f.name === 'standardComplaint' ? complaintField(f)
           : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
             : f);
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
