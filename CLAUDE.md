@@ -60,6 +60,11 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 - **Applying SQL to the live Supabase project stays the user's step.** Name the
   bundle to run (`_status.sql` first, then what it flags) — never assume a
   migration is live because it is merged.
+  **Always give the LINK, not just the file name** (user's ask, 2026-09-03):
+  `https://github.com/neurolooom-eng/RITHI_CRM/blob/main/<path>` to read it,
+  `https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/<path>` to
+  copy it. Same for a snippet pasted into chat — say which file it came from
+  and link that file.
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
 - **CallReg redeploys** — a change to `apps-script/CallReg.gs` is not live until
