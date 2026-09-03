@@ -12,6 +12,25 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.65',
+    date: '2026-09-03',
+    title: 'The master value lists upload',
+    changes: [
+      'Standard Complaint \u2014 and every other value list \u2014 was refused outright: the database\u2019s uniqueness is (list, value, stage, product) and the last two were computed rather than stored, which an upload cannot match on. They are stored now, and the 507 complaints load.',
+      'Two rows of one file that differ only by product \u2014 \u201cCalibration\u201d for MONNAL T60 and for T75 \u2014 both survive the load, as they should.',
+      'Needs a database script run once (daily_review.sql).',
+    ],
+  },
+  {
+    version: '0.9.64',
+    date: '2026-09-03',
+    title: 'The yearly consumption files no longer overwrite each other',
+    changes: [
+      '77 rows of the 2023 export were entered in January for December work, so they belong to 2024 \u2014 and they were landing on the same reference as the first 77 rows of the 2024 file, one silently replacing the other. Each row is now identified by its call and part as well as its position, so all 39,801 rows load.',
+      'If you have already loaded the four files you will have 39,724 rows rather than 39,801. Empty the four pools and load them again to correct it \u2014 supabase/apply/_yearly_consumption_check.sql shows what is there and how.',
+    ],
+  },
+  {
     version: '0.9.63',
     date: '2026-09-03',
     title: 'The app tells you when it is out of date',

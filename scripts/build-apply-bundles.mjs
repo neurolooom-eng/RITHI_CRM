@@ -152,7 +152,7 @@ const MODULES = {
             'and the consumption are matched to a call by CALL NUMBER (or its UCN), the',
             'same association the Field Call view\'s own panels read.'],
     needs: ['profiles', 'rbac', 'fieldCalls', 'masterLists'],
-    files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql', '0047_daily_review_report_context.sql',
+    files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql', '0094_masters_upsert_target.sql', '0047_daily_review_report_context.sql',
             '0048_daily_review_map_by_call_number.sql'],
   },
   notifications: {

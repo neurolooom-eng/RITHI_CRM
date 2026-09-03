@@ -698,8 +698,13 @@ export const UPLOADS: UploadDef[] = [
           const d = parseAnyDate(String(e['Visit Entry Date'] ?? '')) ?? parseAnyDate(String(o.consumed_at ?? ''));
           return d ? `Consumption ${d.getFullYear()}` : '';
         } },
+      // The row's POSITION in the file keeps it unique within one load, and the
+      // call and part keep it unique BETWEEN loads. Position alone was not
+      // enough: 77 rows of the 2023 file were entered in January for December
+      // work, so they take Source 2024 and collided with rows 1..77 of the 2024
+      // file — one overwrote the other and 77 real consumptions disappeared.
       { to: 'ref', from: ['ref', 'row id'],
-        derive: (o, i) => `${String(o.source ?? 'row')}#${i + 1}` },
+        derive: (o, i) => `${i + 1}|${String(o.ucn ?? '').trim()}|${String(o.part ?? '').split('|')[0].trim()}` },
       TEXT('remarks'),
     ] },
 
@@ -838,7 +843,20 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
     group: 'Master Value Lists',
     table: 'masters',
     stamp: { name: list.key },
-    conflict: 'name,value',
+    // The database's key is (name, value, stage, product) — the last two held in
+    // `extra` and mirrored into STORED columns by 0094 so `on conflict` can
+    // infer them. Naming only name,value was refused outright.
+    conflict: 'name,value,stage_key,product_key',
+    conflictFrom: ['name', 'value'],
+    // Folded on the same four, so two rows of one file that differ only by
+    // product ("Calibration" for T60 and for T75) both survive the load.
+    fold: {
+      key: (r) => {
+        const e = (r.extra ?? {}) as Record<string, unknown>;
+        return [r.name, r.value, e.stage ?? e.Stage ?? '', e.product ?? e.Product ?? '']
+          .map((v) => String(v ?? '').trim().toLowerCase()).join('|');
+      },
+    },
     extraInto: 'extra',
     note: `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,
     cols: [
