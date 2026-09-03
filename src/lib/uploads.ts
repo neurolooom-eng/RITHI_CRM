@@ -66,6 +66,17 @@ export interface UploadDef {
   reject?: (row: Record<string, unknown>) => string;
   /** What has to be loaded first, because rows here point at it. */
   requires?: string;
+  /** A step that runs BEFORE the rows are written, when they point at rows the
+   *  database has to have first. `spare-line-parents` resolves each line's OR
+   *  number to the request that holds it and creates the ones that are missing
+   *  — as its own statement, so the line insert can SEE them.
+   *
+   *  Doing it here rather than in a trigger is deliberate. A trigger's insert is
+   *  invisible to the very command inserting the line, so the row-level check
+   *  cannot see the parent it is being asked about and refuses the row — which
+   *  is what "Your role does not have permission for this action." on row 1
+   *  was. Prepared here, the upload no longer depends on that at all. */
+  prepare?: 'spare-line-parents';
   /** A register whose file needs more than a column map. The four AppSheet
    *  sale / contract exports are the case: `coverImport.ts` was written for
    *  exactly those files and does things a column map cannot — it DERIVES the
@@ -413,7 +424,8 @@ export const UPLOADS: UploadDef[] = [
   // RM / Commercial / NSM sheets all load here, each filling in its own stage.
   { key: 'spare_request_lines', label: 'Spare Request Lines (+ RM / Commercial / NSM approval)', group: 'Spares',
     table: 'spare_request_lines', conflict: 'line_uid', requires: 'Spare Request', extraInto: 'extra',
-    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. A line finds its request by OR number even if that request is held under another id; only one that is in neither file gets a stub request, marked as such, so one gap does not cost the whole file. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
+    prepare: 'spare-line-parents',
+    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it, and a request is created for any the header export does not carry (marked as such, so the gap stays visible) — so this file loads on its own, in any order. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
       // "OR26724|NO-001" — the export's own line identity.
       { to: 'line_uid', from: ['spare request no|part number', 'line uid', 'line id', 'uid'], required: true },

@@ -332,6 +332,7 @@ const MODULES = {
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0087_spare_line_stub_rls.sql',
+      '0088_spare_line_parent_visible.sql',
     ],
   },
 };
