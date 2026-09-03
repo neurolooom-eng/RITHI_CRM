@@ -275,11 +275,20 @@ Party Master and Spare Request uploads were confirmed unblocked by 0086/0085.
 FIVE remain, each with the upload or screen it is holding up:
 
 - **[`Spare_1.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql)**
-  (re-run; migration `0087`) — **Spare Request Lines will not upload without it**:
-  every line whose request is in neither export takes 0084's stub, and the stub
-  is invisible to the command inserting the line, so `srl_insert` refused row 1
-  and with it all 8,571. `is_admin()` now sits OUTSIDE that EXISTS. `_status.sql`
-  row 40.
+  (re-run; migrations `0087` + `0088`) — NOT needed for the upload any more:
+  v0.9.47 creates the missing requests from the app, before the write, in
+  statements of their own, and that was verified against a database in exactly
+  the live project's state (0084 + 0085, no 0087/0088) as a NON-admin. Worth
+  running anyway so a line written any other way behaves: `srl_insert` asks
+  `spare_line_parent_ok()`, a volatile function that takes a fresh snapshot and
+  can therefore SEE the stub its caller's trigger just wrote. 0087 (hoisting
+  `is_admin()`) fixed it for admins only, which is not who loads a register.
+  `_status.sql` row 40.
+
+  ⚠️ The `_status.sql` the user ran on 2026-09-03 was an OLD copy — no row 39 or
+  40, and row 33 without 0086 — so it reported on a file the repo had moved past.
+  Copy these from the raw link each time; a snippet saved in the SQL editor is
+  not the file.
 
 - **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
   (migration `0082`) — `parts_item_detail_key_uniq` + `products_machine_key_uniq`.

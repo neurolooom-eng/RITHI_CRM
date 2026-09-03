@@ -46,17 +46,37 @@ values ('MINE-01','MINE','P-A',1);
 reset role;
 select line_uid from public.spare_request_lines where request_uid='MINE';
 
-\echo '--- 4. but NOT on someone else''s request (expect ERROR) ---'
+\echo '--- 4. a NON-ADMIN loads the register too: the stub path works for them ---'
+call public.be('eng@x.com');
+set role authenticated;
+insert into public.spare_request_lines (line_uid, request_uid, part, qty)
+values ('OR42608|MWP-026','OR42608','MWP-026|COMPRESSOR',1);
+reset role;
+select l.line_uid, r.uid, r.status from public.spare_request_lines l
+  join public.spare_requests r on r.uid = l.request_uid where l.line_uid = 'OR42608|MWP-026';
+
+\echo '--- 5. but NOT on someone else''s request (expect ERROR) ---'
 call public.be('other@x.com');
 set role authenticated;
 insert into public.spare_request_lines (line_uid, request_uid, part, qty)
 values ('MINE-02','MINE','P-B',1);
 reset role;
 
-\echo '--- 5. nor conjure one out of a stub (expect ERROR) ---'
+\echo '--- 6. an OR number nobody has raised becomes a request of the RAISER''s own.'
+\echo '       No new power: sr_insert already lets them create one and add lines. ---'
 call public.be('other@x.com');
 set role authenticated;
 insert into public.spare_request_lines (line_uid, request_uid, part, qty)
 values ('GHOST-01','OR99999','P-C',1);
 reset role;
-select count(*) as still_three from public.spare_request_lines;
+select r.uid, p.full_name as owner, r.status
+  from public.spare_requests r join public.profiles p on p.id = r.created_by
+ where r.uid = 'OR99999';
+
+\echo '--- 7. and that is still THEIR request, not a way into anyone else''s (expect ERROR) ---'
+call public.be('eng@x.com');
+set role authenticated;
+insert into public.spare_request_lines (line_uid, request_uid, part, qty)
+values ('GHOST-02','OR99999','P-D',1);
+reset role;
+select count(*) as lines_now from public.spare_request_lines;

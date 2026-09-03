@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
-import { uploadRows, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
+import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { UPLOADS, masterUpload, shapeUpload, uploadGroups, type UploadDef, type ShapeResult } from '../lib/uploads';
 import './fieldcalls.css';
 
@@ -52,11 +52,21 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
     if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${warn}`)) return;
+    // Some registers point at rows that have to be there first (see `prepare`).
+    // Done before the write and in its own statements, so the rows being written
+    // can see them — a database trigger cannot do this for us.
+    let note = '';
+    if (def.prepare) {
+      setBusy('Checking what these rows point at…');
+      const pre = await prepareUpload(def.prepare, pending.shaped.rows);
+      if (!pre.ok) { setBusy(''); setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
+      note = pre.note ?? '';
+    }
     setBusy(`Writing 0 / ${n}…`);
     const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.` });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}.` : ''}` });
     setPending(null);
     onDone();
   };

@@ -1797,6 +1797,90 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 // stopped half way can simply be run again; plain inserts where it has none,
 // which the screen says out loud before you press the button.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// A register whose rows point at rows that have to exist first.
+//
+// The spare LINES export names its request by OR number and nothing else, and
+// the header export does not go back as far as the lines do — 58 of the OR
+// numbers on 8,675 lines are in neither file. The database can create a stub
+// parent from a trigger (0084), but a trigger's insert is INVISIBLE to the
+// command inserting the line, so the row-level check cannot see the parent it
+// is being asked about and refuses the row. One line, and the whole file fails.
+//
+// So resolve it HERE, before the write, in statements of its own:
+//   1. which requests are already here, by uid;
+//   2. of the rest, which are here under a DIFFERENT uid — matched on the OR
+//      number, which is what the line actually names — and point the line at it;
+//   3. create what is genuinely missing, marked as created from a line.
+//
+// Every one of those is a separate statement, so the parents are plainly there
+// by the time the lines go up. The upload then works whatever the database has
+// applied, instead of depending on the trigger and its policy.
+// ---------------------------------------------------------------------------
+const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
+
+export async function prepareUpload(
+  kind: 'spare-line-parents',
+  rows: Record<string, unknown>[],
+): Promise<{ ok: boolean; note?: string; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+  if (kind !== 'spare-line-parents') return { ok: true };
+
+  const wanted = [...new Set(rows.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
+  if (!wanted.length) return { ok: true };
+
+  const chunks = <T,>(a: T[]) => Array.from({ length: Math.ceil(a.length / IN_CHUNK) },
+    (_, i) => a.slice(i * IN_CHUNK, i * IN_CHUNK + IN_CHUNK));
+
+  // 1. Already here under the name the line uses.
+  const here = new Set<string>();
+  for (const part of chunks(wanted)) {
+    const { data, error } = await c.from('spare_requests').select('uid').in('uid', part);
+    if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
+    (data ?? []).forEach((r) => here.add(String(r.uid)));
+  }
+  const missing = wanted.filter((u) => !here.has(u));
+  if (!missing.length) return { ok: true };
+
+  // 2. Here under a different uid — the OR number is what the line names.
+  const byOrNo = new Map<string, string>();
+  for (const part of chunks(missing)) {
+    const { data, error } = await c.from('spare_requests').select('uid,or_no').in('or_no', part);
+    if (error) return { ok: false, error: `Could not read the spare requests: ${errMsg(error)}` };
+    (data ?? []).forEach((r) => { if (r.or_no) byOrNo.set(String(r.or_no), String(r.uid)); });
+  }
+  let repointed = 0;
+  if (byOrNo.size) {
+    rows.forEach((r) => {
+      const held = byOrNo.get(String(r.request_uid ?? ''));
+      if (held) { r.request_uid = held; repointed += 1; }
+    });
+  }
+
+  // 3. What is in neither file gets a request, MARKED as one — the gap stays
+  //    visible in the register instead of costing the whole load.
+  const orphans = missing.filter((u) => !byOrNo.has(u));
+  if (orphans.length) {
+    const stubs = orphans.map((uid) => ({
+      uid, or_no: uid, req_type: 'Call Based', status: 'Imported',
+      remarks: 'Created from an imported spare line — the request header was not in the export.',
+    }));
+    for (const part of chunks(stubs)) {
+      const { error } = await c.from('spare_requests').upsert(part, { onConflict: 'uid', ignoreDuplicates: true });
+      if (error) {
+        return { ok: false,
+          error: `${errMsg(error)} — ${orphans.length} of these lines name a request that is not in the header export,`
+            + ' and creating it was refused. Load the Spare Request file first, or ask an administrator to run this one.' };
+      }
+    }
+  }
+  const bits = [
+    orphans.length ? `${orphans.length} request${orphans.length === 1 ? '' : 's'} created for lines whose request was not in the header export` : '',
+    repointed ? `${repointed} line${repointed === 1 ? '' : 's'} pointed at the request already holding that OR number` : '',
+  ].filter(Boolean);
+  return { ok: true, note: bits.join('; ') };
+}
+
 export async function uploadRows(
   table: string,
   rows: Record<string, unknown>[],

@@ -272,6 +272,10 @@ const srl = shapeUpload(def('spare_request_lines'), [
     'SO NO': 'SO17517', 'SO Date': '08-January-2026', 'Dispatched Qty': '1', 'POD': 'not available' },
 ]);
 eq('the line points at its request by OR number', [srl.rows[0].line_uid, srl.rows[0].request_uid], ['OR42608|MWP-026', 'OR42608']);
+// The parents are made BEFORE the write, in statements of their own. A trigger's
+// insert is invisible to the command inserting the line, so the row-level check
+// refused row 1 and with it the whole file.
+eq('...and the register prepares those parents itself', def('spare_request_lines').prepare, 'spare-line-parents');
 eq('"ADMIN Approval" is the COMMERCIAL stage the flow reads', srl.rows[0].commercial_approval, 'Cleared for Stores Processing');
 eq('...with its date', String(srl.rows[0].commercial_at).slice(0, 10), '2025-12-04');
 eq('Requested Qty wins over the raw Qty column', srl.rows[0].qty, 1);

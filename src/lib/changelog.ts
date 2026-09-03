@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.47',
+    date: '2026-09-03',
+    title: 'Spare Request Lines loads on its own',
+    changes: [
+      'The lines file no longer needs anything run in the database first. Before writing, each line\u2019s OR number is matched to the request that holds it, and a request is created for the 58 OR numbers the header export does not go back far enough to carry \u2014 marked as created from a line, so the gap stays visible. Those requests are made in their own step, which is the whole point: the database could create them from a trigger, but a trigger\u2019s row cannot be seen by the very step checking it, and that is what refused row 1 and with it all 8,571.',
+      'A line whose request was loaded earlier under a different id now finds it, so the two exports can be loaded in either order.',
+      'The upload says what it did \u2014 how many requests it had to create, and how many lines it re-pointed.',
+    ],
+  },
+  {
     version: '0.9.46',
     date: '2026-09-03',
     title: 'Spare Request Lines load',
