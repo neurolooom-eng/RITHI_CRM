@@ -27,6 +27,7 @@ export const NAV: NavGroup[] = [
     title: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', icon: '📊' },
+      { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
     ],
   },
@@ -35,7 +36,6 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
       { to: '/product-master', label: 'Product Master', icon: '🩺' },
-      { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },
