@@ -388,15 +388,15 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- spares
   { key: 'spare_requests', label: 'Spare Request', group: 'Spares', table: 'spare_requests',
-    conflict: 'uid', requires: 'Field Calls', extraInto: 'extra',
-    note: 'One row per request. Matched on the OR number, which is also what the lines export uses to find its parent — so load this first, or the lines create a stub request that this file then fills in. The Spare (1..20) / Qty (1..20) columns are the lines repeated across the row; load them from the Lines file, which carries the approvals and quantities too.',
+    conflict: 'or_no', requires: 'Field Calls', extraInto: 'extra',
+    note: 'One row per request, matched on the OR number — which is also the only thing the lines export has to find its parent by, so load this file first. The table’s own `uid` is left to the database: matching on it instead is what made a re-load stop at "duplicate key … spare_requests_or_no_idx" on the first row. The Spare (1..20) / Qty (1..20) columns are the lines repeated across the row; load them from the Lines file, which carries the approvals and quantities too.',
     cols: [
-      // The OR NUMBER is the request's identity here, and that is forced by the
-      // data: the lines export names its parent by OR number and nothing else,
-      // so anything else as `uid` leaves every line pointing at nothing. The
-      // export's own row id has no field and is kept on the row.
-      { to: 'uid', from: ['or no', 'or number', 'uid', 'request uid'], required: true },
-      TEXT('or_no', 'or no', 'or number'),
+      // The OR NUMBER identifies a request, in this file and in the lines file,
+      // and it has a unique index of its own — so it is the conflict target.
+      // `uid` is deliberately NOT sent: rows already here carry one (the sheet's
+      // own row id, from an earlier import), and writing over it collided with
+      // the or_no index and stopped the file. 0085 fills it in on insert.
+      { to: 'or_no', from: ['or no', 'or number', 'request uid'], required: true },
       DATE('or_req_date', 'or req date', 'or date', 'request date'),
       TEXT('req_type', 'req type', 'request type'),
       TEXT('engineer', 'engineer name', 'engineer'),
@@ -413,7 +413,7 @@ export const UPLOADS: UploadDef[] = [
   // RM / Commercial / NSM sheets all load here, each filling in its own stage.
   { key: 'spare_request_lines', label: 'Spare Request Lines (+ RM / Commercial / NSM approval)', group: 'Spares',
     table: 'spare_request_lines', conflict: 'line_uid', requires: 'Spare Request', extraInto: 'extra',
-    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. A line whose request is not in the header export gets a stub request, marked as such, so one gap does not cost the whole file. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
+    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. A line finds its request by OR number even if that request is held under another id; only one that is in neither file gets a stub request, marked as such, so one gap does not cost the whole file. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
       // "OR26724|NO-001" — the export's own line identity.
       { to: 'line_uid', from: ['spare request no|part number', 'line uid', 'line id', 'uid'], required: true },

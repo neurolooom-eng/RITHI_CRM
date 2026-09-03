@@ -256,7 +256,11 @@ const sr = shapeUpload(def('spare_requests'), [
   { 'UID': 'S1-30793a25', 'OR NO': 'OR43016', 'Req Type': 'Call Based', 'ENGINEER NAME': 'MEGHANATH',
     'UC Number': '26A02F0001', 'Product Serial Number': '0752', 'Spare (1)': 'MP-010|SENSOR', 'Qty (1)': '1' },
 ]);
-eq('the OR number is the request identity, not the sheet row id', sr.rows[0].uid, 'OR43016');
+// The OR number is the conflict target, and `uid` is deliberately absent: rows
+// loaded earlier carry the sheet's row id there, and writing over it collided
+// with the or_no unique index and stopped the file at row 1. 0085 fills it in.
+eq('the request is keyed on the OR number', [sr.rows[0].or_no, def('spare_requests').conflict], ['OR43016', 'or_no']);
+eq('...and no uid is sent, so the database keeps the one it has', sr.rows[0].uid, undefined);
 eq('...and the sheet row id is kept, not lost', (sr.rows[0].extra as Record<string, unknown>)['UID'], 'S1-30793a25');
 eq('the wide Spare (n) columns ride along', (sr.rows[0].extra as Record<string, unknown>)['Spare (1)'], 'MP-010|SENSOR');
 

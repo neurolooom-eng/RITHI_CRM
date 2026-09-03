@@ -193,10 +193,22 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='spare_consumption' and column_name='source_ref_key')
      and exists (select 1 from pg_indexes
                   where schemaname='public' and indexname='spare_consumption_source_ref_uniq'))),
-    (33, 'parties: key + de-duplication', 'parties.party_key (Party-1, Party-2 …) and the name_key unique index (0076)',
+    -- The WHERE is part of what this row checks, not a detail: with 0076 alone
+    -- the columns and the index are all present and this read "yes", while the
+    -- Party Master upload stopped at row 1 with "UPDATE requires a WHERE
+    -- clause" — Supabase refuses the counter's WHERE-less bump. Same lesson as
+    -- rows 34 and 35: check what the UPLOAD needs.
+    (33, 'parties: key + de-duplication', 'parties.party_key (Party-1, Party-2 …), the name_key unique index (0076) and a counter Supabase will run (0086)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='parties' and column_name='party_key')
-     and exists (select 1 from pg_indexes where schemaname='public' and indexname='parties_name_key_uniq'))),
+     and exists (select 1 from pg_indexes where schemaname='public' and indexname='parties_name_key_uniq')
+     and coalesce(pg_get_functiondef(to_regprocedure('public.next_party_key()'))
+                    ilike '%where singleton%', false))),
+    (39, 'spare requests: keyed on the OR number', 'uid filled from the OR number, and a line finding its request by it (0085)',
+        (coalesce(pg_get_functiondef(to_regprocedure('public.spare_requests_assign_or_no()'))
+                    ilike '%new.uid :=%', false)
+     and coalesce(pg_get_functiondef(to_regprocedure('public.spare_request_line_stub_parent()'))
+                    ilike '%r.or_no = new.request_uid%', false))),
     (32, 'handstock: historical consumption', 'spare_consumption_history + its arm -- the pre-2026 record, uncapped (0075)',
         (to_regclass('public.spare_consumption_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'

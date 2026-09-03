@@ -265,6 +265,22 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+- **`Spare_1.sql`** (re-run; migration `0085`) — the **Spare Request upload
+  stopped at row 1** with *duplicate key … `spare_requests_or_no_idx`*.
+  `spare_requests` has two unique columns: `uid` and `or_no`. The import matched
+  on `uid` and wrote the OR number into both, so any request already here under
+  a different uid — which is exactly what an earlier import left, keyed on the
+  sheet's own row id — blocked the file. The upload now matches on **`or_no`**
+  and lets the database fill `uid`; a LINE finds its request by OR number even
+  when that request is held under another id. Nothing is re-keyed. `_status.sql`
+  row 39.
+- **`masters.sql`** (re-run; migration `0086`) — the **Party Master upload
+  stopped at row 1** with *UPDATE requires a WHERE clause*. Supabase runs
+  PostgREST with `pg_safeupdate`, which refuses any WHERE-less update — even
+  inside a SECURITY DEFINER function — and `next_party_key()` bumped its counter
+  without one. Invisible in psql, where the guard is not loaded, so
+  `npm run check:safe-updates` now looks for the whole class. `_status.sql` row
+  33 tests the WHERE, not just the column and the index.
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
   — the **document library**: `documents`, holding the service-manual shelf and
   the QMS shelf. Until it is run, both screens say the library is missing and a

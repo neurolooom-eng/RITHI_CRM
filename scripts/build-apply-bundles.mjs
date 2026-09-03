@@ -219,7 +219,7 @@ const MODULES = {
             'to add or change values and master.<list>.delete to remove one, with the',
             'global `masters.edit` still granting both on every list.'],
     needs: ['profiles', 'rbac'],
-    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql', '0079_part_product_keys.sql'],
+    files: ['0021_master_lists.sql', '0066_master_values_active.sql', '0067_master_list_permissions.sql', '0076_party_key.sql', '0086_party_key_safe_update.sql', '0079_part_product_keys.sql'],
   },
   reports: {
     title: 'Reports',
@@ -330,6 +330,7 @@ const MODULES = {
       '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
       '0084_spare_request_import.sql',
+      '0085_spare_request_or_no_key.sql',
     ],
   },
 };
