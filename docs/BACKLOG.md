@@ -265,47 +265,35 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
-- **`Spare_1.sql`** (re-run; migration `0085`) — the **Spare Request upload
-  stopped at row 1** with *duplicate key … `spare_requests_or_no_idx`*.
-  `spare_requests` has two unique columns: `uid` and `or_no`. The import matched
-  on `uid` and wrote the OR number into both, so any request already here under
-  a different uid — which is exactly what an earlier import left, keyed on the
-  sheet's own row id — blocked the file. The upload now matches on **`or_no`**
-  and lets the database fill `uid`; a LINE finds its request by OR number even
-  when that request is held under another id. Nothing is re-keyed. `_status.sql`
-  row 39.
-- **`masters.sql`** (re-run; migration `0086`) — the **Party Master upload
-  stopped at row 1** with *UPDATE requires a WHERE clause*. Supabase runs
-  PostgREST with `pg_safeupdate`, which refuses any WHERE-less update — even
-  inside a SECURITY DEFINER function — and `next_party_key()` bumped its counter
-  without one. Invisible in psql, where the guard is not loaded, so
-  `npm run check:safe-updates` now looks for the whole class. `_status.sql` row
-  33 tests the WHERE, not just the column and the index.
-- **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
-  — the **document library**: `documents`, holding the service-manual shelf and
-  the QMS shelf. Until it is run, both screens say the library is missing and a
-  call shows no Supporting Documents (nothing else is affected). It also grants
-  `docs.manage` to admin / hotline / NSM / Spare Coordinator and `qms.manage` to
-  admin, by MERGING into `app_roles`. `_status.sql` row 27.
-- **`user_directory.sql`** (bundle: `supabase/apply/user_directory.sql`;
-  migration `0068`) — `app_user_names`, the id -> display-name lookup the
-  tables use so **Created By** reads "Rithi Admin" rather than
-  `6680c358-d798-…`. `profiles` only lets most people read themselves, which is
-  why this has to be its own view; it is read-only by construction (it selects
-  from a SECURITY DEFINER function, so nothing can be written through it into
-  `profiles`) and exposes id + name and nothing else. Until it is run the
-  tables keep showing the UUID — nothing else breaks. `_status.sql` row 25.
-- **`rbac.sql`** (bundle: `supabase/apply/rbac.sql`; migration `0069`) — renames
-  the NSM role to **National SERVICE Manager**. 0008's upsert deliberately keeps
-  a label an admin has set, so the live row does not change until this runs.
-  `_status.sql` row 26.
-- **`masters.sql`** (bundle: `supabase/apply/masters.sql`; migrations `0066`
-  + `0067`) — `masters.active`, so a master value already in use is
-  **deactivated** rather than deleted, and the **per-list write policies**
-  (`masters_insert` / `masters_update` / `masters_delete`) that let a role be
-  given one value list to maintain instead of all of them. Until it is run, the
-  new per-list switches in Roles & Permissions have nothing enforcing them and
-  Deactivate fails on a missing column. `_status.sql` rows 23 and 24 report it.
+Read from `_status.sql` on 2026-09-03: everything else is applied — base, rbac,
+user_directory (0068), documents (0070), reports (0071), the cover tables
+(0036/0037), handstock, masters (0066/0067/0076/**0086**), ownership transfer (0072),
+additional entries (0073), opening pools (0074), consumption history (0075),
+GRIR (0078+0081), spare import (0084) and the OR-number key (**0085**). The
+Party Master and Spare Request uploads were confirmed unblocked by 0086/0085.
+
+FOUR remain, each with the upload or screen it is holding up:
+
+- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  (migration `0082`) — `parts_item_detail_key_uniq` + `products_machine_key_uniq`.
+  **Part Master and Product Master will not upload without it** ("no unique or
+  exclusion constraint matching the ON CONFLICT specification"). NOTE: 0082 is in
+  the **handstock** bundle, not masters — it redefines objects a later module
+  owns, so it has to run after it. `_status.sql` row 35.
+- **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
+  (migration `0080`) — `extra` on `ownership_transfers` and `stock_transfers`, so
+  those two uploads keep the columns the export carries that the tables have no
+  field for. Without it both fail on the unknown column. `_status.sql` row 36.
+- **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
+  (migration `0083`) — a request that HAS a UCN reads **Registered**, enforced on
+  update as well as insert, with a one-time backfill of the rows already loaded.
+  Until it runs, imported registered calls sit in the register as Pending.
+  `_status.sql` row 37.
+- **[`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)**
+  (migration `0046_dccr_master_values`) — the DCCR **Complaint Grouping** and
+  **Root Cause Key Word** value lists. The Daily Review screen works without
+  them; the two dropdowns are just empty. `_status.sql` row 22.
+
 
 ### Queued — waiting on the user
 - **Per-tab permissions — deliberately NOT built (user's call, 2026-09-02).**
