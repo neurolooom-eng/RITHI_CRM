@@ -221,3 +221,9 @@
   border: 1px solid var(--border, #d7dee8);
   border-radius: 10px; padding: 0 7px;
 }
+
+/* Nested levels read as one shade lighter each, so the depth is visible even
+   when the headings scroll apart. */
+.dt-group-l1 > td { background: var(--dt-group-bg-1, #f2f5f9); }
+.dt-group-l2 > td { background: var(--dt-group-bg-2, #f7f9fc); }
+.dt-group-pick .select + .select { margin-left: 4px; }

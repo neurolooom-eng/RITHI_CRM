@@ -1,7 +1,7 @@
 // Checks for the bits of UI logic that are worth pinning down — the rules a
 // screen must follow that reading the component will not tell you.
 // No test runner in this repo, so: `npm run check:ui`.
-import { groupRowsBy, NO_GROUP } from '../src/components/table/group';
+import { groupRowsBy, groupTree, NO_GROUP } from '../src/components/table/group';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -25,6 +25,34 @@ eq('...with nobody-allotted LAST', g[g.length - 1][0], NO_GROUP);
 eq('rows keep the order they arrived in', g.find(([n]) => n === 'PAWAN')?.[1].map((r) => r.id), [1, 4]);
 eq('every row lands in exactly one group', g.reduce((n, [, rs]) => n + rs.length, 0), rows.length);
 eq('a key no row carries makes one group of everything', groupRowsBy(rows, 'nope').map(([n, rs]) => [n, rs.length]), [[NO_GROUP, 5]]);
+
+console.log('\n-- region, then engineer, then status --');
+const calls = [
+  { id: 1, region: 'North', allocatedTo: 'PAWAN', callState: 'Solved' },
+  { id: 2, region: 'North', allocatedTo: 'PAWAN', callState: 'Unattended' },
+  { id: 3, region: 'North', allocatedTo: 'ANUJ', callState: 'Solved' },
+  { id: 4, region: 'South', allocatedTo: 'MEGHA', callState: 'Solved' },
+  { id: 5, region: '', allocatedTo: 'MEGHA', callState: 'Solved' },
+];
+const t = groupTree(calls, ['region', 'allocatedTo', 'callState']);
+eq('the top level is the first key', t.map((n) => n.name), ['North', 'South', NO_GROUP]);
+eq('a node counts every row beneath it, at any depth', t[0].rows.length, 3);
+eq('the second level nests inside the first', t[0].children?.map((n) => n.name), ['ANUJ', 'PAWAN']);
+eq('the third level nests inside the second',
+  t[0].children?.find((n) => n.name === 'PAWAN')?.children?.map((n) => n.name), ['Solved', 'Unattended']);
+eq('the last level has no children of its own',
+  t[0].children?.[0].children?.every((n) => n.children === null), true);
+eq('a path identifies a node, so two regions may both have "Solved"',
+  [t[0].children?.find((n) => n.name === 'PAWAN')?.children?.[0].path,
+    t[1].children?.[0].children?.[0].path],
+  ['North › PAWAN › Solved', 'South › MEGHA › Solved']);
+eq('every row still lands in exactly one leaf',
+  t.flatMap((a) => a.children!.flatMap((b) => b.children!.map((c) => c.rows.length))).reduce((a, b) => a + b, 0),
+  calls.length);
+eq('one key behaves exactly like the flat grouping',
+  groupTree(calls, ['region']).map((n) => [n.name, n.rows.length]),
+  groupRowsBy(calls, 'region').map(([n, rs]) => [n, rs.length]));
+eq('no keys means no grouping', groupTree(calls, []), []);
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

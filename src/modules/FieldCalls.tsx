@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
-import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
+import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
 import { useNavigate } from 'react-router-dom';
@@ -430,6 +430,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Engineer wise, as the spare register does its stages: a chip per name with
   // what they are carrying, and a click to see only theirs.
   const [engineerFilter, setEngineerFilter] = useState('');
+  // A call carries no region; the User Master carries one per engineer, so the
+  // register reads it off the allottee. Attached as `_region` for grouping.
+  const regionOf = useRegionByEngineer();
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
@@ -744,6 +747,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return [...r].reverse();
   }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter]);
 
+  const rowsWithRegion = useMemo(
+    () => visibleRows.map((r) => ({
+      ...r,
+      _region: regionOf.get(String(r.allocatedTo ?? '').trim().toLowerCase()) ?? '',
+    })),
+    [visibleRows, regionOf],
+  );
+
+
   // How many of the loaded calls have been re-opened at least once.
   const reopenedCount = useMemo(() => cached.filter((r) => Number(r.reopenCount ?? 0) > 0).length, [cached]);
 
@@ -854,11 +866,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       <DataTable<Rec>
         columns={[actionsColumn, ...COLUMNS]}
         allFields={CALL_ALL_FIELDS}
-        rows={visibleRows}
+        rows={rowsWithRegion}
         getRowId={(r) => r.id}
         storageKey={config.storageKey}
-        // Engineer wise: a manager works the register one engineer at a time.
-        groupable={[{ key: 'allocatedTo', label: 'Engineer' }]}
+        // Region, engineer, call status — in any order, up to three deep.
+        groupable={[
+          { key: '_region', label: 'Region' },
+          { key: 'allocatedTo', label: 'Engineer' },
+          { key: 'callState', label: 'Call Status' },
+        ]}
         rowsBeforeScroll={12}
         onLoadMore={() => { if (onDb) setLoadLimit((l) => l + 800); else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); } }}
         moreAvailable={moreAvailable}

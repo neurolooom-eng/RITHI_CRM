@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.57',
+    date: '2026-09-03',
+    title: 'Group by region, then engineer, then status',
+    changes: [
+      'Grouping goes up to three levels: pick Region, then Engineer, then Call Status (Stage, on the spare register) and the register nests them, each heading carrying the count of everything beneath it and folding its whole branch away on a click.',
+      'A call does not record a region \u2014 the User Master records one against each engineer, so the register reads it off whoever the call is allotted to. A name the directory does not know gathers under a blank heading rather than being guessed at.',
+      'Clearing a level clears the ones under it, and the same heading under two different parents folds independently.',
+    ],
+  },
+  {
     version: '0.9.56',
     date: '2026-09-03',
     title: 'Engineer names as chips, like the spare stages',

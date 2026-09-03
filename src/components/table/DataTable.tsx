@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { groupRowsBy, NO_GROUP } from './group';
+import { groupTree, NO_GROUP, type GroupNode } from './group';
 import { useAuth } from '../../lib/auth';
 import { formatSmartDate } from '../../lib/format';
 import { useUserNames, looksLikeUserId, nameForUserId } from '../../lib/userNames';
@@ -223,12 +223,21 @@ export function DataTable<T>({
 
   // ---- grouping (engineer wise, and whatever else a register offers) ----
   const groupKeyStore = persistKey ? `${persistKey}.group.${user?.id ?? 'anon'}` : null;
-  const [groupBy, setGroupBy] = useState<string>(() => {
-    try { return groupKeyStore ? (localStorage.getItem(groupKeyStore) ?? '') : ''; } catch { return ''; }
+  // LEVELS, in order: Region, then Engineer, then Call Status. Stored as a list
+  // so an older single-key value still reads.
+  const [groupKeys, setGroupKeys] = useState<string[]>(() => {
+    try {
+      const raw = groupKeyStore ? localStorage.getItem(groupKeyStore) : null;
+      if (!raw) return [];
+      const v = raw.startsWith('[') ? JSON.parse(raw) : [raw];
+      return Array.isArray(v) ? v.filter((k) => typeof k === 'string' && k) : [];
+    } catch { return []; }
   });
-  const saveGroupBy = (k: string) => {
-    setGroupBy(k);
-    if (groupKeyStore) { try { localStorage.setItem(groupKeyStore, k); } catch { /* ignore */ } }
+  const saveGroupKeys = (ks: string[]) => {
+    const clean = ks.filter(Boolean);
+    setGroupKeys(clean);
+    setCollapsed(new Set());
+    if (groupKeyStore) { try { localStorage.setItem(groupKeyStore, JSON.stringify(clean)); } catch { /* ignore */ } }
   };
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const saveFilters = (fs: TableFilter[]) => {
@@ -481,20 +490,44 @@ export function DataTable<T>({
   // Built from the SORTED rows, so whatever sort is on holds inside each group.
   // Groups are alphabetical with the blank one last: "not allotted yet" is a
   // real answer and belongs at the end, not first under an empty heading.
-  const groupCol = groupable?.find((g) => g.key === groupBy);
+  const liveKeys = groupKeys.filter((k) => groupable?.some((g) => g.key === k));
   const groups = useMemo(
-    () => (groupCol ? groupRowsBy(sortedRows, groupCol.key) : null),
-    [groupCol, sortedRows],
+    () => (liveKeys.length ? groupTree(sortedRows, liveKeys) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveKeys.join('|'), sortedRows],
   );
+  const labelAt = (depth: number) =>
+    groupable?.find((g) => g.key === liveKeys[depth])?.label ?? 'value';
 
+  // One select per level, and the next appears once the one before it is set —
+  // up to three, which is as deep as a heading can be read at a glance.
+  const MAX_LEVELS = 3;
   const groupControl = groupable && groupable.length ? (
-    <label className="dt-group-pick" title="Group the rows">
+    <span className="dt-group-pick" title="Group the rows — pick a second and a third to nest them">
       <span className="muted">Group</span>
-      <select className="select" value={groupBy} onChange={(e) => { saveGroupBy(e.target.value); setCollapsed(new Set()); }}>
-        <option value="">None</option>
-        {groupable.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-      </select>
-    </label>
+      {Array.from({ length: Math.min(MAX_LEVELS, groupable.length) }, (_, i) => i)
+        .filter((i) => i === 0 || groupKeys[i - 1])
+        .map((i) => (
+          <select
+            key={i}
+            className="select"
+            value={groupKeys[i] ?? ''}
+            onChange={(e) => {
+              // Clearing a level clears the ones under it: "by engineer, then
+              // by nothing, then by status" is not a thing.
+              const next = e.target.value
+                ? [...groupKeys.slice(0, i), e.target.value]
+                : groupKeys.slice(0, i);
+              saveGroupKeys(next);
+            }}
+          >
+            <option value="">{i === 0 ? 'None' : '＋ then…'}</option>
+            {groupable
+              .filter((g) => g.key === groupKeys[i] || !groupKeys.includes(g.key))
+              .map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+          </select>
+        ))}
+    </span>
   ) : null;
 
   // Filters control (rendered at the top, above the table). Panel opens downward.
@@ -548,6 +581,43 @@ export function DataTable<T>({
       )}
     </div>
   ) : null;
+
+  // One heading per group, nested: Region, then Engineer inside it, then Call
+  // Status inside that. A heading counts every row BENEATH it, at any depth,
+  // and folds its whole branch away on click. The path is the identity, so
+  // "Solved" under one region collapses independently of "Solved" under another.
+  const renderGroups = (nodes: GroupNode<T>[]): ReactNode[] =>
+    nodes.flatMap((n) => {
+      const shut = collapsed.has(n.path);
+      const label = n.name === NO_GROUP
+        ? `\u2014 no ${labelAt(n.depth).toLowerCase()} \u2014`
+        : n.name;
+      return [
+        <tr key={`g:${n.path}`} className={`dt-group-row dt-group-l${n.depth}`}>
+          <td colSpan={Math.max(1, visibleCols.length)}>
+            <button
+              type="button"
+              className="dt-group-toggle"
+              style={{ paddingLeft: 10 + n.depth * 18 }}
+              onClick={() => setCollapsed((prev) => {
+                const next = new Set(prev);
+                if (next.has(n.path)) next.delete(n.path); else next.add(n.path);
+                return next;
+              })}
+            >
+              <span className="dt-group-caret">{shut ? '\u25b8' : '\u25be'}</span>
+              <b>{label}</b>
+              <span className="muted">{n.rows.length}</span>
+            </button>
+          </td>
+        </tr>,
+        ...(shut
+          ? []
+          : n.children
+            ? renderGroups(n.children)
+            : n.rows.map((row) => renderRow(row))),
+      ];
+    });
 
   const renderRow = (row: T) => (
     <tr
@@ -665,33 +735,7 @@ export function DataTable<T>({
               </tr>
             )}
             {groups
-              ? groups.map(([name, rowsInGroup]) => {
-                const shut = collapsed.has(name);
-                return (
-                  <Fragment key={`g:${name}`}>
-                    {/* One heading per engineer (or whatever the register groups
-                        by), with its count, and click to fold it away. */}
-                    <tr className="dt-group-row">
-                      <td colSpan={Math.max(1, visibleCols.length)}>
-                        <button
-                          type="button"
-                          className="dt-group-toggle"
-                          onClick={() => setCollapsed((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(name)) next.delete(name); else next.add(name);
-                            return next;
-                          })}
-                        >
-                          <span className="dt-group-caret">{shut ? '▸' : '▾'}</span>
-                          <b>{name === NO_GROUP ? `\u2014 no ${(groupCol?.label ?? 'value').toLowerCase()} \u2014` : name}</b>
-                          <span className="muted">{rowsInGroup.length}</span>
-                        </button>
-                      </td>
-                    </tr>
-                    {!shut && rowsInGroup.map((row) => renderRow(row))}
-                  </Fragment>
-                );
-              })
+              ? renderGroups(groups)
               : sortedRows.map((row) => renderRow(row))}
           </tbody>
         </table>

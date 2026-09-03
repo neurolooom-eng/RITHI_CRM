@@ -185,6 +185,36 @@ export function useTeamEngineers(current?: string): { names: string[]; canPick: 
   return { names, canPick: names.length > 1, ready: scope.ready && (!scope.all || directory.length > 0) };
 }
 
+const H_REGION = ['REGION', 'Region', 'Zone'];
+
+// ---------------------------------------------------------------------------
+// WHICH REGION IS THIS ROW IN?
+//
+// A call does not carry a region — the User Master does, against the engineer.
+// So a register that groups by region reads it off the allottee. A name the
+// directory does not know, or a row nobody is allotted to, has no region: it
+// gathers under the blank heading rather than being guessed at.
+// ---------------------------------------------------------------------------
+export function useRegionByEngineer(): Map<string, string> {
+  const [map, setMap] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!dataConfigured()) return;
+    let cancelled = false;
+    void loadUserMaster().then((rows) => {
+      if (cancelled) return;
+      const m = new Map<string, string>();
+      rows.forEach((r) => {
+        const n = norm(pick(r, H_NAME));
+        const region = pick(r, H_REGION);
+        if (n && region) m.set(n, region);
+      });
+      setMap(m);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  return map;
+}
+
 // Is a call with this allottee visible under the given scope?
 export function allowsAllottee(scope: AccessScope, allottee: unknown): boolean {
   if (scope.all) return true;
