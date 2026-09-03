@@ -218,6 +218,15 @@ with checks(sort_order, bundle, provides, present) as (
     -- upload could not write a row; the shortfall guards refused history that
     -- had already happened; and a transfer with no creator would not take its
     -- own lines.
+    -- WinMax HS + SO + ST received - Consumption - ST sent - MRN. Every term
+    -- had a home except the SO: the issue side was only ever derived from a
+    -- spare REQUEST, which exists for 2026 and for nothing before it.
+    (42, 'hand stock: the issue history', 'spare_issue_history + its arm, which does not re-count a 2026 request line (0090)',
+        (to_regclass('public.spare_issue_history') is not null
+     and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
+                  and definition ilike '%spare_issue_history%')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='handstock_opening' and column_name='data'))),
     (41, 'spare imports: the historical files load', 'material_returns.extra, stock_transfers.source + created_by default, and the import exemptions (0089)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='material_returns' and column_name='extra')

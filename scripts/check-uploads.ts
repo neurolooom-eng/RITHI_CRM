@@ -347,7 +347,7 @@ UPLOADS.forEach((d) => {
     console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not derived from anything it fills`); fail++;
   }
 });
-eq('registers defined', UPLOADS.length, 27);
+eq('registers defined', UPLOADS.length, 30);
 
 console.log('\n-- call registration requests --');
 const cr = shapeUpload(def('call_requests'), [

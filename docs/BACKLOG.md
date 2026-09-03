@@ -266,6 +266,20 @@ transfer guard and the cap all inherit them untouched:
 
 ### To run on the live project — pending
 - **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  (migrations `0082` + `0089` + `0090`) — carries the whole hand-stock model:
+  the four spare files (0089) and the ISSUE history (0090), which is the term
+  the balance never had. `_status.sql` rows 41 and 42.
+  ⚠️ 0090 rebuilds `handstock_movements`, and **`create or replace view` does
+  NOT carry `security_invoker` over** — without re-asserting it the view runs as
+  its owner and every arm's row-level security stops applying. The scope suite
+  caught it; the migration now re-asserts it every time it rebuilds the view.
+  Any future arm must do the same.
+- **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
+  (migration `0080`) — `extra` on `stock_transfers` and `ownership_transfers`.
+  The **Stock Transfer Register upload fails without it** ("Could not find the
+  'extra' column of 'stock_transfers'"), and so does Ownership Transfer.
+  `_status.sql` row 36.
+- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
   (migrations `0082` + `0089`) — **the four spare files will not load without it**.
   0089 came out of loading all four END TO END against a copy of the live
   database: `material_returns.extra` had never existed (so MRN could not write a
