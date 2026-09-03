@@ -38,7 +38,14 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       setPending({ file: f.name, shaped });
       setOpen(true);
       if (!shaped.rows.length) {
-        setMsg({ tone: 'error', text: `Nothing loadable — every row is missing ${def.cols.filter((c) => c.required).map((c) => c.from[0]).join(' / ')}. Is this the right register for this file?` });
+        // Naming the register this file DOES belong to was tried and dropped:
+        // scored on headers it missed the one register written for the file (a
+        // derived column matches no header), and scored on shaped rows it named
+        // whichever register claims the most columns — "Part Master" for the
+        // WinMax export, "Field Calls" for a consumption report. A suggestion
+        // that is wrong half the time is worse than none. The registers say
+        // which file they take instead.
+        setMsg({ tone: 'error', text: `Nothing loadable — every row is missing ${def.cols.filter((c) => c.required).map((c) => c.from[0]).join(' / ')}. Is this the right register for this file? Each register's note says which export it takes.` });
       }
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read that file: ${e instanceof Error ? e.message : String(e)}` });
