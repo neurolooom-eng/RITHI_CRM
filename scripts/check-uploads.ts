@@ -276,6 +276,13 @@ eq('the line points at its request by OR number', [srl.rows[0].line_uid, srl.row
 // insert is invisible to the command inserting the line, so the row-level check
 // refused row 1 and with it the whole file.
 eq('...and the register prepares those parents itself', def('spare_request_lines').prepare, 'spare-line-parents');
+// Four DROPPED lines ask for no quantity, and the database refuses a line below
+// 1 — so those four failed all 8,571. Held back by name instead.
+const srl0 = shapeUpload(def('spare_request_lines'), [
+  { 'Spare Request No|Part Number': 'OR43100|KB030100', 'OR NO': 'OR43100',
+    'Spare': 'KB030100|HEPA FILTER', 'Requested Qty': '0', 'Status': 'Dropped' },
+]);
+eq('a line that asks for nothing is held back, not sent', [srl0.rows.length, srl0.skipped.length], [0, 1]);
 eq('"ADMIN Approval" is the COMMERCIAL stage the flow reads', srl.rows[0].commercial_approval, 'Cleared for Stores Processing');
 eq('...with its date', String(srl.rows[0].commercial_at).slice(0, 10), '2025-12-04');
 eq('Requested Qty wins over the raw Qty column', srl.rows[0].qty, 1);

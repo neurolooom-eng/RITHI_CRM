@@ -24,3 +24,8 @@ do $$ begin create role anon; exception when duplicate_object then null; end $$;
 alter default privileges in schema public grant all on tables to authenticated, anon;
 alter default privileges in schema public grant all on sequences to authenticated, anon;
 grant usage on schema public to authenticated, anon;
+-- Supabase grants the API roles USAGE on `auth` (that is how auth.uid() is
+-- callable from a policy). Without it here, any policy that calls one of them
+-- fails with "permission denied for schema auth" — a harness artefact that says
+-- nothing about the policy under test.
+grant usage on schema auth to authenticated, anon;

@@ -1826,6 +1826,20 @@ export async function prepareUpload(
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
   if (kind !== 'spare-line-parents') return { ok: true };
 
+  // RowNo is the part's position within its request. The export does not carry
+  // one, and the database's own numbering asks `max(row_no) + 1` from a BEFORE
+  // trigger — which cannot see the rows the same insert is writing, so a whole
+  // batch would come out as row 1. Number them here, from the order the file
+  // itself puts them in, which is also the same on every re-run.
+  const seen = new Map<string, number>();
+  rows.forEach((r) => {
+    if (r.row_no !== undefined && r.row_no !== null && r.row_no !== '') return;
+    const key = String(r.request_uid ?? '');
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    r.row_no = n;
+  });
+
   const wanted = [...new Set(rows.map((r) => String(r.request_uid ?? '').trim()).filter(Boolean))];
   if (!wanted.length) return { ok: true };
 

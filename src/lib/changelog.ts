@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.48',
+    date: '2026-09-03',
+    title: 'Spare Request Lines: the whole file, checked end to end',
+    changes: [
+      'Four DROPPED lines in the export ask for no quantity at all \u2014 nothing requested, nothing dispatched, nothing dropped. A request line has to ask for something, so those four were failing all 8,571. They are held back by name now; 8,567 load.',
+      'Each spare is numbered within its request as the file orders them. The numbering the database does on its own cannot see the rest of the batch, so a whole upload came out as row 1.',
+      'The complete load \u2014 4,081 requests and 8,567 lines \u2014 was run against a copy of the live database as an ordinary (non-admin) user before shipping, rather than one row at a time through the screen.',
+    ],
+  },
+  {
     version: '0.9.47',
     date: '2026-09-03',
     title: 'Spare Request Lines loads on its own',

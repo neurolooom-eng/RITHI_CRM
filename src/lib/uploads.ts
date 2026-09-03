@@ -425,6 +425,14 @@ export const UPLOADS: UploadDef[] = [
   { key: 'spare_request_lines', label: 'Spare Request Lines (+ RM / Commercial / NSM approval)', group: 'Spares',
     table: 'spare_request_lines', conflict: 'line_uid', requires: 'Spare Request', extraInto: 'extra',
     prepare: 'spare-line-parents',
+    // A request line asks for something: the database refuses a quantity below 1
+    // (0011), and four DROPPED lines in the 2026 export ask for none — requested,
+    // dispatched and dropped all zero. Those four failed all 8,571. They are not
+    // requests for a spare; held back by name, as the MRN rows that return
+    // nothing are.
+    reject: (r) => (Number(r.qty ?? 0) < 1
+      ? 'the export asks for no quantity — a dropped line, which the register cannot hold'
+      : ''),
     note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. Before writing, each line\u2019s OR number is matched to the request holding it, and a request is created for any the header export does not carry (marked as such, so the gap stays visible) — so this file loads on its own, in any order. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
       // "OR26724|NO-001" — the export's own line identity.
