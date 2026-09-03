@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { shapeCoverRows, type CoverTable } from './coverImport';
-import { toIsoDate, toIsoTimestamp } from './dates';
+import { toIsoDate, toIsoTimestamp, parseAnyDate } from './dates';
 import { loose, findHeaderFor } from './headers';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
@@ -39,7 +39,14 @@ export interface Col {
    *  when the file supplied nothing. Lets a register whose export carries no row
    *  id of its own still be re-runnable: the derived key is the same on every
    *  run, where a generated one would load the file again as new rows. */
-  derive?: (out: Record<string, unknown>) => unknown;
+  /** `i` is the row's position in the file (0-based), for a register whose
+   *  source has no id of its own: the same file gives the same value every
+   *  run, so a re-load corrects rather than duplicates. */
+  derive?: (out: Record<string, unknown>, i: number) => unknown;
+  /** Run `derive` even when the file DID supply a value — for a column the
+   *  register has to combine rather than choose (WinMax holds good stock and
+   *  defective stock in two columns, and an engineer holds both). */
+  always?: boolean;
 }
 
 export interface UploadDef {
@@ -77,6 +84,12 @@ export interface UploadDef {
    *  is what "Your role does not have permission for this action." on row 1
    *  was. Prepared here, the upload no longer depends on that at all. */
   prepare?: 'spare-line-parents' | 'stock-transfer-parents';
+  /** How rows that collide on the DATABASE's key are folded together, where the
+   *  key is COMPUTED and the raw columns do not show the collision. Hand stock
+   *  is keyed on the part CODE, so two WinMax lines for ACC-081 with different
+   *  descriptions are one balance — and keeping the last of them would drop the
+   *  other's 200 pieces on the floor. `sum` names the fields to add up. */
+  fold?: { key: (r: Record<string, unknown>) => string; sum?: string[] };
   /** A register whose file needs more than a column map. The four AppSheet
    *  sale / contract exports are the case: `coverImport.ts` was written for
    *  exactly those files and does things a column map cannot — it DERIVES the
@@ -195,8 +208,8 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
 
     // Fill in what the file did not carry, from what it did.
     def.cols.forEach((c) => {
-      if (c.derive && (out[c.to] === undefined || out[c.to] === '' || out[c.to] === null)) {
-        const v = c.derive(out);
+      if (c.derive && (c.always || out[c.to] === undefined || out[c.to] === '' || out[c.to] === null)) {
+        const v = c.derive(out, i);
         if (v !== undefined && v !== null && v !== '') out[c.to] = v;
       }
     });
@@ -221,7 +234,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // the party name — deduping on a column the row does not carry silently
   // dedupes nothing.
   const dedupeOn = def.conflictFrom ?? (def.conflict ? def.conflict.split(',') : []);
-  const deduped = dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
+  const deduped = def.fold ? fold(rows, def.fold) : dedupeOn.length ? dedupe(rows, dedupeOn) : rows;
 
   // A header naming something the register STAMPS (Call Type on a call
   // register, the list name on a master) is not unrecognised — it is
@@ -234,6 +247,21 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h))),
     stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
   };
+}
+
+// Rows that land on the same database key, added up rather than overwritten.
+function fold(
+  rows: Record<string, unknown>[],
+  by: { key: (r: Record<string, unknown>) => string; sum?: string[] },
+): Record<string, unknown>[] {
+  const out = new Map<string, Record<string, unknown>>();
+  rows.forEach((r) => {
+    const k = by.key(r);
+    const had = out.get(k);
+    if (!had) { out.set(k, r); return; }
+    (by.sum ?? []).forEach((f) => { had[f] = (Number(had[f]) || 0) + (Number(r[f]) || 0); });
+  });
+  return [...out.values()];
 }
 
 function dedupe(rows: Record<string, unknown>[], keys: string[]): Record<string, unknown>[] {
@@ -581,6 +609,97 @@ export const UPLOADS: UploadDef[] = [
       { to: 'ref', from: ['ref', 'row id', 'unique id', 'reference'], required: true },
       TS('consumed_at', 'consumed on', 'date', 'consumption date', 'visit date'),
       TEXT('ucn'), TEXT('call_number', 'call number'), TEXT('party_name', 'party name'),
+      TEXT('remarks'),
+    ] },
+
+  // The ISSUE side of the historical record, and the other half of
+  //     WinMax HS + SO + ST received - Consumption - ST sent - MRN.
+  { key: 'spare_issues', label: 'Stock Out — all years', group: 'Spares', table: 'spare_issue_history',
+    conflict: 'source_key,ref', conflictFrom: ['source', 'ref'], extraInto: 'data',
+    stamp: { source: 'Stock out' },
+    // The export has rows dispatched as zero — nothing left the store, so
+    // nothing entered a hand. The table refuses them; held back by name.
+    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'nothing was dispatched on this row'),
+    note: 'Every spare ever issued, from the stock-out export. It is NOT capped, and a spare already counted through its 2026 request line is NOT counted again — the view tests the line id, so loading this whole file alongside the 2026 register is safe in either order. Matched on SO number + line, so a re-run corrects; the export has 35 rows that repeat that pair and they fold into one.',
+    cols: [
+      { to: 'engineer', from: ['to', 'engineer name', 'engineer'], required: true },
+      // `Spare` where the export has it; otherwise the two halves it does.
+      { to: 'part', from: ['spare', 'part', 'item detail'], required: true,
+        derive: (o) => {
+          const e = (o.data ?? {}) as Record<string, unknown>;
+          const c = String(e['Part Number'] ?? '').trim();
+          const d = String(e['Part Description'] ?? '').trim();
+          return c && d ? `${c}|${d}` : c;
+        } },
+      { to: 'qty', from: ['dispatched qty', 'qty', 'quantity'], type: 'num', required: true },
+      TS('issued_at', 'so date', 'dispatch date', 'stock out date'),
+      TEXT('so_no', 'so no', 'stock out no', 'so number'),
+      { to: 'line_uid', from: ['spare request no|part number', 'line uid'] },
+      // The SO and the line identify the row in the export.
+      { to: 'ref', from: ['ref', 'row id'], required: true,
+        derive: (o) => `${String(o.so_no ?? '').trim()}|${String(o.line_uid ?? '').trim()}` },
+      TEXT('remarks', 'address'),
+    ] },
+
+  // The WinMax balance struck at the cutover, which is where the record starts.
+  { key: 'handstock_winmax', label: 'Hand Stock — WinMax opening', group: 'Spares',
+    table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
+    conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
+    stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
+    note: 'The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one.',
+    cols: [
+      { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
+      { to: 'part', from: ['part', 'item detail', 'spare'], required: true,
+        derive: (o) => {
+          const e = (o.data ?? {}) as Record<string, unknown>;
+          const c = String(e['Item Code'] ?? '').trim();
+          const d = String(e['Item Name'] ?? '').trim();
+          return c && d ? `${c}|${d}` : c;
+        } },
+      // Good PLUS defective — what the engineer actually holds.
+      { to: 'qty', from: ['good balance', 'qty', 'quantity', 'balance'], type: 'num', required: true,
+        always: true,
+        derive: (o) => {
+          const e = (o.data ?? {}) as Record<string, unknown>;
+          const good = Number(o.qty ?? 0) || 0;
+          const bad = Number(String(e['Defective Balance'] ?? '').replace(/,/g, '')) || 0;
+          return good + bad;
+        } },
+      DATE('as_of', 'as of', 'as on', 'date'),
+      TEXT('remarks'),
+    ],
+    reject: (r) => (Number(r.qty ?? 0) > 0 ? '' : 'no balance — good and defective are both zero'),
+    // Hand stock is keyed on the part CODE, and two WinMax lines can share one
+    // (ACC-081 is both tubings). One balance, so they are ADDED, not replaced.
+    fold: {
+      key: (r) => `${String(r.engineer ?? '').trim().toLowerCase()}|`
+        + `${String(r.part ?? '').split('|')[0].trim().toLowerCase()}|`
+        + `${String(r.source ?? '').trim().toLowerCase()}`,
+      sum: ['qty'],
+    },
+  },
+
+  // The yearly consumption exports: one register, four files.
+  { key: 'consumption_yearly', label: 'Consumption — yearly export (pre-2026)', group: 'Spares',
+    table: 'spare_consumption_history', conflict: 'source_key,ref', conflictFrom: ['source', 'ref'],
+    extraInto: 'data',
+    note: 'The 22 H2 / 23 / 24 / 25 consumption reports as exported. The Source is taken from each row\u2019s own Visit ENTRY date, so a visit entered in January for December lands in the year it was entered — the year the file is. Rows are matched on their position in the file, so re-loading the same file corrects rather than duplicates.',
+    cols: [
+      { to: 'engineer', from: ['visiting service engineer', 'engineer name', 'engineer'], required: true },
+      { to: 'part', from: ['spares used', 'spares used (1)', 'part', 'spare'], required: true },
+      { to: 'qty', from: ['consumed qty', 'qty', 'qty (1)', 'quantity'], type: 'num', required: true },
+      TS('consumed_at', 'visit date & time', 'visit date'),
+      TEXT('ucn', 'uc number'), TEXT('call_number', 'call number', 'call no'),
+      TEXT('party_name', 'customer', 'party name'),
+      // The file is a year, and the ENTRY date is what put a row in it.
+      { to: 'source', from: ['source', 'data set'],
+        derive: (o) => {
+          const e = (o.data ?? {}) as Record<string, unknown>;
+          const d = parseAnyDate(String(e['Visit Entry Date'] ?? '')) ?? parseAnyDate(String(o.consumed_at ?? ''));
+          return d ? `Consumption ${d.getFullYear()}` : '';
+        } },
+      { to: 'ref', from: ['ref', 'row id'],
+        derive: (o, i) => `${String(o.source ?? 'row')}#${i + 1}` },
       TEXT('remarks'),
     ] },
 

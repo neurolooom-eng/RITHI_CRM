@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.50',
+    date: '2026-09-03',
+    title: 'Hand stock from the whole record',
+    changes: [
+      'Stock is now WinMax HS + stock outs + transfers in \u2212 consumption \u2212 transfers out \u2212 MRN, exactly as stated. Three registers were missing from that: the WinMax opening balance, every spare ever issued (48,139 rows back to June 2022), and the yearly consumption reports (39,724 rows for 22 H2 to 2025).',
+      'A spare issued in 2026 is counted ONCE, whether it arrives through the stock-out export, through its spare request, or both \u2014 the two files can be loaded in either order.',
+      'WinMax counts good and defective together: a defective part is in the engineer\u2019s hands until an MRN takes it back, which is how the returns register subtracts it. Two WinMax lines that share a part code are added, not overwritten.',
+      'The whole load was run against a copy of the live database before shipping: 4,375 opening rows, 48,139 issues, 39,724 historical consumptions, on top of the 2026 registers. 6,179 engineer-and-part balances across 88 people.',
+    ],
+  },
+  {
     version: '0.9.49',
     date: '2026-09-03',
     title: 'MRN, Stock Transfer and Consumption load',
