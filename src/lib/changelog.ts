@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.59',
+    date: '2026-09-03',
+    title: 'How to allot or re-allot calls',
+    changes: [
+      'The Knowledge Base has a how-to for allotting calls \u2014 finding the ones you want, ticking them, and allotting the lot to one engineer. It sits with the other call tasks, as step 4.',
+      'It says the two things people trip over: the header tick box takes exactly what is listed and nothing hidden, and a missing name in the picker means that person\u2019s Reporting Manager in the User Master, not a bug.',
+    ],
+  },
+  {
     version: '0.9.58',
     date: '2026-09-03',
     title: 'Allot calls in bulk',
