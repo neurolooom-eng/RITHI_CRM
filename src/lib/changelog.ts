@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.66',
+    date: '2026-09-03',
+    title: 'Real dropdowns on Product & Party Search',
+    changes: [
+      'Product is a list you open and read \u2014 there are 45 of them, not thousands. Choose one and the Serial box becomes the serials THAT product has, with the count on it.',
+      'Party is a full list as well; open it and type, and the browser jumps to the first match. The box beside it still takes any part of a name for when you only remember a word of it.',
+    ],
+  },
+  {
     version: '0.9.65',
     date: '2026-09-03',
     title: 'The master value lists upload',
