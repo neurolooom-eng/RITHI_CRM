@@ -304,6 +304,30 @@ export async function sbListPartyProducts(party: string): Promise<string[]> {
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
+// ---- Moving a spare request to a different engineer ------------------------
+//
+// Until it is dispatched, and logged either way. The rule lives in the database
+// (0100) because hand stock is DERIVED from the request: after dispatch the name
+// is not a label, it is whose parts they are.
+export interface EngineerChange {
+  id: number; request_uid: string; or_no: string;
+  from_engineer: string; from_email: string;
+  to_engineer: string; to_email: string;
+  reason: string; changed_at: string; changed_by_name: string;
+}
+export async function sbReassignSpareRequest(uid: string, engineer: string, email = '', reason = ''): Promise<void> {
+  const { error } = await must().rpc('reassign_spare_request', {
+    p_uid: uid, p_engineer: engineer, p_email: email, p_reason: reason,
+  });
+  if (error) throw new Error(errMsg(error));
+}
+export async function sbListEngineerChanges(uid: string): Promise<EngineerChange[]> {
+  const { data, error } = await must().from('spare_request_engineer_log')
+    .select('*').eq('request_uid', uid).order('changed_at', { ascending: false });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as EngineerChange[];
+}
+
 // ---- The Product Register's own lists (Product & Party Search) -------------
 //
 // The products a search can offer are the products the register HAS. A master

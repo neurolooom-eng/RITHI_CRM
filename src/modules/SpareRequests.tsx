@@ -8,6 +8,7 @@ import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
   searchCalls, supabaseConfigured, receiveSpareShipments,
+  sbReassignSpareRequest, sbListEngineerChanges, type EngineerChange,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
@@ -873,7 +874,7 @@ export function SpareRequests() {
         title={`Spare ${String(detailRow?.line_uid ?? '') || String(detailRow?.or_no ?? '')}`}
         width={720}
       >
-        {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} />}
+        {detailRow && <RequestDetail row={detailRow} lines={detailLines} action={wfButtons(detailRow, '')} onChanged={() => void load()} />}
       </Drawer>
 
       <DecisionModal pending={pending} onClose={() => setPending(null)} onConfirm={(input) => { if (pending) void runPending(pending, input); }} />
@@ -900,7 +901,121 @@ function orderSummary(lines: Row[]): string {
 // and the trail of who approved / dispatched / received it, plus the next
 // action.
 // ---------------------------------------------------------------------------
-function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action: ReactNode }) {
+
+// ---------------------------------------------------------------------------
+// WHO THIS ORDER IS FOR — changing it, and the record of every change.
+//
+// The database decides whether it is allowed (0100); this asks and shows what
+// came back. The rule it enforces is worth restating here, because it is the
+// reason there is no edit box once a DC exists: hand stock is DERIVED from the
+// request, so after dispatch the engineer's name is not a label on a record,
+// it is whose parts they are. Moving it then would move stock out of one
+// person's balance and into another's, with nothing to show it happened.
+// Before dispatch nothing has moved and the name is simply a correction.
+// ---------------------------------------------------------------------------
+function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDone: () => void }) {
+  const { can } = useAuth();
+  const uid = String(row.uid ?? '');
+  const current = String(row.req_engineer ?? row.engineer ?? '');
+  const team = useTeamEngineers(current);
+  const [log, setLog] = useState<EngineerChange[]>([]);
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState('');
+  const [why, setWhy] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  // Dispatched if ANY spare on the order has gone out, not just the one open in
+  // the drawer — the database's rule is about the order, and a screen that
+  // offered a button the database would refuse would be worse than no button.
+  const dispatched = [row, ...lines].some((l) =>
+    !!l.dispatched_at || !!String(l.dc_number ?? '') || Number(l.dispatched_qty ?? 0) > 0
+    || /dispatch/i.test(String(l.stores_status ?? '')));
+  const mayChange = can('manage-users') && !dispatched && supabaseConfigured();
+
+  useEffect(() => {
+    if (!uid || !supabaseConfigured()) return;
+    let cancelled = false;
+    void sbListEngineerChanges(uid).then((r) => { if (!cancelled) setLog(r); }).catch(() => { /* not applied yet */ });
+    return () => { cancelled = true; };
+  }, [uid]);
+
+  const save = async () => {
+    if (!to.trim()) { setErr('Choose the engineer this order is moving to.'); return; }
+    setBusy(true); setErr('');
+    const t0 = performance.now();
+    try {
+      await sbReassignSpareRequest(uid, to.trim(), '', why.trim());
+      logAudit({ action: 'spare.reassign', target: String(row.or_no ?? uid), status: 'ok',
+                 duration_ms: Math.round(performance.now() - t0), meta: { from: current, to: to.trim() } });
+      setLog(await sbListEngineerChanges(uid));
+      setOpen(false); setTo(''); setWhy('');
+      onDone();
+    } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
+      setErr(m);
+      logAudit({ action: 'spare.reassign', target: String(row.or_no ?? uid), status: 'error', error: m });
+    } finally { setBusy(false); }
+  };
+
+  if (!mayChange && log.length === 0) return null;
+
+  return (
+    <section className="rep-sec">
+      <div className="rep-sec-title">Engineer on this order</div>
+      <div className="rep-grid">
+        <div className="rep-field"><span className="field-label">Currently</span><span>{current || '—'}</span></div>
+      </div>
+
+      {mayChange && !open && (
+        <div className="rep-actions" style={{ position: 'static' }}>
+          <button className="btn btn-sm" onClick={() => { setOpen(true); setErr(''); }}>✎ Change engineer</button>
+        </div>
+      )}
+      {!can('manage-users') ? null : dispatched && (
+        <p className="muted" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+          Dispatched — the parts are in {current || 'the engineer'}&rsquo;s hands, so the name is fixed. Move the stock with a
+          stock transfer instead.
+        </p>
+      )}
+
+      {open && (
+        <div className="rep-grid" style={{ marginTop: 8 }}>
+          <label className="rep-field">
+            <span className="field-label">Move to</span>
+            <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
+              <option value="">— choose an engineer —</option>
+              {team.names.filter((n) => n !== current).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <label className="rep-field">
+            <span className="field-label">Why</span>
+            <input className="input" value={why} placeholder="Kept with the record" onChange={(e) => setWhy(e.target.value)} />
+          </label>
+          <div className="rep-actions" style={{ position: 'static' }}>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>{busy ? 'Saving…' : 'Save'}</button>
+            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => { setOpen(false); setErr(''); }}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {err && <p className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}>{err}</p>}
+
+      {log.length > 0 && (
+        <ol className="wf-trail" style={{ marginTop: 10 }}>
+          {log.map((c) => (
+            <li key={c.id} className="wf-ok">
+              <b>{c.from_engineer || '—'} → {c.to_engineer}</b>
+              <span className="muted">{c.changed_by_name ? ` · ${c.changed_by_name}` : ''}{c.changed_at ? ` · ${fmtLongDate(c.changed_at)}` : ''}</span>
+              {c.reason && <div className="muted" style={{ fontSize: 12 }}>{c.reason}</div>}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function RequestDetail({ row, lines, action, onChanged }: { row: Row; lines: Row[]; action: ReactNode; onChanged?: () => void }) {
   const stage = deriveStage(row);
   const field = (label: string, value: unknown) => (
     <div className="rep-field"><span className="field-label">{label}</span><span>{String(value ?? '') || '—'}</span></div>
@@ -947,6 +1062,8 @@ function RequestDetail({ row, lines, action }: { row: Row; lines: Row[]; action:
         {!!String(row.handstock_reason ?? '') && <p className="muted" style={{ fontSize: 12.5 }}>HandStock reason: {String(row.handstock_reason)}</p>}
         {!!String(row.remarks ?? '') && <p className="muted" style={{ fontSize: 12.5 }}>Remarks: {String(row.remarks)}</p>}
       </section>
+
+      <EngineerOnOrder row={row} lines={lines} onDone={() => onChanged?.()} />
 
       <section className="rep-sec">
         <div className="rep-sec-title">Every spare on this order <span className="muted">({lines.length})</span></div>

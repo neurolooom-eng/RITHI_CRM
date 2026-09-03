@@ -192,7 +192,17 @@ const SECTIONS: Sec[] = [
     ],
   },
   {
-    id: 'sync', n: '14', title: 'Refresh, Sync & Clear Cache', who: 'Keeping your data fresh',
+    id: 'spare-engineer', n: '14', title: 'Change the engineer on a spare order', who: 'Administrators',
+    lead: <>An order raised against the wrong engineer can be moved — until the parts go out. Every move is kept.</>,
+    steps: [
+      <>Open the spare from <B>Spare Requests</B> and find <B>Engineer on this order</B> in the drawer.</>,
+      <><B>✎ Change engineer</B> → pick who it is moving to, and say why. The reason is kept with the record, so write it for whoever reads it next.<Hint>The list is every engineer in the User Master.</Hint></>,
+      <>Every change is listed underneath — from, to, who did it, when and why. The engineer it was taken off can see it too.</>,
+    ],
+    note: { tone: 'warn', icon: '⚠️', body: <><b>Once it is dispatched the name is fixed.</b> Hand stock is worked out FROM the order, so after the parts have gone out the engineer&rsquo;s name is not a label — it is whose parts they are. Changing it then would move stock from one person&rsquo;s balance to another&rsquo;s with nothing to show for it. Move the parts with a <B>Stock Transfer</B> instead.</> },
+  },
+  {
+    id: 'sync', n: '15', title: 'Refresh, Sync & Clear Cache', who: 'Keeping your data fresh',
     lead: <>The app loads instantly from a copy on your device, then syncs the latest. Three controls, gentlest to strongest.</>,
     steps: [
       <><B>↻ Refresh</B> — on a screen’s toolbar. Pulls that screen’s latest rows now. Use it first if a list looks behind.</>,

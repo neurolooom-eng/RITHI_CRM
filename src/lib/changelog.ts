@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.68',
+    date: '2026-09-03',
+    title: 'Moving a spare order to a different engineer',
+    changes: [
+      'An administrator can change the engineer on a spare order \u2014 until it is dispatched. Open the spare, and \u201cEngineer on this order\u201d in the drawer has the change and the record of every change made: from, to, who did it, when, and why.',
+      'After dispatch the name is fixed, and the database refuses it however it is asked. Hand stock is worked out FROM the order, so once the parts have gone out the engineer\u2019s name is not a label on a record \u2014 it is whose parts they are, and changing it would move stock from one person\u2019s balance to another\u2019s with nothing to show for it. Move the parts with a Stock Transfer instead.',
+      'The engineer the order was taken off can see the change too. A reassignment is not a secret from the person it moved it away from.',
+      'Needs a database script run once (HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.67',
     date: '2026-09-03',
     title: 'Hand Stock stops timing out, products from the register, REQID back in sequence',
