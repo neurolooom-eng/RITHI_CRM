@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { groupRowsBy, NO_GROUP } from './group';
 import { useAuth } from '../../lib/auth';
 import { formatSmartDate } from '../../lib/format';
 import { useUserNames, looksLikeUserId, nameForUserId } from '../../lib/userNames';
@@ -58,6 +59,10 @@ export interface DataTableProps<T> {
   // is honest as JSON but nobody can read it, so the owner can supply a
   // summary instead.
   allFields?: { key: string; header?: string; render?: (row: T) => ReactNode }[];
+  /** Columns this register can be GROUPED by — "engineer wise" and the like.
+   *  The chosen one is remembered per user, as filters are: what you are
+   *  looking at is yours, not the machine's. */
+  groupable?: { key: string; label: string }[];
 }
 
 // A cell value straight from the data may not be a primitive: a jsonb column
@@ -131,6 +136,7 @@ export function DataTable<T>({
   storageKey,
   dense = false,
   allFields,
+  groupable,
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
   const { can, user } = useAuth();
@@ -214,6 +220,17 @@ export function DataTable<T>({
     try { return filtersKey ? JSON.parse(localStorage.getItem(filtersKey) || '[]') : []; } catch { return []; }
   });
   const [filterPanel, setFilterPanel] = useState(false);
+
+  // ---- grouping (engineer wise, and whatever else a register offers) ----
+  const groupKeyStore = persistKey ? `${persistKey}.group.${user?.id ?? 'anon'}` : null;
+  const [groupBy, setGroupBy] = useState<string>(() => {
+    try { return groupKeyStore ? (localStorage.getItem(groupKeyStore) ?? '') : ''; } catch { return ''; }
+  });
+  const saveGroupBy = (k: string) => {
+    setGroupBy(k);
+    if (groupKeyStore) { try { localStorage.setItem(groupKeyStore, k); } catch { /* ignore */ } }
+  };
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const saveFilters = (fs: TableFilter[]) => {
     setFilters(fs);
     if (filtersKey) { try { localStorage.setItem(filtersKey, JSON.stringify(fs)); } catch { /* ignore */ } }
@@ -459,6 +476,27 @@ export function DataTable<T>({
   const maxBodyHeight = rowsBeforeScroll > 0 ? rowsBeforeScroll * rowH + 2 : undefined;
   const totalWidth = visibleCols.reduce((s, c) => s + (widths[c.key] ?? 160), 0);
 
+  // ---- the grouped view -----------------------------------------------------
+  //
+  // Built from the SORTED rows, so whatever sort is on holds inside each group.
+  // Groups are alphabetical with the blank one last: "not allotted yet" is a
+  // real answer and belongs at the end, not first under an empty heading.
+  const groupCol = groupable?.find((g) => g.key === groupBy);
+  const groups = useMemo(
+    () => (groupCol ? groupRowsBy(sortedRows, groupCol.key) : null),
+    [groupCol, sortedRows],
+  );
+
+  const groupControl = groupable && groupable.length ? (
+    <label className="dt-group-pick" title="Group the rows">
+      <span className="muted">Group</span>
+      <select className="select" value={groupBy} onChange={(e) => { saveGroupBy(e.target.value); setCollapsed(new Set()); }}>
+        <option value="">None</option>
+        {groupable.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+      </select>
+    </label>
+  ) : null;
+
   // Filters control (rendered at the top, above the table). Panel opens downward.
   const filtersControl = persistKey ? (
     <div className="dt-cols">
@@ -511,14 +549,42 @@ export function DataTable<T>({
     </div>
   ) : null;
 
+  const renderRow = (row: T) => (
+    <tr
+      key={getRowId(row)}
+      className={onRowClick ? 'dt-clickable' : ''}
+      onClick={() => onRowClick?.(row)}
+    >
+      {visibleCols.map((c) => {
+        // The table-level Wrap toggle wins; it defaults ON, so every table
+        // wraps text unless the user turns it off.
+        const content = c.render
+          ? c.render(row)
+          : c.accessor
+            ? c.accessor(row)
+            : rawCell((row as Record<string, unknown>)[c.key], userNameMap);
+        return (
+          <td
+            key={c.key}
+            className={wrapAll ? 'dt-wrap-cell' : 'dt-nowrap-cell'}
+            style={{ textAlign: c.align ?? 'left' }}
+          >
+            {content as ReactNode}
+          </td>
+        );
+      })}
+    </tr>
+  );
+
   return (
     <div className="dt-wrap">
-      {(toolbar || filtersControl) && (
+      {(toolbar || filtersControl || groupControl) && (
         <div className="dt-toolbar">
           {toolbar}
-          {filtersControl && (
+          {(filtersControl || groupControl) && (
             <>
               <div className="spacer" />
+              {groupControl}
               {filtersControl}
             </>
           )}
@@ -598,33 +664,35 @@ export function DataTable<T>({
                 </td>
               </tr>
             )}
-            {sortedRows.map((row) => (
-              <tr
-                key={getRowId(row)}
-                className={onRowClick ? 'dt-clickable' : ''}
-                onClick={() => onRowClick?.(row)}
-              >
-                {visibleCols.map((c) => {
-                  // The table-level Wrap toggle wins; it defaults ON, so every
-                  // table wraps text unless the user turns it off.
-                  const wrap = wrapAll;
-                  const content = c.render
-                    ? c.render(row)
-                    : c.accessor
-                      ? c.accessor(row)
-                      : rawCell((row as Record<string, unknown>)[c.key], userNameMap);
-                  return (
-                    <td
-                      key={c.key}
-                      className={wrap ? 'dt-wrap-cell' : 'dt-nowrap-cell'}
-                      style={{ textAlign: c.align ?? 'left' }}
-                    >
-                      {content as ReactNode}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {groups
+              ? groups.map(([name, rowsInGroup]) => {
+                const shut = collapsed.has(name);
+                return (
+                  <Fragment key={`g:${name}`}>
+                    {/* One heading per engineer (or whatever the register groups
+                        by), with its count, and click to fold it away. */}
+                    <tr className="dt-group-row">
+                      <td colSpan={Math.max(1, visibleCols.length)}>
+                        <button
+                          type="button"
+                          className="dt-group-toggle"
+                          onClick={() => setCollapsed((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(name)) next.delete(name); else next.add(name);
+                            return next;
+                          })}
+                        >
+                          <span className="dt-group-caret">{shut ? '▸' : '▾'}</span>
+                          <b>{name === NO_GROUP ? `\u2014 no ${(groupCol?.label ?? 'value').toLowerCase()} \u2014` : name}</b>
+                          <span className="muted">{rowsInGroup.length}</span>
+                        </button>
+                      </td>
+                    </tr>
+                    {!shut && rowsInGroup.map((row) => renderRow(row))}
+                  </Fragment>
+                );
+              })
+              : sortedRows.map((row) => renderRow(row))}
           </tbody>
         </table>
       </div>

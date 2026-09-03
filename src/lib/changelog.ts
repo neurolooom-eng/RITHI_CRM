@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.55',
+    date: '2026-09-03',
+    title: 'Group a register by engineer',
+    changes: [
+      'The call registers (Field, Installation, PM) and the Spare Request register can be grouped by engineer: a heading per person with the count beside it, and click a heading to fold that engineer away. \u201cGroup\u201d sits next to Filters.',
+      'Whatever sort and filter you have on still applies \u2014 grouping arranges what is already on screen, it does not fetch anything else. Anything not allotted to anyone yet gathers under one heading at the END of the register rather than at the top.',
+      'Your choice is remembered per screen, and it is YOURS: it does not follow the next person who signs in on the same machine.',
+    ],
+  },
+  {
     version: '0.9.54',
     date: '2026-09-03',
     title: 'A manager can raise work for their own engineers',
