@@ -4,6 +4,7 @@
 import { groupRowsBy, groupTree, NO_GROUP } from '../src/components/table/group';
 import { URS, FRS, TESTS } from '../src/lib/validation';
 import { mergeDcLines } from '../src/lib/dc';
+import { callFamily } from '../src/lib/calltype';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -95,6 +96,19 @@ eq('the challan itself is untouched', dcLines.length, 4);
     eq(`${id} traces to a test`, testFor(id).length > 0 ? 'yes' : 'no', 'yes');
   });
 }
+
+// ---------------------------------------------------------------------------
+// One matcher for the call type. `call_table_for()` in the database accepts any
+// of these spellings, and a screen that compares with === against one of them
+// finds nothing while the calls sit in the list under exactly that type — which
+// is what emptied Pending Calls' Installation and PM chips.
+// ---------------------------------------------------------------------------
+console.log('\n-- a call type is recognised however it is spelled --');
+[['INSTALLATION CALL', 'install'], ['INSTALLATION', 'install'], ['Installation Call', 'install'],
+ ['P M VISIT', 'pm'], ['PM VISIT', 'pm'], ['PM', 'pm'], ['pm visit', 'pm'],
+ ['FIELD', 'field'], ['', 'field'], ['ANYTHING ELSE', 'field']].forEach(([given, want]) => {
+  eq(`"${given}" is ${want}`, callFamily(given), want);
+});
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

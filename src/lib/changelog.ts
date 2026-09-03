@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.69',
+    date: '2026-09-04',
+    title: 'Pending Calls covers all three types and re-allots; a less crowded register',
+    changes: [
+      'PENDING CALLS: the Installation and PM chips found nothing. The screen compared the call type letter for letter against one spelling, and the register holds several \u2014 \u201cP M VISIT\u201d on one import, \u201cPM VISIT\u201d on another \u2014 so those calls sat in the list under All with the type written in the column while their own chip came back empty. All three now match the way the database itself decides which table a call lives in.',
+      'Pending Calls re-allots too, one call or a hundred, exactly as the registers do \u2014 which is where it was most wanted, since a pending call is the one you most often need to hand to somebody else. It also groups by Type, Engineer and Call Status.',
+      'Pending Calls has Load more, Refresh and its last sync, and loads the first 2,000 rather than everything at once.',
+      'THE REGISTER IS LESS CROWDED. \u201cLoad more\u201d has moved up beside the count \u2014 the \u201c800+\u201d raises the question, so the answer is next to it rather than at the foot of a list you had to scroll to the bottom of. What you can see, whether the database is connected and when it last synced have moved under the title with the rest of the description, leaving the toolbar to the controls. That also ends two chips reading \u201cAll calls\u201d side by side and meaning different things.',
+    ],
+  },
+  {
     version: '0.9.68',
     date: '2026-09-03',
     title: 'Moving a spare order to a different engineer',

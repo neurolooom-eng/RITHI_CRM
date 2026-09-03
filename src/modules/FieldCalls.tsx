@@ -790,6 +790,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // so the count is a lower bound — shown as "N+".
   const searching = !!(srch.q || srch.ucn || srch.serial || srch.partyName || srch.productName);
   const moreAvailable = configured && !searching && cached.filter((r) => r._synced).length >= loadLimit;
+  // One definition, used by the header. The database pages in 800s; the sheet
+  // has to be re-read, so it asks for 300 more and refreshes.
+  const loadMore = () => {
+    if (onDb) setLoadLimit((l) => l + 800);
+    else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); }
+  };
 
   // Re-open a closed call: the Hotline's way back in when the fault returns or
   // a visit was entered against the wrong call.
@@ -863,6 +869,32 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         icon={config.icon}
         count={visibleRows.length}
         countMore={moreAvailable}
+        // The count raises the question, so the answer sits beside it. It is
+        // NOT also passed to the table — one Load more, in the place the number
+        // that prompts it is read.
+        onLoadMore={loadMore}
+        loadingMore={busy}
+        status={
+          <>
+            <span
+              className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}
+              title={scope.all ? 'You can view all calls' : scope.isManager ? `Your team: ${scope.reports.join(', ')}` : 'You see only calls allotted to you'}
+            >
+              {scopeLabel(scope)}
+            </span>
+            <span
+              className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`}
+              title={source === 'db' ? 'Reading from the Supabase database' : source === 'sheet' ? 'Reading from the Google Sheet' : 'Not connected'}
+            >
+              {source === 'db' ? '● Database connected' : source === 'sheet' ? '● Sheet connected' : '○ Not connected'}
+            </span>
+            {configured && lastSync && (
+              <span className="conn-dot conn-off" title={`Last synced from the ${source === 'db' ? 'database' : 'sheet'}`}>
+                ⟳ synced {timeAgo(lastSync)}
+              </span>
+            )}
+          </>
+        }
         actions={
           can(config.createPerm ?? 'calls.create') && (
             <button
@@ -920,9 +952,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           { key: 'callState', label: 'Call Status' },
         ]}
         rowsBeforeScroll={12}
-        onLoadMore={() => { if (onDb) setLoadLimit((l) => l + 800); else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); } }}
         moreAvailable={moreAvailable}
-        loadingMore={busy}
         onRowClick={(r) => setDrawer({ mode: 'view', row: r })}
         emptyText={configured ? `No ${config.singular.toLowerCase()}s yet. Click “New ${config.singular}”.` : 'Connect the Google Sheet in Settings to load calls, or add one now (saved locally).'}
         toolbar={
@@ -961,20 +991,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 🗑 Discard {pendingCount}
               </button>
             )}
+            {/* Scope, connection and last sync have gone to the page header:
+                they are facts about the screen, not controls, and three of them
+                sitting among the buttons pushed Group, Filters and Export to
+                the edge. The scope chip also read "All calls" right beside the
+                open-only chip reading "All calls", which meant two different
+                things in the same row. */}
             <div className="spacer" />
-            <span
-              className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}
-              title={scope.all ? 'You can view all calls' : scope.isManager ? `Your team: ${scope.reports.join(', ')}` : 'You see only calls allotted to you'}
-            >
-              {scopeLabel(scope)}
-            </span>
-            {configured && lastSync && <span className="conn-dot conn-off" title={`Last synced from the ${source === 'db' ? 'database' : 'sheet'}`}>⟳ {timeAgo(lastSync)}</span>}
-            <span
-              className={`conn-dot ${configured ? 'conn-on' : 'conn-off'}`}
-              title={source === 'db' ? 'Reading from the Supabase database' : source === 'sheet' ? 'Reading from the Google Sheet' : 'Not connected'}
-            >
-              {source === 'db' ? '● Database connected' : source === 'sheet' ? '● Sheet connected' : '○ Not connected'}
-            </span>
             <button
               className="btn btn-sm"
               onClick={() =>

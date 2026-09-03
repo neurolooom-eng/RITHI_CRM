@@ -38,11 +38,32 @@
   color: var(--primary, #2563eb);
   background: color-mix(in srgb, var(--primary, #2563eb) 14%, transparent);
 }
+/* "Load more" beside the count it explains, rather than at the foot of a
+   register you have to scroll to the bottom of to find. */
+.page-title-more {
+  margin-left: 8px;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  font-weight: 600;
+  vertical-align: middle;
+}
 .page-subtitle {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 2px;
 }
+/* Standing facts about the screen — scope, last sync, what it is reading from.
+   Under the title with the rest of the description, not in the toolbar. */
+.page-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.page-status .conn-dot { font-size: 11.5px; }
 .page-header-actions {
   display: flex;
   gap: 8px;

@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { listPendingCalls, supabaseConfigured, type CallState } from '../lib/supabase';
+import { listPendingCalls, reallocateCalls, callFamily, supabaseConfigured, type CallState, type CallFamily } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
-import { allowsAllottee, useAccessScope } from '../lib/access';
-import { csvExport, fmtLongDate, fmtLongSmart } from '../lib/format';
+import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access';
+import { csvExport, fmtLongDate, fmtLongSmart, timeAgo } from '../lib/format';
 import { useAuth } from '../lib/auth';
 import './fieldcalls.css';
 
@@ -21,12 +21,17 @@ import './fieldcalls.css';
 
 type Row = Record<string, unknown> & { id: string };
 
-const TYPES: { key: string; label: string }[] = [
+// Matched by FAMILY, not by spelling. `call_type` reads "P M VISIT" on one
+// import and "PM VISIT" on another, and the strict comparison that used to be
+// here meant the Installation and PM chips found nothing while those very calls
+// were listed under All.
+const TYPES: { key: CallFamily | ''; label: string }[] = [
   { key: '', label: 'All' },
-  { key: 'FIELD', label: 'Field' },
-  { key: 'INSTALLATION CALL', label: 'Installation' },
-  { key: 'P M VISIT', label: 'PM' },
+  { key: 'field', label: 'Field' },
+  { key: 'install', label: 'Installation' },
+  { key: 'pm', label: 'PM' },
 ];
+const PAGE = 2000;
 const STATES: (CallState | '')[] = ['', 'Unattended', 'Unsolved', 'Report pending', 'Reopened'];
 
 const COLUMNS: Column<Row>[] = [
@@ -55,10 +60,21 @@ const COLUMNS: Column<Row>[] = [
 
 export function PendingCalls() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const scope = useAccessScope();
   const [rows, setRows] = useState<Row[]>([]);
-  const [type, setType] = useState('');
+  const [type, setType] = useState<CallFamily | ''>('');
+  const [limit, setLimit] = useState(PAGE);
+  const [lastSync, setLastSync] = useState<number>(0);
+  // Re-allotment, the same one field as on the registers: a pending call is
+  // exactly the call somebody most often needs to hand to another engineer,
+  // and until now that meant leaving this screen to find it again on its own
+  // register — twice over, since the register depends on the call's type.
+  const allotTeam = useTeamEngineers();
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [allotTo, setAllotTo] = useState('');
+  const [allotBusy, setAllotBusy] = useState(false);
+  const mayAllot = can('calls.edit') && allotTeam.names.length > 0;
   const [state, setState] = useState<CallState | ''>('');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -66,13 +82,14 @@ export function PendingCalls() {
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load pending calls.' },
   );
 
-  const load = async () => {
+  const load = async (want = limit) => {
     if (!supabaseConfigured()) return;
     setBusy(true);
     setMsg({ tone: 'info', text: 'Loading pending calls…' });
     try {
-      const r = await listPendingCalls('');
+      const r = await listPendingCalls('', want);
       setRows(r.map((c, i) => ({ ...c, id: String(c._id ?? c.ucn ?? i) })) as Row[]);
+      setLastSync(Date.now());
       setMsg({ tone: 'ok', text: `${r.length} pending call${r.length === 1 ? '' : 's'} — nothing here has been closed yet.` });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
@@ -84,19 +101,34 @@ export function PendingCalls() {
       });
     } finally { setBusy(false); }
   };
-  useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { void load(PAGE); /* eslint-disable-next-line */ }, []);
+  const moreAvailable = rows.length >= limit;
+  const loadMore = () => { const n = limit + PAGE; setLimit(n); void load(n); };
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((r) =>
       (scope.all || allowsAllottee(scope, r.allocatedTo)) &&
-      (!type || String(r.callType ?? '') === type) &&
+      (!type || callFamily(r.callType) === type) &&
       (!state || String(r.state ?? '') === state) &&
       (!needle || ['ucn', 'partyName', 'city', 'productName', 'serial', 'complaintReported', 'allocatedTo'].some(
         (k) => String(r[k] ?? '').toLowerCase().includes(needle),
       )),
     );
   }, [rows, type, state, q, scope]);
+
+  const saveAllotment = async () => {
+    const ucns = visible.filter((r) => picked.has(String(r.id)))
+      .map((r) => String(r.ucn ?? '').trim()).filter(Boolean);
+    if (!ucns.length || !allotTo) return;
+    setAllotBusy(true);
+    const res = await reallocateCalls(ucns, allotTo);
+    setAllotBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not re-allot.' }); return; }
+    setMsg({ tone: 'ok', text: `${res.updated} call${res.updated === 1 ? '' : 's'} allotted to ${allotTo}.` });
+    setPicked(new Set()); setAllotTo('');
+    void load();
+  };
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -111,6 +143,23 @@ export function PendingCalls() {
         subtitle="Every open call across Field, Installation and PM — unattended, unsolved or awaiting a report."
         icon="🔥"
         count={visible.length}
+        countMore={moreAvailable}
+        onLoadMore={loadMore}
+        loadingMore={busy}
+        status={
+          <>
+            <span
+              className={`conn-dot ${scope.all ? 'conn-on' : 'conn-off'}`}
+              title={scope.all ? 'You can see every pending call' : scope.isManager ? `Your team: ${scope.reports.join(', ')}` : 'You see only calls allotted to you'}
+            >
+              {scope.all ? '🌐 All calls' : scope.isManager ? `👥 Your team${user?.fullName ? ` · ${user.fullName}` : ''}` : `🙋 Your calls${user?.fullName ? ` · ${user.fullName}` : ''}`}
+            </span>
+            <span className={`conn-dot ${supabaseConfigured() ? 'conn-on' : 'conn-off'}`} title={supabaseConfigured() ? 'Reading from the Supabase database' : 'Not connected'}>
+              {supabaseConfigured() ? '● Database connected' : '○ Not connected'}
+            </span>
+            {!!lastSync && <span className="conn-dot conn-off" title="When this screen last read the database">⟳ synced {timeAgo(lastSync)}</span>}
+          </>
+        }
       />
 
       {msg && (
@@ -141,7 +190,34 @@ export function PendingCalls() {
         storageKey="pendingCalls"
         rowsBeforeScroll={16}
         dense
-        onRowClick={(r) => navigate(/install/i.test(String(r.callType ?? '')) ? '/installations' : /p\s*m/i.test(String(r.callType ?? '')) ? '/pm-calls' : '/field-calls', { state: { editUcn: String(r.ucn ?? '') } })}
+        selectable={mayAllot}
+        selected={picked}
+        onSelectedChange={setPicked}
+        bulkBar={(ids, clear) => (
+          <>
+            <b>{ids.length} selected</b>
+            <span className="muted">Allot to</span>
+            <select className="select" value={allotTo} onChange={(e) => setAllotTo(e.target.value)} disabled={allotBusy}>
+              <option value="">— choose an engineer —</option>
+              {allotTeam.names.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
+              {allotBusy ? 'Saving…' : `Save ${ids.length}`}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={allotBusy} onClick={clear}>Clear</button>
+          </>
+        )}
+        // Region, engineer, call status — the same three the registers group by.
+        groupable={[
+          { key: 'callType', label: 'Type' },
+          { key: 'allocatedTo', label: 'Engineer' },
+          { key: 'state', label: 'Call Status' },
+        ]}
+        onRowClick={(r) => {
+          const fam = callFamily(r.callType);
+          navigate(fam === 'install' ? '/installations' : fam === 'pm' ? '/pm-calls' : '/field-calls',
+            { state: { editUcn: String(r.ucn ?? '') } });
+        }}
         emptyText={busy ? 'Loading…' : 'No pending calls — everything is closed.'}
         toolbar={
           <Toolbar>
@@ -161,7 +237,6 @@ export function PendingCalls() {
             >
               ⭳ Export CSV
             </button>
-            {!scope.all && <span className="muted">Your calls{user?.fullName ? ` · ${user.fullName}` : ''}</span>}
           </Toolbar>
         }
       />

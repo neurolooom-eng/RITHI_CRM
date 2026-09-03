@@ -12,6 +12,8 @@
 
 import { machineKey } from './machine';
 export { machineKey } from './machine';
+export { callFamily, callTable, type CallFamily } from './calltype';
+import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const URL_KEY = 'rithi.supabase.url';
@@ -390,18 +392,6 @@ export function callTypeForTab(tab: string): string {
   return tab; // already a call_type, or empty (= all)
 }
 
-// The physical table a call_type reads from (mirrors the DB's call_table_for()
-// after the 0040 split). A specific type reads its own table — so the PM
-// register never scans field/installation, and vice-versa; an empty type reads
-// the `calls` union view (all types). Writes always go through `calls` (the
-// INSTEAD OF triggers route them), so this is for reads only.
-export function callTable(callType = ''): string {
-  const t = (callType || '').toUpperCase();
-  if (!t) return 'calls';
-  if (t.startsWith('INSTALL')) return 'installation_calls';
-  if (t.replace(/\s/g, '').startsWith('PM')) return 'pm_calls';
-  return 'field_calls';
-}
 
 // ---- call requests (Request Registration) ----------------------------------
 // Party details for autofill (state / city / address).
