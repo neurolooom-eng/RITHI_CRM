@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.62',
+    date: '2026-09-03',
+    title: 'The two Opening Stock registers say which is which',
+    changes: [
+      'The WinMax export loaded into the wrong one of them and held back all 4,731 rows. They are named for what they take now: “Opening Stock — the WinMax export, as exported” for the file as it comes out of WinMax, and “Opening Stock — a pool you have prepared” for a sheet you have built with engineer, part, quantity and a source of your own.',
+      'Each one also says, in its note, that the other exists \u2014 and which file it wants.',
+    ],
+  },
+  {
     version: '0.9.61',
     date: '2026-09-03',
     title: 'Product & Party Search moves to Overview',

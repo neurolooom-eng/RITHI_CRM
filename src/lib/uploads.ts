@@ -583,10 +583,10 @@ export const UPLOADS: UploadDef[] = [
       { to: 'row_no', from: ['row no', 'si number'], type: 'int' },
     ] },
 
-  { key: 'handstock_opening', label: 'Opening Stock (WinMax HS / yearly pools)', group: 'Spares',
+  { key: 'handstock_opening', label: 'Opening Stock — a pool you have prepared', group: 'Spares',
     table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
     conflictFrom: ['engineer', 'part', 'source'],
-    note: 'The hand stock that pre-dates the movement history. Each pool is ADDITIVE and sits alongside the others — WinMax HS (struck June 2022), then 22 H2, 23, 24, 25. Give every row its Source: re-loading a corrected sheet replaces THAT pool rather than adding a second one, and an unlabelled balance cannot be audited.',
+    note: 'For a pool you have PREPARED — one row per engineer + part + quantity, with a Source you give it. If you have the WinMax export itself, with its User Name / Item Code / Good Balance columns, use “Opening Stock — the WinMax export” below: this register cannot read that file and will hold back every row. The hand stock that pre-dates the movement history. Each pool is ADDITIVE and sits alongside the others — WinMax HS (struck June 2022), then 22 H2, 23, 24, 25. Give every row its Source: re-loading a corrected sheet replaces THAT pool rather than adding a second one, and an unlabelled balance cannot be audited.',
     cols: [
       { to: 'engineer', from: ['engineer', 'engineer name'], required: true },
       { to: 'part', from: ['part', 'part no', 'spare', 'item detail'], required: true },
@@ -642,11 +642,11 @@ export const UPLOADS: UploadDef[] = [
     ] },
 
   // The WinMax balance struck at the cutover, which is where the record starts.
-  { key: 'handstock_winmax', label: 'Hand Stock — WinMax opening', group: 'Spares',
+  { key: 'handstock_winmax', label: 'Opening Stock — the WinMax export, as exported', group: 'Spares',
     table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
     conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
     stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
-    note: 'The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one.',
+    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one.',
     cols: [
       { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
       { to: 'part', from: ['part', 'item detail', 'spare'], required: true,
