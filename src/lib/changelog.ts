@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.44',
+    date: '2026-09-03',
+    title: 'Party Master and Spare Request upload again',
+    changes: [
+      'Party Master stopped at the first row with \u201cUPDATE requires a WHERE clause\u201d, so none of the 5,873 parties loaded. Giving each party its Party-1, Party-2 key used a shortcut the live database refuses; it now says exactly which row it is counting.',
+      'Spare Request stopped at the first row with a duplicate-key error. A request is now matched on its OR number \u2014 the number the register is actually run on, and the only thing the lines file knows about its parent \u2014 instead of an internal id, so re-loading the file corrects those requests rather than colliding with them.',
+      'A spare line finds its request by OR number even when that request was loaded earlier under a different id, so the two exports no longer have to be loaded in one go to line up.',
+      'Needs database scripts run once (masters.sql and Spare_1.sql \u2014 both are safe to re-run).',
+    ],
+  },
+  {
     version: '0.9.43',
     date: '2026-09-03',
     title: 'Spare Request, MRN and Consumption now load',
