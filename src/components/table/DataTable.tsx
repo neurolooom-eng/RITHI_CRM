@@ -59,6 +59,13 @@ export interface DataTableProps<T> {
   // is honest as JSON but nobody can read it, so the owner can supply a
   // summary instead.
   allFields?: { key: string; header?: string; render?: (row: T) => ReactNode }[];
+  /** Tick boxes down the left, for an action over many rows at once. The
+   *  module owns the selection so it can act on it; the table only offers it. */
+  selectable?: boolean;
+  selected?: Set<string>;
+  onSelectedChange?: (next: Set<string>) => void;
+  /** Shown above the table while anything is ticked. */
+  bulkBar?: (ids: string[], clear: () => void) => ReactNode;
   /** Columns this register can be GROUPED by — "engineer wise" and the like.
    *  The chosen one is remembered per user, as filters are: what you are
    *  looking at is yours, not the machine's. */
@@ -137,6 +144,10 @@ export function DataTable<T>({
   dense = false,
   allFields,
   groupable,
+  selectable,
+  selected,
+  onSelectedChange,
+  bulkBar,
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
   const { can, user } = useAuth();
@@ -594,7 +605,7 @@ export function DataTable<T>({
         : n.name;
       return [
         <tr key={`g:${n.path}`} className={`dt-group-row dt-group-l${n.depth}`}>
-          <td colSpan={Math.max(1, visibleCols.length)}>
+          <td colSpan={Math.max(1, visibleCols.length + (selectable ? 1 : 0))}>
             <button
               type="button"
               className="dt-group-toggle"
@@ -619,12 +630,41 @@ export function DataTable<T>({
       ];
     });
 
+  // ---- selection ------------------------------------------------------------
+  const picked = selected ?? new Set<string>();
+  const setPicked = (next: Set<string>) => onSelectedChange?.(next);
+  const toggleOne = (id: string) => {
+    const next = new Set(picked);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setPicked(next);
+  };
+  // The header box takes EVERYTHING CURRENTLY LISTED — after the filter, the
+  // search and the grouping. Ticking a box that quietly also took the rows a
+  // filter is hiding is how a bulk action goes wrong.
+  const allShown = sortedRows.map((r) => getRowId(r));
+  const allPicked = allShown.length > 0 && allShown.every((id) => picked.has(id));
+  const toggleAll = () => {
+    const next = new Set(picked);
+    if (allPicked) allShown.forEach((id) => next.delete(id));
+    else allShown.forEach((id) => next.add(id));
+    setPicked(next);
+  };
+
   const renderRow = (row: T) => (
     <tr
       key={getRowId(row)}
       className={onRowClick ? 'dt-clickable' : ''}
       onClick={() => onRowClick?.(row)}
     >
+      {selectable && (
+        <td className="dt-pick" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={picked.has(getRowId(row))}
+            onChange={() => toggleOne(getRowId(row))}
+          />
+        </td>
+      )}
       {visibleCols.map((c) => {
         // The table-level Wrap toggle wins; it defaults ON, so every table
         // wraps text unless the user turns it off.
@@ -648,6 +688,9 @@ export function DataTable<T>({
 
   return (
     <div className="dt-wrap">
+      {bulkBar && picked.size > 0 && (
+        <div className="dt-bulk">{bulkBar([...picked], () => setPicked(new Set()))}</div>
+      )}
       {(toolbar || filtersControl || groupControl) && (
         <div className="dt-toolbar">
           {toolbar}
@@ -672,12 +715,23 @@ export function DataTable<T>({
           style={{ width: tableWidth === 'auto' ? Math.max(totalWidth, 100) : totalWidth }}
         >
           <colgroup>
+            {selectable && <col style={{ width: 34 }} />}
             {visibleCols.map((c) => (
               <col key={c.key} style={{ width: widths[c.key] }} />
             ))}
           </colgroup>
           <thead className={stickyHeader ? 'dt-sticky' : ''}>
             <tr>
+              {selectable && (
+                <th className="dt-pick">
+                  <input
+                    type="checkbox"
+                    checked={allPicked}
+                    onChange={toggleAll}
+                    title={allPicked ? 'Clear the ones listed' : 'Tick everything listed'}
+                  />
+                </th>
+              )}
               {visibleCols.map((c) => {
                 const isSorted = sort?.key === c.key;
                 return (

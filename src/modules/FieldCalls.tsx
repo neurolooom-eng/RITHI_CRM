@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
-import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer } from '../lib/access';
+import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer, useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall, reallocateCalls } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -433,6 +433,19 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // A call carries no region; the User Master carries one per engineer, so the
   // register reads it off the allottee. Attached as `_region` for grouping.
   const regionOf = useRegionByEngineer();
+
+  // ---- re-allotting calls, one or many at a time ---------------------------
+  //
+  // A partial edit: the ONLY field it touches is who the call is allotted to,
+  // and the only names it offers are the ones the signed-in person may allot to
+  // — themselves and whoever reports to them. Row-level security enforces the
+  // same rule on both sides of the change, so the picker is the courtesy and
+  // the database is the guarantee.
+  const allotTeam = useTeamEngineers();
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [allotTo, setAllotTo] = useState('');
+  const [allotBusy, setAllotBusy] = useState(false);
+  const mayAllot = can('calls.edit') && allotTeam.names.length > 0;
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
@@ -747,6 +760,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     return [...r].reverse();
   }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter]);
 
+  const saveAllotment = async () => {
+    const ucns = rowsWithRegion.filter((r) => picked.has(String(r.id)))
+      .map((r) => String((r as Rec).ucn ?? '').trim()).filter(Boolean);
+    if (!ucns.length || !allotTo) return;
+    setAllotBusy(true);
+    const res = await reallocateCalls(ucns, allotTo);
+    setAllotBusy(false);
+    if (!res.ok) { setBanner({ tone: 'error', text: res.error ?? 'Could not re-allot.' }); return; }
+    setBanner({ tone: 'ok', text: `${res.updated} call${res.updated === 1 ? '' : 's'} allotted to ${allotTo}.` });
+    setPicked(new Set());
+    setAllotTo('');
+    void refresh();
+  };
+
   const rowsWithRegion = useMemo(
     () => visibleRows.map((r) => ({
       ...r,
@@ -868,6 +895,23 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         allFields={CALL_ALL_FIELDS}
         rows={rowsWithRegion}
         getRowId={(r) => r.id}
+        selectable={mayAllot}
+        selected={picked}
+        onSelectedChange={setPicked}
+        bulkBar={(ids, clear) => (
+          <>
+            <b>{ids.length} selected</b>
+            <span className="muted">Allot to</span>
+            <select className="select" value={allotTo} onChange={(e) => setAllotTo(e.target.value)} disabled={allotBusy}>
+              <option value="">— choose an engineer —</option>
+              {allotTeam.names.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
+              {allotBusy ? 'Saving…' : `Save ${ids.length}`}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={allotBusy} onClick={clear}>Clear</button>
+          </>
+        )}
         storageKey={config.storageKey}
         // Region, engineer, call status — in any order, up to three deep.
         groupable={[

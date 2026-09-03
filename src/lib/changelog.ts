@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.58',
+    date: '2026-09-03',
+    title: 'Allot calls in bulk',
+    changes: [
+      'Tick any number of calls in the register and allot them all to one engineer in a single save. The only field it touches is who the call is allotted to \u2014 nothing else on the call is edited.',
+      'The list offers you and the engineers reporting to you. The database enforces the same rule, so a call cannot be pushed to someone outside your team even if the request came from somewhere other than this screen.',
+      'The tick box in the header takes exactly what is listed \u2014 after your search, filters and grouping \u2014 never rows something is hiding.',
+      'One selection may span Field, Installation and PM calls; each is written to its own register.',
+    ],
+  },
+  {
     version: '0.9.57',
     date: '2026-09-03',
     title: 'Group by region, then engineer, then status',

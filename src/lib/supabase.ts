@@ -239,6 +239,32 @@ export async function updateCall(ucn: string, patch: Record<string, unknown>): P
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// Re-allot calls in one go. Written through the `calls` view, whose INSTEAD OF
+// trigger routes each row to its own table (field / installation / PM), so one
+// selection may span all three. Chunked: a very long `in` list is a very long
+// URL, and PostgREST is not the place to find that out.
+//
+// Row-level security still decides: the update policy is
+// `can_see_call(allocated_to)` on BOTH sides, so a manager may move a call they
+// can see to someone they can see, and no further. The picker offers their own
+// team for that reason — the database would refuse the rest anyway.
+export async function reallocateCalls(
+  ucns: string[], allocatedTo: string,
+): Promise<{ ok: boolean; updated: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, updated: 0, error: 'Database not connected.' };
+  const list = [...new Set(ucns.map((u) => String(u ?? '').trim()).filter(Boolean))];
+  if (!list.length) return { ok: true, updated: 0 };
+  const CH = 100;
+  let updated = 0;
+  for (let i = 0; i < list.length; i += CH) {
+    const part = list.slice(i, i + CH);
+    const { error } = await c.from('calls').update({ allocated_to: allocatedTo }).in('ucn', part);
+    if (error) return { ok: false, updated, error: `${errMsg(error)} (${updated} moved before it stopped.)` };
+    updated += part.length;
+  }
+  return { ok: true, updated };
+}
+
 // ---- Product Master (cascade + search) -------------------------------------
 // Page through a single column past PostgREST's 1000-row response cap and return
 // the distinct, sorted values. Used for the party / product / spare pick-lists,

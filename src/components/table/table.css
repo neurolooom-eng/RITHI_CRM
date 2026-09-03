@@ -227,3 +227,14 @@
 .dt-group-l1 > td { background: var(--dt-group-bg-1, #f2f5f9); }
 .dt-group-l2 > td { background: var(--dt-group-bg-2, #f7f9fc); }
 .dt-group-pick .select + .select { margin-left: 4px; }
+
+/* ---- selection + the bulk bar ------------------------------------------- */
+.dt-pick { width: 34px; text-align: center; }
+.dt-pick input { cursor: pointer; }
+.dt-bulk {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; margin-bottom: 8px;
+  background: var(--dt-bulk-bg, #eef4ff);
+  border: 1px solid var(--primary, #3b6fd4);
+  border-radius: 8px;
+}
