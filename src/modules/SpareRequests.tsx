@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Drawer, Modal, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
@@ -702,26 +702,42 @@ export function SpareRequests() {
   };
   const columns = onDb ? [...SUPA_COLUMNS, wfColumn] : COLUMNS;
 
-  // ---- stage tiles + filters ---------------------------------------------
+  // ---- stage tiles + engineer tiles + filters -----------------------------
+  //
+  // The two narrow together, and each one's COUNTS are taken after the other
+  // has been applied — so "PAWAN 4" under a stage means four of PAWAN's are at
+  // that stage, not four in total. A count that ignores the filter next to it
+  // is a number nobody can act on.
+  const [engineerFilter, setEngineerFilter] = useState('');
+  const engineerOf = (r: Row) => g(r, 'req_engineer') || g(r, 'engineer');
+  const byStage = (list: Row[]) => (onDb && stageFilter
+    ? (stageFilter === MINE
+      ? list.filter((r) => actionable(r, can, email, mayRmApprove))
+      : list.filter((r) => deriveStage(r) === stageFilter))
+    : list);
+  const byEngineer = (list: Row[]) => (engineerFilter ? list.filter((r) => engineerOf(r) === engineerFilter) : list);
+
+  const engineerCounts = useMemo(() => {
+    const c = new Map<string, number>();
+    byStage(scoped).forEach((r) => { const n = engineerOf(r); c.set(n, (c.get(n) ?? 0) + 1); });
+    return [...c.entries()].map(([key, count]) => ({ key, count }));
+    // eslint-disable-next-line
+  }, [scoped, stageFilter, onDb, email, mayRmApprove]);
+
   const counts = useMemo(() => {
     const c: Record<string, number> = { [MINE]: 0 };
     STAGES.forEach((s) => { c[s] = 0; });
     if (!onDb) return c;
-    scoped.forEach((r) => {
+    byEngineer(scoped).forEach((r) => {
       c[deriveStage(r)] = (c[deriveStage(r)] ?? 0) + 1;
       if (actionable(r, can, email, mayRmApprove)) c[MINE] += 1;
     });
     return c;
     // eslint-disable-next-line
-  }, [scoped, onDb, email, mayRmApprove]);
+  }, [scoped, onDb, email, mayRmApprove, engineerFilter]);
 
   const visible = useMemo(() => {
-    let out = scoped;
-    if (onDb && stageFilter) {
-      out = stageFilter === MINE
-        ? out.filter((r) => actionable(r, can, email, mayRmApprove))
-        : out.filter((r) => deriveStage(r) === stageFilter);
-    }
+    let out = byEngineer(byStage(scoped));
     const q = search.trim().toLowerCase();
     if (!q) return out;
     const keys = onDb
@@ -729,7 +745,7 @@ export function SpareRequests() {
       : ['OR NO', 'UC Number', 'Party Name', 'Product Name', 'Part Number', 'Part Description', 'ENGINEER NAME', 'Status'];
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
-  }, [scoped, search, onDb, stageFilter, email, mayRmApprove]);
+  }, [scoped, search, onDb, stageFilter, engineerFilter, email, mayRmApprove]);
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
@@ -784,6 +800,15 @@ export function SpareRequests() {
               <button key={s} className={`chip ${stageFilter === s ? 'chip-on' : ''}`} onClick={() => setStageFilter(stageFilter === s ? '' : s)}>{s} <b>{counts[s]}</b></button>
             ))}
           </div>
+
+          {/* The same strip, engineer wise. */}
+          <FacetChips
+            options={engineerCounts}
+            value={engineerFilter}
+            onChange={setEngineerFilter}
+            allLabel="All engineers"
+            blankLabel="— no engineer —"
+          />
         </>
       )}
 

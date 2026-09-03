@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.56',
+    date: '2026-09-03',
+    title: 'Engineer names as chips, like the spare stages',
+    changes: [
+      'The call registers and Spare Requests now carry a row of engineer chips \u2014 a name, what they are carrying, and a click to see only theirs \u2014 the same strip the spare stages use.',
+      'On the spare register the two narrow together, and each strip counts what the OTHER one leaves: \u201cPAWAN 4\u201d under a stage means four of his are at that stage, not four in all.',
+      'The busiest names come first, and with a long field the rest sit behind one more click rather than filling the screen.',
+    ],
+  },
+  {
     version: '0.9.55',
     date: '2026-09-03',
     title: 'Group a register by engineer',
