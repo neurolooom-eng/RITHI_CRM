@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.41',
+    date: '2026-09-03',
+    title: 'Dates read the same on screen as on import',
+    changes: [
+      'A date typed into an AppSheet report as 03/04/2026 now shows as 03-Apr-2026 on the visit, not 04-Mar-2026. The screen was reading such dates the American way while every import read them day-first; both now agree.',
+      'Sale and contract entry times from the cover exports are now stored as the local time the export shows. They were being stored as if they were UTC, which put each one five and a half hours late.',
+    ],
+  },
+  {
     version: '0.9.40',
     date: '2026-09-03',
     title: 'Same rules everywhere: one date reader, one column matcher',

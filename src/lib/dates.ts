@@ -51,13 +51,11 @@ export function toIsoDate(v: unknown): string | null {
 //
 //   'local'  the time is read in the browser's own timezone — right when the
 //            person uploading is where the export was made (IST for IST)
-//   'utc'    the time is written as if it were already UTC — what the cover
-//            importer has always done, kept until the choice is confirmed
+//   'utc'    the time is written as if it were already UTC
 //
-// The two differ by the timezone offset (5½ h for India). This is the one open
-// disagreement between the old parsers; it is a parameter here so it is visible
-// and settled in one place rather than silently one way in one file and the
-// other way in the next.
+// The two differ by the timezone offset (5½ h for India). SETTLED with the user
+// 2026-09-03: every importer reads 'local'. 'utc' stays available for a file
+// that genuinely carries UTC, but nothing in the app uses it today.
 export type TimestampAs = 'local' | 'utc';
 
 export function toIsoTimestamp(v: unknown, as: TimestampAs = 'local'): string | null {
@@ -66,4 +64,19 @@ export function toIsoTimestamp(v: unknown, as: TimestampAs = 'local'): string | 
   if (as === 'utc') return `${p.y}-${pad(p.mo)}-${pad(p.d)}T${pad(p.hh)}:${pad(p.mi)}:${pad(p.ss)}Z`;
   const dt = new Date(p.y, p.mo - 1, p.d, p.hh, p.mi, p.ss);
   return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
+}
+
+// For DISPLAY: anything the app is asked to render as a date. ISO and full
+// timestamps go straight to Date (they are unambiguous); anything else is read
+// day-first through the same parser the imports use, so "03/04/2026" on a
+// visit's report reads as 3 April — the same day the import would have stored.
+// Settled with the user 2026-09-03: day-first everywhere, display included.
+export function parseAnyDate(v: unknown): Date | null {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) { const d = new Date(s); return Number.isNaN(d.getTime()) ? null : d; }
+  const p = parseDateParts(s);
+  if (p) { const d = new Date(p.y, p.mo - 1, p.d, p.hh, p.mi, p.ss); return Number.isNaN(d.getTime()) ? null : d; }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
 }

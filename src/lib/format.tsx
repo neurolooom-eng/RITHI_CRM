@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { db, type BaseRecord } from './db';
+import { parseAnyDate } from './dates';
 import type { FieldOption } from '../components/form/Form';
 
 export const fmtCurrency = (n: unknown): string => {
@@ -17,7 +18,9 @@ export const fmtCurrency = (n: unknown): string => {
 export const DATE_FORMATS = { short: 'dd-mmm-yyyy', long: 'dd-mmm-yyyy hh:mm:ss' } as const;
 const _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const _pad = (n: number) => String(n).padStart(2, '0');
-const _parse = (s: unknown): Date | null => { if (!s) return null; const d = new Date(String(s)); return Number.isNaN(d.getTime()) ? null : d; };
+// Day-first for anything that is not ISO — the same reading every import uses,
+// so a date shown on a visit's report is the day the export meant (dates.ts).
+const _parse = (s: unknown): Date | null => parseAnyDate(s);
 
 // Short date — dd-mmm-yyyy.
 export function formatShortDate(s: unknown, empty = ''): string {

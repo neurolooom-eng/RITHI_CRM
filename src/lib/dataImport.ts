@@ -36,7 +36,7 @@ export function detectTable(headers: string[]): ImportTable | null {
   return null;
 }
 
-import { toIsoDate } from './dates';
+import { toIsoDate, toIsoTimestamp } from './dates';
 export const toDate = toIsoDate;
 // A DATE written as a midnight UTC instant — what the MRN shaper has always
 // stored for returned_at. Date-only, so the timezone question (see
@@ -103,7 +103,7 @@ function shapeMrnRow(r: Record<string, string>): Record<string, unknown> {
     report_no: naBlank(r['Report No']),
     removed_from_equipment: naBlank(r['Removed from Equip']),
     handstock_note: naBlank(r['HandStock']),
-    returned_at: toTs(r['Timestamp']) ?? toTs(r['MRN Date']),
+    returned_at: toIsoTimestamp(r['Timestamp'], 'local') ?? toIsoTimestamp(r['MRN Date'], 'local'),
     source: 'import',
   };
 }

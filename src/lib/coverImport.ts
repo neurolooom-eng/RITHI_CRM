@@ -30,13 +30,11 @@ const str = (v: unknown): string => {
 
 // Dates come from ./dates, the one parser every import shares.
 //
-// `toTimestamp` writes the export's wall-clock time AS IF IT WERE UTC ('utc'),
-// which is what this importer has always done. The other importers read it as
-// local time instead, which differs by the timezone offset. That disagreement
-// is deliberately preserved here, not resolved, until it is confirmed which is
-// right for this data — see the note on toIsoTimestamp.
+// A wall-clock time in the export is read as LOCAL time, like every other
+// importer — settled with the user 2026-09-03. This importer used to write it
+// as if UTC, which put every sale / contract entry time 5½ h off for IST.
 export const toDate = (v: unknown): string | null => toIsoDate(str(v));
-export const toTimestamp = (v: unknown): string | null => toIsoTimestamp(str(v), 'utc');
+export const toTimestamp = (v: unknown): string | null => toIsoTimestamp(str(v), 'local');
 
 // "7,51,192.00" (Indian grouping) is a number; "" and "#REF!" are not.
 export function toNum(v: unknown): number | null {

@@ -133,9 +133,9 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   `src/lib/dates.ts` (day-first, always) and headers through
   `src/lib/headers.ts` (strict → loose → squash); CSV through `csv.ts`. Do not
   add a private `toDate` or header normaliser to a module — there used to be
-  four date parsers and they had started to disagree. The one open question,
-  whether a wall-clock export time is local or UTC, is a parameter of
-  `toIsoTimestamp`, not a per-file habit.
+  four date parsers and they had started to disagree. A wall-clock export time is
+  LOCAL (`toIsoTimestamp(v, 'local')`, settled with the user); display of a
+  non-ISO string is day-first too (`parseAnyDate`). Neither is a per-file habit.
 - **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
   Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
   User Master directory, and the MRN two-tab flattening. Do not add a table to

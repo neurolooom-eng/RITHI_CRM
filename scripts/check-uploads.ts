@@ -1,7 +1,7 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
 import { shapeUpload, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups } from '../src/lib/uploads';
-import { parseDateParts, toIsoDate, toIsoTimestamp } from '../src/lib/dates';
+import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
@@ -29,16 +29,19 @@ eq('the time of day is carried', parseDateParts('03-Sep-2026 14:30:15')?.hh, 14)
 eq('...and its absence is known', parseDateParts('03-Sep-2026')?.hasTime, false);
 eq('junk is null, never a guess', [toIsoDate('n/a'), toIsoDate(''), toIsoDate('#REF!')], [null, null, null]);
 
-console.log('\n-- the one OPEN disagreement, made explicit rather than hidden --');
+console.log('\n-- wall-clock times are LOCAL in every importer (settled 2026-09-03) --');
 const wall = '02-Jan-2026 12:54:54';
-const utc = toIsoTimestamp(wall, 'utc');
 const local = toIsoTimestamp(wall, 'local');
-eq('"utc" writes the wall-clock literally', utc, '2026-01-02T12:54:54Z');
-eq('cover import still does what it always did (utc)', coverTs(wall), utc);
-eq('uploads and report mapping still read local', [toTs(wall), mappingTs(wall)], [local, local]);
-const offsetMin = new Date(2026, 0, 2, 12, 54, 54).getTimezoneOffset();
-eq('and the two differ by exactly this machine\u2019s offset',
-   (new Date(utc!).getTime() - new Date(local!).getTime()) / 60000, offsetMin);
+eq('cover import now reads local like the rest', coverTs(wall), local);
+eq('uploads and report mapping read local', [toTs(wall), mappingTs(wall)], [local, local]);
+eq('a local reading is the instant the export meant',
+   new Date(local!).getHours() + ':' + new Date(local!).getMinutes(), '12:54');
+
+console.log('\n-- display reads day-first too (settled 2026-09-03) --');
+eq('03/04/2026 on a report shows 3 April, not 4 March', parseAnyDate('03/04/2026')?.getMonth(), 3);
+eq('ISO still reads as ISO', parseAnyDate('2026-04-03')?.getMonth(), 3);
+eq('a full timestamp still reads as itself', parseAnyDate('2026-04-03T10:20:30Z')?.toISOString(), '2026-04-03T10:20:30.000Z');
+eq('dd-Mon-yyyy hh:mm:ss displays with its time', parseAnyDate('03-Sep-2026 14:30:00')?.getHours(), 14);
 
 console.log('\n-- ONE header matcher, shared --');
 eq('strict then loose then squash', findHeaderFor(['Warranty Start Date?', 'Warranty Start Date'], ['warranty start date']), 'Warranty Start Date');

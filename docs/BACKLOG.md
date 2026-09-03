@@ -244,8 +244,7 @@ transfer guard and the cap all inherit them untouched:
   reportMapping each had their own; they had started to disagree (only one read
   space-separated `08 06 2026`). All four now delegate. Behaviour is preserved:
   the cover importer still writes a wall-clock time as if UTC and the others
-  still read it as local — the disagreement is now a visible parameter
-  (`toIsoTimestamp(v, 'utc' | 'local')`) awaiting a decision, not two habits.
+  still read it as local — `toIsoTimestamp(v, 'local')` everywhere, settled — see below.
 - **One header matcher** — `src/lib/headers.ts` (strict → loose → squash).
   Bulk Report Mapping now recognises the same headings Bulk Uploads does
   (`UC Number`, `Visit Date & Time`, `Death?`); it was strict-only.
@@ -259,9 +258,11 @@ transfer guard and the cap all inherit them untouched:
   `seedDemoData`, `nextCode`, `partCode`.
 - **FFR + KPI** are honest placeholders (they rendered blank from the emptied
   demo collections). Both still need a table — see queued.
-- **Two conflicts NOT resolved here, put to the user**: (1) imported wall-clock
-  timestamps as local vs UTC; (2) `format.tsx` reads a non-ISO date month-first
-  for display while every importer is day-first.
+- **Two conflicts put to the user and SETTLED 2026-09-03**: (1) imported
+  wall-clock timestamps are read as LOCAL time in every importer — the cover
+  importer had written them as UTC, putting sale/contract entry times 5½ h off
+  for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
+  visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
 - **`documents.sql`** (bundle: `supabase/apply/documents.sql`; migration `0070`)
