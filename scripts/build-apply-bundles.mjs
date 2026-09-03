@@ -187,7 +187,7 @@ const MODULES = {
             '"canceling statement due to statement timeout" on Search. Runs last so',
             'every table it indexes already exists; skips the calls view / absent columns.'],
     needs: [],
-    files: ['0052_search_indexes.sql', '0098_product_register_names.sql', '0099_no_jit.sql'],
+    files: ['0052_search_indexes.sql', '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql'],
   },
   audit: {
     title: 'Audit Log',

@@ -1,6 +1,6 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
-import { shapeUpload, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups } from '../src/lib/uploads';
+import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
@@ -425,6 +425,33 @@ eq('upserts on the machine', def('product_additional_entries').conflict, 'serial
 eq('...derived from the column the file supplies', def('product_additional_entries').conflictFrom, ['serial_number']);
 eq('grouped in reading order', uploadGroups(UPLOADS).map((g) => g.title),
    ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover']);
+
+console.log('\n-- a batch is one shape --');
+// PostgREST writes a batch as ONE insert whose column list is the union of the
+// objects' keys, and a row missing one of them is sent as NULL — not DEFAULT.
+// That is what refused the DCCR file on `complaint_grouping not null default
+// ''`, naming "row ~1" whichever row was actually short. Rows of one shape must
+// therefore travel together.
+{
+  const dccr = shapeUpload(def('call_reviews'), [
+    { 'UC Number': 'U1', 'Complaint Grouping': 'BATTERY', 'Risk to Patient': 'NO' },
+    { 'UC Number': 'U2', 'Complaint Grouping': '', 'Risk to Patient': 'YES' },
+    { 'UC Number': 'U3', 'Complaint Grouping': 'FLOW', 'Risk to Patient': 'NO' },
+  ]);
+  eq('a blank cell still leaves the column to its database default',
+    Object.prototype.hasOwnProperty.call(dccr.rows[1], 'complaint_grouping'), false);
+  const groups = byColumnSet(dccr.rows);
+  eq('so the batch splits by shape', groups.length, 2);
+  eq('...the two full rows together', groups[0].length, 2);
+  eq('...and the short one on its own', groups[1].length, 1);
+  groups.forEach((g, i) => {
+    const shapes = new Set(g.map((r) => Object.keys(r).sort().join(',')));
+    eq(`group ${i + 1} is a single shape`, shapes.size, 1);
+  });
+  eq('every row still goes up exactly once', groups.reduce((n, g) => n + g.length, 0), dccr.rows.length);
+  eq('one row needs no grouping', byColumnSet([{ a: 1 }]).length, 1);
+  eq('and no rows produce no requests', byColumnSet([]).length, 0);
+}
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, DonutChart, ColumnChart } from '../components/charts/Charts';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { listFieldCalls, listPending, dataConfigured } from '../lib/sheets';
-import { listSlaRules, supabaseConfigured } from '../lib/supabase';
+import { listSlaRules, callFamily, supabaseConfigured } from '../lib/supabase';
 import { allowsAllottee, scopeLabel, useAccessScope } from '../lib/access';
 import { evaluateCallSla, DEFAULT_SLA_RULES, slaTone, slaLabel, slaWhen, type SlaRule } from '../lib/sla';
 import { fmtLongDate } from '../lib/format';
@@ -43,7 +44,20 @@ const topCounts = (rows: Rec[], key: string, n = 6) => {
 };
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const scope = useAccessScope();
+
+  // A call named on the dashboard opens THAT call, in the register it lives in.
+  // Reading a UCN off a tile and then going to find it by hand is the sort of
+  // work a screen exists to save, and which of the three registers holds it is
+  // decided by the same matcher the database uses.
+  const openCall = (r: Rec) => {
+    const ucn = g(r, 'ucn').trim();
+    if (!ucn) return;
+    const fam = callFamily(g(r, 'callType'));
+    navigate(fam === 'install' ? '/installations' : fam === 'pm' ? '/pm-calls' : '/field-calls',
+      { state: { editUcn: ucn } });
+  };
   const [field, setField] = useState<Rec[]>([]);
   const [inst, setInst] = useState<Rec[]>([]);
   const [pending, setPending] = useState<number | null>(null);
@@ -141,7 +155,7 @@ export function Dashboard() {
                 {slaCalls.slice(0, 20).map(({ r, sla }, i) => {
                   const worstPart = [...sla.parts].sort((a, b) => a.hoursLeft - b.hoursLeft)[0];
                   return (
-                    <tr key={i}>
+                    <tr key={i} className="row-link" title={`Open ${g(r, 'ucn')}`} onClick={() => openCall(r)}>
                       <td><span className={`badge badge-${slaTone(sla.worst)}`}>{slaLabel(sla.worst)}</span></td>
                       <td>{g(r, 'ucn')}</td>
                       <td>{g(r, 'callNumber')}</td>
@@ -176,7 +190,7 @@ export function Dashboard() {
           <div className="list-tight">
             {recent.length === 0 && <div className="muted">No calls yet.</div>}
             {recent.map((r, i) => (
-              <div className="list-tight-row" key={g(r, 'ucn') || i}>
+              <div className="list-tight-row row-link" key={g(r, 'ucn') || i} title={`Open ${g(r, 'ucn')}`} onClick={() => openCall(r)}>
                 <div>
                   <b>{g(r, 'ucn')}</b> · {g(r, 'partyName')}
                   <div className="muted" style={{ fontSize: 12 }}>{(g(r, 'complaintReported') || g(r, 'productName')).slice(0, 60)}</div>

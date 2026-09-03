@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.70',
+    date: '2026-09-04',
+    title: 'KPIs from the record: failure rate per machine, spares by cover and by region',
+    changes: [
+      'FAILURE RATE, properly. Not a count of calls \u2014 a product with 1,200 machines in the field SHOULD generate more calls than one with 40, so a bare count ranks the popular product as the unreliable one. KPI & Failure Analysis divides calls in the last twelve months by the machines of that product in the Product Register and shows calls per 100 machines. A product with no machines on record shows a dash: there is nothing to divide by, and a rate invented from a missing denominator is worse than none.',
+      'SPARE USE BY COVER \u2014 warranty, CMC, AMC and out of guarantee. The cover is a fact about the call and the parts are on the consumption, so the join is the whole answer: what we carry, and what is billed.',
+      'SPARE USE BY REGION, and region against cover, so a region consuming twice its share can be looked at rather than argued about. The region is the engineer\u2019s, from the User Master.',
+      'How each product fails, by standard complaint \u2014 the one field in a call that groups reliably across thousands of them. Click a row and the register opens already narrowed to those calls.',
+      'The Dashboard\u2019s call lists are clickable: a UCN on the SLA table or in Recent Calls opens THAT call, in whichever of the three registers holds it.',
+      'DCCR UPLOAD FIXED. It stopped with \u201cnull value in column complaint_grouping\u201d on a column that has a default. A batch is written as one instruction whose column list is the union of its rows, so a row that left a cell blank was sent as null rather than taking the default \u2014 and the error named row 1 whatever the row at fault. Rows of the same shape now travel together, so a blank column really does default. This affected any file where one row fills a column and another leaves it empty.',
+      'Every figure is computed by the database and scoped like the records behind it: your KPIs are your calls, a manager\u2019s are their team\u2019s. Needs a database script run once (performance.sql).',
+    ],
+  },
+  {
     version: '0.9.69',
     date: '2026-09-04',
     title: 'Pending Calls covers all three types and re-allots; a less crowded register',

@@ -13,6 +13,7 @@
 import { machineKey } from './machine';
 export { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
+import { byColumnSet } from './uploads';
 import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
@@ -306,6 +307,38 @@ export async function sbListPartyProducts(party: string): Promise<string[]> {
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
+// ---- KPIs ------------------------------------------------------------------
+//
+// Every one of these is an aggregate the DATABASE computes (0101). The screen
+// asks four small questions instead of pulling forty thousand consumption rows
+// across the wire to add them up itself, and the views are security_invoker, so
+// an engineer's KPIs are their own calls and a manager's are their team's
+// without a second set of rules to keep in step.
+export interface FailureRate {
+  product: string; machines: number; calls_total: number; calls_12m: number;
+  calls_open: number; per_100_machines: number | null;
+}
+export interface FailureMode { product: string; complaint: string; calls: number; calls_12m: number }
+export interface SpareUsage {
+  cover: string; region: string; product: string;
+  lines: number; qty: number; calls: number; parts: number; engineers: number;
+}
+export async function sbFailureRates(): Promise<FailureRate[]> {
+  const { data, error } = await must().from('failure_rate_by_product').select('*').limit(2000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as FailureRate[];
+}
+export async function sbFailureModes(): Promise<FailureMode[]> {
+  const { data, error } = await must().from('failure_modes_by_product').select('*').limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as FailureMode[];
+}
+export async function sbSpareUsage(): Promise<SpareUsage[]> {
+  const { data, error } = await must().from('spare_usage_rollup').select('*').limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as SpareUsage[];
+}
+
 // ---- Moving a spare request to a different engineer ------------------------
 //
 // Until it is dispatched, and logged either way. The rule lives in the database
@@ -2010,8 +2043,19 @@ export async function uploadRows(
   // requests rather than 88.
   const SIZE = /reports|_items$/.test(table) ? 300 : /_history$|_opening$/.test(table) ? 2000 : 500;
   let written = 0;
-  for (let i = 0; i < rows.length; i += SIZE) {
-    const slice = rows.slice(i, i + SIZE);
+  // ONE SHAPE PER REQUEST. PostgREST writes a batch as a single insert whose
+  // column list is the union of the objects' keys, and a row missing one of
+  // them is sent as NULL rather than taking the column's DEFAULT — which is
+  // what refused the DCCR file with "null value in column complaint_grouping"
+  // for a column that is `not null default ''`. Rows of the same shape go up
+  // together, so a column no row in the group carries genuinely defaults.
+  const slices = byColumnSet(rows).flatMap((group) => {
+    const out: Record<string, unknown>[][] = [];
+    for (let i = 0; i < group.length; i += SIZE) out.push(group.slice(i, i + SIZE));
+    return out;
+  });
+  for (const slice of slices) {
+    const i = written;
     const { error } = conflict
       ? await c.from(table).upsert(slice, { onConflict: conflict })
       : await c.from(table).insert(slice);

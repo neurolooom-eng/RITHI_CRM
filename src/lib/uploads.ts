@@ -249,6 +249,41 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   };
 }
 
+// ---------------------------------------------------------------------------
+// A BATCH MUST BE ONE SHAPE.
+//
+// A blank cell leaves its key OFF the row (so a blank cannot overwrite a
+// stamped constant, and so a column the file does not fill keeps its database
+// default). That is right — but PostgREST turns a batch of objects into ONE
+// insert whose column list is the UNION of their keys, and a row that lacks one
+// of those keys is then sent as NULL. Not as DEFAULT. NULL.
+//
+// So `complaint_grouping text not null default ''` was refused the moment one
+// row of the DCCR file carried a grouping and another did not — a column that
+// would have been filled by its own default had every row simply left it out.
+// The error names "row ~1" because that is the first row of the batch, not
+// because row 1 is at fault, which is what made it so hard to read.
+//
+// Filling the gaps in is NOT the fix: `''` would defeat a default that means
+// something — `status text not null default 'Pending'` would start storing
+// blanks. The fix is to send rows of the same shape together. Each group is one
+// insert with its own column list, so an absent column really does take its
+// default, and a present one really does carry its value.
+//
+// Files are regular, so this is normally one group. A file that alternates
+// between shapes gets more requests and the same result.
+// ---------------------------------------------------------------------------
+export function byColumnSet(rows: Record<string, unknown>[]): Record<string, unknown>[][] {
+  if (rows.length < 2) return rows.length ? [rows] : [];
+  const groups = new Map<string, Record<string, unknown>[]>();
+  rows.forEach((r) => {
+    const k = Object.keys(r).sort().join('\u0000');
+    const had = groups.get(k);
+    if (had) had.push(r); else groups.set(k, [r]);
+  });
+  return [...groups.values()];
+}
+
 // Rows that land on the same database key, added up rather than overwritten.
 function fold(
   rows: Record<string, unknown>[],

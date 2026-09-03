@@ -565,7 +565,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Arriving with a prefill (Product Master / pending) opens the create drawer;
   // arriving with editUcn opens the existing call in edit mode.
   useEffect(() => {
-    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string } | null;
+    const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string; search?: Partial<typeof srch> } | null;
+    // Arriving from a KPI: the register opens already narrowed to the calls the
+    // figure was made of, so the number and the calls behind it are one click
+    // apart rather than a question you go and re-ask by hand.
+    if (st?.search) {
+      setSrch((s0) => ({ ...s0, ...st.search }));
+      window.history.replaceState({}, '');
+      return;
+    }
     if (st?.editUcn) {
       setEditUcnTarget(String(st.editUcn));
       window.history.replaceState({}, '');

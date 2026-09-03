@@ -272,8 +272,11 @@ sales_contracts (0080), daily_review, Spare_1 (0084/0085/0087/0088) and
 HandStock_X for 0089/0090/0091. Do not re-add them here without a status read.
 
 - **[`performance.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)**
-  (migrations `0098`, `0099`) — **the Hand Stock timeout, and the products
-  dropdown.** `0099` turns JIT off for the database: the timeout was Postgres
+  (migrations `0098`, `0099`, `0101`) — **the Hand Stock timeout, the products
+  dropdown, and the KPIs.** `0101` adds the four aggregate views KPI & Failure
+  Analysis reads (`spare_usage`, `spare_usage_rollup`, `failure_rate_by_product`,
+  `failure_modes_by_product`) — without it that screen says which script to run.
+  Also **the spare-request reassignment (`0100`) is in `HandStock_X.sql`.** `0099` turns JIT off for the database: the timeout was Postgres
   spending 3.7 s COMPILING the movement query, which then ran in 174 ms. The
   planner's estimate is inflated by the cost of RLS sub-plans it barely runs, so
   the more access rules a query carries the more certain it is to be compiled —

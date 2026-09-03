@@ -206,3 +206,9 @@
   opacity: 0.7;
 }
 .pw-toggle:hover { opacity: 1; }
+
+/* A row that opens the thing it names. The dashboard listed UCNs you then had
+   to go and find by hand on a register — the pointer says the row is the way
+   there, and the hover says which one you are about to open. */
+.row-link { cursor: pointer; }
+.row-link:hover { background: var(--surface-alt); }
