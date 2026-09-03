@@ -19,8 +19,25 @@ const buildNumber = String(process.env.GITHUB_RUN_NUMBER || sh('git rev-list --c
 const buildId = sh('git rev-parse --short HEAD', 'local');
 const buildTime = new Date().toISOString();
 
+// The build writes its own identity next to index.html, so a running tab can
+// ask whether it is still the current one. Without it the only way to know an
+// update had shipped was to look at the footer and compare by eye — which is
+// exactly how a fixed screen kept looking broken.
+function versionManifest() {
+  return {
+    name: 'rithi-version-manifest',
+    generateBundle(this: { emitFile: (f: { type: 'asset'; fileName: string; source: string }) => void }) {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version, buildNumber, buildId, buildTime }),
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionManifest()],
   // Relative base so the build works at any sub-path (e.g. GitHub Pages
   // project site /RITHI_CRM/) without hard-coding the repo name.
   base: './',

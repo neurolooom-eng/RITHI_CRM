@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.63',
+    date: '2026-09-03',
+    title: 'The app tells you when it is out of date',
+    changes: [
+      'When a new version is deployed, a bar appears at the top of the screen with an Update now button. No more wondering whether you are on the latest \u2014 a fix could be shipped, confirmed shipped, and still be invisible to the person who reported the fault.',
+      'Product & Party Search: Product and Party are type-to-filter lists off the masters now, and once you name a product the Serial box offers the serials that product actually has.',
+    ],
+  },
+  {
     version: '0.9.62',
     date: '2026-09-03',
     title: 'The two Opening Stock registers say which is which',

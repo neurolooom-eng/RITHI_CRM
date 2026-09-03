@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
@@ -6,6 +6,7 @@ import { searchProducts, dataConfigured } from '../lib/sheets';
 import { queryParties, sbListPartyItems, supabaseConfigured } from '../lib/supabase';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
+import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -53,10 +54,31 @@ export function Lookup() {
   const [partyHits, setPartyHits] = useState<Party[] | null>(null);
   const [party, setParty] = useState<Party | null>(null);
   const [items, setItems] = useState<Row[]>([]);
+  const [serialOpts, setSerialOpts] = useState<string[]>([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
 
   const onDb = supabaseConfigured();
+  // Type-to-filter lists off the masters, as the call and request forms use:
+  // a plain box asks you to know the spelling, and there are thousands of both.
+  // A <select> is the wrong shape at that size — a datalist narrows as you type.
+  const productMaster = useMaster('product');
+  const partyMaster = useMaster('party');
+
+  // Once a product is named, the serials it actually has — nobody remembers a
+  // serial number, and the pair is what identifies a machine.
+  useEffect(() => {
+    const p = product.trim();
+    if (!p) { setSerialOpts([]); return; }
+    let cancelled = false;
+    void searchProducts({ product: p }, 500)
+      .then((rows) => {
+        if (cancelled) return;
+        setSerialOpts([...new Set(rows.map((r) => g(r, 'Item Serial Number')).filter(Boolean))].sort());
+      })
+      .catch(() => { if (!cancelled) setSerialOpts([]); });
+    return () => { cancelled = true; };
+  }, [product]);
 
   // A party is the ANSWER in both directions, so opening one is one function.
   const openParty = async (name: string) => {
@@ -131,16 +153,25 @@ export function Lookup() {
       <div className="lk-search">
         {mode === 'machine' ? (
           <>
-            <input className="input" placeholder="Product (e.g. EXTEND-XT)" value={product}
+            <input className="input" list="lk-products" placeholder="Product (e.g. EXTEND-XT)" value={product}
               onChange={(e) => setProduct(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchMachines(); }} />
-            <input className="input" placeholder="Serial number" value={serial}
+            <datalist id="lk-products">
+              {productMaster.values.slice(0, 4000).map((v) => <option key={v} value={v} />)}
+            </datalist>
+            <input className="input" list="lk-serials" placeholder="Serial number" value={serial}
               onChange={(e) => setSerial(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchMachines(); }} />
+            <datalist id="lk-serials">
+              {serialOpts.slice(0, 2000).map((v) => <option key={v} value={v} />)}
+            </datalist>
             <button className="btn btn-primary" disabled={!!busy} onClick={() => void searchMachines()}>Search</button>
           </>
         ) : (
           <>
-            <input className="input lk-wide" placeholder="Party name (any part of it)" value={partyQ}
+            <input className="input lk-wide" list="lk-parties" placeholder="Party name (any part of it)" value={partyQ}
               onChange={(e) => setPartyQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchParties(); }} />
+            <datalist id="lk-parties">
+              {partyMaster.values.slice(0, 8000).map((v) => <option key={v} value={v} />)}
+            </datalist>
             <button className="btn btn-primary" disabled={!!busy} onClick={() => void searchParties()}>Search</button>
           </>
         )}
