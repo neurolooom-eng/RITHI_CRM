@@ -304,6 +304,41 @@ export async function sbListPartyProducts(party: string): Promise<string[]> {
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
+// ---- The Product Register's own lists (Product & Party Search) -------------
+//
+// The products a search can offer are the products the register HAS. A master
+// value list is a different thing — maintained by hand, and on this project it
+// was short — so the dropdown reads the register.
+//
+// 0098's view groups them; if it has not been applied yet the fallback asks for
+// the column and de-duplicates here, which is slower but never leaves the
+// screen without a list. (A merged migration is not an applied one.)
+export interface ProductName { name: string; machines: number }
+export async function sbListProductNames(): Promise<ProductName[]> {
+  const c = must();
+  const { data, error } = await c.from('product_register_names').select('item_name,machines').order('item_name');
+  if (!error) {
+    return (data ?? []).map((r) => ({ name: String(r.item_name ?? ''), machines: Number(r.machines ?? 0) })).filter((p) => p.name);
+  }
+  const { data: raw, error: e2 } = await c.from('products').select('item_name').limit(100000);
+  if (e2) throw new Error(errMsg(e2));
+  const counts = new Map<string, number>();
+  (raw ?? []).forEach((r) => {
+    const n = String(r.item_name ?? '').trim();
+    if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+  });
+  return [...counts].map(([name, machines]) => ({ name, machines })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// The serials of one product — an equality filter, so 0052's btree serves it.
+export async function sbListProductSerials(product: string): Promise<string[]> {
+  const { data, error } = await must().from('products')
+    .select('serial_number').eq('item_name', product).limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return [...new Set((data ?? []).map((r) => String(r.serial_number ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').eq('party_name', party).limit(2000);
   if (product) q = q.eq('item_name', product);
@@ -311,11 +346,11 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').range(offset, offset + limit - 1);
-  if (filters.serial) q = q.ilike('serial_number', `%${filters.serial}%`);
+  if (filters.serial) q = filters.exact ? q.eq('serial_number', filters.serial) : q.ilike('serial_number', `%${filters.serial}%`);
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
-  if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
+  if (filters.product) q = filters.exact ? q.eq('item_name', filters.product) : q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));

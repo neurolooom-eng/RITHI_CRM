@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.67',
+    date: '2026-09-03',
+    title: 'Hand Stock stops timing out, products from the register, REQID back in sequence',
+    changes: [
+      'Product & Party Search now lists every product in the PRODUCT REGISTER, with the number of machines beside each name, instead of the hand-kept master list. Choose one and Serial Number becomes a dropdown of that product\u2019s serials \u2014 and the search matches the chosen name exactly, so \u201cMONNAL T75\u201d no longer drags in \u201cMONNAL T75 NF\u201d.',
+      'REQID had gone back to R1. The counter was reset when the demo data was cleared, and the 18,576 requests loaded afterwards each carried their own number, so it never knew about them. It now continues from the highest REQID on record, and any future bulk load pushes it along \u2014 so this cannot happen again. The two already issued out of order are re-lettered RC1 and RC2, because R1 is a number the sheet era may have used too.',
+      '\u201cForce update\u201d is now \u201c\uD83E\uDDF9 Clear Cache and Update\u201d \u2014 it says what it does, it is a solid button rather than grey small print, and it is in your name menu at the top right as well as at the bottom of the screen.',
+      'In Declaration, a part listed twice is now one line with the quantities added together.',
+      'HAND STOCK NO LONGER TIMES OUT. The cause was not the amount of data and not the access rules \u2014 it was the database spending 3.7 seconds COMPILING a query that then ran in under a fifth of a second. With that switched off, the whole 102,893-movement history reads in about a third of a second. Measured on a copy of the live data with every access rule in force.',
+      'Hand Stock can also CLOSE a year now. The opening figure for each engineer and part carries everything up to the date and the register reads only what happened since \u2014 nothing is estimated, the figure is the sum of what it stands for. It is no longer needed to make the screen fast; it is there to keep it fast as the years add up.',
+      'Needs three database scripts run once (call_requests.sql, performance.sql, handstock.sql).',
+    ],
+  },
+  {
     version: '0.9.66',
     date: '2026-09-03',
     title: 'Real dropdowns on Product & Party Search',

@@ -77,9 +77,15 @@ select engineer, part, qty from public.engineer_stock where part like 'HSO-1%';
 insert into public.handstock_opening (engineer, part, qty, as_of, source)
   values ('HSO Engineer','HSO-2|Other', 1, '2022-06-01', '');
 
-\echo '--- 10. and cannot be negative (expect ERROR) ---'
+\echo '--- 10. a negative pool is ACCEPTED, and has to be ---'
+\echo 'expect: -1. 0074 refused it, and 0096 dropped that constraint on purpose:'
+\echo 'a pool that CLOSES a period must equal exactly what it replaces, and 282'
+\echo 'engineer-and-part pairs are already negative because the record of what'
+\echo 'they were issued is incomplete. Refusing those would quietly improve the'
+\echo 'numbers at the close — the one thing a close must never do.'
 insert into public.handstock_opening (engineer, part, qty, as_of, source)
   values ('HSO Engineer','HSO-2|Other', -1, '2022-06-01', 'WinMax HS');
+select qty from public.handstock_opening where part = 'HSO-2|Other' and source = 'WinMax HS';
 
 \echo '--- 11. cleanup ---'
 delete from public.spare_consumption where ucn = 'HSO-U1';

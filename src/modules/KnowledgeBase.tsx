@@ -192,14 +192,14 @@ const SECTIONS: Sec[] = [
     ],
   },
   {
-    id: 'sync', n: '14', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
+    id: 'sync', n: '14', title: 'Refresh, Sync & Clear Cache', who: 'Keeping your data fresh',
     lead: <>The app loads instantly from a copy on your device, then syncs the latest. Three controls, gentlest to strongest.</>,
     steps: [
       <><B>↻ Refresh</B> — on a screen’s toolbar. Pulls that screen’s latest rows now. Use it first if a list looks behind.</>,
       <><B>⟳ synced 3m ago</B> — a <i>status</i>, not a button. Shows how long since this screen synced; it also auto-syncs about every 30 minutes.</>,
-      <><B>⟳ Force update</B> — in the footer. Clears the on-device cache and reloads the newest version. Use after an update, or if the app looks stuck.<Hint>The app’s version of <K>Ctrl/⌘ + Shift + R</K>.</Hint></>,
+      <><B>🧹 Clear Cache and Update</B> — the solid button at the bottom right of every screen, and in your name menu at the top right. Clears the copy held on this device and reloads the newest version. Use it after an update, or if the app looks stuck.<Hint>The app’s version of <K>Ctrl/⌘ + Shift + R</K>. It signs nobody out and deletes nothing from the database — only this device’s copy.</Hint></>,
     ],
-    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>⟳ Force update</B>. Still wrong → note the <b>Build ID</b> and tell support.</> },
+    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>🧹 Clear Cache and Update</B>. Still wrong → note the <b>Build ID</b> and tell support.</> },
   },
 ];
 

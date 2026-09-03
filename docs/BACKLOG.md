@@ -271,6 +271,33 @@ user_directory (0068), rbac (0069), masters, call_requests (0083),
 sales_contracts (0080), daily_review, Spare_1 (0084/0085/0087/0088) and
 HandStock_X for 0089/0090/0091. Do not re-add them here without a status read.
 
+- **[`performance.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)**
+  (migrations `0098`, `0099`) — **the Hand Stock timeout, and the products
+  dropdown.** `0099` turns JIT off for the database: the timeout was Postgres
+  spending 3.7 s COMPILING the movement query, which then ran in 174 ms. The
+  planner's estimate is inflated by the cost of RLS sub-plans it barely runs, so
+  the more access rules a query carries the more certain it is to be compiled —
+  which is exactly why switching RLS off appeared to "fix" it, and sent three
+  rounds of work at the wrong cause. With JIT off and nothing else changed the
+  whole 102,893-row history reads in 323 ms. Applies to connections opened AFTER
+  it runs, so give the pool a few minutes. Reverse with
+  `alter database postgres reset jit;`. `0098` adds `product_register_names`,
+  the distinct product list Product & Party Search offers.
+- **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
+  (migration `0097`) — **REQID had restarted at R1.** `_reset_for_production.sql`
+  reset the counter when the demo data was cleared (correct then — the table was
+  empty), and the 18,576 requests loaded afterwards each carried their own
+  number, which never calls `nextval`. The counter now follows any explicit
+  REQID, so a bulk load can no longer strand it, and it is resynced once here.
+  The two already issued out of order become **RC1** and **RC2** — `R1` is a
+  number the sheet era may have used too. Prints what it re-lettered.
+- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  (migrations `0095`, `0096`) — closing a hand-stock period. `close_handstock_period('YYYY-MM-DD')`
+  writes an opening figure per engineer and part and moves the line; every arm of
+  the movement view then reads only what falls after it. Verified neutral on a
+  copy of the live data: 6,203 pools / 257,188 parts before and after, with the
+  view dropping 102,893 → 22,442 rows. Not needed to make the screen fast (0099
+  did that) — it is what keeps it fast as the years add up. NOT urgent.
 - **[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)**
   (migration `0093`) — puts **Product & Party Search** on the roles that already
   hold Product Master. A new module is in the code's defaults, but `has_perm`

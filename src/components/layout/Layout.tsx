@@ -215,7 +215,7 @@ export function Layout({ children }: { children: ReactNode }) {
   // Close the mobile drawer whenever the route changes.
   const closeMobile = () => setMobileOpen(false);
 
-  // Force update — the mobile equivalent of Ctrl/Win+Shift+R. Drops the cached
+  // Clear Cache and Update — the mobile equivalent of Ctrl/Win+Shift+R. Drops the cached
   // rows and sync markers and any service-worker/HTTP caches, then hard-reloads
   // with a cache-busting param so the freshest deployed build is fetched.
   //
@@ -279,7 +279,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="app-newbuild">
           <span>A newer version{newBuild ? ` (v${newBuild})` : ''} is out — this tab is still on v{__APP_VERSION__}.</span>
           <button className="btn btn-sm" disabled={refreshing} onClick={() => void forceRefresh()}>
-            {refreshing ? 'Updating…' : '⟳ Update now'}
+            {refreshing ? 'Updating…' : '🧹 Clear Cache and Update'}
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => setNewBuild(null)} title="Hide until the next check">✕</button>
         </div>
@@ -376,6 +376,10 @@ export function Layout({ children }: { children: ReactNode }) {
                   <div className="muted">{user?.email}</div>
                 </div>
                 <button className="user-menu-item" onClick={() => { setMenuOpen(false); navigate('/profile'); }}>My Profile</button>
+                <button className="user-menu-item" disabled={refreshing} onClick={() => void forceRefresh()}>
+                  <span>🧹 Clear Cache and Update</span>
+                  <small className="muted">If the app looks old or stuck</small>
+                </button>
                 <button className="user-menu-item" onClick={logout}>Sign out</button>
               </div>
             )}
@@ -394,13 +398,19 @@ export function Layout({ children }: { children: ReactNode }) {
           <span className="foot-sep foot-hide-sm">·</span>
           <span className="foot-hide-sm">built {fmtDateTime(__BUILD_TIME__)}</span>
           <span className="foot-spacer" />
+          {/* NAMED FOR WHAT IT DOES, AND PUT WHERE IT IS FOUND. "Force update"
+              in the footer was a thing you had to be told about: a first-time
+              user reading the footer had no reason to read "force" as "clear
+              the cache". It now says so, it is a solid button rather than a
+              grey one, and the same command sits in the user menu — which is
+              where somebody who thinks "the app is stuck" actually looks. */}
           <button
-            className="btn btn-sm foot-refresh"
+            className="btn btn-primary foot-refresh"
             onClick={() => void forceRefresh()}
             disabled={refreshing}
-            title="Force update — reloads the latest build & re-syncs (like Ctrl/Win+Shift+R)"
+            title="Clears this device's cached data and reloads the newest version (the app's Ctrl/Win + Shift + R)"
           >
-            {refreshing ? '…' : '⟳ Force update'}
+            {refreshing ? 'Updating…' : '🧹 Clear Cache and Update'}
           </button>
         </footer>
       </div>

@@ -11,6 +11,8 @@
 --
 -- Carries, in order:
 --   0052_search_indexes.sql
+--   0098_product_register_names.sql
+--   0099_no_jit.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -133,6 +135,90 @@ begin
       execute 'analyze public.' || quote_ident(t);
     end if;
   end loop;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0098_product_register_names.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE PRODUCT LIST COMES FROM THE PRODUCT REGISTER.
+--
+-- Product & Party Search was filling its product dropdown from the `product`
+-- master value list. That is a list somebody maintains, and it can be empty,
+-- short, or spelled differently from the register — which is what the screen
+-- showed. The register itself is the authority on what products exist: a
+-- machine is in it or it is not.
+--
+-- PostgREST cannot ask for `select distinct`, so the distinct list is a view.
+-- It carries the count as well, because "MONNAL T75 (1,204)" tells the person
+-- choosing far more than the name alone, and it costs nothing to group once.
+--
+-- The serial dropdown that depends on it needs no view: it is
+-- `item_name = <the one chosen>`, which 0052's btree on products(item_name)
+-- already serves. (A trigram index does NOT serve equality — that lesson cost
+-- this project a fortnight of timeouts.)
+-- ===========================================================================
+
+create or replace view public.product_register_names as
+  select item_name,
+         count(*)::int as machines
+    from public.products
+   where coalesce(item_name, '') <> ''
+   group by item_name;
+
+-- `create or replace view` does NOT carry `security_invoker` forward, so it is
+-- asserted every time the view is written. Without it the view would read the
+-- register as its owner and hand back rows RLS meant to withhold.
+alter view public.product_register_names set (security_invoker = on);
+
+grant select on public.product_register_names to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0099_no_jit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE HAND STOCK TIMEOUT WAS JIT COMPILATION, NOT THE QUERY.
+--
+-- Hand Stock timed out, then took 11-14 seconds, then 3-5 after 0095. Every
+-- reading pointed at row-level security, because switching RLS off made it
+-- instant. It was the right symptom and the wrong cause. `EXPLAIN ANALYZE`
+-- with the JIT block showing says it plainly:
+--
+--     Timing: Generation 23 ms, Inlining 145 ms,
+--             Optimization 2134 ms, Emission 1440 ms, Total 3742 ms
+--     Execution Time: 3912 ms
+--
+-- Three and three-quarter seconds COMPILING a query that then runs in under
+-- two hundred milliseconds. The trigger is `jit_above_cost` (100,000): the
+-- planner's ESTIMATE for the nine-arm movement view is half a million, almost
+-- all of it invented by the cost of RLS sub-plans it will barely run. So the
+-- more access rules a query carries, the more certain Postgres is to spend
+-- seconds compiling it — and that is why turning RLS off "fixed" it.
+--
+-- With JIT off, and NOTHING else changed, the whole 102,893-row history reads
+-- in 323 ms. Closed through 2025 it is 174 ms. Measured on a copy of the live
+-- data, as the `authenticated` role, with every policy in force.
+--
+-- Nothing in this application benefits from JIT. These are sub-second API
+-- queries; compiling them can only ever cost more than it saves. Off is the
+-- right setting for the whole database, not a special case for one screen.
+--
+-- TO PUT IT BACK: `alter database postgres reset jit;`
+--
+-- It applies to CONNECTIONS MADE AFTER IT RUNS. Pooled connections already
+-- open keep the old setting, so give it a few minutes — or restart the project
+-- — before judging whether it worked.
+-- ===========================================================================
+
+do $$
+begin
+  execute format('alter database %I set jit = off', current_database());
+  raise notice 'JIT disabled for database % — new connections only.', current_database();
+exception
+  when insufficient_privilege then
+    raise notice 'Could not disable JIT: this role does not own the database. Set it in the Supabase dashboard, or run: alter database postgres set jit = off;';
 end $$;
 
 commit;
