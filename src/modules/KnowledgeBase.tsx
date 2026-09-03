@@ -75,7 +75,20 @@ const SECTIONS: Sec[] = [
     note: { tone: 'warn', icon: '⚠️', body: <>A call marked <b>Solved - Report Completed</b> becomes read-only. Finish the report before you set it.</> },
   },
   {
-    id: 'spare', n: '4', title: 'Raise a spare request', who: 'Any engineer',
+    id: 'reallot', n: '4', title: 'Allot or re-allot calls', who: 'Reporting Manager · anyone with Edit call',
+    lead: <>Hand calls to an engineer — one, or a hundred at once. This changes <b>only</b> who the call is allotted to; nothing else on the call is touched.</>,
+    steps: [
+      <>Open <b>Service Calls → Field Call Register</b> (Installation and PM work the same way).</>,
+      <>Narrow the list to the calls you want to move — the <b>engineer chips</b>, the search boxes, or <B>⚑ Filters</B>.<Hint><b>Group</b> by Region, Engineer or Call Status if that is an easier way to find them.</Hint></>,
+      <>Tick the box at the left of each call.<Hint>The box in the <b>header</b> takes everything currently listed — exactly what you can see, never rows a filter is hiding.</Hint></>,
+      <>In the bar that appears, choose the engineer under <b>Allot to</b>.<Hint>The list is you and the engineers reporting to you.</Hint></>,
+      <>Tap <B>Save</B>. The register reloads and the calls sit with their new engineer.</>,
+    ],
+    go: [{ to: '/field-calls', label: 'Field Call Register' }, { to: '/installations', label: 'Installation Calls' }, { to: '/pm-calls', label: 'PM Calls' }],
+    note: { tone: 'warn', icon: '⚠️', body: <>A manager can allot only to their <b>own team</b> — that is enforced by the database, not just by the list. If a name you expect is missing, check that person’s <b>Reporting Manager</b> in the User Master: the list is built from it.</> },
+  },
+  {
+    id: 'spare', n: '5', title: 'Raise a spare request', who: 'Any engineer',
     lead: <>Need a part? Raise a spare request — from the call it’s for (best, so it’s linked) or from the Spare Requests screen.</>,
     steps: [
       <><b>From a call:</b> on the call’s row tap <B>📦 Spare</B> — the call and machine fill in for you.<Hint>Or open <b>Spares → Spare Requests</b> and tap <B>＋ New Spare Request</B>.</Hint></>,
@@ -86,7 +99,7 @@ const SECTIONS: Sec[] = [
     go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
-    id: 'approve', n: '5', title: 'Approve a spare request', who: 'Reporting Manager & approvers',
+    id: 'approve', n: '6', title: 'Approve a spare request', who: 'Reporting Manager & approvers',
     lead: <>If you approve spares (RM, Commercial, NSM or Stores), you decide each part on its own — a request can go forward partly approved.</>,
     steps: [
       <>Open <b>Spares → Spare Requests</b>. Lines waiting on you show at your stage.</>,
@@ -98,7 +111,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '💡', body: <>A Reporting Manager sees and approves only their <b>own team’s</b> spares. Only <b>Spare Coordinator</b> and <b>Hotline</b> can <B>⊘ Drop</B> a spare at any stage.</> },
   },
   {
-    id: 'sparestatus', n: '6', title: 'View spare status', who: 'Any engineer',
+    id: 'sparestatus', n: '7', title: 'View spare status', who: 'Any engineer',
     lead: <>Track a spare you raised from raise to receipt — every request shows exactly where it is in the chain.</>,
     steps: [
       <>Open <b>Spares → Spare Requests</b>.</>,
@@ -109,7 +122,7 @@ const SECTIONS: Sec[] = [
     go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
-    id: 'partial', n: '7', title: 'Send part of a spare request', who: 'Stores',
+    id: 'partial', n: '8', title: 'Send part of a spare request', who: 'Stores',
     lead: <>If only some of what was asked for is on the shelf, send that much now — the rest stays in the queue and goes on a later stock out.</>,
     steps: [
       <>Open <b>Spares → Pending Dispatch</b> and tick the spares for one engineer.</>,
@@ -121,7 +134,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '📦', body: <>The engineer's hand stock rises by what you actually sent, not by what was requested.</> },
   },
   {
-    id: 'receive', n: '8', title: 'Confirm a spare you received', who: 'Any engineer',
+    id: 'receive', n: '9', title: 'Confirm a spare you received', who: 'Any engineer',
     lead: <>Confirm each delivery as it reaches you. A spare that arrives in two deliveries is confirmed twice.</>,
     steps: [
       <>Open <b>Spares → Spare Requests</b> and find the spare.</>,
@@ -132,7 +145,7 @@ const SECTIONS: Sec[] = [
     go: [{ to: '/spare-requests', label: 'Spare Requests' }],
   },
   {
-    id: 'reco', n: '9', title: 'Reconcile spares on a call', who: 'Spare Coordinator · Hotline · Admin',
+    id: 'reco', n: '10', title: 'Reconcile spares on a call', who: 'Spare Coordinator · Hotline · Admin',
     lead: <>Put the stock record right when a spare was fitted but never reported, when the quantity is wrong, or when something was booked in error.</>,
     steps: [
       <>Find the call in any register and tap <B>🧾</B> (also in the call's own view).<Hint>It carries the UCN, call number and engineer across for you.</Hint></>,
@@ -146,7 +159,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'warn', icon: '⚠️', body: <>Nothing is ever deleted — a correction keeps what it was, who changed it and why. An engineer cannot consume more than they hold; if their report is refused, fix the hand stock here first.</> },
   },
   {
-    id: 'feedback', n: '10', title: 'Customer feedback', who: 'Any engineer',
+    id: 'feedback', n: '11', title: 'Customer feedback', who: 'Any engineer',
     lead: <>Feedback is captured on the call report, at the customer’s end. It’s then visible in the Customer Feedback screen.</>,
     steps: [
       <>While updating a call (step 3), fill the <b>Customer Feedback</b> questions with the customer — ratings and yes/no on the service and product.</>,
@@ -157,7 +170,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '⭐', body: <>Feedback is scoped like your calls — you see feedback for your own calls; managers and office roles see more.</> },
   },
   {
-    id: 'password', n: '11', title: 'Reset your password', who: 'Any engineer',
+    id: 'password', n: '12', title: 'Reset your password', who: 'Any engineer',
     lead: <>Reset it from sign-in if you’re locked out, or change it any time from your profile. The 👁️ button reveals what you typed.</>,
     steps: [
       <><b>Locked out?</b> On the sign-in screen tap <B>Forgot password?</B>.</>,
@@ -169,7 +182,7 @@ const SECTIONS: Sec[] = [
     note: { tone: 'tip', icon: '🔑', body: <>First time signing in? Use the starting password your admin gave you — the app then asks you to set your own.</> },
   },
   {
-    id: 'build', n: '12', title: 'Find the Build ID (for support)', who: 'When something looks wrong',
+    id: 'build', n: '13', title: 'Find the Build ID (for support)', who: 'When something looks wrong',
     lead: <>The <b>Build ID</b> tells support exactly which version you’re on. It lives in the <b>footer</b> at the very bottom of every page.</>,
     steps: [
       <>Scroll to the very bottom of any screen.</>,
@@ -179,7 +192,7 @@ const SECTIONS: Sec[] = [
     ],
   },
   {
-    id: 'sync', n: '13', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
+    id: 'sync', n: '14', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
     lead: <>The app loads instantly from a copy on your device, then syncs the latest. Three controls, gentlest to strongest.</>,
     steps: [
       <><B>↻ Refresh</B> — on a screen’s toolbar. Pulls that screen’s latest rows now. Use it first if a list looks behind.</>,
