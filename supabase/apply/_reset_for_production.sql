@@ -112,14 +112,20 @@ select setval('public.call_split_id_seq', 1, false);
 commit;
 
 -- ---------------------------------------------------------------------------
--- 3c. AFTER THE RESET, IF YOU RAN SECTION 2: re-seed the values a MIGRATION
---     put in `masters`, which section 2 cleared along with the test ones.
---     0046 seeds the Daily Call Review's two per-product lists (DCCR Complaint
---     Grouping, Root Cause Key Word) — without them the review's dropdowns come
---     up empty, which does not look like a data problem when it happens.
+-- 3c. AFTER THE RESET, IF YOU RAN SECTION 2: `masters` was emptied, so EVERY
+--     value list is now empty — Standard Complaint, Item Status, Pending
+--     Reason, Cancel Reason, the lot. The lists themselves (`master_lists`)
+--     survive, so the Masters screen still shows each list by name with
+--     nothing in it, and a form's picker comes up blank. That does not look
+--     like a data problem when it happens; it looks like a broken screen.
 --
---     Re-run `supabase/apply/daily_review.sql`. It is idempotent, so it only
---     puts the seeded values back.
+--     Two things put them back:
+--       • The values a MIGRATION seeded — 0046's Daily Call Review lists (DCCR
+--         Complaint Grouping, Root Cause Key Word). Re-run
+--         `supabase/apply/daily_review.sql`; it is idempotent, so it only puts
+--         the seeded values back.
+--       • Everything else is YOURS to re-load: Admin -> Bulk Uploads ->
+--         Master Value Lists, one file of values per list.
 -- ---------------------------------------------------------------------------
 
 -- ---------------------------------------------------------------------------

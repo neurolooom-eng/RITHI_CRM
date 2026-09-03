@@ -440,10 +440,23 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                       );
                     })()
                 ))}
+                {/* Chosen from the master, exactly as the call register does it —
+                    with the row's own value kept when it is not on the list, and
+                    free text only while the list has nothing to offer. */}
                 {field('Standard Complaint', (
                   isInstall
                     ? <input className="input" value={it.standardComplaint} readOnly />
-                    : <input className="input" list="dl-complaint" value={it.standardComplaint} onChange={(e) => setItem(i, 'standardComplaint', e.target.value)} />
+                    : complaintMaster.values.length
+                      ? (
+                        <select className="select" value={it.standardComplaint}
+                          onChange={(e) => setItem(i, 'standardComplaint', e.target.value)}>
+                          <option value="">— Select —</option>
+                          {it.standardComplaint && !complaintMaster.values.includes(it.standardComplaint)
+                            && <option value={it.standardComplaint}>{it.standardComplaint}</option>}
+                          {complaintMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                      )
+                      : <input className="input" list="dl-complaint" value={it.standardComplaint} onChange={(e) => setItem(i, 'standardComplaint', e.target.value)} />
                 ))}
                 {field('Reported Problem *', (
                   isInstall
