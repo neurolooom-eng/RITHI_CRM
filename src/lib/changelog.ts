@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.49',
+    date: '2026-09-03',
+    title: 'MRN, Stock Transfer and Consumption load',
+    changes: [
+      'All four spare files were loaded end to end against a copy of the live database before this shipped, rather than a row at a time through the screen. Consumption 8,352, Stock Transfer 338 with 849 lines, MRN 595.',
+      'MRN could never have written a row: the register kept the export\u2019s extra columns in a field the table did not have. It does now.',
+      'A history that already happened is no longer refused for leaving someone short of stock. Consumption, transfers and returns loaded from the old system are the record of what was used \u2014 the issues that covered them may still be in a file you have not loaded. Anything entered by hand is capped exactly as before, and a negative balance an import reveals is what the Spare Coordinator\u2019s reconciliation is for.',
+      'A stock transfer made in the app could lose its own lines: the transfer recorded nobody as its creator, so the rules would not let that person add spares to it. Fixed for new transfers.',
+      'A transfer line whose transfer is not in the register is held back and named, instead of failing the batch.',
+    ],
+  },
+  {
     version: '0.9.48',
     date: '2026-09-03',
     title: 'Spare Request Lines: the whole file, checked end to end',

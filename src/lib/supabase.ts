@@ -1820,10 +1820,34 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
 
 export async function prepareUpload(
-  kind: 'spare-line-parents',
+  kind: 'spare-line-parents' | 'stock-transfer-parents',
   rows: Record<string, unknown>[],
 ): Promise<{ ok: boolean; note?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+
+  // A stock transfer cannot be invented from its lines — its from / to and date
+  // are only in the register file — so a line whose transfer is not here is
+  // held back rather than loaded against a stub. Two transfers in the export go
+  // from an engineer to themselves, which the register refuses; their lines
+  // came with them and failed the first batch of 500.
+  if (kind === 'stock-transfer-parents') {
+    const wanted = [...new Set(rows.map((r) => String(r.transfer_uid ?? '').trim()).filter(Boolean))];
+    if (!wanted.length) return { ok: true };
+    const here = new Set<string>();
+    for (let i = 0; i < wanted.length; i += IN_CHUNK) {
+      const { data, error } = await c.from('stock_transfers').select('uid').in('uid', wanted.slice(i, i + IN_CHUNK));
+      if (error) return { ok: false, error: `Could not read the stock transfers: ${errMsg(error)}` };
+      (data ?? []).forEach((r) => here.add(String(r.uid)));
+    }
+    let dropped = 0;
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      if (!here.has(String(rows[i].transfer_uid ?? ''))) { rows.splice(i, 1); dropped += 1; }
+    }
+    return { ok: true, note: dropped
+      ? `${dropped} line${dropped === 1 ? '' : 's'} held back — their transfer is not in the register (load Stock Transfer Register first, or it was held back there)`
+      : undefined };
+  }
+
   if (kind !== 'spare-line-parents') return { ok: true };
 
   // RowNo is the part's position within its request. The export does not carry
