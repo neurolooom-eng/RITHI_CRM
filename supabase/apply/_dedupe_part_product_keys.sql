@@ -16,9 +16,12 @@
 -- Nothing references `parts` or `products` by foreign key, and neither table has
 -- a trigger, so removing the older copy of a duplicate touches nothing else.
 --
--- Run 1 and 2 to see what is there. Run 3 to remove the older copies, look at
--- what it prints, then COMMIT. Then re-run HandStock_X.sql to build the indexes,
--- and _status.sql row 35 to confirm.
+-- Run 1 and 2 to see what is there — they are read-only. Step 3 removes the
+-- older copies in ONE statement that applies when it succeeds; there is nothing
+-- to commit afterwards (an explicit `begin;` waiting for a `commit;` is a psql
+-- habit that does not fit the Supabase SQL editor: the batch ends without one
+-- and the change is thrown away). Then re-run HandStock_X.sql to build the
+-- indexes, and _status.sql row 35 to confirm.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -54,26 +57,29 @@ select p.id, p.item_name, p.serial_number, p.party_name, p.created_at
 --    corrected one — an upload that could not match on a key ADDED a row
 --    instead of updating it, and that is exactly how these pairs were made.
 -- ---------------------------------------------------------------------------
-begin;
+do $$
+declare a int; b int;
+begin
+  with dupes as (
+    select id, row_number() over (partition by item_detail_key order by id desc) as rn
+      from public.parts
+  )
+  delete from public.parts p using dupes d where d.id = p.id and d.rn > 1;
+  get diagnostics a = row_count;
 
-with dupes as (
-  select id, row_number() over (partition by item_detail_key order by id desc) as rn
-    from public.parts
-)
-delete from public.parts p using dupes d where d.id = p.id and d.rn > 1;
+  with dupes as (
+    select id, row_number() over (partition by machine_key order by id desc) as rn
+      from public.products
+  )
+  delete from public.products p using dupes d where d.id = p.id and d.rn > 1;
+  get diagnostics b = row_count;
 
-with dupes as (
-  select id, row_number() over (partition by machine_key order by id desc) as rn
-    from public.products
-)
-delete from public.products p using dupes d where d.id = p.id and d.rn > 1;
+  raise notice 'Removed % duplicate part row(s) and % duplicate product row(s)', a, b;
+end $$;
 
 -- Nothing left to block the indexes?
 select (select count(*) from (select item_detail_key from public.parts    group by 1 having count(*) > 1) a) as parts_left,
        (select count(*) from (select machine_key     from public.products group by 1 having count(*) > 1) b) as products_left;
-
--- commit;
--- rollback;
 
 -- ---------------------------------------------------------------------------
 -- 4. THEN: re-run HandStock_X.sql (it builds both indexes now that it can), and
