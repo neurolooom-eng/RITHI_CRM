@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.51',
+    date: '2026-09-03',
+    title: 'Hand stock, indexed for the whole history',
+    changes: [
+      'Stock is still worked out from the movements every time it is asked for, never stored — so it can never drift from the record. With the entire history loaded (about 103,000 movements) that was costing more than it needed to, because every lookup scanned each table in full.',
+      'Measured on a copy with everything loaded: one engineer\u2019s hand stock 22ms \u2192 10ms, and entering a consumption (which checks the engineer\u2019s balance) 25\u201333ms \u2192 14\u201319ms. The Stock Levels screen totals everything, so it stays around 160ms whatever we do.',
+    ],
+  },
+  {
     version: '0.9.50',
     date: '2026-09-03',
     title: 'Hand stock from the whole record',
