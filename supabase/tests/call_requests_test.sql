@@ -106,3 +106,30 @@ select call_number, party_name from public.calls where party_name = 'After Impor
 \echo 'a call registered a year ago gets that years series'
 insert into public.calls (call_type, party_name, reg_date) values ('FIELD','Last Year', current_date - interval '1 year');
 select call_number, party_name from public.calls where party_name = 'Last Year';
+
+-- ===========================================================================
+-- 0083 — a request that HAS a UCN is Registered, on every write path.
+-- ===========================================================================
+\echo '--- 0083.1 a bulk-loaded row with a UCN and no status reads Registered ---'
+call public.be('hot@x.com');
+insert into public.call_requests (reqid, party_name, product, serial_no, ucn)
+  values ('R90001','STATUS HOSP','VEGA','S1','26A02F9001');
+select reqid, status from public.call_requests where reqid = 'R90001';
+
+\echo '--- 0083.2 a Pending request given a UCN by an update becomes Registered ---'
+insert into public.call_requests (reqid, party_name, product, serial_no, status)
+  values ('R90002','STATUS HOSP','VEGA','S2','Pending');
+update public.call_requests set ucn = '26A02F9002' where reqid = 'R90002';
+select reqid, status from public.call_requests where reqid = 'R90002';
+
+\echo '--- 0083.3 Mapped stays Mapped, Cancelled stays Cancelled (the fact is a UCN, the choice is theirs) ---'
+insert into public.call_requests (reqid, party_name, product, serial_no, ucn, status) values
+  ('R90003','STATUS HOSP','VEGA','S3','26A02F9003','Mapped'),
+  ('R90004','STATUS HOSP','VEGA','S4','26A02F9004','Cancelled');
+select reqid, status from public.call_requests where reqid in ('R90003','R90004') order by reqid;
+
+\echo '--- 0083.4 no UCN, no change: still Pending ---'
+insert into public.call_requests (reqid, party_name, product, serial_no) values ('R90005','STATUS HOSP','VEGA','S5');
+select reqid, coalesce(status, '(blank -> shown as Pending)') as status from public.call_requests where reqid = 'R90005';
+
+delete from public.call_requests where reqid like 'R9000%';

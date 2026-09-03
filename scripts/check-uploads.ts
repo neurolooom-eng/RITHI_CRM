@@ -320,6 +320,10 @@ const crc = shapeUpload(def('call_requests'), [
   { 'ID': 'R2', 'UCN number': 'Request cancel' },
 ]);
 eq('a UCN-shaped value is the UCN', crc.rows[0].ucn, '26A02F0001');
+eq('...and a request with a UCN previews as Registered', crc.rows[0].status, 'Registered');
+eq('one without a UCN is left for the app to show as Pending', crc.rows[1].status, undefined);
+eq('a status the file DOES carry is kept',
+   shapeUpload(def('call_requests'), [{ 'ID': 'R3', 'UCN number': '26A02F0003', 'Status': 'Mapped' }]).rows[0].status, 'Mapped');
 eq('"Request cancel" is NOT filed as a UCN', crc.rows[1].ucn, undefined);
 eq('...but it is kept, not lost', (crc.rows[1].extra as Record<string, unknown>)['UCN number'], 'Request cancel');
 eq('E-Mail ID matches Email ID', shapeUpload(def('call_requests'), [{ 'ID': 'R1', 'E-Mail ID': 'a@x.com' }]).rows[0].email, 'a@x.com');

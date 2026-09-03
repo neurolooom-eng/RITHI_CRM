@@ -379,7 +379,10 @@ export const UPLOADS: UploadDef[] = [
       // 52 of 4,159 rows), so only a UCN-shaped value is taken as one — the rest
       // is kept alongside the row instead of being filed as a call number.
       { to: 'ucn', from: ['ucn number', 'uc number', 'ucn'], when: (v) => /^\d{2}[A-Za-z]\d{2}[A-Za-z]\d{4}$/.test(v) },
-      TEXT('status', 'status'),
+      // A UCN means the request became a call: the database (0083) sets
+      // Registered on any blank / Pending row that carries one. Derived here as
+      // well so the PREVIEW shows what will actually be stored.
+      { to: 'status', from: ['status'], derive: (o) => (o.ucn ? 'Registered' : '') },
       TEXT('cancel_reason', 'cancel reason', 'cancellation reason'),
     ] },
 

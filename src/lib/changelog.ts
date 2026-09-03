@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.42',
+    date: '2026-09-03',
+    title: 'A request with a UCN is Registered',
+    changes: [
+      'Any call registration request that carries a UCN now reads Registered — including the 4,010 loaded from the export, which arrived pointing at their calls but showing Pending because the file carries no status column.',
+      'The database keeps the two in step from now on, whichever way a request is written: a blank or Pending request that gains a UCN becomes Registered. Mapped and Cancelled are deliberate choices and are never overridden.',
+      'The upload preview shows the status that will actually be stored.',
+      'Needs a database script run once (call_requests.sql) — it also corrects the requests already loaded.',
+    ],
+  },
+  {
     version: '0.9.41',
     date: '2026-09-03',
     title: 'Dates read the same on screen as on import',

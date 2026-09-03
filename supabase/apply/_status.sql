@@ -168,6 +168,10 @@ with checks(sort_order, bundle, provides, present) as (
     (35, 'parts + products: natural keys', 'parts_item_detail_key_uniq + products_machine_key_uniq — the upsert needs these (0082)',
         (exists (select 1 from pg_indexes where schemaname='public' and indexname='parts_item_detail_key_uniq')
      and exists (select 1 from pg_indexes where schemaname='public' and indexname='products_machine_key_uniq'))),
+    (37, 'call requests: status follows the UCN', 'call_requests_biu fires on update and sets Registered when a UCN is present (0083)',
+        exists (select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid
+                 where c.relname = 'call_requests' and t.tgname = 'call_requests_biu'
+                   and t.tgtype::int & 16 = 16)),   -- bit 16 = fires on UPDATE
     (36, 'uploads: extra columns kept', 'ownership_transfers.extra + stock_transfers.extra (0080)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='ownership_transfers' and column_name='extra')

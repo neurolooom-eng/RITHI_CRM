@@ -108,6 +108,7 @@ const MODULES = {
       '0053_call_requests_view_all.sql',
       '0057_call_reopen.sql',
       '0058_close_reopened_call.sql',
+      '0083_request_status_from_ucn.sql',
     ],
   },
   sla: {
