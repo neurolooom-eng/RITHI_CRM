@@ -6,8 +6,12 @@
 -- Edit the SEARCH for the new engineer and the list of OR numbers, then run the
 -- steps in order. The name is read FROM THE USER MASTER rather than typed, and
 -- the change refuses to run unless that search matches exactly one person.
--- Step 3 does not commit on its own: look at what step 4 prints and only then
--- run COMMIT (or ROLLBACK, and nothing happened).
+--
+-- Step 3 is ONE statement and it COMMITS ON ITS OWN. It used to sit inside an
+-- explicit `begin;` waiting for a `commit;` — a psql habit that does not fit
+-- the Supabase SQL editor, where the batch ends without one and the change is
+-- thrown away. It looked like it had worked and nothing had changed. The block
+-- is atomic by itself: if the guard raises, no row is touched.
 --
 -- WHAT ELSE MOVES: hand stock follows the NAME. Any spare issued on these
 -- requests is currently counted in the old engineer's hand stock, and after
@@ -43,9 +47,8 @@ select id, name, email, gmail, designation, region, validity
 -- ---------------------------------------------------------------------------
 -- 3. THE CHANGE. It refuses to run unless that search matches EXACTLY ONE
 --    person, so a second Pawan stops it rather than picking one at random.
+--    ONE statement, applied when it succeeds. Nothing to commit afterwards.
 -- ---------------------------------------------------------------------------
-begin;
-
 do $$
 declare
   v_who   text := '%pawan%';                      -- <-- the same search as above
@@ -74,15 +77,12 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- 4. CHECK, THEN COMMIT — or ROLLBACK and nothing happened.
+-- 4. CHECK — this is what the register will show.
 -- ---------------------------------------------------------------------------
 select or_no, engineer, engineer_email
   from public.spare_requests
  where or_no in ('OR-2609-0002','OR-2609-0004','OR-2609-0005','OR-2609-0006','OR-2609-0007')
  order by or_no;
-
--- commit;
--- rollback;
 
 -- ---------------------------------------------------------------------------
 -- AFTERWARDS: where the stock now sits, for the parts on those requests.
