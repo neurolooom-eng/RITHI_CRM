@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.46',
+    date: '2026-09-03',
+    title: 'Spare Request Lines load',
+    changes: [
+      'The lines upload stopped on the first row with \u201cYour role does not have permission for this action\u201d, and took all 8,571 with it. The first line belongs to a 2023 request the 2026 header export does not go back far enough to carry; the request created for it could not be seen by the very step that was checking it, so the row was refused. An administrator can now load a line whose request is not here yet \u2014 and nobody else gained anything: a line still has to belong to a request you raised.',
+    ],
+  },
+  {
     version: '0.9.45',
     date: '2026-09-03',
     title: 'Standard Complaint is a dropdown',
