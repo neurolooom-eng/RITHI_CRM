@@ -76,7 +76,7 @@ export interface UploadDef {
    *  cannot see the parent it is being asked about and refuses the row — which
    *  is what "Your role does not have permission for this action." on row 1
    *  was. Prepared here, the upload no longer depends on that at all. */
-  prepare?: 'spare-line-parents';
+  prepare?: 'spare-line-parents' | 'stock-transfer-parents';
   /** A register whose file needs more than a column map. The four AppSheet
    *  sale / contract exports are the case: `coverImport.ts` was written for
    *  exactly those files and does things a column map cannot — it DERIVES the
@@ -494,6 +494,11 @@ export const UPLOADS: UploadDef[] = [
       TS('created_at', 'visit date & time', 'consumed on', 'date'),
     ] },
   { key: 'material_returns', label: 'MRN Register', group: 'Spares', table: 'material_returns', extraInto: 'extra',
+    // `source: import` is what 0039 already looks for: a return that HAPPENED is
+    // not refused for leaving the engineer short, because the issues that
+    // covered it may be in a file that is not loaded yet. The register simply
+    // never stamped it, so every historical MRN was refused.
+    stamp: { source: 'import' },
     // The database refuses a return of nothing, and 7 such rows failed the whole
     // 602-row batch. They are not returns; held back by name.
     reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
@@ -517,7 +522,10 @@ export const UPLOADS: UploadDef[] = [
       TS('returned_at', 'timestamp', 'returned at'),
     ] },
   { key: 'stock_transfers', label: 'Stock Transfer Register', group: 'Spares', table: 'stock_transfers',
-    conflict: 'uid', extraInto: 'extra',
+    // `source: Import` marks a transfer that already happened, which the stock
+    // check lets past: it cannot be refused for leaving the sender short when
+    // the issues that covered it are in a file that is not loaded yet (0089).
+    conflict: 'uid', extraInto: 'extra', stamp: { source: 'import' },
     // The database refuses a transfer to the same engineer, and one such row
     // failed the whole batch. Held back by name instead — and it is genuinely
     // not a transfer.
@@ -534,6 +542,10 @@ export const UPLOADS: UploadDef[] = [
       TEXT('remarks', 'additional remarks', 'remarks'), TEXT('status'),
     ] },
   { key: 'stock_transfer_lines', label: 'Stock Transfer Lines', group: 'Spares', table: 'stock_transfer_lines',
+    // A line whose transfer is not in the register cannot be loaded: the two
+    // same-engineer rows the register holds back take their lines with them,
+    // and one of those failed the first batch of 500. Held back by name.
+    prepare: 'stock-transfer-parents',
     requires: 'Stock Transfer Register',
     note: 'No natural key — a re-run ADDS rows rather than correcting them.',
     cols: [

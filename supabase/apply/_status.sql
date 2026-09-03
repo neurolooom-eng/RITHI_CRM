@@ -213,6 +213,21 @@ with checks(sort_order, bundle, provides, present) as (
     -- not: it works for an ADMIN only, and the register is loaded by whoever
     -- loads it. So test for the function 0088 asks through — the one that takes
     -- a fresh snapshot and can actually see the stub.
+    -- Found by loading the four spare files END TO END against a copy of the
+    -- live database. `material_returns.extra` had never existed, so the MRN
+    -- upload could not write a row; the shortfall guards refused history that
+    -- had already happened; and a transfer with no creator would not take its
+    -- own lines.
+    (41, 'spare imports: the historical files load', 'material_returns.extra, stock_transfers.source + created_by default, and the import exemptions (0089)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='material_returns' and column_name='extra')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='stock_transfers' and column_name='source')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='stock_transfers'
+                    and column_name='created_by' and column_default like '%auth.uid%')
+     and coalesce(pg_get_functiondef(to_regprocedure('public.consumption_reconcile_guard()'))
+                    ilike '%new.source_ref%', false))),
     (40, 'spare lines: a stub parent is allowed', 'srl_insert asks spare_line_parent_ok(), which can see the stub (0088)',
         (to_regprocedure('public.spare_line_parent_ok(text)') is not null
      and exists (select 1 from pg_policies

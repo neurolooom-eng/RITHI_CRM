@@ -265,6 +265,15 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  (migrations `0082` + `0089`) — **the four spare files will not load without it**.
+  0089 came out of loading all four END TO END against a copy of the live
+  database: `material_returns.extra` had never existed (so MRN could not write a
+  row, while the preview said 595 ready); the shortfall guards refused history
+  that had already happened; and `stock_transfers.created_by` had no default, so
+  a non-admin could not add lines to a transfer they had just made — in the app
+  as much as in an import. `_status.sql` row 41. 0082 is the parts/products key,
+  same file.
 Read from `_status.sql` on 2026-09-03: everything else is applied — base, rbac,
 user_directory (0068), documents (0070), reports (0071), the cover tables
 (0036/0037), handstock, masters (0066/0067/0076/**0086**), ownership transfer (0072),
