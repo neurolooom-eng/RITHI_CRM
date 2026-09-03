@@ -3,9 +3,11 @@
 --
 -- Ad-hoc, run by hand in the SQL editor. Nothing here is a migration.
 --
--- Edit the TWO values in `new_owner` and the list of OR numbers, then run the
--- three steps in order. Step 2 does not commit on its own: look at what step 3
--- prints and only then run COMMIT (or ROLLBACK, and nothing happened).
+-- Edit the SEARCH for the new engineer and the list of OR numbers, then run the
+-- steps in order. The name is read FROM THE USER MASTER rather than typed, and
+-- the change refuses to run unless that search matches exactly one person.
+-- Step 3 does not commit on its own: look at what step 4 prints and only then
+-- run COMMIT (or ROLLBACK, and nothing happened).
 --
 -- WHAT ELSE MOVES: hand stock follows the NAME. Any spare issued on these
 -- requests is currently counted in the old engineer's hand stock, and after
@@ -28,23 +30,51 @@ select r.or_no, r.engineer, r.engineer_email, r.ucn, r.call_number, r.party_name
  order by r.or_no;
 
 -- ---------------------------------------------------------------------------
--- 2. THE CHANGE.
+-- 2. WHO, EXACTLY. The name is taken FROM THE USER MASTER, not typed: hand
+--    stock is keyed on the engineer's name, so a spelling that differs by one
+--    character puts the stock somewhere nobody is looking. Check this returns
+--    the one person you mean before running step 3.
+-- ---------------------------------------------------------------------------
+select id, name, email, gmail, designation, region, validity
+  from public.user_directory
+ where name ilike '%pawan%'                       -- <-- who to move them to
+ order by name;
+
+-- ---------------------------------------------------------------------------
+-- 3. THE CHANGE. It refuses to run unless that search matches EXACTLY ONE
+--    person, so a second Pawan stops it rather than picking one at random.
 -- ---------------------------------------------------------------------------
 begin;
 
-with new_owner as (
-  select
-    'ENGINEER NAME'::text            as engineer,        -- <-- exactly as the User Master spells it
-    'engineer@airliquide.com'::text  as engineer_email   -- <-- '' to leave the email as it is
-)
-update public.spare_requests r
-   set engineer       = n.engineer,
-       engineer_email = case when btrim(n.engineer_email) = '' then r.engineer_email else n.engineer_email end
-  from new_owner n
- where r.or_no in ('OR-2609-0002','OR-2609-0004','OR-2609-0005','OR-2609-0006','OR-2609-0007');
+do $$
+declare
+  v_who   text := '%pawan%';                      -- <-- the same search as above
+  v_ors   text[] := array['OR-2609-0002','OR-2609-0004','OR-2609-0005','OR-2609-0006','OR-2609-0007'];
+  v_name  text;
+  v_email text;
+  n       int;
+  moved   int;
+begin
+  select count(*) into n from public.user_directory where name ilike v_who;
+  if n <> 1 then
+    raise exception 'The User Master has % people matching %  — narrow the search to the one you mean', n, v_who;
+  end if;
+
+  select name, nullif(btrim(coalesce(nullif(btrim(email), ''), gmail)), '')
+    into v_name, v_email
+    from public.user_directory where name ilike v_who;
+
+  update public.spare_requests r
+     set engineer       = v_name,
+         engineer_email = coalesce(v_email, r.engineer_email)
+   where r.or_no = any (v_ors);
+  get diagnostics moved = row_count;
+
+  raise notice 'Moved % of % requests to "%" (%)', moved, array_length(v_ors, 1), v_name, coalesce(v_email, 'email unchanged');
+end $$;
 
 -- ---------------------------------------------------------------------------
--- 3. CHECK, THEN COMMIT — or ROLLBACK and nothing happened.
+-- 4. CHECK, THEN COMMIT — or ROLLBACK and nothing happened.
 -- ---------------------------------------------------------------------------
 select or_no, engineer, engineer_email
   from public.spare_requests
