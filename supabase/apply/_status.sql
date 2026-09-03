@@ -225,6 +225,16 @@ with checks(sort_order, bundle, provides, present) as (
     -- resolved to no row, so visible_engineer_names() was empty and the database
     -- returned no calls -- while the screen said "Team view - 15 engineers",
     -- because the CLIENT also matches on username. The name is the fallback.
+    -- The master value lists could not be uploaded at all: their uniqueness is
+    -- (name, value, stage, product) and the last two were EXPRESSIONS, which
+    -- `on conflict` cannot infer. The eighth time this project met that wall.
+    (46, 'master value lists: uploadable', 'masters keys the upsert can infer — stage_key + product_key and their index (0094)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='masters' and column_name='stage_key')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='masters' and column_name='product_key')
+     and exists (select 1 from pg_indexes
+                  where schemaname='public' and indexname='masters_name_value_keys_uniq'))),
     (45, 'product & party search', 'the Product & Party Search screen is on the roles that have Product Master (0093)',
         exists (select 1 from public.app_roles
                  where permissions ? 'mod:/lookup')),

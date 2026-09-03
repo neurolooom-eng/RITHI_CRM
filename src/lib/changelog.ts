@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.65',
+    date: '2026-09-03',
+    title: 'The master value lists upload',
+    changes: [
+      'Standard Complaint \u2014 and every other value list \u2014 was refused outright: the database\u2019s uniqueness is (list, value, stage, product) and the last two were computed rather than stored, which an upload cannot match on. They are stored now, and the 507 complaints load.',
+      'Two rows of one file that differ only by product \u2014 \u201cCalibration\u201d for MONNAL T60 and for T75 \u2014 both survive the load, as they should.',
+      'Needs a database script run once (daily_review.sql).',
+    ],
+  },
+  {
     version: '0.9.64',
     date: '2026-09-03',
     title: 'The yearly consumption files no longer overwrite each other',

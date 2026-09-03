@@ -29,7 +29,7 @@ const psql = (sql) => execFileSync('psql', [...url.split(' '), '-Atc', sql], { e
 
 // Read the registers out of the built app rather than re-declaring them, so the
 // two cannot drift.
-const { UPLOADS } = await import('../src/lib/uploads.ts').catch(async () => {
+const { UPLOADS, masterUpload } = await import('../src/lib/uploads.ts').catch(async () => {
   const { execFileSync: run } = await import('node:child_process');
   run('npx', ['esbuild', 'src/lib/uploads.ts', '--bundle', '--platform=node', '--format=esm',
               '--outfile=node_modules/.cache/uploads.mjs', '--log-level=error'], { stdio: 'inherit' });
@@ -37,7 +37,12 @@ const { UPLOADS } = await import('../src/lib/uploads.ts').catch(async () => {
 });
 
 let bad = 0;
-for (const d of UPLOADS) {
+// The master value lists are GENERATED registers, one per list, and were not in
+// this check — which is how a conflict target that names two expression columns
+// reached the live project and refused every value list on the screen.
+const DEFS = [...UPLOADS, masterUpload({ key: 'complaint', label: 'Standard Complaint' })];
+
+for (const d of DEFS) {
   if (!d.conflict) continue;
   const kind = psql(`select coalesce((select relkind from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='${d.table}'), '?')`);
   if (kind === 'v') {

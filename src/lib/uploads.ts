@@ -843,7 +843,20 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
     group: 'Master Value Lists',
     table: 'masters',
     stamp: { name: list.key },
-    conflict: 'name,value',
+    // The database's key is (name, value, stage, product) — the last two held in
+    // `extra` and mirrored into STORED columns by 0094 so `on conflict` can
+    // infer them. Naming only name,value was refused outright.
+    conflict: 'name,value,stage_key,product_key',
+    conflictFrom: ['name', 'value'],
+    // Folded on the same four, so two rows of one file that differ only by
+    // product ("Calibration" for T60 and for T75) both survive the load.
+    fold: {
+      key: (r) => {
+        const e = (r.extra ?? {}) as Record<string, unknown>;
+        return [r.name, r.value, e.stage ?? e.Stage ?? '', e.product ?? e.Product ?? '']
+          .map((v) => String(v ?? '').trim().toLowerCase()).join('|');
+      },
+    },
     extraInto: 'extra',
     note: `Loads into the ${list.label} list. The list name is stamped for you, so the file only needs its values.`,
     cols: [
