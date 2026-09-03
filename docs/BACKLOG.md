@@ -265,6 +265,12 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+Read from the user's `_status.sql` on 2026-09-03 plus what has shipped since.
+Everything else in this file's earlier lists HAS been run — documents, reports,
+user_directory (0068), rbac (0069), masters, call_requests (0083),
+sales_contracts (0080), daily_review, Spare_1 (0084/0085/0087/0088) and
+HandStock_X for 0089/0090/0091. Do not re-add them here without a status read.
+
 - **[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)**
   (migration `0093`) — puts **Product & Party Search** on the roles that already
   hold Product Master. A new module is in the code's defaults, but `has_perm`
@@ -275,77 +281,51 @@ transfer guard and the cap all inherit them untouched:
 - **[`user_directory.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/user_directory.sql)**
   (migration `0092`) — a **Reporting Manager who sees no calls** while the header
   says "Team view · 15 engineers". The screen finds him in the User Master by
-  email, gmail OR username; `visible_engineer_names()` matched on email/gmail
-  and nothing else, so a stale address resolved to no row, the tree came back
-  empty, and RLS returned nothing. The name is now the fallback — only when the
-  address finds nobody. `_status.sql` row 44.
-- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  (migrations `0082` + `0089` + `0090`) — carries the whole hand-stock model:
-  the four spare files (0089) and the ISSUE history (0090), which is the term
-  the balance never had. `_status.sql` rows 41 and 42.
-  ⚠️ 0090 rebuilds `handstock_movements`, and **`create or replace view` does
-  NOT carry `security_invoker` over** — without re-asserting it the view runs as
-  its owner and every arm's row-level security stops applying. The scope suite
-  caught it; the migration now re-asserts it every time it rebuilds the view.
-  Any future arm must do the same.
-- **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
-  (migration `0080`) — `extra` on `stock_transfers` and `ownership_transfers`.
-  The **Stock Transfer Register upload fails without it** ("Could not find the
-  'extra' column of 'stock_transfers'"), and so does Ownership Transfer.
-  `_status.sql` row 36.
-- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  (migrations `0082` + `0089`) — **the four spare files will not load without it**.
-  0089 came out of loading all four END TO END against a copy of the live
-  database: `material_returns.extra` had never existed (so MRN could not write a
-  row, while the preview said 595 ready); the shortfall guards refused history
-  that had already happened; and `stock_transfers.created_by` had no default, so
-  a non-admin could not add lines to a transfer they had just made — in the app
-  as much as in an import. `_status.sql` row 41. 0082 is the parts/products key,
-  same file.
-Read from `_status.sql` on 2026-09-03: everything else is applied — base, rbac,
-user_directory (0068), documents (0070), reports (0071), the cover tables
-(0036/0037), handstock, masters (0066/0067/0076/**0086**), ownership transfer (0072),
-additional entries (0073), opening pools (0074), consumption history (0075),
-GRIR (0078+0081), spare import (0084) and the OR-number key (**0085**). The
-Party Master and Spare Request uploads were confirmed unblocked by 0086/0085.
+  email, gmail OR username; `visible_engineer_names()` matched on email/gmail and
+  nothing else, so a stale address resolved to no row, the tree came back empty,
+  and RLS returned nothing. The name is now the fallback — only when the address
+  finds nobody. Gates EVERY manager feature shipped 2026-09-03: team visibility,
+  the engineer pickers, the chips, the grouping and the bulk allotment.
+  `_status.sql` row 44.
+- **[`_dedupe_part_product_keys.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_dedupe_part_product_keys.sql)**,
+  then re-run
+  **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  — 0081/0082 SKIP their unique indexes when the table already holds duplicates
+  and print a notice the bundle's success hides, which is why `_status.sql` row
+  35 stays NO after running it. **Part Master and Product Master cannot upload
+  until this is done.**
 
-FIVE remain, each with the upload or screen it is holding up:
+  ⚠️ 0090 rebuilds `handstock_movements`, and **`create or replace view` does NOT
+  carry `security_invoker` over** — without re-asserting it the view runs as its
+  owner and every arm's row-level security stops applying. The migration
+  re-asserts it on every rebuild; any future arm must do the same.
 
-- **[`Spare_1.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql)**
-  (re-run; migrations `0087` + `0088`) — NOT needed for the upload any more:
-  v0.9.47 creates the missing requests from the app, before the write, in
-  statements of their own, and that was verified against a database in exactly
-  the live project's state (0084 + 0085, no 0087/0088) as a NON-admin. Worth
-  running anyway so a line written any other way behaves: `srl_insert` asks
-  `spare_line_parent_ok()`, a volatile function that takes a fresh snapshot and
-  can therefore SEE the stub its caller's trigger just wrote. 0087 (hoisting
-  `is_admin()`) fixed it for admins only, which is not who loads a register.
-  `_status.sql` row 40.
+### Uploads still to load — waiting on the SQL above
+In this order. Everything here has been shaped against the user's real files and
+the counts are what to expect:
 
-  ⚠️ The `_status.sql` the user ran on 2026-09-03 was an OLD copy — no row 39 or
-  40, and row 33 without 0086 — so it reported on a file the repo had moved past.
-  Copy these from the raw link each time; a snippet saved in the SQL editor is
-  not the file.
+| register | file | expect |
+| --- | --- | --- |
+| Part Master | `ITEM_Master_2.csv` | needs row 35 |
+| Product Master | `v2_ProdMaster.csv` | needs row 35 |
+| Hand Stock — WinMax opening | `HS_Winmax.csv` | 4,375 |
+| Stock Out — all years | `Stock_Out.csv` | 48,139 |
+| Consumption — yearly export | 22H2 / 23 / 24 / 25 | 5,233 / 10,338 / 11,938 / 12,292 |
+| Consumption | `v2Consumption_1.csv` | 8,352 |
+| Stock Transfer Register → Lines | `ST_Entry` → `StockTransferList` | 338 → 849 |
+| Ownership Transfer | `OwnershipTransfer.csv` | — |
+| Master Value Lists | Standard Complaint and the rest | the go-live reset emptied them |
 
-- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  (migration `0082`) — `parts_item_detail_key_uniq` + `products_machine_key_uniq`.
-  **Part Master and Product Master will not upload without it** ("no unique or
-  exclusion constraint matching the ON CONFLICT specification"). NOTE: 0082 is in
-  the **handstock** bundle, not masters — it redefines objects a later module
-  owns, so it has to run after it. `_status.sql` row 35.
-- **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
-  (migration `0080`) — `extra` on `ownership_transfers` and `stock_transfers`, so
-  those two uploads keep the columns the export carries that the tables have no
-  field for. Without it both fail on the unknown column. `_status.sql` row 36.
-- **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
-  (migration `0083`) — a request that HAS a UCN reads **Registered**, enforced on
-  update as well as insert, with a one-time backfill of the rows already loaded.
-  Until it runs, imported registered calls sit in the register as Pending.
-  `_status.sql` row 37.
-- **[`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)**
-  (migration `0046_dccr_master_values`) — the DCCR **Complaint Grouping** and
-  **Root Cause Key Word** value lists. The Daily Review screen works without
-  them; the two dropdowns are just empty. `_status.sql` row 22.
+Loaded already: Party Master (5,873), Field / Installation / PM calls, Call
+Requests, Field Reports, Spare Request (4,081) and its Lines (8,571), MRN (595).
+
+### Open questions put to the user, unanswered
+- **WinMax opening:** its `User Name` column is not only engineers — the first
+  rows are names like `A AND M HEALTH CARE C`, dealers rather than people. It is
+  252,592 of the 257,130 parts in the balance. Filter that pool to names in the
+  User Master, or load it whole?
+- **A Knowledge Base how-to for Product & Party Search**, as was done for call
+  re-allocation (offered, not asked for).
 
 
 ### Queued — waiting on the user
