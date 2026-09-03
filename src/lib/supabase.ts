@@ -1928,10 +1928,48 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
 
 export async function prepareUpload(
-  kind: 'spare-line-parents' | 'stock-transfer-parents',
+  kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers',
   rows: Record<string, unknown>[],
 ): Promise<{ ok: boolean; note?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+
+  // ---- Hand stock belongs to an ACTIVE ENGINEER ---------------------------
+  //
+  // The WinMax export's `User Name` column is not a list of engineers. It holds
+  // dealers and customers too — 252,592 of its 257,130 parts sit under names
+  // like "A AND M HEALTH CARE C" — and loading those would give every one of
+  // them a hand-stock balance on a screen that only means anything for the
+  // people who carry parts. Asked, the user said: User Master, active names
+  // only. So a row is kept only if its name is an ACTIVE row of the User Master.
+  //
+  // Matched on `lower(trim(name))`, which IS the database's `handstock_key()` —
+  // the same normalisation the balance is keyed on, so a name that passes here
+  // lands on the pool it was meant for rather than beside it.
+  //
+  // It applies to the prepared pool as well as the WinMax export. The rule is
+  // the same either way, and in a file somebody typed it catches the typo that
+  // would otherwise open a balance for an engineer who does not exist.
+  if (kind === 'handstock-engineers') {
+    const { data, error } = await c.from('user_directory').select('name').eq('validity', true).limit(5000);
+    if (error) return { ok: false, error: `Could not read the User Master: ${errMsg(error)}` };
+    const active = new Set((data ?? []).map((r) => String(r.name ?? '').trim().toLowerCase()).filter(Boolean));
+    // An EMPTY directory would drop every row and read as "the file was wrong".
+    // Refuse instead: the User Master not being loaded is the fault, not the file.
+    if (!active.size) {
+      return { ok: false, error: 'The User Master has no active users on this project, so every row would be held back. Load the User Master first.' };
+    }
+    const dropped = new Set<string>();
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const name = String(rows[i].engineer ?? '').trim();
+      if (!active.has(name.toLowerCase())) { dropped.add(name || '(blank)'); rows.splice(i, 1); }
+    }
+    if (!dropped.size) return { ok: true };
+    const shown = [...dropped].sort().slice(0, 6).join(', ');
+    return { ok: true, note:
+      `${dropped.size} name${dropped.size === 1 ? '' : 's'} held back — not an active user in the User Master`
+      + ` (${shown}${dropped.size > 6 ? `, and ${dropped.size - 6} more` : ''}).`
+      + ' Hand stock is what an ENGINEER carries, so a dealer or a former user is left out.' };
+  }
 
   // A stock transfer cannot be invented from its lines — its from / to and date
   // are only in the register file — so a line whose transfer is not here is
@@ -1952,7 +1990,7 @@ export async function prepareUpload(
       if (!here.has(String(rows[i].transfer_uid ?? ''))) { rows.splice(i, 1); dropped += 1; }
     }
     return { ok: true, note: dropped
-      ? `${dropped} line${dropped === 1 ? '' : 's'} held back — their transfer is not in the register (load Stock Transfer Register first, or it was held back there)`
+      ? `${dropped} line${dropped === 1 ? '' : 's'} held back — their transfer is not in the register (load Stock Transfer Register first, or it was held back there).`
       : undefined };
   }
 

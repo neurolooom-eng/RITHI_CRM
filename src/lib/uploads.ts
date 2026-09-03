@@ -83,7 +83,7 @@ export interface UploadDef {
    *  cannot see the parent it is being asked about and refuses the row — which
    *  is what "Your role does not have permission for this action." on row 1
    *  was. Prepared here, the upload no longer depends on that at all. */
-  prepare?: 'spare-line-parents' | 'stock-transfer-parents';
+  prepare?: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers';
   /** How rows that collide on the DATABASE's key are folded together, where the
    *  key is COMPUTED and the raw columns do not show the collision. Hand stock
    *  is keyed on the part CODE, so two WinMax lines for ACC-081 with different
@@ -620,6 +620,7 @@ export const UPLOADS: UploadDef[] = [
 
   { key: 'handstock_opening', label: 'Opening Stock — a pool you have prepared', group: 'Spares',
     table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
+    prepare: 'handstock-engineers',
     conflictFrom: ['engineer', 'part', 'source'],
     note: 'For a pool you have PREPARED — one row per engineer + part + quantity, with a Source you give it. If you have the WinMax export itself, with its User Name / Item Code / Good Balance columns, use “Opening Stock — the WinMax export” below: this register cannot read that file and will hold back every row. The hand stock that pre-dates the movement history. Each pool is ADDITIVE and sits alongside the others — WinMax HS (struck June 2022), then 22 H2, 23, 24, 25. Give every row its Source: re-loading a corrected sheet replaces THAT pool rather than adding a second one, and an unlabelled balance cannot be audited.',
     cols: [
@@ -681,7 +682,8 @@ export const UPLOADS: UploadDef[] = [
     table: 'handstock_opening', conflict: 'engineer_key,part_code,source_key',
     conflictFrom: ['engineer', 'part', 'source'], extraInto: 'data',
     stamp: { source: 'WinMax HS', as_of: '2022-06-09' },
-    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one.',
+    prepare: 'handstock-engineers',
+    note: 'The WinMax export exactly as it comes — User Name, Item Code, Item Name, Good Balance, Defective Balance. Nothing to prepare. The WinMax balance as it stood when the sheet era began. GOOD AND DEFECTIVE are both counted: a defective part is still in the engineer\u2019s hands until an MRN takes it back, which is exactly how the returns register subtracts it. A missing balance is not counted. Re-loading a corrected sheet replaces this pool rather than adding a second one. ONLY ACTIVE USERS OF THE USER MASTER ARE LOADED: the export\u2019s User Name column also holds dealers and customers, and hand stock is what an engineer carries. The names left out are named before anything is written.',
     cols: [
       { to: 'engineer', from: ['user name', 'engineer name', 'engineer'], required: true },
       { to: 'part', from: ['part', 'item detail', 'spare'], required: true,

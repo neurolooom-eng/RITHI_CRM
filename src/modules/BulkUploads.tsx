@@ -54,26 +54,34 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 
   const write = async () => {
     if (!pending) return;
-    const n = pending.shaped.rows.length;
-    const warn = def.conflict
-      ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
-      : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${warn}`)) return;
-    // Some registers point at rows that have to be there first (see `prepare`).
-    // Done before the write and in its own statements, so the rows being written
-    // can see them — a database trigger cannot do this for us.
+    // Some registers point at rows that have to be there first, or accept only
+    // some of the names in the file (see `prepare`). Done in its own statements
+    // BEFORE anything is written — a database trigger cannot do this for us —
+    // and before the confirmation, so the number you are asked to approve is the
+    // number that will actually be written. It used to run after, which meant
+    // agreeing to 257,130 rows and being told afterwards that 4,538 went in.
     let note = '';
     if (def.prepare) {
       setBusy('Checking what these rows point at…');
       const pre = await prepareUpload(def.prepare, pending.shaped.rows);
-      if (!pre.ok) { setBusy(''); setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
+      setBusy('');
+      if (!pre.ok) { setMsg({ tone: 'error', text: pre.error ?? 'Could not prepare the upload.' }); return; }
       note = pre.note ?? '';
+      if (!pending.shaped.rows.length) {
+        setMsg({ tone: 'error', text: `Nothing left to load.${note ? ` ${note}` : ''}` });
+        return;
+      }
     }
+    const n = pending.shaped.rows.length;
+    const warn = def.conflict
+      ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
+      : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
+    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${warn}`)) return;
     setBusy(`Writing 0 / ${n}…`);
     const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
-    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}.` : ''}` });
+    setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
     setPending(null);
     onDone();
   };

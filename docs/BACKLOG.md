@@ -265,6 +265,16 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+- **[`_handstock_opening_engineers.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_handstock_opening_engineers.sql)**
+  — **opening stock for active engineers only.** The WinMax export's `User Name`
+  column holds dealers and customers as well as engineers; 252,592 of its
+  257,130 parts came in under names like `A AND M HEALTH CARE C`, each given a
+  hand-stock balance. Asked which way to load it, the user said **User Master,
+  active names only** (2026-09-04). The uploader now holds the rest back before
+  writing; this applies the same rule to what is already loaded. Names what it
+  removes, prints the balance before and after, safe to re-run, and refuses
+  outright if the User Master is not loaded. Everything it deletes is re-loadable
+  from the same file.
 Read from the user's `_status.sql` on 2026-09-03 plus what has shipped since.
 Everything else in this file's earlier lists HAS been run — documents, reports,
 user_directory (0068), rbac (0069), masters, call_requests (0083),
