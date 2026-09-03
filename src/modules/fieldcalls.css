@@ -382,3 +382,27 @@
 .rbac-child td { background: var(--surface-alt, #fafbfc); }
 .rbac-indent { padding-left: 28px !important; }
 .rbac-bulk td { border-top-style: dashed; }
+
+/* ---- Product & Party Search --------------------------------------------- */
+.lk-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.lk-search .input { min-width: 200px; }
+.lk-search .input.lk-wide { min-width: 340px; }
+
+.lk-hits { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.lk-hit {
+  display: flex; align-items: baseline; gap: 10px; text-align: left;
+  padding: 8px 12px; border: 1px solid var(--border, #d7dee8); border-radius: 8px;
+  background: var(--surface, #fff); cursor: pointer; font: inherit; color: inherit;
+}
+.lk-hit:hover { border-color: var(--primary); }
+
+.lk-card {
+  border: 1px solid var(--border, #d7dee8); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 14px; background: var(--surface, #fff);
+}
+.lk-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lk-card-head h3 { margin: 0; font-size: 17px; }
+.lk-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px 18px; }
+.lk-detail { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.lk-detail .muted { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.lk-sub { margin: 4px 0 8px; font-size: 14px; }
