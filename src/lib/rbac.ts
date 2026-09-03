@@ -25,10 +25,10 @@ export const ROLE_KEYS = ROLES.map((r) => r.key);
 export interface ModuleDef { path: string; label: string; admin?: boolean }
 export const MODULES: ModuleDef[] = [
   { path: '/', label: 'Dashboard' },
+  { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/parties', label: 'Party Master' },
   { path: '/product-master', label: 'Product Master' },
-  { path: '/lookup', label: 'Product & Party Search' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
@@ -201,12 +201,12 @@ export interface PermHeader extends PermHeaderOpts { title: string; pages: PermP
 export const PERM_TREE: PermHeader[] = [
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
+    { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
     { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
-    { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
     // All Masters is just the overview screen; each value list is its own page

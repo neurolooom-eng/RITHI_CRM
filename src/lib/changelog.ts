@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.61',
+    date: '2026-09-03',
+    title: 'Product & Party Search moves to Overview',
+    changes: [
+      'It sits under Overview now, beside the Dashboard, rather than in Master \u2014 it is a question you ask, not a register you maintain. Roles & Permissions lists it in the same place.',
+      'It has no download, on purpose: the screen answers a question about one customer, and is not a way to take the install base out of the system. Exports stay on the registers, where they are gated.',
+    ],
+  },
+  {
     version: '0.9.60',
     date: '2026-09-03',
     title: 'Product & Party Search',
