@@ -4,7 +4,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
-import { listTabRows, sheetsConfigured, listUsers } from '../lib/sheets';
+import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
   searchCalls, supabaseConfigured, receiveSpareShipments,
@@ -22,7 +22,7 @@ import {
   type CommercialAnswer, type NsmAnswer,
 } from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, allowsAllottee } from '../lib/access';
+import { useAccessScope, allowsAllottee, useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
@@ -105,7 +105,6 @@ export function SpareRequestDrawer({
   const spareMaster = useMaster('spare');
   const [reqType, setReqType] = useState('Call Based');
   const [engineer, setEngineer] = useState('');
-  const [engineerOpts, setEngineerOpts] = useState<string[]>([]);
   const [picked, setPicked] = useState<PickedCall>(EMPTY_CALL);
   const [remarks, setRemarks] = useState('');
   const [handstockReason, setHandstockReason] = useState('');
@@ -114,9 +113,13 @@ export function SpareRequestDrawer({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
-  // Engineers raise requests for themselves; every other role may point a
-  // request at one of their engineers.
-  const canPickEngineer = (user?.rbacRole ?? 'engineer') !== 'engineer';
+  // Engineers raise requests for themselves; a manager points one at any of the
+  // engineers reporting to them, and an office desk at anyone. `canPick` is the
+  // list having more than one name in it, so the rule lives in ONE place —
+  // asking the role again here is how a manager ended up being offered all
+  // 2,000 names in the directory.
+  const team = useTeamEngineers(engineer);
+  const canPickEngineer = team.canPick;
   // A call passed in from the call view fixes the call fields; opened from the
   // register, the user picks the UCN.
   const fixedCall = !!call?.ucn;
@@ -131,19 +134,10 @@ export function SpareRequestDrawer({
     setPicked(callToPicked(call));
   }, [open, call, user]);
 
-  // Directory names for the engineer picker (only for roles that may choose).
-  useEffect(() => {
-    if (!open || !canPickEngineer || engineerOpts.length) return;
-    let alive = true;
-    listUsers('', 2000)
-      .then((rows) => {
-        if (!alive) return;
-        const names = [...new Set(rows.map((r) => String(r['User Name'] ?? '').trim()).filter(Boolean))].sort();
-        setEngineerOpts(names);
-      })
-      .catch(() => { /* the field stays a free-text input */ });
-    return () => { alive = false; };
-  }, [open, canPickEngineer, engineerOpts.length]);
+  // Who this request may be raised FOR: a manager's own reporting engineers,
+  // an office desk's whole directory, an engineer just themselves. The same
+  // list the report screen and the call request offer — it used to be every
+  // name in the company, which is not what "raise it for one of mine" means.
 
   const setSpare = (i: number, field: 'spare' | 'qty', v: string) =>
     setSpares((s) => s.map((x, j) => (j === i ? { ...x, [field]: v } : x)));
@@ -214,11 +208,17 @@ export function SpareRequestDrawer({
             </label>
             <label className="rep-field">
               <span className="field-label">Engineer Name *</span>
-              <input
-                className="input" list="dl-engineers" value={engineer}
-                onChange={(e) => setEngineer(e.target.value)} readOnly={!canPickEngineer}
-                title={canPickEngineer ? 'Raise this request for another engineer' : 'Taken from your login'}
-              />
+              {canPickEngineer ? (
+                <select
+                  className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}
+                  title="Raise this request for one of your engineers"
+                >
+                  {!engineer && <option value="">— select —</option>}
+                  {team.names.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              ) : (
+                <input className="input" value={engineer} readOnly title="Taken from your login" />
+              )}
             </label>
             <label className="rep-field">
               <span className="field-label">Engineer Email</span>
@@ -233,11 +233,6 @@ export function SpareRequestDrawer({
               <input className="input" value="assigned on submit" readOnly />
             </label>
           </div>
-          {canPickEngineer && (
-            <datalist id="dl-engineers">
-              {engineerOpts.map((n) => <option key={n} value={n} />)}
-            </datalist>
-          )}
         </section>
 
         {reqType === 'Call Based' && (

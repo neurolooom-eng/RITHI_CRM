@@ -6,6 +6,7 @@ import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
+import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
@@ -78,6 +79,7 @@ export function RequestCallRegistration() {
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     supabaseConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to load requests.' },
   );
+
 
   // The register is read newest-first in pages. `limit` is what "Load more"
   // raises; it is a lower bound on what exists, not a page size.
@@ -209,6 +211,13 @@ const LABELS: Record<string, string> = {
 
 function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   const { user } = useAuth();
+  // WHO THIS REQUEST IS FOR. A Reporting Manager raises one on behalf of any
+  // engineer reporting to them; an engineer raises their own. It used to be
+  // stamped from the login with no say in it, so a manager could not raise a
+  // request for their own team. Same list as the spare request and the report.
+  const team = useTeamEngineers();
+  const [engineer, setEngineer] = useState('');
+  useEffect(() => { if (!engineer && user?.fullName) setEngineer(user.fullName); }, [user?.fullName, engineer]);
   const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
   const partyMaster = useMaster('party');
   const complaintMaster = useMaster('complaint');
@@ -320,7 +329,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     if (v) { setMsg({ tone: 'error', text: v }); return; }
     setBusy(true); setMsg({ tone: 'info', text: 'Submitting request…' });
     const base: Record<string, unknown> = {
-      email: user?.email ?? '', engineer: user?.fullName ?? '', call_type: f.callType,
+      email: user?.email ?? '', engineer: engineer.trim() || (user?.fullName ?? ''), call_type: f.callType,
       party_name: f.partyName, state: f.state, city: f.city, address: f.address,
       customer_contact_details: f.customerContactDetails, customer_contact_number: f.customerContactNumber,
       installation_report: isInstall ? docs.installationReport?.url ?? '' : '',
@@ -363,7 +372,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
               </select>
             ))}
             {field('Submitted by', <input className="input" value={user?.email ?? ''} readOnly />)}
-            {field('Engineer', <input className="input" value={user?.fullName ?? ''} readOnly />)}
+            {field('Engineer', team.canPick ? (
+              <select className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}
+                title="Raise this request for one of your engineers">
+                {!engineer && <option value="">— select —</option>}
+                {team.names.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            ) : <input className="input" value={engineer} readOnly title="Taken from your login" />)}
           </div>
         </section>
 

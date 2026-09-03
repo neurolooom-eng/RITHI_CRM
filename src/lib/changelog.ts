@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.54',
+    date: '2026-09-03',
+    title: 'A manager can raise work for their own engineers',
+    changes: [
+      'Call Request, Spare Request and the visit Report all offer the same list now: a Reporting Manager picks any engineer reporting to them, an office desk picks anyone, an engineer is themselves. One list, one rule, in all three places.',
+      'A call request could only ever be raised in your own name \u2014 a manager had no way to put one in for an engineer. It has a picker now.',
+      'The spare request offered every one of the ~2,000 names in the directory, whoever you were. It offers your own team.',
+    ],
+  },
+  {
     version: '0.9.53',
     date: '2026-09-03',
     title: 'A Reporting Manager sees their team\u2019s calls',

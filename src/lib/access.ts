@@ -143,6 +143,48 @@ export function useAccessScope(): AccessScope {
   return scope;
 }
 
+// ---------------------------------------------------------------------------
+// WHOSE NAME MAY I PUT ON THIS?
+//
+// A Reporting Manager raises call requests, spare requests and visit reports on
+// behalf of their engineers, so every one of those screens needs the same list:
+// the people reporting to them, and themselves. It was written out inline on the
+// report screen and not at all on the other two — the spare request offered the
+// WHOLE directory (2,000 names, anyone in the company), and a call request could
+// only ever be raised in your own name.
+//
+// One list, one rule, from the scope that already knows it:
+//   • an administrator or an office desk — everyone in the User Master;
+//   • a manager — their reporting sub-tree, and themselves;
+//   • an engineer — themselves.
+//
+// `current` is kept whatever the rule says: a value already on the record is
+// never silently dropped by opening the screen that shows it.
+// ---------------------------------------------------------------------------
+export function useTeamEngineers(current?: string): { names: string[]; canPick: boolean; ready: boolean } {
+  const scope = useAccessScope();
+  const [directory, setDirectory] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!scope.all || !dataConfigured()) return;
+    let cancelled = false;
+    void loadUserMaster().then((rows) => {
+      if (cancelled) return;
+      setDirectory([...new Set(rows.map((r) => pick(r, H_NAME)).filter(Boolean))]);
+    });
+    return () => { cancelled = true; };
+  }, [scope.all]);
+
+  const base = scope.all
+    ? directory
+    : scope.isManager ? [scope.selfName, ...scope.reports] : [scope.selfName];
+
+  const names = [...new Set([...base, current ?? ''].map((n) => String(n ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+
+  return { names, canPick: names.length > 1, ready: scope.ready && (!scope.all || directory.length > 0) };
+}
+
 // Is a call with this allottee visible under the given scope?
 export function allowsAllottee(scope: AccessScope, allottee: unknown): boolean {
   if (scope.all) return true;
