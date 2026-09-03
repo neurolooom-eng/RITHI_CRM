@@ -22,7 +22,7 @@ import {
   type CommercialAnswer, type NsmAnswer,
 } from '../lib/spareapproval';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, allowsAllottee, useTeamEngineers } from '../lib/access';
+import { useAccessScope, allowsAllottee, useTeamEngineers, useRegionByEngineer } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
 
@@ -709,6 +709,8 @@ export function SpareRequests() {
   // that stage, not four in total. A count that ignores the filter next to it
   // is a number nobody can act on.
   const [engineerFilter, setEngineerFilter] = useState('');
+  // A spare carries no region either; it comes off the engineer, as on a call.
+  const regionOf = useRegionByEngineer();
   const engineerOf = (r: Row) => g(r, 'req_engineer') || g(r, 'engineer');
   const byStage = (list: Row[]) => (onDb && stageFilter
     ? (stageFilter === MINE
@@ -746,6 +748,15 @@ export function SpareRequests() {
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
   }, [scoped, search, onDb, stageFilter, engineerFilter, email, mayRmApprove]);
+
+  const visibleWithRegion = useMemo(
+    () => visible.map((r) => ({
+      ...r,
+      _region: regionOf.get(engineerOf(r).trim().toLowerCase()) ?? '',
+    })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visible, regionOf],
+  );
 
   const allFields = useMemo(() => {
     const ks = new Set<string>();
@@ -815,14 +826,18 @@ export function SpareRequests() {
       <DataTable<Row>
         columns={columns}
         allFields={allFields}
-        rows={visible}
+        rows={visibleWithRegion}
         getRowId={(r) => r.id}
         onRowClick={onDb ? (r) => setDetail(String(r.id)) : undefined}
         storageKey="spareRequests"
-        // Engineer wise: the register is worked one engineer at a time, and the
+        // Region, engineer, stage — the spare register's own three. The
         // engineer is on the REQUEST, not on the spare, so it is joined onto
-        // every row as `req_engineer`.
-        groupable={[{ key: 'req_engineer', label: 'Engineer' }]}
+        // every row as `req_engineer`; the region comes off that name.
+        groupable={[
+          { key: '_region', label: 'Region' },
+          { key: 'req_engineer', label: 'Engineer' },
+          { key: 'stage', label: 'Stage' },
+        ]}
         rowsBeforeScroll={14}
         dense
         onLoadMore={onDb ? loadMore : undefined}
