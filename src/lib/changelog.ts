@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.43',
+    date: '2026-09-03',
+    title: 'Spare Request, MRN and Consumption now load',
+    changes: [
+      'Spare Request loads from both its exports. They are joined by the OR number, which is the only thing the lines file knows about its parent — so that is now the request\u2019s identity, and the sheet\u2019s own row id is kept on the row rather than dropped.',
+      'The lines export\u2019s “ADMIN Approval” is read as the Commercial stage, which is the one the approval flow actually acts on. RM, Commercial and NSM dates, the stock-out number and the dispatched quantity all come through.',
+      '72 lines name a request that is not in the header export at all. Rather than failing the other 8,499, those get a request created for them and marked as such, so the gap is visible instead of costing the file.',
+      'MRN: seven rows return zero of everything, which the database refuses and which failed the whole batch. They are not returns; they are held back by name and the other 595 load.',
+      'Consumption: a visit dated “02 Jul 26” was not being read at all, so all 8,352 rows would have been stored with today\u2019s date instead of the visit\u2019s. Two-digit years with a month name are now read.',
+      'Needs database scripts run once (Spare_1.sql, HandStock_X.sql).',
+    ],
+  },
+  {
     version: '0.9.42',
     date: '2026-09-03',
     title: 'A request with a UCN is Registered',

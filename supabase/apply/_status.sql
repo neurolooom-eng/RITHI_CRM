@@ -177,11 +177,22 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='ownership_transfers' and column_name='extra')
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='stock_transfers' and column_name='extra'))),
-    (34, 'consumption: GRIR / traceability', 'spare_consumption.grir + source_ref, so a re-load corrects (0078)',
+    -- Tests what the UPLOAD actually needs, not just 0078's columns. It read
+    -- "yes" on grir + source_ref while the Consumption upload still failed with
+    -- 'column "source_ref_key" does not exist' — that key and its FULL unique
+    -- index come from 0081, and a status row that cannot see the difference is
+    -- worse than no row. Same lesson as row 35.
+    (38, 'spare requests: importable', 'spare_requests.extra + the stub-parent trigger a line needs (0084)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='spare_requests' and column_name='extra')
+     and exists (select 1 from pg_trigger where tgname = 'spare_request_line_stub_parent'))),
+    (34, 'consumption: GRIR + re-loadable', 'spare_consumption.grir, source_ref_key and its unique index (0078 + 0081)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='spare_consumption' and column_name='grir')
      and exists (select 1 from information_schema.columns
-                  where table_schema='public' and table_name='spare_consumption' and column_name='source_ref'))),
+                  where table_schema='public' and table_name='spare_consumption' and column_name='source_ref_key')
+     and exists (select 1 from pg_indexes
+                  where schemaname='public' and indexname='spare_consumption_source_ref_uniq'))),
     (33, 'parties: key + de-duplication', 'parties.party_key (Party-1, Party-2 …) and the name_key unique index (0076)',
         (exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='parties' and column_name='party_key')

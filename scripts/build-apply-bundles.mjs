@@ -329,6 +329,7 @@ const MODULES = {
       '0033_rm_approves_own_team.sql',
       '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
+      '0084_spare_request_import.sql',
     ],
   },
 };

@@ -10,16 +10,26 @@
 // The shapes these exports actually use:
 //   2026-09-03                 ISO
 //   03-September-2026          day, full or short month name, year (any separator)
+//   02 Jul 26                  ...and the same with a TWO-DIGIT year
 //   08 06 2026                 day month year, SPACE separated (the Visit Date)
 //   03/09/2026                 day first, ALWAYS: these are Indian exports, and
 //                              reading 03/04 as 4 March moves a visit a month
 // with an optional hh:mm[:ss] after any of them.
+//
+// A two-digit year is read on the usual pivot: 00-68 is 2000s, 69-99 is 1900s.
+// Refusing them was not neutral — one consumption export writes "02 Jul 26" and
+// every one of its 8,356 rows came back unparsed, which meant the visit date was
+// dropped and the row silently took today's date instead.
 //
 // Pure, and its own module, so it can be checked without the app.
 // ---------------------------------------------------------------------------
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const pad = (n: number) => String(n).padStart(2, '0');
+
+// '26' -> 2026, '99' -> 1999. Only ever applied to a 2-digit group; a 4-digit
+// year is used as written.
+const fullYear = (y: string) => (y.length === 4 ? +y : +y <= 68 ? 2000 + +y : 1900 + +y);
 
 export interface DateParts { y: number; mo: number; d: number; hh: number; mi: number; ss: number; hasTime: boolean }
 
@@ -32,9 +42,13 @@ export function parseDateParts(v: unknown): DateParts | null {
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
   if (m) return { y: +m[1], mo: +m[2], d: +m[3], ...time };
 
-  m = /^(\d{1,2})[-/. ]([A-Za-z]{3,})[-/. ](\d{4})/.exec(s);
-  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return { y: +m[3], mo, d: +m[1], ...time }; }
+  m = /^(\d{1,2})[-/. ]([A-Za-z]{3,})[-/. ](\d{4}|\d{2})\b/.exec(s);
+  if (m) { const mo = MONTHS[m[2].slice(0, 3).toLowerCase()]; if (mo) return { y: fullYear(m[3]), mo, d: +m[1], ...time }; }
 
+  // All-numeric needs a FOUR-digit year: "03/04/26" could be day/month/year or
+  // year/month/day and there is nothing in it to say which, so it is refused
+  // rather than guessed. A month name removes that ambiguity, which is why the
+  // rule above accepts two digits and this one does not.
   m = /^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/.exec(s);
   if (m) { const mo = +m[2]; if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d: +m[1], ...time }; }
 

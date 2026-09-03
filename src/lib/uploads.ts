@@ -388,35 +388,64 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- spares
   { key: 'spare_requests', label: 'Spare Request', group: 'Spares', table: 'spare_requests',
-    conflict: 'uid', requires: 'Field Calls',
+    conflict: 'uid', requires: 'Field Calls', extraInto: 'extra',
+    note: 'One row per request. Matched on the OR number, which is also what the lines export uses to find its parent — so load this first, or the lines create a stub request that this file then fills in. The Spare (1..20) / Qty (1..20) columns are the lines repeated across the row; load them from the Lines file, which carries the approvals and quantities too.',
     cols: [
-      { to: 'uid', from: ['uid', 'request uid', 'or no', 'unique id'], required: true },
-      TEXT('or_no', 'or no', 'or number'), DATE('or_req_date', 'or req date', 'request date'),
+      // The OR NUMBER is the request's identity here, and that is forced by the
+      // data: the lines export names its parent by OR number and nothing else,
+      // so anything else as `uid` leaves every line pointing at nothing. The
+      // export's own row id has no field and is kept on the row.
+      { to: 'uid', from: ['or no', 'or number', 'uid', 'request uid'], required: true },
+      TEXT('or_no', 'or no', 'or number'),
+      DATE('or_req_date', 'or req date', 'or date', 'request date'),
       TEXT('req_type', 'req type', 'request type'),
-      TEXT('engineer'), TEXT('engineer_email', 'engineer email'),
-      TEXT('ucn'), TEXT('call_number', 'call number'),
-      TEXT('party_name', 'party name'), TEXT('product_name', 'product name'), TEXT('serial', 'serial no'),
-      TEXT('complaint'), TEXT('item_status', 'item status'),
-      TEXT('handstock_reason', 'handstock reason'), TEXT('remarks'), TEXT('status'), TEXT('stage'),
+      TEXT('engineer', 'engineer name', 'engineer'),
+      TEXT('engineer_email', 'engineer email'),
+      TEXT('ucn', 'uc number', 'ucn'), TEXT('call_number', 'call number'),
+      TEXT('party_name', 'party name'), TEXT('product_name', 'product name'),
+      TEXT('serial', 'product serial number', 'serial no', 'serial'),
+      TEXT('complaint', 'complaint reported', 'complaint'), TEXT('item_status', 'item status'),
+      TEXT('handstock_reason', 'reason for handstock request', 'handstock reason'),
+      TEXT('remarks', 'additional remarks', 'remarks'), TEXT('status'), TEXT('stage'),
       TS('created_at', 'raised on', 'created at'),
     ] },
   // The approvals are COLUMNS on the line, not registers of their own — so the
   // RM / Commercial / NSM sheets all load here, each filling in its own stage.
   { key: 'spare_request_lines', label: 'Spare Request Lines (+ RM / Commercial / NSM approval)', group: 'Spares',
-    table: 'spare_request_lines', conflict: 'line_uid', requires: 'Spare Request',
-    note: 'RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
+    table: 'spare_request_lines', conflict: 'line_uid', requires: 'Spare Request', extraInto: 'extra',
+    note: 'The export\u2019s "ADMIN Approval" is the Commercial stage — that is the column the approval flow reads. A line whose request is not in the header export gets a stub request, marked as such, so one gap does not cost the whole file. RM, Commercial and NSM approvals are columns on this row, not separate registers. Load the same file three times if the approvals arrived separately — each pass fills in its own stage.',
     cols: [
-      { to: 'line_uid', from: ['line uid', 'line id', 'uid'], required: true },
-      { to: 'request_uid', from: ['request uid', 'uid', 'or no'], required: true },
-      { to: 'part', from: ['part', 'part no', 'spare'], required: true },
-      NUM('qty', 'quantity', 'qty requested'),
+      // "OR26724|NO-001" — the export's own line identity.
+      { to: 'line_uid', from: ['spare request no|part number', 'line uid', 'line id', 'uid'], required: true },
+      // The OR number, which is the request's uid (see the Spare Request note).
+      { to: 'request_uid', from: ['or no', 'or number', 'request uid'], required: true },
+      // `Spare` is already CODE|Description; built from the two halves otherwise.
+      { to: 'part', from: ['spare', 'part', 'part no'], required: true,
+        derive: (o) => (o.extra && typeof o.extra === 'object'
+          ? (() => {
+              const e = o.extra as Record<string, unknown>;
+              const c = String(e['Part Number'] ?? '').trim();
+              const d = String(e['Part Description'] ?? '').trim();
+              return c && d ? `${c}|${d}` : '';
+            })()
+          : '') },
+      { to: 'qty', from: ['requested qty', 'qty', 'quantity'], type: 'num' },
       { to: 'row_no', from: ['row no', 'si number', 'sl no'], type: 'int' },
-      TEXT('rm_approval', 'rm approval'), TEXT('rm_by', 'rm by'), TS('rm_at', 'rm date', 'rm at'),
-      TEXT('commercial_approval', 'commercial approval'), TEXT('commercial_by', 'commercial by'), TS('commercial_at', 'commercial date'),
-      TEXT('nsm_approval', 'nsm approval'), TEXT('nsm_by', 'nsm by'), TS('nsm_at', 'nsm date'),
+      TEXT('rm_approval', 'rmapproval', 'rm approval'), TEXT('rm_by', 'rm by'),
+      TS('rm_at', 'rmapproval date', 'rm approval date', 'rm date'),
+      // The sheet's "ADMIN Approval" IS the Commercial stage — that is the
+      // column the approval flow reads (spareflow.ts); `admin_approval` is a
+      // legacy field nothing acts on.
+      TEXT('commercial_approval', 'admin approval', 'commercial approval'),
+      TEXT('commercial_by', 'commercial by'),
+      TS('commercial_at', 'admin approval date', 'commercial date'),
+      TEXT('nsm_approval', 'nsm approval'), TEXT('nsm_by', 'nsm by'),
+      TS('nsm_at', 'nsm approval date', 'nsm date'),
       TEXT('stores_status', 'stores status'), TEXT('stage'), TEXT('status'),
       TEXT('reject_reason', 'reject reason'), TEXT('rejected_stage', 'rejected stage'),
-      TEXT('dc_number', 'dc number'), TEXT('courier'), TS('dispatched_at', 'dispatched date'),
+      TEXT('stock_out_no', 'so no', 'stock out no'),
+      TEXT('dc_number', 'dc number'), TEXT('courier'),
+      TS('dispatched_at', 'so date', 'dispatched date'),
       NUM('dispatched_qty', 'dispatched qty'), NUM('received_qty', 'received qty'),
     ] },
   { key: 'spare_dispatches', label: 'Stock Out Register', group: 'Spares', table: 'spare_dispatches',
@@ -444,7 +473,11 @@ export const UPLOADS: UploadDef[] = [
       TEXT('remarks'), TEXT('recorded_by', 'recorded by'),
       TS('created_at', 'visit date & time', 'consumed on', 'date'),
     ] },
-  { key: 'material_returns', label: 'MRN Register', group: 'Spares', table: 'material_returns',
+  { key: 'material_returns', label: 'MRN Register', group: 'Spares', table: 'material_returns', extraInto: 'extra',
+    // The database refuses a return of nothing, and 7 such rows failed the whole
+    // 602-row batch. They are not returns; held back by name.
+    reject: (r) => (Number(r.good_qty ?? 0) + Number(r.defective_qty ?? 0) > 0
+      ? '' : 'nothing returned — good and defective are both zero'),
     note: 'The returns register as exported. `Item Details` is the part — `Part Details` in the same export is a spreadsheet formula with the quantities glued on the end, and is not read. The export has no unique row id (its SI Number repeats), so load it once.',
     cols: [
       // `Item Details` is Item Code|Item Name, which is how a part is stored.

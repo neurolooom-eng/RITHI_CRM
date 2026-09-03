@@ -29,6 +29,14 @@ eq('the time of day is carried', parseDateParts('03-Sep-2026 14:30:15')?.hh, 14)
 eq('...and its absence is known', parseDateParts('03-Sep-2026')?.hasTime, false);
 eq('junk is null, never a guess', [toIsoDate('n/a'), toIsoDate(''), toIsoDate('#REF!')], [null, null, null]);
 
+// One consumption export writes "02 Jul 26". Refusing it was not neutral: the
+// visit date was dropped and all 8,356 rows silently took today's date.
+eq('a TWO-digit year with a month name reads', [toIsoDate('02 Jul 26'), toIsoDate('02-Jul-26')], ['2026-07-02', '2026-07-02']);
+eq('the usual pivot: 69-99 is last century', toIsoDate('02 Jul 99'), '1999-07-02');
+// All-numeric with two digits is ambiguous (03/04/26 could be d/m/y or y/m/d)
+// and there is nothing in it to say which, so it is refused, not guessed.
+eq('all-numeric two-digit years are REFUSED, not guessed', toIsoDate('03/04/26'), null);
+
 console.log('\n-- wall-clock times are LOCAL in every importer (settled 2026-09-03) --');
 const wall = '02-Jan-2026 12:54:54';
 const local = toIsoTimestamp(wall, 'local');
@@ -242,6 +250,37 @@ const prod = shapeUpload(def('products'), [
 eq('the same serial on two models is two machines', prod.rows.length, 2);
 eq('the same model+serial twice is one', prod.rows.filter((x) => x.item_name === 'VEGA').length, 1);
 eq('...and the last one wins', prod.rows.find((x) => x.item_name === 'VEGA')?.party_name, 'C');
+
+console.log('\n-- the spare request register: two files, joined by the OR number --');
+const sr = shapeUpload(def('spare_requests'), [
+  { 'UID': 'S1-30793a25', 'OR NO': 'OR43016', 'Req Type': 'Call Based', 'ENGINEER NAME': 'MEGHANATH',
+    'UC Number': '26A02F0001', 'Product Serial Number': '0752', 'Spare (1)': 'MP-010|SENSOR', 'Qty (1)': '1' },
+]);
+eq('the OR number is the request identity, not the sheet row id', sr.rows[0].uid, 'OR43016');
+eq('...and the sheet row id is kept, not lost', (sr.rows[0].extra as Record<string, unknown>)['UID'], 'S1-30793a25');
+eq('the wide Spare (n) columns ride along', (sr.rows[0].extra as Record<string, unknown>)['Spare (1)'], 'MP-010|SENSOR');
+
+const srl = shapeUpload(def('spare_request_lines'), [
+  { 'Spare Request No|Part Number': 'OR42608|MWP-026', 'OR NO': 'OR42608', 'Spare': 'MWP-026|COMPRESSOR',
+    'Requested Qty': '1', 'Qty': '9', 'RMApproval': 'Approved', 'RMApproval Date': '03-December-2025',
+    'ADMIN Approval': 'Cleared for Stores Processing', 'ADMIN Approval Date': '04-December-2025',
+    'NSM Approval': 'Cleared for Stores Processing', 'Stores Status': 'Dispatched',
+    'SO NO': 'SO17517', 'SO Date': '08-January-2026', 'Dispatched Qty': '1', 'POD': 'not available' },
+]);
+eq('the line points at its request by OR number', [srl.rows[0].line_uid, srl.rows[0].request_uid], ['OR42608|MWP-026', 'OR42608']);
+eq('"ADMIN Approval" is the COMMERCIAL stage the flow reads', srl.rows[0].commercial_approval, 'Cleared for Stores Processing');
+eq('...with its date', String(srl.rows[0].commercial_at).slice(0, 10), '2025-12-04');
+eq('Requested Qty wins over the raw Qty column', srl.rows[0].qty, 1);
+eq('the stock-out number and date land', [srl.rows[0].stock_out_no, String(srl.rows[0].dispatched_at).slice(0, 10)], ['SO17517', '2026-01-08']);
+eq('the rest is kept', (srl.rows[0].extra as Record<string, unknown>)['POD'], 'not available');
+
+console.log('\n-- a return of nothing is not a return --');
+const mr = shapeUpload(def('material_returns'), [
+  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '1', 'Defective Qty': '0' },
+  { 'Item Details': 'KY632200|SENSOR', 'Good Qty': '0', 'Defective Qty': '0' },
+]);
+eq('the real return loads', mr.rows.length, 1);
+eq('the empty one is held back by name', mr.skipped[0].why, 'nothing returned — good and defective are both zero');
 
 console.log('\n-- a transfer to the same engineer is not a transfer --');
 const st = shapeUpload(def('stock_transfers'), [
