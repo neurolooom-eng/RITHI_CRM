@@ -698,8 +698,13 @@ export const UPLOADS: UploadDef[] = [
           const d = parseAnyDate(String(e['Visit Entry Date'] ?? '')) ?? parseAnyDate(String(o.consumed_at ?? ''));
           return d ? `Consumption ${d.getFullYear()}` : '';
         } },
+      // The row's POSITION in the file keeps it unique within one load, and the
+      // call and part keep it unique BETWEEN loads. Position alone was not
+      // enough: 77 rows of the 2023 file were entered in January for December
+      // work, so they take Source 2024 and collided with rows 1..77 of the 2024
+      // file — one overwrote the other and 77 real consumptions disappeared.
       { to: 'ref', from: ['ref', 'row id'],
-        derive: (o, i) => `${String(o.source ?? 'row')}#${i + 1}` },
+        derive: (o, i) => `${i + 1}|${String(o.ucn ?? '').trim()}|${String(o.part ?? '').split('|')[0].trim()}` },
       TEXT('remarks'),
     ] },
 

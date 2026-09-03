@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.64',
+    date: '2026-09-03',
+    title: 'The yearly consumption files no longer overwrite each other',
+    changes: [
+      '77 rows of the 2023 export were entered in January for December work, so they belong to 2024 \u2014 and they were landing on the same reference as the first 77 rows of the 2024 file, one silently replacing the other. Each row is now identified by its call and part as well as its position, so all 39,801 rows load.',
+      'If you have already loaded the four files you will have 39,724 rows rather than 39,801. Empty the four pools and load them again to correct it \u2014 supabase/apply/_yearly_consumption_check.sql shows what is there and how.',
+    ],
+  },
+  {
     version: '0.9.63',
     date: '2026-09-03',
     title: 'The app tells you when it is out of date',
