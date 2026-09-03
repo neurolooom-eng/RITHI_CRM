@@ -195,3 +195,29 @@
 .dt-filter-between .input { width: 50%; }
 
 .dt-loadmore { margin-left: 10px; }
+
+/* ---- grouping (engineer wise, and whatever else a register offers) ------- */
+.dt-group-pick { display: inline-flex; align-items: center; gap: 6px; }
+.dt-group-pick .select { min-width: 110px; }
+
+.dt-group-row > td {
+  background: var(--dt-group-bg, #eef2f7);
+  border-top: 1px solid var(--border, #d7dee8);
+  padding: 0;
+  position: sticky;
+  left: 0;
+}
+.dt-group-toggle {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 6px 10px;
+  background: none; border: 0; cursor: pointer;
+  font: inherit; text-align: left; color: inherit;
+}
+.dt-group-toggle:hover { background: var(--dt-group-hover, #e3e9f2); }
+.dt-group-caret { width: 10px; display: inline-block; opacity: .7; }
+.dt-group-toggle .muted {
+  margin-left: 6px; font-size: 12px;
+  background: var(--dt-group-count-bg, #fff);
+  border: 1px solid var(--border, #d7dee8);
+  border-radius: 10px; padding: 0 7px;
+}

@@ -826,6 +826,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         rows={visibleRows}
         getRowId={(r) => r.id}
         storageKey={config.storageKey}
+        // Engineer wise: a manager works the register one engineer at a time.
+        groupable={[{ key: 'allocatedTo', label: 'Engineer' }]}
         rowsBeforeScroll={12}
         onLoadMore={() => { if (onDb) setLoadLimit((l) => l + 800); else { const n = loadLimit + 300; setLoadLimit(n); void refresh(n); } }}
         moreAvailable={moreAvailable}

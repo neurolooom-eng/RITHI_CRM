@@ -794,6 +794,10 @@ export function SpareRequests() {
         getRowId={(r) => r.id}
         onRowClick={onDb ? (r) => setDetail(String(r.id)) : undefined}
         storageKey="spareRequests"
+        // Engineer wise: the register is worked one engineer at a time, and the
+        // engineer is on the REQUEST, not on the spare, so it is joined onto
+        // every row as `req_engineer`.
+        groupable={[{ key: 'req_engineer', label: 'Engineer' }]}
         rowsBeforeScroll={14}
         dense
         onLoadMore={onDb ? loadMore : undefined}
