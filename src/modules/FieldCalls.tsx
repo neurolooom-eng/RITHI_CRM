@@ -11,7 +11,7 @@ import { SpareRequestDrawer } from './SpareRequests';
 import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues, type FieldOption } from '../components/form/Form';
-import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
+import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
 import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, setEngineerNamesCache, timeAgo, todayISO } from '../lib/format';
 import { C } from './collections';
 import {
@@ -427,6 +427,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // sees all by default. A call is closed only when its state is exactly Solved.
   const [openOnly, setOpenOnly] = useState(user?.rbacRole === 'engineer');
   const [reopenedOnly, setReopenedOnly] = useState(false);
+  // Engineer wise, as the spare register does its stages: a chip per name with
+  // what they are carrying, and a click to see only theirs.
+  const [engineerFilter, setEngineerFilter] = useState('');
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
@@ -683,6 +686,25 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     db.remove(config.collection, row.id);
   };
 
+  // The strip's counts come from the rows that pass everything else, so a name
+  // shows what clicking it would actually give you.
+  const engineerCounts = useMemo(() => {
+    const c = new Map<string, number>();
+    cached.forEach((row) => {
+      const solvedOut = openOnly && row._pending !== true && String(row.callState ?? '') === 'Solved';
+      const reopenOut = reopenedOnly && !(Number(row.reopenCount ?? 0) > 0);
+      const scopeOut = !(scope.all
+        || String(row.allocatedTo ?? '').trim() === ''
+        || allowsAllottee(scope, row.allocatedTo)
+        || (row._pending === true && row.ownerId === user?.id));
+      if (solvedOut || reopenOut || scopeOut) return;
+      const n = String(row.allocatedTo ?? '').trim();
+      c.set(n, (c.get(n) ?? 0) + 1);
+    });
+    return [...c.entries()].map(([key, count]) => ({ key, count }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cached, scope, user?.id, openOnly, reopenedOnly]);
+
   const visibleRows = useMemo(() => {
     const has = (val: unknown, needle: string) => !needle.trim() || String(val ?? '').toLowerCase().includes(needle.trim().toLowerCase());
     const q = srch.q.trim().toLowerCase();
@@ -705,8 +727,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // rows always stay so they can finish them.
     const openOk = (row: Rec) => !openOnly || row._pending === true || String(row.callState ?? '') !== 'Solved';
     const reopenOk = (row: Rec) => !reopenedOnly || Number(row.reopenCount ?? 0) > 0;
+    const engineerOk = (row: Rec) => !engineerFilter || String(row.allocatedTo ?? '').trim() === engineerFilter;
     const r = cached.filter((row) =>
-      scopeOk(row) && openOk(row) && reopenOk(row) &&
+      scopeOk(row) && openOk(row) && reopenOk(row) && engineerOk(row) &&
       (onDb || (
         has(row.ucn, srch.ucn) &&
         has(row.productName, srch.productName) &&
@@ -719,7 +742,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     );
     // Newest first: cache already appends in load order; reverse for recency.
     return [...r].reverse();
-  }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly]);
+  }, [cached, srch, scope, user?.id, onDb, openOnly, reopenedOnly, engineerFilter]);
 
   // How many of the loaded calls have been re-opened at least once.
   const reopenedCount = useMemo(() => cached.filter((r) => Number(r.reopenCount ?? 0) > 0).length, [cached]);
@@ -819,6 +842,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           <button className="btn btn-ghost btn-sm" onClick={() => setBanner(null)}>✕</button>
         </div>
       )}
+
+      <FacetChips
+        options={engineerCounts}
+        value={engineerFilter}
+        onChange={setEngineerFilter}
+        allLabel="All engineers"
+        blankLabel="— not allotted —"
+      />
 
       <DataTable<Rec>
         columns={[actionsColumn, ...COLUMNS]}

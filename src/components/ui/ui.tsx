@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setModuleCount } from '../../lib/counts';
 import './ui.css';
@@ -156,6 +156,61 @@ export function SectionCard({
         {actions}
       </div>
       <div className="section-card-body">{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A row of counted chips that narrows the list below it — the same shape as the
+// spare register's stage chips, for any other facet a register is worked by.
+//
+// "Engineer wise" is the case it was built for: a manager wants to see the
+// names, with how much each is carrying, and to click one. With 88 engineers
+// that is a wall of chips, so the busiest come first and the rest hide behind
+// one more click — a strip nobody can scan is not a filter, it is wallpaper.
+// ---------------------------------------------------------------------------
+export function FacetChips({
+  options, value, onChange, allLabel = 'All', max = 12, blankLabel = '— none —',
+}: {
+  options: { key: string; count: number }[];
+  value: string;
+  onChange: (next: string) => void;
+  allLabel?: string;
+  max?: number;
+  blankLabel?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (options.length <= 1) return null;   // nothing to choose between
+  // Busiest first, then alphabetical: the name carrying 40 spares is the one
+  // being looked for. The chosen one is always shown, wherever it sorts.
+  const sorted = [...options].sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+  const shown = expanded ? sorted : sorted.slice(0, max);
+  if (value && !shown.some((o) => o.key === value)) {
+    const pick = sorted.find((o) => o.key === value);
+    if (pick) shown.push(pick);
+  }
+  const hidden = sorted.length - shown.length;
+  const total = options.reduce((n, o) => n + o.count, 0);
+  return (
+    <div className="stage-chips">
+      <button className={`chip ${value === '' ? 'chip-on' : ''}`} onClick={() => onChange('')}>
+        {allLabel} <b>{total}</b>
+      </button>
+      {shown.map((o) => (
+        <button
+          key={o.key}
+          className={`chip ${value === o.key ? 'chip-on' : ''}`}
+          onClick={() => onChange(value === o.key ? '' : o.key)}
+        >
+          {o.key || blankLabel} <b>{o.count}</b>
+        </button>
+      ))}
+      {hidden > 0 && (
+        <button className="chip" onClick={() => setExpanded(true)}>＋{hidden} more</button>
+      )}
+      {expanded && sorted.length > max && (
+        <button className="chip" onClick={() => setExpanded(false)}>Show fewer</button>
+      )}
     </div>
   );
 }
