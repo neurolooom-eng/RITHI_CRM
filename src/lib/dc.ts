@@ -97,6 +97,23 @@ export function buildDc(head: Record<string, unknown>, lines: Record<string, unk
   };
 }
 
+// ---------------------------------------------------------------------------
+// The DECLARATION lists what is IN THE PARCEL, so the same part sent twice is
+// one line with a quantity of two. (The challan keeps them apart: each of its
+// lines carries the order it was raised against, and merging them would lose
+// that. The two documents answer different questions from the same dispatch.)
+// ---------------------------------------------------------------------------
+export function mergeDcLines(lines: DcLine[]): DcLine[] {
+  const by = new Map<string, DcLine>();
+  lines.forEach((l) => {
+    const k = `${l.itemCode.trim().toLowerCase()}|${l.description.trim().toLowerCase()}`;
+    const had = by.get(k);
+    if (had) had.qty += l.qty;
+    else by.set(k, { ...l });
+  });
+  return [...by.values()].map((l, i) => ({ ...l, sr: i + 1 }));
+}
+
 // The template prints a grid of 20 rows per sheet, and that is exactly what
 // one A4 page holds once the letterhead (60mm) and the repeated signature
 // block (69mm) are taken out of 259mm of usable height. So the pages are cut

@@ -192,14 +192,24 @@ const SECTIONS: Sec[] = [
     ],
   },
   {
-    id: 'sync', n: '14', title: 'Refresh, Sync & Force update', who: 'Keeping your data fresh',
+    id: 'spare-engineer', n: '14', title: 'Change the engineer on a spare order', who: 'Administrators',
+    lead: <>An order raised against the wrong engineer can be moved — until the parts go out. Every move is kept.</>,
+    steps: [
+      <>Open the spare from <B>Spare Requests</B> and find <B>Engineer on this order</B> in the drawer.</>,
+      <><B>✎ Change engineer</B> → pick who it is moving to, and say why. The reason is kept with the record, so write it for whoever reads it next.<Hint>The list is every engineer in the User Master.</Hint></>,
+      <>Every change is listed underneath — from, to, who did it, when and why. The engineer it was taken off can see it too.</>,
+    ],
+    note: { tone: 'warn', icon: '⚠️', body: <><b>Once it is dispatched the name is fixed.</b> Hand stock is worked out FROM the order, so after the parts have gone out the engineer&rsquo;s name is not a label — it is whose parts they are. Changing it then would move stock from one person&rsquo;s balance to another&rsquo;s with nothing to show for it. Move the parts with a <B>Stock Transfer</B> instead.</> },
+  },
+  {
+    id: 'sync', n: '15', title: 'Refresh, Sync & Clear Cache', who: 'Keeping your data fresh',
     lead: <>The app loads instantly from a copy on your device, then syncs the latest. Three controls, gentlest to strongest.</>,
     steps: [
       <><B>↻ Refresh</B> — on a screen’s toolbar. Pulls that screen’s latest rows now. Use it first if a list looks behind.</>,
       <><B>⟳ synced 3m ago</B> — a <i>status</i>, not a button. Shows how long since this screen synced; it also auto-syncs about every 30 minutes.</>,
-      <><B>⟳ Force update</B> — in the footer. Clears the on-device cache and reloads the newest version. Use after an update, or if the app looks stuck.<Hint>The app’s version of <K>Ctrl/⌘ + Shift + R</K>.</Hint></>,
+      <><B>🧹 Clear Cache and Update</B> — the solid button at the bottom right of every screen, and in your name menu at the top right. Clears the copy held on this device and reloads the newest version. Use it after an update, or if the app looks stuck.<Hint>The app’s version of <K>Ctrl/⌘ + Shift + R</K>. It signs nobody out and deletes nothing from the database — only this device’s copy.</Hint></>,
     ],
-    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>⟳ Force update</B>. Still wrong → note the <b>Build ID</b> and tell support.</> },
+    note: { tone: 'good', icon: '✅', body: <><b>Rule of thumb:</b> list looks old → <B>↻ Refresh</B>. Whole app looks old → <B>🧹 Clear Cache and Update</B>. Still wrong → note the <b>Build ID</b> and tell support.</> },
   },
 ];
 

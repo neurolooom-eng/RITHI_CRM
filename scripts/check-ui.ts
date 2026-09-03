@@ -2,6 +2,9 @@
 // screen must follow that reading the component will not tell you.
 // No test runner in this repo, so: `npm run check:ui`.
 import { groupRowsBy, groupTree, NO_GROUP } from '../src/components/table/group';
+import { URS, FRS, TESTS } from '../src/lib/validation';
+import { mergeDcLines } from '../src/lib/dc';
+import { callFamily } from '../src/lib/calltype';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -53,6 +56,59 @@ eq('one key behaves exactly like the flat grouping',
   groupTree(calls, ['region']).map((n) => [n.name, n.rows.length]),
   groupRowsBy(calls, 'region').map(([n, rs]) => [n, rs.length]));
 eq('no keys means no grouping', groupTree(calls, []), []);
+
+console.log('\n-- the declaration lists one line per part --');
+const dcLines = [
+  { sr: 1, orderNo: 'OR-1', itemCode: 'KB030100', description: 'HEPA FILTER', qty: 1 },
+  { sr: 2, orderNo: 'OR-1', itemCode: 'KY650300', description: 'AIR INTAKE', qty: 1 },
+  { sr: 3, orderNo: 'OR-2', itemCode: 'KB030100', description: 'HEPA FILTER', qty: 1 },
+  { sr: 4, orderNo: 'OR-2', itemCode: 'MP-010', description: 'OXYGEN SENSOR', qty: 2 },
+];
+const merged = mergeDcLines(dcLines);
+eq('the same part twice is one line', merged.map((l) => l.itemCode), ['KB030100', 'KY650300', 'MP-010']);
+eq('...with the quantities added up', merged.find((l) => l.itemCode === 'KB030100')?.qty, 2);
+eq('a quantity above one still adds', merged.find((l) => l.itemCode === 'MP-010')?.qty, 2);
+eq('the total is unchanged', merged.reduce((t, l) => t + l.qty, 0), dcLines.reduce((t, l) => t + l.qty, 0));
+eq('and the serial numbers close up', merged.map((l) => l.sr), [1, 2, 3]);
+eq('the challan itself is untouched', dcLines.length, 4);
+
+// ---------------------------------------------------------------------------
+// The validation package must stay COVERED: every user requirement traced to a
+// system requirement and to at least one test. A requirement added without a
+// test is the failure this catches — it reads as complete in the matrix and is
+// verified by nothing.
+// ---------------------------------------------------------------------------
+{
+  const frsFor = (u: string) => FRS.filter((f) => f.urs.includes(u));
+  const testFor = (u: string) =>
+    TESTS.filter((t) => t.reqs.includes(u) || frsFor(u).some((f) => t.reqs.includes(f.id)));
+
+  const noFrs = URS.filter((u) => frsFor(u.id).length === 0).map((u) => u.id);
+  const noTest = URS.filter((u) => testFor(u.id).length === 0).map((u) => u.id);
+  eq('every user requirement has a system requirement', noFrs.join(',') || 'none', 'none');
+  eq('every user requirement has a test', noTest.join(',') || 'none', 'none');
+
+  const ids = [...URS.map((u) => u.id), ...FRS.map((f) => f.id), ...TESTS.map((t) => t.id)];
+  eq('no duplicate requirement or test id', String(ids.length - new Set(ids).size), '0');
+
+  // The Reporting Managers' asks, and the correction that followed, are in it.
+  ['URS-031', 'URS-032', 'URS-033', 'URS-034', 'URS-035'].forEach((id) => {
+    eq(`${id} traces to a test`, testFor(id).length > 0 ? 'yes' : 'no', 'yes');
+  });
+}
+
+// ---------------------------------------------------------------------------
+// One matcher for the call type. `call_table_for()` in the database accepts any
+// of these spellings, and a screen that compares with === against one of them
+// finds nothing while the calls sit in the list under exactly that type — which
+// is what emptied Pending Calls' Installation and PM chips.
+// ---------------------------------------------------------------------------
+console.log('\n-- a call type is recognised however it is spelled --');
+[['INSTALLATION CALL', 'install'], ['INSTALLATION', 'install'], ['Installation Call', 'install'],
+ ['P M VISIT', 'pm'], ['PM VISIT', 'pm'], ['PM', 'pm'], ['pm visit', 'pm'],
+ ['FIELD', 'field'], ['', 'field'], ['ANYTHING ELSE', 'field']].forEach(([given, want]) => {
+  eq(`"${given}" is ${want}`, callFamily(given), want);
+});
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

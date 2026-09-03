@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   listSpareDispatches, listDispatchLines, engineerAddress, saveEngineerAddress, supabaseConfigured,
 } from '../lib/supabase';
-import { buildDc, paginate, type DcDocument, type DcPage } from '../lib/dc';
+import { buildDc, paginate, type DcDocument, type DcPage, mergeDcLines } from '../lib/dc';
 import {
   DECLARATION_FORM, DECLARATION_ROWS_PER_PAGE, addressBlock, courierLine, defaultInput, gaps,
   type DeclarationInput,
@@ -48,7 +48,10 @@ export function Declaration() {
         const head = heads.find((h) => String(h.uid) === stockOut);
         if (!head) { if (live) setErr(`Stock out ${stockOut} was not found, or you cannot view it.`); return; }
         const lines = await listDispatchLines(stockOut);
-        const built = buildDc(head, lines);
+        // One line per PART on a declaration: the parcel holds two of it,
+        // not two parcels of one.
+        const raw = buildDc(head, lines);
+        const built = { ...raw, lines: mergeDcLines(raw.lines) };
         const dir = await engineerAddress(built.engineer);
         if (!live) return;
         setDoc(built);

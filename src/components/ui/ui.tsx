@@ -10,6 +10,9 @@ export function PageHeader({
   icon,
   count,
   countMore,
+  onLoadMore,
+  loadingMore,
+  status,
 }: {
   title: string;
   subtitle?: string;
@@ -21,6 +24,17 @@ export function PageHeader({
   // The screen loads in pages and more rows exist behind "Load more", so the
   // count is a lower bound — shown as "1,000+" rather than a wrong exact total.
   countMore?: boolean;
+  // LOAD MORE BELONGS TO THE COUNT, not to the bottom of the table. "800+"
+  // raises the question and the button beside it is the answer; at the foot of
+  // a scrolling register it was somewhere you had to arrive at. Passing this
+  // means NOT passing onLoadMore to the table, so there is one of them.
+  onLoadMore?: () => void | Promise<void>;
+  loadingMore?: boolean;
+  // Standing facts about the screen — what you can see, when it last synced,
+  // what it is reading from. They belong under the title with the other things
+  // that describe the screen, not in the toolbar among the controls, where
+  // three of them crowded out the ones people actually press.
+  status?: ReactNode;
 }) {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -31,8 +45,17 @@ export function PageHeader({
       <div className="page-header-main">
         {icon && <span className="page-header-icon">{icon}</span>}
         <div>
-          <h1 className="page-title">{title}{typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}{countMore ? '+' : ''}</span>}</h1>
+          <h1 className="page-title">
+            {title}
+            {typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}{countMore ? '+' : ''}</span>}
+            {onLoadMore && countMore && (
+              <button className="btn btn-sm page-title-more" onClick={() => void onLoadMore()} disabled={loadingMore}>
+                {loadingMore ? 'Loading…' : '↓ Load more'}
+              </button>
+            )}
+          </h1>
           {subtitle && <div className="page-subtitle">{subtitle}</div>}
+          {status && <div className="page-status">{status}</div>}
         </div>
       </div>
       {actions && <div className="page-header-actions">{actions}</div>}

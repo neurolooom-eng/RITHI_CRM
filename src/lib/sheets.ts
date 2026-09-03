@@ -218,6 +218,10 @@ export interface ProdFilters {
   party?: string;
   product?: string;
   serial?: string;
+  // A product picked from a dropdown is a register value, so it is matched
+  // EXACTLY. Left off it stays a contains-match, which is what a typed word
+  // wants — but which would also make "MONNAL T75" drag in "MONNAL T75 NF".
+  exact?: boolean;
   status?: string;  // exact Item Status (WGP/OGP/CMC/AMC)
 }
 

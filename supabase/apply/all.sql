@@ -55,6 +55,7 @@
 --   0057_call_reopen.sql
 --   0058_close_reopened_call.sql
 --   0083_request_status_from_ucn.sql
+--   0097_call_reqid_continues.sql
 --   0044_daily_call_review.sql
 --   0046_dccr_master_values.sql
 --   0094_masters_upsert_target.sql
@@ -106,6 +107,9 @@
 --   0089_spare_imports_load.sql
 --   0090_spare_issue_history.sql
 --   0091_handstock_read_indexes.sql
+--   0095_rls_initplans.sql
+--   0096_handstock_period_close.sql
+--   0100_spare_request_reassign.sql
 --   0036_sales_contracts.sql
 --   0037_cover_import_speed.sql
 --   0072_ownership_transfer.sql
@@ -121,6 +125,9 @@
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
 --   0052_search_indexes.sql
+--   0098_product_register_names.sql
+--   0099_no_jit.sql
+--   0101_kpi_views.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -4343,6 +4350,146 @@ update public.call_requests
    set status = 'Registered'
  where btrim(coalesce(ucn, '')) <> ''
    and coalesce(btrim(status), '') in ('', 'Pending');
+
+-- ------------------------------------------------------------------------
+-- 0097_call_reqid_continues.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- REQID PICKS UP WHERE THE HISTORY LEFT OFF.
+--
+-- The register showed R18576, R18575, R18574 … and then the two requests
+-- raised today came out as R1 and R2. Nothing was corrupted; the counter had
+-- simply been sent back to the start and never told about the history.
+--
+-- What happened, in order:
+--   1. `_reset_for_production.sql` emptied the demo data and reset the counter
+--      (`setval('call_req_seq', 1, false)`). Right at that moment — the table
+--      was empty, so R1 was the honest next number.
+--   2. The sheet-era requests were then bulk-loaded, EACH CARRYING ITS OWN
+--      REQID. An explicit reqid never calls `nextval`, so the counter stayed at
+--      1 while 18,576 numbered requests landed above it.
+--   3. The next request raised in the app took the counter's word for it.
+--
+-- Two fixes, because the one-off alone would let it happen again the next time
+-- a batch is loaded:
+--
+--   * `resync_call_req_seq()` lifts the counter to the highest REQID on record,
+--     and is run once here for what is already loaded.
+--   * The insert trigger now does it CONTINUOUSLY: a row that arrives with its
+--     own REQID pushes the counter ahead of itself. Load a hundred thousand old
+--     requests and the next one raised in the app still follows the last of
+--     them. The counter can no longer fall behind the data it numbers.
+--
+-- The two that were already issued out of order are re-lettered RC1, RC2. They
+-- are real requests people have seen, so the number they were given is kept —
+-- but `R1` is a number the sheet era may well have used too, and two different
+-- requests reading `R1` is worse than either. `RC` says plainly which series a
+-- request belongs to, and the same rule re-letters any other that slipped
+-- through: numbered BELOW the register's high-water mark, yet raised AFTER it.
+-- ===========================================================================
+
+-- The highest number any REQID carries. `R18576` → 18576; anything not shaped
+-- like that is ignored rather than guessed at.
+create or replace function public.resync_call_req_seq()
+returns bigint language plpgsql security definer set search_path = public as $$
+declare
+  v_max bigint;
+  v_now bigint;
+begin
+  -- The regex has to be applied BEFORE the cast, and only a CASE guarantees
+  -- that: `where <shape> and <cast>` is two quals on one scan and the planner
+  -- may order them as it likes, so the first `RC1` in the table would make this
+  -- die with "invalid input syntax for type bigint: "C1"" — which it did, the
+  -- second time the script was run.
+  select max(case when reqid ~ '^R[0-9]{1,15}$' then substring(reqid from 2)::bigint end)
+    into v_max from public.call_requests;
+  v_now := coalesce(pg_sequence_last_value('public.call_req_seq'::regclass), 0);
+  if coalesce(v_max, 0) > v_now then
+    perform setval('public.call_req_seq', v_max);
+    return v_max;
+  end if;
+  return v_now;
+end $$;
+revoke all on function public.resync_call_req_seq() from public;
+grant execute on function public.resync_call_req_seq() to authenticated;
+
+-- 0083's trigger, with the one branch it was missing: what to do when the row
+-- brings its OWN number.
+create or replace function public.call_requests_biu()
+returns trigger language plpgsql set search_path = public as $$
+declare v_n bigint;
+begin
+  if tg_op = 'INSERT' then
+    if new.reqid is null or new.reqid = '' then
+      new.reqid := 'R' || nextval('public.call_req_seq')::text;
+    elsif new.reqid ~ '^R[0-9]{1,15}$' then
+      -- An imported request carries a number the counter has never issued.
+      -- Keep the counter ahead of it, or the next request raised in the app
+      -- starts again at R1 alongside an R18576.
+      v_n := substring(new.reqid from 2)::bigint;
+      if v_n > coalesce(pg_sequence_last_value('public.call_req_seq'::regclass), 0) then
+        perform setval('public.call_req_seq', v_n);
+      end if;
+    end if;
+    if new.created_by is null then new.created_by := auth.uid(); end if;
+    if coalesce(new.email,'') = '' then new.email := auth.email(); end if;
+  end if;
+  new.unique_key := new.reqid || '-' || coalesce(nullif(new.product,''),'NA') || '-' || coalesce(nullif(new.serial_no,''),'NA');
+
+  -- A UCN means the request became a call. Only a blank / Pending status is
+  -- corrected; every deliberate state is left exactly as it was set. (0083)
+  if btrim(coalesce(new.ucn, '')) <> ''
+     and coalesce(btrim(new.status), '') in ('', 'Pending') then
+    new.status := 'Registered';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists call_requests_biu on public.call_requests;
+create trigger call_requests_biu before insert or update on public.call_requests
+  for each row execute function public.call_requests_biu();
+
+-- What is already loaded: once, now.
+select public.resync_call_req_seq();
+
+-- ---------------------------------------------------------------------------
+-- The ones already issued out of order: numbered below the highest REQID on
+-- record, but raised after it. Nothing else can match that — a genuine old
+-- request is numbered below the high-water mark AND older than it.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_max  bigint;
+  v_when timestamptz;
+  v_ids  text;
+begin
+  select max(case when reqid ~ '^R[0-9]{1,15}$' then substring(reqid from 2)::bigint end)
+    into v_max from public.call_requests;
+  if v_max is null then return; end if;
+
+  -- When the top of the series was raised. Anything numbered below it but not
+  -- OLDER than it was numbered by a counter that had lost its place.
+  select max(submitted_at) into v_when
+    from public.call_requests
+   where case when reqid ~ '^R[0-9]{1,15}$' then substring(reqid from 2)::bigint end = v_max;
+
+  select string_agg(distinct reqid, ', ' order by reqid) into v_ids
+    from public.call_requests
+   where case when reqid ~ '^R[0-9]{1,15}$' then substring(reqid from 2)::bigint end < v_max
+     and submitted_at >= v_when;
+  if v_ids is null then
+    raise notice 'REQID: nothing to re-letter — the series is in order.';
+    return;
+  end if;
+
+  update public.call_requests
+     set reqid = 'RC' || substring(reqid from 2)
+   where case when reqid ~ '^R[0-9]{1,15}$' then substring(reqid from 2)::bigint end < v_max
+     and submitted_at >= v_when;
+
+  raise notice 'REQID: re-lettered % to RC — numbered below R%, raised after it.', v_ids, v_max;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0044_daily_call_review.sql
@@ -11855,6 +12002,622 @@ create index if not exists spare_request_lines_part_hs_idx
   on public.spare_request_lines (public.part_code(part));
 
 -- ------------------------------------------------------------------------
+-- 0095_rls_initplans.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- "canceling statement due to statement timeout" — the Hand Stock screen.
+--
+-- Not the derivation: with row-level security off the whole movement history
+-- (103,000 rows) counts in 98 ms and the balance page in 471 ms. With it ON,
+-- 11-14 SECONDS. The plan says why:
+--
+--   Seq Scan on spare_issue_history (actual time=1.756..3948.092 rows=48139)
+--     Filter: (has_perm('consumption.reconcile') OR has_perm('spare.dispatch')
+--              OR $0 OR $1 OR (hashed SubPlan 3))
+--
+-- `$0`, `$1` and the SubPlan are InitPlans — evaluated ONCE, because those
+-- clauses are written `(select f())`. The two bare `has_perm(...)` calls are
+-- not: they run PER ROW. 48,139 rows x 2 calls ≈ 3.9 s on one table, and the
+-- view unions two more of that size.
+--
+-- They come from the `for all` write policies. A FOR ALL policy's USING clause
+-- applies to SELECT as well, so every read paid for them.
+--
+-- Wrapping a call in `(select ...)` makes it an InitPlan: same answer, computed
+-- once. Only calls whose arguments do NOT depend on the row are wrapped —
+-- `can_see_call(allocated_to)` and `is_spare_requester(spare_requests)` must
+-- stay per-row, because that is the question they answer.
+-- ===========================================================================
+
+drop policy if exists sih_write on public.spare_issue_history;
+create policy sih_write on public.spare_issue_history for all
+  using ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')))
+  with check ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')));
+
+drop policy if exists sch_write on public.spare_consumption_history;
+create policy sch_write on public.spare_consumption_history for all
+  using ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')))
+  with check ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')));
+
+drop policy if exists hso_write on public.handstock_opening;
+create policy hso_write on public.handstock_opening for all
+  using ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')))
+  with check ((select public.has_perm('consumption.reconcile')) or (select public.has_perm('spare.dispatch')));
+
+-- The same, on the three the movement view also reads. `sd_read` had THREE bare
+-- calls per row; `sdl_write` is a FOR ALL whose USING was paying on every read.
+drop policy if exists sdl_write on public.spare_dispatch_lines;
+create policy sdl_write on public.spare_dispatch_lines for all
+  using ((select public.has_perm('spare.dispatch')))
+  with check ((select public.has_perm('spare.dispatch')));
+
+drop policy if exists sd_read on public.spare_dispatches;
+create policy sd_read on public.spare_dispatches for select
+  using (
+    (select public.is_admin())
+    or created_by = (select auth.uid())
+    or (select public.has_perm('spare.dispatch'))
+    or lower(btrim(engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+  );
+
+-- ------------------------------------------------------------------------
+-- 0096_handstock_period_close.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CLOSING A PERIOD — hand stock stops re-deriving history it has already settled.
+--
+-- The balance is derived from every movement ever recorded. That was right, and
+-- affordable, until the whole history was loaded: 103,000 rows through nine
+-- arms, each access-checked. Measured on the full load: 98 ms with row-level
+-- security OFF, ELEVEN TO FOURTEEN SECONDS with it on — which is what the
+-- screen's "canceling statement due to statement timeout" was. 0095's InitPlan
+-- fixes took it to 3-5 s. Still too slow, and it grows with every year.
+--
+-- The answer is the accountant's one, and it beats a cache: CLOSE THE PERIOD.
+-- An opening figure per engineer and part carries everything up to a date, and
+-- the register reads only what has happened since. Nothing is estimated and
+-- nothing goes stale — the figure IS the sum of what it stands for — and the
+-- detail stays in its tables, to be read for anything else.
+--
+-- 86,350 of the 103,000 rows pre-date 2026.
+--
+-- HOW THE LINE WORKS: every arm, INCLUDING the opening pools, counts only what
+-- falls after the cut-off. So a pool struck at 01-Jan-2026 counts and the WinMax
+-- pool struck in June 2022 does not, without deleting anything. Upload an
+-- opening balance dated the day after the cut-off and the older pools retire
+-- themselves.
+--
+-- `close_handstock_period(date)` will work the figure out and write it for you;
+-- `set_handstock_cutoff(date)` only moves the line, for when the figure is one
+-- you have prepared and uploaded yourself.
+-- ===========================================================================
+
+create table if not exists public.handstock_period (
+  singleton      boolean primary key default true check (singleton),
+  closed_through date,
+  closed_at      timestamptz,
+  closed_by      uuid,
+  closed_by_name text not null default ''
+);
+insert into public.handstock_period (singleton) values (true) on conflict (singleton) do nothing;
+
+alter table public.handstock_period enable row level security;
+grant select on public.handstock_period to authenticated;
+drop policy if exists hp_read on public.handstock_period;
+create policy hp_read on public.handstock_period for select using (auth.role() = 'authenticated');
+
+-- The line, as a timestamp: THE FIRST INSTANT STILL OPEN — the day AFTER the one
+-- closed through. `-infinity` while nothing is closed, so every arm's test has
+-- the same shape whether or not a close has ever been run.
+--
+-- It has to be that instant and not the closed day's own midnight, and the arms
+-- have to test `>=` against it, because THE CLOSE AND THE ARMS MUST DIVIDE THE
+-- SAME LINE. The first cut of this returned the closed date itself and the arms
+-- tested `>`, which left the whole of the closing day on BOTH sides: summed into
+-- the opening figure and still counted as an open movement. On the real data
+-- that was six movements, and a close that was supposed to change nothing added
+-- two pools and ten parts. `< cutoff` and `>= cutoff` are exact complements, so
+-- there is no day either of them can read twice.
+create or replace function public.handstock_cutoff()
+returns timestamptz language sql stable security definer set search_path = public as $$
+  select coalesce((select closed_through + 1 from public.handstock_period limit 1)::timestamptz,
+                  '-infinity'::timestamptz);
+$$;
+grant execute on function public.handstock_cutoff() to authenticated;
+
+-- A CLOSING FIGURE MAY BE NEGATIVE. 0074 wrote `check (qty >= 0)` for a pool
+-- somebody types in, where a negative opening makes no sense. A pool that CLOSES
+-- a period is a different thing: it must equal exactly what it replaces, and 282
+-- engineer-and-part pairs are already negative because the record of what they
+-- were issued is incomplete. Refusing those would quietly improve the numbers at
+-- the close — the one thing a close must never do. The reconciliation exists to
+-- show a shortfall, not to have it rounded away.
+alter table public.handstock_opening drop constraint if exists handstock_opening_qty_check;
+
+-- The dates the arms are filtered on, so the cut-off is an index lookup rather
+-- than a scan of everything that has ever happened. (Not the MRN date: a cast
+-- from date to timestamptz is not immutable, and 595 rows do not need one.)
+create index if not exists spare_consumption_history_at_idx
+  on public.spare_consumption_history ((coalesce(consumed_at, created_at)));
+create index if not exists spare_issue_history_at_idx
+  on public.spare_issue_history ((coalesce(issued_at, created_at)));
+create index if not exists spare_consumption_created_idx
+  on public.spare_consumption (created_at);
+create index if not exists handstock_opening_as_of_idx
+  on public.handstock_opening (as_of);
+
+-- ---------------------------------------------------------------------------
+-- The movement trail, written out in full rather than appended to by string
+-- surgery. Nine arms, the cut-off on every one.
+--
+-- Writing it out is deliberate: appending an arm by editing the view's own text
+-- is what silently dropped `security_invoker` when 0090 did it, and a view
+-- nobody can read in one piece is a view nobody can check.
+-- ---------------------------------------------------------------------------
+create or replace view public.handstock_movements as
+ SELECT 'IN'::text AS direction,
+    'Stock out'::text AS movement,
+    handstock_key(r.engineer) AS engineer_key,
+    COALESCE(r.engineer, ''::text) AS engineer,
+    COALESCE(r.engineer_email, ''::text) AS engineer_email,
+    part_code(dl.part) AS part_code,
+    COALESCE(dl.part, ''::text) AS part,
+    COALESCE(dl.qty, 0::numeric) AS qty,
+    COALESCE(d.dispatched_at, dl.created_at) AS moved_at,
+    COALESCE(NULLIF(d.dc_number, ''::text), r.or_no, ''::text) AS ref,
+    'Stores DC'::text AS ref_type,
+    COALESCE(r.uid, ''::text) AS ref_uid,
+    COALESCE(r.ucn, ''::text) AS ucn,
+    COALESCE(r.call_number, ''::text) AS call_number,
+    COALESCE(r.party_name, ''::text) AS party_name,
+    COALESCE(NULLIF(l.dispatch_remarks, ''::text), ''::text) AS remarks
+   FROM spare_dispatch_lines dl
+     JOIN spare_dispatches d ON d.uid = dl.dispatch_uid
+     JOIN spare_request_lines l ON l.id = dl.line_id
+     JOIN spare_requests r ON r.uid = l.request_uid
+  WHERE COALESCE(d.dispatched_at, dl.created_at) >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'IN'::text AS direction,
+    'Stock out'::text AS movement,
+    handstock_key(r.engineer) AS engineer_key,
+    COALESCE(r.engineer, ''::text) AS engineer,
+    COALESCE(r.engineer_email, ''::text) AS engineer_email,
+    part_code(l.part) AS part_code,
+    COALESCE(l.part, ''::text) AS part,
+        CASE
+            WHEN COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric THEN l.dispatched_qty
+            ELSE COALESCE(l.qty, 0::numeric)
+        END AS qty,
+    COALESCE(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at) AS moved_at,
+    COALESCE(NULLIF(l.dc_number, ''::text), r.or_no, ''::text) AS ref,
+    'Stores DC'::text AS ref_type,
+    COALESCE(r.uid, ''::text) AS ref_uid,
+    COALESCE(r.ucn, ''::text) AS ucn,
+    COALESCE(r.call_number, ''::text) AS call_number,
+    COALESCE(r.party_name, ''::text) AS party_name,
+    COALESCE(NULLIF(l.dispatch_remarks, ''::text), ''::text) AS remarks
+   FROM spare_request_lines l
+     JOIN spare_requests r ON r.uid = l.request_uid
+  WHERE COALESCE(l.dispatched_at, r.dispatched_at, l.created_at, r.created_at) >= (SELECT public.handstock_cutoff()) AND (COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric OR COALESCE(l.stores_status, ''::text) ~* 'dispatch'::text) AND NOT (EXISTS ( SELECT 1
+           FROM spare_dispatch_lines dl
+          WHERE dl.line_id = l.id))
+UNION ALL
+
+ SELECT 'OUT'::text AS direction,
+    'Consumption'::text AS movement,
+    handstock_key(c.engineer) AS engineer_key,
+    COALESCE(c.engineer, ''::text) AS engineer,
+    COALESCE(c.engineer_email, ''::text) AS engineer_email,
+    part_code(c.part) AS part_code,
+    COALESCE(c.part, ''::text) AS part,
+    COALESCE(c.qty, 0::numeric) AS qty,
+    c.created_at AS moved_at,
+    COALESCE(NULLIF(btrim(c.call_number), ''::text), COALESCE(c.ucn, ''::text)) AS ref,
+    'Call'::text AS ref_type,
+    ''::text AS ref_uid,
+    COALESCE(c.ucn, ''::text) AS ucn,
+    COALESCE(c.call_number, ''::text) AS call_number,
+    ''::text AS party_name,
+    ''::text AS remarks
+   FROM spare_consumption c
+  WHERE c.created_at >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'OUT'::text AS direction,
+    'Transfer out'::text AS movement,
+    handstock_key(t.from_engineer) AS engineer_key,
+    COALESCE(t.from_engineer, ''::text) AS engineer,
+    ''::text AS engineer_email,
+    part_code(l.part) AS part_code,
+    COALESCE(l.part, ''::text) AS part,
+    COALESCE(l.qty, 0::numeric) AS qty,
+    COALESCE(t.transfer_date::timestamp with time zone, t.created_at) AS moved_at,
+    COALESCE(t.uid, ''::text) AS ref,
+    'Transfer'::text AS ref_type,
+    ''::text AS ref_uid,
+    ''::text AS ucn,
+    ''::text AS call_number,
+    COALESCE(t.to_engineer, ''::text) AS party_name,
+    COALESCE(t.remarks, ''::text) AS remarks
+   FROM stock_transfer_lines l
+     JOIN stock_transfers t ON t.uid = l.transfer_uid
+  WHERE COALESCE(t.transfer_date::timestamp with time zone, t.created_at) >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'IN'::text AS direction,
+    'Transfer in'::text AS movement,
+    handstock_key(t.to_engineer) AS engineer_key,
+    COALESCE(t.to_engineer, ''::text) AS engineer,
+    ''::text AS engineer_email,
+    part_code(l.part) AS part_code,
+    COALESCE(l.part, ''::text) AS part,
+    COALESCE(l.qty, 0::numeric) AS qty,
+    COALESCE(t.transfer_date::timestamp with time zone, t.created_at) AS moved_at,
+    COALESCE(t.uid, ''::text) AS ref,
+    'Transfer'::text AS ref_type,
+    ''::text AS ref_uid,
+    ''::text AS ucn,
+    ''::text AS call_number,
+    COALESCE(t.from_engineer, ''::text) AS party_name,
+    COALESCE(t.remarks, ''::text) AS remarks
+   FROM stock_transfer_lines l
+     JOIN stock_transfers t ON t.uid = l.transfer_uid
+  WHERE COALESCE(t.transfer_date::timestamp with time zone, t.created_at) >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'OUT'::text AS direction,
+    'Return'::text AS movement,
+    handstock_key(m.engineer) AS engineer_key,
+    COALESCE(m.engineer, ''::text) AS engineer,
+    COALESCE(m.engineer_email, ''::text) AS engineer_email,
+    part_code(m.part) AS part_code,
+    COALESCE(m.part, ''::text) AS part,
+    COALESCE(m.good_qty, 0::numeric) + COALESCE(m.defective_qty, 0::numeric) AS qty,
+    COALESCE(m.mrn_date::timestamp with time zone, m.returned_at, m.created_at) AS moved_at,
+    COALESCE(NULLIF(btrim(m.mrn_no), ''::text), m.uid, ''::text) AS ref,
+    'MRN'::text AS ref_type,
+    COALESCE(m.uid, ''::text) AS ref_uid,
+    ''::text AS ucn,
+    COALESCE(m.report_no, ''::text) AS call_number,
+    COALESCE(m.customer_name, ''::text) AS party_name,
+    btrim(
+        CASE
+            WHEN COALESCE(m.defective_qty, 0::numeric) > 0::numeric THEN ((('good '::text || COALESCE(m.good_qty, 0::numeric)) || ', defective '::text) || m.defective_qty) || ' · '::text
+            ELSE ''::text
+        END || COALESCE(m.remarks, ''::text)) AS remarks
+   FROM material_returns m
+  WHERE COALESCE(m.mrn_date::timestamp with time zone, m.returned_at, m.created_at) >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'IN'::text AS direction,
+    'Opening'::text AS movement,
+    o.engineer_key,
+    COALESCE(o.engineer, ''::text) AS engineer,
+    ''::text AS engineer_email,
+    o.part_code,
+    COALESCE(o.part, ''::text) AS part,
+    COALESCE(o.qty, 0::numeric) AS qty,
+    o.as_of::timestamp with time zone AS moved_at,
+    COALESCE(o.source, ''::text) AS ref,
+    'Opening balance'::text AS ref_type,
+    ''::text AS ref_uid,
+    ''::text AS ucn,
+    ''::text AS call_number,
+    ''::text AS party_name,
+    COALESCE(o.remarks, ''::text) AS remarks
+   FROM handstock_opening o
+  WHERE o.as_of::timestamp with time zone >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'OUT'::text AS direction,
+    'Consumption'::text AS movement,
+    h.engineer_key,
+    COALESCE(h.engineer, ''::text) AS engineer,
+    ''::text AS engineer_email,
+    h.part_code,
+    COALESCE(h.part, ''::text) AS part,
+    COALESCE(h.qty, 0::numeric) AS qty,
+    COALESCE(h.consumed_at, h.created_at) AS moved_at,
+    COALESCE(NULLIF(h.ref, ''::text), h.source, ''::text) AS ref,
+    'Historical'::text AS ref_type,
+    ''::text AS ref_uid,
+    COALESCE(h.ucn, ''::text) AS ucn,
+    COALESCE(h.call_number, ''::text) AS call_number,
+    COALESCE(h.party_name, ''::text) AS party_name,
+    COALESCE(h.remarks, ''::text) AS remarks
+   FROM spare_consumption_history h
+  WHERE COALESCE(h.consumed_at, h.created_at) >= (SELECT public.handstock_cutoff())
+UNION ALL
+
+ SELECT 'IN'::text AS direction,
+    'Stock out'::text AS movement,
+    h.engineer_key,
+    COALESCE(h.engineer, ''::text) AS engineer,
+    ''::text AS engineer_email,
+    h.part_code,
+    COALESCE(h.part, ''::text) AS part,
+    COALESCE(h.qty, 0::numeric) AS qty,
+    COALESCE(h.issued_at, h.created_at) AS moved_at,
+    COALESCE(NULLIF(h.so_no, ''::text), NULLIF(h.ref, ''::text), h.source, ''::text) AS ref,
+    'Historical'::text AS ref_type,
+    ''::text AS ref_uid,
+    ''::text AS ucn,
+    ''::text AS call_number,
+    ''::text AS party_name,
+    COALESCE(h.remarks, ''::text) AS remarks
+   FROM spare_issue_history h
+  WHERE COALESCE(h.issued_at, h.created_at) >= (SELECT public.handstock_cutoff()) AND NOT (EXISTS ( SELECT 1
+           FROM spare_request_lines l
+          WHERE lower(btrim(l.line_uid)) = lower(btrim(h.line_uid)) AND h.line_uid <> ''::text AND (COALESCE(l.dispatched_qty, 0::numeric) > 0::numeric OR COALESCE(l.stores_status, ''::text) ~* 'dispatch'::text)))
+;
+
+alter view public.handstock_movements set (security_invoker = on);
+
+-- ---------------------------------------------------------------------------
+-- Move the line, when the opening figure is one you have prepared and uploaded.
+-- ---------------------------------------------------------------------------
+create or replace function public.set_handstock_cutoff(p_through date)
+returns date language plpgsql security definer set search_path = public as $$
+declare v_name text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+begin
+  if not (public.is_admin() or public.has_perm('consumption.reconcile')) then
+    raise exception 'Closing a hand-stock period is the Spare Coordinator''s or an administrator''s to do';
+  end if;
+  if p_through is not null and p_through >= current_date then
+    raise exception 'Close a period that has ENDED — % is not in the past', p_through;
+  end if;
+  update public.handstock_period
+     set closed_through = p_through, closed_at = now(), closed_by = auth.uid(), closed_by_name = v_name
+   where singleton;
+  return p_through;
+end $$;
+revoke all on function public.set_handstock_cutoff(date) from public;
+grant execute on function public.set_handstock_cutoff(date) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Or work the figure out and write it, in one statement.
+--
+-- Order matters: the sum is taken BEFORE the line moves, or it would be summing
+-- what it is about to hide.
+-- ---------------------------------------------------------------------------
+create or replace function public.close_handstock_period(p_through date)
+returns table (pools int, parts numeric) language plpgsql security definer set search_path = public as $$
+declare
+  v_source text := 'Opening ' || to_char(p_through + 1, 'YYYY');
+  v_name   text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+begin
+  if not (public.is_admin() or public.has_perm('consumption.reconcile')) then
+    raise exception 'Closing a hand-stock period is the Spare Coordinator''s or an administrator''s to do';
+  end if;
+  if p_through is null or p_through >= current_date then
+    raise exception 'Close a period that has ENDED — % is not in the past', p_through;
+  end if;
+
+  -- `< the first open instant` — the exact complement of what the arms keep, so
+  -- the closing day belongs to the figure and to nothing else.
+  create temp table _close on commit drop as
+  select engineer_key,
+         min(engineer) filter (where engineer <> '') as engineer,
+         part_code,
+         min(part)     filter (where part <> '')     as part,
+         sum(case when direction = 'IN' then qty else -qty end) as on_hand
+    from public.handstock_movements
+   where moved_at is null
+      or moved_at < (p_through + 1)::timestamptz
+   group by engineer_key, part_code
+  having sum(case when direction = 'IN' then qty else -qty end) <> 0;
+
+  insert into public.handstock_opening (engineer, part, qty, as_of, source, remarks, recorded_by, recorded_by_name)
+  select coalesce(engineer, engineer_key), coalesce(part, part_code), on_hand,
+         p_through + 1, v_source,
+         'Closed through ' || to_char(p_through, 'DD-Mon-YYYY') || ' — the net of every movement up to that date.',
+         auth.uid(), v_name
+    from _close
+   where coalesce(engineer, engineer_key) <> '' and coalesce(part, part_code) <> ''
+  on conflict (engineer_key, part_code, source_key) do update
+     set qty = excluded.qty, as_of = excluded.as_of, remarks = excluded.remarks, updated_at = now();
+
+  update public.handstock_period
+     set closed_through = p_through, closed_at = now(), closed_by = auth.uid(), closed_by_name = v_name
+   where singleton;
+
+  return query select count(*)::int, coalesce(sum(on_hand), 0) from _close;
+end $$;
+revoke all on function public.close_handstock_period(date) from public;
+grant execute on function public.close_handstock_period(date) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0100_spare_request_reassign.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- CHANGING WHO A SPARE REQUEST IS FOR — until it is dispatched, and logged.
+--
+-- A request is raised against an engineer and everything downstream follows
+-- that name: the approvals, the DC, and — once the parts go out — the engineer's
+-- HAND STOCK, which is derived from the request rather than stored. So the name
+-- can be corrected while the request is still paper, and must not be touched
+-- once it is stock.
+--
+-- THE LINE IS DISPATCH, and it is drawn wide on purpose: a request counts as
+-- dispatched if IT says so, if ANY of its lines says so, or if a dispatch line
+-- points at one of its lines. Any one of those means parts have moved, and
+-- moving the name afterwards would move somebody else's stock — silently, since
+-- hand stock is a derivation and would simply come out different next time it
+-- was read.
+--
+-- THE LOG IS A TABLE, NOT AN AUDIT LINE. The audit log is a general record of
+-- actions; this is the answer to "who was this raised for, and who changed it" —
+-- a question about the REQUEST, asked from the request. It keeps both names and
+-- both addresses, so a row still reads correctly after either person is renamed
+-- or leaves.
+--
+-- The guard is a TRIGGER, not a rule in the client. The client can only ask
+-- nicely; PostgREST will happily take an `update` on the table from anyone whose
+-- policy allows it, and the import path writes to the same table.
+-- ===========================================================================
+
+create table if not exists public.spare_request_engineer_log (
+  id              bigint generated always as identity primary key,
+  request_uid     text not null references public.spare_requests (uid) on delete cascade,
+  or_no           text default '',
+  from_engineer   text default '',
+  from_email      text default '',
+  to_engineer     text default '',
+  to_email        text default '',
+  reason          text default '',
+  changed_at      timestamptz not null default now(),
+  changed_by      uuid,
+  changed_by_name text default ''
+);
+create index if not exists spare_request_engineer_log_uid_idx
+  on public.spare_request_engineer_log (request_uid, changed_at desc);
+
+alter table public.spare_request_engineer_log enable row level security;
+grant select on public.spare_request_engineer_log to authenticated;
+
+-- Who may READ it: an administrator, whoever can approve or dispatch spares,
+-- and the two engineers the row is about. A reassignment is not a secret from
+-- the person it moved a request away from.
+drop policy if exists srel_read on public.spare_request_engineer_log;
+create policy srel_read on public.spare_request_engineer_log for select using (
+  (select public.is_admin())
+  or (select public.has_perm('spare.dispatch'))
+  or (select public.has_perm('spare.approve'))
+  or lower(from_email) = lower((select auth.email()))
+  or lower(to_email)   = lower((select auth.email()))
+);
+-- Nobody WRITES it directly. The row is written by the function that makes the
+-- change, so a log entry cannot exist without the change or the change without
+-- the entry.
+
+-- ---------------------------------------------------------------------------
+-- Has anything actually gone out against this request?
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_is_dispatched(p_uid text)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.spare_requests r
+                  where r.uid = p_uid
+                    and (r.dispatched_at is not null
+                         or coalesce(r.stores_status, '') ~* 'dispatch'))
+      or exists (select 1 from public.spare_request_lines l
+                  where l.request_uid = p_uid
+                    and (l.dispatched_at is not null
+                         or coalesce(l.dispatched_qty, 0) > 0
+                         or coalesce(l.stores_status, '') ~* 'dispatch'))
+      or exists (select 1 from public.spare_dispatch_lines dl
+                   join public.spare_request_lines l on l.id = dl.line_id
+                  where l.request_uid = p_uid);
+$$;
+grant execute on function public.spare_request_is_dispatched(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- The change itself. One function, so the check, the write and the log cannot
+-- come apart.
+-- ---------------------------------------------------------------------------
+create or replace function public.reassign_spare_request(
+  p_uid text, p_engineer text, p_email text default '', p_reason text default ''
+) returns public.spare_requests language plpgsql security definer set search_path = public as $$
+declare
+  r      public.spare_requests;
+  v_name text := coalesce((select full_name from public.profiles where id = auth.uid()), '');
+  v_to   text := btrim(coalesce(p_engineer, ''));
+  v_mail text := lower(btrim(coalesce(p_email, '')));
+begin
+  if not public.is_admin() then
+    raise exception 'Changing the engineer on a spare request is an administrator''s to do';
+  end if;
+  if v_to = '' then
+    raise exception 'Give the engineer the request is being moved to';
+  end if;
+
+  select * into r from public.spare_requests where uid = p_uid;
+  if not found then
+    raise exception 'No spare request %', p_uid;
+  end if;
+  if public.spare_request_is_dispatched(p_uid) then
+    raise exception 'OR % has already been dispatched — the parts are in %''s hands, so the engineer cannot be changed. Use a stock transfer instead.',
+      coalesce(nullif(r.or_no, ''), p_uid), coalesce(nullif(r.engineer, ''), 'the engineer');
+  end if;
+  if lower(btrim(coalesce(r.engineer, ''))) = lower(v_to)
+     and (v_mail = '' or lower(coalesce(r.engineer_email, '')) = v_mail) then
+    return r;                       -- already there; nothing to log
+  end if;
+
+  -- The address is looked up when it is not given, so the request keeps a
+  -- working one: every engineer-scoped read matches on email, and a name with
+  -- the wrong address beside it is a request its own engineer cannot see.
+  if v_mail = '' then
+    v_mail := lower(coalesce((select email from public.profiles
+                               where lower(full_name) = lower(v_to)
+                               order by id limit 1), ''));
+  end if;
+
+  -- Tell the guard trigger that this update is the one it is meant to allow.
+  -- `true` scopes it to this transaction, so it cannot leak into the next.
+  perform set_config('rithi.reassigning', p_uid, true);
+
+  insert into public.spare_request_engineer_log
+    (request_uid, or_no, from_engineer, from_email, to_engineer, to_email, reason, changed_by, changed_by_name)
+  values (p_uid, coalesce(r.or_no, ''), coalesce(r.engineer, ''), coalesce(r.engineer_email, ''),
+          v_to, v_mail, btrim(coalesce(p_reason, '')), auth.uid(), v_name);
+
+  update public.spare_requests
+     set engineer = v_to, engineer_email = v_mail
+   where uid = p_uid
+  returning * into r;
+
+  perform set_config('rithi.reassigning', '', true);
+  return r;
+end $$;
+revoke all on function public.reassign_spare_request(text, text, text, text) from public;
+grant execute on function public.reassign_spare_request(text, text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- And the invariant where it cannot be gone round: on the table.
+--
+-- THE TRIGGER ENFORCES ONE RULE ONLY — not after dispatch. That is the rule
+-- that protects the numbers: hand stock is DERIVED from the request, so moving
+-- the name after the parts have gone out does not just mis-label a record, it
+-- moves stock from one engineer's balance to another's, silently, the next time
+-- anybody reads it.
+--
+-- WHO may change it before dispatch is a permission question, and it is answered
+-- by `reassign_spare_request` (administrators) and by the table's own policies.
+-- Putting the admin test in the trigger as well would block the BULK UPLOAD,
+-- which writes the engineer named in the file and is not run by an administrator
+-- as a matter of course.
+--
+-- A load that tries to change the engineer on an ALREADY DISPATCHED request is
+-- refused, and that is right: it means the file disagrees with the register
+-- about who is holding parts that have already gone out. That should stop and
+-- be looked at, not be applied quietly.
+-- ---------------------------------------------------------------------------
+create or replace function public.spare_request_engineer_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if lower(btrim(coalesce(new.engineer, ''))) is not distinct from lower(btrim(coalesce(old.engineer, '')))
+     and lower(btrim(coalesce(new.engineer_email, ''))) is not distinct from lower(btrim(coalesce(old.engineer_email, ''))) then
+    return new;                                    -- the engineer is not changing
+  end if;
+  if coalesce(current_setting('rithi.reassigning', true), '') = new.uid then
+    return new;                                    -- this is the function's own write
+  end if;
+  if public.spare_request_is_dispatched(new.uid) then
+    raise exception 'OR % has already been dispatched — the engineer cannot be changed once the parts have gone out.',
+      coalesce(nullif(new.or_no, ''), new.uid);
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists spare_request_engineer_guard on public.spare_requests;
+create trigger spare_request_engineer_guard before update on public.spare_requests
+  for each row execute function public.spare_request_engineer_guard();
+
+-- ------------------------------------------------------------------------
 -- 0036_sales_contracts.sql
 -- ------------------------------------------------------------------------
 
@@ -13501,5 +14264,239 @@ begin
     end if;
   end loop;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0098_product_register_names.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE PRODUCT LIST COMES FROM THE PRODUCT REGISTER.
+--
+-- Product & Party Search was filling its product dropdown from the `product`
+-- master value list. That is a list somebody maintains, and it can be empty,
+-- short, or spelled differently from the register — which is what the screen
+-- showed. The register itself is the authority on what products exist: a
+-- machine is in it or it is not.
+--
+-- PostgREST cannot ask for `select distinct`, so the distinct list is a view.
+-- It carries the count as well, because "MONNAL T75 (1,204)" tells the person
+-- choosing far more than the name alone, and it costs nothing to group once.
+--
+-- The serial dropdown that depends on it needs no view: it is
+-- `item_name = <the one chosen>`, which 0052's btree on products(item_name)
+-- already serves. (A trigram index does NOT serve equality — that lesson cost
+-- this project a fortnight of timeouts.)
+-- ===========================================================================
+
+create or replace view public.product_register_names as
+  select item_name,
+         count(*)::int as machines
+    from public.products
+   where coalesce(item_name, '') <> ''
+   group by item_name;
+
+-- `create or replace view` does NOT carry `security_invoker` forward, so it is
+-- asserted every time the view is written. Without it the view would read the
+-- register as its owner and hand back rows RLS meant to withhold.
+alter view public.product_register_names set (security_invoker = on);
+
+grant select on public.product_register_names to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0099_no_jit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE HAND STOCK TIMEOUT WAS JIT COMPILATION, NOT THE QUERY.
+--
+-- Hand Stock timed out, then took 11-14 seconds, then 3-5 after 0095. Every
+-- reading pointed at row-level security, because switching RLS off made it
+-- instant. It was the right symptom and the wrong cause. `EXPLAIN ANALYZE`
+-- with the JIT block showing says it plainly:
+--
+--     Timing: Generation 23 ms, Inlining 145 ms,
+--             Optimization 2134 ms, Emission 1440 ms, Total 3742 ms
+--     Execution Time: 3912 ms
+--
+-- Three and three-quarter seconds COMPILING a query that then runs in under
+-- two hundred milliseconds. The trigger is `jit_above_cost` (100,000): the
+-- planner's ESTIMATE for the nine-arm movement view is half a million, almost
+-- all of it invented by the cost of RLS sub-plans it will barely run. So the
+-- more access rules a query carries, the more certain Postgres is to spend
+-- seconds compiling it — and that is why turning RLS off "fixed" it.
+--
+-- With JIT off, and NOTHING else changed, the whole 102,893-row history reads
+-- in 323 ms. Closed through 2025 it is 174 ms. Measured on a copy of the live
+-- data, as the `authenticated` role, with every policy in force.
+--
+-- Nothing in this application benefits from JIT. These are sub-second API
+-- queries; compiling them can only ever cost more than it saves. Off is the
+-- right setting for the whole database, not a special case for one screen.
+--
+-- TO PUT IT BACK: `alter database postgres reset jit;`
+--
+-- It applies to CONNECTIONS MADE AFTER IT RUNS. Pooled connections already
+-- open keep the old setting, so give it a few minutes — or restart the project
+-- — before judging whether it worked.
+-- ===========================================================================
+
+do $$
+begin
+  execute format('alter database %I set jit = off', current_database());
+  raise notice 'JIT disabled for database % — new connections only.', current_database();
+exception
+  when insufficient_privilege then
+    raise notice 'Could not disable JIT: this role does not own the database. Set it in the Supabase dashboard, or run: alter database postgres set jit = off;';
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0101_kpi_views.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- KPIs THAT COME FROM THE RECORD, NOT FROM A SPREADSHEET.
+--
+-- Three questions the service function actually asks, each answered by an
+-- aggregate the database computes rather than a page that pulls forty thousand
+-- rows across the wire and adds them up in a browser:
+--
+--   FAILURE RATE      how often does a product fail, per machine in the field?
+--                     A count of calls means nothing on its own — a product with
+--                     1,200 machines SHOULD generate more calls than one with 40.
+--                     The denominator is the install base, which the Product
+--                     Register already holds.
+--
+--   SPARE USE BY COVER  what do we spend on parts under warranty, under CMC,
+--                     under AMC, and out of guarantee? The cover is on the CALL,
+--                     the parts are on the consumption; the join is the answer.
+--
+--   SPARE USE BY REGION  the same figure per region, so a region consuming twice
+--                     its share can be looked at rather than guessed at.
+--
+-- EVERY VIEW IS security_invoker, so an engineer's KPIs are their own calls and
+-- a manager's are their team's. The numbers a person sees are the numbers they
+-- are allowed to see, without a second set of rules to keep in step.
+--
+-- `create or replace view` does NOT carry security_invoker over — it is asserted
+-- on every one of them, every time.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- One row per part consumed, carrying what the call says about it. This is the
+-- grain everything else rolls up from; it is also worth reading on its own when
+-- a number looks wrong.
+--
+-- The cover (`item_status`) and the region are FACTS ABOUT THE CALL AND THE
+-- ENGINEER, not about the part, so they are read from there rather than copied
+-- onto the consumption row where they would age.
+-- ---------------------------------------------------------------------------
+create or replace view public.spare_usage as
+  select c.id,
+         c.ucn,
+         c.call_number,
+         c.part,
+         public.part_code(c.part)                            as part_code,
+         coalesce(c.qty, 0)                                  as qty,
+         coalesce(nullif(btrim(c.engineer), ''), '')         as engineer,
+         coalesce(nullif(btrim(k.item_status), ''), 'Not stated') as cover,
+         coalesce(nullif(btrim(k.product_name), ''), '')     as product,
+         coalesce(nullif(btrim(k.call_type), ''), '')        as call_type,
+         coalesce(nullif(btrim(k.city), ''), '')             as city,
+         coalesce(nullif(btrim(ud.region), ''), 'No region') as region,
+         coalesce(nullif(btrim(c.source), ''), 'Engineer')   as source,
+         c.created_at                                        as consumed_at
+    from public.spare_consumption c
+    left join public.calls k on k.ucn = c.ucn
+    left join public.user_directory ud
+           on lower(btrim(ud.name)) = lower(btrim(coalesce(nullif(c.engineer, ''), k.allocated_to)))
+   where coalesce(c.qty, 0) <> 0;
+alter view public.spare_usage set (security_invoker = on);
+grant select on public.spare_usage to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Spare use by cover, region and product, in one rollup the screen pivots.
+--
+-- One row per combination rather than three separate views: a few thousand rows
+-- at most, and a client that has them can answer "CMC in the South" without
+-- another round trip — and, more to the point, without the three views being
+-- able to disagree with each other.
+-- ---------------------------------------------------------------------------
+create or replace view public.spare_usage_rollup as
+  select cover, region, product,
+         count(*)::int                     as lines,
+         sum(qty)                          as qty,
+         count(distinct ucn)::int          as calls,
+         count(distinct part_code)::int    as parts,
+         count(distinct engineer)::int     as engineers
+    from public.spare_usage
+   group by cover, region, product;
+alter view public.spare_usage_rollup set (security_invoker = on);
+grant select on public.spare_usage_rollup to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- FAILURE RATE — calls per hundred machines in the field, over twelve months.
+--
+-- `machines` is the install base from the Product Register and is NOT scoped by
+-- who is asking: it is a property of the fleet, the same number for everybody.
+-- `calls_12m` is scoped, because it is a count of calls. So an engineer reads
+-- their own share of a fleet-wide denominator, which is the honest reading of
+-- what they can see, and a rate is only comparable between products for someone
+-- who can see all the calls. The screen says so.
+--
+-- Twelve months because a reliability figure needs a period; the same view
+-- carries the all-time count beside it so a young product is not read as a
+-- reliable one.
+-- ---------------------------------------------------------------------------
+create or replace view public.failure_rate_by_product as
+  with fleet as (
+    select coalesce(nullif(btrim(item_name), ''), '') as product, count(*)::int as machines
+      from public.products
+     where coalesce(btrim(item_name), '') <> ''
+     group by 1
+  ), calls as (
+    select coalesce(nullif(btrim(product_name), ''), '') as product,
+           count(*)::int as calls_total,
+           count(*) filter (where reg_date >= (current_date - 365))::int as calls_12m,
+           count(*) filter (where open_state <> 'Solved')::int as calls_open
+      from public.calls
+     where coalesce(btrim(product_name), '') <> ''
+     group by 1
+  )
+  select coalesce(f.product, c.product)      as product,
+         coalesce(f.machines, 0)             as machines,
+         coalesce(c.calls_total, 0)          as calls_total,
+         coalesce(c.calls_12m, 0)            as calls_12m,
+         coalesce(c.calls_open, 0)           as calls_open,
+         case when coalesce(f.machines, 0) > 0
+              then round(coalesce(c.calls_12m, 0)::numeric * 100 / f.machines, 1)
+         end                                  as per_100_machines
+    from fleet f
+    full join calls c on c.product = f.product;
+alter view public.failure_rate_by_product set (security_invoker = on);
+grant select on public.failure_rate_by_product to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- HOW a product fails, not just how often. The standard complaint is the field
+-- the service desk already chooses from a controlled list, so it is the one
+-- thing in the record that groups reliably across thousands of calls.
+-- ---------------------------------------------------------------------------
+create or replace view public.failure_modes_by_product as
+  select coalesce(nullif(btrim(product_name), ''), '')       as product,
+         coalesce(nullif(btrim(standard_complaint), ''), 'Not stated') as complaint,
+         count(*)::int                                       as calls,
+         count(*) filter (where reg_date >= (current_date - 365))::int as calls_12m
+    from public.calls
+   where coalesce(btrim(product_name), '') <> ''
+   group by 1, 2;
+alter view public.failure_modes_by_product set (security_invoker = on);
+grant select on public.failure_modes_by_product to authenticated;
+
+-- The joins these views make, indexed. `spare_consumption.ucn` is the one that
+-- matters: without it every rollup is a hash of the whole consumption history
+-- against the whole call register.
+create index if not exists spare_consumption_ucn_idx on public.spare_consumption (ucn);
+create index if not exists field_calls_product_idx on public.field_calls (product_name);
+create index if not exists installation_calls_product_idx on public.installation_calls (product_name);
+create index if not exists pm_calls_product_idx on public.pm_calls (product_name);
 
 commit;

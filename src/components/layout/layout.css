@@ -294,6 +294,8 @@
 .user-menu-item:hover {
   background: var(--surface-alt);
 }
+.user-menu-item small { display: block; font-size: 11px; margin-top: 1px; }
+.user-menu-item:disabled { opacity: 0.6; cursor: default; }
 
 .app-content {
   flex: 1;
@@ -322,10 +324,13 @@
 .app-footer b { color: var(--text); font-weight: 650; }
 .app-footer .foot-sep { opacity: 0.4; }
 .app-footer .foot-spacer { flex: 1 1 auto; min-width: 8px; }
-.app-footer .foot-refresh { flex-shrink: 0; padding: 3px 10px; font-size: 11px; }
+/* Not a footnote. This is the one control a stuck user needs to find without
+   being told where it is, so it keeps its full size and its colour while the
+   build metadata beside it shrinks away. */
+.app-footer .foot-refresh { flex-shrink: 0; padding: 6px 14px; font-size: 12.5px; font-weight: 600; }
 @media (max-width: 760px) {
   /* Keep the footer compact on phones; hide the long build metadata so the
-     Force update button always stays reachable. */
+     Clear Cache and Update button always stays reachable. */
   .app-footer .foot-hide-sm { display: none; }
 }
 

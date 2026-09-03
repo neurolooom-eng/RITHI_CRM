@@ -12,6 +12,9 @@
 
 import { machineKey } from './machine';
 export { machineKey } from './machine';
+export { callFamily, callTable, type CallFamily } from './calltype';
+import { byColumnSet } from './uploads';
+import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 const URL_KEY = 'rithi.supabase.url';
@@ -304,6 +307,97 @@ export async function sbListPartyProducts(party: string): Promise<string[]> {
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
+// ---- KPIs ------------------------------------------------------------------
+//
+// Every one of these is an aggregate the DATABASE computes (0101). The screen
+// asks four small questions instead of pulling forty thousand consumption rows
+// across the wire to add them up itself, and the views are security_invoker, so
+// an engineer's KPIs are their own calls and a manager's are their team's
+// without a second set of rules to keep in step.
+export interface FailureRate {
+  product: string; machines: number; calls_total: number; calls_12m: number;
+  calls_open: number; per_100_machines: number | null;
+}
+export interface FailureMode { product: string; complaint: string; calls: number; calls_12m: number }
+export interface SpareUsage {
+  cover: string; region: string; product: string;
+  lines: number; qty: number; calls: number; parts: number; engineers: number;
+}
+export async function sbFailureRates(): Promise<FailureRate[]> {
+  const { data, error } = await must().from('failure_rate_by_product').select('*').limit(2000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as FailureRate[];
+}
+export async function sbFailureModes(): Promise<FailureMode[]> {
+  const { data, error } = await must().from('failure_modes_by_product').select('*').limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as FailureMode[];
+}
+export async function sbSpareUsage(): Promise<SpareUsage[]> {
+  const { data, error } = await must().from('spare_usage_rollup').select('*').limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as SpareUsage[];
+}
+
+// ---- Moving a spare request to a different engineer ------------------------
+//
+// Until it is dispatched, and logged either way. The rule lives in the database
+// (0100) because hand stock is DERIVED from the request: after dispatch the name
+// is not a label, it is whose parts they are.
+export interface EngineerChange {
+  id: number; request_uid: string; or_no: string;
+  from_engineer: string; from_email: string;
+  to_engineer: string; to_email: string;
+  reason: string; changed_at: string; changed_by_name: string;
+}
+export async function sbReassignSpareRequest(uid: string, engineer: string, email = '', reason = ''): Promise<void> {
+  const { error } = await must().rpc('reassign_spare_request', {
+    p_uid: uid, p_engineer: engineer, p_email: email, p_reason: reason,
+  });
+  if (error) throw new Error(errMsg(error));
+}
+export async function sbListEngineerChanges(uid: string): Promise<EngineerChange[]> {
+  const { data, error } = await must().from('spare_request_engineer_log')
+    .select('*').eq('request_uid', uid).order('changed_at', { ascending: false });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as EngineerChange[];
+}
+
+// ---- The Product Register's own lists (Product & Party Search) -------------
+//
+// The products a search can offer are the products the register HAS. A master
+// value list is a different thing — maintained by hand, and on this project it
+// was short — so the dropdown reads the register.
+//
+// 0098's view groups them; if it has not been applied yet the fallback asks for
+// the column and de-duplicates here, which is slower but never leaves the
+// screen without a list. (A merged migration is not an applied one.)
+export interface ProductName { name: string; machines: number }
+export async function sbListProductNames(): Promise<ProductName[]> {
+  const c = must();
+  const { data, error } = await c.from('product_register_names').select('item_name,machines').order('item_name');
+  if (!error) {
+    return (data ?? []).map((r) => ({ name: String(r.item_name ?? ''), machines: Number(r.machines ?? 0) })).filter((p) => p.name);
+  }
+  const { data: raw, error: e2 } = await c.from('products').select('item_name').limit(100000);
+  if (e2) throw new Error(errMsg(e2));
+  const counts = new Map<string, number>();
+  (raw ?? []).forEach((r) => {
+    const n = String(r.item_name ?? '').trim();
+    if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+  });
+  return [...counts].map(([name, machines]) => ({ name, machines })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// The serials of one product — an equality filter, so 0052's btree serves it.
+export async function sbListProductSerials(product: string): Promise<string[]> {
+  const { data, error } = await must().from('products')
+    .select('serial_number').eq('item_name', product).limit(20000);
+  if (error) throw new Error(errMsg(error));
+  return [...new Set((data ?? []).map((r) => String(r.serial_number ?? '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+}
+
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').eq('party_name', party).limit(2000);
   if (product) q = q.eq('item_name', product);
@@ -311,11 +405,11 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
-export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
+export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').range(offset, offset + limit - 1);
-  if (filters.serial) q = q.ilike('serial_number', `%${filters.serial}%`);
+  if (filters.serial) q = filters.exact ? q.eq('serial_number', filters.serial) : q.ilike('serial_number', `%${filters.serial}%`);
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
-  if (filters.product) q = q.ilike('item_name', `%${filters.product}%`);
+  if (filters.product) q = filters.exact ? q.eq('item_name', filters.product) : q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
@@ -331,18 +425,6 @@ export function callTypeForTab(tab: string): string {
   return tab; // already a call_type, or empty (= all)
 }
 
-// The physical table a call_type reads from (mirrors the DB's call_table_for()
-// after the 0040 split). A specific type reads its own table — so the PM
-// register never scans field/installation, and vice-versa; an empty type reads
-// the `calls` union view (all types). Writes always go through `calls` (the
-// INSTEAD OF triggers route them), so this is for reads only.
-export function callTable(callType = ''): string {
-  const t = (callType || '').toUpperCase();
-  if (!t) return 'calls';
-  if (t.startsWith('INSTALL')) return 'installation_calls';
-  if (t.replace(/\s/g, '').startsWith('PM')) return 'pm_calls';
-  return 'field_calls';
-}
 
 // ---- call requests (Request Registration) ----------------------------------
 // Party details for autofill (state / city / address).
@@ -1961,8 +2043,19 @@ export async function uploadRows(
   // requests rather than 88.
   const SIZE = /reports|_items$/.test(table) ? 300 : /_history$|_opening$/.test(table) ? 2000 : 500;
   let written = 0;
-  for (let i = 0; i < rows.length; i += SIZE) {
-    const slice = rows.slice(i, i + SIZE);
+  // ONE SHAPE PER REQUEST. PostgREST writes a batch as a single insert whose
+  // column list is the union of the objects' keys, and a row missing one of
+  // them is sent as NULL rather than taking the column's DEFAULT — which is
+  // what refused the DCCR file with "null value in column complaint_grouping"
+  // for a column that is `not null default ''`. Rows of the same shape go up
+  // together, so a column no row in the group carries genuinely defaults.
+  const slices = byColumnSet(rows).flatMap((group) => {
+    const out: Record<string, unknown>[][] = [];
+    for (let i = 0; i < group.length; i += SIZE) out.push(group.slice(i, i + SIZE));
+    return out;
+  });
+  for (const slice of slices) {
+    const i = written;
     const { error } = conflict
       ? await c.from(table).upsert(slice, { onConflict: conflict })
       : await c.from(table).insert(slice);

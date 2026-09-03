@@ -12,6 +12,56 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.70',
+    date: '2026-09-04',
+    title: 'KPIs from the record: failure rate per machine, spares by cover and by region',
+    changes: [
+      'FAILURE RATE, properly. Not a count of calls \u2014 a product with 1,200 machines in the field SHOULD generate more calls than one with 40, so a bare count ranks the popular product as the unreliable one. KPI & Failure Analysis divides calls in the last twelve months by the machines of that product in the Product Register and shows calls per 100 machines. A product with no machines on record shows a dash: there is nothing to divide by, and a rate invented from a missing denominator is worse than none.',
+      'SPARE USE BY COVER \u2014 warranty, CMC, AMC and out of guarantee. The cover is a fact about the call and the parts are on the consumption, so the join is the whole answer: what we carry, and what is billed.',
+      'SPARE USE BY REGION, and region against cover, so a region consuming twice its share can be looked at rather than argued about. The region is the engineer\u2019s, from the User Master.',
+      'How each product fails, by standard complaint \u2014 the one field in a call that groups reliably across thousands of them. Click a row and the register opens already narrowed to those calls.',
+      'The Dashboard\u2019s call lists are clickable: a UCN on the SLA table or in Recent Calls opens THAT call, in whichever of the three registers holds it.',
+      'DCCR UPLOAD FIXED. It stopped with \u201cnull value in column complaint_grouping\u201d on a column that has a default. A batch is written as one instruction whose column list is the union of its rows, so a row that left a cell blank was sent as null rather than taking the default \u2014 and the error named row 1 whatever the row at fault. Rows of the same shape now travel together, so a blank column really does default. This affected any file where one row fills a column and another leaves it empty.',
+      'Every figure is computed by the database and scoped like the records behind it: your KPIs are your calls, a manager\u2019s are their team\u2019s. Needs a database script run once (performance.sql).',
+    ],
+  },
+  {
+    version: '0.9.69',
+    date: '2026-09-04',
+    title: 'Pending Calls covers all three types and re-allots; a less crowded register',
+    changes: [
+      'PENDING CALLS: the Installation and PM chips found nothing. The screen compared the call type letter for letter against one spelling, and the register holds several \u2014 \u201cP M VISIT\u201d on one import, \u201cPM VISIT\u201d on another \u2014 so those calls sat in the list under All with the type written in the column while their own chip came back empty. All three now match the way the database itself decides which table a call lives in.',
+      'Pending Calls re-allots too, one call or a hundred, exactly as the registers do \u2014 which is where it was most wanted, since a pending call is the one you most often need to hand to somebody else. It also groups by Type, Engineer and Call Status.',
+      'Pending Calls has Load more, Refresh and its last sync, and loads the first 2,000 rather than everything at once.',
+      'THE REGISTER IS LESS CROWDED. \u201cLoad more\u201d has moved up beside the count \u2014 the \u201c800+\u201d raises the question, so the answer is next to it rather than at the foot of a list you had to scroll to the bottom of. What you can see, whether the database is connected and when it last synced have moved under the title with the rest of the description, leaving the toolbar to the controls. That also ends two chips reading \u201cAll calls\u201d side by side and meaning different things.',
+    ],
+  },
+  {
+    version: '0.9.68',
+    date: '2026-09-03',
+    title: 'Moving a spare order to a different engineer',
+    changes: [
+      'An administrator can change the engineer on a spare order \u2014 until it is dispatched. Open the spare, and \u201cEngineer on this order\u201d in the drawer has the change and the record of every change made: from, to, who did it, when, and why.',
+      'After dispatch the name is fixed, and the database refuses it however it is asked. Hand stock is worked out FROM the order, so once the parts have gone out the engineer\u2019s name is not a label on a record \u2014 it is whose parts they are, and changing it would move stock from one person\u2019s balance to another\u2019s with nothing to show for it. Move the parts with a Stock Transfer instead.',
+      'The engineer the order was taken off can see the change too. A reassignment is not a secret from the person it moved it away from.',
+      'Needs a database script run once (HandStock_X.sql).',
+    ],
+  },
+  {
+    version: '0.9.67',
+    date: '2026-09-03',
+    title: 'Hand Stock stops timing out, products from the register, REQID back in sequence',
+    changes: [
+      'Product & Party Search now lists every product in the PRODUCT REGISTER, with the number of machines beside each name, instead of the hand-kept master list. Choose one and Serial Number becomes a dropdown of that product\u2019s serials \u2014 and the search matches the chosen name exactly, so \u201cMONNAL T75\u201d no longer drags in \u201cMONNAL T75 NF\u201d.',
+      'REQID had gone back to R1. The counter was reset when the demo data was cleared, and the 18,576 requests loaded afterwards each carried their own number, so it never knew about them. It now continues from the highest REQID on record, and any future bulk load pushes it along \u2014 so this cannot happen again. The two already issued out of order are re-lettered RC1 and RC2, because R1 is a number the sheet era may have used too.',
+      '\u201cForce update\u201d is now \u201c\uD83E\uDDF9 Clear Cache and Update\u201d \u2014 it says what it does, it is a solid button rather than grey small print, and it is in your name menu at the top right as well as at the bottom of the screen.',
+      'In Declaration, a part listed twice is now one line with the quantities added together.',
+      'HAND STOCK NO LONGER TIMES OUT. The cause was not the amount of data and not the access rules \u2014 it was the database spending 3.7 seconds COMPILING a query that then ran in under a fifth of a second. With that switched off, the whole 102,893-movement history reads in about a third of a second. Measured on a copy of the live data with every access rule in force.',
+      'Hand Stock can also CLOSE a year now. The opening figure for each engineer and part carries everything up to the date and the register reads only what happened since \u2014 nothing is estimated, the figure is the sum of what it stands for. It is no longer needed to make the screen fast; it is there to keep it fast as the years add up.',
+      'Needs three database scripts run once (call_requests.sql, performance.sql, handstock.sql).',
+    ],
+  },
+  {
     version: '0.9.66',
     date: '2026-09-03',
     title: 'Real dropdowns on Product & Party Search',

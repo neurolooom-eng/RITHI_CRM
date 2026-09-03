@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
 import { searchProducts, dataConfigured } from '../lib/sheets';
-import { queryParties, sbListPartyItems, supabaseConfigured } from '../lib/supabase';
+import { queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, supabaseConfigured, type ProductName } from '../lib/supabase';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
@@ -55,32 +55,57 @@ export function Lookup() {
   const [party, setParty] = useState<Party | null>(null);
   const [items, setItems] = useState<Row[]>([]);
   const [serialOpts, setSerialOpts] = useState<string[]>([]);
+  const [serialBusy, setSerialBusy] = useState(false);
+  const [productOpts, setProductOpts] = useState<ProductName[]>([]);
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
 
   const onDb = supabaseConfigured();
-  // REAL DROPDOWNS. There are 45 products, not thousands — a list you open and
-  // read is the right shape for that, and a type-to-filter box was asking people
-  // to know a spelling they can simply be shown. The serials follow the product
-  // chosen, and the party list is long enough that the browser's own type-ahead
-  // inside an open dropdown is what makes it usable.
+  // REAL DROPDOWNS, FROM THE REGISTER. There are dozens of products, not
+  // thousands — a list you open and read is the right shape for that, and a
+  // type-to-filter box was asking people to know a spelling they can simply be
+  // shown. The names come from the PRODUCT REGISTER rather than the `product`
+  // master value list: the master is maintained by hand and was short, while
+  // the register is the record of what actually exists. The party list is long
+  // enough that the browser's own type-ahead inside an open dropdown is what
+  // makes it usable, so that one still reads its master.
   const productMaster = useMaster('product');
   const partyMaster = useMaster('party');
 
-  // Once a product is named, the serials it actually has — nobody remembers a
-  // serial number, and the pair is what identifies a machine.
+  useEffect(() => {
+    if (!onDb) { setProductOpts([]); return; }
+    let cancelled = false;
+    void sbListProductNames()
+      .then((rows) => { if (!cancelled) setProductOpts(rows); })
+      .catch(() => { if (!cancelled) setProductOpts([]); });
+    return () => { cancelled = true; };
+  }, [onDb]);
+
+  // Whatever the register could not answer, the master list still can — so the
+  // dropdown is never empty just because the database is not connected yet.
+  const products: ProductName[] = productOpts.length
+    ? productOpts
+    : productMaster.values.map((name) => ({ name, machines: 0 }));
+
+  // Once a product is chosen, the serials it actually has — nobody remembers a
+  // serial number, and the pair is what identifies a machine. An EQUALITY
+  // filter on the register, not a contains-search: "MONNAL T75" must not drag
+  // in "MONNAL T75 NF".
   useEffect(() => {
     const p = product.trim();
-    if (!p) { setSerialOpts([]); return; }
+    if (!p) { setSerialOpts([]); setSerialBusy(false); return; }
     let cancelled = false;
-    void searchProducts({ product: p }, 5000)
-      .then((rows) => {
-        if (cancelled) return;
-        setSerialOpts([...new Set(rows.map((r) => g(r, 'Item Serial Number')).filter(Boolean))].sort());
-      })
-      .catch(() => { if (!cancelled) setSerialOpts([]); });
+    setSerialBusy(true);
+    const load = onDb
+      ? sbListProductSerials(p)
+      : searchProducts({ product: p }, 5000).then((rows) =>
+          [...new Set(rows.map((r) => g(r, 'Item Serial Number')).filter(Boolean))].sort());
+    void load
+      .then((v) => { if (!cancelled) setSerialOpts(v); })
+      .catch(() => { if (!cancelled) setSerialOpts([]); })
+      .finally(() => { if (!cancelled) setSerialBusy(false); });
     return () => { cancelled = true; };
-  }, [product]);
+  }, [product, onDb]);
 
   // A party is the ANSWER in both directions, so opening one is one function.
   const openParty = async (name: string) => {
@@ -105,7 +130,11 @@ export function Lookup() {
     if (!product.trim() && !serial.trim()) { setMsg('Give a product or a serial number to search for.'); return; }
     setBusy('Searching…'); setMsg(''); setParty(null); setPartyHits(null);
     try {
-      const rows = await searchProducts({ product: product.trim(), serial: serial.trim() }, 200);
+      // Both came from dropdowns over the register, so both match exactly. A
+      // serial typed by hand while no product is chosen is still a contains
+      // search, which is the point of leaving that box free text.
+      const exact = !!product.trim();
+      const rows = await searchProducts({ product: product.trim(), serial: serial.trim(), exact }, 200);
       const list = rows.map((r, i) => ({ ...r, id: String(i) })) as Row[];
       setFound(list);
       // One machine, one party: go straight to the answer.
@@ -156,14 +185,22 @@ export function Lookup() {
         {mode === 'machine' ? (
           <>
             <select className="select" value={product} onChange={(e) => { setProduct(e.target.value); setSerial(''); }}>
-              <option value="">— any product —</option>
-              {productMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
+              <option value="">— any of the {products.length} products —</option>
+              {products.map((p) => (
+                <option key={p.name} value={p.name}>{p.machines ? `${p.name} (${p.machines})` : p.name}</option>
+              ))}
             </select>
-            {/* The serials of the product chosen. Free text until one is, since
-                a serial on its own is still a perfectly good thing to search. */}
-            {product && serialOpts.length ? (
-              <select className="select" value={serial} onChange={(e) => setSerial(e.target.value)}>
-                <option value="">— any of the {serialOpts.length} —</option>
+            {/* The serials of the product chosen — a dependent dropdown. Free
+                text only while no product is chosen, since a serial on its own
+                is still a perfectly good thing to search for. */}
+            {product ? (
+              <select className="select" value={serial} disabled={serialBusy}
+                onChange={(e) => setSerial(e.target.value)}>
+                <option value="">
+                  {serialBusy ? 'Loading serials…'
+                    : serialOpts.length ? `— any of the ${serialOpts.length} serials —`
+                    : '— no serial recorded for this product —'}
+                </option>
                 {serialOpts.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             ) : (
