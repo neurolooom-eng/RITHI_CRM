@@ -265,6 +265,13 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+- **[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)**
+  (migration `0093`) — puts **Product & Party Search** on the roles that already
+  hold Product Master. A new module is in the code's defaults, but `has_perm`
+  reads the STORED list and only falls back to those defaults when the row is
+  EMPTY, so a role saved even once in Roles & Permissions would not see the
+  screen at all. Merged in, so an admin's other edits are untouched.
+  `_status.sql` row 45.
 - **[`user_directory.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/user_directory.sql)**
   (migration `0092`) — a **Reporting Manager who sees no calls** while the header
   says "Team view · 15 engineers". The screen finds him in the User Master by

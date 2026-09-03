@@ -28,6 +28,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/parties', label: 'Party Master' },
   { path: '/product-master', label: 'Product Master' },
+  { path: '/lookup', label: 'Product & Party Search' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
@@ -205,6 +206,7 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
     { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
+    { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
     // All Masters is just the overview screen; each value list is its own page

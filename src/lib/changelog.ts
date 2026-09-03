@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.60',
+    date: '2026-09-03',
+    title: 'Product & Party Search',
+    changes: [
+      'A new screen under Master that answers the two questions a desk actually gets asked: a serial number is on the phone \u2014 whose machine is it? And: what does this hospital have?',
+      'Search by product and\u2044or serial number and it opens the customer: their address, contact, telephone, engineer \u2014 and every machine they hold, with warranty and contract dates. Search by party name and you land in the same place.',
+      'One match takes you straight there. From any machine listed you can register a field call, pre-filled from it.',
+      'Needs a database script run once (rbac.sql), which puts the screen on the roles that already have Product Master.',
+    ],
+  },
+  {
     version: '0.9.59',
     date: '2026-09-03',
     title: 'How to allot or re-allot calls',

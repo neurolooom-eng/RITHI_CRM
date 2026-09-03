@@ -80,7 +80,7 @@ const MODULES = {
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
             '0030_engineer_address_write.sql', '0092_visible_engineers_by_name.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
             '0035_data_view_all.sql', '0037_call_read_scale.sql', '0051_pending_registrations_view_all.sql',
-            '0069_nsm_service_manager.sql'],
+            '0069_nsm_service_manager.sql', '0093_lookup_module.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',

@@ -225,6 +225,9 @@ with checks(sort_order, bundle, provides, present) as (
     -- resolved to no row, so visible_engineer_names() was empty and the database
     -- returned no calls -- while the screen said "Team view - 15 engineers",
     -- because the CLIENT also matches on username. The name is the fallback.
+    (45, 'product & party search', 'the Product & Party Search screen is on the roles that have Product Master (0093)',
+        exists (select 1 from public.app_roles
+                 where permissions ? 'mod:/lookup')),
     (44, 'manager scope: the name is the fallback', 'visible_engineer_names() finds the caller by name when the address does not (0092)',
         coalesce(pg_get_functiondef(to_regprocedure('public.visible_engineer_names()'))
                    ilike '%me_by_name%', false)),
