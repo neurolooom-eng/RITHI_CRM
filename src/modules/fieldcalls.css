@@ -386,7 +386,8 @@
 /* ---- Product & Party Search --------------------------------------------- */
 .lk-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .lk-search .input { min-width: 200px; }
-.lk-search .input.lk-wide { min-width: 340px; }
+.lk-search .input.lk-wide, .lk-search .select.lk-wide { min-width: 340px; max-width: 520px; }
+.lk-search .select { min-width: 200px; }
 
 .lk-hits { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .lk-hit {
