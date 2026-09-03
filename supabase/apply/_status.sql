@@ -221,6 +221,13 @@ with checks(sort_order, bundle, provides, present) as (
     -- WinMax HS + SO + ST received - Consumption - ST sent - MRN. Every term
     -- had a home except the SO: the issue side was only ever derived from a
     -- spare REQUEST, which exists for 2026 and for nothing before it.
+    -- A Reporting Manager whose address in the User Master has gone stale
+    -- resolved to no row, so visible_engineer_names() was empty and the database
+    -- returned no calls -- while the screen said "Team view - 15 engineers",
+    -- because the CLIENT also matches on username. The name is the fallback.
+    (44, 'manager scope: the name is the fallback', 'visible_engineer_names() finds the caller by name when the address does not (0092)',
+        coalesce(pg_get_functiondef(to_regprocedure('public.visible_engineer_names()'))
+                   ilike '%me_by_name%', false)),
     (43, 'hand stock: read indexes', 'the balance is DERIVED, and indexed for it — halves a per-engineer read (0091)',
         (select count(*) from pg_indexes where schemaname='public' and right(indexname, 7) = '_hs_idx') >= 8),
     (42, 'hand stock: the issue history', 'spare_issue_history + its arm, which does not re-count a 2026 request line (0090)',

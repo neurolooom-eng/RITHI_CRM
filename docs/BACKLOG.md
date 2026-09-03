@@ -265,6 +265,13 @@ transfer guard and the cap all inherit them untouched:
   visit's report date is the day the export meant (`parseAnyDate`).
 
 ### To run on the live project — pending
+- **[`user_directory.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/user_directory.sql)**
+  (migration `0092`) — a **Reporting Manager who sees no calls** while the header
+  says "Team view · 15 engineers". The screen finds him in the User Master by
+  email, gmail OR username; `visible_engineer_names()` matched on email/gmail
+  and nothing else, so a stale address resolved to no row, the tree came back
+  empty, and RLS returned nothing. The name is now the fallback — only when the
+  address finds nobody. `_status.sql` row 44.
 - **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
   (migrations `0082` + `0089` + `0090`) — carries the whole hand-stock model:
   the four spare files (0089) and the ISSUE history (0090), which is the term
