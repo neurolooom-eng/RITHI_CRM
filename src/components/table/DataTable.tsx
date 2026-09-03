@@ -133,7 +133,7 @@ export function DataTable<T>({
   allFields,
 }: DataTableProps<T>) {
   const persistKey = storageKey ? `rithi.table.${storageKey}` : null;
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   // Resolves created_by / recorded_by UUIDs to names (see rawCell).
   const userNameMap = useUserNames();
 
@@ -203,7 +203,13 @@ export function DataTable<T>({
   });
 
   // ---- user-defined filters over the full field list ----
-  const filtersKey = persistKey ? `${persistKey}.filters` : null;
+  //
+  // Keyed by the SIGNED-IN USER, not just the screen. A filter changes what you
+  // are looking at, and one left behind on a shared desk followed the next
+  // person into their session: a Hotline Engineer opened Pending Registrations,
+  // the page loaded all 130 rows, and a filter someone else had saved hid every
+  // one of them. Column widths may be shared; what you can see may not.
+  const filtersKey = persistKey ? `${persistKey}.filters.${user?.id ?? 'anon'}` : null;
   const [filters, setFilters] = useState<TableFilter[]>(() => {
     try { return filtersKey ? JSON.parse(localStorage.getItem(filtersKey) || '[]') : []; } catch { return []; }
   });
@@ -574,7 +580,21 @@ export function DataTable<T>({
             {sortedRows.length === 0 && (
               <tr>
                 <td colSpan={Math.max(1, visibleCols.length)} className="dt-empty">
-                  {emptyText}
+                  {/* Rows arrived and the filter removed them all: say THAT, and
+                      offer the way out. "No records yet" on a screen holding 130
+                      of them reads as a broken screen, and was diagnosed as one. */}
+                  {rows.length > 0 && activeFilters.length > 0
+                    ? (
+                      <>
+                        {`None of the ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'} on this screen match the filter${activeFilters.length === 1 ? '' : 's'}.`}
+                        {' '}
+                        <button type="button" className="btn btn-sm" style={{ marginLeft: 6 }}
+                          onClick={() => saveFilters([])}>
+                          Clear {activeFilters.length === 1 ? 'it' : 'them'}
+                        </button>
+                      </>
+                    )
+                    : emptyText}
                 </td>
               </tr>
             )}

@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.52',
+    date: '2026-09-03',
+    title: 'A filter no longer hides a screen in silence',
+    changes: [
+      'A saved filter followed one person into another\u2019s session on a shared machine: Pending Registrations loaded all 130 rows, said so, and then showed an empty table because of a filter somebody else had left behind. Filters now belong to the signed-in user, not to the browser.',
+      'And when a filter does empty a screen, the screen says so \u2014 \u201cNone of the 130 rows match the filter\u201d, with a button to clear it \u2014 instead of \u201cNo records yet\u201d, which reads as a broken page.',
+    ],
+  },
+  {
     version: '0.9.51',
     date: '2026-09-03',
     title: 'Hand stock, indexed for the whole history',
