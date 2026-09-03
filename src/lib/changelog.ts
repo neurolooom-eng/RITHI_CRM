@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.53',
+    date: '2026-09-03',
+    title: 'A Reporting Manager sees their team\u2019s calls',
+    changes: [
+      'The register said \u201cTeam view \u00b7 15 engineers\u201d and showed nothing. The screen and the database were finding the manager in the User Master two different ways \u2014 the screen by email, gmail OR username, the database by email only \u2014 so a manager whose address in the User Master is out of date was shown a team the database would not let him read. The database now falls back to his name when the address finds nobody.',
+      'And a call nobody is allotted to yet no longer disappears: the database always allowed it, the screen was hiding it, which is how a register could say \u201cLoaded all 1 field calls\u201d above an empty table.',
+    ],
+  },
+  {
     version: '0.9.52',
     date: '2026-09-03',
     title: 'A filter no longer hides a screen in silence',

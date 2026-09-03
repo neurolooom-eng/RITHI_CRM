@@ -689,8 +689,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // Role-based visibility: engineers see only calls allotted to them; RMs see
     // their reporting sub-tree; admins see all. A user's own unsynced local
     // calls always stay visible so they can finish/sync them.
+    // A call with NO allottee is everyone's to see — that is what the database
+    // says (can_see_call treats a blank allottee as visible), and a new call is
+    // unallocated until someone takes it. Dropping it here made the screen
+    // contradict its own banner: "Loaded all 1 field calls", 0 rows.
     const scopeOk = (row: Rec) =>
-      scope.all || allowsAllottee(scope, row.allocatedTo) || (row._pending === true && row.ownerId === user?.id);
+      scope.all
+      || String(row.allocatedTo ?? '').trim() === ''
+      || allowsAllottee(scope, row.allocatedTo)
+      || (row._pending === true && row.ownerId === user?.id);
     // On Supabase the SERVER already applied the search terms, so the displayed
     // list must stick exactly to what came back — only role-scope (and always
     // the user's own pending rows). On the sheet path we filter client-side.
