@@ -266,6 +266,14 @@ transfer guard and the cap all inherit them untouched:
 
 ### To run on the live project — pending
 
+- **[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)**
+  (migration `0103`) — **the audit trail stops recording bulk loads row by row.**
+  `record_audit` kept a full before/after copy of every row written to the ten
+  quality tables, bulk uploads included, which is why it grew as it did. A bulk
+  write is now ONE event (who, which table, how many rows, when); everything a
+  person does is still recorded in full. The user asked for this on 2026-09-04
+  after seeing the table's size, and has already deleted the old rows.
+
 - **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
   (migration `0102`) — the balance says how much of itself came from the
   IMPORTED record. Three of the nine arms are the sheet era, loaded once: the
