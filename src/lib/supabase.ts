@@ -605,6 +605,60 @@ export async function listPendingCalls(callType = '', limit = 20000): Promise<Re
 // machine that merely shares a number: a request for ORION-G 201 at one
 // hospital was shown a VEGA 201 at another, one click from being mapped to it.
 export interface MachineRef { product: string; serial: string }
+// ---------------------------------------------------------------------------
+// EVERY call on one machine, whatever its status.
+//
+// `openCallsFor` above reads `pending_calls`, so it answers "is there something
+// still open on this serial" — which is the right question when deciding
+// whether to map a request onto an existing call. It is NOT the right question
+// when the desk wants the machine's history: a call solved last month is often
+// exactly what tells them this request is the same fault coming back.
+//
+// The machine is PRODUCT + SERIAL, not the serial alone. Serial numbers repeat
+// across products, so the query is by serial (the indexed column) and the match
+// is on the pair — the same rule `openCallsFor` uses. A row with no product
+// recorded cannot be told apart, so it is KEPT and shown: the desk can see it
+// and judge, which is better than silently hiding a call that may be the one.
+// ---------------------------------------------------------------------------
+export interface MachineCall extends Omit<OpenCall, 'state'> {
+  state: string;
+  lastStatus: string;
+  solved: boolean;
+}
+export async function callsForMachine(product: string, serial: string, limit = 200): Promise<MachineCall[]> {
+  const ser = String(serial ?? '').trim();
+  if (!ser) return [];
+  const want = machineKey(product, ser);
+  const { data, error } = await must().from('calls')
+    .select('ucn,call_type,party_name,product_name,serial,allocated_to,reg_date,complaint_reported,open_state,last_status,reopened_at')
+    .eq('serial', ser)
+    .order('reg_date', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(errMsg(error));
+  const byUcn = new Map<string, MachineCall>();
+  (data ?? []).forEach((r) => {
+    const ucn = String(r.ucn ?? '');
+    if (!ucn || byUcn.has(ucn)) return;
+    const prod = String(r.product_name ?? '').trim();
+    if (prod && machineKey(prod, ser) !== want) return;   // another product, same serial
+    const open = String(r.open_state ?? '');
+    byUcn.set(ucn, {
+      ucn,
+      callType: String(r.call_type ?? ''),
+      partyName: String(r.party_name ?? ''),
+      productName: prod,
+      serial: String(r.serial ?? ''),
+      allocatedTo: String(r.allocated_to ?? ''),
+      regDate: String(r.reg_date ?? ''),
+      complaint: String(r.complaint_reported ?? ''),
+      state: r.reopened_at ? 'Reopened' : open,
+      lastStatus: String(r.last_status ?? ''),
+      solved: open === 'Solved' && !r.reopened_at,
+    });
+  });
+  return [...byUcn.values()];
+}
+
 export async function openCallsFor(machines: MachineRef[], parties: string[] = []): Promise<OpenCall[]> {
   const c = must();
   const ser = [...new Set(machines.map((m) => String(m.serial ?? '').trim()).filter(Boolean))];

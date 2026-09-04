@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { addFieldCall, listPending, searchProducts, setPendingUcn, dataConfigured } from '../lib/sheets';
-import { cancelCallRequest, callByUcn, openCallsFor, machineKey, supabaseConfigured, type OpenCall } from '../lib/supabase';
+import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { useMaster } from '../lib/masters';
 import { productToCallPrefill } from '../lib/fieldcall';
@@ -326,6 +326,75 @@ function RequestActions({
 }) {
   const cancelMaster = useMaster('cancelreason', ['Duplicate request', 'Raised in error', 'Customer withdrew', 'Not a service call']);
   const [manualUcn, setManualUcn] = useState('');
+
+  // ---- every call on this machine, whatever its status --------------------
+  //
+  // The middle column asks "is anything still OPEN on this serial", which is
+  // the question for deciding whether to map. This one asks what the machine's
+  // history is — and a call solved last month is often exactly what says this
+  // request is the same fault coming back. So: no status filter at all.
+  //
+  // The machine is PRODUCT + SERIAL. A serial on its own repeats across
+  // products, and a request for ORION-G 2000 must not pull in the history of a
+  // different machine that happens to share the number.
+  // Read through the module's own field getter, with the SAME aliases the
+  // open-call lookup above uses. Two lists of aliases for one field is how they
+  // start to disagree.
+  const product = g(row, 'PRODUCT', 'Product').trim();
+  const serial = g(row, 'SERIAL NO', 'Serial').trim();
+  const [history, setHistory] = useState<MachineCall[] | null>(null);
+  const [histErr, setHistErr] = useState('');
+  useEffect(() => {
+    if (!supabaseConfigured() || !serial) { setHistory([]); return; }
+    let cancelled = false;
+    setHistory(null); setHistErr('');
+    void callsForMachine(product, serial)
+      .then((r) => { if (!cancelled) setHistory(r); })
+      .catch((e) => { if (!cancelled) { setHistory([]); setHistErr(e instanceof Error ? e.message : String(e)); } });
+    return () => { cancelled = true; };
+  }, [product, serial]);
+
+  // ---- the columns are the reader's to size -------------------------------
+  //
+  // Three panes, and which one matters depends on the request: sometimes the
+  // details, sometimes the history. Drag either divider; the widths are
+  // remembered, so somebody who works this screen all day sets it once.
+  const [cols, setCols] = useState<[number, number]>(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem('rithi.reg.cols') ?? '');
+      if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === 'number')) return v as [number, number];
+    } catch { /* never set, or a private window */ }
+    return [30, 38];
+  });
+  const dragRef = useRef<{ which: 0 | 1; x: number; start: [number, number]; width: number } | null>(null);
+  const onDragStart = (which: 0 | 1) => (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation();
+    const box = e.currentTarget.parentElement?.getBoundingClientRect();
+    dragRef.current = { which, x: e.clientX, start: cols, width: box?.width ?? 1000 };
+  };
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const delta = ((e.clientX - d.x) / d.width) * 100;
+      // 15% is a pane you can still read; the third takes what is left, and it
+      // needs room too, hence the 70 ceiling on the first two together.
+      const clamp = (n: number) => Math.max(15, Math.min(60, n));
+      const next: [number, number] = d.which === 0
+        ? [clamp(d.start[0] + delta), d.start[1]]
+        : [d.start[0], clamp(d.start[1] + delta)];
+      if (next[0] + next[1] > 70) return;
+      setCols(next);
+    };
+    const up = () => {
+      if (!dragRef.current) return;
+      dragRef.current = null;
+      setCols((c) => { try { localStorage.setItem('rithi.reg.cols', JSON.stringify(c)); } catch { /* ignore */ } return c; });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+  }, []);
   const [mode, setMode] = useState<'actions' | 'cancel'>('actions');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
@@ -334,7 +403,11 @@ function RequestActions({
 
   return (
     <div className="reg-overlay" onMouseDown={onClose}>
-      <div className="reg-split" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="reg-split reg-split-3"
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{ gridTemplateColumns: `${cols[0]}% 6px ${cols[1]}% 6px 1fr` }}
+      >
         <aside className="reg-split-left">
           <div className="reg-split-head"><span>📄 Request details</span></div>
           <div className="reg-detail-list">
@@ -347,10 +420,11 @@ function RequestActions({
           </div>
         </aside>
 
+        <div className="reg-gutter" onMouseDown={onDragStart(0)} title="Drag to resize" />
+
         <section className="reg-split-right">
           <div className="reg-split-head">
             <span>⚙️ Action this request</span>
-            <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
           </div>
           <div className="reg-split-body">
             {!canAct && <div className="sheet-banner sheet-banner-info"><span>Your role can view requests but not action them.</span></div>}
@@ -416,6 +490,52 @@ function RequestActions({
                     Cancel request
                   </button>
                 </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="reg-gutter" onMouseDown={onDragStart(1)} title="Drag to resize" />
+
+        {/* THE MACHINE'S HISTORY — every call on this product + serial, whatever
+            its status. The middle column asks "is anything still open"; this one
+            asks what has happened to this machine, and a call solved last month
+            is often exactly what says the request is the same fault returning.
+            Any of them can be mapped: a request can legitimately belong to a
+            call that is already closed. */}
+        <section className="reg-split-third">
+          <div className="reg-split-head">
+            <span>
+              🩺 This machine{history && history.length ? ` · ${history.length}` : ''}
+            </span>
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+          </div>
+          <div className="reg-split-body">
+            <div className="detail-hint" style={{ marginBottom: 10 }}>
+              {product || '—'}{serial ? ` · ${serial}` : ''}
+            </div>
+
+            {!serial ? (
+              <div className="detail-hint">This request carries no serial number, so there is no machine to look up.</div>
+            ) : histErr ? (
+              <div className="sheet-banner sheet-banner-error"><span>{histErr}</span></div>
+            ) : history === null ? (
+              <div className="detail-hint">Looking up this machine…</div>
+            ) : history.length === 0 ? (
+              <div className="detail-hint">No call has ever been registered on this machine.</div>
+            ) : (
+              <div className="req-open-list">
+                {history.map((c) => (
+                  <div className={`req-open-row ${c.solved ? 'req-open-done' : ''}`} key={c.ucn}>
+                    <div className="req-open-main">
+                      <button className="linklike" onClick={() => onOpenCall(c as unknown as OpenCall)}>{c.ucn}</button>
+                      <StateBadge state={c.state} label={c.lastStatus || c.state} />
+                      <span className="muted">{c.callType} · {c.regDate || '—'} · {c.allocatedTo || 'unallocated'}</span>
+                      {c.complaint && <div className="muted req-open-cmp">{c.complaint}</div>}
+                    </div>
+                    <button className="btn btn-sm" disabled={!canAct || busy} onClick={() => onMap(c.ucn)}>Map</button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
