@@ -264,127 +264,111 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
-### To run on the live project — pending
-- **[`_handstock_opening_engineers.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_handstock_opening_engineers.sql)**
-  — **opening stock for active engineers only.** The WinMax export's `User Name`
-  column holds dealers and customers as well as engineers; 252,592 of its
-  257,130 parts came in under names like `A AND M HEALTH CARE C`, each given a
-  hand-stock balance. Asked which way to load it, the user said **User Master,
-  active names only** (2026-09-04). The uploader now holds the rest back before
-  writing; this applies the same rule to what is already loaded. Names what it
-  removes, prints the balance before and after, safe to re-run, and refuses
-  outright if the User Master is not loaded. Everything it deletes is re-loadable
-  from the same file.
-Read from the user's `_status.sql` on 2026-09-03 plus what has shipped since.
-Everything else in this file's earlier lists HAS been run — documents, reports,
-user_directory (0068), rbac (0069), masters, call_requests (0083),
-sales_contracts (0080), daily_review, Spare_1 (0084/0085/0087/0088) and
-HandStock_X for 0089/0090/0091. Do not re-add them here without a status read.
+### To run on the live project — NOTHING PENDING (2026-09-04)
 
-- **[`performance.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)**
-  (migrations `0098`, `0099`, `0101`) — **the Hand Stock timeout, the products
-  dropdown, and the KPIs.** `0101` adds the four aggregate views KPI & Failure
-  Analysis reads (`spare_usage`, `spare_usage_rollup`, `failure_rate_by_product`,
-  `failure_modes_by_product`) — without it that screen says which script to run.
-  Also **the spare-request reassignment (`0100`) is in `HandStock_X.sql`.** `0099` turns JIT off for the database: the timeout was Postgres
-  spending 3.7 s COMPILING the movement query, which then ran in 174 ms. The
-  planner's estimate is inflated by the cost of RLS sub-plans it barely runs, so
-  the more access rules a query carries the more certain it is to be compiled —
-  which is exactly why switching RLS off appeared to "fix" it, and sent three
-  rounds of work at the wrong cause. With JIT off and nothing else changed the
-  whole 102,893-row history reads in 323 ms. Applies to connections opened AFTER
-  it runs, so give the pool a few minutes. Reverse with
-  `alter database postgres reset jit;`. `0098` adds `product_register_names`,
-  the distinct product list Product & Party Search offers.
-- **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
-  (migration `0097`) — **REQID had restarted at R1.** `_reset_for_production.sql`
-  reset the counter when the demo data was cleared (correct then — the table was
-  empty), and the 18,576 requests loaded afterwards each carried their own
-  number, which never calls `nextval`. The counter now follows any explicit
-  REQID, so a bulk load can no longer strand it, and it is resynced once here.
-  The two already issued out of order become **RC1** and **RC2** — `R1` is a
-  number the sheet era may have used too. Prints what it re-lettered.
-- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  (migrations `0095`, `0096`) — closing a hand-stock period. `close_handstock_period('YYYY-MM-DD')`
-  writes an opening figure per engineer and part and moves the line; every arm of
-  the movement view then reads only what falls after it. Verified neutral on a
-  copy of the live data: 6,203 pools / 257,188 parts before and after, with the
-  view dropping 102,893 → 22,442 rows. Not needed to make the screen fast (0099
-  did that) — it is what keeps it fast as the years add up. NOT urgent.
-- **[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)**
-  (migration `0093`) — puts **Product & Party Search** on the roles that already
-  hold Product Master. A new module is in the code's defaults, but `has_perm`
-  reads the STORED list and only falls back to those defaults when the row is
-  EMPTY, so a role saved even once in Roles & Permissions would not see the
-  screen at all. Merged in, so an admin's other edits are untouched.
-  `_status.sql` row 45.
-- **[`user_directory.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/user_directory.sql)**
-  (migration `0092`) — a **Reporting Manager who sees no calls** while the header
-  says "Team view · 15 engineers". The screen finds him in the User Master by
-  email, gmail OR username; `visible_engineer_names()` matched on email/gmail and
-  nothing else, so a stale address resolved to no row, the tree came back empty,
-  and RLS returned nothing. The name is now the fallback — only when the address
-  finds nobody. Gates EVERY manager feature shipped 2026-09-03: team visibility,
-  the engineer pickers, the chips, the grouping and the bulk allotment.
-  `_status.sql` row 44.
+**Every row of `_status.sql` reads `yes` — all 65.** Read from the user's own
+output on 2026-09-04, after they ran `performance.sql`, `call_requests.sql`,
+`HandStock_X.sql`, `_handstock_opening_engineers.sql` and finally
+`user_directory.sql`. That covers migrations 0092–0101 and the opening-stock
+correction.
 
-  ⚠️ **This entry named the wrong bundle, and running the one it named UNDID the
-  fix.** 0092 was filed under `rbac`, so `rbac.sql` carried it and
-  `user_directory.sql` did not — but `user_directory.sql` replays `0004`, which
-  defines `visible_engineer_names()` WITHOUT the fallback. So the instruction
-  "run user_directory.sql for 0092" put the old definition back, silently, and
-  the bundle reported success. On the live project `_status.sql` row 44 read NO
-  on 2026-09-04 for exactly that reason: applied, then overwritten.
+Do not re-add anything here without a status read. This file is a record, not
+evidence — it has twice claimed the opposite of what was applied, and once (see
+below) it named a bundle whose own contents undid the fix it was recommending.
 
-  0092 now lives in the **user_directory** module, after 0004, so the bundle that
-  owns the function carries its latest definition and re-running it is safe.
-  Re-run `user_directory.sql` once more and row 44 goes green.
+#### What those runs settled, and what to remember from each
 
-  **The class**: a bundle must carry the LATEST definition of everything it
-  defines, or replaying it alone reverts an object a later module redefined.
-  `npm run check:bundles` reports it; **twelve** objects are split this way today
-  and are listed in that script, including `dispatch_spare_lines` (re-running
-  `Spare_1.sql` on its own would revert partial dispatch and refurbished issue)
-  and `spare_pending_dispatch`. They are recorded rather than fixed here because
-  moving migrations between modules changes the order a FRESH apply runs in —
-  the other way this project has broken itself — so it wants its own change.
-- **[`_dedupe_part_product_keys.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_dedupe_part_product_keys.sql)**,
-  then re-run
-  **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  — 0081/0082 SKIP their unique indexes when the table already holds duplicates
-  and print a notice the bundle's success hides, which is why `_status.sql` row
-  35 stays NO after running it. **Part Master and Product Master cannot upload
-  until this is done.**
+- **The Hand Stock timeout was JIT** (`0099`), not the data and not RLS.
+  `EXPLAIN` with the JIT block showing: *Optimization 2134 ms, Emission 1440 ms,
+  total 3742* — against 174 ms of execution. `jit_above_cost` is 100,000 and the
+  planner's estimate for the movement view is half a million, almost all of it
+  the cost of RLS sub-plans it barely runs. So the more access rules a query
+  carries, the more certain Postgres is to spend seconds compiling it — which is
+  precisely why switching RLS off "fixed" it and sent three rounds of work at the
+  wrong cause. With JIT off, the whole 102,893-row history reads in 323 ms.
+  Reverse with `alter database postgres reset jit;`.
+  **If a future screen is mysteriously slow, read the JIT block before blaming
+  the policies.**
+- **A period can be closed** (`0095`, `0096`) but is no longer needed for speed —
+  it is what keeps Hand Stock fast as the years add up. Verified neutral:
+  6,203 pools / 257,188 parts before and after, view 102,893 → 22,442 rows.
+- **REQID** (`0097`) continues from the register instead of restarting at R1, and
+  a bulk load can no longer strand the counter. The two issued out of order are
+  now **RC1** and **RC2**.
+- **The KPIs and the product list** (`0098`, `0101`).
+- **The spare-order engineer can be corrected before dispatch, never after**
+  (`0100`), with its own log.
+- **Opening stock is active User Master names only**
+  (`_handstock_opening_engineers.sql`), by the user's decision on 2026-09-04.
+  The uploader now holds the rest back before writing, and `_status.sql` row 55
+  keeps it honest.
 
-  ⚠️ 0090 rebuilds `handstock_movements`, and **`create or replace view` does NOT
-  carry `security_invoker` over** — without re-asserting it the view runs as its
-  owner and every arm's row-level security stops applying. The migration
-  re-asserts it on every rebuild; any future arm must do the same.
+#### ⚠️ The one that cost a round trip — read this before writing a bundle note
 
-### Uploads still to load — waiting on the SQL above
-In this order. Everything here has been shaped against the user's real files and
-the counts are what to expect:
+This list previously said: run **`user_directory.sql`** for migration `0092` (the
+Reporting Manager name fallback). **That instruction UNDID the fix.** 0092 was
+filed under the `rbac` module, so `rbac.sql` carried it and `user_directory.sql`
+did not — but `user_directory.sql` replays `0004`, which defines
+`visible_engineer_names()` WITHOUT the fallback. Running it put the old
+definition back, silently, and the bundle reported success. Row 44 read `NO` on
+2026-09-04 for exactly that reason: **applied, then overwritten** — which reads
+identically to "never applied".
 
-| register | file | expect |
-| --- | --- | --- |
-| Part Master | `ITEM_Master_2.csv` | needs row 35 |
-| Product Master | `v2_ProdMaster.csv` | needs row 35 |
-| Hand Stock — WinMax opening | `HS_Winmax.csv` | 4,375 |
-| Stock Out — all years | `Stock_Out.csv` | 48,139 |
-| Consumption — yearly export | 22H2 / 23 / 24 / 25 | 5,233 / 10,338 / 11,938 / 12,292 |
-| Consumption | `v2Consumption_1.csv` | 8,352 |
-| Stock Transfer Register → Lines | `ST_Entry` → `StockTransferList` | 338 → 849 |
-| Ownership Transfer | `OwnershipTransfer.csv` | — |
-| Master Value Lists | Standard Complaint and the rest | the go-live reset emptied them |
+0092 now lives in **user_directory**, after 0004, so the bundle that owns the
+function carries its latest definition. Re-running it is safe, and on a project
+that has lost the fix it restores it. That is what turned row 44 green.
 
-Loaded already: Party Master (5,873), Field / Installation / PM calls, Call
+**The class**: a bundle must carry the LATEST definition of everything it
+defines, or replaying it alone reverts an object a later module redefined.
+`npm run check:bundles` reports it, and **twelve objects are still split this
+way** — they are listed in that script so the list can only shrink, and a NEW one
+fails the check. Among them:
+
+- `dispatch_spare_lines` — re-running **`Spare_1.sql` on its own would revert
+  partial dispatch and refurbished issue**.
+- `spare_pending_dispatch`, `engineer_stock`, `stock_transfer_lines_check_stock`,
+  `notify_spare_dispatched` — all superseded in the `handstock` module.
+
+They are recorded rather than moved because unpicking them changes the order a
+FRESH apply runs in, which is the other way this project has broken itself. That
+wants its own change, with its own verification. **Until it is done, prefer
+`all.sql` over a single bundle when repairing a live project.**
+
+### Uploads — what is loaded, and what is left (2026-09-04)
+
+Confirmed by the user as they went. Counts are what to expect against their real
+files.
+
+| register | file | expect | state |
+| --- | --- | --- | --- |
+| Part Master | `ITEM_Master_2.csv` | — | ✅ loaded |
+| Product Master | `v2_ProdMaster.csv` | — | ✅ loaded |
+| Hand Stock — WinMax opening | `HS_Winmax.csv` | active engineers only | ✅ loaded, then corrected |
+| Stock Out — all years | `Stock_Out.csv` | 48,139 | ✅ loaded |
+| Consumption — yearly export | 22H2 / 23 / 24 / 25 | 5,233 / 10,338 / 11,938 / 12,292 | ✅ loaded — see the count below |
+| Consumption | `v2Consumption_1.csv` | 8,352 | ✅ loaded |
+| Stock Transfer Register → Lines | `ST_Entry` → `StockTransferList` | 338 → 849 | ✅ loaded |
+| Master Value Lists | Standard Complaint | 507 | ✅ loaded |
+| **Ownership Transfer** | `OwnershipTransfer.csv` | — | ⬜ **still to load** |
+| **Master Value Lists** | the rest of the lists | the go-live reset emptied them | ⬜ **still to load** |
+
+Loaded earlier: Party Master (5,873), Field / Installation / PM calls, Call
 Requests, Field Reports, Spare Request (4,081) and its Lines (8,571), MRN (595).
 
+⬜ **The yearly consumption total was 39,724 and should be 39,801.** 77 rows of
+the 2023 export were entered in January for December work, so they belong to
+2024 — and before 0.9.64 they landed on the same reference as the first 77 rows
+of the 2024 file, one silently replacing the other. The fix shipped; the DATA
+still carries the loss unless the four pools were emptied and re-loaded.
+`supabase/apply/_yearly_consumption_check.sql` shows what is there and how.
+**Not confirmed either way — ask before assuming.**
+
 ### Open questions put to the user, unanswered
-- **WinMax opening:** its `User Name` column is not only engineers — the first
-  rows are names like `A AND M HEALTH CARE C`, dealers rather than people. It is
-  252,592 of the 257,130 parts in the balance. Filter that pool to names in the
-  User Master, or load it whole?
+- ~~**WinMax opening:** filter that pool to names in the User Master, or load it
+  whole?~~ **ANSWERED 2026-09-04: "only user master - Active names only."** Both
+  Opening Stock registers now filter before writing, and
+  `_handstock_opening_engineers.sql` corrected what was already loaded.
+  `_status.sql` row 55 keeps it that way.
 - **A Knowledge Base how-to for Product & Party Search**, as was done for call
   re-allocation (offered, not asked for).
 
