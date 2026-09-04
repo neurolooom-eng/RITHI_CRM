@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.72',
+    date: '2026-09-04',
+    title: 'Hand Stock: every line, every engineer, and a search that looks at all of them',
+    changes: [
+      'Hand Stock was showing 1,000 lines and calling it the register. The database answers at most a thousand rows however many are asked for, so the rest were never coming. It pages now, with \u201cLoad more\u201d beside the count, and what you have loaded is kept for next time.',
+      'THE SEARCH ASKS THE DATABASE, not the page you happen to be looking at. A part you are hunting for is exactly the one that has not loaded yet; type two characters and it searches every line in the register, and says so.',
+      'The engineer list is every ACTIVE engineer, not just the ten with a line on this page \u2014 a list of ten, on a register covering eighty, reads as \u201cthere are ten\u201d. Anyone holding stock who is not in the User Master is still there to be picked. Elsewhere in the app, engineer pickers now leave out people who have left: you could allot a call to them.',
+      'Grouping, as on Calls and Spare Requests \u2014 by engineer, by spare, or by whether the line is in hand, short or settled.',
+    ],
+  },
+  {
     version: '0.9.71',
     date: '2026-09-04',
     title: 'Opening stock is loaded for active engineers only',

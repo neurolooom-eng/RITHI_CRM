@@ -92,6 +92,15 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
+- **A bundle must carry the LATEST definition of everything it defines.** The
+  bundles are replayed ONE AT A TIME, not only as a set, so if module A creates
+  a function and module B redefines it, running `A.sql` alone puts the old
+  definition back — no error, and the bundle reports success. That is how a
+  Reporting Manager lost team visibility twice: 0092 was filed under `rbac`
+  while `user_directory.sql` replays 0004, which defines the same function
+  without the fix. It reads as "the migration was never applied"; it had been,
+  and was then overwritten. `npm run check:bundles` catches a NEW one; twelve
+  are already split and listed in that script.
 - **Every migration must be listed in a module in `build-apply-bundles.mjs`,**
   or the generator refuses to build. A migration in no module is also missing
   from every apply bundle, so a rebuilt project silently lacks it (0057/0058
