@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.77',
+    date: '2026-09-04',
+    title: 'A document library that says whether a file is stored or linked',
+    changes: [
+      'A document added by pasting a LINK showed nothing at all in the File column, because only the upload path records a file name. It now reads \u201c\uD83D\uDD17 Link \u00b7 drive.google.com\u201d and opens from there \u2014 a stored copy reads \u201c\uD83D\uDCC4\u201d and its filename.',
+      'That is the one difference worth seeing at a glance. A stored copy is FIXED at the revision it was uploaded as. A link is live: if somebody edits that document, everyone here opens the new content while the Revision recorded on the row still says the old one.',
+      'The form now says so before you choose \u2014 and on QMS Documents it says plainly that a controlled document should be uploaded, because a revision that can change underneath the record is not controlled. Publish a new revision as its own entry and retire the old one.',
+    ],
+  },
+  {
     version: '0.9.76',
     date: '2026-09-04',
     title: 'The audit trail stops recording bulk loads row by row',
