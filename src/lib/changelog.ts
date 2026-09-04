@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.74',
+    date: '2026-09-04',
+    title: 'Validation package to Rev 1.5',
+    changes: [
+      'The validation package now covers the migration of the old system\u2019s record and everything that came out of it: that migrated data must stay tellable apart from what this system recorded itself, that a stock period can be closed without moving a single balance, that record numbers carry on after a load instead of starting again, that a bulk load changes only what its file actually carries, that migrated stock is only ever opened against an active user, and that a register comes back quickly enough to work with on the real data.',
+      'Six new user requirements, six system requirements, five risks, three failure modes and six test cases \u2014 plus four more data-migration checks and four configuration items, including the rule that a database script must carry the latest version of everything it defines.',
+      'The checks that guard the package are stricter too: every requirement must trace to a test, and every risk must point at something that exists.',
+    ],
+  },
+  {
     version: '0.9.73',
     date: '2026-09-04',
     title: 'Hand Stock says how much of a level came from the imported record',
