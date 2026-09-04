@@ -363,20 +363,37 @@ files.
 | Consumption — yearly export | 22H2 / 23 / 24 / 25 | 5,233 / 10,338 / 11,938 / 12,292 | ✅ loaded — see the count below |
 | Consumption | `v2Consumption_1.csv` | 8,352 | ✅ loaded |
 | Stock Transfer Register → Lines | `ST_Entry` → `StockTransferList` | 338 → 849 | ✅ loaded |
-| Master Value Lists | Standard Complaint | 507 | ✅ loaded |
+| Master Value Lists | all eight lists | see below | ✅ **complete** |
 | **Ownership Transfer** | `OwnershipTransfer.csv` | — | ⬜ **still to load** |
-| **Master Value Lists** | the rest of the lists | the go-live reset emptied them | ⬜ **still to load** |
 
 Loaded earlier: Party Master (5,873), Field / Installation / PM calls, Call
 Requests, Field Reports, Spare Request (4,081) and its Lines (8,571), MRN (595).
 
-⬜ **The yearly consumption total was 39,724 and should be 39,801.** 77 rows of
-the 2023 export were entered in January for December work, so they belong to
-2024 — and before 0.9.64 they landed on the same reference as the first 77 rows
-of the 2024 file, one silently replacing the other. The fix shipped; the DATA
-still carries the loss unless the four pools were emptied and re-loaded.
-`supabase/apply/_yearly_consumption_check.sql` shows what is there and how.
-**Not confirmed either way — ask before assuming.**
+✅ **The value lists are COMPLETE** (the user's read, 2026-09-04):
+
+    calltype 8 · cancelreason 27 · complaint 507 · dccrgrouping 707
+    feedbackrating 4 · orapproval 13 · pendingreason 21 · rootcause 657
+
+That is every list in the `master_lists` registry. `party`, `product` and
+`spare` look like value lists on the forms but are NOT in this registry —
+`listMaster()` resolves them from `parties`, `products` and `parts` instead, so
+there is nothing to load for them and their absence is correct, not a gap.
+
+⛔ **The yearly consumption total is 39,724 and should be 39,801** — CONFIRMED by
+the user's read on 2026-09-04 (4 files loaded, 39,724 rows). The 77 missing rows
+are real consumptions: they were entered in January for December work, so they
+belong to 2024, and before v0.9.64 they landed on the same reference as the
+first 77 rows of the 2024 file — one silently replacing the other. The code fix
+shipped, but **the data only corrects itself on a re-load**.
+
+Consumption is an OUT arm, so 77 missing rows make those engineer/part levels
+read **too HIGH**. That is one strand of the user's "the Handstock levels are
+incorrect", though 77 rows against 39,801 will only move the pairs they touch.
+
+To correct it: run the DELETE at the foot of
+`supabase/apply/_yearly_consumption_check.sql` (commented out on purpose), then
+load the four files again. They are history, not a control point — nothing else
+points at these rows.
 
 ### Open questions put to the user, unanswered
 - ~~**WinMax opening:** filter that pool to names in the User Master, or load it
