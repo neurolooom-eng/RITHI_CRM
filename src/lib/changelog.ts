@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.73',
+    date: '2026-09-04',
+    title: 'Hand Stock says how much of a level came from the imported record',
+    changes: [
+      'A new toggle on Hand Stock: \u201cHistory included\u201d / \u201cHistory ignored\u201d. Three of the nine things the level is worked out from are not this system\u2019s own record \u2014 they are the sheet era, loaded once: the opening pools, every stock out before 2026, and the yearly consumption exports. Turn the toggle on and you see the balance WITHOUT them: what this application has recorded itself.',
+      'A new \u201cFrom history\u201d column says, per line, exactly what the imported record contributes \u2014 the opening pool plus the old stock outs, less the old consumption. When a level looks wrong the answer is nearly always that number, and until now the register could not tell you what it was.',
+      'The whole line is restated, not just the total: the stock out and consumed figures lose their imported part too, so the arithmetic on screen still adds up. Transfers and returns are untouched \u2014 they were never part of the sheet era.',
+      'Neither figure is a correction of the other. Both are true, of different questions, and the screen says which one it is answering.',
+      'Needs a database script run once (HandStock_X.sql). Until it is run the toggle changes nothing, rather than showing everyone as holding zero.',
+    ],
+  },
+  {
     version: '0.9.72',
     date: '2026-09-04',
     title: 'Hand Stock: every line, every engineer, and a search that looks at all of them',
