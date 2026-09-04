@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.75',
+    date: '2026-09-04',
+    title: 'A request now shows the machine\u2019s whole history',
+    changes: [
+      'Opening a pending request gives you a THIRD column: every call ever registered on that machine \u2014 product AND serial number \u2014 whatever its status. The middle column still asks \u201cis anything still open here\u201d, which is the question for deciding whether to map; this one tells you what has happened to the machine, and a call solved last month is often exactly what says the request is the same fault coming back.',
+      'Any of them can be mapped, closed ones included. A request can legitimately belong to a call that is already finished, and nothing should stop you saying so.',
+      'The three columns are yours to size \u2014 drag either divider, and the widths are remembered for next time. On a narrow screen they stack instead.',
+      'The machine is matched on product AND serial: serial numbers repeat across products, so a request for ORION-G 2000 no longer risks pulling in the history of a different machine that happens to share the number.',
+    ],
+  },
+  {
     version: '0.9.74',
     date: '2026-09-04',
     title: 'Validation package to Rev 1.5',
