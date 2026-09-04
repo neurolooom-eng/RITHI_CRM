@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { metaFromFileName } from '../lib/docname';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
@@ -100,8 +101,26 @@ function Library({ cfg }: { cfg: Cfg }) {
     const res = await uploadToDrive(f, `${cfg.drivePrefix} - ${draft.product || draft.title || 'General'}`);
     setUploading(false);
     if (!res.ok || !res.url) { setMsg({ tone: 'error', text: res.error ?? 'Upload failed.' }); return; }
-    setDraft((d) => (d ? { ...d, url: res.url!, file_name: f.name, title: d.title || f.name.replace(/\.[^.]+$/, '') } : d));
-    setMsg({ tone: 'ok', text: `${f.name} stored in Drive.` });
+    // WHAT THE FILENAME ALREADY SAYS. `SM-SER-XT Rev.05.pdf` carries the
+    // document number and the revision — the two fields most worth having and
+    // the two most often left blank. They are SUGGESTIONS: only ever written
+    // into a field that is empty, never over something typed, and named in the
+    // message so nothing arrives silently.
+    const guess = metaFromFileName(f.name);
+    setDraft((d) => {
+      if (!d) return d;
+      const took: string[] = [];
+      const next = { ...d, url: res.url!, file_name: f.name, title: d.title || f.name.replace(/\.[^.]+$/, '') };
+      if (!d.doc_no.trim() && guess.docNo) { next.doc_no = guess.docNo; took.push(`Document No “${guess.docNo}”`); }
+      if (!d.revision.trim() && guess.revision) { next.revision = guess.revision; took.push(`Revision “${guess.revision}”`); }
+      setMsg({
+        tone: 'ok',
+        text: took.length
+          ? `${f.name} stored in Drive. Read from the file name: ${took.join(' and ')} — check them, and change them if the name is not the record.`
+          : `${f.name} stored in Drive.`,
+      });
+      return next;
+    });
   };
 
   const problem = (d: Draft): string => {

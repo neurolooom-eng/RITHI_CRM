@@ -19,6 +19,8 @@ export const CHANGELOG: ChangeEntry[] = [
       'A document added by pasting a LINK showed nothing at all in the File column, because only the upload path records a file name. It now reads \u201c\uD83D\uDD17 Link \u00b7 drive.google.com\u201d and opens from there \u2014 a stored copy reads \u201c\uD83D\uDCC4\u201d and its filename.',
       'That is the one difference worth seeing at a glance. A stored copy is FIXED at the revision it was uploaded as. A link is live: if somebody edits that document, everyone here opens the new content while the Revision recorded on the row still says the old one.',
       'The form now says so before you choose \u2014 and on QMS Documents it says plainly that a controlled document should be uploaded, because a revision that can change underneath the record is not controlled. Publish a new revision as its own entry and retire the old one.',
+      'And choosing a file now READS ITS NAME: \u201cSM-SER-XT Rev.05.pdf\u201d fills Document No as \u201cSM-SER-XT\u201d and Revision as \u201cRev.05\u201d, and tells you it did. Only ever into a field you have left empty, never over something you typed \u2014 a file name is a convention, not a record, so treat it as a first draft and correct it where it is wrong.',
+      'Names it does not understand fill nothing rather than guessing: a name with no revision in it leaves both fields alone, and a code like \u201cSM-R05-XT\u201d is read as one code, not a code and a revision.',
     ],
   },
   {
