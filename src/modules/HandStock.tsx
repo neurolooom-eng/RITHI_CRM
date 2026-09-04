@@ -11,7 +11,7 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
 import {
-  balanceTone, byEngineer, movementTone, num, partDescription, summarise,
+  balanceTone, byEngineer, movementTone, num, partDescription, summarise, withoutHistory,
   type HandstockBalance, type HandstockMovement, type MovementKind,
 } from '../lib/handstock';
 import './fieldcalls.css';
@@ -66,6 +66,14 @@ const asRow = (r: Record<string, unknown>): Row => ({
   last_out: r.last_out ? String(r.last_out) : null,
   last_movement: r.last_movement ? String(r.last_movement) : null,
   movements: num(r.movements),
+  hist_stock_out: num(r.hist_stock_out),
+  hist_consumed: num(r.hist_consumed),
+  hist_net: num(r.hist_net),
+  // Before 0102 is applied these columns are absent, so `on_hand_live` reads 0
+  // and would show every engineer as holding nothing. Fall back to the whole
+  // balance: the toggle then changes nothing, which is the honest behaviour
+  // when the database cannot yet tell the two apart.
+  on_hand_live: r.on_hand_live === undefined ? num(r.on_hand) : num(r.on_hand_live),
   id: `${String(r.engineer_key ?? '')}::${String(r.part_code ?? '')}`,
 });
 
@@ -98,15 +106,35 @@ export function HandStock() {
   const [tab, setTab] = useState<Tab>('levels');
   // The raw rows as fetched — cached and refreshed as before.
   const [allRows, setAllRows] = useState<Row[]>(cached?.rows ?? []);
+  // IGNORE THE IMPORTED HISTORY. Three of the nine arms are the sheet era —
+  // the opening pools, every stock out before 2026, and the yearly consumption
+  // exports. When a level looks wrong it is usually a question about those, so
+  // this shows the balance WITHOUT them: what this application has itself
+  // recorded. Neither figure is a correction of the other; the toggle says
+  // which question is being asked. Remembered, because somebody who distrusts
+  // the import distrusts it tomorrow as well.
+  const [liveOnly, setLiveOnly] = useState(() => {
+    try { return localStorage.getItem('rithi.handstock.liveOnly') === '1'; } catch { return false; }
+  });
+  const setLive = (on: boolean) => {
+    setLiveOnly(on);
+    try { localStorage.setItem('rithi.handstock.liveOnly', on ? '1' : '0'); } catch { /* private window */ }
+  };
   // What this screen shows. RLS already scoped a real session; this only
   // narrows the list while an administrator previews as someone else, whose
   // identity the database never sees. See previewScoped() in lib/access.
   const rows = useMemo(
     () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email)
+      // With the history ignored, the WHOLE row is restated — not just the
+      // total. A screen showing 4 in hand beside a stock out of 27 invites the
+      // reader to check the arithmetic and find it broken, so each component
+      // loses its imported part too. The transfers and returns are untouched:
+      // they are not part of the sheet era.
+      .map((r) => (liveOnly ? withoutHistory(r) : r))
       // The chips read this too; grouping needs it as a value ON the row, and
       // one derivation keeps the two from disagreeing.
       .map((r) => ({ ...r, _state: r.on_hand > 0 ? 'In hand' : r.on_hand < 0 ? 'Short' : 'Settled' })),
-    [allRows, viewAs, scope],
+    [allRows, viewAs, scope, liveOnly],
   );
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
@@ -189,13 +217,15 @@ export function HandStock() {
       void listHandstockBalance(PAGE_SIZE, 0, q)
         .then((r) => {
           if (cancelled) return;
-          setHits(r.map(asRow).map((h) => ({ ...h, _state: h.on_hand > 0 ? 'In hand' : h.on_hand < 0 ? 'Short' : 'Settled' })));
+          setHits(r.map(asRow)
+            .map((h) => (liveOnly ? withoutHistory(h) : h))
+            .map((h) => ({ ...h, _state: h.on_hand > 0 ? 'In hand' : h.on_hand < 0 ? 'Short' : 'Settled' })));
         })
         .catch(() => { if (!cancelled) setHits(null); })
         .finally(() => { if (!cancelled) setSearching(false); });
     }, 300);
     return () => { cancelled = true; window.clearTimeout(id); setSearching(false); };
-  }, [search, onDb]);
+  }, [search, onDb, liveOnly]);
 
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
@@ -247,6 +277,13 @@ export function HandStock() {
     // begins (WinMax HS and the yearly pools) — shown separately so a level
     // that comes from an opening balance is legible, not just correct.
     { key: 'opening', header: 'Opening', width: 90, align: 'right', wrap: false },
+    // What the sheet era contributes to this line, in one figure: the opening
+    // pool plus the imported stock outs, less the imported consumption. A level
+    // that looks wrong is nearly always a question about THIS number, and until
+    // now the register could not tell you what it was.
+    { key: 'hist_net', header: 'From history', width: 110, align: 'right', wrap: false,
+      render: (r) => (liveOnly ? <span className="muted" title="Ignored — the toggle is on">—</span>
+        : r.hist_net === 0 ? <span className="muted">0</span> : <span>{r.hist_net}</span>) },
     { key: 'stock_out', header: 'Stock out', width: 95, align: 'right', wrap: false },
     { key: 'consumed', header: 'Consumed', width: 95, align: 'right', wrap: false },
     { key: 'transferred_in', header: 'Transfer in', width: 100, align: 'right', wrap: false },
@@ -313,7 +350,32 @@ export function HandStock() {
             <button className={`chip ${holding === 'short' ? 'chip-on' : ''}`} onClick={() => setHolding('short')}>⚠️ Short <b>{totals.shortLines}</b></button>
             <button className={`chip ${holding === 'settled' ? 'chip-on' : ''}`} onClick={() => setHolding('settled')}>Settled <b>{rows.filter((r) => r.on_hand === 0).length}</b></button>
             <button className={`chip ${holding === '' ? 'chip-on' : ''}`} onClick={() => setHolding('')}>All <b>{rows.length}</b></button>
+            <span className="spacer" />
+            {/* Not a filter — it changes what the numbers MEAN, so it sits apart
+                from the chips that narrow the list, and the screen says which
+                reading is on rather than leaving it to be inferred. */}
+            <button
+              className={`chip ${liveOnly ? 'chip-on' : ''}`}
+              onClick={() => setLive(!liveOnly)}
+              title={liveOnly
+                ? 'Showing only what this system has recorded since 2026. Click to include the imported sheet-era record.'
+                : 'Showing everything on record, including the imported sheet era — the opening pools, the pre-2026 stock outs and the yearly consumption exports. Click to leave them out.'}
+            >
+              {liveOnly ? '📅 History ignored' : '🗄️ History included'}
+            </button>
           </div>
+
+          {liveOnly && (
+            <div className="sheet-banner sheet-banner-info">
+              <span>
+                <b>The imported record is being left out.</b> These are the levels from what this system has
+                recorded itself — stock outs, consumption, transfers and returns since it went live. The opening
+                pools, the pre-2026 stock outs and the yearly consumption exports are excluded, so a level here
+                is <i>lower</i> than the full one wherever an engineer was carrying stock before the cutover.
+                Neither number is wrong; they answer different questions.
+              </span>
+            </div>
+          )}
 
           <DataTable<Row>
             columns={columns}

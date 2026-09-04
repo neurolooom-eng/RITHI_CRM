@@ -5,6 +5,7 @@ import { groupRowsBy, groupTree, NO_GROUP } from '../src/components/table/group'
 import { URS, FRS, TESTS } from '../src/lib/validation';
 import { mergeDcLines } from '../src/lib/dc';
 import { callFamily } from '../src/lib/calltype';
+import { withoutHistory } from '../src/lib/handstock';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -109,6 +110,37 @@ console.log('\n-- a call type is recognised however it is spelled --');
  ['FIELD', 'field'], ['', 'field'], ['ANYTHING ELSE', 'field']].forEach(([given, want]) => {
   eq(`"${given}" is ${want}`, callFamily(given), want);
 });
+
+// ---------------------------------------------------------------------------
+// Hand stock with the imported sheet era left out. The identity that has to
+// hold is `on_hand - hist_net = on_hand_live`, and the components have to be
+// restated with the total — a level of 4 beside a stock out of 27 reads as a
+// broken sum, whatever the total says.
+// ---------------------------------------------------------------------------
+console.log('\n-- hand stock, with the imported record left out --');
+{
+  // Opening 10, 20 issued and 25 consumed historically; 7 issued and 3 consumed
+  // by this system. Everything: 10+20-25+7-3 = 9. This system alone: 7-3 = 4.
+  const line = {
+    engineer_key: 'ravi kumar', engineer: 'Ravi Kumar', engineer_email: '',
+    part_code: 'P-1', part: 'P-1|Pump',
+    opening: 10, stock_out: 27, consumed: 28,
+    transferred_in: 2, transferred_out: 1, returned: 0,
+    on_hand: 9, last_in: null, last_out: null, last_movement: null, movements: 5,
+    hist_stock_out: 20, hist_consumed: 25, hist_net: 5, on_hand_live: 4,
+  };
+  const live = withoutHistory(line);
+  eq('the total is the one without the history', live.on_hand, 4);
+  eq('the imported stock outs come off too', live.stock_out, 7);
+  eq('...and the imported consumption', live.consumed, 3);
+  eq('the opening pool is gone', live.opening, 0);
+  eq('and nothing is left attributed to history', live.hist_net, 0);
+  eq('transfers are NOT the sheet era, so they stay', live.transferred_in, 2);
+  eq('nor are returns', live.transferred_out, 1);
+  eq('the identity holds: on_hand - hist_net = on_hand_live',
+    line.on_hand - line.hist_net, line.on_hand_live);
+  eq('the row it was given is untouched', line.on_hand, 9);
+}
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

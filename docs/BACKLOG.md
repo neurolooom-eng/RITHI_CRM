@@ -264,7 +264,22 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
-### To run on the live project — NOTHING PENDING (2026-09-04)
+### To run on the live project — pending
+
+- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
+  (migration `0102`) — the balance says how much of itself came from the
+  IMPORTED record. Three of the nine arms are the sheet era, loaded once: the
+  opening pools (`Opening balance`), the pre-2026 stock outs and the yearly
+  consumption exports (both `Historical`). `0102` appends `hist_stock_out`,
+  `hist_consumed`, `hist_net` and `on_hand_live`, so Hand Stock can show what
+  the import contributes per line and offer a toggle that leaves it out.
+  The user's report was *"I think the Handstock levels are incorrect"* — this is
+  what lets that be looked at rather than argued about. Columns are APPENDED,
+  which is the only thing `create or replace view` allows.
+  Until it is run the toggle changes nothing, rather than showing everyone as
+  holding zero.
+
+### Everything before this was applied — NOTHING ELSE PENDING (2026-09-04)
 
 **Every row of `_status.sql` reads `yes` — all 65.** Read from the user's own
 output on 2026-09-04, after they ran `performance.sql`, `call_requests.sql`,

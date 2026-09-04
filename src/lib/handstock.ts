@@ -31,6 +31,21 @@ export interface HandstockBalance {
   last_out: string | null;
   last_movement: string | null;
   movements: number;
+  // WHERE THE NUMBER CAME FROM (0102). Three of the nine arms are not this
+  // system's own record — they are the sheet era, loaded once: the opening
+  // pools, every stock out before 2026, and the yearly consumption exports.
+  // A level that looks wrong is usually a question about those, so the balance
+  // says how much of itself they account for.
+  //
+  //   on_hand - hist_net = on_hand_live, always.
+  //
+  // Neither figure is a correction of the other: they answer different
+  // questions. `on_hand` is everything on record; `on_hand_live` is what this
+  // application has itself recorded.
+  hist_stock_out: number;
+  hist_consumed: number;
+  hist_net: number;
+  on_hand_live: number;
 }
 
 export type MovementKind = 'Stock out' | 'Consumption' | 'Transfer in' | 'Transfer out' | 'Return';
@@ -121,6 +136,30 @@ export function byEngineer(rows: HandstockBalance[]): EngineerHolding[] {
     map.set(r.engineer_key, cur);
   }
   return [...map.values()].sort((a, b) => b.onHand - a.onHand || a.engineer.localeCompare(b.engineer));
+}
+
+// ---------------------------------------------------------------------------
+// THE SAME LINE, WITH THE IMPORTED RECORD LEFT OUT.
+//
+// Not just the total: the WHOLE row is restated. A screen showing 4 in hand
+// beside a stock out of 27 invites the reader to check the arithmetic and find
+// it broken, so each component loses its imported part too. Transfers and
+// returns are untouched — they are not part of the sheet era.
+//
+// One function, so the table, the chips, the KPI tiles and the search results
+// cannot restate it four slightly different ways.
+// ---------------------------------------------------------------------------
+export function withoutHistory<T extends HandstockBalance>(r: T): T {
+  return {
+    ...r,
+    on_hand: r.on_hand_live,
+    opening: 0,
+    stock_out: r.stock_out - r.hist_stock_out,
+    consumed: r.consumed - r.hist_consumed,
+    hist_stock_out: 0,
+    hist_consumed: 0,
+    hist_net: 0,
+  };
 }
 
 // What one engineer can actually hand over or consume: their positive lines.
