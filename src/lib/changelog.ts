@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.76',
+    date: '2026-09-04',
+    title: 'The audit trail stops recording bulk loads row by row',
+    changes: [
+      'record_audit kept a full before-and-after copy of every row written to the quality tables \u2014 including every row of every bulk upload. That is what made it the biggest table in the project, and it says nothing a migration report does not say better.',
+      'A bulk write is now recorded as ONE event: who loaded, into which table, how many rows, and when. The load stays accountable; what goes is a duplicate copy of data that is already sitting in the table it was loaded into.',
+      'NOTHING CHANGES for what people do. Creating, editing or deleting a record is still recorded in full, before and after \u2014 and so is a bulk re-allotment, because those reach the call tables one row at a time.',
+      'Needs a database script run once (data_integrity.sql).',
+    ],
+  },
+  {
     version: '0.9.75',
     date: '2026-09-04',
     title: 'A request now shows the machine\u2019s whole history',
