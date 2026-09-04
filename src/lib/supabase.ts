@@ -1533,10 +1533,25 @@ export async function listMaterialReturns(limit = 1000, offset = 0): Promise<Rec
 // already see in Spare Requests / Consumption. `engineer_stock`, which the
 // Stock Transfer screen and its guard read, is the same derivation — see
 // listEngineerStock above.
-export async function listHandstockBalance(limit = 5000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('handstock_balance').select('*')
+// The balance, a page at a time.
+//
+// `limit` was 5,000 and the screen said "Synced 1000 lines": PostgREST caps a
+// response at its own max-rows however wide a range is asked for, so the extra
+// 4,000 were never coming. It pages properly now, and the caller decides how
+// many pages to take.
+//
+// SEARCH IS SERVER-SIDE when a term is given. Filtering the page already loaded
+// answers "is it on this screen", which is not the question — a part somebody is
+// looking for is exactly the one that has not been paged in yet.
+export async function listHandstockBalance(
+  limit = 1000, offset = 0, search = '',
+): Promise<Record<string, unknown>[]> {
+  let q = must().from('handstock_balance').select('*');
+  const term = _san(search.trim());
+  if (term) q = q.or(`engineer.ilike.%${term}%,part.ilike.%${term}%,part_code.ilike.%${term}%`);
+  const { data, error } = await q
     .order('engineer', { ascending: true }).order('part_code', { ascending: true })
-    .range(0, limit - 1);
+    .range(offset, offset + limit - 1);
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }

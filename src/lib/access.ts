@@ -170,7 +170,14 @@ export function useTeamEngineers(current?: string): { names: string[]; canPick: 
     let cancelled = false;
     void loadUserMaster().then((rows) => {
       if (cancelled) return;
-      setDirectory([...new Set(rows.map((r) => pick(r, H_NAME)).filter(Boolean))]);
+      // ACTIVE users only. A list that offers somebody who has left is a list
+      // that lets you allot a call, or open a hand-stock balance, against a
+      // person who cannot act on it. The row currently ON a record is added
+      // back by the caller through `current`, so an existing value still reads
+      // correctly after that person leaves.
+      setDirectory([...new Set(rows
+        .filter((r) => !/^(false|no|0|inactive)$/i.test(String(r['Validity'] ?? '').trim()))
+        .map((r) => pick(r, H_NAME)).filter(Boolean))]);
     });
     return () => { cancelled = true; };
   }, [scope.all]);

@@ -9,7 +9,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
-import { useAccessScope, previewScoped } from '../lib/access';
+import { useAccessScope, previewScoped, useTeamEngineers } from '../lib/access';
 import {
   balanceTone, byEngineer, movementTone, num, partDescription, summarise,
   type HandstockBalance, type HandstockMovement, type MovementKind,
@@ -41,7 +41,10 @@ import './fieldcalls.css';
 const CACHE_KEY = 'handstock';
 const MIGRATION_HINT = 'Hand stock needs migration 0023_handstock.sql — run it in the Supabase SQL editor (apply bundle: HandStock_X.sql).';
 
-type Row = HandstockBalance & { id: string };
+// `_state` is derived, not stored: "In hand" / "Short" / "Settled". The chips
+// have always read it off `on_hand`; grouping needs the same reading as a value
+// on the row, and deriving it once keeps the two from ever disagreeing.
+type Row = HandstockBalance & { id: string; _state?: string };
 type MoveRow = HandstockMovement & { id: string };
 type Holding = 'held' | 'short' | 'settled' | '';
 type Tab = 'levels' | 'moves';
@@ -82,6 +85,10 @@ const stockBadge = (onHand: number) => (
   <span className={`badge badge-${balanceTone(onHand)}`}>{onHand}</span>
 );
 
+// PostgREST answers at most 1,000 rows however wide a range is asked for, so
+// that is the page — asking for more in one request does not get more.
+const PAGE_SIZE = 1000;
+
 export function HandStock() {
   const { can, viewAs } = useAuth();
   const scope = useAccessScope();
@@ -95,7 +102,10 @@ export function HandStock() {
   // narrows the list while an administrator previews as someone else, whose
   // identity the database never sees. See previewScoped() in lib/access.
   const rows = useMemo(
-    () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email),
+    () => previewScoped(allRows, !!viewAs, scope, ['engineer', 'engineer_key'], ['engineer_email'], viewAs?.email)
+      // The chips read this too; grouping needs it as a value ON the row, and
+      // one derivation keeps the two from disagreeing.
+      .map((r) => ({ ...r, _state: r.on_hand > 0 ? 'In hand' : r.on_hand < 0 ? 'Short' : 'Settled' })),
     [allRows, viewAs, scope],
   );
   const [search, setSearch] = useState('');
@@ -103,17 +113,44 @@ export function HandStock() {
   const [holding, setHolding] = useState<Holding>('held');
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
+  // The balance is paged, like the call registers. `loaded` is how many rows
+  // have been asked for; `more` says the last page came back full, so there is
+  // at least one more.
+  const [loaded, setLoaded] = useState(cached?.rows?.length ?? 0);
+  // Restored from a cache that ends exactly on a page boundary: there was
+  // almost certainly another page, so offer it rather than making somebody
+  // press Refresh to find out.
+  const [more, setMore] = useState(
+    (cached?.rows?.length ?? 0) > 0 && (cached?.rows?.length ?? 0) % PAGE_SIZE === 0,
+  );
+  // A SEARCH ASKS THE DATABASE, not the page already loaded — a part somebody
+  // is looking for is exactly the one that has not been paged in yet. These are
+  // what came back; while they are set, they are what the table shows.
+  const [hits, setHits] = useState<Row[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  // Every ACTIVE engineer, not only the ones with a line on this page. Ten
+  // names in a dropdown, on a register covering eighty, reads as "there are ten".
+  const team = useTeamEngineers();
   const [detail, setDetail] = useState<Row | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     onDb ? null : { tone: 'info', text: 'Connect the database in Settings to load hand stock.' },
   );
 
-  const load = async () => {
+  const load = async (want = Math.max(PAGE_SIZE, loaded)) => {
     if (!onDb) return;
     setBusy(true); setMsg({ tone: 'info', text: 'Loading hand stock…' });
     try {
-      const mapped = (await listHandstockBalance()).map(asRow);
-      setAllRows(mapped); setLastSync(saveCache(CACHE_KEY, mapped));
+      // Paged, because PostgREST caps a response however wide a range is asked
+      // for — which is why this screen used to say "Synced 1000 lines" whatever
+      // the register held.
+      const mapped: Row[] = [];
+      for (let from = 0; from < want; from += PAGE_SIZE) {
+        const page = (await listHandstockBalance(PAGE_SIZE, from)).map(asRow);
+        mapped.push(...page);
+        if (page.length < PAGE_SIZE) { setMore(false); break; }
+        if (from + PAGE_SIZE >= want) setMore(true);
+      }
+      setAllRows(mapped); setLoaded(mapped.length); setLastSync(saveCache(CACHE_KEY, mapped));
       setMsg({ tone: 'ok', text: `Synced ${mapped.length} engineer/spare line${mapped.length === 1 ? '' : 's'}.` });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
@@ -123,6 +160,43 @@ export function HandStock() {
       });
     } finally { setBusy(false); }
   };
+  // Load more APPENDS one page. Re-reading everything from the start each time
+  // would mean six requests to see the seventh thousand, and the pages already
+  // in hand do not change under us — the balance is not re-ordered by reading it.
+  const loadMore = async () => {
+    if (!onDb || busy) return;
+    setBusy(true);
+    try {
+      // `_state` is not set here: the `rows` memo derives it for everything in
+      // `allRows`, and deriving it twice is how the two readings drift apart.
+      const page = (await listHandstockBalance(PAGE_SIZE, loaded)).map(asRow);
+      const next = [...allRows, ...page];
+      setAllRows(next); setLoaded(next.length); setMore(page.length === PAGE_SIZE);
+      setLastSync(saveCache(CACHE_KEY, next));
+      setMsg({ tone: 'ok', text: `${next.length} engineer/spare lines loaded${page.length === PAGE_SIZE ? ' — there are more' : ' — that is all of them'}.` });
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Could not load more: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+
+  // The search, debounced, against the whole register.
+  useEffect(() => {
+    const q = search.trim();
+    if (!onDb || q.length < 2) { setHits(null); setSearching(false); return; }
+    let cancelled = false;
+    setSearching(true);
+    const id = window.setTimeout(() => {
+      void listHandstockBalance(PAGE_SIZE, 0, q)
+        .then((r) => {
+          if (cancelled) return;
+          setHits(r.map(asRow).map((h) => ({ ...h, _state: h.on_hand > 0 ? 'In hand' : h.on_hand < 0 ? 'Short' : 'Settled' })));
+        })
+        .catch(() => { if (!cancelled) setHits(null); })
+        .finally(() => { if (!cancelled) setSearching(false); });
+    }, 300);
+    return () => { cancelled = true; window.clearTimeout(id); setSearching(false); };
+  }, [search, onDb]);
+
   useEffect(() => {
     if (onDb && rows.length && !isStale(lastSync)) setMsg({ tone: 'info', text: `Showing cached data — synced ${timeAgo(lastSync)}. ↻ Refresh to update.` });
     else void load();
@@ -132,19 +206,37 @@ export function HandStock() {
   }, []);
 
   const totals = useMemo(() => summarise(rows), [rows]);
-  const engineers = useMemo(() => byEngineer(rows), [rows]);
+  const holders = useMemo(() => byEngineer(rows), [rows]);
+
+  // The dropdown is every ACTIVE engineer, with what is in hand beside the ones
+  // this page knows about. A name with no line still belongs in the list — that
+  // an engineer carries nothing is an answer, not a reason to hide them.
+  const engineers = useMemo(() => {
+    const held = new Map(holders.map((h) => [h.engineer_key, h]));
+    const out = team.names.map((n) => {
+      const key = n.trim().toLowerCase();
+      return { engineer_key: key, engineer: n, onHand: held.get(key)?.onHand };
+    });
+    // Anyone holding stock who is NOT in the directory still has to be
+    // selectable, or their lines cannot be filtered to.
+    holders.forEach((h) => {
+      if (!out.some((o) => o.engineer_key === h.engineer_key)) out.push({ ...h, onHand: h.onHand });
+    });
+    return out.sort((a, b) => a.engineer.localeCompare(b.engineer));
+  }, [team.names, holders]);
 
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    // A search shows what the DATABASE matched, not what this page happens to
+    // hold. The chips and the engineer filter still narrow it.
+    const base = hits ?? rows;
+    return base.filter((r) => {
       if (engineerFilter && r.engineer_key !== engineerFilter) return false;
       if (holding === 'held' && r.on_hand <= 0) return false;
       if (holding === 'short' && r.on_hand >= 0) return false;
       if (holding === 'settled' && r.on_hand !== 0) return false;
-      if (!q) return true;
-      return [r.engineer, r.engineer_email, r.part, r.part_code].some((v) => v.toLowerCase().includes(q));
+      return true;
     });
-  }, [rows, search, engineerFilter, holding]);
+  }, [rows, hits, engineerFilter, holding]);
 
   const columns: Column<Row>[] = [
     { key: 'engineer', header: 'Engineer', width: 165 },
@@ -170,6 +262,22 @@ export function HandStock() {
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
         count={visible.length}
+        countMore={!hits && more}
+        onLoadMore={() => void loadMore()}
+        loadingMore={busy}
+        status={
+          <>
+            <span className={`conn-dot ${onDb ? 'conn-on' : 'conn-off'}`}>
+              {onDb ? '● Database connected' : '○ Not connected'}
+            </span>
+            {!!lastSync && (
+              <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>
+                ⟳ synced {timeAgo(lastSync)}
+              </span>
+            )}
+            {hits && <span className="conn-dot conn-on">🔎 searching the whole register — {hits.length} match{hits.length === 1 ? '' : 'es'}</span>}
+          </>
+        }
         actions={can('stock.transfer') && <button className="btn btn-primary" onClick={() => navigate('/stock-transfer')}>⇄ Transfer stock</button>}
       />
 
@@ -197,7 +305,7 @@ export function HandStock() {
       </div>
 
       {tab === 'moves' ? (
-        <Movements engineers={engineers} onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} />
+        <Movements engineers={holders} onMigrationError={() => setMsg({ tone: 'error', text: MIGRATION_HINT })} />
       ) : (
         <>
           <div className="stage-chips">
@@ -215,17 +323,31 @@ export function HandStock() {
             storageKey="handstock"
             rowsBeforeScroll={14}
             dense
-            emptyText={rows.length ? 'No lines match this filter.' : 'No hand stock yet — Refresh to load.'}
+            // Engineer, spare, and whether the line is in hand — the same
+            // grouping the call and spare registers have.
+            groupable={[
+              { key: 'engineer', label: 'Engineer' },
+              { key: 'part_code', label: 'Spare' },
+              { key: '_state', label: 'Stock level' },
+            ]}
+            emptyText={
+              searching ? 'Searching…'
+                : hits ? 'Nothing in the whole register matches that.'
+                  : rows.length ? 'No lines match this filter.'
+                    : 'No hand stock yet — Refresh to load.'}
             toolbar={
               <Toolbar>
-                <SearchBox value={search} onChange={setSearch} placeholder="Engineer, part code, description…" />
-                <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
-                  <option value="">All engineers</option>
-                  {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer} ({e.onHand})</option>)}
+                <SearchBox value={search} onChange={setSearch} placeholder="Engineer, part code, description — searches every line" />
+                <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 240 }}>
+                  <option value="">All engineers ({engineers.length})</option>
+                  {engineers.map((e) => (
+                    <option key={e.engineer_key} value={e.engineer_key}>
+                      {e.engineer}{e.onHand === undefined ? '' : ` (${e.onHand})`}
+                    </option>
+                  ))}
                 </select>
                 <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
                 <div className="spacer" />
-                {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
                 {rows.length > 0 && (
                   <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
                 )}
@@ -357,7 +479,7 @@ function Movements({
         storageKey="handstockMovements"
         rowsBeforeScroll={14}
         dense
-        onLoadMore={loadMore}
+        onLoadMore={() => void loadMore()}
         moreAvailable={more}
         loadingMore={busy}
         emptyText={busy ? 'Loading movements…' : 'No movements yet.'}
