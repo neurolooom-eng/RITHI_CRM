@@ -269,6 +269,50 @@ with checks(sort_order, bundle, provides, present) as (
                     ilike '%new.uid :=%', false)
      and coalesce(pg_get_functiondef(to_regprocedure('public.spare_request_line_stub_parent()'))
                     ilike '%r.or_no = new.request_uid%', false))),
+    (47, 'performance: JIT is OFF', 'the Hand Stock timeout -- 3.7s COMPILING a query that runs in 174ms (0099)',
+        exists (select 1 from pg_db_role_setting s
+                  join pg_database d on d.oid = s.setdatabase
+                 where d.datname = current_database()
+                   and 'jit=off' = any(s.setconfig))),
+    (48, 'performance: the product list', 'product_register_names -- the dropdown on Product & Party Search (0098)',
+        to_regclass('public.product_register_names') is not null),
+    (49, 'performance: the KPIs', 'spare_usage / spare_usage_rollup / failure_rate_by_product / failure_modes_by_product (0101)',
+        (to_regclass('public.spare_usage')                is not null
+     and to_regclass('public.spare_usage_rollup')         is not null
+     and to_regclass('public.failure_rate_by_product')    is not null
+     and to_regclass('public.failure_modes_by_product')   is not null)),
+    (50, 'call_requests: REQID follows the data', 'resync_call_req_seq(), and the trigger that keeps the counter ahead of an imported REQID (0097)',
+        (to_regprocedure('public.resync_call_req_seq()') is not null
+     and coalesce(pg_get_functiondef(to_regprocedure('public.call_requests_biu()'))
+                    ilike '%pg_sequence_last_value%', false))),
+    (51, 'call_requests: the counter is ahead of the register', 'the next REQID is above every REQID on record -- no second R1 (0097)',
+        coalesce(
+          (select coalesce(pg_sequence_last_value('public.call_req_seq'::regclass), 0)
+                  >= coalesce(max(case when reqid ~ '^R[0-9]{1,15}$'
+                                       then substring(reqid from 2)::bigint end), 0)
+             from public.call_requests), true)),
+    (52, 'handstock: a period can be CLOSED', 'handstock_period + handstock_cutoff() on every arm + close_handstock_period() (0096)',
+        (to_regclass('public.handstock_period')                     is not null
+     and to_regprocedure('public.handstock_cutoff()')               is not null
+     and to_regprocedure('public.close_handstock_period(date)')     is not null
+     and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
+                  and definition ilike '%handstock_cutoff%'))),
+    (53, 'handstock: policies are InitPlans, not per-row', 'hso_write asks has_perm ONCE per query, not once per row (0095)',
+        exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='handstock_opening'
+                   and policyname='hso_write' and qual ilike '%( SELECT%')),
+    (54, 'spare requests: the engineer can be corrected', 'reassign_spare_request() + its log + the guard that refuses it after dispatch (0100)',
+        (to_regclass('public.spare_request_engineer_log')                        is not null
+     and to_regprocedure('public.reassign_spare_request(text,text,text,text)')   is not null
+     and exists (select 1 from pg_trigger
+                  where tgrelid = 'public.spare_requests'::regclass
+                    and tgname = 'spare_request_engineer_guard'))),
+    (55, 'handstock: opening stock is ENGINEERS only', 'no opening balance is held under a name that is not an active user (_handstock_opening_engineers.sql)',
+        (to_regclass('public.handstock_opening') is null
+      or not exists (
+           select 1 from public.handstock_opening o
+            where not exists (select 1 from public.user_directory u
+                               where u.validity and lower(btrim(u.name)) = o.engineer_key)))),
     (32, 'handstock: historical consumption', 'spare_consumption_history + its arm -- the pre-2026 record, uncapped (0075)',
         (to_regclass('public.spare_consumption_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
