@@ -14,7 +14,8 @@
     "check:upserts": "node scripts/check-upsert-targets.mjs",
     "check:safe-updates": "node scripts/check-safe-updates.mjs",
     "check:columns": "esbuild scripts/check-upload-columns.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-upload-columns.mjs --log-level=error && node node_modules/.cache/check-upload-columns.mjs",
-    "check:ui": "esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs"
+    "check:ui": "esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs",
+    "check:bundles": "node scripts/check-bundles.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

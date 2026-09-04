@@ -327,6 +327,27 @@ HandStock_X for 0089/0090/0091. Do not re-add them here without a status read.
   finds nobody. Gates EVERY manager feature shipped 2026-09-03: team visibility,
   the engineer pickers, the chips, the grouping and the bulk allotment.
   `_status.sql` row 44.
+
+  ⚠️ **This entry named the wrong bundle, and running the one it named UNDID the
+  fix.** 0092 was filed under `rbac`, so `rbac.sql` carried it and
+  `user_directory.sql` did not — but `user_directory.sql` replays `0004`, which
+  defines `visible_engineer_names()` WITHOUT the fallback. So the instruction
+  "run user_directory.sql for 0092" put the old definition back, silently, and
+  the bundle reported success. On the live project `_status.sql` row 44 read NO
+  on 2026-09-04 for exactly that reason: applied, then overwritten.
+
+  0092 now lives in the **user_directory** module, after 0004, so the bundle that
+  owns the function carries its latest definition and re-running it is safe.
+  Re-run `user_directory.sql` once more and row 44 goes green.
+
+  **The class**: a bundle must carry the LATEST definition of everything it
+  defines, or replaying it alone reverts an object a later module redefined.
+  `npm run check:bundles` reports it; **twelve** objects are split this way today
+  and are listed in that script, including `dispatch_spare_lines` (re-running
+  `Spare_1.sql` on its own would revert partial dispatch and refurbished issue)
+  and `spare_pending_dispatch`. They are recorded rather than fixed here because
+  moving migrations between modules changes the order a FRESH apply runs in —
+  the other way this project has broken itself — so it wants its own change.
 - **[`_dedupe_part_product_keys.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_dedupe_part_product_keys.sql)**,
   then re-run
   **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**

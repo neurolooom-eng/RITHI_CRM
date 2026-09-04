@@ -68,7 +68,17 @@ const MODULES = {
             'tables can show WHO created a row instead of a raw UUID. Readable by any',
             'signed-in user, which discloses no more than the directory itself.'],
     needs: ['profiles'],
-    files: ['0004_user_directory.sql', '0029_engineer_address.sql', '0068_app_user_names.sql'],
+    // 0092 REDEFINES `visible_engineer_names()`, which 0004 above creates — so it
+    // belongs to THIS module and has to come after it. It used to sit in `rbac`,
+    // which runs later and so was right for a full apply, and wrong for every
+    // other use: running `user_directory.sql` ON ITS OWN replayed 0004 and put
+    // the old definition back, silently undoing the fix. That is exactly what
+    // happened on the live project — a Reporting Manager stopped seeing their
+    // team again, and the backlog note that sent somebody to run this bundle
+    // was the thing that broke it. A bundle must carry the LATEST definition of
+    // everything it defines, or re-running one is not safe.
+    files: ['0004_user_directory.sql', '0029_engineer_address.sql', '0068_app_user_names.sql',
+            '0092_visible_engineers_by_name.sql'],
   },
   rbac: {
     title: 'Roles & Permissions',
@@ -78,7 +88,7 @@ const MODULES = {
             'role a User Master row grants when that person first signs in.'],
     needs: ['profiles', 'visibleEngineers', 'callRequestTable'],
     files: ['0005_rbac.sql', '0007_user_access.sql', '0008_rbac_enforcement.sql', '0013_all_masters_module.sql',
-            '0030_engineer_address_write.sql', '0092_visible_engineers_by_name.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
+            '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
             '0035_data_view_all.sql', '0037_call_read_scale.sql', '0051_pending_registrations_view_all.sql',
             '0069_nsm_service_manager.sql', '0093_lookup_module.sql'],
   },
