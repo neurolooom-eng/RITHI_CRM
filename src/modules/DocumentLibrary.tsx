@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { metaFromFileName } from '../lib/docname';
 import { PageHeader, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
@@ -52,6 +53,12 @@ type Draft = {
   effective_date: string; tags: string; notes: string;
   url: string; file_name: string;
 };
+// Where a link points, for the File column. A Drive URL carries no filename —
+// `/file/d/<id>/view` — so the host is the most it can honestly be labelled.
+const hostOf = (url: string) => {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'link'; }
+};
+
 const EMPTY: Draft = { title: '', product: '', doc_no: '', revision: '', effective_date: '', tags: '', notes: '', url: '', file_name: '' };
 
 function Library({ cfg }: { cfg: Cfg }) {
@@ -94,8 +101,26 @@ function Library({ cfg }: { cfg: Cfg }) {
     const res = await uploadToDrive(f, `${cfg.drivePrefix} - ${draft.product || draft.title || 'General'}`);
     setUploading(false);
     if (!res.ok || !res.url) { setMsg({ tone: 'error', text: res.error ?? 'Upload failed.' }); return; }
-    setDraft((d) => (d ? { ...d, url: res.url!, file_name: f.name, title: d.title || f.name.replace(/\.[^.]+$/, '') } : d));
-    setMsg({ tone: 'ok', text: `${f.name} stored in Drive.` });
+    // WHAT THE FILENAME ALREADY SAYS. `SM-SER-XT Rev.05.pdf` carries the
+    // document number and the revision — the two fields most worth having and
+    // the two most often left blank. They are SUGGESTIONS: only ever written
+    // into a field that is empty, never over something typed, and named in the
+    // message so nothing arrives silently.
+    const guess = metaFromFileName(f.name);
+    setDraft((d) => {
+      if (!d) return d;
+      const took: string[] = [];
+      const next = { ...d, url: res.url!, file_name: f.name, title: d.title || f.name.replace(/\.[^.]+$/, '') };
+      if (!d.doc_no.trim() && guess.docNo) { next.doc_no = guess.docNo; took.push(`Document No “${guess.docNo}”`); }
+      if (!d.revision.trim() && guess.revision) { next.revision = guess.revision; took.push(`Revision “${guess.revision}”`); }
+      setMsg({
+        tone: 'ok',
+        text: took.length
+          ? `${f.name} stored in Drive. Read from the file name: ${took.join(' and ')} — check them, and change them if the name is not the record.`
+          : `${f.name} stored in Drive.`,
+      });
+      return next;
+    });
   };
 
   const problem = (d: Draft): string => {
@@ -178,7 +203,28 @@ function Library({ cfg }: { cfg: Cfg }) {
     }
     cols.push(
       { key: 'tags', header: 'Tags', width: 180 },
-      { key: 'file_name', header: 'File', width: 170, wrap: false },
+      // A STORED COPY AND A LINK ARE NOT THE SAME THING, and this is the column
+      // where the difference shows. `file_name` is only ever set by the upload
+      // path, so a document added by pasting a link left this cell EMPTY —
+      // which read as "no file" when it was in fact a perfectly good link, and
+      // hid the one distinction that matters: a stored copy is fixed at the
+      // revision it was uploaded as, a link serves whatever that document says
+      // today. A Drive link carries no filename to derive one from, so a linked
+      // row shows where it points instead.
+      {
+        key: 'file_name', header: 'File', width: 190, wrap: false,
+        accessor: (r) => r.file_name || (r.url ? `Link · ${hostOf(r.url)}` : ''),
+        render: (r) => (r.file_name
+          ? <span title="A copy stored in Drive — fixed at the revision it was uploaded as">📄 {r.file_name}</span>
+          : r.url
+            ? (
+              <a href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                 className="muted" title={`Linked, not stored: ${r.url}\nThis opens whatever that document says today, which may not be the revision recorded here.`}>
+                🔗 Link · {hostOf(r.url)}
+              </a>
+            )
+            : <span className="muted">—</span>),
+      },
       { key: 'uploaded_by_name', header: 'Added By', width: 150 },
       { key: 'updated_at', header: 'Updated', width: 150, wrap: false },
       {
@@ -303,6 +349,23 @@ function Library({ cfg }: { cfg: Cfg }) {
                   <input className="input" style={{ marginTop: 6 }} value={draft.url}
                     onChange={(e) => setDraft({ ...draft, url: e.target.value })}
                     placeholder="…or paste a Drive / SharePoint link" />
+                  {/* THE TWO ARE NOT INTERCHANGEABLE, and the difference only
+                      bites later, so it is said here rather than discovered.
+                      Choosing a file takes a COPY, fixed at this revision.
+                      A link is a live pointer: edit that document in place and
+                      everyone opening it here gets the new content while the
+                      revision recorded on this row still says the old one. */}
+                  <span className="muted" style={{ fontSize: 12, marginTop: 6, display: 'block' }}>
+                    <b>Choose a file</b> and a copy is stored, fixed at this revision.
+                    <b> Paste a link</b> and it stays live — if that document is edited, everyone
+                    here sees the new content while the <b>Revision</b> recorded on this row still
+                    says the old one.
+                    {cfg.kind === 'qms' && (
+                      <> {' '}<b>For a controlled QMS document, upload the file.</b> A revision that can
+                        change underneath the record is not controlled; publish a new revision as its
+                        own entry and retire this one.</>
+                    )}
+                  </span>
                 </>
               )}
             </div>

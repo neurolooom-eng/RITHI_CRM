@@ -6,6 +6,7 @@ import { URS, FRS, TESTS } from '../src/lib/validation';
 import { mergeDcLines } from '../src/lib/dc';
 import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
+import { metaFromFileName } from '../src/lib/docname';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -152,6 +153,38 @@ console.log('\n-- hand stock, with the imported record left out --');
   eq('the identity holds: on_hand - hist_net = on_hand_live',
     line.on_hand - line.hist_net, line.on_hand_live);
   eq('the row it was given is untouched', line.on_hand, 9);
+}
+
+// ---------------------------------------------------------------------------
+// What a document's filename already says. These are SUGGESTIONS that fill an
+// empty field, so a miss costs a keystroke and a wrong hit costs a correction —
+// which is why the patterns can be generous. What must NOT happen is a
+// confident wrong answer on a name that carries no revision at all.
+// ---------------------------------------------------------------------------
+console.log('\n-- document number and revision, read off the file name --');
+{
+  const cases: [string, string, string][] = [
+    ['SM-SER-XT Rev.05.pdf', 'SM-SER-XT', 'Rev.05'],          // the project's own convention
+    ['SM-SER-XT REV05.PDF', 'SM-SER-XT', 'REV05'],            // shouted, no separator
+    ['QMS-014_Rev-3.docx', 'QMS-014', 'Rev-3'],               // underscore: \b does not fire here
+    ['ORION-G Service Manual v1.2.pdf', 'ORION-G Service Manual', 'v1.2'],
+    ['WI-22 Issue 3.pdf', 'WI-22', 'Issue 3'],
+    ['SOP-07 R05.pdf', 'SOP-07', 'R05'],
+  ];
+  cases.forEach(([name, docNo, revision]) => {
+    const got = metaFromFileName(name);
+    eq(`"${name}" -> ${docNo} / ${revision}`, `${got.docNo} / ${got.revision}`, `${docNo} / ${revision}`);
+  });
+
+  // A code with a hyphenated R-number is ONE code, not a code and a revision.
+  eq('"SM-R05-XT Manual.pdf" suggests nothing',
+    JSON.stringify(metaFromFileName('SM-R05-XT Manual.pdf')), '{"docNo":"","revision":""}');
+  // No revision in the name means no document number either: without that split
+  // point, anything taken from the name is a guess about a guess.
+  eq('a name with no revision suggests nothing',
+    JSON.stringify(metaFromFileName('Extend-XT Maintenance Manual.pdf')), '{"docNo":"","revision":""}');
+  eq('and neither does an empty name',
+    JSON.stringify(metaFromFileName('')), '{"docNo":"","revision":""}');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
