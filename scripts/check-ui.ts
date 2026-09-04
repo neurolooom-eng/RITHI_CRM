@@ -93,9 +93,21 @@ eq('the challan itself is untouched', dcLines.length, 4);
   eq('no duplicate requirement or test id', String(ids.length - new Set(ids).size), '0');
 
   // The Reporting Managers' asks, and the correction that followed, are in it.
-  ['URS-031', 'URS-032', 'URS-033', 'URS-034', 'URS-035'].forEach((id) => {
+  ['URS-031', 'URS-032', 'URS-033', 'URS-034', 'URS-035', 'URS-036',
+   'URS-037', 'URS-038', 'URS-039', 'URS-040', 'URS-041', 'URS-042'].forEach((id) => {
     eq(`${id} traces to a test`, testFor(id).length > 0 ? 'yes' : 'no', 'yes');
   });
+  // Every risk and every failure mode has to point at a requirement that exists,
+  // or the matrix reads as covered while referring to nothing.
+  {
+    const { RISKS, FMEA } = await import('../src/lib/validation');
+    const known = new Set([...FRS.map((f) => f.id), ...TESTS.map((t) => t.id), ...URS.map((u) => u.id)]);
+    const dangling = [...RISKS, ...FMEA]
+      .flatMap((r) => (r.refs ?? []).map((x) => ({ id: r.id, ref: x })))
+      .filter((x) => !known.has(x.ref));
+    eq('every risk / FMEA reference points at something real',
+      dangling.map((d) => `${d.id}->${d.ref}`).join(',') || 'none', 'none');
+  }
 }
 
 // ---------------------------------------------------------------------------
