@@ -264,6 +264,20 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### To run on the live project — NOTHING PENDING (2026-09-05, third round)
+
+**`daily_review.sql` and `data_integrity.sql` run by the user on 2026-09-05**,
+bringing 0111 (the DCCR's Call Status filter, via `open_state` on the summary
+view) and 0112 (record_audit stopped — no trigger writes to it now; the table is
+retained). `_status.sql` rows 60 and 65 cover those two.
+
+⚠️ ROW 60 IS INVERTED from what it used to assert. It checked that the
+record_audit trigger EXISTED; it now checks that none does. A `yes` there means
+the trail is OFF, which is the intended state — do not "fix" it by re-applying
+0048.
+
+⚠️ REPORTED, NOT VERIFIED FROM HERE, same as the round above.
+
 ### To run on the live project — NOTHING PENDING (2026-09-05, second round)
 
 **`call_requests.sql` and `rbac.sql` run by the user on 2026-09-05**, bringing
@@ -483,7 +497,7 @@ points at these rows.
   would make the register disagree with its own header. The filter uses
   `open_state` only: `field_call_review` carries no `cancelled_at`, so Cancelled
   is not offered — `cancelled_at` is on the summary ready for that.
-  ⚠️ **Run `daily_review.sql`** — `_status.sql` row 65.
+  ✅ `daily_review.sql` run 2026-09-05 (row 65).
 - **An open call can be CLOSED without a visit** (v0.9.87,
   `0109_close_call.sql`) — `close_call()` sets `last_status = 'Solved'` and
   nothing else: `last_visit_at` is untouched, so no visit is invented, and the
@@ -586,8 +600,9 @@ points at these rows.
   `audit_log` is client-written (bypassable by a direct API call) and purged on
   the retention window; record_audit was neither. FRS-021, R-14 (residual raised
   Low → Medium), FM-16, the ALCOA table and the controls summary all say so.
-  ⚠️ **Run `data_integrity.sql`** — `_status.sql` row 60 now checks the opposite
-  of what it used to: that NO record_audit trigger remains.
+  ✅ `data_integrity.sql` run 2026-09-05 — record_audit is stopped on the live
+  project. `_status.sql` row 60 now checks the OPPOSITE of what it used to
+  (that no record_audit trigger remains), so a `yes` there means it is off.
 - **The Validation Package is anchored on CDSCO, not FDA** (v0.9.94) —
   Medical Devices Rules 2017 (Fifth Schedule) + ISO 13485:2016 / ISO 14971 /
   ISO/TR 80002-2 / GAMP 5 / CSA, with the IT Act 2000 for the standing of
