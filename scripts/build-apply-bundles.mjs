@@ -194,7 +194,8 @@ const MODULES = {
             'and a record-retention guard blocking application deletion of quality',
             'records. Read by admins / audit.view; written only by triggers.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0048_record_audit.sql', '0049_record_retention_guard.sql', '0103_record_audit_not_bulk.sql'],
+    files: ['0048_record_audit.sql', '0049_record_retention_guard.sql', '0103_record_audit_not_bulk.sql',
+            '0112_stop_record_audit.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

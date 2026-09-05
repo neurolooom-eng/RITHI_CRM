@@ -3,13 +3,25 @@
 // software used within a medical-device manufacturer's Quality Management
 // System. Structured per the V-model and mapped to the applicable standards:
 //
-//   • FDA 21 CFR Part 820 (QSR) / Part 4, ISO 13485:2016 §4.1.6
-//   • FDA "Computer Software Assurance for Production and Quality System
-//     Software" (CSA, draft Sept 2022) — risk-based, critical-thinking approach
+//   • Medical Devices Rules, 2017 (CDSCO) — Fifth Schedule, the QMS a
+//     manufacturer must hold; aligned to ISO 13485
+//   • ISO 13485:2016 §4.1.6 — validation of software used in the QMS
 //   • ISO/TR 80002-2:2017 — validation of software for medical-device QMS
 //   • GAMP 5 (2nd ed.) — categories & life-cycle
-//   • 21 CFR Part 11 — electronic records & signatures / data integrity (ALCOA+)
+//   • Computer Software Assurance (CSA) — risk-based, critical-thinking effort
 //   • ISO 14971:2019 — risk management (applied to the software's QMS use)
+//   • Data integrity: ALCOA+
+//
+// NOT 21 CFR. Part 820 and Part 11 are FDA's, and this operation is regulated
+// by CDSCO. The CONTROLS Part 11 describes — an attributable, time-stamped
+// trail users cannot alter, unique identities, authority checks — are kept:
+// they are how record control under ISO 13485 §4.2.5 and the Fifth Schedule is
+// evidenced. It is the citation that has gone, not the control.
+// (Removed 2026-09-05 at the user's direction. India has no dedicated
+// electronic-records rule for medical devices; electronic records and
+// signatures take their legal standing from the Information Technology Act,
+// 2000. Clause numbers here are the author's mapping and are for RA/QA to
+// confirm against the current text of each standard.)
 //
 // This is a DRAFT package authored to be REVIEWED, APPROVED and EXECUTED by the
 // company's QA/Validation function. It does not itself assert a validated state.
@@ -19,18 +31,18 @@ export const VAL_META = {
   system: 'RITHI CRM — Field Service Module',
   owner: 'Air Liquide Medical Systems (ALMS) — Service / Quality',
   docId: 'VAL-RITHI-CRM',
-  packageVersion: '1.6 (DRAFT)',
+  packageVersion: '1.7 (DRAFT)',
   status: 'DRAFT — pending QA review & approval',
   revision:
-    'Rev 1.1 extends the package to the spare-stock control work: partial issue of spares (URS-021), acknowledged receipt per delivery (URS-022), reconciliation of consumption — booking, amendment and voiding (URS-023), the cap holding consumption within hand stock (URS-024), call re-opening (URS-025) and preventive-maintenance due-month scheduling (URS-026), with the corresponding FRS-026..032, design, risks R-13..R-15, FMEA FM-15/FM-16 and tests OQ-15..OQ-19 and PQ-04. Rev 1.2 adds refurbished spares (URS-027) and dispatch performance (URS-028), with FRS-033/034, R-16, FM-17 and OQ-20; hand stock is now derived from the spare ISSUE rather than the request, so a recycled part is held under its own code. Rev 1.3 adds the document library — service manuals presented on the call for the product they cover (URS-029) and controlled QMS documents (URS-030) — with FRS-035/036, R-17, FM-18 and OQ-21. Rev 1.4 covers the work asked for by the Reporting Managers and the correction that followed it: finding a machine or a customer’s machines (URS-031), allotment and bulk re-allotment of calls (URS-032), grouping a register by up to three columns (URS-033), raising a record for an engineer in one’s own team (URS-034), and correcting the engineer on a spare order before it is issued — never after — with a log of every such change (URS-035); with FRS-037..041, design for register reading, search and acting-for-a-team-member, risks R-18..R-20, FMEA FM-19/FM-20 and tests OQ-22..OQ-25. It also adds reliability and consumption analysis (URS-036, FRS-042, OQ-29) \u2014 failure rate per machine in the field, and spare use by cover and by region \u2014 and fills three requirements that had carried no test at all (OQ-26..28: master data, warranty and contract cover, customer feedback). Rev 1.5 covers the migration of the superseded system\u2019s record and what it exposed: migrated data must stay DISTINGUISHABLE from the system\u2019s own, and a figure derived from both must report the split (URS-037); a stock period may be closed, provably without changing a balance (URS-038); identifiers continue across a migration rather than being re-issued (URS-039); a bulk load alters only what its file carries (URS-040); migrated stock is opened only against an active user (URS-041); and a register returns within a working time on production volume (URS-042) \u2014 with FRS-043..048, design for migrated data, bulk loading and response time, risks R-21..R-25, FMEA FM-21..FM-23, tests OQ-30..34 and PQ-05, four further data-migration checks (DM7..DM10) and four configuration items, among them the rule that a schema bundle must carry the latest definition of everything it defines. Rev 1.6 adds decision support (URS-043, FRS-049, R-27, OQ-36) \u2014 a suggested Standard Complaint, drawn from the register, stating its grounds, never written without a person choosing it \u2014 and, found while testing it, the control that a VIEW must not defeat the policies beneath it (FRS-050, R-26, OQ-35): `calls` had lost `security_invoker` when 0057 rebuilt it, so every signed-in user could read every call, and pending_calls and call_state inherited that reach despite carrying the setting themselves. Rev 1.5 also restates FRS-021: a BULK write to a quality table is recorded as one attributable event rather than a row per record (0103), because an audit trail answers what a person changed and a data load is answered by the migration checks \u2014 the trail keeps who loaded what, how much and when.',
+    'Rev 1.1 extends the package to the spare-stock control work: partial issue of spares (URS-021), acknowledged receipt per delivery (URS-022), reconciliation of consumption — booking, amendment and voiding (URS-023), the cap holding consumption within hand stock (URS-024), call re-opening (URS-025) and preventive-maintenance due-month scheduling (URS-026), with the corresponding FRS-026..032, design, risks R-13..R-15, FMEA FM-15/FM-16 and tests OQ-15..OQ-19 and PQ-04. Rev 1.2 adds refurbished spares (URS-027) and dispatch performance (URS-028), with FRS-033/034, R-16, FM-17 and OQ-20; hand stock is now derived from the spare ISSUE rather than the request, so a recycled part is held under its own code. Rev 1.3 adds the document library — service manuals presented on the call for the product they cover (URS-029) and controlled QMS documents (URS-030) — with FRS-035/036, R-17, FM-18 and OQ-21. Rev 1.4 covers the work asked for by the Reporting Managers and the correction that followed it: finding a machine or a customer’s machines (URS-031), allotment and bulk re-allotment of calls (URS-032), grouping a register by up to three columns (URS-033), raising a record for an engineer in one’s own team (URS-034), and correcting the engineer on a spare order before it is issued — never after — with a log of every such change (URS-035); with FRS-037..041, design for register reading, search and acting-for-a-team-member, risks R-18..R-20, FMEA FM-19/FM-20 and tests OQ-22..OQ-25. It also adds reliability and consumption analysis (URS-036, FRS-042, OQ-29) \u2014 failure rate per machine in the field, and spare use by cover and by region \u2014 and fills three requirements that had carried no test at all (OQ-26..28: master data, warranty and contract cover, customer feedback). Rev 1.5 covers the migration of the superseded system\u2019s record and what it exposed: migrated data must stay DISTINGUISHABLE from the system\u2019s own, and a figure derived from both must report the split (URS-037); a stock period may be closed, provably without changing a balance (URS-038); identifiers continue across a migration rather than being re-issued (URS-039); a bulk load alters only what its file carries (URS-040); migrated stock is opened only against an active user (URS-041); and a register returns within a working time on production volume (URS-042) \u2014 with FRS-043..048, design for migrated data, bulk loading and response time, risks R-21..R-25, FMEA FM-21..FM-23, tests OQ-30..34 and PQ-05, four further data-migration checks (DM7..DM10) and four configuration items, among them the rule that a schema bundle must carry the latest definition of everything it defines. Rev 1.6 adds decision support (URS-043, FRS-049, R-27, OQ-36) \u2014 a suggested Standard Complaint, drawn from the register, stating its grounds, never written without a person choosing it \u2014 and, found while testing it, the control that a VIEW must not defeat the policies beneath it (FRS-050, R-26, OQ-35): `calls` had lost `security_invoker` when 0057 rebuilt it, so every signed-in user could read every call, and pending_calls and call_state inherited that reach despite carrying the setting themselves. Rev 1.5 also restates FRS-021: a BULK write to a quality table is recorded as one attributable event rather than a row per record (0103), because an audit trail answers what a person changed and a data load is answered by the migration checks \u2014 the trail keeps who loaded what, how much and when. Rev 1.7 changes the package\u2019s REGULATORY BASIS and one of its controls, both at the user\u2019s direction (2026-09-05). 21 CFR is removed: Part 820 and Part 11 are FDA\u2019s, and this operation is regulated by CDSCO under the Medical Devices Rules, 2017, whose Fifth Schedule sets the QMS and is aligned to ISO 13485. Every Part 11 / Part 820 citation is re-cited to ISO 13485 or the Fifth Schedule, and the Part 11 appendix is withdrawn. The CONTROLS those clauses describe are kept \u2014 an attributable, time-stamped trail users cannot alter, unique identities, authority checks \u2014 because they are how record control is evidenced; it is the citation that has gone. India has no dedicated electronic-records rule for medical devices; electronic records and signatures take their standing from the Information Technology Act, 2000. AND THE DATABASE-ENFORCED TRAIL IS SWITCHED OFF (0112): record_audit no longer records anything. Its table is retained and readable, holding what it captured while it ran. FRS-021 now describes ONE trail and states its limits \u2014 client-written, so bypassable by a direct API call, and purged on the retention window \u2014 and R-14 is raised from Low to Medium residual because the independent before/after image of an amended consumption entry is gone. The clause mappings in this revision are the author\u2019s and are for RA/QA to confirm against the current text of each standard and of MDR-2017.',
   standards: [
-    'FDA 21 CFR Part 820 (QSR); 21 CFR Part 4',
-    'FDA Computer Software Assurance (CSA), draft guidance Sept 2022',
-    'ISO/TR 80002-2:2017',
+    'Medical Devices Rules, 2017 (CDSCO) — Fifth Schedule (QMS)',
     'ISO 13485:2016 §4.1.6 (validation of QMS software)',
+    'ISO/TR 80002-2:2017',
     'GAMP 5 (2nd edition)',
-    '21 CFR Part 11 (electronic records / signatures)',
+    'Computer Software Assurance (CSA) — risk-based validation effort',
     'ISO 14971:2019 (risk management)',
+    'Information Technology Act, 2000 (legal standing of electronic records)',
   ],
   gampCategory:
     'Predominantly GAMP Category 5 (custom application) running on Category 1/4 infrastructure & configured platform services (Supabase/Postgres, GitHub Pages).',
@@ -102,7 +114,7 @@ export const CHECKLIST: ChecklistSection[] = [
   {
     code: 'B', title: 'Requirements & traceability',
     items: [
-      { id: 'B1', item: 'User Requirements (URS) are documented, uniquely identified and approved.', ref: 'ISO/TR 80002-2 §6; 21 CFR 820.30(c)' },
+      { id: 'B1', item: 'User Requirements (URS) are documented, uniquely identified and approved.', ref: 'ISO/TR 80002-2 §6; ISO 13485 §7.3.3' },
       { id: 'B2', item: 'System/Functional Requirements (FRS) trace to URS.', ref: 'GAMP 5; systems engineering' },
       { id: 'B3', item: 'A Traceability Matrix links URS → FRS → design → test, with no orphans.', ref: 'GAMP 5; ISO/TR 80002-2' },
       { id: 'B4', item: 'Requirements are testable, unambiguous and risk-rated.', ref: 'ISO 14971; CSA' },
@@ -119,16 +131,16 @@ export const CHECKLIST: ChecklistSection[] = [
   {
     code: 'D', title: 'Design & configuration',
     items: [
-      { id: 'D1', item: 'Architecture (System) Design describes components, data flow, trust boundaries and platform.', ref: 'GAMP 5; 21 CFR 820.30(f)' },
+      { id: 'D1', item: 'Architecture (System) Design describes components, data flow, trust boundaries and platform.', ref: 'GAMP 5; ISO 13485 §7.3.6' },
       { id: 'D2', item: 'Detailed Design describes modules, data model, access rules and key algorithms.', ref: 'GAMP 5' },
-      { id: 'D3', item: 'Configuration (roles, permissions, SLA rules, master lists) is specified and controlled.', ref: 'GAMP 5; Part 11 §11.10(d)' },
+      { id: 'D3', item: 'Configuration (roles, permissions, SLA rules, master lists) is specified and controlled.', ref: 'GAMP 5; ISO 13485 §4.2.4' },
     ],
   },
   {
     code: 'E', title: 'Supplier / infrastructure qualification',
     items: [
       { id: 'E1', item: 'Platform suppliers (Supabase/Postgres, GitHub) are assessed for suitability and controls.', ref: 'GAMP 5 supplier assessment' },
-      { id: 'E2', item: 'Installation Qualification records the deployed version, build, environment and configuration.', ref: 'IQ; 21 CFR 820.70(i)' },
+      { id: 'E2', item: 'Installation Qualification records the deployed version, build, environment and configuration.', ref: 'IQ; ISO 13485 §6.3, §7.5.6' },
       { id: 'E3', item: 'Infrastructure (hosting, database, TLS) is qualified/leveraged appropriately.', ref: 'GAMP 5 Category 1' },
     ],
   },
@@ -138,24 +150,24 @@ export const CHECKLIST: ChecklistSection[] = [
       { id: 'F1', item: 'IQ verifies correct installation, version and configuration.', ref: 'IQ' },
       { id: 'F2', item: 'OQ verifies each functional requirement under normal and challenge conditions.', ref: 'OQ; GAMP 5' },
       { id: 'F3', item: 'PQ / UAT verifies the system meets user requirements in the operational workflow.', ref: 'PQ' },
-      { id: 'F4', item: 'Objective evidence (results, screenshots, reviewer sign-off) is retained for high-risk tests.', ref: 'CSA; Part 11' },
+      { id: 'F4', item: 'Objective evidence (results, screenshots, reviewer sign-off) is retained for high-risk tests.', ref: 'CSA; ISO 13485 §4.2.5' },
       { id: 'F5', item: 'Deviations are recorded, assessed and dispositioned before release.', ref: 'GAMP 5' },
     ],
   },
   {
-    code: 'G', title: 'Data integrity & 21 CFR Part 11',
+    code: 'G', title: 'Data integrity (ALCOA+)',
     items: [
-      { id: 'G1', item: 'Records are Attributable, Legible, Contemporaneous, Original, Accurate (+ Complete, Consistent, Enduring, Available) — ALCOA+.', ref: 'FDA Data Integrity; Part 11' },
-      { id: 'G2', item: 'Secure, computer-generated, time-stamped audit trail records create/modify actions and the actor; it cannot be altered by users.', ref: 'Part 11 §11.10(e)' },
-      { id: 'G3', item: 'Access is limited to authorised individuals; unique user IDs; role-based authority checks.', ref: 'Part 11 §11.10(d),(g)' },
-      { id: 'G4', item: 'Record retention and readiness for retrieval throughout the retention period.', ref: 'Part 11 §11.10(c); 820.180' },
-      { id: 'G5', item: 'If electronic signatures are used, they meet Part 11 Subpart C (unique, non-transferable, linked to records).', ref: 'Part 11 Subpart C' },
+      { id: 'G1', item: 'Records are Attributable, Legible, Contemporaneous, Original, Accurate (+ Complete, Consistent, Enduring, Available) — ALCOA+.', ref: 'ALCOA+; ISO 13485 §4.2.5' },
+      { id: 'G2', item: 'Secure, computer-generated, time-stamped audit trail records create/modify actions and the actor; it cannot be altered by users.', ref: 'ISO 13485 §4.2.5; MDR-2017 Fifth Schedule' },
+      { id: 'G3', item: 'Access is limited to authorised individuals; unique user IDs; role-based authority checks.', ref: 'ISO 13485 §4.2.4, §6.2' },
+      { id: 'G4', item: 'Record retention and readiness for retrieval throughout the retention period.', ref: 'ISO 13485 §4.2.5; MDR-2017 Fifth Schedule (retention)' },
+      { id: 'G5', item: 'Electronic signatures are not implemented; approvals are role-authorised actions attributed to a unique identity in the audit trail. If signatures are introduced they take their standing from the Information Technology Act, 2000.', ref: 'Information Technology Act, 2000' },
     ],
   },
   {
     code: 'H', title: 'Security & access control',
     items: [
-      { id: 'H1', item: 'Authentication enforces credentials; sessions expire; inactive/leaver accounts are disabled.', ref: 'Part 11 §11.10(d)' },
+      { id: 'H1', item: 'Authentication enforces credentials; sessions expire; inactive/leaver accounts are disabled.', ref: 'ISO 13485 §4.2.4, §6.2' },
       { id: 'H2', item: 'Authorisation is enforced server-side (database Row-Level Security), not only in the UI.', ref: 'Defence in depth' },
       { id: 'H3', item: 'Least privilege: roles grant only the actions and data a function needs.', ref: 'ISO 27001 A.9' },
       { id: 'H4', item: 'Transport is encrypted (TLS); secrets are not exposed in client code.', ref: 'Security baseline' },
@@ -164,8 +176,8 @@ export const CHECKLIST: ChecklistSection[] = [
   {
     code: 'I', title: 'Change & configuration management',
     items: [
-      { id: 'I1', item: 'Source is version-controlled; each release is uniquely identified (version + build ID).', ref: 'GAMP 5; 820.30(i)' },
-      { id: 'I2', item: 'Changes are requested, risk-assessed, tested (regression) and approved before release.', ref: '820.30(i); Part 11' },
+      { id: 'I1', item: 'Source is version-controlled; each release is uniquely identified (version + build ID).', ref: 'GAMP 5; ISO 13485 §7.3.9' },
+      { id: 'I2', item: 'Changes are requested, risk-assessed, tested (regression) and approved before release.', ref: 'ISO 13485 §7.3.9 (design & development changes)' },
       { id: 'I3', item: 'A change history / changelog is maintained and visible in-app (Version History).', ref: 'Configuration management' },
       { id: 'I4', item: 'Database schema changes are controlled migrations, tested before application.', ref: 'GAMP 5' },
     ],
@@ -173,17 +185,17 @@ export const CHECKLIST: ChecklistSection[] = [
   {
     code: 'J', title: 'Backup, recovery & continuity',
     items: [
-      { id: 'J1', item: 'Database backups are performed and periodically test-restored.', ref: '820.180; GAMP 5' },
+      { id: 'J1', item: 'Database backups are performed and periodically test-restored.', ref: 'ISO 13485 §4.2.5; GAMP 5' },
       { id: 'J2', item: 'Recovery Time / Point objectives are defined for the QMS records held.', ref: 'Business continuity' },
     ],
   },
   {
     code: 'K', title: 'Procedures, training & maintenance',
     items: [
-      { id: 'K1', item: 'SOPs/work instructions cover system use, access management and change control.', ref: 'ISO 13485; 820.40' },
-      { id: 'K2', item: 'Users are trained and training is recorded before productive use.', ref: '820.25' },
+      { id: 'K1', item: 'SOPs/work instructions cover system use, access management and change control.', ref: 'ISO 13485 §4.2.4' },
+      { id: 'K2', item: 'Users are trained and training is recorded before productive use.', ref: 'ISO 13485 §6.2' },
       { id: 'K3', item: 'Periodic review confirms the system remains validated and fit for use.', ref: 'GAMP 5 periodic review' },
-      { id: 'K4', item: 'Controlled decommissioning preserves records for the retention period.', ref: '820.180' },
+      { id: 'K4', item: 'Controlled decommissioning preserves records for the retention period.', ref: 'ISO 13485 §4.2.5' },
     ],
   },
 ];
@@ -207,8 +219,8 @@ export const URS: Req[] = [
   { id: 'URS-013', title: 'Reports & analytics', text: 'Authorised users shall retrieve visit history and analytics; export shall be permitted only to authorised roles.', risk: 'Medium' },
   { id: 'URS-014', title: 'SLA monitoring', text: 'The company shall define service-level targets and the system shall highlight open calls that are due or breached.', risk: 'Medium' },
   { id: 'URS-015', title: 'Notifications', text: 'An engineer shall be notified in-app when a call is allotted to them or a requested spare is dispatched.', risk: 'Low' },
-  { id: 'URS-016', title: 'Audit trail', text: 'The system shall keep a secure, attributable, time-stamped audit trail of key actions that users cannot alter.', risk: 'High', refs: ['Part 11 §11.10(e)'] },
-  { id: 'URS-017', title: 'Data integrity & retention', text: 'Records shall be complete, accurate and retained and retrievable for the required retention period (ALCOA+).', risk: 'High', refs: ['Part 11'] },
+  { id: 'URS-016', title: 'Audit trail', text: 'The system shall keep a secure, attributable, time-stamped audit trail of key actions that users cannot alter.', risk: 'High', refs: ['ISO 13485 §4.2.5'] },
+  { id: 'URS-017', title: 'Data integrity & retention', text: 'Records shall be complete, accurate and retained and retrievable for the required retention period (ALCOA+).', risk: 'High', refs: ['ISO 13485 §4.2.5', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-018', title: 'Availability & recovery', text: 'The system and its records shall be backed up and recoverable.', risk: 'Medium' },
   { id: 'URS-019', title: 'Controlled change', text: 'Changes to the software shall be version-controlled, tested and approved; each release shall be uniquely identifiable in-app.', risk: 'Medium' },
   { id: 'URS-020', title: 'Knowledge base', text: 'The team shall maintain how-to guidance and field-solution knowledge within the system.', risk: 'Low' },
@@ -260,7 +272,7 @@ export const FRS: FReq[] = [
   { id: 'FRS-018', urs: ['URS-013'], title: 'Reports & export gate', text: 'Visit history is retrievable with field filters; CSV export is blocked unless the user holds export.data.', risk: 'Medium' },
   { id: 'FRS-019', urs: ['URS-014'], title: 'SLA engine', text: 'Configurable SLA rules (hours + on/off) are evaluated per open call (first visit, closure, closure-with-spare, closure-spare-non-cover, stores dispatch); the Dashboard flags due/breached.', risk: 'Medium' },
   { id: 'FRS-020', urs: ['URS-015'], title: 'Notification triggers', text: 'Database triggers create a per-user notification when a call is allotted or a requested spare is dispatched; each user reads/marks only their own (RLS).', risk: 'Low' },
-  { id: 'FRS-021', urs: ['URS-016'], title: 'Audit log', text: 'Two trails, deliberately. `audit_log` records what a USER DID (action, duration, outcome) and is written by the client, so it is purged on the retention window and can be bypassed by a direct API call. `record_audit` records what a ROW BECAME \u2014 before and after, actor and time \u2014 and is written by the database in SECURITY DEFINER triggers on the ten quality-record tables, so it cannot be bypassed; it is readable only by an administrator or `audit.view`, nobody holds insert, update or delete on it, and it is not purged. A BULK write is recorded as ONE attributable event (who, which table, how many rows, when) rather than a row per record: an audit trail answers \u201cwho changed this record and to what\u201d, which a data load is not, and the load is verified by DM1..DM10 instead. Bulk user actions reach the typed tables one row at a time through the calls view, so they are audited in full.', risk: 'High' },
+  { id: 'FRS-021', urs: ['URS-016'], title: 'Audit log', text: 'ONE TRAIL, as of 0112 (2026-09-05). `audit_log` records what a USER DID \u2014 action, target, duration, outcome, actor and time \u2014 and its retention is configurable (app_settings.audit_retention_days, default ~10 years), with a daily digest archiving the day off-database. Its LIMITS are stated rather than glossed: it is written by the CLIENT, so it can be bypassed by a direct API call, and it is purged when the retention window passes. THE SECOND TRAIL HAS BEEN SWITCHED OFF. `record_audit` recorded what a ROW BECAME, before and after, in SECURITY DEFINER triggers that could not be bypassed and were never purged; it was added for 21 CFR Part 11, which is FDA\u2019s and does not apply here, and stopped at the user\u2019s direction. The TABLE REMAINS, readable by an administrator, holding everything it captured while it ran (2026-08 to 2026-09-05) \u2014 retained, not maintained. Re-attaching the triggers is one statement if a later assessment wants the control back.', risk: 'High' },
   { id: 'FRS-022', urs: ['URS-017'], title: 'Record integrity', text: 'Records are written to PostgreSQL with constraints; the publishable key is public by design and access is enforced by RLS; the service_role key is never shipped.', risk: 'High' },
   { id: 'FRS-023', urs: ['URS-018'], title: 'Backup/restore', text: 'The Supabase project provides managed backups; restore is periodically verified per procedure.', risk: 'Medium' },
   { id: 'FRS-024', urs: ['URS-019'], title: 'Release identity & change log', text: 'Each build carries a version, build number and build ID shown in the footer; an in-app Version History lists changes; source and schema changes are version-controlled.', risk: 'Medium' },
@@ -336,8 +348,8 @@ export const DETAILED: { area: string; points: string[] }[] = [
     'handstock_movements / handstock_balance (security_invoker) derive stock from dispatch, consumption, transfers and MRN returns; a stock guard blocks overdraw counting all movements.',
   ] },
   { area: 'Audit & data integrity', points: [
-    'A DATABASE-ENFORCED audit trail (record_audit) logs every INSERT/UPDATE/DELETE on the quality-record tables with actor, timestamp and before/after row, via SECURITY DEFINER triggers; it is admin/audit.view read-only and cannot be written or altered by users. The client audit_log additionally records user actions with duration/status.',
-    'A BULK WRITE IS RECORDED AS ONE EVENT, not one row per record (0103): who, which table, how many rows, when. An audit trail answers "who changed this record and to what"; a data load is not that question, and is verified instead by the migration checks (DM1..DM10). The load stays attributable, which is what Part 11 asks of it; what is not kept is a per-record duplicate of data already in the table it was loaded into. The line is drawn by a statement-level trigger counting the rows one statement touched \u2014 and the bulk USER actions reach the typed tables one row at a time through the calls view\u2019s INSTEAD OF triggers, so they are audited in full regardless of the threshold.',
+    'The trail is `audit_log`: user actions with actor, target, duration and outcome, DB-stamped identity and time, admin/audit.view read-only and not user-editable. The database-enforced trail (record_audit) that ran alongside it was STOPPED on 2026-09-05 (0112) \u2014 it existed for 21 CFR Part 11, which does not apply to a CDSCO-regulated operation. Its table is retained and readable, holding what it captured while it ran; nothing is written to it now. The reduction is real and is recorded here rather than left implied: the remaining trail is client-written, so a direct API call bypasses it, and it is purged on the retention window.',
+    'A BULK WRITE IS RECORDED AS ONE EVENT, not one row per record (0103): who, which table, how many rows, when. An audit trail answers "who changed this record and to what"; a data load is not that question, and is verified instead by the migration checks (DM1..DM10). The load stays attributable, which is what record control asks of it; what is not kept is a per-record duplicate of data already in the table it was loaded into. The line is drawn by a statement-level trigger counting the rows one statement touched \u2014 and the bulk USER actions reach the typed tables one row at a time through the calls view\u2019s INSTEAD OF triggers, so they are audited in full regardless of the threshold.',
     'Retention is configurable (app_settings.audit_retention_days, default ~10 years) — the earlier 7-day purge is replaced. A daily email digest also archives the day’s audit trail off-database.',
     'Application deletion of quality records is blocked (record-retention guard); only a controlled DBA/superuser action can remove them, and that too is audited. Records are constrained (unique UCN, FKs) in PostgreSQL.',
   ] },
@@ -349,7 +361,7 @@ export const DETAILED: { area: string; points: string[] }[] = [
     'spare_request_lines carries dispatched_qty and received_qty. The Stores queue exposes the outstanding remainder as its quantity, so every consumer counts what is still due. The line leaves the queue only when fully issued, and is marked Received only when fully acknowledged.',
     'Hand stock is derived, never stored: stock issued, less consumption, plus/minus transfers, less returns. Consumption is therefore the control point, and a before-insert trigger caps every consumption line at the engineer\u2019s balance for that part.',
     'Hand stock is derived from what was ISSUED, not what was requested, so a spare sent as a recycled part (R + code, same description) is held and consumed under that code and never merges with new stock. A legacy arm keeps any line marked Dispatched without issue rows in the ledger, so the derivation change moves no existing stock.',
-    'Reconciliation rows are ordinary consumption rows flagged source = Reconciliation, so they move stock identically while remaining distinguishable in the register and in reports. Amendments retain the original quantity, the reason and the author on the row, and record_audit independently retains the before/after image.',
+    'Reconciliation rows are ordinary consumption rows flagged source = Reconciliation, so they move stock identically while remaining distinguishable in the register and in reports. Amendments retain the original quantity, the reason and the author ON THE ROW \u2014 which is now the whole of it: record_audit no longer takes an independent before/after image (0112), so the retained fields are the record.',
   ] },
   { area: 'Reading a register: scope, grouping and bulk edit', points: [
     'The shared table component owns selection, filtering and grouping, so every register inherits them identically. A header tick takes the ROWS CURRENTLY LISTED and nothing else \u2014 what a filter is hiding cannot be selected by accident. Grouping nests up to three columns, forms groups from the already-filtered rows, and remembers each user\u2019s choice per screen keyed on their own identity, so one person\u2019s view never becomes another\u2019s.',
@@ -389,7 +401,7 @@ export const DETAILED: { area: string; points: string[] }[] = [
 export interface RiskRow { id: string; fn: string; failure: string; effect: string; sev: Risk; controls: string; residual: Risk; refs: string[] }
 export const RISKS: RiskRow[] = [
   { id: 'R-01', fn: 'Access control (RBAC/RLS)', failure: 'A user sees or edits records outside their authority', effect: 'Loss of confidentiality/integrity of quality records', sev: 'High', controls: 'Server-side RLS keyed on auth.uid(); least-privilege roles; OQ tests FRS-003/004', residual: 'Low', refs: ['FRS-003', 'FRS-004'] },
-  { id: 'R-02', fn: 'Audit trail', failure: 'An action is not recorded, or a user alters the trail', effect: 'Non-attributable records; Part 11 non-compliance', sev: 'High', controls: 'DB-stamped identity; admin-only read; no user update; a bulk write is recorded as one attributable event rather than dropped; OQ test FRS-021', residual: 'Low', refs: ['FRS-021'] },
+  { id: 'R-02', fn: 'Audit trail', failure: 'An action is not recorded, or a user alters the trail', effect: 'Non-attributable records; record control under ISO 13485 §4.2.5 not met', sev: 'High', controls: 'DB-stamped identity; admin-only read; no user update; a bulk write is recorded as one attributable event rather than dropped; OQ test FRS-021', residual: 'Low', refs: ['FRS-021'] },
   { id: 'R-03', fn: 'Call status', failure: 'Status does not reflect the latest visit', effect: 'Open complaint appears closed; service KPI wrong', sev: 'High', controls: 'Trigger recomputes from latest entry; open_state generated column; OQ FRS-007', residual: 'Low', refs: ['FRS-007'] },
   { id: 'R-04', fn: 'Spare approval', failure: 'A stage is approved by an unauthorised role', effect: 'Uncontrolled spare release', sev: 'High', controls: 'Per-stage DB guard; manager-scoped approval; OQ FRS-010/011', residual: 'Low', refs: ['FRS-010', 'FRS-011'] },
   { id: 'R-05', fn: 'Identifier assignment', failure: 'Duplicate or missing UCN / Call Number', effect: 'Records cannot be uniquely traced', sev: 'High', controls: 'DB triggers + unique constraint + shared sequence; OQ FRS-005', residual: 'Low', refs: ['FRS-005'] },
@@ -401,7 +413,7 @@ export const RISKS: RiskRow[] = [
   { id: 'R-11', fn: 'Availability', failure: 'Data loss without recoverable backup', effect: 'Loss of quality records', sev: 'High', controls: 'Managed backups; periodic restore test; PQ/IQ evidence', residual: 'Medium', refs: ['FRS-023'] },
   { id: 'R-12', fn: 'Change control', failure: 'An untested change reaches production', effect: 'Regression in a quality function', sev: 'Medium', controls: 'Version control, build ID, changelog, regression tests; periodic review', residual: 'Low', refs: ['FRS-024'] },
   { id: 'R-13', fn: 'Hand-stock integrity', failure: 'More of a spare is recorded as consumed than the engineer holds', effect: 'Negative stock; unreliable stock records and reordering', sev: 'High', controls: 'Before-insert trigger caps every consumption line at the derived balance; the engineer\u2019s picker offers only stock in hand; OQ-15', residual: 'Low', refs: ['FRS-030'] },
-  { id: 'R-14', fn: 'Reconciliation of consumption', failure: 'An office user books, amends or voids a consumption entry without authority or without a reason, or alters which call/engineer it belongs to', effect: 'Unattributable adjustment of a quality record; stock and service history misstated', sev: 'High', controls: 'consumption.reconcile permission enforced by RLS; mandatory UCN/engineer/part/reason in a DB trigger; identity fields immutable on amendment; original quantity, reason and author retained; record_audit before/after; OQ-16, OQ-17', residual: 'Low', refs: ['FRS-028', 'FRS-029'] },
+  { id: 'R-14', fn: 'Reconciliation of consumption', failure: 'An office user books, amends or voids a consumption entry without authority or without a reason, or alters which call/engineer it belongs to', effect: 'Unattributable adjustment of a quality record; stock and service history misstated', sev: 'High', controls: 'consumption.reconcile permission enforced by RLS; mandatory UCN/engineer/part/reason in a DB trigger; identity fields immutable on amendment; original quantity, reason and author retained on the row; audit_log entry; OQ-16, OQ-17. RAISED FROM LOW ON 2026-09-05: the independent before/after image (record_audit) was withdrawn, so the fields retained on the row are now the only record of an amendment', residual: 'Medium', refs: ['FRS-028', 'FRS-029'] },
   { id: 'R-18', fn: 'Bulk re-allotment', failure: 'A bulk edit writes rows the user did not intend, or allots outside the manager\u2019s team', effect: 'Calls moved to the wrong engineer at scale; work not done', sev: 'High', controls: 'Selection is limited to the rows currently listed, never rows a filter hides; the edit touches one field; the engineer list is the reporting sub-tree and the write is constrained again by RLS; OQ-22', residual: 'Low', refs: ['FRS-038'] },
   { id: 'R-19', fn: 'Spare order reassignment', failure: 'The engineer on a spare order is changed after the parts have been issued', effect: 'Hand stock silently moves from one engineer\u2019s balance to another\u2019s; inventory records cease to reflect what is held', sev: 'High', controls: 'Refused by the function AND by a table trigger, so no path is exempt; three independent tests for issue; every permitted change logged with both names, actor, time and reason; OQ-23', residual: 'Low', refs: ['FRS-041'] },
   { id: 'R-20', fn: 'Acting for a team member', failure: 'A record is raised for an engineer outside the manager\u2019s team, or its authorship is lost', effect: 'Unattributable record; work assigned outside the reporting line', sev: 'Medium', controls: 'The list offered is the reporting sub-tree; created_by retains the author independently of the engineer named; OQ-24', residual: 'Low', refs: ['FRS-040'] },
@@ -437,7 +449,7 @@ export interface FmeaRow {
 }
 export const FMEA: FmeaRow[] = [
   { id: 'FM-01', item: 'Access control (RBAC / RLS)', mode: 'A user reads or edits records outside their authority', cause: 'Missing/incorrect RLS policy; UI-only gating', effect: 'Confidentiality / integrity loss of QMS records', s: 9, o: 3, d: 3, controls: 'Server-side RLS keyed on auth.uid(); least-privilege roles; OQ-02', action: 'Verify RLS on every record table in IQ; negative access tests in OQ', oa: 2, da: 2, refs: ['FRS-003', 'FRS-004', 'IQ-02', 'OQ-02'] },
-  { id: 'FM-02', item: 'Audit trail', mode: 'An action is not logged, or the trail is altered', cause: 'Client omits event; user has write on the log', effect: 'Non-attributable records; Part 11 non-compliance', s: 8, o: 3, d: 4, controls: 'DB-stamped identity; admin-only read; no user update; retention purge', action: 'OQ-09 confirms completeness and tamper-resistance', oa: 2, da: 2, refs: ['FRS-021', 'OQ-09'] },
+  { id: 'FM-02', item: 'Audit trail', mode: 'An action is not logged, or the trail is altered', cause: 'Client omits event; user has write on the log', effect: 'Non-attributable records; record control under ISO 13485 §4.2.5 not met', s: 8, o: 3, d: 4, controls: 'DB-stamped identity; admin-only read; no user update; retention purge', action: 'OQ-09 confirms completeness and tamper-resistance', oa: 2, da: 2, refs: ['FRS-021', 'OQ-09'] },
   { id: 'FM-03', item: 'Call status', mode: 'Status does not reflect the latest visit', cause: 'Ordering by visit date not entry; trigger not fired', effect: 'Open complaint appears closed; wrong KPI', s: 7, o: 4, d: 4, controls: 'Trigger recomputes from latest entry; generated open_state; OQ-05', action: 'Regression-test status on every call-table change', oa: 2, da: 2, refs: ['FRS-007', 'OQ-05'] },
   { id: 'FM-04', item: 'Spare approval', mode: 'A stage is approved by an unauthorised role', cause: 'UI shows a button the DB does not enforce', effect: 'Uncontrolled spare release', s: 7, o: 3, d: 3, controls: 'Per-stage DB guard; manager-scoped approval; OQ-07', action: 'Negative approval tests per stage', oa: 2, da: 2, refs: ['FRS-010', 'FRS-011', 'OQ-07'] },
   { id: 'FM-05', item: 'Identifier assignment', mode: 'Duplicate or missing UCN / Call Number', cause: 'Race on sequence; trigger bypassed on import', effect: 'Records not uniquely traceable', s: 8, o: 2, d: 5, controls: 'DB triggers + UNIQUE(ucn) + shared sequence; OQ-03', action: 'Uniqueness test incl. bulk import path', oa: 1, da: 2, refs: ['FRS-005', 'OQ-03'] },
@@ -458,7 +470,7 @@ export const FMEA: FmeaRow[] = [
   { id: 'FM-21', item: 'Period close', mode: 'A close moves the balance it exists to preserve', cause: 'The sum and the register divide the boundary differently \u2014 one takes the closing day, the other also takes it', effect: 'Stock changed by an administrative action with no movement behind it, and no error to notice', s: 8, o: 3, d: 5, controls: 'The close takes `< cutoff` and every arm `>= cutoff`, exact complements of one instant; neutrality measured on production-scale data before release', action: 'OQ-31 closes a period and compares the whole balance before and after', oa: 2, da: 2, refs: ['FRS-044', 'OQ-31'] },
   { id: 'FM-22', item: 'Bulk load', mode: 'A load writes NULL into a column its file did not carry', cause: 'The batch is rendered as one insert over the union of the rows\u2019 keys, so a row missing a key is sent as NULL rather than defaulting', effect: 'Records altered by a load that reported success; the error, when it comes, names the first row of the batch rather than the row at fault', s: 7, o: 4, d: 6, controls: 'Rows grouped by column set so each insert has one column list; the NOT NULL constraint fails the batch rather than admitting the row', action: 'OQ-33 loads a file where one row fills a column and the next leaves it empty', oa: 2, da: 2, refs: ['FRS-046', 'OQ-33'] },
   { id: 'FM-23', item: 'Migrated stock', mode: 'A balance is opened against a name that is not a person', cause: 'The migrated file\u2019s name column carries dealers and customers as well as engineers', effect: 'Stock attributed to parties who cannot hold it; the register\u2019s totals cease to mean what they say', s: 5, o: 6, d: 3, controls: 'Names resolved against the ACTIVE directory before writing, on the key\u2019s own normalisation; what is withheld is named before approval; a correction script for data already loaded; a status check that stays green only while it holds', action: 'OQ-34 loads a file containing a dealer name and a former user', oa: 2, da: 1, refs: ['FRS-047', 'OQ-34'] },
-  { id: 'FM-16', item: 'Reconciliation entry', mode: 'A consumption entry is booked, amended or voided without authority, without a reason, or is re-pointed at another call or engineer', cause: 'UI-only gating; free-text identity fields left editable', effect: 'Unattributable change to a quality record', s: 8, o: 3, d: 3, controls: 'RLS on consumption.reconcile; mandatory fields and immutable identity enforced in a trigger; original quantity, reason and author retained; independent record_audit image', action: 'OQ-16 and OQ-17 exercise each refusal and the retained record', oa: 2, da: 2, refs: ['FRS-028', 'FRS-029', 'OQ-16', 'OQ-17'] },
+  { id: 'FM-16', item: 'Reconciliation entry', mode: 'A consumption entry is booked, amended or voided without authority, without a reason, or is re-pointed at another call or engineer', cause: 'UI-only gating; free-text identity fields left editable', effect: 'Unattributable change to a quality record', s: 8, o: 3, d: 3, controls: 'RLS on consumption.reconcile; mandatory fields and immutable identity enforced in a trigger; original quantity, reason and author retained on the row', action: 'OQ-16 and OQ-17 exercise each refusal and the retained record', oa: 2, da: 3, refs: ['FRS-028', 'FRS-029', 'OQ-16', 'OQ-17'] },
 ];
 
 // ---- Test protocol (IQ / OQ / PQ) -----------------------------------------
@@ -510,24 +522,6 @@ export const TESTS: TestCase[] = [
   { id: 'PQ-04', phase: 'PQ', reqs: ['URS-021', 'URS-022', 'URS-023', 'URS-024'], risk: 'High', objective: 'The spare lifecycle works for the people who run it.', steps: ['Stores issues a part quantity against a real request and completes it on a later stock out', 'The engineer confirms each delivery', 'A spare fitted but not reported is booked by the Spare Coordinator against the call', 'A quantity reported in error is corrected and an entry made in error is voided'], expected: 'Stores, engineers and the Spare Coordinator complete each task unaided; stock balances agree with physical stock at the end of the exercise; every correction is traceable to a person, a time and a reason.' },
 ];
 
-// ---- 21 CFR Part 11 assessment (appendix) ---------------------------------
-export interface Part11Row { clause: string; requirement: string; applicable: 'Yes' | 'Partial' | 'N/A'; howMet: string }
-export const PART11: Part11Row[] = [
-  { clause: '§11.10(a)', requirement: 'Validation of systems to ensure accuracy, reliability, consistent intended performance.', applicable: 'Yes', howMet: 'This validation package (URS/FRS, IQ/OQ/PQ, traceability, risk/FMEA).' },
-  { clause: '§11.10(b)', requirement: 'Ability to generate accurate and complete copies of records (human-readable and electronic).', applicable: 'Yes', howMet: 'On-screen views, CSV export (role-gated), and PostgreSQL/Supabase export of the underlying records.' },
-  { clause: '§11.10(c)', requirement: 'Protection of records to enable accurate and ready retrieval throughout the retention period.', applicable: 'Yes', howMet: 'Records held in managed PostgreSQL with backups; retention procedure; audit retention purge is configurable.' },
-  { clause: '§11.10(d)', requirement: 'Limiting system access to authorized individuals.', applicable: 'Yes', howMet: 'Supabase Auth (unique logins), inactive-login lockout, RLS-enforced RBAC.' },
-  { clause: '§11.10(e)', requirement: 'Secure, computer-generated, time-stamped audit trails; retained and available for review/copy.', applicable: 'Yes', howMet: 'audit_log with DB-stamped identity/time; admin-only read; not user-editable.' },
-  { clause: '§11.10(f)', requirement: 'Operational system checks to enforce permitted sequencing of steps.', applicable: 'Yes', howMet: 'Spare approval chain guard; call-status workflow; call-type routing constraints.' },
-  { clause: '§11.10(g)', requirement: 'Authority checks — only authorized individuals may use, sign, access, or perform operations.', applicable: 'Yes', howMet: 'Permission (has_perm) + RLS checks per action (e.g., install.create, approvals, export.data).' },
-  { clause: '§11.10(h)', requirement: 'Device (terminal) checks where appropriate.', applicable: 'N/A', howMet: 'Web application accessed over TLS; no device-specific data source requiring terminal checks.' },
-  { clause: '§11.10(i)', requirement: 'Persons who develop/maintain/use the system have the education, training and experience.', applicable: 'Yes', howMet: 'Training records (procedural); developer competency (procedural).' },
-  { clause: '§11.10(j)', requirement: 'Written policies holding individuals accountable for actions under their electronic signatures.', applicable: 'Partial', howMet: 'Procedural SOP required; the system attributes actions to unique users via the audit trail.' },
-  { clause: '§11.10(k)', requirement: 'Controls over systems documentation (distribution, access, change control).', applicable: 'Yes', howMet: 'Version-controlled source; in-app Version History; controlled migrations; this package under document control.' },
-  { clause: '§11.50 / §11.70', requirement: 'Signature manifestations and signature/record linking (if e-signatures are used).', applicable: 'N/A', howMet: 'The system does not currently implement 21 CFR Part 11 electronic signatures; approvals are role-authorized actions recorded in the audit trail. If e-signatures are introduced, Subpart C applies.' },
-  { clause: '§11.100–300', requirement: 'Electronic signature uniqueness, identity verification, and controls (Subpart C).', applicable: 'N/A', howMet: 'Not applicable until e-signatures are implemented; unique user IDs + password controls already provide the identity basis.' },
-];
-
 // ---- Supplier / vendor assessment (appendix) ------------------------------
 export interface Supplier { name: string; service: string; criticality: Risk; criteria: string[]; conclusion: string }
 export const SUPPLIERS: Supplier[] = [
@@ -575,7 +569,7 @@ export const VSR: { heading: string; body: string[] }[] = [
   { heading: '5. Requirements traceability', body: ['Confirm the traceability matrix is complete: every URS is covered by FRS and tests, and every test passed or is dispositioned.'] },
   { heading: '6. Residual risk statement', body: ['Confirm residual risks (risk assessment + FMEA) are acceptable with the controls verified, and any procedural controls (SOPs, training, backup verification) are in place.'] },
   { heading: '7. Conclusion & release', body: ['State whether RITHI CRM is validated and released for productive use in the QMS, subject to the maintaining-the-validated-state controls (change control, periodic review, supplier monitoring).'] },
-  { heading: '8. Approval', body: ['Approved by System Owner, Process Owner (Quality), and QA/Validation Lead (wet or Part 11-compliant e-signature), with dates.'] },
+  { heading: '8. Approval', body: ['Approved by System Owner, Process Owner (Quality), and QA/Validation Lead (wet signature, or an electronic signature under the Information Technology Act, 2000), with dates.'] },
 ];
 
 // ---- Data Migration Validation --------------------------------------------
@@ -632,7 +626,7 @@ export const SECURITY = {
     { area: 'Transport', control: 'HTTPS/TLS for all client↔platform traffic.' },
     { area: 'Secrets', control: 'Publishable/anon key is public by design (RLS-enforced); the service_role key is never shipped to the client; Edge-Function secrets held server-side.' },
     { area: 'Input handling', control: 'Knowledge-Base rich text is allowlist-sanitised on save and render; parameterised database access via PostgREST.' },
-    { area: 'Audit & integrity', control: 'Database-enforced audit trail (record_audit); application deletion of quality records blocked; configurable long audit retention; off-database daily audit archive by email.' },
+    { area: 'Audit & integrity', control: 'Application deletion of quality records blocked (0049); configurable long audit retention; off-database daily audit archive by email. The database-enforced trail (record_audit) was stopped on 2026-09-05 \u2014 see FRS-021; its table is retained.' },
     { area: 'Availability', control: 'Managed platform; backups with verified restore.' },
   ],
   actions: [
@@ -645,10 +639,10 @@ export const SECURITY = {
 
 // ---- Data integrity (ALCOA+) ----------------------------------------------
 export const ALCOA: { principle: string; howMet: string }[] = [
-  { principle: 'Attributable', howMet: 'Every record and change is tied to a unique authenticated user via the database audit trail.' },
+  { principle: 'Attributable', howMet: 'Every record carries the identity the database stamped on it (created_by / actor), and user actions are attributed in audit_log. NOTE: the row-level before/after trail was withdrawn on 2026-09-05 (FRS-021), so attribution of a CHANGE rests on the fields the row itself retains.' },
   { principle: 'Legible', howMet: 'Records are readable on screen and exportable (CSV); audit entries are structured.' },
   { principle: 'Contemporaneous', howMet: 'Timestamps are set by the database at the time of the action (server time).' },
-  { principle: 'Original', howMet: 'The PostgreSQL row is the original record; the audit trail preserves before/after.' },
+  { principle: 'Original', howMet: 'The PostgreSQL row is the original record. The before/after image that preserved its prior state was withdrawn on 2026-09-05 (FRS-021); where a prior value matters — an amended or voided consumption line — the row retains it explicitly.' },
   { principle: 'Accurate', howMet: 'Constraints, generated status, triggers and validation reduce error; verified by OQ.' },
   { principle: 'Complete', howMet: 'Audit trail captures create/update/delete; deletion of quality records is prevented.' },
   { principle: 'Consistent', howMet: 'Workflow sequencing (approval chain, call status) is enforced by the database.' },

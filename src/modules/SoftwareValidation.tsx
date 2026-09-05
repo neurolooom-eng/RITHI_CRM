@@ -4,7 +4,7 @@ import { useAuth } from '../lib/auth';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
   VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, ARCHITECTURE, DETAILED, RISKS, TESTS,
-  FMEA, FMEA_SCALE, PART11, SUPPLIERS, VSR,
+  FMEA, FMEA_SCALE, SUPPLIERS, VSR,
   DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
 } from '../lib/validation';
 import './softwarevalidation.css';
@@ -19,7 +19,7 @@ import './softwarevalidation.css';
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
 type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
-  | 'part11' | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'trace' | 'capa' | 'vsr';
+  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -31,7 +31,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'config', label: 'Configuration Spec' },
   { key: 'risk', label: 'Risk Assessment' },
   { key: 'fmea', label: 'FMEA' },
-  { key: 'part11', label: 'Part 11 Assessment' },
   { key: 'security', label: 'Security Assessment' },
   { key: 'alcoa', label: 'Data Integrity' },
   { key: 'datamig', label: 'Data Migration' },
@@ -110,7 +109,7 @@ export function SoftwareValidation() {
             <ul className="sv-list">{VAL_META.standards.map((s) => <li key={s}>{s}</li>)}</ul>
           </Section>
           <Section title="3. Document approval">
-            <p className="sv-note">This package is a DRAFT. It becomes effective only when reviewed and approved (wet or Part 11-compliant e-signature) by the roles below, and its test protocols are executed with retained objective evidence.</p>
+            <p className="sv-note">This package is a DRAFT. It becomes effective only when reviewed and approved (wet signature, or an electronic signature under the Information Technology Act, 2000) by the roles below, and its test protocols are executed with retained objective evidence.</p>
             <table className="sv-table"><thead><tr><th>Role</th><th>Name</th><th>Signature</th><th>Date</th></tr></thead>
               <tbody>{APPROVALS.map((a) => <tr key={a.role}><td>{a.role}</td><td className="sv-blank" /><td className="sv-blank" /><td className="sv-blank" /></tr>)}</tbody>
             </table>
@@ -210,17 +209,6 @@ export function SoftwareValidation() {
         </Section>
       )}
 
-      {/* PART 11 */}
-      {show('part11') && (
-        <Section title="21 CFR Part 11 assessment (appendix)">
-          <p className="sv-note">Applicability of each Part 11 control to RITHI CRM and how it is met. Electronic signatures (Subpart C) are not currently implemented; approvals are role-authorised actions recorded in the audit trail.</p>
-          <div className="sv-scroll">
-            <table className="sv-table"><thead><tr><th style={{ width: 110 }}>Clause</th><th>Requirement</th><th style={{ width: 80 }}>Applies</th><th>How met</th></tr></thead>
-              <tbody>{PART11.map((p) => <tr key={p.clause}><td className="sv-id">{p.clause}</td><td>{p.requirement}</td><td><span className={`sv-risk ${p.applicable === 'Yes' ? 'sv-risk-low' : p.applicable === 'Partial' ? 'sv-risk-medium' : 'sv-risk-high'}`}>{p.applicable}</span></td><td>{p.howMet}</td></tr>)}</tbody>
-            </table>
-          </div>
-        </Section>
-      )}
 
       {/* SUPPLIER */}
       {show('supplier') && (

@@ -2025,6 +2025,15 @@ grant select on public.field_call_review_summary to authenticated;
 -- column". Both go last, and the view is REPLACED rather than dropped so
 -- nothing built on it has to be rebuilt.
 --
+-- THE FILTER USES `open_state` ONLY, for now. `field_call_review` — the full
+-- view the rows come from — carries open_state but NOT cancelled_at, and it is
+-- a large view with three lateral joins; appending a column to it is a change
+-- worth making on its own rather than as a rider here. So the register can be
+-- filtered to Unattended / Unsolved / Report pending / Solved, and a cancelled
+-- call still shows under whichever of those its visits last said.
+-- `cancelled_at` is carried here so that filter can be added without another
+-- migration to this view.
+--
 -- `security_invoker` is re-asserted because `create or replace view` DROPS it,
 -- and a view without it reads as its OWNER — which is how every signed-in user
 -- could once read every call. This one reads `field_calls`, so it matters.
