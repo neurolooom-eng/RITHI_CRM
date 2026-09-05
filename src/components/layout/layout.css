@@ -23,8 +23,16 @@
   padding: 16px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
+/* Same white tile as the sign-in page, and for a stronger reason: the sidebar
+   is dark (#0f3d3a / #13294b) and the mark's navy would all but disappear on
+   it. The tile makes it legible whatever the theme does to the bar. */
 .sidebar-logo {
-  font-size: 24px;
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  padding: 3px;
+  background: #fff;
+  border-radius: 8px;
   flex-shrink: 0;
 }
 .sidebar-name {

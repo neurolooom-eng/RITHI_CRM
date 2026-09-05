@@ -9,7 +9,8 @@ import {
   type DeclarationInput,
 } from '../lib/declaration';
 import { useAuth } from '../lib/auth';
-import logo from '../assets/alms-logo.jpg';
+// A printed document carries the COMPANY's mark, never the app's (lib/brand).
+import { COMPANY_LOGO as logo } from '../lib/brand';
 import './dc.css';
 
 // ===========================================================================

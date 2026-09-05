@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { listSpareDispatches, listDispatchLines, supabaseConfigured } from '../lib/supabase';
 import { buildDc, paginate, COMPANY, DECLARATION, type DcDocument, type DcPage } from '../lib/dc';
-import logo from '../assets/alms-logo.jpg';
+// A printed document carries the COMPANY's mark, never the app's (lib/brand).
+import { COMPANY_LOGO as logo } from '../lib/brand';
 import './dc.css';
 
 // ===========================================================================
