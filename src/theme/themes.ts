@@ -46,6 +46,46 @@ export interface Theme {
 
 export const THEMES: Theme[] = [
   {
+    // THE COMPANY'S OWN COLOURS, sampled from `src/assets/alms-logo.jpg` rather
+    // than guessed: #365f9b is the blue of the mark and of HEALTHCARE (16,607
+    // pixels of it), #d7001e the red of the Air Liquide wordmark (16,155). The
+    // rest of the palette is built around those two — surfaces cooled towards
+    // the blue, the sidebar a deep version of it — so the application looks
+    // like it belongs to the company whose machines it services.
+    //
+    // The red is both `accent` and `danger`: the brand has ONE red, and giving
+    // errors a second, slightly different one would be a colour nobody chose.
+    id: 'alms',
+    name: 'ALMS',
+    scheme: 'light',
+    colors: {
+      bg: '#eef1f7',
+      surface: '#ffffff',
+      surfaceAlt: '#f5f7fb',
+      surfaceRaised: '#ffffff',
+      border: '#dbe1ed',
+      borderStrong: '#b5c1d6',
+      text: '#17233b',
+      textMuted: '#5c6b85',
+      textInverse: '#ffffff',
+      primary: '#365f9b',
+      primaryHover: '#2b4d80',
+      primarySoft: '#e2eaf6',
+      accent: '#d7001e',
+      success: '#16a34a',
+      warning: '#d97706',
+      danger: '#d7001e',
+      info: '#0284c7',
+      successSoft: '#dcfce7',
+      warningSoft: '#fef3c7',
+      dangerSoft: '#fde7ea',
+      infoSoft: '#e0f2fe',
+      sidebarBg: '#1f3559',
+      sidebarText: '#c2cfe4',
+      sidebarActive: '#4a76b8',
+    },
+  },
+  {
     id: 'medical-teal',
     name: 'Medical Teal',
     scheme: 'light',
@@ -264,7 +304,10 @@ export const THEMES: Theme[] = [
   },
 ];
 
-export const DEFAULT_THEME_ID = 'medical-teal';
+// The company's own colours are what everyone should see unless they have
+// deliberately picked something else — see ThemeProvider, which distinguishes a
+// theme somebody CHOSE from one that was merely persisted.
+export const DEFAULT_THEME_ID = 'alms';
 
 const camelToKebab = (s: string) => s.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
 

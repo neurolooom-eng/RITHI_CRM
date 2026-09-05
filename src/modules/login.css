@@ -70,3 +70,11 @@
   align-self: center;
   margin-top: -2px;
 }
+
+/* Where "Forgot password?" used to be — guidance, not a control, so it is
+   quieter than a button and does not invite a click that goes nowhere. */
+.login-note {
+  font-size: 12.5px;
+  text-align: center;
+  margin-top: 2px;
+}

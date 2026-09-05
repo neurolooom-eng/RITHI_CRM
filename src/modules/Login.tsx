@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { sbSendPasswordReset, takeRecoveryError, supabaseConfigured } from '../lib/supabase';
+import { takeRecoveryError } from '../lib/supabase';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import './login.css';
 import { RITHI_LOGO } from '../lib/brand';
@@ -18,21 +18,6 @@ export function Login() {
   const [setMode, setSetMode] = useState(false);
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
-
-  // "Forgot password" — email a reset link (database logins).
-  const [forgot, setForgot] = useState(false);
-  const [sent, setSent] = useState('');
-
-  const submitForgot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(''); setSent('');
-    if (!id.trim()) { setError('Enter your email first.'); return; }
-    setBusy(true);
-    const res = await sbSendPasswordReset(id);
-    setBusy(false);
-    if (!res.ok) { setError(res.error ?? 'Could not send the reset link.'); return; }
-    setSent(`If ${id.trim()} has an account, a reset link is on its way. Open it on this device — the link signs you in just long enough to set a new password.`);
-  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,21 +55,7 @@ export function Login() {
           </div>
         </div>
 
-        {forgot ? (
-          <form onSubmit={submitForgot} className="login-form">
-            <div className="muted" style={{ marginBottom: 6 }}>
-              Enter your login email and we’ll send a password-reset link.
-            </div>
-            <div className="sf-field">
-              <label className="field-label">Email</label>
-              <input className="input" value={id} autoFocus onChange={(e) => setId(e.target.value)} placeholder="you@airliquide.com" />
-            </div>
-            {error && <div className="field-err">{error}</div>}
-            {sent && <div className="muted">{sent}</div>}
-            <button className="btn btn-primary login-btn" type="submit" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button>
-            <button className="btn login-btn" type="button" onClick={() => { setForgot(false); setError(''); setSent(''); }} disabled={busy}>Back to sign in</button>
-          </form>
-        ) : !setMode ? (
+        {!setMode ? (
           <form onSubmit={submit} className="login-form">
             <div className="sf-field">
               <label className="field-label">Air Liquide / Gmail ID</label>
@@ -96,12 +67,12 @@ export function Login() {
             </div>
             {error && <div className="field-err">{error}</div>}
             <button className="btn btn-primary login-btn" type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign In'}</button>
-            {supabaseConfigured() && (
-              <button className="btn btn-ghost btn-sm login-link" type="button" disabled={busy}
-                onClick={() => { setForgot(true); setError(''); setSent(''); }}>
-                Forgot password?
-              </button>
-            )}
+            {/* No self-service reset: an administrator sets passwords here, so
+                pointing at a button that emails a link would send people to a
+                dead end. Say who to ask instead. */}
+            <div className="login-note muted">
+              Forgotten your password? Ask an administrator to reset it for you.
+            </div>
           </form>
         ) : (
           <form onSubmit={submitSetPassword} className="login-form">
@@ -123,7 +94,7 @@ export function Login() {
         )}
 
       </div>
-      <div className="login-foot muted">Sign in with your Air Liquide / Gmail ID · first-time users set a password from their invite or reset-link email · role-based access</div>
+      <div className="login-foot muted">Sign in with your Air Liquide / Gmail ID · role-based access</div>
     </div>
   );
 }

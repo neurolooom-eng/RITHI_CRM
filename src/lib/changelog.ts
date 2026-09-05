@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.89',
+    date: '2026-09-05',
+    title: 'The company\u2019s own colours, and a simpler sign-in page',
+    changes: [
+      'A NEW \u201cALMS\u201d THEME, AND IT IS NOW THE DEFAULT. The colours are taken from the Air Liquide logo file itself rather than eyeballed \u2014 the blue of the mark and the red of the wordmark \u2014 with the surfaces and the menu bar built around them.',
+      'It reaches everyone, which it would not have before: the app used to save the theme on every visit, so every device already carried one and a change of default would have been invisible. It now remembers only a theme you CHOSE. So you get the new look, and if you pick a different theme it stays picked.',
+      'SIGN-IN: \u201cForgot password?\u201d is gone. It emailed a reset link, which is not how passwords are handled here \u2014 the page now says to ask an administrator, which is the answer.',
+      'The line about first-time users setting a password from an invite email has gone too, for the same reason.',
+    ],
+  },
+  {
     version: '0.9.88',
     date: '2026-09-05',
     title: 'The RITHI mark on the sign-in page and the menu bar',
