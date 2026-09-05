@@ -16,7 +16,9 @@ import './fieldcalls.css';
 // Supporting documents are the reason the document library exists: an engineer
 // opening a call should be handed the service manual for THAT product, plus any
 // knowledge-base article tagged for it, without going looking. Matched on the
-// call's product and its standard complaint; a manual with no product is a
+// call's product, its standard complaint AND what was reported — so an
+// ACCESSORY's manual reaches the call that names the accessory, whatever
+// machine it is fitted to (lib/docmatch.ts). A manual with no product is a
 // general one and is offered on every call.
 // ===========================================================================
 
@@ -112,7 +114,7 @@ function SpareDetail({ row, onClose }: { row: Row; onClose: () => void }) {
 // Keyed by CALL NUMBER — every visit/spare/feedback tied to this call.
 // The manuals + articles that speak to this machine. Read-only, and quiet when
 // there is nothing to show — an empty panel on every call would be noise.
-function SupportingDocs({ product, complaint }: { product: string; complaint: string }) {
+function SupportingDocs({ product, complaint, reported }: { product: string; complaint: string; reported: string }) {
   const navigate = useNavigate();
   const [manuals, setManuals] = useState<DocRow[]>([]);
   const [articles, setArticles] = useState<KbLite[]>([]);
@@ -122,10 +124,10 @@ function SupportingDocs({ product, complaint }: { product: string; complaint: st
     let alive = true;
     // Either side may be missing (no library applied yet, no articles written);
     // each resolves to [] on its own rather than taking the panel down.
-    void serviceManualsForProduct(product).then((m) => { if (alive) setManuals(m); }).catch(() => {});
+    void serviceManualsForProduct(product, complaint, reported).then((m) => { if (alive) setManuals(m); }).catch(() => {});
     void kbForCall(product, complaint).then((a) => { if (alive) setArticles(a); }).catch(() => {});
     return () => { alive = false; };
-  }, [product, complaint]);
+  }, [product, complaint, reported]);
 
   if (!manuals.length && !articles.length) return null;
 
@@ -162,7 +164,7 @@ function SupportingDocs({ product, complaint }: { product: string; complaint: st
   );
 }
 
-export function CallAssociations({ callNumber, product = '', complaint = '' }: { callNumber: string; product?: string; complaint?: string }) {
+export function CallAssociations({ callNumber, product = '', complaint = '', reported = '' }: { callNumber: string; product?: string; complaint?: string; reported?: string }) {
   const [visits, setVisits] = useState<Row[]>([]);
   const [requested, setRequested] = useState<Row[]>([]);
   const [consumed, setConsumed] = useState<Row[]>([]);
@@ -187,7 +189,7 @@ export function CallAssociations({ callNumber, product = '', complaint = '' }: {
     <div className="rep-form" style={{ marginTop: 8 }}>
       {loading && <div className="muted" style={{ fontSize: 13 }}>Loading associated records…</div>}
 
-      <SupportingDocs product={product} complaint={complaint} />
+      <SupportingDocs product={product} complaint={complaint} reported={reported} />
 
       <MiniTable
         title="Visit history" icon="🕓" rows={visits}
