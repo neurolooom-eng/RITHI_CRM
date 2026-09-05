@@ -23,9 +23,16 @@ on:
 permissions:
   contents: write
 
-# Two previews may build at once, but they must not push to gh-pages together.
+# Previews serialise against EACH OTHER — they must not push to gh-pages
+# together — but never against the deploy, which has its own group: a queued
+# deploy used to be cancelled the moment a branch push started a preview.
+#
+# The cost of the split is that a preview and a deploy can now push to
+# `gh-pages` at the same time, and the loser's push is rejected. That lands on
+# the preview: it fails, visibly, and can be re-run. A preview is disposable and
+# the live site is not, so this is the way round to have it.
 concurrency:
-  group: pages
+  group: pages-preview
   cancel-in-progress: false
 
 jobs:

@@ -123,6 +123,7 @@ const MODULES = {
       '0104_complaint_suggestions.sql',
       '0105_calls_view_security_invoker.sql',
       '0107_complaint_text_help.sql',
+      '0108_call_cancel.sql',
     ],
   },
   sla: {

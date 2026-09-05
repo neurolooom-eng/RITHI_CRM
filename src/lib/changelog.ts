@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.83',
+    date: '2026-09-05',
+    title: 'A call can be cancelled \u2014 and deploys stop cancelling themselves',
+    changes: [
+      'A CALL CAN NOW BE CANCELLED. For one that should not exist: raised twice, the customer rang back, it went onto the wrong machine. Until now the only ways out were to leave it open for ever or close it as \u201cSolved\u201d \u2014 both of which put a fiction into the register and into every count taken from it.',
+      'Admin, NSM and the Hotline Engineer, on Field, PM and Installation calls alike. It asks for a reason, and records who cancelled it and when.',
+      'IT IS NOT A DELETE. The call keeps its UCN and everything recorded against it \u2014 visits, spares, quality records. It leaves the open list and reads as Cancelled. It can be restored, and the cancellation stays on the record when it is.',
+      'It is a permission (\u201cCancel a call\u201d under Roles & Permissions), so an administrator can give it to another role or take it away.',
+      '\u26a0\ufe0f A DEPLOY THAT SILENTLY DID NOT HAPPEN. Publishing the site and building a branch preview shared one queue, and a preview starting could kill a deploy that had not got a machine yet \u2014 which is what happened this morning: the version went out, the site stayed a version behind, and nothing said so. They have separate queues now.',
+    ],
+  },
+  {
     version: '0.9.82',
     date: '2026-09-05',
     title: 'A call registered from a request is dated to the day it happened',

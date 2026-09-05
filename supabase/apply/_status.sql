@@ -280,6 +280,12 @@ with checks(sort_order, bundle, provides, present) as (
     (61, 'complaints: the wording gets the register''s own house style', 'suggest_complaint_text + alarm_value_for -- the alarm number in this product''s spelling, and the phrasings already in use (0107)',
         (to_regprocedure('public.suggest_complaint_text(text,text,integer)') is not null
      and to_regprocedure('public.alarm_value_for(text,integer)')             is not null)),
+    (62, 'calls: a call can be CANCELLED', 'cancel_call / restore_call + the cancelled_at column and the Cancelled state (0108)',
+        (to_regprocedure('public.cancel_call(text,text)')  is not null
+     and to_regprocedure('public.restore_call(text)')      is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'field_calls' and column_name = 'cancelled_at')
+     and coalesce((select pg_get_viewdef('public.call_state'::regclass, true) like '%Cancelled%'), false))),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),

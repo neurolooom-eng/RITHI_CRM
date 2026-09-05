@@ -9,11 +9,13 @@ import type { CallState } from './supabase';
 //   Report pending amber   — visited, report not completed
 //   Unattended     blue    — registered, no visit yet
 //   Reopened       amber   — closed, then re-opened by the Hotline
+//   Cancelled      grey    — the call should not exist; kept, not deleted
 //
 // The badge shows the call's EXACT last status ("Solved - Report Completed"),
 // coloured by which of the states above it falls into.
 // ---------------------------------------------------------------------------
 export const STATE_TONE: Record<string, string> = {
+  Cancelled: 'badge-neutral',
   Reopened: 'badge-warning',
   Solved: 'badge-success',
   Unsolved: 'badge-danger',
@@ -22,6 +24,7 @@ export const STATE_TONE: Record<string, string> = {
 };
 
 export const STATE_HINT: Record<string, string> = {
+  Cancelled: 'Cancelled — the call stands as a record, but nobody is going to it',
   Reopened: 'Closed, then re-opened — it needs another visit',
   Solved: 'Last visit closed the call',
   Unsolved: 'Last visit came back unsolved',

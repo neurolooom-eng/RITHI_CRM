@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
@@ -356,12 +356,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // (calls.status is the registration status, which visits never touch — it is
   // the derived call state that says whether the call is finished.)
   const isSolved = (row: Rec) => String(row.callState ?? '') === 'Solved';
+  // A cancelled call is a record, not work: nothing is edited, visited or
+  // ordered against it until somebody restores it.
+  const isCancelled = (row: Rec) => String(row.callState ?? '') === 'Cancelled';
+  const mayCancel = can('calls.cancel');
   // Closed means closed — for admins too. The way back is Re-open, not an
   // exemption, so a call's history cannot gain a visit that never happened.
-  const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row);
+  const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row) && !isCancelled(row);
   // A closed call takes no visit entry and no spare request until re-opened.
-  const canWorkRow = (row: Rec) => !isSolved(row);
-  const canReopen = (row: Rec) => isSolved(row) && !row._pending && (can('pending.register') || can('calls.create'));
+  const canWorkRow = (row: Rec) => !isSolved(row) && !isCancelled(row);
+  const canReopen = (row: Rec) => isSolved(row) && !isCancelled(row) && !row._pending && (can('pending.register') || can('calls.create'));
   // A call re-opened only to correct it is closed again by withdrawing the
   // re-open — entering a visit that never happened is not the way back.
   const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
@@ -681,7 +685,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const engineerCounts = useMemo(() => {
     const c = new Map<string, number>();
     cached.forEach((row) => {
-      const solvedOut = openOnly && row._pending !== true && String(row.callState ?? '') === 'Solved';
+      // Cancelled is not open either — nobody is going to it.
+      const solvedOut = openOnly && row._pending !== true && ['Solved', 'Cancelled'].includes(String(row.callState ?? ''));
       const reopenOut = reopenedOnly && !(Number(row.reopenCount ?? 0) > 0);
       const scopeOut = !(scope.all
         || String(row.allocatedTo ?? '').trim() === ''
@@ -715,7 +720,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // the user's own pending rows). On the sheet path we filter client-side.
     // Open-only: keep anything not fully Solved; a user's own unsynced local
     // rows always stay so they can finish them.
-    const openOk = (row: Rec) => !openOnly || row._pending === true || String(row.callState ?? '') !== 'Solved';
+    const openOk = (row: Rec) => !openOnly || row._pending === true || !['Solved', 'Cancelled'].includes(String(row.callState ?? ''));
     const reopenOk = (row: Rec) => !reopenedOnly || Number(row.reopenCount ?? 0) > 0;
     const engineerOk = (row: Rec) => !engineerFilter || String(row.allocatedTo ?? '').trim() === engineerFilter;
     const r = cached.filter((row) =>
@@ -800,6 +805,50 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
+  // ---- cancelling a call ---------------------------------------------------
+  //
+  // For a call that should not exist: raised twice, the customer rang back, it
+  // went onto the wrong machine. Leaving it open for ever and closing it as
+  // "Solved" are both lies the register then reports on.
+  //
+  // It is not a delete. The row keeps its UCN, its visits and its quality
+  // records; it leaves the open list and reads as Cancelled. And it can be
+  // restored, because a one-way action aimed at a whole register is a bad
+  // thing to hand anybody.
+  const cancel = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    const visited = String(row.lastStatus ?? '').trim() !== '';
+    const reason = prompt(
+      `Cancel call ${ucn}?\n\n`
+      + `It keeps its UCN and everything recorded against it, leaves the open list, and reads as Cancelled. You can restore it.\n`
+      + (visited ? `\nNOTE: this call has been visited (“${row.lastStatus}”). Cancelling does not remove that visit or anything consumed on it.\n` : '')
+      + `\nWhy is it being cancelled?`,
+    );
+    if (reason === null) return;
+    if (!reason.trim()) { setBanner({ tone: 'error', text: 'A cancellation needs a reason.' }); return; }
+    const t0 = performance.now();
+    const res = await cancelCall(ucn, reason.trim());
+    logAudit({ action: 'calls.cancel', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not cancel ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} cancelled — ${reason.trim()}` });
+    setDrawer(null);
+    void refresh();
+  };
+
+  const restore = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    if (!confirm(`Restore ${ucn}? It goes back to the state its visits say, and the cancellation stays on the record.`)) return;
+    const t0 = performance.now();
+    const res = await restoreCall(ucn);
+    logAudit({ action: 'calls.restore', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not restore ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} restored.` });
+    setDrawer(null);
+    void refresh();
+  };
+
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
@@ -820,6 +869,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         {mayReco && !row._pending && (
           <button className="btn btn-sm btn-icon" title="Reconcile — book spares consumed on this call"
             onClick={() => gotoReco(row)}>🧾</button>
+        )}
+        {mayCancel && !row._pending && !isCancelled(row) && (
+          <button className="btn btn-sm btn-icon" title="Cancel this call — it should not exist" onClick={() => void cancel(row)}>🚫</button>
+        )}
+        {mayCancel && isCancelled(row) && (
+          <button className="btn btn-sm btn-icon" title={`Cancelled${row.cancelReason ? ` — ${row.cancelReason}` : ''}. Click to restore it.`} onClick={() => void restore(row)}>♻️</button>
         )}
         {canReopen(row) && (
           <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>
