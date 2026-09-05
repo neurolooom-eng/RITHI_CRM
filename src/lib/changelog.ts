@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.92',
+    date: '2026-09-05',
+    title: 'The Daily Call Review opens on the whole year',
+    changes: [
+      'IT OPENED ON THE LAST 30 DAYS, which made a register holding 3,850 calls show 425 \u2014 and that reads as an upload that failed, not as a filter doing its job. It opens on the whole of the current year now, and starts fresh each January.',
+      'The count beside the title was already the true total for whatever you have filtered to, not the page on screen, so it now shows the year at a glance.',
+      'Worth knowing: the register lists CALLS with their review attached, not reviews. A review whose UC Number has no matching call in the Field Call register cannot appear \u2014 load the calls first.',
+    ],
+  },
+  {
     version: '0.9.91',
     date: '2026-09-05',
     title: 'An administrator can reset a forgotten password',
