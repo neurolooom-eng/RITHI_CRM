@@ -94,3 +94,23 @@ export function parseAnyDate(v: unknown): Date | null {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+// The DAY an instant happened, as the person who was there would name it.
+//
+// `toIsoDate` reads the date out of the string as written, which for a stored
+// timestamp is its UTC date: a request logged at 01:00 IST is written
+// "…T19:30:00+00:00" the day before, and reading the front of that string dates
+// the request to yesterday. Anything carrying an offset or a Z is therefore
+// converted through the browser's own calendar; everything else — a plain
+// `yyyy-mm-dd`, a day-first export — is left to `toIsoDate`, which must not be
+// shifted by a timezone it never had.
+export function localIsoDate(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  if (/[T ]\d{1,2}:\d{2}/.test(s) && /(Z|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+  }
+  return toIsoDate(s);
+}

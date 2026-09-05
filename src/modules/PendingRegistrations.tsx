@@ -9,8 +9,8 @@ import { FIELD_CALL_FIELDS } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
-import { productToCallPrefill } from '../lib/fieldcall';
-import { todayISO } from '../lib/format';
+import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
+import { todayISO, fmtLongDate } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
 import { db } from '../lib/db';
 import { C } from './collections';
@@ -237,7 +237,9 @@ export function PendingRegistrations() {
         customerNumber: g(row, 'CUSTOMER CONTACT Number'),
         emailAddress: g(row, 'E-Mail ID'),
         personCalling: 'DIRECT ENGINEER',
-        complaintDate: g(row, 'Complaint Date') || todayISO(),
+        // NOT today: the day the request is about (see requestCallDate).
+        complaintDate: requestCallDate(row).iso,
+        breakdownDate: requestCallDate(row).iso,
         ...prodFill,
       };
       const config = /install/i.test(g(row, 'CALL TYPE')) ? INST_CONFIG : FIELD_CONFIG;
@@ -643,6 +645,19 @@ function RequestActions({
   );
 }
 
+// The day a call registered from a request is ABOUT (rule in lib/fieldcall.ts),
+// with the sentence the form shows so nobody reads a non-today date as a bug.
+export function requestCallDate(row: Row): { iso: string; why: string } {
+  const d = callDateFromRequest({
+    attended: row['Call Attended?'],
+    attendedDate: row['Attended Date'],
+    loggedAt: row['Timestamp'],
+  });
+  if (d.source === 'attended') return { iso: d.iso, why: `From the request — attended on ${fmtLongDate(d.iso)}` };
+  if (d.source === 'logged') return { iso: d.iso, why: `From the request — logged on ${fmtLongDate(d.iso)}` };
+  return { iso: todayISO(), why: 'The request carries no date, so today is used' };
+}
+
 // ---------------------------------------------------------------------------
 // Split registration view: request details (left) + registration form (right).
 // ---------------------------------------------------------------------------
@@ -665,6 +680,12 @@ function RegisterPanel({
   const [err, setErr] = useState('');
 
   const detailKeys = Object.keys(row).filter((k) => k !== 'id' && !k.startsWith('_') && !/^Page.*Header$/i.test(k) && row[k] != null && String(row[k]).trim() !== '');
+
+  // The two dates come from the REQUEST, so the form says which date and why —
+  // a field that quietly disagrees with today looks like a bug otherwise.
+  const when = requestCallDate(row);
+  const registerFields = masters.inject(buildCreateFields(pf)).map((f) => (
+    f.name === 'complaintDate' || f.name === 'breakdownDate' ? { ...f, help: when.why } : f));
 
   const submit = async (v: FormValues) => {
     setBusy(true); setErr('');
@@ -709,7 +730,7 @@ function RegisterPanel({
             <SchemaForm
               key={pfKey}
               sectionOrderKey="callform"
-              fields={masters.inject(buildCreateFields(pf))}
+              fields={registerFields}
               initial={{ complaintDate: todayISO(), breakdownDate: todayISO(), ...pf }}
               submitLabel={busy ? 'Registering…' : `Register ${config.singular}`}
               onSubmit={submit}
