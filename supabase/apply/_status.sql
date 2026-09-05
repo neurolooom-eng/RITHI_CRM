@@ -269,6 +269,14 @@ with checks(sort_order, bundle, provides, present) as (
                     ilike '%new.uid :=%', false)
      and coalesce(pg_get_functiondef(to_regprocedure('public.spare_request_line_stub_parent()'))
                     ilike '%r.or_no = new.request_uid%', false))),
+    (59, 'hand stock: a level says how much of it was IMPORTED', 'handstock_balance carries hist_net / on_hand_live, so the sheet era can be split out (0102)',
+        exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'handstock_balance'
+                   and column_name = 'on_hand_live')),
+    (60, 'audit trail: a bulk load is ONE event', 'record_audit_fn is statement-level and summarises a bulk write instead of a row each (0103)',
+        (coalesce(pg_get_functiondef(to_regprocedure('public.record_audit_fn()')) like '%BULK %', false)
+     and exists (select 1 from pg_trigger
+                  where tgrelid = 'public.field_calls'::regclass and tgname = 'record_audit_i'))),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),
