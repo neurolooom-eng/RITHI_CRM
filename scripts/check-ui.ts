@@ -281,5 +281,28 @@ console.log('\n-- the day a call registered from a request is about --');
   eq('a day-first export date still reads day-first', localIsoDate('31/08/2026'), '2026-08-31');
 }
 
+// ---------------------------------------------------------------------------
+// THE CALL'S ACTIONS ARE ONE LIST, WRITTEN ONCE.
+//
+// They appear on the row and again at the top of the open call. Written out
+// twice, they drifted: a different order in each place, a third order in the
+// form's footer, and the two newest (cancel / restore) in the row only. A
+// button that moves depending on where you opened the call is one you have to
+// read every time. So each label may appear ONCE in the module — the list —
+// and both places map over it.
+console.log('\n-- the call actions are declared once --');
+{
+  const src = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  ['Visit Entry', 'Request Spares', 'Re-open call', 'Close again', 'Cancel call', 'Restore call']
+    .forEach((label) => {
+      const n = src.split(`label: '${label}'`).length - 1;
+      eq(`"${label}" is declared once`, n, 1);
+      // ...and nowhere else as a button's own text.
+      const loose = src.split(`>${label}<`).length - 1;
+      eq(`"${label}" is not also hand-written as a button`, loose, 0);
+    });
+  eq('both places render the shared list', src.split('callActions(').length - 1 >= 3, true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
