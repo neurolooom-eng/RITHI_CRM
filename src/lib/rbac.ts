@@ -83,6 +83,7 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'install.create', label: 'Create installation calls (Commercial)' },
   { group: 'Calls', key: 'calls.edit', label: 'Edit calls' },
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
+  { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
@@ -137,13 +138,13 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
-  nsm: ['calls.view', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
+  nsm: ['calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['calls.view', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
+  hotline: ['calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
   spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],

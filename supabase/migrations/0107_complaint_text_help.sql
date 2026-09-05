@@ -36,6 +36,15 @@
 -- every value is offered, and taken or ignored by the person writing it.
 -- ===========================================================================
 
+-- pg_trgm, which `similarity` / `word_similarity` / `%` below all need. It is
+-- installed by 0052 — but 0052 is in the `performance` module, which runs LAST,
+-- and this one is in `call_requests`, which runs seventh. So a FRESH apply of
+-- `all.sql` (or of `call_requests.sql` on a database that has not had 0052 yet)
+-- stopped dead here: a `language sql` body is parsed when the function is
+-- created, so the missing operator is an error at apply time, not at run time.
+-- Idempotent, and a no-op on the live project, which has had it since 0052.
+create extension if not exists pg_trgm;
+
 -- ---------------------------------------------------------------------------
 -- The alarm number as this product writes it.
 --

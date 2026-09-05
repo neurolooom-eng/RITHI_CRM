@@ -463,6 +463,27 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **A call can be CANCELLED** (v0.9.83, `0108_call_cancel.sql`) — `cancel_call()`
+  / `restore_call()` gated on the new `calls.cancel` permission (merged into
+  admin, nsm, hotline). `cancelled_at` / `cancel_reason` / `cancelled_by` on all
+  three call tables; `call_state` reads Cancelled AHEAD of Reopened and
+  `pending_calls` excludes it. NOT a delete — visits and quality records are
+  untouched (0049 still stands). `open_state` is deliberately not involved: it
+  is a stored generated column on three tables.
+  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 62 flags it.
+  ⚠️ 0104/0107 now `create extension if not exists pg_trgm` themselves: 0052
+  installs it but sits in `performance`, which runs LAST, so a FRESH `all.sql`
+  died at 0104 (a `language sql` body is parsed at creation, so the missing
+  operator was an apply-time error). Verified: fresh `all.sql` now applies with
+  no errors and `_status.sql` comes back all-yes.
+- **The deploy and the branch preview no longer share a concurrency queue**
+  — both push to `gh-pages`, so one `pages` group looked right, but a QUEUED run
+  is cancelled by any newer arrival in its group whatever that run's own
+  `cancel-in-progress` says. Merging and then syncing the branch (the normal
+  loop) started a preview that killed deploy run #322 eight seconds in, and the
+  site stayed a version behind with nothing to show for it. `pages-deploy` and
+  `pages-preview` now. The cost: a preview and a deploy can push together and
+  the loser is rejected — that lands on the preview, which is disposable.
 - **A call registered from a request is dated to the day it happened** (v0.9.82)
   — `callDateFromRequest()` in `src/lib/fieldcall.ts`: attended date where the
   request was already attended, else the logged instant read through

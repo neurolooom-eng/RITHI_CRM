@@ -116,8 +116,12 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   // Denormalised call state (0014) — rides along with every call the register
   // already loads, so no second query is needed to colour the list.
   // A re-opened call is open again whatever its last visit said (0057).
-  out.callState = row.reopened_at ? 'Reopened' : row.open_state ?? '';
+  // Cancelled first: a call cancelled while it was re-opened is cancelled, and
+  // it is not "Unattended" waiting for somebody to go (0108).
+  out.callState = row.cancelled_at ? 'Cancelled' : row.reopened_at ? 'Reopened' : row.open_state ?? '';
   out.lastStatus = row.last_status ?? '';
+  out.cancelledAt = row.cancelled_at ?? '';
+  out.cancelReason = row.cancel_reason ?? '';
   out.reopenedAt = row.reopened_at ?? '';
   out.reopenCount = Number(row.reopen_count ?? 0);
   out.lastVisitAt = row.last_visit_at ?? '';
@@ -683,7 +687,7 @@ export async function cancelCallRequest(id: number, reason: string, by = ''): Pr
 // A call's state comes from its LATEST visit (view `call_state`, migration
 // 0012): Unattended (no visit yet), Unsolved, Report pending, or Solved.
 // Everything but Solved counts as OPEN.
-export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved' | 'Reopened';
+export type CallState = 'Unattended' | 'Unsolved' | 'Report pending' | 'Solved' | 'Reopened' | 'Cancelled';
 export const OPEN_STATES: CallState[] = ['Unattended', 'Unsolved', 'Report pending'];
 
 export interface OpenCall {
@@ -832,6 +836,27 @@ export async function reopenCall(ucn: string, reason = ''): Promise<{ ok: boolea
 // falls back to what its last visit said; no visit is invented.
 export async function closeReopenedCall(ucn: string, reason = ''): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().rpc('close_reopened_call', { p_ucn: ucn, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---- cancelling a call -----------------------------------------------------
+//
+// A call that should not exist — raised twice, the customer rang back, the
+// wrong machine. It is NOT a delete: the row keeps its UCN, its visits and its
+// quality records, and it reads as Cancelled instead of sitting on the open
+// list for ever or being closed as though somebody had solved something.
+//
+// Admin, NSM and the Hotline by default; it is the `calls.cancel` permission,
+// so an administrator can move it. The database checks that, not this.
+export async function cancelCall(ucn: string, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('cancel_call', { p_ucn: ucn, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// The undo. The reason stays on the row: what was done and then undone is part
+// of the record.
+export async function restoreCall(ucn: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('restore_call', { p_ucn: ucn });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 

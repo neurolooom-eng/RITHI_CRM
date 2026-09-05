@@ -17,8 +17,19 @@ on:
 permissions:
   contents: write
 
+# THE DEPLOY GETS ITS OWN GROUP, and previews must never be in it.
+#
+# Both workflows push to `gh-pages`, so sharing one group looked right — but a
+# run that is still QUEUED is cancelled by ANY newer run entering its group,
+# whatever that run's own cancel-in-progress says. So pushing a branch seconds
+# after merging (which is the normal loop here: merge, then sync the branch)
+# started a preview that killed the deploy before it had a runner. Run #322 was
+# cancelled 8s in and the site silently stayed a version behind.
+#
+# Within THIS group cancelling is still right: a second push to `main` supersedes
+# the build of the first, and only the last one should reach the site.
 concurrency:
-  group: pages
+  group: pages-deploy
   cancel-in-progress: true
 
 jobs:
