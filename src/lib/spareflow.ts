@@ -162,7 +162,14 @@ export function trail(r: SpareReq): TrailEntry[] {
     if (!s(outcome)) return;
     out.push({ stage, outcome: s(outcome), by: s(by), at: s(at), note });
   };
-  push('Raised', r.req_type ?? 'Request', r.req_engineer ?? r.engineer, r.requested_at ?? r.created_at, s(r.remarks) || undefined);
+  // THE DAY THE SPARE WAS ASKED FOR, not the day the row reached the database.
+  // `created_at` defaults to now(), and the importer only fills it when the
+  // export carried a "Raised on" column — so for every request loaded without
+  // one it is the moment of the UPLOAD. Saying "Raised … 03-Sep-2026" about a
+  // request whose OR Req Date is 16-Mar-2026 is simply wrong, and it is wrong
+  // in the audit trail, which is the one place that must not be.
+  push('Raised', r.req_type ?? 'Request', r.req_engineer ?? r.engineer,
+       r.or_req_date ?? r.requested_at ?? r.created_at, s(r.remarks) || undefined);
   const rejectNote = (stage: string) => (s(r.rejected_stage) === stage ? s(r.reject_reason) || undefined : undefined);
   if (s(r.rm_approval) && !/^pending$/i.test(s(r.rm_approval)))
     push('RM Approval', r.rm_approval, r.rm_by, r.rm_at, rejectNote('RM Approval'));

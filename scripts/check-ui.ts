@@ -10,6 +10,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { callDateFromRequest } from '../src/lib/fieldcall';
 import { localIsoDate } from '../src/lib/dates';
+import { trail } from '../src/lib/spareflow';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -302,6 +303,27 @@ console.log('\n-- the call actions are declared once --');
       eq(`"${label}" is not also hand-written as a button`, loose, 0);
     });
   eq('both places render the shared list', src.split('callActions(').length - 1 >= 3, true);
+}
+
+// ---------------------------------------------------------------------------
+// A REQUEST WAS RAISED ON THE DAY IT WAS RAISED, NOT THE DAY IT WAS UPLOADED.
+//
+// `spare_requests.created_at` defaults to now(), and the importer fills it only
+// when the export carried a "Raised on" column — so for every request loaded
+// without one it is the moment of the upload. The audit trail said "Raised …
+// 03-Sep-2026" about a request whose OR Req Date was 16-Mar-2026.
+console.log('\n-- the raised date is the request\'s, not the import\'s --');
+{
+  const raised = (r: Record<string, unknown>) => trail(r).find((e) => e.stage === 'Raised')?.at;
+  eq('the OR Req Date wins over the upload timestamp',
+    raised({ req_type: 'Call Based', engineer: 'X', or_req_date: '2026-03-16', created_at: '2026-09-03T12:00:00Z' }),
+    '2026-03-16');
+  eq('...and is used even when requested_at is also present',
+    raised({ req_type: 'Call Based', engineer: 'X', or_req_date: '2026-03-16', requested_at: '2026-09-03T12:00:00Z' }),
+    '2026-03-16');
+  eq('a request with no OR Req Date still falls back to when it was created',
+    raised({ req_type: 'Call Based', engineer: 'X', created_at: '2026-09-03T12:00:00Z' }),
+    '2026-09-03T12:00:00Z');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

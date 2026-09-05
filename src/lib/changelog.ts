@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.85',
+    date: '2026-09-05',
+    title: 'A spare request was raised on the day it was raised, not the day it was uploaded',
+    changes: [
+      'The approval trail said \u201cRaised \u2014 03-Sep-2026\u201d on a request whose OR Req Date is 16-Mar-2026. 3 September was the day the FILE was loaded: the database stamps a row when it arrives, and the import only carries a raised-on date when the export had that column. The trail reads the OR Req Date now \u2014 the date the request itself carries.',
+      'The \u201cRaised on\u201d line under a spare has gone. It repeated the OR Req Date for a request raised in the app, and for an imported one it quietly showed the upload. When the two genuinely differ you now see \u201cEntered in the system\u201d, which is what that date actually is.',
+    ],
+  },
+  {
     version: '0.9.84',
     date: '2026-09-05',
     title: 'A call\u2019s buttons are in one place, in one order',
