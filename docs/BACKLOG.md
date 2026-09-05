@@ -463,6 +463,16 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **The call form's live lists are injected, not in the schema** (v0.9.80) —
+  Party datalist, the Standard Complaint master with its past-calls suggestions,
+  and the engineer list come from `useCallFieldMasters()` in
+  `src/modules/callFields.tsx`. That injection used to live inside the Field
+  Calls screen, so the **Register panel on a pending request** and the
+  pre-mapping call editor rendered the same schema with none of it: Standard
+  Complaint was a bare text box, "Call Allocated To" was an EMPTY dropdown, and
+  no suggestions appeared. Nothing errored — the boxes were simply empty.
+  `npm run check:ui` now fails any screen that renders the call schema without
+  the injection.
 - Field Call Register — live against the FIELD tab; new calls get a UCN written
   back. Installation Calls — live against INST (same schema, I-type UCN).
 - Call Registration Request: the repeatable unit is a **call** —

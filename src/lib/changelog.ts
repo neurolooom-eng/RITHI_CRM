@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.80',
+    date: '2026-09-05',
+    title: 'Registering a call from a request now has the same lists as New Field Call',
+    changes: [
+      'Registering a call FROM A PENDING REQUEST was missing everything the New Field Call form has: no complaint suggestions, no Standard Complaint dropdown at all (it was a plain text box), an EMPTY \u201cCall Allocated To\u201d list, and no party name suggestions. The two screens are the same form, so they now draw the same lists.',
+      'The lists live in one place now instead of on one screen, and a check refuses any future screen that renders the call form without them \u2014 which is how this went unnoticed: nothing failed, the boxes were just empty.',
+    ],
+  },
+  {
     version: '0.9.79',
     date: '2026-09-05',
     title: 'Cancelling a request asks its own question, and the complaint suggestions stop hiding',

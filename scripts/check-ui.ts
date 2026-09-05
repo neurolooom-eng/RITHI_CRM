@@ -7,6 +7,7 @@ import { mergeDcLines } from '../src/lib/dc';
 import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
+import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -185,6 +186,34 @@ console.log('\n-- document number and revision, read off the file name --');
     JSON.stringify(metaFromFileName('Extend-XT Maintenance Manual.pdf')), '{"docNo":"","revision":""}');
   eq('and neither does an empty name',
     JSON.stringify(metaFromFileName('')), '{"docNo":"","revision":""}');
+}
+
+// ---------------------------------------------------------------------------
+// THE CALL FORM'S LISTS TRAVEL WITH THE CALL FORM.
+//
+// Three screens render the same call schema, and the lists it needs — the
+// Standard Complaint master and its suggestions, the party datalist, the
+// engineers — are injected at render, not held in the schema. Miss the
+// injection on one screen and it renders a bare text box and an EMPTY
+// "Allocated To" dropdown, with no error: that is exactly what the Register
+// panel on a pending request did. So: any form fed the call schema must feed it
+// through `useCallFieldMasters().inject` first.
+console.log('\n-- every screen rendering the call form injects its lists --');
+{
+  const dir = `${process.cwd()}/src/modules/`;
+  const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
+  const uses: string[] = [];
+  files.forEach((f) => {
+    const src = readFileSync(dir + f, 'utf8');
+    src.split('\n').forEach((line, i) => {
+      if (!/FIELD_CALL_FIELDS|buildCreateFields/.test(line)) return;
+      // The definitions and the imports themselves are not renders.
+      if (/^\s*(import|export)\b/.test(line) || /return FIELD_CALL_FIELDS/.test(line)) return;
+      uses.push(`${f}:${i + 1}`);
+      eq(`${f}:${i + 1} injects the masters`, /inject/i.test(line), true);
+    });
+  });
+  eq('the call schema is still rendered somewhere', uses.length > 0, true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

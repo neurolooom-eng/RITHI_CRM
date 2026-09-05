@@ -6,7 +6,7 @@ import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { addFieldCall, listPending, searchProducts, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
 import { FIELD_CALL_FIELDS } from './FieldCalls';
-import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
+import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
 import { productToCallPrefill } from '../lib/fieldcall';
@@ -354,6 +354,7 @@ function RequestActions({
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const editTeam = useTeamEngineers();
+  const callMasters = useCallFieldMasters();
 
   useEffect(() => {
     if (!supabaseConfigured() || !serial) { setHistory([]); return; }
@@ -397,23 +398,13 @@ function RequestActions({
     } finally { setSaving(false); }
   };
 
-  // The register's own fields, with the two lists this drawer has to supply.
-  const editFields = FIELD_CALL_FIELDS.map((f) =>
+  // The register's own fields with the register's own lists — then the allottee
+  // narrowed to who THIS person may allot to, which is the one list this drawer
+  // does not take from the directory at large.
+  const editFields = callMasters.inject(FIELD_CALL_FIELDS).map((f) =>
     f.name === 'allocatedTo'
       ? { ...f, options: editTeam.names.map((n) => ({ value: n, label: n })) }
-      : f.name === 'standardComplaint'
-        ? {
-          ...f,
-          below: ({ values, set }: { values: FormValues; set: (n: string, v: unknown) => void }) => (
-            <ComplaintSuggest
-              reported={String(values.complaintReported ?? '')}
-              product={String(values.productName ?? '')}
-              current={String(values.standardComplaint ?? '')}
-              onPick={(v) => set('standardComplaint', v)}
-            />
-          ),
-        }
-        : f);
+      : f);
 
   // ---- the columns are the reader's to size -------------------------------
   //
@@ -666,6 +657,10 @@ function RegisterPanel({
 }) {
   const [pf, setPf] = useState<FormValues>(prefill);
   const [pfKey, setPfKey] = useState(0);
+  // Registering from a request is the same form as New Field Call, so it gets
+  // the same lists: the Standard Complaint master with its suggestions, the
+  // party datalist, and the engineers. It had none of them.
+  const masters = useCallFieldMasters();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -714,7 +709,7 @@ function RegisterPanel({
             <SchemaForm
               key={pfKey}
               sectionOrderKey="callform"
-              fields={buildCreateFields(pf)}
+              fields={masters.inject(buildCreateFields(pf))}
               initial={{ complaintDate: todayISO(), breakdownDate: todayISO(), ...pf }}
               submitLabel={busy ? 'Registering…' : `Register ${config.singular}`}
               onSubmit={submit}
