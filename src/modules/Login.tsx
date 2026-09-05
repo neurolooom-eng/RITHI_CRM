@@ -3,6 +3,7 @@ import { useAuth } from '../lib/auth';
 import { sbSendPasswordReset, takeRecoveryError, supabaseConfigured } from '../lib/supabase';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import './login.css';
+import { RITHI_LOGO } from '../lib/brand';
 
 export function Login() {
   const { login, setPassword } = useAuth();
@@ -62,7 +63,7 @@ export function Login() {
     <div className="login-page">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-logo">⚕️</div>
+          <img className="login-logo" src={RITHI_LOGO} alt="RITHI CRM" />
           <div>
             <h1>RITHI CRM</h1>
             <div className="muted">Field Service · Medical Domain</div>

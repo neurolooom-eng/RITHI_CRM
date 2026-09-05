@@ -23,14 +23,16 @@
   gap: 14px;
   margin-bottom: 22px;
 }
+/* The mark sits on a WHITE tile, not on the theme's accent: it is navy and
+   teal of its own, and a coloured ground fights it — and would fight it
+   differently in every theme. White works under all of them. */
 .login-logo {
   width: 52px;
   height: 52px;
-  display: grid;
-  place-items: center;
-  font-size: 26px;
-  background: var(--primary);
-  color: var(--text-inverse);
+  object-fit: contain;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--border);
   border-radius: 14px;
 }
 .login-brand h1 {

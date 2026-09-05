@@ -153,6 +153,13 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   (Field Failure Report, KPI & Failure Analysis) are honest placeholders until
   they get a table; the CRUD demo scaffolding (`CrudModule`, `schemas.tsx`,
   `CallExtras`) is gone. Recognise the symptom quickly.
+- **Two marks, from one place.** `src/lib/brand.ts` exports `COMPANY_LOGO`
+  (Air Liquide — anything that leaves the building: Delivery Challan,
+  Declaration) and `RITHI_LOGO` (the app's own chrome: sign-in, menu bar). They
+  are NOT interchangeable: a printed document carries the company's mark, never
+  the application's (user's rule, 2026-09-05). Replacing a logo is replacing one
+  file in `src/assets/`; `npm run check:ui` fails a screen that imports an asset
+  directly or uses the wrong one of the two.
 - **A count over partly-loaded data is a LOWER BOUND and must show `+`.**
   Every register loads in pages, so a chip reading "MAYANK GUPTA 90" over the
   first 800 rows means *at least* 90. A number that looks exact and is not is

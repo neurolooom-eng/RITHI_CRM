@@ -9,6 +9,7 @@ import { MASTER_LISTS, masterListPath } from '../../modules/masterLists';
 import { useModuleCounts, countLabel } from '../../lib/counts';
 import { NotificationBell } from './NotificationBell';
 import './layout.css';
+import { RITHI_LOGO } from '../../lib/brand';
 
 interface NavItem {
   to: string;
@@ -287,7 +288,7 @@ export function Layout({ children }: { children: ReactNode }) {
       {mobileOpen && <div className="sidebar-backdrop" onClick={closeMobile} />}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <span className="sidebar-logo">⚕️</span>
+          <img className="sidebar-logo" src={RITHI_LOGO} alt="RITHI CRM" />
           {!collapsed && (
             <div>
               <div className="sidebar-name">RITHI CRM</div>

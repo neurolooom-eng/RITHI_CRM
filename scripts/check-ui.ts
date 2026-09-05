@@ -356,5 +356,38 @@ console.log('\n-- every count over a partial load carries the + --');
   eq('a group heading renders the +', dt.includes("{n.rows.length}{moreAvailable ? '+' : ''}"), true);
 }
 
+// ---------------------------------------------------------------------------
+// THE TWO MARKS ARE NOT INTERCHANGEABLE.
+//
+// A PRINTED DOCUMENT CARRIES THE COMPANY'S MARK — the Delivery Challan and the
+// Declaration leave the building and go to a customer, who is dealing with Air
+// Liquide, not with a piece of software. The RITHI mark belongs to the app's
+// own chrome: the sign-in page and the menu bar.
+//
+// Both come from `lib/brand.ts`, so replacing a logo is replacing one file. A
+// screen that imports the asset directly is a second copy that a swap would
+// miss, which is the whole thing this is meant to prevent.
+console.log('\n-- the company mark on documents, the app mark on the app --');
+{
+  const read = (f: string) => readFileSync(`${process.cwd()}/${f}`, 'utf8');
+  const files = ['src/modules/DeliveryChallan.tsx', 'src/modules/Declaration.tsx',
+                 'src/modules/Login.tsx', 'src/components/layout/Layout.tsx'];
+  files.forEach((f) => {
+    const src = read(f);
+    eq(`${f.split('/').pop()} takes its logo from lib/brand`, /from '.*lib\/brand'/.test(src), true);
+    eq(`${f.split('/').pop()} does not import the asset directly`, /assets\/(alms-logo|rithi-crm-logo)/.test(src), false);
+  });
+  ['src/modules/DeliveryChallan.tsx', 'src/modules/Declaration.tsx'].forEach((f) => {
+    eq(`${f.split('/').pop()} uses the COMPANY mark`, read(f).includes('COMPANY_LOGO'), true);
+    eq(`${f.split('/').pop()} does NOT use the app mark`, read(f).includes('RITHI_LOGO'), false);
+  });
+  ['src/modules/Login.tsx', 'src/components/layout/Layout.tsx'].forEach((f) => {
+    eq(`${f.split('/').pop()} uses the app mark`, read(f).includes('RITHI_LOGO'), true);
+  });
+  // Only brand.ts reaches for the files themselves.
+  eq('lib/brand is the only importer of the logo files',
+    read('src/lib/brand.ts').includes("assets/alms-logo.jpg") && read('src/lib/brand.ts').includes('assets/rithi-crm-logo.svg'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

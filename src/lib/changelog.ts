@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.88',
+    date: '2026-09-05',
+    title: 'The RITHI mark on the sign-in page and the menu bar',
+    changes: [
+      'The stethoscope emoji standing in for a logo is gone. The RITHI CRM mark is on the sign-in page and at the top of the menu bar, on a white tile so it reads on every theme \u2014 the menu bar is dark, and the mark\u2019s navy would have disappeared into it.',
+      'PRINTED DOCUMENTS ARE UNCHANGED and stay that way: the Delivery Challan and the Declaration carry the Air Liquide mark, because a document going to a customer carries the company\u2019s logo, not the software\u2019s.',
+      'Both logos are now referenced from one place, so changing either is a matter of replacing a single file rather than finding every screen that uses it.',
+    ],
+  },
+  {
     version: '0.9.87',
     date: '2026-09-05',
     title: 'An open call can be closed without a visit entry',
