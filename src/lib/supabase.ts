@@ -1984,6 +1984,10 @@ export async function sbConsumeRecovery(): Promise<{ ok: boolean; error?: string
 
 // Email a reset link. Always reports success: whether an address has an account
 // is not something an unauthenticated form should reveal.
+// NOT CALLED BY ANY SCREEN since the sign-in page stopped offering a
+// self-service reset (v0.9.89): a forgotten password is an administrator's job
+// now. Kept because this is exactly what an admin-side "send a reset link"
+// button would call, and it is the supported way to do it.
 export async function sbSendPasswordReset(email: string): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected to the database.' };
   const redirectTo = `${window.location.origin}${window.location.pathname}`;
