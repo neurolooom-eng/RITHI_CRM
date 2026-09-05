@@ -272,3 +272,19 @@ export function toExportRow(r: ReviewRow, index: number): Record<string, unknown
     age_group: r.age_group ?? '',
   };
 }
+
+// ---------------------------------------------------------------------------
+// THE REGISTER HOLDS THE YEAR, AND STARTS FRESH IN JANUARY.
+//
+// It is a DAILY review, and it used to open on the last 30 days for that
+// reason — which made a register with 3,850 calls in it show 425 and look like
+// the upload had failed. The unit people actually work in is the YEAR: the DCCR
+// folds the whole of it, and the next one starts clean (the user's rule,
+// 2026-09-05).
+//
+// Local date parts, not `toISOString()`: that is UTC, and on 1 January before
+// 05:30 IST it would still be saying last year.
+// ---------------------------------------------------------------------------
+export function yearStartISO(now: Date = new Date()): string {
+  return `${now.getFullYear()}-01-01`;
+}

@@ -12,6 +12,7 @@ import { callDateFromRequest } from '../src/lib/fieldcall';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
+import { yearStartISO } from '../src/lib/dccr';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -416,6 +417,26 @@ console.log('\n-- the generated password --');
   [0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13].forEach((i) => {
     eq(`position ${i} is not fixed`, new Set(many.map((p) => p[i])).size > 1, true);
   });
+}
+
+// ---------------------------------------------------------------------------
+// THE DCCR HOLDS THE YEAR, AND STARTS FRESH IN JANUARY.
+//
+// It opened on the last 30 days, being a DAILY review — which made a register
+// holding 3,850 calls show 425 and read as an upload that had failed. The unit
+// people work in is the year.
+//
+// The trap here is `toISOString()`, which is UTC: on 1 January before 05:30 IST
+// it still says last year, and the register would open on a year that has ended
+// on the one day it matters most.
+console.log('\n-- the review register opens on the whole year --');
+{
+  eq('mid-year', yearStartISO(new Date(2026, 8, 5)), '2026-01-01');
+  eq('1 January', yearStartISO(new Date(2027, 0, 1)), '2027-01-01');
+  eq('31 December is still that year', yearStartISO(new Date(2026, 11, 31)), '2026-01-01');
+  // 1 January 00:30 IST is 31 December 19:00 UTC — the case toISOString gets wrong.
+  eq('the small hours of 1 January read as the NEW year',
+    yearStartISO(new Date(2027, 0, 1, 0, 30)), '2027-01-01');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

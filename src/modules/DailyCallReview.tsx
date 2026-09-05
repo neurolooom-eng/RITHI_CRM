@@ -13,7 +13,7 @@ import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
-  SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow,
+  SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
 import './dccr.css';
@@ -56,7 +56,6 @@ const OPT = (arr: string[]) => ['', ...arr];
 // and a stalled screen.
 const PAGE = 500;
 
-const daysAgoISO = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 export function DailyCallReview() {
   const { user, can } = useAuth();
@@ -85,9 +84,11 @@ export function DailyCallReview() {
   // ---- filters -------------------------------------------------------------
   // Every one of these is applied by the DATABASE, and the register is read a
   // page at a time — the whole register is far too much to pull down at once.
-  // It opens on the last 30 days because it is a DAILY review; widen the dates
-  // (or clear them) to go further back.
-  const [from, setFrom] = useState(daysAgoISO(30));
+  // IT OPENS ON THE WHOLE OF THIS YEAR. It is a daily review, but the register
+  // it keeps is the year's — and the next year starts fresh. Opening on the
+  // last 30 days made a register holding 3,850 calls show 425, which reads as
+  // an upload that failed rather than a filter that is doing its job.
+  const [from, setFrom] = useState(yearStartISO());
   const [to, setTo] = useState('');
   const [status, setStatus] = useState('');
   const [product, setProduct] = useState('');
@@ -96,7 +97,7 @@ export function DailyCallReview() {
   const [search, setSearch] = useState('');
   // What the loaded page set was actually read with, so Load more keeps asking
   // for the same thing while the boxes are being typed in.
-  const [applied, setApplied] = useState<ReviewFilter>({ from: daysAgoISO(30) });
+  const [applied, setApplied] = useState<ReviewFilter>({ from: yearStartISO() });
 
   // The pick-lists. Read once from the whole register (the summary view, which
   // has no per-call lookups) rather than from whatever page is loaded — a
