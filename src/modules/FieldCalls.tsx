@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
 import { useAuth } from '../lib/auth';
 import { allowsAllottee, scopeLabel, useAccessScope, useRegionByEngineer, useTeamEngineers } from '../lib/access';
-import { useMaster } from '../lib/masters';
 import { CallReportDrawer } from './CallReporting';
 import { useNavigate } from 'react-router-dom';
 import { SpareRequestDrawer } from './SpareRequests';
 import { CallAssociations } from './CallAssociations';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { SchemaForm, type FieldDef, type FormValues, type FieldOption } from '../components/form/Form';
+import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
-import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, setEngineerNamesCache, timeAgo, todayISO } from '../lib/format';
+import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -25,8 +24,8 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall, reallocateCalls, sbLogComplaintSuggestion, type ComplaintSuggestion } from '../lib/supabase';
-import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
+import { useCallFieldMasters } from './callFields';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -368,91 +367,11 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
   const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && (can('pending.register') || can('calls.create'));
   const scope = useAccessScope();
-  // Master-driven suggestions for the intake form (live from the sheets).
-  const partyMaster = useMaster('party');
-  const complaintMaster = useMaster('complaint');
+  // Party datalist, the Standard Complaint master + its suggestions, and the
+  // engineer list — shared with the Register panel and the pre-mapping editor
+  // in Pending Registrations, which are the same form (see callFields.tsx).
+  const { inject: injectMasters, offered: offeredComplaints } = useCallFieldMasters();
 
-  // "Call Allocated To" options come from the User Master, not demo users:
-  // the directory names (user_directory) plus the real login profiles, deduped.
-  // The value itself is prefilled from Party Master (Service Engineer) or the
-  // request — this list is the fallback set to pick / change from.
-  const [engineerNames, setEngineerNames] = useState<FieldOption[]>([]);
-  useEffect(() => {
-    let alive = true;
-    const fromProfiles = users.map((u) => (u.fullName || '').trim()).filter(Boolean);
-    const build = (dir: string[]) => {
-      const seen = new Set<string>();
-      const out: FieldOption[] = [];
-      [...dir, ...fromProfiles].forEach((n) => {
-        const v = n.trim(); const k = v.toLowerCase();
-        if (v && !seen.has(k)) { seen.add(k); out.push({ value: v, label: v }); }
-      });
-      out.sort((a, b) => String(a.label).localeCompare(String(b.label)));
-      return out;
-    };
-    const apply = (opts: FieldOption[]) => { setEngineerNames(opts); setEngineerNamesCache(opts.map((o) => String(o.value))); };
-    if (!supabaseConfigured()) { apply(build([])); return; }
-    void sbDirectoryNames().then((dir) => { if (alive) apply(build(dir)); }).catch(() => { if (alive) apply(build([])); });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users]);
-
-  // Standard Complaint is a MASTER list, so it is CHOSEN, not typed. The select
-  // renderer keeps a value the record already carries even when it is not on the
-  // list, so an imported call is never silently rewritten by opening it.
-  //
-  // When the master has no values the field falls back to free text and SAYS
-  // why. A picker that is simply empty looks like a broken screen; the thing to
-  // fix is the list, and the form should point at it. (The go-live reset
-  // TRUNCATES `masters`, so every value list comes back empty until it is
-  // re-loaded — that is what this note is usually telling you.)
-  // What was offered on this form, so what is ultimately CHOSEN can be compared
-  // with it. Held in a ref rather than state: it must not re-render the form,
-  // and it is read once, at submit.
-  const offeredComplaints = useRef<ComplaintSuggestion[]>([]);
-
-  // FIVE HUNDRED AND SEVEN values in that dropdown, of which any one product has
-  // ever used about sixty. The register already knows what was chosen the last
-  // dozen times somebody described this fault in these words — so it offers,
-  // and the person decides.
-  //
-  // THE SUGGESTIONS ARE ATTACHED WHETHER OR NOT THE MASTER LOADED. They come
-  // from past CALLS, not from the master, so they are valid values either way —
-  // and a master that has not loaded is precisely when somebody needs the help
-  // most. Attaching them only to the dropdown, as this first did, meant the
-  // field fell back to free text and silently lost them.
-  const complaintSuggestions: FieldDef['below'] = ({ values, set }) => (
-    <ComplaintSuggest
-      reported={String(values.complaintReported ?? '')}
-      product={String(values.productName ?? '')}
-      current={String(values.standardComplaint ?? '')}
-      onPick={(v) => set('standardComplaint', v)}
-      onOffer={(l) => { offeredComplaints.current = l; }}
-    />
-  );
-
-  const complaintField = (f: FieldDef): FieldDef =>
-    complaintMaster.values.length
-      ? {
-        ...f,
-        type: 'select' as const,
-        options: OPT(complaintMaster.values),
-        below: complaintSuggestions,
-      }
-      : {
-        ...f,
-        below: complaintSuggestions,
-        help: complaintMaster.ready
-          ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists. The suggestions below still work: they come from past calls.'
-          : 'Loading the Standard Complaint master…',
-      };
-
-  const injectMasters = (fs: FieldDef[]) =>
-    fs.map((f) =>
-      f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
-        : f.name === 'standardComplaint' ? complaintField(f)
-          : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
-            : f);
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   // Engineers default to seeing only OPEN calls (anything not fully Solved),
   // keeping their register small; a toggle reveals closed ones. Everyone else
