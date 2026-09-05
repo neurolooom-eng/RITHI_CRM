@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.82',
+    date: '2026-09-05',
+    title: 'A call registered from a request is dated to the day it happened',
+    changes: [
+      'Complaint Date and Breakdown Date on the Register panel were defaulting to TODAY \u2014 so a request the engineer raised on the 31st became a call dated the 5th, the day the hotline got round to it. They now come from the request: the ATTENDED DATE where the call was already attended, otherwise the day the request was logged.',
+      'The form says which and why (\u201cFrom the request \u2014 logged on 31 August 2026\u201d), so a date that is not today does not read as a bug. It is still editable.',
+      'Registering through New Field Call is unchanged \u2014 there is no request to take a date from, so today is right.',
+    ],
+  },
+  {
     version: '0.9.81',
     date: '2026-09-05',
     title: 'The complaint text gets the register\u2019s own house style',

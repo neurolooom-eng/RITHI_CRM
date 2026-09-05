@@ -463,6 +463,12 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **A call registered from a request is dated to the day it happened** (v0.9.82)
+  — `callDateFromRequest()` in `src/lib/fieldcall.ts`: attended date where the
+  request was already attended, else the logged instant read through
+  `localIsoDate()` (the browser's calendar, not the front of the UTC string).
+  Complaint Date and Breakdown Date both take it, and the form shows which and
+  why. New Field Call still defaults to today. Pinned by `npm run check:ui`.
 - **Reported Problem keeps the house style** (v0.9.81, `0107_complaint_text_help.sql`)
   — `suggest_complaint_text()` offers the alarm number in the PRODUCT'S own
   spelling (the alarm lists already curated per product in the `dccrgrouping`

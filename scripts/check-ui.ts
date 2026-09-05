@@ -8,6 +8,8 @@ import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
+import { callDateFromRequest } from '../src/lib/fieldcall';
+import { localIsoDate } from '../src/lib/dates';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -241,6 +243,42 @@ console.log('\n-- the alarm number, however it was typed --');
     'Alarm 012 then al 45 came up');
   eq('a text with no alarm is left exactly as it was',
     withAlarm('leak from air inlet', 'Alarm 012'), 'leak from air inlet');
+}
+
+// ---------------------------------------------------------------------------
+// A CALL REGISTERED FROM A REQUEST IS ABOUT THE DAY IT HAPPENED, NOT TODAY.
+//
+// The engineer raised the request on the 31st; the hotline registers it on the
+// 5th. Complaint Date defaulted to today, so every such call was dated to the
+// day somebody found time for it.
+console.log('\n-- the day a call registered from a request is about --');
+{
+  const d = (r: Parameters<typeof callDateFromRequest>[0]) => {
+    const g = callDateFromRequest(r);
+    return `${g.iso}/${g.source}`;
+  };
+  eq('not attended -> the day the request was logged',
+    d({ loggedAt: '2026-08-31T07:11:00+00:00' }), '2026-08-31/logged');
+  eq('attended -> the day the engineer was there, not the logged day',
+    d({ attended: 'Yes', attendedDate: '2026-09-01', loggedAt: '2026-08-31T07:11:00+00:00' }),
+    '2026-09-01/attended');
+  eq('attended flag with no date falls back to the logged day',
+    d({ attended: 'Yes', attendedDate: '', loggedAt: '2026-08-31T07:11:00+00:00' }),
+    '2026-08-31/logged');
+  eq('an attended date with the flag unset is NOT used',
+    d({ attended: '', attendedDate: '2026-09-01', loggedAt: '2026-08-31T07:11:00+00:00' }),
+    '2026-08-31/logged');
+  eq('nothing readable -> the caller falls back to today',
+    d({}), '/none');
+  // The timezone trap: read as written, a request logged at 01:00 IST dates to
+  // the day before, because it is stored as the previous day in UTC.
+  const late = new Date('2026-08-31T19:30:00Z');   // 01:00 IST on 1 September
+  eq('an instant is dated by the local calendar, not by the front of the string',
+    localIsoDate(late.toISOString()),
+    `${late.getFullYear()}-${String(late.getMonth() + 1).padStart(2, '0')}-${String(late.getDate()).padStart(2, '0')}`);
+  // A plain date carries no timezone and must not be shifted by one.
+  eq('a plain yyyy-mm-dd is left exactly as it is', localIsoDate('2026-08-31'), '2026-08-31');
+  eq('a day-first export date still reads day-first', localIsoDate('31/08/2026'), '2026-08-31');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

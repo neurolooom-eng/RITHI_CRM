@@ -6,6 +6,8 @@
 // connector (src/lib/sheets.ts) and the Field Call module UI.
 // ---------------------------------------------------------------------------
 
+import { toIsoDate, localIsoDate } from './dates';
+
 // Ordered exactly as the columns appear in the FIELD tab of the register.
 export const FIELD_HEADERS: { header: string; key: string }[] = [
   { header: 'UC Number', key: 'ucn' },
@@ -154,4 +156,41 @@ export function toSheetDate(value: unknown): string {
     'July', 'August', 'September', 'October', 'November', 'December',
   ];
   return `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
+}
+
+// ---------------------------------------------------------------------------
+// WHAT DAY IS A CALL REGISTERED FROM A REQUEST ABOUT?
+//
+// It is keyed in DAYS after the thing it describes — the engineer raised the
+// request on the 31st and the hotline gets to it on the 5th. Defaulting
+// Complaint Date to today dated every such call to the day somebody found time
+// for it, which is not a fact about the machine.
+//
+// The request answers it (the user's rule, 2026-09-05):
+//   • already attended → the ATTENDED DATE, the day the engineer was there
+//   • otherwise        → the day the request was LOGGED
+//   • neither readable → nothing, and the caller falls back to today, which is
+//                        the New Field Call answer
+//
+// Breakdown Date takes the same day: the request carries one date for the
+// event, and inventing a second one would be a guess.
+//
+// Kept here, with no imports beyond the date parser, so `npm run check:ui` can
+// pin the rule itself rather than the screen that renders it.
+// ---------------------------------------------------------------------------
+
+export type CallDateSource = 'attended' | 'logged' | 'none';
+
+export function callDateFromRequest(r: {
+  attended?: unknown; attendedDate?: unknown; loggedAt?: unknown;
+}): { iso: string; source: CallDateSource } {
+  const isAttended = /^(y|yes|true|1|attended)$/i.test(String(r.attended ?? '').trim());
+  const attendedOn = isAttended ? toIsoDate(r.attendedDate) : null;
+  if (attendedOn) return { iso: attendedOn, source: 'attended' };
+  // `localIsoDate`, not `toIsoDate`: `submitted_at` is a real instant, and
+  // reading the front of "…T19:30:00+00:00" would date a 01:00 IST request to
+  // the day before.
+  const logged = localIsoDate(r.loggedAt);
+  if (logged) return { iso: logged, source: 'logged' };
+  return { iso: '', source: 'none' };
 }
