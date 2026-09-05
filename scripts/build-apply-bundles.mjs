@@ -120,6 +120,8 @@ const MODULES = {
       '0058_close_reopened_call.sql',
       '0083_request_status_from_ucn.sql',
       '0097_call_reqid_continues.sql',
+      '0104_complaint_suggestions.sql',
+      '0105_calls_view_security_invoker.sql',
     ],
   },
   sla: {
@@ -299,7 +301,7 @@ const MODULES = {
             'Writing needs the `cover.edit` action; the bundle grants it to admin,',
             'commercial and nsm so an existing project keeps working.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0080_ownership_extra.sql', '0077_upsert_targets.sql'],
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0080_ownership_extra.sql', '0077_upsert_targets.sql', '0106_cover_views_security_invoker.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

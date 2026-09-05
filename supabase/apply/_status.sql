@@ -269,6 +269,18 @@ with checks(sort_order, bundle, provides, present) as (
                     ilike '%new.uid :=%', false)
      and coalesce(pg_get_functiondef(to_regprocedure('public.spare_request_line_stub_parent()'))
                     ilike '%r.or_no = new.request_uid%', false))),
+    (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
+        coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                    from pg_class where oid = 'public.calls'::regclass), false)),
+    (57, 'cover views: row-level security actually applies', 'warranty_sale_details / contract_details read as the reader (0106)',
+        not exists (
+          select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'public' and c.relkind = 'v'
+             and c.relname in ('warranty_sale_details', 'contract_details')
+             and coalesce(array_to_string(c.reloptions, ',') not like '%security_invoker=on%', true))),
+    (58, 'call registration: the complaint suggests itself', 'suggest_standard_complaint() + the offered/accepted log (0104)',
+        (to_regprocedure('public.suggest_standard_complaint(text,text,int)') is not null
+     and to_regclass('public.complaint_suggestions') is not null)),
     (47, 'performance: JIT is OFF', 'the Hand Stock timeout -- 3.7s COMPILING a query that runs in 174ms (0099)',
         exists (select 1 from pg_db_role_setting s
                   join pg_database d on d.oid = s.setdatabase

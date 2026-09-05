@@ -546,7 +546,19 @@ export async function resolveDriveLinks(
 }
 
 // Patch an existing call by UCN (record keyed by app keys).
+//
+// IT WENT TO THE SHEET EVEN WHEN THE DATABASE WAS CONNECTED. Every sibling here
+// delegates — addFieldCall, listFieldCalls, listParties, searchProducts — and
+// this one did not, so on a Supabase project an EDIT was posted to the Apps
+// Script bridge: at best it failed and said "Update failed", at worst it wrote
+// to a sheet nothing reads any more while the database kept the old value.
+// Creating a call worked, editing one did not, which is exactly the kind of
+// asymmetry nobody goes looking for.
 export async function updateFieldCall(ucn: string, patch: Record<string, unknown>, tab = ''): Promise<AddResult> {
+  if (sb.supabaseConfigured()) {
+    const r = await sb.updateCall(ucn, patch);
+    return r.ok ? { ok: true, ucn } : { ok: false, error: r.error };
+  }
   const params: Record<string, string> = { action: 'update', ucn, patch: JSON.stringify(recordToRow(patch)) };
   if (tab) params.tab = tab;
   const r = await getJson(params);

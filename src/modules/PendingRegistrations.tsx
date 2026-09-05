@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { addFieldCall, listPending, searchProducts, setPendingUcn, dataConfigured } from '../lib/sheets';
+import { addFieldCall, listPending, searchProducts, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
+import { FIELD_CALL_FIELDS } from './FieldCalls';
+import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
+import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
 import { useMaster } from '../lib/masters';
 import { productToCallPrefill } from '../lib/fieldcall';
@@ -344,6 +347,16 @@ function RequestActions({
   const serial = g(row, 'SERIAL NO', 'Serial').trim();
   const [history, setHistory] = useState<MachineCall[] | null>(null);
   const [histErr, setHistErr] = useState('');
+  // A call open on this machine often needs the failure details filling in
+  // BEFORE the request is mapped onto it — otherwise the request is closed out
+  // against a call that does not yet say what happened. So the third pane
+  // becomes the editor for one call and comes back when it is saved.
+  const [editing, setEditing] = useState<{ ucn: string; values: FormValues } | null>(null);
+  const [editErr, setEditErr] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [reload, setReload] = useState(0);
+  const editTeam = useTeamEngineers();
+
   useEffect(() => {
     if (!supabaseConfigured() || !serial) { setHistory([]); return; }
     let cancelled = false;
@@ -352,7 +365,57 @@ function RequestActions({
       .then((r) => { if (!cancelled) setHistory(r); })
       .catch((e) => { if (!cancelled) { setHistory([]); setHistErr(e instanceof Error ? e.message : String(e)); } });
     return () => { cancelled = true; };
-  }, [product, serial]);
+  }, [product, serial, reload]);
+
+  const openEditor = async (ucn: string) => {
+    setEditErr(''); setSaving(true);
+    try {
+      const row = await callByUcn(ucn);
+      if (!row) { setEditErr(`Could not load ${ucn}.`); return; }
+      setEditing({ ucn, values: row as FormValues });
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : String(e));
+    } finally { setSaving(false); }
+  };
+
+  const saveEdit = async (values: FormValues) => {
+    if (!editing) return;
+    setSaving(true); setEditErr('');
+    try {
+      // Only what actually CHANGED is sent. A call is a quality record and the
+      // audit trail keeps a before/after image of it; writing back forty fields
+      // that nobody touched makes that image unreadable.
+      const patch: Record<string, unknown> = {};
+      Object.entries(values).forEach(([k, v]) => {
+        if (String(v ?? '') !== String(editing.values[k] ?? '')) patch[k] = v;
+      });
+      if (!Object.keys(patch).length) { setEditing(null); return; }
+      const res = await updateFieldCall(editing.ucn, patch);
+      if (!res.ok) { setEditErr(res.error ?? 'Could not save the call.'); return; }
+      setEditing(null);
+      setReload((n) => n + 1);   // the list re-reads, so the change shows
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : String(e));
+    } finally { setSaving(false); }
+  };
+
+  // The register's own fields, with the two lists this drawer has to supply.
+  const editFields = FIELD_CALL_FIELDS.map((f) =>
+    f.name === 'allocatedTo'
+      ? { ...f, options: editTeam.names.map((n) => ({ value: n, label: n })) }
+      : f.name === 'standardComplaint'
+        ? {
+          ...f,
+          below: ({ values, set }: { values: FormValues; set: (n: string, v: unknown) => void }) => (
+            <ComplaintSuggest
+              reported={String(values.complaintReported ?? '')}
+              product={String(values.productName ?? '')}
+              current={String(values.standardComplaint ?? '')}
+              onPick={(v) => set('standardComplaint', v)}
+            />
+          ),
+        }
+        : f);
 
   // ---- the columns are the reader's to size -------------------------------
   //
@@ -506,14 +569,40 @@ function RequestActions({
         <section className="reg-split-third">
           <div className="reg-split-head">
             <span>
-              🩺 This machine{history && history.length ? ` · ${history.length}` : ''}
+              {editing
+                ? <>✎ Editing {editing.ucn}</>
+                : <>🩺 This machine{history && history.length ? ` · ${history.length}` : ''}</>}
             </span>
-            <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+            {editing
+              ? <button className="btn btn-ghost btn-sm" disabled={saving} onClick={() => { setEditing(null); setEditErr(''); }}>← Back</button>
+              : <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>}
           </div>
           <div className="reg-split-body">
+            {editing ? (
+              <>
+                {/* The call is edited HERE, in the pane the machine's history
+                    was in, and the pane comes back when it is saved — so the
+                    request being actioned never leaves the screen and the Map
+                    button is still there when you return. */}
+                <div className="detail-hint" style={{ marginBottom: 10 }}>
+                  Fill in what this call needs, save, and you are back with the list — then map the request onto it.
+                </div>
+                {editErr && <div className="sheet-banner sheet-banner-error"><span>{editErr}</span></div>}
+                <SchemaForm
+                  fields={editFields}
+                  initial={editing.values}
+                  columns={1}
+                  submitLabel={saving ? 'Saving…' : 'Save call'}
+                  onSubmit={(v) => void saveEdit(v)}
+                  onCancel={() => { setEditing(null); setEditErr(''); }}
+                />
+              </>
+            ) : (
+            <>
             <div className="detail-hint" style={{ marginBottom: 10 }}>
               {product || '—'}{serial ? ` · ${serial}` : ''}
             </div>
+            {editErr && <div className="sheet-banner sheet-banner-error"><span>{editErr}</span></div>}
 
             {!serial ? (
               <div className="detail-hint">This request carries no serial number, so there is no machine to look up.</div>
@@ -533,10 +622,19 @@ function RequestActions({
                       <span className="muted">{c.callType} · {c.regDate || '—'} · {c.allocatedTo || 'unallocated'}</span>
                       {c.complaint && <div className="muted req-open-cmp">{c.complaint}</div>}
                     </div>
-                    <button className="btn btn-sm" disabled={!canAct || busy} onClick={() => onMap(c.ucn)}>Map</button>
+                    <div className="row" style={{ gap: 6, flexShrink: 0 }}>
+                      {/* Edit BEFORE mapping: an open call often needs the
+                          failure details filling in first, and mapping a
+                          request onto a call that does not yet say what
+                          happened is how the detail gets lost. */}
+                      <button className="btn btn-sm btn-ghost" disabled={saving} onClick={() => void openEditor(c.ucn)}>✎ Edit</button>
+                      <button className="btn btn-sm" disabled={!canAct || busy} onClick={() => onMap(c.ucn)}>Map</button>
+                    </div>
                   </div>
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
         </section>

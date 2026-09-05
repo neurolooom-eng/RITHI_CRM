@@ -44,6 +44,12 @@ export interface FieldDef {
   readOnly?: boolean;
   // Free-text field with autocomplete suggestions (e.g. from a Master sheet).
   datalist?: string[];
+  // Something INTERACTIVE under the field — a suggestion the person can accept,
+  // which `help` cannot be because it is only a string. Given the form's current
+  // values and its setter, so a field can offer to fill itself from what has
+  // been typed elsewhere on the form without the form growing a special case
+  // for that one field.
+  below?: (ctx: { values: FormValues; set: (name: string, value: unknown) => void }) => ReactNode;
   validate?: (value: unknown, values: Record<string, unknown>) => string | null;
 }
 
@@ -239,6 +245,7 @@ export function SchemaForm({
                   />
                   {f.help && !err && <div className="field-help">{f.help}</div>}
                   {err && <div className="field-err">{err}</div>}
+                  {f.below?.({ values, set: setValue })}
                 </div>
               );
             })}

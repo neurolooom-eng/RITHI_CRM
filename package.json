@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.77",
+  "version": "0.9.78",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -15,7 +15,8 @@
     "check:safe-updates": "node scripts/check-safe-updates.mjs",
     "check:columns": "esbuild scripts/check-upload-columns.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-upload-columns.mjs --log-level=error && node node_modules/.cache/check-upload-columns.mjs",
     "check:ui": "esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs",
-    "check:bundles": "node scripts/check-bundles.mjs"
+    "check:bundles": "node scripts/check-bundles.mjs",
+    "check:views": "node scripts/check-views.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

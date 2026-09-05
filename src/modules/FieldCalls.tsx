@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
@@ -25,7 +25,8 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall, reallocateCalls } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, sbDirectoryNames, reopenCall, closeReopenedCall, reallocateCalls, sbLogComplaintSuggestion, type ComplaintSuggestion } from '../lib/supabase';
+import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -405,9 +406,30 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // fix is the list, and the form should point at it. (The go-live reset
   // TRUNCATES `masters`, so every value list comes back empty until it is
   // re-loaded — that is what this note is usually telling you.)
+  // What was offered on this form, so what is ultimately CHOSEN can be compared
+  // with it. Held in a ref rather than state: it must not re-render the form,
+  // and it is read once, at submit.
+  const offeredComplaints = useRef<ComplaintSuggestion[]>([]);
+
   const complaintField = (f: FieldDef): FieldDef =>
     complaintMaster.values.length
-      ? { ...f, type: 'select' as const, options: OPT(complaintMaster.values) }
+      ? {
+        ...f,
+        type: 'select' as const,
+        options: OPT(complaintMaster.values),
+        // FIVE HUNDRED AND SEVEN values in that dropdown. The register already
+        // knows what was chosen the last dozen times somebody described this
+        // fault in these words — so it offers, and the person decides.
+        below: ({ values, set }) => (
+          <ComplaintSuggest
+            reported={String(values.complaintReported ?? '')}
+            product={String(values.productName ?? '')}
+            current={String(values.standardComplaint ?? '')}
+            onPick={(v) => set('standardComplaint', v)}
+            onOffer={(l) => { offeredComplaints.current = l; }}
+          />
+        ),
+      }
       : {
         ...f,
         help: complaintMaster.ready
@@ -622,6 +644,21 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         const res = await addFieldCall(rec, config.tab);
         if (res.ok && res.record) {
           logAudit({ action: 'call.create', target: String(res.ucn), status: 'ok', duration_ms: dur(), meta: { callType: config.callType } });
+          // WHAT WAS OFFERED AND WHAT WAS TAKEN. Written once the call exists,
+          // so the row can name the UCN it belongs to, and never allowed to
+          // fail the registration: the log serves the feature, not the reverse.
+          if (offeredComplaints.current.length) {
+            const offered = offeredComplaints.current;
+            offeredComplaints.current = [];
+            void sbLogComplaintSuggestion({
+              product: String(rec.productName ?? ''),
+              reported: String(rec.complaintReported ?? ''),
+              ucn: String(res.ucn ?? ''),
+              suggested: offered.map((o) => ({ value: o.value, why: o.why, source: o.source })),
+              accepted: offered.some((o) => o.value === String(rec.standardComplaint ?? ''))
+                ? String(rec.standardComplaint ?? '') : '',
+            });
+          }
           db.insert(config.collection, { ...res.record, id: String(res.ucn), _synced: true, ownerId: user?.id });
           // If this came from a pending CRN request, back-fill the UCN there.
           if (pendingRow != null && res.ucn) {

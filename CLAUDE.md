@@ -92,6 +92,16 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
+- **`create or replace view` DROPS `security_invoker`, and a view without it
+  reads as its OWNER — so row-level security stops applying to whoever is
+  reading, with no error and no warning.** 0040 set it on `calls`, 0050
+  re-created the view and set it again, 0057 re-created it and did not: every
+  signed-in user could read every call. `pending_calls` and `call_state` carry
+  the setting themselves and leaked anyway, because a view marked invoker that
+  reads a view running as its owner inherits the owner's reach — marking the
+  outer view is no protection. `npm run check:views -- "<psql args>"` fails on
+  any view over an RLS-protected table that lacks it. Re-assert it on EVERY
+  rebuild, in the bundle that defines the view.
 - **A bundle must carry the LATEST definition of everything it defines.** The
   bundles are replayed ONE AT A TIME, not only as a set, so if module A creates
   a function and module B redefines it, running `A.sql` alone puts the old

@@ -307,6 +307,92 @@ export async function sbListPartyProducts(party: string): Promise<string[]> {
   if (error) throw new Error(errMsg(error));
   return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
 }
+// ---- Suggesting the Standard Complaint -------------------------------------
+//
+// TWO LAYERS, and the screen works with only the first.
+//
+//   1. `suggest_standard_complaint()` (0104) ranks candidates by what people
+//      actually CHOSE on past calls whose reported problem reads like this one.
+//      A decision somebody made beats anything inferred from words, so this
+//      answers first and always.
+//   2. The `suggest-complaint` Edge Function asks a model to re-rank those same
+//      candidates. It exists for the case layer 1 cannot reach — a genuine
+//      paraphrase — and it can only CHOOSE among the candidates it is given, so
+//      it cannot invent a complaint that is not in the master.
+//
+// If the function is not deployed, has no key, or fails for any reason, layer 1
+// stands on its own and the screen says nothing about it.
+export interface ComplaintSuggestion {
+  value: string;
+  chosen: number;
+  score: number;
+  why: string;
+  source: 'register' | 'ai';
+}
+
+export async function sbSuggestComplaints(
+  reported: string, product = '', limit = 5,
+): Promise<ComplaintSuggestion[]> {
+  const text = reported.trim();
+  if (text.length < 3) return [];
+  const { data, error } = await must().rpc('suggest_standard_complaint', {
+    p_text: text, p_product: product, p_limit: limit,
+  });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    value: String(r.value ?? ''),
+    chosen: Number(r.chosen ?? 0),
+    score: Number(r.score ?? 0),
+    why: String(r.why ?? ''),
+    source: 'register' as const,
+  })).filter((s: ComplaintSuggestion) => s.value);
+}
+
+// The model's re-ranking of candidates the register already produced. Returns
+// [] for every failure — no key, not deployed, a bad reply — because a
+// suggestion that cannot be made is not an error the person needs to see.
+export async function sbAiRankComplaints(
+  reported: string, product: string, candidates: string[],
+): Promise<ComplaintSuggestion[]> {
+  const c = getSupabase();
+  if (!c || !candidates.length) return [];
+  try {
+    const { data, error } = await c.functions.invoke('suggest-complaint', {
+      body: { reported, product, candidates },
+    });
+    if (error) return [];
+    const picks = (data as { picks?: { value: string; why: string }[] } | null)?.picks ?? [];
+    const allowed = new Set(candidates);
+    return picks
+      .filter((p) => allowed.has(p.value))   // the list is the law, on this side too
+      .map((p) => ({ value: p.value, chosen: 0, score: 0, why: p.why, source: 'ai' as const }));
+  } catch {
+    return [];
+  }
+}
+
+// What was offered and what was taken — so the accept rate can be READ rather
+// than assumed, and so "is the model adding anything the register did not
+// already give us" has an answer. Never allowed to fail the registration it
+// describes: a log that breaks the thing it is logging is worse than no log.
+export async function sbLogComplaintSuggestion(row: {
+  product: string; reported: string; ucn?: string;
+  suggested: { value: string; why: string; source: string }[];
+  accepted: string;
+}): Promise<void> {
+  const c = getSupabase();
+  if (!c || !row.suggested.length) return;
+  const rank = row.accepted ? row.suggested.findIndex((s) => s.value === row.accepted) : -1;
+  try {
+    await c.from('complaint_suggestions').insert({
+      product: row.product, reported: row.reported, ucn: row.ucn ?? '',
+      suggested: row.suggested.map((s, i) => ({ ...s, rank: i + 1 })),
+      accepted: row.accepted,
+      accepted_rank: rank >= 0 ? rank + 1 : null,
+    });
+  } catch { /* never break a registration for a log line */ }
+}
+
 // ---- KPIs ------------------------------------------------------------------
 //
 // Every one of these is an aggregate the DATABASE computes (0101). The screen
