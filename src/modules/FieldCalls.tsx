@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge } from '../lib/callstate';
 import { logAudit } from '../lib/audit';
@@ -365,6 +365,10 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row) && !isCancelled(row);
   // A closed call takes no visit entry and no spare request until re-opened.
   const canWorkRow = (row: Rec) => !isSolved(row) && !isCancelled(row);
+  // Only an OPEN call: a re-opened one has "Close again", which gives the
+  // re-open count back, and the two must never both be offered.
+  const canClose = (row: Rec) => !isSolved(row) && !isReopened(row) && !isCancelled(row)
+    && !row._pending && (can('pending.register') || can('calls.create'));
   const canReopen = (row: Rec) => isSolved(row) && !isCancelled(row) && !row._pending && (can('pending.register') || can('calls.create'));
   // A call re-opened only to correct it is closed again by withdrawing the
   // re-open — entering a visit that never happened is not the way back.
@@ -791,6 +795,25 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
+  // CLOSE AN OPEN CALL WITHOUT A VISIT. Calls also end for operational reasons
+  // — the customer sorted it, the machine moved, the job was done on another
+  // call — and the alternatives were to leave it open for ever or to file a
+  // visit nobody made. It is NOT recorded differently: the call reads Solved
+  // like any other, and no visit is invented. Enter a visit later and it takes
+  // over as usual, re-opening the call if that visit says Unsolved.
+  const close = async (row: Rec) => {
+    const ucn = String(row.ucn ?? '');
+    if (!ucn) return;
+    if (!confirm(`Close ${ucn} without a visit entry?\n\nIt reads as Solved, like any other closed call, and no visit is added to its history. If a visit is entered later it takes over — including re-opening the call if that visit is unsolved.`)) return;
+    const t0 = performance.now();
+    const res = await closeCall(ucn);
+    logAudit({ action: 'calls.close', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
+    if (!res.ok) { setBanner({ tone: 'error', text: `Could not close ${ucn}: ${res.error}` }); return; }
+    setBanner({ tone: 'ok', text: `${ucn} closed.` });
+    setDrawer(null);
+    void refresh();
+  };
+
   // Withdraw a re-open: the call goes back to what its last visit said.
   const closeReopen = async (row: Rec) => {
     const ucn = String(row.ucn ?? '');
@@ -873,6 +896,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     { key: 'reco', icon: '🧾', label: 'Reco', title: 'Reconcile — book spares consumed on this call',
       show: mayReco && !row._pending,
       run: () => gotoReco(row) },
+    { key: 'close', icon: '✅', label: 'Close call', title: 'Close this call without a visit entry — it ended for operational reasons',
+      show: canClose(row),
+      run: () => void close(row) },
     { key: 'reopen', icon: '↻', label: 'Re-open call', title: 'Put this closed call back on the open list',
       show: canReopen(row),
       run: () => void reopen(row) },

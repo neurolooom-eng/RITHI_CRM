@@ -463,6 +463,14 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **An open call can be CLOSED without a visit** (v0.9.87,
+  `0109_close_call.sql`) — `close_call()` sets `last_status = 'Solved'` and
+  nothing else: `last_visit_at` is untouched, so no visit is invented, and the
+  call is Solved like any other (the user's decision — NOT a separate state).
+  A later report takes over through `sync_call_last_visit`, re-opening the call
+  if it says Unsolved. Refuses on a call that is already closed, cancelled or
+  re-opened (the last has `close_reopened_call`, which gives the count back).
+  Same gate as re-open. ⚠️ **Run `call_requests.sql`** — `_status.sql` row 63.
 - **A call can be CANCELLED** (v0.9.83, `0108_call_cancel.sql`) — `cancel_call()`
   / `restore_call()` gated on the new `calls.cancel` permission (merged into
   admin, nsm, hotline). `cancelled_at` / `cancel_reason` / `cancelled_by` on all

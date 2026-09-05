@@ -286,6 +286,8 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from information_schema.columns
                   where table_schema = 'public' and table_name = 'field_calls' and column_name = 'cancelled_at')
      and coalesce((select pg_get_viewdef('public.call_state'::regclass, true) like '%Cancelled%'), false))),
+    (63, 'calls: an open call can be CLOSED without a visit', 'close_call() -- for a call that ended for operational reasons, recorded as Solved like any other (0109)',
+        to_regprocedure('public.close_call(text)') is not null),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),
