@@ -11,6 +11,7 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { callDateFromRequest } from '../src/lib/fieldcall';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
+import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -389,6 +390,32 @@ console.log('\n-- the company mark on documents, the app mark on the app --');
   // What must hold is that brand.ts is the one place that reaches into assets.
   eq('lib/brand imports both marks from src/assets',
     (read('src/lib/brand.ts').match(/from '\.\.\/assets\//g) ?? []).length, 2);
+}
+
+// ---------------------------------------------------------------------------
+// THE GENERATED PASSWORD IS READ OUT LOUD, AND IS NOT GUESSABLE.
+//
+// An administrator resets a password and then passes it on — spoken, typed,
+// forwarded. Two things have to hold and neither is visible by reading the
+// screen: no character that is ambiguous when read (O/0, l/1, S/5, Z/2, B/8),
+// and real randomness, so the next one cannot be guessed from the last.
+console.log('\n-- the generated password --');
+{
+  const many = Array.from({ length: 400 }, () => generatePassword());
+  eq('always three groups of four', many.every((p) => /^[^-]{4}-[^-]{4}-[^-]{4}$/.test(p)), true);
+  eq('clears the database\'s 10-character floor', many.every((p) => p.length >= 10), true);
+  eq('uses only the unambiguous alphabet',
+    many.every((p) => p.replace(/-/g, '').split('').every((c) => PASSWORD_ALPHABET.includes(c))), true);
+  ['0', 'O', 'o', '1', 'l', 'I', '5', 'S', 's', '2', 'Z', 'z', '8', 'B'].forEach((c) => {
+    eq(`never contains "${c}"`, many.some((p) => p.includes(c)), false);
+  });
+  // 400 draws from a 45-character alphabet: a repeat means it is not random.
+  eq('400 passwords, 400 different ones', new Set(many).size, 400);
+  // Every position varies — a fixed character anywhere would be a bug in the
+  // sampling loop that the tests above would not catch.
+  [0, 1, 2, 3, 5, 6, 7, 8, 10, 11, 12, 13].forEach((i) => {
+    eq(`position ${i} is not fixed`, new Set(many.map((p) => p[i])).size > 1, true);
+  });
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -558,6 +558,20 @@ points at these rows.
     (pending reason only), Report Pending (reason auto-set).
 
 ### Access & roles
+- **An admin can reset a forgotten password** (v0.9.91,
+  `0110_admin_reset_password.sql`) — `admin_reset_password(email, password)`,
+  SECURITY DEFINER, gated on `is_admin()`, refusing a super admin unless the
+  caller is one and refusing anything under 10 characters. It writes
+  `auth.users.encrypted_password` with `crypt(pw, gen_salt('bf'))` — the same
+  bcrypt hash Supabase writes — because setting somebody else's password needs
+  the service_role key, which cannot be in a browser. ⚠️ Off the supported path:
+  it runs no Supabase password policy and stops working if Supabase changes how
+  it stores passwords (loudly — the person cannot sign in). Sessions and refresh
+  tokens for that user are deleted so the reset takes effect everywhere.
+  `password_resets` logs who/whom/when and never the password. The generator is
+  `src/lib/password.ts` (crypto.getRandomValues, rejection-sampled, no
+  ambiguous characters), pinned by `npm run check:ui`.
+  ⚠️ **Run `rbac.sql`** — `_status.sql` row 64 flags it.
 - User Master login (AL / Gmail ID, set-password-first, Validity=TRUE only).
 - **User Master is maintained in the app** (`0033_user_directory_role.sql`) —
   admins add and edit directory rows, and each carries the **role** the person
