@@ -5,6 +5,7 @@ import type { FieldDef, FieldOption } from '../components/form/Form';
 import { setEngineerNamesCache } from '../lib/format';
 import { supabaseConfigured, sbDirectoryNames, type ComplaintSuggestion } from '../lib/supabase';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
+import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 
 // ===========================================================================
 // THE CALL FORM'S LIVE LISTS, IN ONE PLACE.
@@ -15,6 +16,8 @@ import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 // schema, because they come from the masters and the directory at render:
 //
 //   Party Name         → the Party Master, as a datalist
+//   Complaint Reported → the alarm number in this product's spelling, and the
+//                        phrasings the register already uses (0107)
 //   Standard Complaint → the master as a dropdown, with the suggestions from
 //                        past calls underneath it
 //   Call Allocated To  → the active User Master directory
@@ -105,12 +108,23 @@ export function useCallFieldMasters(): {
           : 'Loading the Standard Complaint master…',
       };
 
+  // The wording ITSELF, one field earlier: the alarm number in this product's
+  // spelling, and how the fault has been written here before (0107).
+  const reportedHelp: FieldDef['below'] = ({ values, set }) => (
+    <ComplaintTextHelp
+      reported={String(values.complaintReported ?? '')}
+      product={String(values.productName ?? '')}
+      onPick={(v) => set('complaintReported', v)}
+    />
+  );
+
   const inject = (fs: FieldDef[]) =>
     fs.map((f) =>
       f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
         : f.name === 'standardComplaint' ? complaintField(f)
-          : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
-            : f);
+          : f.name === 'complaintReported' ? { ...f, below: reportedHelp }
+            : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
+              : f);
 
   return { inject, offered };
 }

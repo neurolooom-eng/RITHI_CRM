@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.81',
+    date: '2026-09-05',
+    title: 'The complaint text gets the register\u2019s own house style',
+    changes: [
+      'REPORTED PROBLEM NOW HELPS YOU WRITE IT THE WAY THIS REGISTER WRITES IT. Type the alarm number any way you like \u2014 \u201cal 12\u201d, \u201cAL-012\u201d, \u201calarm12\u201d \u2014 and it offers the product\u2019s own spelling of it, rewriting just that bit and leaving your sentence alone.',
+      'It also offers how this fault has been written before on this product, counted \u2014 \u201cwritten this way on 7 calls\u201d \u2014 so the wording stays consistent instead of drifting a little further with each new joiner. Taking one can be undone.',
+      'AND IT CATCHES A MISTAKE: an alarm number the product does not have (\u201cMONNAL T60 has no alarm 99 \u2014 check the number\u201d). The alarm lists are the ones already curated per product for the Daily Call Review, so nothing new has to be maintained.',
+      'All three appear on every screen that registers a call \u2014 New Field Call, registering from a pending request, and editing a call before mapping it.',
+    ],
+  },
+  {
     version: '0.9.80',
     date: '2026-09-05',
     title: 'Registering a call from a request now has the same lists as New Field Call',
