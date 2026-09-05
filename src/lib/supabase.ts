@@ -839,6 +839,16 @@ export async function closeReopenedCall(ucn: string, reason = ''): Promise<{ ok:
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// Close an OPEN call without a visit entry: it ended for operational reasons —
+// the customer sorted it, the machine moved, the job was done on another call.
+// It is NOT recorded differently (the user's decision): the call reads Solved
+// like any other closed call, and no visit is invented. A visit entered later
+// takes over as usual, including re-opening the call if it says Unsolved.
+export async function closeCall(ucn: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('close_call', { p_ucn: ucn });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- cancelling a call -----------------------------------------------------
 //
 // A call that should not exist — raised twice, the customer rang back, the

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.87',
+    date: '2026-09-05',
+    title: 'An open call can be closed without a visit entry',
+    changes: [
+      'CALLS ALSO END FOR OPERATIONAL REASONS \u2014 the customer sorted it, the machine moved, the job was done on another call. Until now the only ways out were to leave the call open for ever or to file a visit nobody made. \u201c\u2705 Close call\u201d closes it.',
+      'It is NOT recorded differently. The call reads Solved, like any other closed call, in every list and count. What it does not do is invent a visit \u2014 the visit history stays empty, because nothing happened.',
+      'Enter a visit later and it takes over as normal, including putting the call back on the open list if that visit is unsolved. Re-open first, as with any closed call.',
+      'Same people who can re-open a call. \u201c\ud83d\udd12 Close again\u201d is unchanged and still means something different: it withdraws a RE-OPEN and gives the re-open count back, so it only appears on a re-opened call.',
+    ],
+  },
+  {
     version: '0.9.86',
     date: '2026-09-05',
     title: 'Counts say when there is more to come, and Pending Calls groups by engineer',
