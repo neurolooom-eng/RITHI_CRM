@@ -4,6 +4,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
+import { toIsoDate } from '../lib/dates';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
@@ -450,6 +451,16 @@ type Scope = 'line' | 'or';
 type Pending =
   | { kind: 'approve' | 'reject' | 'drop'; row: Row; scope: Scope; lines: number }
   | { kind: 'receive'; row: Row; scope: Scope; lines: number };
+
+// Did this request reach the database on a different day from the one it was
+// raised? For anything loaded from a file it did — `created_at` defaults to
+// now(), and the importer fills it only when the export carried a "Raised on"
+// column. Worth showing when it differs, worth hiding when it does not.
+function enteredLater(row: Record<string, unknown>): boolean {
+  const or = toIsoDate(row.or_req_date);
+  const at = toIsoDate(row.requested_at);
+  return !!or && !!at && or !== at;
+}
 
 export function SpareRequests() {
   const { user, can, viewAs } = useAuth();
@@ -1038,7 +1049,11 @@ function RequestDetail({ row, lines, action, onChanged }: { row: Row; lines: Row
         <div className="rep-grid">
           {field('OR Req Date', fmtLongDate(row.or_req_date ?? row.requested_at))}
           {field('Raised by', row.req_engineer)}
-          {field('Raised on', fmtLongDate(row.requested_at))}
+          {/* NOT "Raised on": for an imported request this is when the FILE was
+              loaded (created_at defaults to now()), which is not a fact about
+              the request. Shown only when it differs from the OR Req Date, and
+              named for what it actually is. */}
+          {enteredLater(row) && field('Entered in the system', fmtLongDate(row.requested_at))}
           {field('Request type', row.req_type)}
           {field('Item status', row.item_status)}
         </div>
