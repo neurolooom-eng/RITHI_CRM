@@ -13,6 +13,7 @@ import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
+import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -437,6 +438,40 @@ console.log('\n-- the review register opens on the whole year --');
   // 1 January 00:30 IST is 31 December 19:00 UTC — the case toISOString gets wrong.
   eq('the small hours of 1 January read as the NEW year',
     yearStartISO(new Date(2027, 0, 1, 0, 30)), '2027-01-01');
+}
+
+// ---------------------------------------------------------------------------
+// AN ACCESSORY'S MANUAL REACHES THE CALL THAT NAMES THE ACCESSORY.
+//
+// Call 26I05F0051: product EXTEND-XT, fault in a CPX Care. The CPX Care manual
+// was tagged "CPX Care Failure" for exactly this and did not appear, because
+// the matcher compared only the document's PRODUCT with the call's — "cpx care"
+// against "extend-xt" — and never read `documents.tags` at all.
+console.log('\n-- which manuals belong on a call --');
+{
+  const extendXT = { product: 'EXTEND-XT', complaint: 'NO OUTPUT PRESSURE-ASU,CPX', reported: 'CPX care failure - No output pressure' };
+  const cpxManual = { product: 'CPX CARE', tags: 'CPX Care Failure, CPX' };
+  const xtManual  = { product: 'EXTEND-XT', tags: '' };
+  const t60Manual = { product: 'MONNAL T60', tags: 'Alarm 012' };
+  const general   = { product: '', tags: '' };
+
+  eq('the accessory manual reaches the call that names it', manualMatchesCall(cpxManual, extendXT), true);
+  eq("the machine's own manual still does", manualMatchesCall(xtManual, extendXT), true);
+  eq('a general manual is on every call', manualMatchesCall(general, extendXT), true);
+  eq('another product\'s manual is NOT dragged in', manualMatchesCall(t60Manual, extendXT), false);
+
+  // The tag has to be in the CALL's words, not the other way round — otherwise
+  // a one-word tag swallows the shelf.
+  eq('a tag the call does not mention stays away',
+    manualMatchesCall({ product: 'HORUS', tags: 'humidifier' }, extendXT), false);
+  // Punctuation and case are flattened on both sides.
+  eq('"CPX-Care" finds "CPX care failure"',
+    manualMatchesCall({ product: 'CPX CARE', tags: 'CPX-Care' }, extendXT), true);
+  // A call with no accessory named gets no accessory manual.
+  eq('a plain EXTEND-XT call gets no CPX manual',
+    manualMatchesCall(cpxManual, { product: 'EXTEND-XT', complaint: 'AIR SUPPLY FAILURE', reported: 'no air' }), false);
+  // Tags below the floor cannot match everything.
+  eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

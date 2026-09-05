@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.95',
+    date: '2026-09-05',
+    title: 'An accessory\u2019s manual now reaches the call that names the accessory',
+    changes: [
+      'A call on an EXTEND-XT whose fault is in a CPX Care did not show the CPX Care manual, however it was tagged. Supporting Documents compared only the manual\u2019s PRODUCT with the call\u2019s \u2014 \u201cCPX Care\u201d against \u201cEXTEND-XT\u201d is not a match \u2014 and never read the tags at all.',
+      'TAGS NOW COUNT. A manual whose tag appears in the call\u2019s own words \u2014 its product, its Standard Complaint or what was reported \u2014 is offered alongside the machine\u2019s own manual. So tagging the CPX Care manual \u201cCPX Care Failure\u201d does what you expected it to.',
+      'It reads in one direction only: the call\u2019s words must contain the tag, never the reverse, so a short tag cannot drag the whole shelf onto every call. A manual with no product is still a general one and appears everywhere.',
+    ],
+  },
+  {
     version: '0.9.94',
     date: '2026-09-05',
     title: 'The Validation Package is written for CDSCO, and the second audit trail is switched off',

@@ -16,6 +16,7 @@ export { callFamily, callTable, type CallFamily } from './calltype';
 import { byColumnSet } from './uploads';
 import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { manualMatchesCall } from './docmatch';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -2463,20 +2464,19 @@ export async function listDocuments(kind?: DocKind, includeInactive = true): Pro
 // The manuals that apply to one product. A manual with a BLANK product is a
 // general one and applies to every machine, so it comes back too — that is why
 // this cannot be a plain equality filter.
-export async function serviceManualsForProduct(product: string): Promise<DocRow[]> {
+// The call's own words decide, not its product alone: an accessory's manual
+// reaches the call that names the accessory, whatever machine it is fitted to.
+// The rule is `lib/docmatch.ts`, so it can be tested without a database.
+export async function serviceManualsForProduct(
+  product: string, complaint = '', reported = '',
+): Promise<DocRow[]> {
   const c = getSupabase(); if (!c) return [];
-  const p = (product ?? '').trim();
   const { data, error } = await c.from('documents')
     .select('*').eq('kind', 'service_manual').eq('active', true).order('title');
   if (error) return [];
   const rows = (data ?? []) as DocRow[];
-  if (!p) return rows;
-  const want = p.toLowerCase();
-  return rows.filter((r) => {
-    const owns = (r.product ?? '').trim().toLowerCase();
-    if (!owns) return true;                       // general manual
-    return owns === want || want.includes(owns) || owns.includes(want);
-  });
+  if (!(product ?? '').trim() && !complaint && !reported) return rows;
+  return rows.filter((r) => manualMatchesCall(r, { product, complaint, reported }));
 }
 
 export async function addDocument(d: DocInput): Promise<{ ok: boolean; error?: string }> {
