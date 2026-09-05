@@ -55,6 +55,10 @@ const OPT = (arr: string[]) => ['', ...arr];
 // query returns, so a page is the difference between a quarter of a second
 // and a stalled screen.
 const PAGE = 500;
+// `field_calls.open_state` — the four it can hold. Cancelled is deliberately
+// not here: the full view the rows come from does not carry `cancelled_at`
+// (see 0111), so offering it would filter the counters and not the rows.
+const CALL_STATES = ['Unattended', 'Unsolved', 'Report pending', 'Solved'];
 
 
 export function DailyCallReview() {
@@ -90,7 +94,8 @@ export function DailyCallReview() {
   // an upload that failed rather than a filter that is doing its job.
   const [from, setFrom] = useState(yearStartISO());
   const [to, setTo] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('');       // the PAPERWORK: Review 1/2/3
+  const [callState, setCallState] = useState('');  // the CALL: Unattended / Solved / …
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
   const [effectOnly, setEffectOnly] = useState(false);
@@ -110,9 +115,10 @@ export function DailyCallReview() {
 
   const filter = useMemo<ReviewFilter>(() => ({
     from: from || undefined, to: to || undefined, status: status || undefined,
+    callState: callState || undefined,
     product: product || undefined, engineer: engineer || undefined,
     effectOnly: effectOnly || undefined, q: search.trim() || undefined,
-  }), [from, to, status, product, engineer, effectOnly, search]);
+  }), [from, to, status, callState, product, engineer, effectOnly, search]);
 
   const load = async (f: ReviewFilter) => {
     if (!live) return;
@@ -327,6 +333,15 @@ export function DailyCallReview() {
               <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All stages</option>
                 {REVIEW_STATUSES.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              {/* Two different questions about the same call: Review Status is
+                  where the PAPERWORK has got to, this is where the CALL has. */}
+              <label className="field-label">Call Status</label>
+              <select className="select" value={callState} onChange={(e) => setCallState(e.target.value)}>
+                <option value="">All call statuses</option>
+                {CALL_STATES.map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div>

@@ -18,6 +18,7 @@ export const CHANGELOG: ChangeEntry[] = [
     changes: [
       'Load more now sits beside the count in the heading, and \u201cDatabase connected \u00b7 showing 500+ of 3,850 \u00b7 synced 2m ago\u201d sits under the title \u2014 the same layout as the call and spare registers, instead of both being buried in the table.',
       'The total beside the title stays EXACT with no \u201c+\u201d, because it is counted by the database over everything your filters match, not over the rows on screen. The \u201c+\u201d goes where it belongs: on \u201cshowing 500+\u201d, on the table\u2019s row count, and on every group heading \u2014 those are the numbers that only know what has loaded.',
+      'NEW FILTER: Call Status \u2014 Unattended / Unsolved / Report pending / Solved. The existing Review Status filter says where the PAPERWORK has got to; this one says where the CALL has. The stage counters honour it too, so the header always agrees with the list.',
     ],
   },
   {
