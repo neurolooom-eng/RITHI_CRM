@@ -266,6 +266,27 @@ transfer guard and the cap all inherit them untouched:
 
 ### To run on the live project — pending
 
+- 🔴 **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
+  (migrations `0104`, `0105`) — **`0105` CLOSES A LIVE DATA LEAK. Run this
+  first.** The `calls` view lost `security_invoker` when 0057 rebuilt it, so it
+  reads as its OWNER and row-level security does not apply: every signed-in user
+  can read EVERY call. Measured on a database with all migrations applied, as an
+  engineer holding none of them — `field_calls` 0 rows, `calls` 12, and
+  `pending_calls` / `call_state` / the KPI views 12 as well, because a view
+  marked invoker that reads an owner-run view inherits its reach.
+  ⚠️ **After applying it, engineers and managers will see FEWER calls** — the
+  ones their role permits. That is the intended behaviour, and it will look like
+  something broke to anyone used to seeing everything.
+  `0104` is the Standard Complaint suggestion. `_status.sql` rows 56 and 58.
+- 🔴 **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
+  (migration `0106`) — the same fault, smaller reach: `warranty_sale_details`
+  and `contract_details` read as their owner, so anyone signed in could read
+  sale and contract records that `sale_entries` / `contract_entries` restrict to
+  `masters.view` / `cover.edit` / admin. `_status.sql` row 57.
+- **Optional, for the AI half of the complaint suggestion:** deploy the
+  `suggest-complaint` Edge Function and set `ANTHROPIC_API_KEY`. Without it the
+  register's own suggestions stand alone and the screen says nothing about AI.
+
 - **[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)**
   (migration `0103`) — **the audit trail stops recording bulk loads row by row.**
   `record_audit` kept a full before/after copy of every row written to the ten

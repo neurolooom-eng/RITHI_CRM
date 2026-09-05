@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.78',
+    date: '2026-09-04',
+    title: 'The Standard Complaint suggests itself \u2014 and a data leak found while testing it',
+    changes: [
+      'REGISTERING A CALL NOW SUGGESTS THE STANDARD COMPLAINT. Type what the customer said and the two or three most likely appear under the field, each saying WHY \u2014 \u201cchosen on 12 similar calls\u201d is a fact about the register you can check. Click one to use it. You are choosing; it is only offering, and 507 values is a lot to scroll.',
+      'It reads the register\u2019s own history: what people actually picked, on this product, when the fault was described this way. Optionally a model re-ranks the same handful for wording it would otherwise miss \u2014 \u201cO2 sensor faulty\u201d against \u201cOxygen sensor defective\u201d \u2014 and it can only choose among those candidates, never invent one. What was offered and what you took is recorded, so whether it is actually helping can be read rather than assumed.',
+      '\u26a0\ufe0f A LEAK, FOUND WHILE TESTING THE ABOVE, AND FIXED: the calls view had stopped applying access rules, so ANY signed-in user could read EVERY call \u2014 and Pending Calls, call status and the KPI screens inherited that. It happened silently when the view was rebuilt in an earlier change. After the database script is run, engineers and managers will see FEWER calls: the ones their role permits. That is correct, and it will look like something broke.',
+      'The same fault, smaller, on the warranty and contract detail views.',
+      'Needs two database scripts run once, and the first is urgent (call_requests.sql, then sales_contracts.sql).',
+    ],
+  },
+  {
     version: '0.9.77',
     date: '2026-09-04',
     title: 'A document library that says whether a file is stored or linked',
