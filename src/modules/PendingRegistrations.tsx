@@ -9,7 +9,6 @@ import { FIELD_CALL_FIELDS } from './FieldCalls';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
-import { useMaster } from '../lib/masters';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { todayISO } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
@@ -327,7 +326,6 @@ function RequestActions({
   onCancel: (reason: string) => void;
   onOpenCall: (c: OpenCall) => void;
 }) {
-  const cancelMaster = useMaster('cancelreason', ['Duplicate request', 'Raised in error', 'Customer withdrew', 'Not a service call']);
   const [manualUcn, setManualUcn] = useState('');
 
   // ---- every call on this machine, whatever its status --------------------
@@ -533,11 +531,22 @@ function RequestActions({
               <div className="req-act-sec">
                 <div className="rep-sec-title">Cancel this request</div>
                 <label className="rep-field">
+                  {/* FREE TEXT, not the Call Cancel Reason master.
+                      Cancelling a REQUEST and cancelling a CALL are different
+                      acts: a call is cancelled for reasons the service process
+                      defines and reports on, while a request is withdrawn for
+                      whatever happened at the desk — the customer rang back, it
+                      was raised twice, it turned out not to be a fault. Feeding
+                      one list to both made the request's reason answer the
+                      call's question, and put words into a controlled list that
+                      the call register then had to carry. */}
                   <span className="field-label">Cancel reason *</span>
-                  <select className="select" value={reason} onChange={(e) => setReason(e.target.value)}>
-                    <option value="">—</option>
-                    {cancelMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
-                  </select>
+                  <input
+                    className="input"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Why is this request being cancelled?"
+                  />
                 </label>
                 <label className="rep-field">
                   <span className="field-label">Note</span>

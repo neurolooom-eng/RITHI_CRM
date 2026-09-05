@@ -411,29 +411,39 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // and it is read once, at submit.
   const offeredComplaints = useRef<ComplaintSuggestion[]>([]);
 
+  // FIVE HUNDRED AND SEVEN values in that dropdown, of which any one product has
+  // ever used about sixty. The register already knows what was chosen the last
+  // dozen times somebody described this fault in these words — so it offers,
+  // and the person decides.
+  //
+  // THE SUGGESTIONS ARE ATTACHED WHETHER OR NOT THE MASTER LOADED. They come
+  // from past CALLS, not from the master, so they are valid values either way —
+  // and a master that has not loaded is precisely when somebody needs the help
+  // most. Attaching them only to the dropdown, as this first did, meant the
+  // field fell back to free text and silently lost them.
+  const complaintSuggestions: FieldDef['below'] = ({ values, set }) => (
+    <ComplaintSuggest
+      reported={String(values.complaintReported ?? '')}
+      product={String(values.productName ?? '')}
+      current={String(values.standardComplaint ?? '')}
+      onPick={(v) => set('standardComplaint', v)}
+      onOffer={(l) => { offeredComplaints.current = l; }}
+    />
+  );
+
   const complaintField = (f: FieldDef): FieldDef =>
     complaintMaster.values.length
       ? {
         ...f,
         type: 'select' as const,
         options: OPT(complaintMaster.values),
-        // FIVE HUNDRED AND SEVEN values in that dropdown. The register already
-        // knows what was chosen the last dozen times somebody described this
-        // fault in these words — so it offers, and the person decides.
-        below: ({ values, set }) => (
-          <ComplaintSuggest
-            reported={String(values.complaintReported ?? '')}
-            product={String(values.productName ?? '')}
-            current={String(values.standardComplaint ?? '')}
-            onPick={(v) => set('standardComplaint', v)}
-            onOffer={(l) => { offeredComplaints.current = l; }}
-          />
-        ),
+        below: complaintSuggestions,
       }
       : {
         ...f,
+        below: complaintSuggestions,
         help: complaintMaster.ready
-          ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists.'
+          ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists. The suggestions below still work: they come from past calls.'
           : 'Loading the Standard Complaint master…',
       };
 
