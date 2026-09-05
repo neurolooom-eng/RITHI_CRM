@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.93',
+    date: '2026-09-05',
+    title: 'Daily Call Review: Load more and the sync line move up to the heading',
+    changes: [
+      'Load more now sits beside the count in the heading, and \u201cDatabase connected \u00b7 showing 500+ of 3,850 \u00b7 synced 2m ago\u201d sits under the title \u2014 the same layout as the call and spare registers, instead of both being buried in the table.',
+      'The total beside the title stays EXACT with no \u201c+\u201d, because it is counted by the database over everything your filters match, not over the rows on screen. The \u201c+\u201d goes where it belongs: on \u201cshowing 500+\u201d, on the table\u2019s row count, and on every group heading \u2014 those are the numbers that only know what has loaded.',
+    ],
+  },
+  {
     version: '0.9.92',
     date: '2026-09-05',
     title: 'The Daily Call Review opens on the whole year',

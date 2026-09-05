@@ -170,6 +170,12 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   `more={false}` is the right answer only where the database computed the whole
   aggregate (the KPI views), not where rows are still coming. Same rule for any
   new count you add anywhere.
+  It cuts BOTH ways, and the Daily Call Review is the case that shows it:
+  `countCallReviews` walks every page, so its total is EXACT and takes no `+`
+  even while only the first 500 rows are on screen — "3,850+" would be wrong in
+  the other direction. That screen wants an exact count AND a Load more button,
+  so `PageHeader` separates them: `countMore` adds the `+`, `moreAvailable`
+  shows the button, and it defaults to `countMore` where the two coincide.
 - **One parser, one matcher.** Every importer reads dates through
   `src/lib/dates.ts` (day-first, always) and headers through
   `src/lib/headers.ts` (strict → loose → squash); CSV through `csv.ts`. Do not

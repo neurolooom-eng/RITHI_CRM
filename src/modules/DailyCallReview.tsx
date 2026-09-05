@@ -250,7 +250,26 @@ export function DailyCallReview() {
         title="Daily Call Review"
         subtitle="DCCR — every field call through Review 1, 2 and 3"
         icon="🩺"
+        // The count is EXACT — countCallReviews walks every page of the summary
+        // view — so no "+", even though only the first page of rows is on
+        // screen. `moreAvailable` is what puts Load more beside it.
         count={tab === 'register' ? counts.total : undefined}
+        moreAvailable={tab === 'register' && more}
+        onLoadMore={tab === 'register' ? () => void loadMore() : undefined}
+        loadingMore={loadingMore}
+        status={tab === 'register' ? (
+          <>
+            <span className={`conn-dot ${live ? 'conn-on' : 'conn-off'}`}>
+              {live ? 'Database connected' : 'Not connected'}
+            </span>
+            {/* Rows ON SCREEN against the whole filtered set — the one number
+                here that IS partial, so it carries the "+". */}
+            <span className="conn-dot conn-off">
+              showing {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
+            </span>
+            {lastSync && <span className="conn-dot conn-off" title={new Date(lastSync).toLocaleString()}>⟳ synced {timeAgo(lastSync)}</span>}
+          </>
+        ) : undefined}
         actions={
           tab === 'register' ? (
             <>
@@ -342,18 +361,16 @@ export function DailyCallReview() {
               storageKey="dccr-register"
               rowsBeforeScroll={12}
               dense
-              onLoadMore={() => void loadMore()}
+              // Load more lives beside the count in the heading (see PageHeader),
+              // so it is NOT passed here. `moreAvailable` stays: it is what puts
+              // the "+" on the footer's row count and on every group heading,
+              // which ARE counts over the rows loaded.
               moreAvailable={more}
-              loadingMore={loadingMore}
               emptyText={busy ? 'Loading…' : live ? 'No calls match these filters.' : 'Connect the database to load the register.'}
               toolbar={
                 <Toolbar>
                   <input className="input" placeholder="Search UCN, customer, product, complaint…" value={search} onChange={(e) => setSearch(e.target.value)} />
                   <div className="spacer" />
-                  <span className="muted">
-                    showing {rows.length.toLocaleString()} of {counts.total.toLocaleString()}
-                  </span>
-                  {lastSync && <span className="muted">· synced {timeAgo(lastSync)}</span>}
                 </Toolbar>
               }
             />
