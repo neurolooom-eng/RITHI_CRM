@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.79',
+    date: '2026-09-05',
+    title: 'Cancelling a request asks its own question, and the complaint suggestions stop hiding',
+    changes: [
+      'Cancelling a REQUEST no longer borrows the Call Cancel Reason list. They are different acts \u2014 a call is cancelled for reasons the service process defines and reports on, a request is withdrawn because the customer rang back or it was raised twice \u2014 and sharing one list made the request\u2019s reason answer the call\u2019s question. It is free text now.',
+      'The Standard Complaint suggestions were only attached when the master list had loaded. They come from past CALLS, not from the master, so they were being hidden exactly when somebody needed them most \u2014 on a form whose dropdown had fallen back to free text. They now appear either way.',
+    ],
+  },
+  {
     version: '0.9.78',
     date: '2026-09-04',
     title: 'Suggested complaints, editing a call before mapping, and a data leak found while testing',
