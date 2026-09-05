@@ -7,6 +7,7 @@ import { mergeDcLines } from '../src/lib/dc';
 import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
+import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -214,6 +215,32 @@ console.log('\n-- every screen rendering the call form injects its lists --');
     });
   });
   eq('the call schema is still rendered somewhere', uses.length > 0, true);
+}
+
+// ---------------------------------------------------------------------------
+// THE ALARM PATTERN THE SCREEN USES AND THE ONE 0107 USES MUST AGREE.
+//
+// The database finds the canonical value for a typed alarm number; the screen
+// rewrites that token in place. If the two disagree about what counts as an
+// alarm number, the chip appears and clicking it changes nothing — which reads
+// as a broken button, not as a mismatch.
+console.log('\n-- the alarm number, however it was typed --');
+{
+  const forms = ['al 12', 'AL-012', 'alarm12', 'Alarm  12', 'al.12', 'AL_12', 'ALARM 012'];
+  forms.forEach((f) => eq(`"${f}" reads as 12`, alarmNumber(`${f} air supply low`), 12));
+  // Not an alarm: a part code, a version, a bare number.
+  ['AL2000 board', 'v12 firmware', 'pressure 12 bar', 'CALIBRATION 12']
+    .forEach((f) => eq(`"${f}" is not an alarm number`, alarmNumber(f), null));
+  // The rewrite keeps the sentence and touches only the token — and only the
+  // first, because two alarms are two faults.
+  eq('the sentence survives the rewrite',
+    withAlarm('al 12 low pressure on air supply', 'Alarm 012'),
+    'Alarm 012 low pressure on air supply');
+  eq('only the first alarm is rewritten',
+    withAlarm('al 12 then al 45 came up', 'Alarm 012'),
+    'Alarm 012 then al 45 came up');
+  eq('a text with no alarm is left exactly as it was',
+    withAlarm('leak from air inlet', 'Alarm 012'), 'leak from air inlet');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -348,6 +348,38 @@ export async function sbSuggestComplaints(
   })).filter((s: ComplaintSuggestion) => s.value);
 }
 
+// ---- the wording itself ----------------------------------------------------
+//
+// The register's Reported Problem is not freely written: the alarm number is
+// used where the machine gives one, and the same fault comes back in the same
+// words. 0107 offers both from evidence — the product's own spelling of an
+// alarm number already typed, and the phrasings that product's calls have
+// actually used more than once. `kind` separates them because they are not the
+// same claim, and `unknown` is a WARNING, not something to click.
+export interface TextSuggestion {
+  value: string;
+  used: number;
+  kind: 'alarm' | 'phrase' | 'unknown';
+  why: string;
+}
+
+export async function sbSuggestComplaintText(
+  reported: string, product = '', limit = 4,
+): Promise<TextSuggestion[]> {
+  const text = reported.trim();
+  if (text.length < 4) return [];
+  const { data, error } = await must().rpc('suggest_complaint_text', {
+    p_text: text, p_product: product, p_limit: limit,
+  });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    value: String(r.value ?? ''),
+    used: Number(r.used ?? 0),
+    kind: (String(r.kind ?? 'phrase') as TextSuggestion['kind']),
+    why: String(r.why ?? ''),
+  })).filter((s: TextSuggestion) => s.value);
+}
+
 // The model's re-ranking of candidates the register already produced. Returns
 // [] for every failure — no key, not deployed, a bad reply — because a
 // suggestion that cannot be made is not an error the person needs to see.

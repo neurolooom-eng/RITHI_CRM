@@ -463,6 +463,14 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **Reported Problem keeps the house style** (v0.9.81, `0107_complaint_text_help.sql`)
+  — `suggest_complaint_text()` offers the alarm number in the PRODUCT'S own
+  spelling (the alarm lists already curated per product in the `dccrgrouping`
+  master, used until now only at DCCR Review 3), the phrasings that product's
+  calls have used more than once, and a WARNING for an alarm number the product
+  does not have. `alarm_value_for()` resolves the number, product list before
+  COMM. SECURITY DEFINER, aggregates only, same boundary as 0104.
+  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 61 flags it.
 - **The call form's live lists are injected, not in the schema** (v0.9.80) —
   Party datalist, the Standard Complaint master with its past-calls suggestions,
   and the engineer list come from `useCallFieldMasters()` in

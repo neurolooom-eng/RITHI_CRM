@@ -277,6 +277,9 @@ with checks(sort_order, bundle, provides, present) as (
         (coalesce(pg_get_functiondef(to_regprocedure('public.record_audit_fn()')) like '%BULK %', false)
      and exists (select 1 from pg_trigger
                   where tgrelid = 'public.field_calls'::regclass and tgname = 'record_audit_i'))),
+    (61, 'complaints: the wording gets the register''s own house style', 'suggest_complaint_text + alarm_value_for -- the alarm number in this product''s spelling, and the phrasings already in use (0107)',
+        (to_regprocedure('public.suggest_complaint_text(text,text,integer)') is not null
+     and to_regprocedure('public.alarm_value_for(text,integer)')             is not null)),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),

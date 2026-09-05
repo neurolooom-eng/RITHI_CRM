@@ -122,6 +122,7 @@ const MODULES = {
       '0097_call_reqid_continues.sql',
       '0104_complaint_suggestions.sql',
       '0105_calls_view_security_invoker.sql',
+      '0107_complaint_text_help.sql',
     ],
   },
   sla: {
