@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { listPendingCalls, reallocateCalls, callFamily, supabaseConfigured, type CallState, type CallFamily } from '../lib/supabase';
 import { StateBadge } from '../lib/callstate';
 import { allowsAllottee, useAccessScope, useTeamEngineers } from '../lib/access';
@@ -103,6 +103,10 @@ export function PendingCalls() {
   };
   useEffect(() => { void load(PAGE); /* eslint-disable-next-line */ }, []);
   const moreAvailable = rows.length >= limit;
+  // ENGINEER WISE, as the Field Call and Spare registers already do it: a chip
+  // per name with what they are carrying, and a click to see only theirs. The
+  // register grouped by engineer but had no way to pick one.
+  const [engineerFilter, setEngineerFilter] = useState('');
   const loadMore = () => { const n = limit + PAGE; setLimit(n); void load(n); };
 
   const visible = useMemo(() => {
@@ -110,12 +114,13 @@ export function PendingCalls() {
     return rows.filter((r) =>
       (scope.all || allowsAllottee(scope, r.allocatedTo)) &&
       (!type || callFamily(r.callType) === type) &&
+      (!engineerFilter || String(r.allocatedTo ?? '').trim() === engineerFilter) &&
       (!state || String(r.state ?? '') === state) &&
       (!needle || ['ucn', 'partyName', 'city', 'productName', 'serial', 'complaintReported', 'allocatedTo'].some(
         (k) => String(r[k] ?? '').toLowerCase().includes(needle),
       )),
     );
-  }, [rows, type, state, q, scope]);
+  }, [rows, type, state, q, scope, engineerFilter]);
 
   const saveAllotment = async () => {
     const ucns = visible.filter((r) => picked.has(String(r.id)))
@@ -129,6 +134,24 @@ export function PendingCalls() {
     setPicked(new Set()); setAllotTo('');
     void load();
   };
+
+  // Counted with every filter applied EXCEPT the engineer's own, so each chip
+  // shows what clicking it would actually give you. Over the rows LOADED, so
+  // `more` marks them as lower bounds.
+  const engineerCounts = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const c = new Map<string, number>();
+    rows.forEach((r) => {
+      if (!(scope.all || allowsAllottee(scope, r.allocatedTo))) return;
+      if (type && callFamily(r.callType) !== type) return;
+      if (state && String(r.state ?? '') !== state) return;
+      if (needle && !['ucn', 'partyName', 'city', 'productName', 'serial', 'complaintReported', 'allocatedTo']
+        .some((k) => String(r[k] ?? '').toLowerCase().includes(needle))) return;
+      const n = String(r.allocatedTo ?? '').trim();
+      c.set(n, (c.get(n) ?? 0) + 1);
+    });
+    return [...c.entries()].map(([key, count]) => ({ key, count }));
+  }, [rows, type, state, q, scope]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -182,6 +205,15 @@ export function PendingCalls() {
           </button>
         ))}
       </div>
+
+      <FacetChips
+        options={engineerCounts}
+        value={engineerFilter}
+        onChange={setEngineerFilter}
+        allLabel="All engineers"
+        blankLabel="— not allotted —"
+        more={moreAvailable}
+      />
 
       <DataTable<Row>
         columns={COLUMNS}

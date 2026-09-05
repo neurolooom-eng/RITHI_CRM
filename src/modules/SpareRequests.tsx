@@ -570,6 +570,9 @@ export function SpareRequests() {
     );
   }, [rows, scope, email, onDb, viewAs]);
 
+  // More rows are waiting: every count on this screen is a lower bound.
+  const partial = onDb && more;
+
   const loadMore = async () => {
     setBusy(true);
     try {
@@ -795,6 +798,9 @@ export function SpareRequests() {
         subtitle="Raise, approve, dispatch and acknowledge spare requests against calls."
         icon="📦"
         count={visible.length}
+        countMore={partial}
+        onLoadMore={onDb ? loadMore : undefined}
+        loadingMore={busy}
         actions={can('spare.request') && <button className="btn btn-primary" onClick={() => setDrawer(true)}>＋ New Spare Request</button>}
       />
 
@@ -817,10 +823,12 @@ export function SpareRequests() {
           </KpiGrid>
 
           <div className="stage-chips">
-            <button className={`chip ${stageFilter === '' ? 'chip-on' : ''}`} onClick={() => setStageFilter('')}>All <b>{scoped.length}</b></button>
-            <button className={`chip ${stageFilter === MINE ? 'chip-on' : ''}`} onClick={() => setStageFilter(MINE)}>⚡ Needs my action <b>{counts[MINE]}</b></button>
+            {/* Counted over what has LOADED, so each is a lower bound while more
+                is waiting behind Load more — "1+", never a bare 1. */}
+            <button className={`chip ${stageFilter === '' ? 'chip-on' : ''}`} onClick={() => setStageFilter('')}>All <b>{scoped.length}{partial ? '+' : ''}</b></button>
+            <button className={`chip ${stageFilter === MINE ? 'chip-on' : ''}`} onClick={() => setStageFilter(MINE)}>⚡ Needs my action <b>{counts[MINE]}{partial ? '+' : ''}</b></button>
             {STAGES.map((s) => (
-              <button key={s} className={`chip ${stageFilter === s ? 'chip-on' : ''}`} onClick={() => setStageFilter(stageFilter === s ? '' : s)}>{s} <b>{counts[s]}</b></button>
+              <button key={s} className={`chip ${stageFilter === s ? 'chip-on' : ''}`} onClick={() => setStageFilter(stageFilter === s ? '' : s)}>{s} <b>{counts[s]}{partial ? '+' : ''}</b></button>
             ))}
           </div>
 
@@ -831,6 +839,7 @@ export function SpareRequests() {
             onChange={setEngineerFilter}
             allLabel="All engineers"
             blankLabel="— no engineer —"
+            more={onDb && more}
           />
         </>
       )}
@@ -852,9 +861,9 @@ export function SpareRequests() {
         ]}
         rowsBeforeScroll={14}
         dense
-        onLoadMore={onDb ? loadMore : undefined}
-        moreAvailable={onDb && more}
-        loadingMore={busy}
+        // Load more lives beside the count in the heading (see PageHeader), so
+        // it is NOT passed here — there is one of it, not two.
+        moreAvailable={partial}
         emptyText="No spare requests — Refresh to load."
         toolbar={
           <Toolbar>

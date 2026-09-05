@@ -618,7 +618,11 @@ export function DataTable<T>({
             >
               <span className="dt-group-caret">{shut ? '\u25b8' : '\u25be'}</span>
               <b>{label}</b>
-              <span className="muted">{n.rows.length}</span>
+              {/* A group heading counts the rows LOADED, and more may be waiting behind
+                  Load more — so it is a lower bound and says so, exactly as the
+                  footer's row count and the title's badge already do. A bare
+                  number here read as the whole truth about that engineer. */}
+              <span className="muted">{n.rows.length}{moreAvailable ? '+' : ''}</span>
             </button>
           </td>
         </tr>,

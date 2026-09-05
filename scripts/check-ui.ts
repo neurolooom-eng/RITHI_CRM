@@ -326,5 +326,35 @@ console.log('\n-- the raised date is the request\'s, not the import\'s --');
     '2026-09-03T12:00:00Z');
 }
 
+// ---------------------------------------------------------------------------
+// A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND, AND MUST SAY SO.
+//
+// Every register loads in pages. A chip reading "MAYANK GUPTA 90" over the
+// first 800 rows is not 90 — it is at least 90 — and a number that looks exact
+// and is not is worse than no number, because somebody acts on it. The title
+// badge and the footer row count already carry the "+"; the facet chips and the
+// group headings did not.
+//
+// So every FacetChips must decide: pass `more` (true while rows are still
+// coming, false when the screen genuinely holds everything). Leaving it off is
+// not allowed — that is how it was missed the first time.
+console.log('\n-- every count over a partial load carries the + --');
+{
+  const dir = `${process.cwd()}/src/modules/`;
+  readdirSync(dir).filter((f) => f.endsWith('.tsx')).forEach((f) => {
+    const src = readFileSync(dir + f, 'utf8');
+    src.split('<FacetChips').slice(1).forEach((rest, i) => {
+      const tag = rest.slice(0, rest.indexOf('/>'));
+      eq(`${f} FacetChips #${i + 1} says whether more is coming`, /\bmore=/.test(tag), true);
+    });
+  });
+  // The shared components render it.
+  const ui = readFileSync(`${process.cwd()}/src/components/ui/ui.tsx`, 'utf8');
+  eq('FacetChips renders the + on each chip', ui.includes("{o.count}{more ? '+' : ''}"), true);
+  eq('FacetChips renders the + on the All total', ui.includes("{total}{more ? '+' : ''}"), true);
+  const dt = readFileSync(`${process.cwd()}/src/components/table/DataTable.tsx`, 'utf8');
+  eq('a group heading renders the +', dt.includes("{n.rows.length}{moreAvailable ? '+' : ''}"), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

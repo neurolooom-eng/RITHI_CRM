@@ -176,8 +176,11 @@ export function KpiAnalytics() {
 
       {/* Both chips narrow EVERYTHING below them, the rate table included, so a
           question asked of one panel is answered by all of them at once. */}
-      <FacetChips options={productChips} value={product} onChange={setProduct} allLabel="All products" max={10} />
-      <FacetChips options={regionChips} value={region} onChange={setRegion} allLabel="All regions" max={10} />
+      {/* `more={false}` deliberately: these are not a page of rows. The database
+          computes the whole aggregate (0101's KPI views), so every count here is
+          the complete figure and a "+" would be a lie in the other direction. */}
+      <FacetChips options={productChips} value={product} onChange={setProduct} allLabel="All products" max={10} more={false} />
+      <FacetChips options={regionChips} value={region} onChange={setRegion} allLabel="All regions" max={10} more={false} />
 
       <div className="dash-grid">
         <SectionCard title="Spare use by cover">
