@@ -431,3 +431,18 @@
 .lk-detail { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 .lk-detail .muted { font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
 .lk-sub { margin: 4px 0 8px; font-size: 14px; }
+
+/* A password an administrator has to read out: big, spaced, and monospaced so
+   the groups are unmistakable. Selectable, because copying it by hand is the
+   fallback when the clipboard is not available. */
+.pw-show {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 14px 10px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  user-select: all;
+}

@@ -1984,6 +1984,21 @@ export async function sbConsumeRecovery(): Promise<{ ok: boolean; error?: string
 
 // Email a reset link. Always reports success: whether an address has an account
 // is not something an unauthenticated form should reveal.
+// AN ADMINISTRATOR RESETS A FORGOTTEN PASSWORD (0110).
+//
+// Setting somebody else's password is an admin-API operation and the admin API
+// needs the service_role key, which must never be in a browser — so this goes
+// through a database function that holds the privilege instead, and checks the
+// caller is an administrator before doing anything.
+//
+// The password is generated HERE and returned to the caller so it can be shown
+// once and passed on. It is never stored: `password_resets` records who reset
+// whose account, and that is all.
+export async function sbAdminResetPassword(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('admin_reset_password', { p_email: email, p_password: password });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // NOT CALLED BY ANY SCREEN since the sign-in page stopped offering a
 // self-service reset (v0.9.89): a forgotten password is an administrator's job
 // now. Kept because this is exactly what an admin-side "send a reset link"

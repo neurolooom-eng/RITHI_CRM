@@ -12,6 +12,25 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.91',
+    date: '2026-09-05',
+    title: 'An administrator can reset a forgotten password',
+    changes: [
+      'THE SIGN-IN PAGE TELLS PEOPLE TO ASK AN ADMINISTRATOR \u2014 and now there is something for the administrator to do. User Master \u2192 open a person \u2192 \u201c\ud83d\udd11 Reset password\u201d generates a new one and shows it once, to pass on. They change it themselves under Profile \u2192 Password whenever they like.',
+      'The password is built to be read out and typed: three groups of four, and no character that is ambiguous when spoken \u2014 no O or 0, no l or 1, no S or 5.',
+      'It is shown ONCE and stored nowhere \u2014 not in the audit log, not in the database. If it is lost, reset again. The record kept is who reset whose account and when, which is what an audit needs; the password is not part of that.',
+      'Resetting signs the person out of every device, so a reset actually takes effect rather than leaving an old phone signed in. An ordinary admin cannot reset a SUPER admin\u2019s password \u2014 only another super admin can.',
+    ],
+  },
+  {
+    version: '0.9.90',
+    date: '2026-09-05',
+    title: 'The menu bar and sign-in page show the RITHI mark on its own',
+    changes: [
+      'The logo in the menu bar and on the sign-in page is now the mark by itself rather than the full lockup \u2014 in a 30-pixel tile the wordmark was never going to be readable, and dropping it lets the mark itself be seen.',
+    ],
+  },
+  {
     version: '0.9.89',
     date: '2026-09-05',
     title: 'The company\u2019s own colours, and a simpler sign-in page',

@@ -1,15 +1,16 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox, Drawer, Modal } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ROLES, ACTIONS, permsForRole } from '../lib/rbac';
 import { csvExport, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
-  listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, userActivity,
+  listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, sbAdminResetPassword, userActivity,
   supabaseConfigured, type DirectoryRow, type UserActivity,
 } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
+import { generatePassword } from '../lib/password';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -74,6 +75,9 @@ export function UserMasterView() {
   const [accessFor, setAccessFor] = useState<User | null>(null);   // role + extra permissions
   const [dataFor, setDataFor] = useState<User | null>(null);       // everything this user entered
   const [viewRow, setViewRow] = useState<DirectoryRow | null>(null); // click a row → full record + actions
+  // A reset password, shown ONCE so it can be passed on. Held in state and
+  // nowhere else — not logged, not stored, gone when this modal closes.
+  const [resetPw, setResetPw] = useState<{ email: string; name: string; password: string } | null>(null);
 
   // The `edit` drawer is the single create/edit place. For a NEW user it can
   // also create the sign-in login; a Clone pre-loads a source's permissions.
@@ -244,6 +248,27 @@ export function UserMasterView() {
           value={String(draftOf(r)[k] ?? '')} onKeyDown={keys}
           onChange={(e) => setField(r, k, e.target.value as DirectoryRow[typeof k])} />
       : <>{String(r[k] ?? '')}</>);
+
+  // ---- reset a forgotten password ------------------------------------------
+  //
+  // The sign-in page tells people to ask an administrator; this is what the
+  // administrator does. A new random password is generated here, set on the
+  // account by the database (which checks this caller is an admin), and shown
+  // once — the administrator passes it on, and the person changes it under
+  // Profile → Password whenever they like.
+  const resetPassword = async (email: string, name: string) => {
+    if (!email) return;
+    if (!confirm(`Reset the password for ${name || email}?\n\nA new one is generated and shown to you once. Every device they are signed in on is signed out.`)) return;
+    const password = generatePassword();
+    setBusy(true);
+    const res = await sbAdminResetPassword(email, password);
+    setBusy(false);
+    // The audit records THAT it happened, never the password.
+    logAudit({ action: 'user.reset_password', target: email, status: res.ok ? 'ok' : 'error', error: res.error });
+    if (!res.ok) { setMsg({ tone: 'error', text: `Could not reset the password: ${res.error}` }); return; }
+    setViewRow(null);
+    setResetPw({ email, name, password });
+  };
 
   const liveColumns: Column<DirectoryRow & Record<string, unknown>>[] = [
     { key: 'name', header: 'Name', width: 170, render: cell('name', 'As on the call') },
@@ -480,6 +505,32 @@ export function UserMasterView() {
 
       {dataFor && <DataViewDrawer user={dataFor} onClose={() => setDataFor(null)} />}
 
+      {/* SHOWN ONCE. It is in React state and nowhere else — not in the audit
+          log, not in the database, not recoverable. If it is lost the answer is
+          to reset again, which is cheap. */}
+      <Modal open={!!resetPw} onClose={() => setResetPw(null)} title="New password" width={480}>
+        {resetPw && (
+          <div className="rep-form">
+            <p style={{ margin: '0 0 10px' }}>
+              A new password for <b>{resetPw.name || resetPw.email}</b>. Pass it on — they can change it
+              under <b>Profile → Password</b> once they are signed in.
+            </p>
+            <div className="pw-show">{resetPw.password}</div>
+            <div className="row" style={{ gap: 8, marginTop: 10 }}>
+              <button className="btn btn-sm" onClick={() => { void navigator.clipboard?.writeText(resetPw.password); }}>
+                ⧉ Copy
+              </button>
+              <div className="spacer" />
+              <button className="btn btn-sm btn-primary" onClick={() => setResetPw(null)}>Done</button>
+            </div>
+            <p className="muted" style={{ fontSize: 12.5, marginTop: 12, marginBottom: 0 }}>
+              This is the only time it is shown — it is not stored anywhere and cannot be looked up.
+              If it is lost, reset again. Every device {resetPw.name || 'they'} were signed in on has been signed out.
+            </p>
+          </div>
+        )}
+      </Modal>
+
       {viewRow && (() => {
         const r = viewRow;
         const prof = profileFor(r);
@@ -506,6 +557,12 @@ export function UserMasterView() {
                 {editable && <button className="btn btn-sm btn-primary" onClick={() => { setViewRow(null); openEdit(r); }}>✏️ Edit</button>}
                 {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setAccessFor(prof); }}>🔐 Access</button>}
                 {editable && prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); openClone(prof); }}>⧉ Clone</button>}
+                {editable && prof && (
+                  <button className="btn btn-sm" disabled={busy} title="Generate a new password and show it once, to pass on"
+                    onClick={() => void resetPassword(r.email || prof.email, r.name || prof.fullName)}>
+                    🔑 Reset password
+                  </button>
+                )}
                 {prof && <button className="btn btn-sm" onClick={() => { setViewRow(null); setDataFor(prof); }}>📊 Data</button>}
                 {editable && prof && (
                   <button className={`btn btn-sm ${prof.active === false ? '' : 'btn-danger'}`} disabled={busy}
