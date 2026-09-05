@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.84',
+    date: '2026-09-05',
+    title: 'A call\u2019s buttons are in one place, in one order',
+    changes: [
+      'The actions on a call were written out THREE times \u2014 on the row, at the top of the open call, and again at the bottom of it \u2014 so they had drifted into three different orders, and Cancel appeared on the row only. A button that moves depending on where you opened the call is a button you have to read every time.',
+      'One list now: Edit \u2192 Visit Entry \u2192 Request Spares \u2192 Reco \u2192 Re-open / Close again \u2192 Cancel. Same order on the row and at the top of the call, with the destructive one last.',
+      'The duplicate set at the BOTTOM of the open call is gone. Only Close is down there now.',
+    ],
+  },
+  {
     version: '0.9.83',
     date: '2026-09-05',
     title: 'A call can be cancelled \u2014 and deploys stop cancelling themselves',

@@ -849,6 +849,44 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
+  // ---- ONE list of what can be done to a call, in ONE order ---------------
+  //
+  // These buttons appear in the row and again at the top of the call, and they
+  // used to be written out twice — so they drifted: different order in each
+  // place, a third order in the drawer's footer, and the two newest actions
+  // (cancel / restore) in the row only. A button that moves depending on where
+  // you opened the call is a button you have to read every time.
+  //
+  // So: this list is the order, everywhere. Destructive last. `run` is the same
+  // in both places — closing the drawer first is a no-op when there isn't one.
+  type CallAction = { key: string; icon: string; label: string; title: string; primary?: boolean; run: () => void };
+  const callActions = (row: Rec): CallAction[] => ([
+    { key: 'edit', icon: '✏️', label: 'Edit', title: 'Edit this call',
+      show: canEditRow(row),
+      run: () => setDrawer({ mode: 'edit', row }) },
+    { key: 'visit', icon: '📝', label: 'Visit Entry', title: 'Visit Entry — record a visit against this call', primary: true,
+      show: can('calls.report') && !row._pending && canWorkRow(row),
+      run: () => { setDrawer(null); setReport(row); } },
+    { key: 'spares', icon: '📦', label: 'Request Spares', title: 'Request spares against this call',
+      show: can('spare.request') && !row._pending && canWorkRow(row),
+      run: () => { setDrawer(null); setSpareFor(row); } },
+    { key: 'reco', icon: '🧾', label: 'Reco', title: 'Reconcile — book spares consumed on this call',
+      show: mayReco && !row._pending,
+      run: () => gotoReco(row) },
+    { key: 'reopen', icon: '↻', label: 'Re-open call', title: 'Put this closed call back on the open list',
+      show: canReopen(row),
+      run: () => void reopen(row) },
+    { key: 'closeagain', icon: '🔒', label: 'Close again', title: 'The re-open was only to correct the call — put it back to closed without entering a visit',
+      show: canCloseReopen(row),
+      run: () => void closeReopen(row) },
+    { key: 'cancel', icon: '🚫', label: 'Cancel call', title: 'Cancel this call — it should not exist',
+      show: mayCancel && !row._pending && !isCancelled(row),
+      run: () => void cancel(row) },
+    { key: 'restore', icon: '♻️', label: 'Restore call', title: `Cancelled${row.cancelReason ? ` — ${row.cancelReason}` : ''}. Click to restore it.`,
+      show: mayCancel && isCancelled(row),
+      run: () => void restore(row) },
+  ] as (CallAction & { show: boolean })[]).filter((a) => a.show);
+
   const actionsColumn: Column<Rec> = {
     // Icons, not words: the column has to fit four actions without stealing the
     // width the call itself needs. Every button keeps a title for its meaning.
@@ -856,32 +894,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     render: (row) => (
       <div className="row act-row" onClick={(e) => e.stopPropagation()}>
         <button className="btn btn-sm btn-icon" title="View this call" onClick={() => setDrawer({ mode: 'view', row })}>👁</button>
-        {canEditRow(row) && <button className="btn btn-sm btn-icon" title="Edit this call" onClick={() => setDrawer({ mode: 'edit', row })}>✏️</button>}
-        {can('calls.report') && !row._pending && canWorkRow(row) && (
-          <button className="btn btn-sm btn-icon btn-primary" title="Visit Entry — record a visit against this call" onClick={() => setReport(row)}>📝</button>
-        )}
-        {can('spare.request') && !row._pending && canWorkRow(row) && (
-          <button className="btn btn-sm btn-icon" title="Request spares against this call" onClick={() => setSpareFor(row)}>📦</button>
-        )}
-        {/* RECO — Spare Coordinator / Hotline / Admin book a spare against this
-            call straight into consumption. Carries the call across, so the
-            reconciliation is never typed against the wrong UCN. */}
-        {mayReco && !row._pending && (
-          <button className="btn btn-sm btn-icon" title="Reconcile — book spares consumed on this call"
-            onClick={() => gotoReco(row)}>🧾</button>
-        )}
-        {mayCancel && !row._pending && !isCancelled(row) && (
-          <button className="btn btn-sm btn-icon" title="Cancel this call — it should not exist" onClick={() => void cancel(row)}>🚫</button>
-        )}
-        {mayCancel && isCancelled(row) && (
-          <button className="btn btn-sm btn-icon" title={`Cancelled${row.cancelReason ? ` — ${row.cancelReason}` : ''}. Click to restore it.`} onClick={() => void restore(row)}>♻️</button>
-        )}
-        {canReopen(row) && (
-          <button className="btn btn-sm btn-icon" title="Re-open this closed call" onClick={() => void reopen(row)}>↻</button>
-        )}
-        {canCloseReopen(row) && (
-          <button className="btn btn-sm btn-icon" title="Close again — the re-open was only to correct the call" onClick={() => void closeReopen(row)}>🔒</button>
-        )}
+        {callActions(row).map((a) => (
+          <button key={a.key} className={`btn btn-sm btn-icon${a.primary ? ' btn-primary' : ''}`} title={a.title} onClick={a.run}>{a.icon}</button>
+        ))}
         {isSolved(row) && !canReopen(row) && <span className="muted" title="Closed — Solved">🔒</span>}
         {row._pending && (can('calls.create') || can('calls.edit')) && (
           <button className="btn btn-sm btn-icon btn-ghost" title="Discard this unsynced local call" onClick={() => discardOne(row)}>🗑</button>
@@ -1056,19 +1071,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 ⏳ Saved locally, not yet in the sheet. Use “Sync {pendingCount} pending” once a sheet is connected.
               </div>
             )}
-            {/* Actions at the top of a call's view (each gated by its own permission) */}
-            {drawer.mode === 'view' && !drawer.row?._pending && (
-              ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec))
-              || canEditRow(drawer.row as Rec) || canReopen(drawer.row as Rec)
-              || canCloseReopen(drawer.row as Rec) || isSolved(drawer.row as Rec) || mayReco
-            ) && (
+            {/* The call's actions — the SAME list, in the same order, as the row.
+                They used to be here AND in the form's footer, in two different
+                orders; one place is enough and two was worse than one. */}
+            {drawer.mode === 'view' && callActions(drawer.row as Rec).length > 0 && (
               <div className="call-actions-top">
-                {can('calls.report') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>}
-                {can('spare.request') && canWorkRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>}
-                {mayReco && <button className="btn btn-sm" title="Reconcile — book spares consumed on this call" onClick={() => gotoReco(drawer.row as Rec)}>🧾 Reco</button>}
-                {canReopen(drawer.row as Rec) && <button className="btn btn-sm" title="Put this closed call back on the open list" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>}
-                {canCloseReopen(drawer.row as Rec) && <button className="btn btn-sm" title="The re-open was only to correct the call — put it back to closed without entering a visit" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>}
-                {canEditRow(drawer.row as Rec) && <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>✏️ Edit</button>}
+                {callActions(drawer.row as Rec).map((a) => (
+                  <button key={a.key} className={`btn btn-sm${a.primary ? ' btn-primary' : ''}`} title={a.title} onClick={a.run}>
+                    {a.icon} {a.label}
+                  </button>
+                ))}
                 {isSolved(drawer.row as Rec) && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Closed — {String((drawer.row as Rec).lastStatus || 'Solved')}</span>}
               </div>
             )}
@@ -1086,28 +1098,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : `Register ${config.singular}`}
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}
               onCancel={() => setDrawer(null)}
-              footer={
-                drawer.mode === 'view' && (canEditRow(drawer.row as Rec) || ((can('calls.report') || can('spare.request')) && canWorkRow(drawer.row as Rec)) || canReopen(drawer.row as Rec) || canCloseReopen(drawer.row as Rec) || mayReco) ? (
-                  <>
-                    {canEditRow(drawer.row as Rec) && <button type="button" className="btn" onClick={() => setDrawer({ mode: 'edit', row: drawer.row })}>Edit</button>}
-                    {!drawer.row?._pending && can('calls.report') && canWorkRow(drawer.row as Rec) && (
-                      <button type="button" className="btn btn-primary" onClick={() => { const r = drawer.row!; setDrawer(null); setReport(r); }}>📝 Visit Entry</button>
-                    )}
-                    {!drawer.row?._pending && can('spare.request') && canWorkRow(drawer.row as Rec) && (
-                      <button type="button" className="btn" onClick={() => { const r = drawer.row!; setDrawer(null); setSpareFor(r); }}>📦 Request Spares</button>
-                    )}
-                    {mayReco && !drawer.row?._pending && (
-                      <button type="button" className="btn" onClick={() => gotoReco(drawer.row as Rec)}>🧾 Reco</button>
-                    )}
-                    {canReopen(drawer.row as Rec) && (
-                      <button type="button" className="btn" onClick={() => void reopen(drawer.row as Rec)}>↻ Re-open call</button>
-                    )}
-                    {canCloseReopen(drawer.row as Rec) && (
-                      <button type="button" className="btn" onClick={() => void closeReopen(drawer.row as Rec)}>🔒 Close again</button>
-                    )}
-                  </>
-                ) : undefined
-              }
             />
             {drawer.mode === 'view' && !drawer.row?._pending && (drawer.row?.callNumber || drawer.row?.ucn) && (
               <CallAssociations
