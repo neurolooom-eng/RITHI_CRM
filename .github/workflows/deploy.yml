@@ -43,7 +43,30 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # A BRANCH PREVIEW PUBLISHES TO THE SAME BRANCH, and the two no longer
+      # share a concurrency group — so both can push to `gh-pages` at once and
+      # the second one is rejected ("cannot lock ref"). That is what killed
+      # deploy run #327: the build was fine, the push lost a race.
+      #
+      # The window is seconds, and the action re-clones the branch on each
+      # attempt, so a second try lands on the tip the other push just created.
+      # One retry, then the job fails for real — a deploy that silently did not
+      # happen is the thing this whole area keeps getting wrong.
       - name: Publish to gh-pages
+        id: publish
+        continue-on-error: true
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          # Keep the rest of the branch — `preview/<branch>/` folders published
+          # by preview.yml live there, and a default publish would wipe them.
+          # The cost is that superseded (hashed) assets are never pruned.
+          keep_files: true
+          # serve assets as-is (no Jekyll processing)
+          enable_jekyll: false
+      - name: Publish to gh-pages (retry after a concurrent push)
+        if: steps.publish.outcome == 'failure'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
