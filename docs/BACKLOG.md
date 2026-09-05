@@ -264,6 +264,18 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### To run on the live project — NOTHING PENDING (2026-09-05, second round)
+
+**`call_requests.sql` and `rbac.sql` run by the user on 2026-09-05**, bringing
+0107 (complaint-text help), 0108 (cancel a call), 0109 (close without a visit)
+and 0110 (an admin resets a password) live. `_status.sql` rows 61-64 cover
+those four.
+
+⚠️ REPORTED, NOT VERIFIED FROM HERE. This records what the user said they ran;
+nothing in this file is evidence that a migration is applied. Run
+`supabase/apply/_status.sql` before diagnosing anything that looks like one of
+these features misbehaving — that is the check, and this is only a note.
+
 ### To run on the live project — NOTHING PENDING (2026-09-05)
 
 **Every row of `_status.sql` reads `yes` — all 70.** From the user's own output
@@ -470,7 +482,7 @@ points at these rows.
   A later report takes over through `sync_call_last_visit`, re-opening the call
   if it says Unsolved. Refuses on a call that is already closed, cancelled or
   re-opened (the last has `close_reopened_call`, which gives the count back).
-  Same gate as re-open. ⚠️ **Run `call_requests.sql`** — `_status.sql` row 63.
+  Same gate as re-open. ✅ `call_requests.sql` run 2026-09-05 (row 63).
 - **A call can be CANCELLED** (v0.9.83, `0108_call_cancel.sql`) — `cancel_call()`
   / `restore_call()` gated on the new `calls.cancel` permission (merged into
   admin, nsm, hotline). `cancelled_at` / `cancel_reason` / `cancelled_by` on all
@@ -478,7 +490,7 @@ points at these rows.
   `pending_calls` excludes it. NOT a delete — visits and quality records are
   untouched (0049 still stands). `open_state` is deliberately not involved: it
   is a stored generated column on three tables.
-  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 62 flags it.
+  ✅ `call_requests.sql` run 2026-09-05 (row 62).
   ⚠️ 0104/0107 now `create extension if not exists pg_trgm` themselves: 0052
   installs it but sits in `performance`, which runs LAST, so a FRESH `all.sql`
   died at 0104 (a `language sql` body is parsed at creation, so the missing
@@ -505,7 +517,7 @@ points at these rows.
   calls have used more than once, and a WARNING for an alarm number the product
   does not have. `alarm_value_for()` resolves the number, product list before
   COMM. SECURITY DEFINER, aggregates only, same boundary as 0104.
-  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 61 flags it.
+  ✅ `call_requests.sql` run 2026-09-05 (row 61).
 - **The call form's live lists are injected, not in the schema** (v0.9.80) —
   Party datalist, the Standard Complaint master with its past-calls suggestions,
   and the engineer list come from `useCallFieldMasters()` in
@@ -571,7 +583,7 @@ points at these rows.
   `password_resets` logs who/whom/when and never the password. The generator is
   `src/lib/password.ts` (crypto.getRandomValues, rejection-sampled, no
   ambiguous characters), pinned by `npm run check:ui`.
-  ⚠️ **Run `rbac.sql`** — `_status.sql` row 64 flags it.
+  ✅ `rbac.sql` run 2026-09-05 (row 64).
 - User Master login (AL / Gmail ID, set-password-first, Validity=TRUE only).
 - **User Master is maintained in the app** (`0033_user_directory_role.sql`) —
   admins add and edit directory rows, and each carries the **role** the person
