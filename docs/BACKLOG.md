@@ -264,49 +264,34 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
-### To run on the live project — pending
+### To run on the live project — NOTHING PENDING (2026-09-05)
 
-- 🔴 **[`call_requests.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/call_requests.sql)**
-  (migrations `0104`, `0105`) — **`0105` CLOSES A LIVE DATA LEAK. Run this
-  first.** The `calls` view lost `security_invoker` when 0057 rebuilt it, so it
-  reads as its OWNER and row-level security does not apply: every signed-in user
-  can read EVERY call. Measured on a database with all migrations applied, as an
-  engineer holding none of them — `field_calls` 0 rows, `calls` 12, and
-  `pending_calls` / `call_state` / the KPI views 12 as well, because a view
-  marked invoker that reads an owner-run view inherits its reach.
-  ⚠️ **After applying it, engineers and managers will see FEWER calls** — the
-  ones their role permits. That is the intended behaviour, and it will look like
-  something broke to anyone used to seeing everything.
-  `0104` is the Standard Complaint suggestion. `_status.sql` rows 56 and 58.
-- 🔴 **[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)**
-  (migration `0106`) — the same fault, smaller reach: `warranty_sale_details`
-  and `contract_details` read as their owner, so anyone signed in could read
-  sale and contract records that `sale_entries` / `contract_entries` restrict to
-  `masters.view` / `cover.edit` / admin. `_status.sql` row 57.
-- **Optional, for the AI half of the complaint suggestion:** deploy the
-  `suggest-complaint` Edge Function and set `ANTHROPIC_API_KEY`. Without it the
-  register's own suggestions stand alone and the screen says nothing about AI.
+**Every row of `_status.sql` reads `yes` — all 70.** From the user's own output
+on 2026-09-05, after running `call_requests.sql` (0104 + 0105),
+`sales_contracts.sql` (0106), `data_integrity.sql` (0103) and `HandStock_X.sql`
+(0102).
 
-- **[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)**
-  (migration `0103`) — **the audit trail stops recording bulk loads row by row.**
-  `record_audit` kept a full before/after copy of every row written to the ten
-  quality tables, bulk uploads included, which is why it grew as it did. A bulk
-  write is now ONE event (who, which table, how many rows, when); everything a
-  person does is still recorded in full. The user asked for this on 2026-09-04
-  after seeing the table's size, and has already deleted the old rows.
+⚠️ **0102 and 0103 were confirmed by a one-off query, not by `_status.sql`,
+because I had not added rows for them** — I added rows for 0104–0106 and
+forgot these two. The report's silence looked like coverage. Rows 59 and 60
+close that, and the rule stands: **a bundle that gains a checkable object gains
+a `_status.sql` row in the same change.**
 
-- **[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)**
-  (migration `0102`) — the balance says how much of itself came from the
-  IMPORTED record. Three of the nine arms are the sheet era, loaded once: the
-  opening pools (`Opening balance`), the pre-2026 stock outs and the yearly
-  consumption exports (both `Historical`). `0102` appends `hist_stock_out`,
-  `hist_consumed`, `hist_net` and `on_hand_live`, so Hand Stock can show what
-  the import contributes per line and offer a toggle that leaves it out.
-  The user's report was *"I think the Handstock levels are incorrect"* — this is
-  what lets that be looked at rather than argued about. Columns are APPENDED,
-  which is the only thing `create or replace view` allows.
-  Until it is run the toggle changes nothing, rather than showing everyone as
-  holding zero.
+#### What 0105 changed on the live system, and what to expect
+
+The `calls` view had lost `security_invoker` when 0057 rebuilt it, so it read as
+its OWNER: **every signed-in user could read every call**, and `pending_calls`,
+`call_state` and the KPI views inherited that reach despite carrying the setting
+themselves. Now closed.
+
+**Engineers and managers will see FEWER calls** — the ones their role permits.
+A report of "I have lost my calls" is the fix working. `npm run check:views`
+fails on any view over an RLS-protected table lacking the setting, so the class
+cannot return silently.
+
+Also fixed, and needing no SQL: `updateFieldCall` never delegated to Supabase,
+so EDITING a call was posted to the Apps Script bridge while CREATING one went
+to the database.
 
 ### Everything before this was applied — NOTHING ELSE PENDING (2026-09-04)
 
