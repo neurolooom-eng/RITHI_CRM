@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.94',
+    date: '2026-09-05',
+    title: 'The Validation Package is written for CDSCO, and the second audit trail is switched off',
+    changes: [
+      '21 CFR IS OUT OF THE VALIDATION PACKAGE. Part 820 and Part 11 are the FDA\u2019s; this operation is regulated by CDSCO under the Medical Devices Rules, 2017, whose Fifth Schedule sets the QMS and is aligned to ISO 13485. Every citation is re-pointed there, and the Part 11 appendix is gone.',
+      'The CONTROLS it described are kept \u2014 an attributable, time-stamped trail people cannot alter, unique logins, authority checks. They are how record control is evidenced. It is the citation that has gone, not the control.',
+      'RECORD_AUDIT NO LONGER RECORDS ANYTHING. It kept a before-and-after copy of every row written to the quality tables, and existed for Part 11. The Audit Log is the trail now. The table stays, readable, holding what it captured while it ran.',
+      'The package says so plainly rather than keeping a claim that is no longer true: the remaining trail is written by the app, so it can be bypassed by a direct API call and is purged on the retention window \u2014 and the risk of an amended consumption entry is raised from Low to Medium, because the independent before/after copy is what has gone.',
+      '\u26a0\ufe0f The regulatory mapping is the author\u2019s and is for RA/QA to confirm against the current text of MDR-2017 and each standard before the package is approved.',
+    ],
+  },
+  {
     version: '0.9.93',
     date: '2026-09-05',
     title: 'Daily Call Review: Load more and the sync line move up to the heading',

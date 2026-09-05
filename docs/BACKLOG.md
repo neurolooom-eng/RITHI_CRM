@@ -579,6 +579,22 @@ points at these rows.
     (pending reason only), Report Pending (reason auto-set).
 
 ### Access & roles
+- **record_audit is STOPPED** (v0.9.94, `0112_stop_record_audit.sql`) — the ten
+  triggers are dropped; the TABLE and `record_audit_fn()` stay, so re-attaching
+  is one `create trigger`. It existed for 21 CFR Part 11, which is the FDA's and
+  does not apply to a CDSCO-regulated operation. ⚠️ It IS a reduction:
+  `audit_log` is client-written (bypassable by a direct API call) and purged on
+  the retention window; record_audit was neither. FRS-021, R-14 (residual raised
+  Low → Medium), FM-16, the ALCOA table and the controls summary all say so.
+  ⚠️ **Run `data_integrity.sql`** — `_status.sql` row 60 now checks the opposite
+  of what it used to: that NO record_audit trigger remains.
+- **The Validation Package is anchored on CDSCO, not FDA** (v0.9.94) —
+  Medical Devices Rules 2017 (Fifth Schedule) + ISO 13485:2016 / ISO 14971 /
+  ISO/TR 80002-2 / GAMP 5 / CSA, with the IT Act 2000 for the standing of
+  electronic records. Every `21 CFR 820.x` and `Part 11 §11.10(x)` citation
+  re-pointed; the Part 11 appendix (`PART11`, its screen section and the
+  `part11` tab) removed. ⚠️ The clause mapping is the author's and needs RA/QA
+  confirmation against the current text.
 - **An admin can reset a forgotten password** (v0.9.91,
   `0110_admin_reset_password.sql`) — `admin_reset_password(email, password)`,
   SECURITY DEFINER, gated on `is_admin()`, refusing a super admin unless the

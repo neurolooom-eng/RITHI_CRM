@@ -273,10 +273,9 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'handstock_balance'
                    and column_name = 'on_hand_live')),
-    (60, 'audit trail: a bulk load is ONE event', 'record_audit_fn is statement-level and summarises a bulk write instead of a row each (0103)',
-        (coalesce(pg_get_functiondef(to_regprocedure('public.record_audit_fn()')) like '%BULK %', false)
-     and exists (select 1 from pg_trigger
-                  where tgrelid = 'public.field_calls'::regclass and tgname = 'record_audit_i'))),
+    (60, 'audit trail: record_audit is STOPPED', 'no record_audit trigger is left on any table -- audit_log is the trail (0112). The table stays, holding what it recorded while it ran',
+        not exists (select 1 from pg_trigger
+                     where tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d'))),
     (61, 'complaints: the wording gets the register''s own house style', 'suggest_complaint_text + alarm_value_for -- the alarm number in this product''s spelling, and the phrasings already in use (0107)',
         (to_regprocedure('public.suggest_complaint_text(text,text,integer)') is not null
      and to_regprocedure('public.alarm_value_for(text,integer)')             is not null)),
