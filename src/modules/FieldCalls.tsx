@@ -964,6 +964,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         onChange={setEngineerFilter}
         allLabel="All engineers"
         blankLabel="— not allotted —"
+        more={moreAvailable}
       />
 
       <DataTable<Rec>

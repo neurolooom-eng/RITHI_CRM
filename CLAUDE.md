@@ -153,6 +153,16 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   (Field Failure Report, KPI & Failure Analysis) are honest placeholders until
   they get a table; the CRUD demo scaffolding (`CrudModule`, `schemas.tsx`,
   `CallExtras`) is gone. Recognise the symptom quickly.
+- **A count over partly-loaded data is a LOWER BOUND and must show `+`.**
+  Every register loads in pages, so a chip reading "MAYANK GUPTA 90" over the
+  first 800 rows means *at least* 90. A number that looks exact and is not is
+  worse than no number, because somebody acts on it. The title badge
+  (`countMore`) and the table's footer count already did this; the facet chips
+  and the group headings did not. `FacetChips` takes `more`, and
+  `npm run check:ui` REFUSES a `<FacetChips>` that does not pass it either way —
+  `more={false}` is the right answer only where the database computed the whole
+  aggregate (the KPI views), not where rows are still coming. Same rule for any
+  new count you add anywhere.
 - **One parser, one matcher.** Every importer reads dates through
   `src/lib/dates.ts` (day-first, always) and headers through
   `src/lib/headers.ts` (strict → loose → squash); CSV through `csv.ts`. Do not

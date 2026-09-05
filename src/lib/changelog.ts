@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.86',
+    date: '2026-09-05',
+    title: 'Counts say when there is more to come, and Pending Calls groups by engineer',
+    changes: [
+      'THE ENGINEER AND STAGE CHIPS WERE LYING BY A LITTLE. They count what has LOADED, and a register loads in pages \u2014 so \u201cMAYANK GUPTA 90\u201d over the first 800 calls meant at least 90, not 90. Every one of them now reads \u201c90+\u201d until everything is loaded, the same way the title already said \u201c800+\u201d. Group headings in the table too.',
+      'PENDING CALLS NOW HAS THE ENGINEER STRIP \u2014 a chip per name with what they are carrying and a click to see only theirs, exactly as the Field Call and Spare registers do. It covers Field, PM and Installation together, and the counts respect whatever else you have filtered by.',
+      'Spare Requests: Load more has moved up beside the count in the heading, where the \u201c+\u201d raises the question, instead of sitting at the foot of the table. Same as the call registers.',
+    ],
+  },
+  {
     version: '0.9.85',
     date: '2026-09-05',
     title: 'A spare request was raised on the day it was raised, not the day it was uploaded',

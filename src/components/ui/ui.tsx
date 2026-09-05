@@ -193,7 +193,7 @@ export function SectionCard({
 // one more click — a strip nobody can scan is not a filter, it is wallpaper.
 // ---------------------------------------------------------------------------
 export function FacetChips({
-  options, value, onChange, allLabel = 'All', max = 12, blankLabel = '— none —',
+  options, value, onChange, allLabel = 'All', max = 12, blankLabel = '— none —', more = false,
 }: {
   options: { key: string; count: number }[];
   value: string;
@@ -201,6 +201,11 @@ export function FacetChips({
   allLabel?: string;
   max?: number;
   blankLabel?: string;
+  // THE ROWS ARE STILL COMING. Every count here is over what has LOADED, so
+  // when more is waiting behind Load more each one is a lower bound — shown as
+  // "90+", never a bare 90. A number that looks exact and is not is worse than
+  // no number: somebody reads "MAYANK GUPTA 90" and believes it.
+  more?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   if (options.length <= 1) return null;   // nothing to choose between
@@ -217,7 +222,7 @@ export function FacetChips({
   return (
     <div className="stage-chips">
       <button className={`chip ${value === '' ? 'chip-on' : ''}`} onClick={() => onChange('')}>
-        {allLabel} <b>{total}</b>
+        {allLabel} <b>{total}{more ? '+' : ''}</b>
       </button>
       {shown.map((o) => (
         <button
@@ -225,7 +230,7 @@ export function FacetChips({
           className={`chip ${value === o.key ? 'chip-on' : ''}`}
           onClick={() => onChange(value === o.key ? '' : o.key)}
         >
-          {o.key || blankLabel} <b>{o.count}</b>
+          {o.key || blankLabel} <b>{o.count}{more ? '+' : ''}</b>
         </button>
       ))}
       {hidden > 0 && (
