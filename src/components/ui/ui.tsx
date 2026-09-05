@@ -10,6 +10,7 @@ export function PageHeader({
   icon,
   count,
   countMore,
+  moreAvailable,
   onLoadMore,
   loadingMore,
   status,
@@ -21,9 +22,16 @@ export function PageHeader({
   // How many records this screen is showing. Renders a badge next to the title
   // and feeds the same number to the sidebar nav (keyed by the current route).
   count?: number;
-  // The screen loads in pages and more rows exist behind "Load more", so the
-  // count is a lower bound — shown as "1,000+" rather than a wrong exact total.
+  // THE COUNT IS A LOWER BOUND — shown as "1,000+" rather than a wrong exact
+  // total. True when the number came from the rows LOADED and more are still
+  // coming. FALSE when the database counted the whole set: 3,850 is then the
+  // answer, and "3,850+" would be wrong in the other direction.
   countMore?: boolean;
+  // MORE ROWS EXIST BEHIND "Load more" — which is not the same question. The
+  // Daily Call Review knows its exact total (it counts every page) and still
+  // has only the first 500 on screen: an exact count AND a Load more button.
+  // Defaults to `countMore`, so a screen where the two coincide says it once.
+  moreAvailable?: boolean;
   // LOAD MORE BELONGS TO THE COUNT, not to the bottom of the table. "800+"
   // raises the question and the button beside it is the answer; at the foot of
   // a scrolling register it was somewhere you had to arrive at. Passing this
@@ -48,7 +56,7 @@ export function PageHeader({
           <h1 className="page-title">
             {title}
             {typeof count === 'number' && <span className="page-title-count">{count.toLocaleString()}{countMore ? '+' : ''}</span>}
-            {onLoadMore && countMore && (
+            {onLoadMore && (moreAvailable ?? countMore) && (
               <button className="btn btn-sm page-title-more" onClick={() => void onLoadMore()} disabled={loadingMore}>
                 {loadingMore ? 'Loading…' : '↓ Load more'}
               </button>

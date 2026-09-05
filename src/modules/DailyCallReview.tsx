@@ -55,6 +55,10 @@ const OPT = (arr: string[]) => ['', ...arr];
 // query returns, so a page is the difference between a quarter of a second
 // and a stalled screen.
 const PAGE = 500;
+// `field_calls.open_state` — the four it can hold. Cancelled is deliberately
+// not here: the full view the rows come from does not carry `cancelled_at`
+// (see 0111), so offering it would filter the counters and not the rows.
+const CALL_STATES = ['Unattended', 'Unsolved', 'Report pending', 'Solved'];
 
 
 export function DailyCallReview() {
@@ -90,7 +94,8 @@ export function DailyCallReview() {
   // an upload that failed rather than a filter that is doing its job.
   const [from, setFrom] = useState(yearStartISO());
   const [to, setTo] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState('');       // the PAPERWORK: Review 1/2/3
+  const [callState, setCallState] = useState('');  // the CALL: Unattended / Solved / …
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
   const [effectOnly, setEffectOnly] = useState(false);
@@ -110,9 +115,10 @@ export function DailyCallReview() {
 
   const filter = useMemo<ReviewFilter>(() => ({
     from: from || undefined, to: to || undefined, status: status || undefined,
+    callState: callState || undefined,
     product: product || undefined, engineer: engineer || undefined,
     effectOnly: effectOnly || undefined, q: search.trim() || undefined,
-  }), [from, to, status, product, engineer, effectOnly, search]);
+  }), [from, to, status, callState, product, engineer, effectOnly, search]);
 
   const load = async (f: ReviewFilter) => {
     if (!live) return;
@@ -250,7 +256,26 @@ export function DailyCallReview() {
         title="Daily Call Review"
         subtitle="DCCR — every field call through Review 1, 2 and 3"
         icon="🩺"
+        // The count is EXACT — countCallReviews walks every page of the summary
+        // view — so no "+", even though only the first page of rows is on
+        // screen. `moreAvailable` is what puts Load more beside it.
         count={tab === 'register' ? counts.total : undefined}
+        moreAvailable={tab === 'register' && more}
+        onLoadMore={tab === 'register' ? () => void loadMore() : undefined}
+        loadingMore={loadingMore}
+        status={tab === 'register' ? (
+          <>
+            <span className={`conn-dot ${live ? 'conn-on' : 'conn-off'}`}>
+              {live ? 'Database connected' : 'Not connected'}
+            </span>
+            {/* Rows ON SCREEN against the whole filtered set — the one number
+                here that IS partial, so it carries the "+". */}
+            <span className="conn-dot conn-off">
+              showing {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
+            </span>
+            {lastSync && <span className="conn-dot conn-off" title={new Date(lastSync).toLocaleString()}>⟳ synced {timeAgo(lastSync)}</span>}
+          </>
+        ) : undefined}
         actions={
           tab === 'register' ? (
             <>
@@ -311,6 +336,15 @@ export function DailyCallReview() {
               </select>
             </div>
             <div>
+              {/* Two different questions about the same call: Review Status is
+                  where the PAPERWORK has got to, this is where the CALL has. */}
+              <label className="field-label">Call Status</label>
+              <select className="select" value={callState} onChange={(e) => setCallState(e.target.value)}>
+                <option value="">All call statuses</option>
+                {CALL_STATES.map((s) => <option key={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="field-label">Product</label>
               <select className="select" value={product} onChange={(e) => setProduct(e.target.value)}>
                 <option value="">All products</option>
@@ -342,18 +376,16 @@ export function DailyCallReview() {
               storageKey="dccr-register"
               rowsBeforeScroll={12}
               dense
-              onLoadMore={() => void loadMore()}
+              // Load more lives beside the count in the heading (see PageHeader),
+              // so it is NOT passed here. `moreAvailable` stays: it is what puts
+              // the "+" on the footer's row count and on every group heading,
+              // which ARE counts over the rows loaded.
               moreAvailable={more}
-              loadingMore={loadingMore}
               emptyText={busy ? 'Loading…' : live ? 'No calls match these filters.' : 'Connect the database to load the register.'}
               toolbar={
                 <Toolbar>
                   <input className="input" placeholder="Search UCN, customer, product, complaint…" value={search} onChange={(e) => setSearch(e.target.value)} />
                   <div className="spacer" />
-                  <span className="muted">
-                    showing {rows.length.toLocaleString()} of {counts.total.toLocaleString()}
-                  </span>
-                  {lastSync && <span className="muted">· synced {timeAgo(lastSync)}</span>}
                 </Toolbar>
               }
             />

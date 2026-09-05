@@ -1138,7 +1138,8 @@ export async function latestReport(ucn: string): Promise<Record<string, unknown>
 export interface ReviewFilter {
   from?: string;          // reg_date >=  (yyyy-mm-dd)
   to?: string;            // reg_date <=
-  status?: string;        // review_status
+  status?: string;        // review_status — where the PAPERWORK has got to
+  callState?: string;     // open_state — where the CALL has got to
   product?: string;
   engineer?: string;
   effectOnly?: boolean;   // Any Potential Effect = YES
@@ -1151,6 +1152,12 @@ function applyReviewFilter<T extends { eq: (c: string, v: never) => T; gte: (c: 
   if (f.from) q = q.gte('reg_date', f.from as never);
   if (f.to) q = q.lte('reg_date', f.to as never);
   if (f.status) q = q.eq('review_status', f.status as never);
+  // The CALL's own state (Unattended / Unsolved / Report pending / Solved) —
+  // a fact about the machine, where `status` above is a fact about the
+  // paperwork. Both views carry `open_state`, so the rows and the counters
+  // agree; a filter only one of them honoured would make the register disagree
+  // with its own header.
+  if (f.callState) q = q.eq('open_state', f.callState as never);
   if (f.product) q = q.eq('product_name', f.product as never);
   if (f.engineer) q = q.eq('allocated_to', f.engineer as never);
   if (f.effectOnly) q = q.eq('any_potential_effect', 'YES' as never);

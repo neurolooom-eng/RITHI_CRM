@@ -291,6 +291,10 @@ with checks(sort_order, bundle, provides, present) as (
     (64, 'logins: an admin can reset a forgotten password', 'admin_reset_password() + the password_resets log -- what the sign-in page now tells people to ask for (0110)',
         (to_regprocedure('public.admin_reset_password(text,text)') is not null
      and to_regclass('public.password_resets')                     is not null)),
+    (65, 'DCCR: the register can be filtered by CALL status', 'field_call_review_summary carries open_state, so the rows and the stage counters agree (0111)',
+        exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'field_call_review_summary'
+                   and column_name = 'open_state')),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),

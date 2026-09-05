@@ -475,6 +475,15 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **The DCCR can be filtered by CALL status** (v0.9.93,
+  `0111_dccr_call_status.sql`) — `field_call_review_summary` gains `open_state`
+  and `cancelled_at`, APPENDED (`create or replace view` can only add at the
+  end) and with `security_invoker` re-asserted. The summary is what the stage
+  counters read, so without it a filter the rows honoured and the counts did not
+  would make the register disagree with its own header. The filter uses
+  `open_state` only: `field_call_review` carries no `cancelled_at`, so Cancelled
+  is not offered — `cancelled_at` is on the summary ready for that.
+  ⚠️ **Run `daily_review.sql`** — `_status.sql` row 65.
 - **An open call can be CLOSED without a visit** (v0.9.87,
   `0109_close_call.sql`) — `close_call()` sets `last_status = 'Solved'` and
   nothing else: `last_visit_at` is untouched, so no visit is invented, and the
