@@ -21,7 +21,10 @@
 // or repoint the import below. Both places using it follow.
 // ---------------------------------------------------------------------------
 import almsLogo from '../assets/alms-logo.jpg';
-import rithiLogo from '../assets/rithi-crm-logo.svg';
+// The MARK on its own (no wordmark): it sits in a 30px tile in the menu bar,
+// where the full lockup's text would be unreadable. `rithi-crm-logo.svg` is the
+// lockup, kept for anywhere it can be shown at size.
+import rithiLogo from '../assets/rithi-crm-logo-only.svg';
 
 export const COMPANY_LOGO = almsLogo;
 export const RITHI_LOGO = rithiLogo;

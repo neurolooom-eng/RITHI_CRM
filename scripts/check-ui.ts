@@ -385,8 +385,10 @@ console.log('\n-- the company mark on documents, the app mark on the app --');
     eq(`${f.split('/').pop()} uses the app mark`, read(f).includes('RITHI_LOGO'), true);
   });
   // Only brand.ts reaches for the files themselves.
-  eq('lib/brand is the only importer of the logo files',
-    read('src/lib/brand.ts').includes("assets/alms-logo.jpg") && read('src/lib/brand.ts').includes('assets/rithi-crm-logo.svg'), true);
+  // Not pinned to a FILENAME: swapping the file is the point of this module.
+  // What must hold is that brand.ts is the one place that reaches into assets.
+  eq('lib/brand imports both marks from src/assets',
+    (read('src/lib/brand.ts').match(/from '\.\.\/assets\//g) ?? []).length, 2);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

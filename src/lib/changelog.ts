@@ -12,6 +12,14 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.90',
+    date: '2026-09-05',
+    title: 'The menu bar and sign-in page show the RITHI mark on its own',
+    changes: [
+      'The logo in the menu bar and on the sign-in page is now the mark by itself rather than the full lockup \u2014 in a 30-pixel tile the wordmark was never going to be readable, and dropping it lets the mark itself be seen.',
+    ],
+  },
+  {
     version: '0.9.89',
     date: '2026-09-05',
     title: 'The company\u2019s own colours, and a simpler sign-in page',
