@@ -3,7 +3,7 @@ import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
-  VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, ARCHITECTURE, DETAILED, RISKS, TESTS,
+  VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, NON_AUDITABLE, ARCHITECTURE, DETAILED, RISKS, TESTS,
   FMEA, FMEA_SCALE, SUPPLIERS, VSR,
   DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
 } from '../lib/validation';
@@ -18,7 +18,7 @@ import './softwarevalidation.css';
 
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
-type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
+type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
   | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -26,6 +26,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'checklist', label: 'Compliance Checklist' },
   { key: 'urs', label: 'User Requirements' },
   { key: 'srs', label: 'System Requirements' },
+  { key: 'nonaudit', label: 'Non-Auditable Requirements' },
   { key: 'arch', label: 'Architecture Design' },
   { key: 'design', label: 'Detailed Design' },
   { key: 'config', label: 'Configuration Spec' },
@@ -152,6 +153,34 @@ export function SoftwareValidation() {
         <Section title="System / Functional Requirements Specification (FRS)">
           <table className="sv-table"><thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 90 }}>Traces to</th><th style={{ width: 80 }}>Risk</th></tr></thead>
             <tbody>{FRS.map((f) => <tr key={f.id}><td className="sv-id">{f.id}</td><td><b>{f.title}.</b> {f.text}</td><td className="sv-ref">{f.urs.join(', ')}</td><td>{riskBadge(f.risk)}</td></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* NON-AUDITABLE REQUIREMENTS */}
+      {show('nonaudit') && (
+        <Section title="Non-Auditable Requirements (NAR)">
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            Requirements the system owner asked for that are <b>not derived from a regulatory clause</b> and are
+            not offered as evidence against one. They are listed here so the package accounts for everything the
+            system does — an undocumented feature is a finding in itself. The classification is about where the
+            requirement <i>came from</i>: it does not mean the requirement is untested, undocumented, or that its
+            use goes unrecorded.
+          </p>
+          <table className="sv-table">
+            <thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 80 }}>Risk</th></tr></thead>
+            <tbody>{NON_AUDITABLE.map((n) => (
+              <tr key={n.id}>
+                <td className="sv-id">{n.id}</td>
+                <td>
+                  <b>{n.title}.</b> {n.text}
+                  <div style={{ marginTop: 6 }}><b>Classification.</b> {n.classification}</div>
+                  <div style={{ marginTop: 6 }}><b>Origin and scope.</b> {n.rationale}</div>
+                  {n.refs ? <span className="sv-ref"> [{n.refs.join('; ')}]</span> : null}
+                </td>
+                <td>{riskBadge(n.risk)}</td>
+              </tr>
+            ))}</tbody>
           </table>
         </Section>
       )}

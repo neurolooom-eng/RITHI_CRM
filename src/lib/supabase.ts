@@ -119,6 +119,12 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   // somebody other than the Hotline engineer trained on the vigilance
   // questions. A UUID here; the table and the form resolve it to a name.
   out.createdBy = row.created_by ?? '';
+  // ...and WHO WAS AT THE KEYBOARD (0114). `created_by` is the Hotline DESK a
+  // call belongs to, which defaults to the trained engineer whoever typed it
+  // in; this is the person who actually did. The two DISAGREEING is the
+  // vigilance finding, so both are carried, both are shown, and neither is
+  // settable by the app.
+  out.actualCreatedBy = row.actual_created_by ?? '';
   // Denormalised call state (0014) — rides along with every call the register
   // already loads, so no second query is needed to colour the list.
   // A re-opened call is open again whatever its last visit said (0057).
@@ -2584,6 +2590,63 @@ export async function listSlaRules(): Promise<SlaRuleRow[]> {
 export async function saveSlaRule(key: string, patch: { target_hours?: number; active?: boolean }): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('sla_rules').update(patch).eq('key', key);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// WHOSE DESK A CALL IS REGISTERED TO (0114).
+//
+// The Hotline engineer is the only person trained on the three vigilance
+// questions, so a call belongs to her desk whoever typed it in — and the
+// database defaults `created_by` to it. These read and set that default.
+// `profiles` only lets most people read themselves, so the list of desks comes
+// through a SECURITY DEFINER function rather than a query.
+// ---------------------------------------------------------------------------
+export interface RegistrantDesk { id: string; name: string; email: string; is_default: boolean }
+export async function listRegistrantDesks(): Promise<RegistrantDesk[]> {
+  const { data, error } = await must().rpc('registrant_desks');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as RegistrantDesk[];
+}
+// '' means nobody has pinned one, and the database falls back to the single
+// hotline-role profile — which is the state the project is in today.
+export async function getDefaultRegistrantEmail(): Promise<string> {
+  const { data, error } = await must().from('app_settings').select('value').eq('key', 'calls.default_registrant_email').maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return String((data as { value?: string } | null)?.value ?? '').trim();
+}
+export async function setDefaultRegistrantEmail(email: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('app_settings')
+    .upsert({ key: 'calls.default_registrant_email', value: email.trim(), updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// AUDIT MODE (0114) — an administrator's switch.
+//
+// NOTHING READS THE MODE YET. The user asked for the switch and said the rules
+// would follow, so the app can turn it on and off and show its history, and
+// no behaviour hangs off it. When the rules arrive they attach here.
+//
+// Every change is written by the database, with a reason, into a table nothing
+// purges — so `setAuditMode` REQUIRES the reason and the server refuses without
+// one. Reading the switch is open to any signed-in user; reading its history is
+// not.
+// ---------------------------------------------------------------------------
+export interface AuditModeChange { id: number; at: string; turned_on: boolean; reason: string; changed_by: string | null }
+export async function getAuditMode(): Promise<boolean> {
+  const { data, error } = await must().rpc('audit_mode');
+  if (error) throw new Error(errMsg(error));
+  return data === true;
+}
+export async function setAuditMode(on: boolean, reason: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('set_audit_mode', { p_on: on, p_reason: reason });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function listAuditModeChanges(limit = 20): Promise<AuditModeChange[]> {
+  const { data, error } = await must().from('audit_mode_changes')
+    .select('id,at,turned_on,reason,changed_by').order('at', { ascending: false }).limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as AuditModeChange[];
 }
 
 // ---------------------------------------------------------------------------

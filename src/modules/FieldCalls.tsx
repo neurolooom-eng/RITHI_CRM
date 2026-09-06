@@ -50,8 +50,10 @@ const CALL_ALL_FIELDS = [
     ? { key: h.key, header: h.header, render: (r: Rec) => (h.key === 'regDate' ? fmtLongSmart(r[h.key]) : fmtLongDate(r[h.key])) }
     : { key: h.key, header: h.header }
   )),
-  // Not a sheet column — the database's own stamp of who registered the call.
-  { key: 'createdBy', header: 'Registered By' },
+  // Not sheet columns — the database's own stamp of who registered the call:
+  // the Hotline desk it belongs to, and the person who actually typed it in.
+  { key: 'createdBy', header: 'Created By (Hotline Desk)' },
+  { key: 'actualCreatedBy', header: 'Actually Registered By' },
 ];
 
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
@@ -134,13 +136,28 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   { name: 'customerDesignation', label: 'Customer Designation', section: 'Customer Contact', span: 1 },
   // 'emailAddress' is NOT on this form. It holds the email of the engineer who
   // RAISED the request — not the customer's, and not needed on the call. Who
-  // REGISTERED the call is a different fact and a controlled one: it is stamped
-  // by the database into `created_by` and shown read-only below, because the
-  // Hotline engineer is the only person trained on the vigilance questions and
-  // a call registered by anyone else has to be findable. The column and its
-  // sheet header stay, so imported values still export.
-  { name: 'registeredBy', label: 'Registered By', section: 'Registration', readOnly: true,
-    help: 'Stamped by the database from the signed-in user. Not editable, and not settable by the app.', span: 1 },
+  // REGISTERED the call is a different fact and a controlled one, and since
+  // 0114 it is TWO facts, because they are genuinely different:
+  //
+  //   Created By          the Hotline DESK the call belongs to. Defaults to the
+  //                       Hotline engineer — the only person trained on the
+  //                       three vigilance questions — whoever typed it in.
+  //   Actually Registered the person who typed it in. One of the stand-ins when
+  //   By                  she is on leave.
+  //
+  // Both are read-only and neither is settable by the app: the database fills
+  // them, and the second one is taken from the signed-in session and cannot be
+  // supplied at all. The two DISAGREEING is the finding — an untrained person
+  // answered the three questions — and a field the app could set would not be
+  // evidence of anything. The default desk is an administrator's setting, on
+  // Admin Config.
+  //
+  // The `emailAddress` column and its sheet header stay, so imported values
+  // still export.
+  { name: 'registeredBy', label: 'Created By (Hotline Desk)', section: 'Registration', readOnly: true,
+    help: 'The Hotline desk this call belongs to. Defaults to the Hotline engineer; an administrator sets which one on Admin Config.', span: 1 },
+  { name: 'actuallyRegisteredBy', label: 'Actually Registered By', section: 'Registration', readOnly: true,
+    help: 'The signed-in person who registered this call. Stamped by the database and not settable by the app.', span: 1 },
 ];
 
 const COLUMNS: Column<Rec>[] = [
@@ -162,10 +179,13 @@ const COLUMNS: Column<Rec>[] = [
     ),
   },
   { key: 'callNumber', header: 'Call Number', width: 170 },
-  // Stamped by the database. Group by it to see who has been registering
-  // calls — the Hotline engineer is the only person trained on the vigilance
-  // questions, so anyone else appearing here is the thing to look at.
-  { key: 'createdBy', header: 'Registered By', width: 160 },
+  // Stamped by the database. GROUP BY "Actually Registered By" to see who has
+  // been registering calls: the Hotline engineer is the only person trained on
+  // the vigilance questions, so anyone else appearing there is the thing to
+  // look at. "Created By" is the desk the call is filed to, which is hers
+  // whoever typed it in — so on its own it would show nothing.
+  { key: 'createdBy', header: 'Created By (Hotline Desk)', width: 170 },
+  { key: 'actualCreatedBy', header: 'Actually Registered By', width: 180 },
   { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
@@ -1147,6 +1167,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                   ...drawer.row,
                   registeredBy: drawer.row?.createdBy
                     ? nameForUserId(String(drawer.row.createdBy), userNameMap)
+                    : '— not recorded (registered before this was kept) —',
+                  actuallyRegisteredBy: drawer.row?.actualCreatedBy
+                    ? nameForUserId(String(drawer.row.actualCreatedBy), userNameMap)
                     : '— not recorded (registered before this was kept) —',
                 } as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}

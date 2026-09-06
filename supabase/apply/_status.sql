@@ -299,6 +299,14 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger
                   where tgrelid = 'public.field_calls'::regclass
                     and tgname = 'zz_calls_stamp_creator'))),
+    (67, 'calls: the desk of record and the person at the keyboard', 'actual_created_by holds who typed the call in; created_by holds the Hotline desk it belongs to. The two disagreeing is the vigilance finding (0114 call_requests)',
+        (exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'field_calls'
+                    and column_name = 'actual_created_by')
+     and to_regprocedure('public.default_registrant()') is not null)),
+    (68, 'audit mode: the switch exists and every flip is kept', 'set_audit_mode() + audit_mode_changes -- admin-only, needs a reason, and the history outlives the audit_log retention window (0114 audit)',
+        (to_regprocedure('public.set_audit_mode(boolean,text)') is not null
+     and to_regclass('public.audit_mode_changes') is not null)),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),

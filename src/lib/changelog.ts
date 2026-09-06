@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.98',
+    date: '2026-09-06',
+    title: 'Two names on a call: the Hotline desk, and whoever actually registered it',
+    changes: [
+      'WHY THIS MATTERS: only the Hotline engineer is trained on the vigilance questions asked at registration \u2014 Public Health Threat, Death, Serious Incident. A call belongs to her desk whoever types it in; who ACTUALLY typed it in is a separate fact, and it is the one a review needs.',
+      'So a call now carries both. \u201cCreated By (Hotline Desk)\u201d is the desk it is filed to, and defaults to the Hotline engineer \u2014 SIVARANI today. \u201cActually Registered By\u201d is the person who registered it: service.almsind, Devika or Karthik when she is on leave.',
+      'THE TWO DISAGREEING IS THE POINT. Group the register by \u201cActually Registered By\u201d and every call registered by somebody other than the Hotline engineer is right there \u2014 no reconstructing it from memory.',
+      'NEITHER CAN BE FAKED. Both are read-only on the call and filled by the database. \u201cActually Registered By\u201d comes from the login and a client that sends a different name is recorded as itself; a desk that is not a Hotline desk is replaced by the default.',
+      'Admin Config \u2192 Call Registration says which desk new calls are filed to, and lets an administrator point it at a different Hotline engineer when there is more than one.',
+      'A call registered before any of this says \u201cnot recorded\u201d on both, rather than naming somebody who did not do it.',
+      'NEW: Admin Config \u2192 Audit Mode, a switch only an administrator can throw. NOTHING BEHAVES DIFFERENTLY WHILE IT IS ON YET \u2014 the rules for it are still to come, and guessing at them would be worse than waiting. Switching it needs a reason, and every change is kept with who and when, permanently.',
+      'The Validation Package gains a Non-Auditable Requirements section, where Audit Mode is recorded (NAR-001) \u2014 that is about where the requirement came from, not about it going unrecorded.',
+      'Needs migrations: run supabase/apply/call_requests.sql and supabase/apply/audit.sql.',
+    ],
+  },
+  {
     version: '0.9.97',
     date: '2026-09-06',
     title: 'The register shows who registered each call \u2014 and the database decides it',

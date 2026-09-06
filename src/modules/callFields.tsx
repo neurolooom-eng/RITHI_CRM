@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import type { FieldDef, FieldOption } from '../components/form/Form';
 import { setEngineerNamesCache } from '../lib/format';
-import { supabaseConfigured, sbDirectoryNames, type ComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, type ComplaintSuggestion } from '../lib/supabase';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 
@@ -21,6 +21,8 @@ import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 //   Standard Complaint → the master as a dropdown, with the suggestions from
 //                        past calls underneath it
 //   Call Allocated To  → the active User Master directory
+//   Created By         → the Hotline desk the database will file the call to
+//   Actually Reg. By   → the signed-in person, which is what it will stamp
 //
 // This lived inside the Field Calls screen, so the other two got none of it:
 // Standard Complaint was a bare text box with no list and no suggestions, and
@@ -32,7 +34,7 @@ export function useCallFieldMasters(): {
   inject: (fs: FieldDef[]) => FieldDef[];
   offered: MutableRefObject<ComplaintSuggestion[]>;
 } {
-  const { users } = useAuth();
+  const { user, users } = useAuth();
   const partyMaster = useMaster('party');
   const complaintMaster = useMaster('complaint');
 
@@ -58,6 +60,22 @@ export function useCallFieldMasters(): {
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
+
+  // WHO THE CALL WILL BE FILED TO, shown before it is saved rather than after.
+  // Both fields are read-only and the DATABASE fills them on insert (0114) —
+  // these are the same two values, fetched so the form is not blank about a
+  // fact it already knows. They are `defaultValue`s, so an existing call opened
+  // for edit keeps what it actually carries: `initial` beats `defaultValue`.
+  const [deskName, setDeskName] = useState('');
+  useEffect(() => {
+    if (!supabaseConfigured()) return;
+    let alive = true;
+    void listRegistrantDesks()
+      .then((d) => { if (alive) setDeskName(d.find((x) => x.is_default)?.name ?? ''); })
+      .catch(() => { /* the form still saves; the database decides either way */ });
+    return () => { alive = false; };
+  }, []);
+  const meName = (user?.fullName || user?.email || '').trim();
 
   // What was offered on this form, so what is ultimately CHOSEN can be compared
   // with it. Held in a ref rather than state: it must not re-render the form,
@@ -124,7 +142,13 @@ export function useCallFieldMasters(): {
         : f.name === 'standardComplaint' ? complaintField(f)
           : f.name === 'complaintReported' ? { ...f, below: reportedHelp }
             : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
-              : f);
+              // No desk resolved (nobody pinned one and there is not exactly
+              // one hotline profile) means the database will file the call to
+              // whoever registers it — so say that, rather than showing a name
+              // that would be wrong.
+              : f.name === 'registeredBy' ? { ...f, defaultValue: deskName || (meName ? `${meName} — no Hotline desk is set` : '') }
+                : f.name === 'actuallyRegisteredBy' ? { ...f, defaultValue: meName }
+                  : f);
 
   return { inject, offered };
 }

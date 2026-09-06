@@ -489,6 +489,56 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **The desk of record and the person at the keyboard** (v0.9.98,
+  `0114_call_registrant_split.sql`) — the user's correction to 0113: one column
+  was carrying two different facts. `created_by` is now the Hotline DESK a call
+  is filed to, defaulting to the hotline-role profile (SIVARANI) or to an
+  administrator's pinned choice (`app_settings.calls.default_registrant_email`,
+  set on Admin Config → Call Registration). `actual_created_by` is the person
+  who typed it in — service.almsind / devika.m / karthiksundar.b when she is
+  away — stamped from `auth.uid()` with a caller-supplied value DISCARDED. A
+  supplied desk is accepted only when it names a hotline desk.
+  **The two DIFFERING is the finding**, and section 4 of
+  `_registered_by_check.sql` is that list.
+  - The backfill is exact, not a guess: until now `created_by` WAS the person at
+    the keyboard, so `actual_created_by := created_by` loses nothing.
+  - `calls` / `pending_calls` rebuilt to carry the column (appended — `create or
+    replace view` can only add at the end), `security_invoker` re-asserted on
+    all three views, and the INSTEAD OF functions regenerated so a write through
+    the view carries it.
+  - **The RLS arm had to widen**: the visibility test allowed "a call you
+    created", and with `created_by` now naming the DESK that arm stops matching
+    for exactly the people this is about. Devika would have lost sight of the
+    call she had just typed in. It tests either column now.
+  - ⚠️ **Run `call_requests.sql`** — `_status.sql` rows 66 and 67.
+  - Two hotline profiles and no pinned setting is an AMBIGUITY: the database
+    returns no desk and files the call to whoever registered it, rather than
+    picking one arbitrarily. That is the case the Admin Config card exists for.
+- **Audit Mode** (v0.9.98, `0114_audit_mode.sql`) — an admin-only switch, asked
+  for with the rules to follow ("I will give the list of rules for that later").
+  **Nothing reads it.** The switch, `set_audit_mode()` (admin-only, refuses
+  without a reason) and `audit_mode_changes` (no insert/update/delete path
+  through the API, not touched by the audit-log retention purge) are built and
+  tested; no application behaviour is conditioned on the mode. Documented in the
+  Validation Package as **NAR-001, the package's first Non-Auditable
+  Requirement** — a statement about PROVENANCE (not derived from a regulatory
+  clause, not offered as evidence against one), not about its use going
+  unrecorded.
+  - ⚠️ **Run `audit.sql`** — `_status.sql` row 68.
+  - 🔜 **Pending from the user:** the rules. Each is to be assessed on its own
+    merits when it arrives; a rule that would alter, conceal or suppress a
+    quality record, or change what a record shows an assessor, is outside the
+    NAR classification and needs raising as an auditable requirement with its
+    own risk assessment first.
+- **`supabase/apply/_registered_by_check.sql`** — read-only: how much of the
+  register is attributable at all, where the line falls between stamped and
+  unstamped, WHO has been registering calls, and (section 4, added with 0114)
+  the calls whose desk and keyboard disagree. Two
+  defects were found by running it against a fixture rather than by reading it:
+  sections 3/4 used an INNER join to `profiles`, which silently dropped a call
+  whose registrar's profile had gone — out of a count whose whole purpose is to
+  be complete; and section 5 gave the same label to "no registrar stamped" and
+  "stamped, but no profile", which are different facts and only one is a gap.
 - **Who REGISTERED a call is the database's to say** (v0.9.97,
   `0113_call_creator_authoritative.sql`) — a COMPLIANCE control, not a
   convenience: only the Hotline engineer is trained on the vigilance questions
