@@ -1596,13 +1596,16 @@ export async function dispatchSpareLines(
 // then take apart by hand — and returns both counts with a reason, so the
 // screen can say what happened to all forty.
 // ---------------------------------------------------------------------------
-export async function approveSpareLines(
-  lineIds: number[], actor: string,
-): Promise<{ ok: boolean; approved?: number; skipped?: number; reason?: string; error?: string }> {
-  const { data, error } = await must().rpc('approve_spare_lines', { p_line_ids: lineIds, p_actor: actor });
+export type SpareDecision = 'approve' | 'reject' | 'drop';
+export async function decideSpareLines(
+  lineIds: number[], decision: SpareDecision, actor: string, reason = '',
+): Promise<{ ok: boolean; decided?: number; skipped?: number; reason?: string; error?: string }> {
+  const { data, error } = await must().rpc('decide_spare_lines', {
+    p_line_ids: lineIds, p_decision: decision, p_actor: actor, p_reason: reason,
+  });
   if (error) return { ok: false, error: errMsg(error) };
-  const row = (Array.isArray(data) ? data[0] : data) as { approved?: number; skipped?: number; reason?: string } | null;
-  return { ok: true, approved: Number(row?.approved ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
+  const row = (Array.isArray(data) ? data[0] : data) as { decided?: number; skipped?: number; reason?: string } | null;
+  return { ok: true, decided: Number(row?.decided ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
 }
 
 // What is waiting for an RM, and — per row, per reader — whether THIS reader

@@ -10,7 +10,7 @@ import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
   searchCalls, supabaseConfigured, receiveSpareShipments,
   sbReassignSpareRequest, sbListEngineerChanges, type EngineerChange,
-  approveSpareLines,
+  decideSpareLines, type SpareDecision,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
@@ -483,33 +483,46 @@ export function SpareRequests() {
   // What the caller may not approve is skipped and reported, not silently
   // dropped and not enough to fail the batch.
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [approving, setApproving] = useState(false);
+  const [deciding, setDeciding] = useState(false);
+  // NOTHING HAPPENS ON THE BUTTON PRESS. A bulk decision over forty spares is
+  // not something to discover you have made, so the button opens a
+  // confirmation that names the count and the decision, takes the reason where
+  // one is required, and only then acts (the user's ask, 2026-09-06).
+  const [confirm, setConfirm] = useState<{ decision: SpareDecision; ids: string[]; clear: () => void } | null>(null);
+  const [why, setWhy] = useState('');
   const mayBulkApprove = can('spare.approve_rm') || can('spare.approve_commercial') || can('spare.approve_nsm');
+  const mayDrop = can('spare.drop');
 
-  const bulkApprove = async (ids: string[], clear: () => void) => {
+  const VERB: Record<SpareDecision, string> = { approve: 'Approve', reject: 'Reject', drop: 'Drop' };
+  const DONE: Record<SpareDecision, string> = { approve: 'approved', reject: 'rejected', drop: 'dropped' };
+
+  const runDecision = async () => {
+    if (!confirm) return;
+    const { decision, ids, clear } = confirm;
     const lineIds = ids
       .map((id) => Number((rows.find((r) => String(r.id) === id) as Row | undefined)?.line_id ?? id))
       .filter((n) => Number.isFinite(n) && n > 0);
     if (!lineIds.length) { setMsg({ tone: 'error', text: 'Nothing selected.' }); return; }
-    setApproving(true);
+    setDeciding(true);
     const t0 = performance.now();
-    const res = await approveSpareLines(lineIds, user?.fullName || user?.email || '');
+    const res = await decideSpareLines(lineIds, decision, user?.fullName || user?.email || '', why.trim());
     logAudit({
-      action: 'spare.approve', target: `${lineIds.length} spares`,
+      action: `spare.${decision}`, target: `${lineIds.length} spares`,
       status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
       duration_ms: Math.round(performance.now() - t0),
-      meta: { scope: 'bulk', selected: lineIds.length, approved: res.approved ?? 0, skipped: res.skipped ?? 0 },
+      meta: { scope: 'bulk', selected: lineIds.length, decided: res.decided ?? 0, skipped: res.skipped ?? 0 },
     });
-    setApproving(false);
-    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not approve.' }); return; }
+    setDeciding(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? `Could not ${decision}.` }); return; }
     // BOTH numbers, always. "12 approved" over a selection of 14 leaves
     // somebody wondering about the other two.
     const skipped = res.skipped ?? 0;
     setMsg({
       tone: skipped ? 'info' : 'ok',
-      text: `${res.approved ?? 0} spare${res.approved === 1 ? '' : 's'} approved`
-        + (skipped ? ` — ${skipped} skipped (${res.reason || 'not yours to approve at that stage'}).` : '.'),
+      text: `${res.decided ?? 0} spare${res.decided === 1 ? '' : 's'} ${DONE[decision]}`
+        + (skipped ? ` — ${skipped} skipped (${res.reason || 'not yours to decide at that stage'}).` : '.'),
     });
+    setConfirm(null); setWhy('');
     clear();
     void load();
   };
@@ -912,15 +925,30 @@ export function SpareRequests() {
         selectable={mayBulkApprove}
         selected={picked}
         onSelectedChange={setPicked}
-        bulkBar={mayBulkApprove ? (ids, clear) => (
+        bulkBar={(mayBulkApprove || mayDrop) ? (ids, clear) => (
           <div className="row" style={{ gap: 8, alignItems: 'center' }}>
             <b>{ids.length}</b>
-            <span className="muted">selected — each is approved at the stage it is at, so nothing skips a review.</span>
+            <span className="muted">selected — each is decided at the stage it is at, so nothing skips a review.</span>
             <div className="spacer" />
-            <button className="btn btn-sm btn-primary" disabled={approving} onClick={() => void bulkApprove(ids, clear)}>
-              {approving ? 'Approving…' : `✔ Approve ${ids.length}`}
-            </button>
-            <button className="btn btn-sm btn-ghost" onClick={clear} disabled={approving}>Clear</button>
+            {mayBulkApprove && (
+              <button className="btn btn-sm btn-primary" disabled={deciding}
+                onClick={() => { setWhy(''); setConfirm({ decision: 'approve', ids, clear }); }}>
+                ✔ Approve {ids.length}
+              </button>
+            )}
+            {mayBulkApprove && (
+              <button className="btn btn-sm" disabled={deciding}
+                onClick={() => { setWhy(''); setConfirm({ decision: 'reject', ids, clear }); }}>
+                ✕ Reject {ids.length}
+              </button>
+            )}
+            {mayDrop && (
+              <button className="btn btn-sm" disabled={deciding}
+                onClick={() => { setWhy(''); setConfirm({ decision: 'drop', ids, clear }); }}>
+                ⊘ Drop {ids.length}
+              </button>
+            )}
+            <button className="btn btn-sm btn-ghost" onClick={clear} disabled={deciding}>Clear</button>
           </div>
         ) : undefined}
         // Load more lives beside the count in the heading (see PageHeader), so
@@ -937,6 +965,48 @@ export function SpareRequests() {
           </Toolbar>
         }
       />
+
+      {/* THE ACKNOWLEDGEMENT. It names the decision and the count before
+          anything happens, and takes the reason where one is required — the
+          database refuses a reasonless reject or drop, so asking here is the
+          difference between a form and an error message. */}
+      {confirm && (
+        <Modal
+          open
+          title={`${VERB[confirm.decision]} ${confirm.ids.length} spare${confirm.ids.length === 1 ? '' : 's'}?`}
+          onClose={() => { if (!deciding) { setConfirm(null); setWhy(''); } }}
+        >
+          <p style={{ marginTop: 0 }}>
+            {confirm.decision === 'approve'
+              ? <>Each spare is approved <b>at the stage it is at</b>, so every one of them moves on by one step. Nothing skips a review.</>
+              : confirm.decision === 'reject'
+                ? <>Each spare is <b>refused at the stage it is at</b> and closes there. The stage and the reason are recorded against it.</>
+                : <>Each spare is marked <b>not sent</b> by Stores. That is different from a rejection — it was approved, and then not dispatched.</>}
+          </p>
+          <p className="muted" style={{ fontSize: 13 }}>
+            Anything you may not decide — your own request, or a stage that is not yours — is skipped and counted,
+            not applied quietly.
+          </p>
+          {confirm.decision !== 'approve' && (
+            <label className="rep-field">
+              <span className="field-label">Reason *</span>
+              <textarea className="textarea" rows={2} value={why} onChange={(e) => setWhy(e.target.value)}
+                placeholder={confirm.decision === 'reject' ? 'Why is this being refused?' : 'Why was it not sent?'} />
+              <span className="muted rep-hint">Required — it is recorded against every spare in this batch.</span>
+            </label>
+          )}
+          <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+            <button className="btn" onClick={() => { setConfirm(null); setWhy(''); }} disabled={deciding}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              disabled={deciding || (confirm.decision !== 'approve' && !why.trim())}
+              onClick={() => void runDecision()}
+            >
+              {deciding ? 'Working…' : `${VERB[confirm.decision]} ${confirm.ids.length}`}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       <SpareRequestDrawer
         call={null}

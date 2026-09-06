@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.106',
+    date: '2026-09-06',
+    title: 'Reject and Drop in bulk too, and nothing happens until you confirm it',
+    changes: [
+      'The tick boxes now offer Approve, Reject and Drop \u2014 and none of them acts on the press. Each opens a confirmation that names the decision and the count, so a decision over forty spares is not something you discover you have made.',
+      'REJECT AND DROP NEED A REASON, asked for in that confirmation and recorded against every spare in the batch. The database refuses a reasonless one, so asking is the difference between a question and an error message.',
+      'THEY ARE THREE DIFFERENT THINGS and are recorded differently. Approve moves a spare on one stage. Reject is an approver refusing it \u2014 it closes where it stood, with the stage kept. Drop is Stores not sending a part that was already approved.',
+      'Reject is on the RM Approval screen too.',
+      'FIXED, found while building it: NOBODY COULD DROP A SPARE. The whole feature has been there since last month \u2014 the button, the Dropped state, the rules \u2014 but the permission was never given to any role, so it never appeared for anyone except an administrator. Spare Coordinator, Hotline and Stores In-charge have it now.',
+      'Needs migration: run Spare_1.sql.',
+    ],
+  },
+  {
     version: '0.9.105',
     date: '2026-09-06',
     title: 'Load more, Refresh and “last synced” are in one place on every register',

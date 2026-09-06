@@ -370,6 +370,7 @@ const MODULES = {
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
+      '0118_spare_bulk_decisions.sql',
     ],
   },
 };

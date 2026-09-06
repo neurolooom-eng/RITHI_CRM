@@ -573,6 +573,33 @@ points at these rows.
     project has drifted; these rows can.
 
 ### Spares
+- **Reject and Drop in bulk, behind a confirmation** (v0.9.106,
+  `0118_spare_bulk_decisions.sql`) — `decide_spare_lines(ids, decision, actor,
+  reason)` takes the decision as an argument and `approve_spare_lines` (already
+  live, so its signature is kept) is now one line calling it. Three near-copies
+  of the same stage resolution would have drifted within a release.
+  - A REASON is required for reject and drop and refused if blank. An approval
+    explains itself; ending somebody's request does not, and a register of
+    reasonless rejections cannot be reviewed afterwards.
+  - Nothing acts on the button press: it opens a confirmation naming the
+    decision and the count, which is also where the reason is asked for — the
+    database refuses a reasonless one either way, so the form asks rather than
+    the error message.
+  - 0033 applies to reject at the RM stage as much as to approve, because the
+    TRIGGER refuses it either way; a function that promises what the trigger
+    then refuses is worse than one that says no itself.
+  - ⚠️ **FOUND WHILE BUILDING IT: `spare.drop` was never granted to anybody.**
+    0036 built the feature — the guard, the `Dropped` stage, the button — and no
+    migration ever put the permission in `app_roles`. `has_perm` falls back to
+    the engineer defaults only for a role with ZERO permissions, and every role
+    has some, so the answer was always false. Only an administrator (who passes
+    `is_admin()` first) could ever drop a spare, and the button never rendered
+    for anyone else because the client reads the same table. 0118 grants it to
+    spare_coordinator, hotline and stores_incharge — the roles 0036's own
+    header names.
+  - ⚠️ **Run `Spare_1.sql`** — `_status.sql` row 78, verified NO before and yes
+    after.
+
 - **Bulk approval, and an RM queue of its own** (v0.9.103,
   `0116_spare_bulk_approval.sql`) — tick boxes on the spare register plus a new
   `/spare-rm-approval` screen modelled on Pending Dispatch.

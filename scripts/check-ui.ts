@@ -702,5 +702,36 @@ console.log('\n-- Load more, Refresh and the sync age live together --');
   eq('timeAgo still says never for rubbish', timeAgo('not a date'), 'never');
 }
 
+// ---------------------------------------------------------------------------
+// A BULK DECISION IS CONFIRMED BEFORE IT HAPPENS.
+//
+// Approving, rejecting or dropping forty spares is not something to discover
+// you have done (the user's ask, 2026-09-06). The button opens a confirmation
+// naming the decision and the count; the reject and the drop take the reason
+// the database requires, so the form asks for it rather than the error message.
+console.log('\n-- bulk approve / reject / drop are confirmed --');
+{
+  const dir = `${process.cwd()}/src/modules/`;
+  for (const f of ['SpareRequests.tsx', 'SpareRmApproval.tsx']) {
+    const src = readFileSync(dir + f, 'utf8');
+    eq(`${f}: the bulk button opens a confirmation, it does not act`,
+      /onClick=\{\(\) => \{ setWhy\(''\); setConfirm\(\{ decision: 'approve'/.test(src), true);
+    eq(`${f}: reject is offered in bulk`, /decision: 'reject'/.test(src), true);
+    eq(`${f}: the decision runs only from the confirmation`,
+      /onClick=\{\(\) => void runDecision\(\)\}/.test(src), true);
+    // The database refuses a reasonless reject or drop. Asking in the form is
+    // the difference between a question and an error message.
+    eq(`${f}: a reject cannot be confirmed without a reason`,
+      /disabled=\{[a-zA-Z]+ \|\| \(confirm\.decision !== 'approve' && !why\.trim\(\)\)\}/.test(src), true);
+    // Both numbers, always: "12 approved" over a selection of 14 leaves
+    // somebody wondering about the other two.
+    eq(`${f}: the result reports what was skipped too`, /skipped \(\$\{res\.reason/.test(src), true);
+  }
+  // Drop is offered where the permission is, and only there.
+  const sr = readFileSync(dir + 'SpareRequests.tsx', 'utf8');
+  eq("SpareRequests.tsx: drop is offered to whoever holds spare.drop",
+    /mayDrop = can\('spare\.drop'\)/.test(sr) && /decision: 'drop'/.test(sr), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
