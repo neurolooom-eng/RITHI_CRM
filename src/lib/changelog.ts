@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.110',
+    date: '2026-09-06',
+    title: 'Call Status stands out too',
+    changes: [
+      'On the Review Desk, Call Status is now the solid state colour with white on it \u2014 SOLVED green, UNATTENDED red, UNSOLVED amber, REPORT PENDING blue \u2014 rather than a pale chip on a pale ground.',
+      'It projects like the other three highlighted facts, but by a different route: inverting it to black would have thrown away the one thing its colour is telling you.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.109',
     date: '2026-09-06',
     title: 'Review 2 Pending shows all 175, and highlights actually stand out',

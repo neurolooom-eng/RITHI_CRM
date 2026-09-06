@@ -196,15 +196,25 @@
   font-weight: 500;
   margin-bottom: 2px;
 }
-/* CALL STATUS is the exception, and deliberately: "Unattended" and "Solved" are
-   not the same fact, so it keeps its own semantic colour. Inverting it would
-   throw away the one thing its colour is carrying. It projects by being solid
-   and larger instead. */
-.dccr-callcard div.is-state { background: transparent; padding: 0; }
+/* CALL STATUS gets the same contrast, by a different route (the user's call,
+   2026-09-06). Inverting it to the text colour would throw away the one thing
+   its colour is carrying — "Unattended" and "Solved" are not the same fact —
+   so instead of a tinted chip on a tinted ground it is the SOLID state colour
+   with white on it. Same projection, meaning intact. */
+.dccr-callcard div.is-state { background: transparent; padding: 7px 0 0; }
 .dccr-callcard div.is-state span { color: var(--text-muted); opacity: 1; }
 .dccr-callcard div.is-state .badge {
-  font-size: 12.5px; font-weight: 700; padding: 4px 10px; letter-spacing: .02em;
+  font-size: 13px; font-weight: 700; padding: 5px 12px; letter-spacing: .03em;
+  text-transform: uppercase; color: #fff;
 }
+.dccr-callcard div.is-state .badge-danger  { background: var(--danger); }
+.dccr-callcard div.is-state .badge-warning { background: var(--warning); }
+.dccr-callcard div.is-state .badge-info    { background: var(--info); }
+.dccr-callcard div.is-state .badge-success { background: var(--success); }
+.dccr-callcard div.is-state .badge-primary { background: var(--primary); }
+/* Neutral has no colour of its own to go solid with, so it inverts like the
+   other three rather than sitting pale beside them. */
+.dccr-callcard div.is-state .badge-neutral { background: var(--text); }
 
 /* Under a year old is the ANSWER to "Warranty Failure (1 yr)", not a note
    about it. */
