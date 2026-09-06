@@ -650,6 +650,29 @@ points at these rows.
     "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
+- **Review 2 in bulk, except inside the first year** (v0.9.112,
+  `0119_bulk_review2.sql`) — the user's rule: "if the Age at failure is less
+  than 366, then it has to be done 1 by 1. If it is not, then it can be bulk
+  set." That rule IS the function, not a caveat on it: Review 2 is where
+  Warranty Failure (1 yr) is answered, so a machine under a year old is exactly
+  the case the question exists for.
+  - Enforced in the DATABASE as well as the screen. A hidden checkbox is a
+    convenience; this is a quality record.
+  - An UNKNOWN age is refused too — "not known to be inside its first year" is
+    not "known to be outside it". If that excludes too much of the register it
+    is one line, but it should be changed with the numbers in front of somebody.
+  - Never overwrites a Review 2 already answered; skips and counts rather than
+    failing the batch, like the spare batches.
+  - The rule is `bulkReview2Block()` in `lib/dccr.ts`, pure, so `check:ui` pins
+    the boundary both sides (365 refused, 366 allowed) without a database.
+  - ⚠️ **The migration shipped early by accident** — swept into #167 by a broad
+    `git add -A` while three asks were in flight, so 0119 reached `main` with no
+    test, no `_status.sql` row, no UI and no changelog. All four followed here.
+    The lesson is the commit discipline, not the migration: stage what the
+    commit is about.
+  - ⚠️ **Run `daily_review.sql`** — `_status.sql` row 79, verified NO before and
+    yes after.
+
 - **The worklist tabs scope the QUERY, and highlight means contrast**
   (v0.9.109) — two user reports on the Review Desk.
   - ⚠️ **"Review 2 Pending 175" was showing 85.** The tabs narrowed the LOADED

@@ -1,13 +1,13 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { PageHeader, SectionCard, Toolbar, Drawer } from '../components/ui/ui';
+import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
-  frequentFailureHistory, reportsByCall, spareConsumptionByCall, type FailureHistoryRow,
+  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2, type FailureHistoryRow,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
 } from '../lib/supabase';
 import { fallbackList } from './masterLists';
@@ -15,6 +15,7 @@ import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
+  bulkReview2Block,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
@@ -270,6 +271,40 @@ export function DailyCallReview() {
   // whole register — right for the Review Register tab, wrong the moment a
   // stage is chosen. This is the number for the stage actually being looked at.
   const inView = (deskStage || status) ? statusCount(deskStage || status) : counts.total;
+
+  // ---- Review 2 in bulk (0119) --------------------------------------------
+  // Tick the routine ones and answer them together. A call that failed inside
+  // its first year is NOT tickable — that is the whole rule — and the reason
+  // is on the row rather than the row being hidden, so "why can I not select
+  // this one?" is answered where it is asked.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmBulk, setConfirmBulk] = useState<string[] | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const eligible = useMemo(() => rows.filter((r) => bulkReview2Block(r) === ''), [rows]);
+  const blockedCount = rows.length - eligible.length;
+
+  const runBulkReview2 = async () => {
+    if (!confirmBulk?.length) return;
+    setBulkBusy(true);
+    const t0 = performance.now();
+    const res = await bulkSetReview2(confirmBulk, 'NO', 'NO', 'NO', user?.fullName || user?.email || '');
+    logAudit({
+      action: 'dccr.review.bulk', target: `${confirmBulk.length} calls`,
+      status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+      duration_ms: Math.round(performance.now() - t0),
+      meta: { selected: confirmBulk.length, updated: res.updated ?? 0, skipped: res.skipped ?? 0 },
+    });
+    setBulkBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not set Review 2.' }); return; }
+    const skipped = res.skipped ?? 0;
+    setMsg({
+      tone: skipped ? 'info' : 'ok',
+      text: `Review 2 answered NO on ${res.updated ?? 0} call${res.updated === 1 ? '' : 's'}`
+        + (skipped ? ` — ${skipped} skipped (${res.reason}).` : '.'),
+    });
+    setConfirmBulk(null); setPicked(new Set());
+    void load(applied);
+  };
 
 
   // Export covers the WHOLE filtered set, not the pages that happen to be on
@@ -574,6 +609,30 @@ export function DailyCallReview() {
               getRowId={(r) => r.ucn}
               onRowClick={(r) => setOpen(r)}
               storageKey="dccr-register"
+              // Tick boxes only for somebody who can actually complete a
+              // review — otherwise it is a column of boxes leading to a button
+              // the database would refuse.
+              selectable={editable}
+              selected={picked}
+              onSelectedChange={(next) => {
+                // A call that failed inside its first year cannot be ticked.
+                // Enforced here AND in the database (0119): the checkbox is a
+                // convenience, the function is the control.
+                const ok = new Set(eligible.map((r) => r.ucn));
+                setPicked(new Set([...next].filter((u) => ok.has(u))));
+              }}
+              bulkBar={editable ? (ids, clear) => (
+                <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+                  <b>{ids.length}</b>
+                  <span className="muted">selected — all three Review 2 answers set to NO.</span>
+                  <div className="spacer" />
+                  <button className="btn btn-sm btn-primary" disabled={bulkBusy}
+                    onClick={() => setConfirmBulk(ids)}>
+                    Mark Review 2 as NO ({ids.length})
+                  </button>
+                  <button className="btn btn-sm btn-ghost" onClick={clear} disabled={bulkBusy}>Clear</button>
+                </div>
+              ) : undefined}
               // GROUPED BY REVIEW STATUS, and that is how it OPENS. The register
               // is worked stage by stage — what is waiting at Review 2 is a
               // different job from what is waiting at Review 3 — so the register
@@ -605,6 +664,22 @@ export function DailyCallReview() {
               toolbar={
                 <Toolbar>
                   <input className="input" placeholder="Search UCN, customer, product, complaint…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  {editable && eligible.length > 0 && (
+                    <button
+                      className="btn btn-sm"
+                      onClick={() => setPicked(new Set(eligible.map((r) => r.ucn)))}
+                      title="Select every loaded call that may be answered in bulk"
+                    >
+                      Select all {eligible.length} eligible
+                    </button>
+                  )}
+                  {/* SAID, NOT HIDDEN. A count of rows the button will not take
+                      is the answer to "why is it not all of them?". */}
+                  {editable && blockedCount > 0 && (
+                    <span className="muted" style={{ fontSize: 12.5 }}>
+                      {blockedCount} of the loaded calls must be reviewed one by one
+                    </span>
+                  )}
                   <div className="spacer" />
                 </Toolbar>
               }
@@ -652,6 +727,36 @@ export function DailyCallReview() {
             {DCCR_EXPORT_COLUMNS.map((c) => <li key={c.key}>{c.header}</li>)}
           </ol>
         </SectionCard>
+      )}
+
+      {confirmBulk && (
+        <Modal
+          open
+          title={`Answer Review 2 on ${confirmBulk.length} call${confirmBulk.length === 1 ? '' : 's'}?`}
+          onClose={() => { if (!bulkBusy) setConfirmBulk(null); }}
+        >
+          <p style={{ marginTop: 0 }}>
+            All three Review 2 answers are set to <b>NO</b> — Risk to Patient, Warranty Failure (1 yr)
+            and Frequent Failure — which completes Review 2 and moves each call to Review 3.
+          </p>
+          <div className="dccr-warn" style={{ marginBottom: 10 }}>
+            <span aria-hidden="true">⚠️</span>
+            <span>
+              A call that failed <b>inside its first year</b> is never included, whatever is selected.
+              Those are the ones Review 2 exists to catch, and they are answered one at a time.
+            </span>
+          </div>
+          <p className="muted" style={{ fontSize: 13 }}>
+            A call whose Review 2 is already answered is left exactly as it is — this fills what is
+            pending, it does not rewrite a judgement somebody made.
+          </p>
+          <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+            <button className="btn" onClick={() => setConfirmBulk(null)} disabled={bulkBusy}>Cancel</button>
+            <button className="btn btn-primary" disabled={bulkBusy} onClick={() => void runBulkReview2()}>
+              {bulkBusy ? 'Working…' : `Mark ${confirmBulk.length} as NO`}
+            </button>
+          </div>
+        </Modal>
       )}
 
       <ReviewDrawer

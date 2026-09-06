@@ -43,6 +43,31 @@ export const CALL_STATE_TONES: Record<string, 'success' | 'warning' | 'danger' |
   Reopened: 'warning',
 };
 
+// A CALL THAT FAILED INSIDE ITS FIRST YEAR IS REVIEWED ONE BY ONE.
+//
+// The user's rule (2026-09-06). Review 2 asks whether the failure was a
+// Warranty Failure (1 yr), so a machine under a year old is precisely the case
+// the question exists for — and precisely the one nobody should answer forty
+// at a time. An UNKNOWN age is treated the same way: "not known to be inside
+// its first year" is not "known to be outside it", and answering "not a
+// warranty failure" for a machine whose age nobody can state is the one
+// direction that cannot be defended afterwards.
+//
+// Pure, and mirrored exactly by `bulk_set_review2` (0119). The screen uses it
+// to grey the row out; the database uses its own copy to refuse the write, so
+// a hidden checkbox is never the only thing standing in the way.
+export const FIRST_YEAR_DAYS = 366;
+
+export function bulkReview2Block(row: { age_days?: unknown; review2_done?: unknown }): string {
+  if (row.review2_done === true) return 'Review 2 is already answered';
+  const age = row.age_days;
+  if (age === null || age === undefined || age === '' || Number.isNaN(Number(age))) {
+    return 'age at failure is not known — review it one by one';
+  }
+  if (Number(age) < FIRST_YEAR_DAYS) return 'failed within the first year — review it one by one';
+  return '';
+}
+
 export const REVIEW_STATUS_TONES: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'primary'> = {
   'Review 1 Pending': 'danger',
   'Review 2 Pending': 'warning',

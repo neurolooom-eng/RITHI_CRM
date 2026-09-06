@@ -17,6 +17,7 @@ import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
+import { bulkReview2Block } from '../src/lib/dccr';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -797,6 +798,46 @@ console.log('\n-- grouping opens collapsed --');
     /const \[expanded, setExpanded\] = useState<Set<string>>/.test(dccr) && !/const \[collapsed,/.test(dccr), true);
   eq('...at both levels',
     /const shut = !expanded\.has\(key\);/.test(dccr) && /const shut2 = !expanded\.has\(k2\);/.test(dccr), true);
+}
+
+// ---------------------------------------------------------------------------
+// REVIEW 2 IN BULK — AND THE ONE IT MUST REFUSE.
+//
+// The rule (2026-09-06): "if the Age at failure is less than 366, then it has
+// to be done 1 by 1". Review 2 is where "Warranty Failure (1 yr)" is answered,
+// so a machine under a year old is the case the question exists for. Pinned on
+// the RULE, which the screen and the database (0119) both read.
+console.log('\n-- Review 2 in bulk, except inside the first year --');
+{
+  const blocked = (age: unknown, done = false) => bulkReview2Block({ age_days: age, review2_done: done }) !== '';
+  eq('366 days may be answered in bulk',        blocked(366), false);
+  eq('367 days may be answered in bulk',        blocked(367), false);
+  eq('2,435 days may be answered in bulk',      blocked(2435), false);
+  eq('365 days may NOT — it is inside the first year', blocked(365), true);
+  eq('1 day may NOT',                            blocked(1), true);
+  eq('0 days may NOT',                           blocked(0), true);
+  // "Not known to be inside the first year" is not "known to be outside it".
+  eq('an unknown age may NOT — nobody can state it is over a year',
+    blocked(null) && blocked(undefined) && blocked(''), true);
+  // Bulk fills what is pending; it does not rewrite a judgement.
+  eq('a Review 2 already answered may NOT be overwritten', blocked(2435, true), true);
+  eq('the reason names the first year', /first year/.test(bulkReview2Block({ age_days: 100 })), true);
+
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  eq('only eligible rows can be ticked',
+    /const ok = new Set\(eligible\.map\(\(r\) => r\.ucn\)\);/.test(dccr), true);
+  eq('the bulk button opens a confirmation, it does not act',
+    /onClick=\{\(\) => setConfirmBulk\(ids\)\}/.test(dccr), true);
+  // SAID, NOT HIDDEN: a count of what the button will not take answers "why
+  // is it not all of them?" where the question is asked.
+  eq('the excluded ones are counted on screen',
+    /must be reviewed one by one/.test(dccr), true);
+
+  // The Service Report is the document the review is judging; it was a faint
+  // link. Contrast, like every other highlight here.
+  const css = readFileSync(`${process.cwd()}/src/modules/dccr.css`, 'utf8');
+  eq('the Service Report link is a contrast chip, not faint text',
+    /\.dccr-report-link \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

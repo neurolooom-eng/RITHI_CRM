@@ -153,7 +153,22 @@
 .dccr-visit { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: var(--surface); }
 .dccr-visit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
 .dccr-visit-body { margin-top: 5px; font-size: 13px; white-space: pre-wrap; }
-.dccr-report-link { margin-left: auto; font-size: 12.5px; white-space: nowrap; }
+/* THE SERVICE REPORT IS THE DOCUMENT THE REVIEW IS JUDGING, and it was a
+   faint 12.5px link at the end of a row. Contrast, like every other highlight
+   here: solid, inverted, and unmistakably something to press. */
+.dccr-report-link {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--text);
+  color: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.dccr-report-link:hover { background: var(--primary); color: #fff; }
+.dccr-report-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .dccr-sparetable td:first-child { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .dccr-sparetable td:last-child { font-variant-numeric: tabular-nums; }
