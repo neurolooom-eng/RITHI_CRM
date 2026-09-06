@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.111',
+    date: '2026-09-06',
+    title: 'Groups open collapsed, and the report shows the hour meter',
+    changes: [
+      'GROUPING NOW OPENS COLLAPSED everywhere \u2014 every register and the Review Desk list. Open the ones you want; groups that turn up later, when Load more brings rows for an engineer who was not on the first page, arrive collapsed too.',
+      'In \u201cFrom the report\u201d, Call Status is replaced by the HOUR METER READING. The status is already on the call card above in its own colour, so it was being said twice; the hours are what actually belongs next to the software version when you are judging a failure.',
+      'It is read from the latest visit \u2014 the same visit the call\u2019s status comes from \u2014 and shows blank rather than 0 when the engineer did not record one.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.110',
     date: '2026-09-06',
     title: 'Call Status stands out too',

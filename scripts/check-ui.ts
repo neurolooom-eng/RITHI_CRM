@@ -695,6 +695,12 @@ console.log('\n-- the DCCR review desk --');
 
   eq('the spares are a table with number, part, description and quantity',
     /<th style=\{\{ width: 34 \}\}>#<\/th>[\s\S]{0,300}Part No[\s\S]{0,200}Description[\s\S]{0,200}Qty/.test(dccr), true);
+  // The call's status is already on the card above, in its own colour. Saying
+  // it twice on one screen buys nothing; the hours do.
+  eq('the report section shows the Hour Meter Reading, not the call status again',
+    /<ReadOnly label="Hour Meter Reading"/.test(dccr) && !/<ReadOnly label="Call Status"/.test(dccr), true);
+  eq('...read from the LATEST visit by entry',
+    /visits\[0\]\.data[\s\S]{0,80}Hour Meter Reading/.test(dccr), true);
   eq('the service report is a link',
     /href=\{link\}[\s\S]{0,120}Service Report/.test(dccr), true);
 }
@@ -770,6 +776,27 @@ console.log('\n-- bulk approve / reject / drop are confirmed --');
   const sr = readFileSync(dir + 'SpareRequests.tsx', 'utf8');
   eq("SpareRequests.tsx: drop is offered to whoever holds spare.drop",
     /mayDrop = can\('spare\.drop'\)/.test(sr) && /decision: 'drop'/.test(sr), true);
+}
+
+// ---------------------------------------------------------------------------
+// GROUPS OPEN CLOSED (the user's rule, 2026-09-06).
+//
+// Held as the set of groups deliberately OPENED, not the set closed. That is
+// the part worth pinning: with `collapsed`, a group that appears later — Load
+// more brings rows for an engineer who was not on the first page — would
+// arrive OPEN, and every new group would need bookkeeping to keep it shut.
+console.log('\n-- grouping opens collapsed --');
+{
+  const dt = readFileSync(`${process.cwd()}/src/components/table/DataTable.tsx`, 'utf8');
+  eq('the register tracks what is EXPANDED, not what is collapsed',
+    /const \[expanded, setExpanded\] = useState<Set<string>>/.test(dt) && !/const \[collapsed,/.test(dt), true);
+  eq('...so an untouched group is shut', /const shut = !expanded\.has\(n\.path\);/.test(dt), true);
+
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  eq('the Review Desk list follows the same rule',
+    /const \[expanded, setExpanded\] = useState<Set<string>>/.test(dccr) && !/const \[collapsed,/.test(dccr), true);
+  eq('...at both levels',
+    /const shut = !expanded\.has\(key\);/.test(dccr) && /const shut2 = !expanded\.has\(k2\);/.test(dccr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
