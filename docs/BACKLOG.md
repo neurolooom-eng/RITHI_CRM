@@ -601,6 +601,44 @@ points at these rows.
   - ⚠️ **Run `Spare_1.sql`** — `_status.sql` row 76, verified NO before and yes
     after.
 
+### Daily Call Review
+- **The Review Desk, and Review 2's two facts** (v0.9.104,
+  `0117_frequent_failure.sql`) — the three-pane setup the user asked for, from
+  the AppSheet original: calls grouped (Review Stage, then Call Status) |
+  the reviews | what happened on the call. Splitters are draggable and the
+  widths persist per browser.
+  - **ONE BODY IN TWO FRAMES.** `ReviewDrawer` gained `layout='drawer' |
+    'panes'` and renders the same fields either stacked (drawer) or side by
+    side (desk). A second copy of the review fields would drift from the first
+    and one of them would stop matching the rules; `check:ui` asserts there is
+    exactly one "Review 2 · Risk assessment".
+  - The divider must be a GRID CHILD between the two panes — appending it after
+    them puts the details pane in the 6px track. Caught before shipping and
+    pinned.
+  - **Age of the product** moved from "From the report" to sit under Warranty
+    Failure (1 yr), with the one-year line drawn rather than left as arithmetic
+    on a day count.
+  - **Frequent Failure** now has the register's answer under it: earlier calls
+    on the same product+serial with the same complaint, in the 6 months BEFORE
+    **this call's own date** (not today's — otherwise reopening an old review
+    changes its answer). It lists the UCNs: the reviewer is recording a
+    judgement they may have to defend.
+    - A blank serial returns NOTHING rather than matching every other
+      blank-serial call — a confident number built out of absent data is the
+      worst kind of wrong here, because it decides whether an FFR is raised.
+    - SECURITY DEFINER on purpose: an answer filtered by the reader's own call
+      scope would read LOWER than the truth, which is the one direction that
+      matters.
+    - A failed read shows "could not be read", never an empty list. `[]` means
+      "no earlier failures" and must not be said by accident.
+  - **"All NO"** fills the three Review 2 answers; it does not save. Nothing is
+    recorded that nobody looked at.
+  - Visits are rows (newest first, status, engineer, **the Service Report as a
+    link** — previously unreachable from the review); spares are a table
+    (#, Part No, Description, Qty) rather than a comma-joined line.
+  - ⚠️ **Run `daily_review.sql`** — `_status.sql` row 77, verified NO before and
+    yes after.
+
 ### Reporting
 - **A visit cannot be dated in the future, or before the complaint** (v0.9.100,
   `0115_visit_date_sanity.sql`) — the user's two rules for the Visit Update
