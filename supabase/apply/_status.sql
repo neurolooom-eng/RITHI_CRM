@@ -294,6 +294,11 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'field_call_review_summary'
                    and column_name = 'open_state')),
+    (66, 'calls: who REGISTERED it is the database''s to say', 'zz_calls_stamp_creator overrides a caller-supplied created_by with auth.uid() -- the Hotline is the only role trained on the vigilance questions, so anyone else must be findable (0113)',
+        (to_regprocedure('public.calls_stamp_creator()') is not null
+     and exists (select 1 from pg_trigger
+                  where tgrelid = 'public.field_calls'::regclass
+                    and tgname = 'zz_calls_stamp_creator'))),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
         coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                     from pg_class where oid = 'public.calls'::regclass), false)),

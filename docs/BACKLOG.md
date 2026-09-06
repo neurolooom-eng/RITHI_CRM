@@ -489,6 +489,21 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **Who REGISTERED a call is the database's to say** (v0.9.97,
+  `0113_call_creator_authoritative.sql`) — a COMPLIANCE control, not a
+  convenience: only the Hotline engineer is trained on the vigilance questions
+  answered at Review 1, so a call registered by anyone else must be findable.
+  `zz_calls_stamp_creator` (BEFORE INSERT, named `zz_` so it fires after
+  `calls_biu`) overwrites a caller-supplied `created_by` with `auth.uid()`
+  whenever there IS one; an administrative connection (auth.uid() null — a
+  restore) keeps what it supplies. Surfaced as a read-only "Registered By" on
+  the call and a groupable column on all three registers; the DataTable already
+  resolves the UUID via `app_user_names`.
+  ⚠️ v0.9.96's editable "Registered By (email)" default is WITHDRAWN — editable,
+  client-side and skipped whenever `initial` carried an empty string. The
+  engineer's email is off the call form entirely; the column and its sheet
+  header stay so imported values still export.
+  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 66.
 - **The DCCR can be filtered by CALL status** (v0.9.93,
   `0111_dccr_call_status.sql`) — `field_call_review_summary` gains `open_state`
   and `cancelled_at`, APPENDED (`create or replace view` can only add at the

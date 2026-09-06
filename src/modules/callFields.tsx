@@ -32,7 +32,7 @@ export function useCallFieldMasters(): {
   inject: (fs: FieldDef[]) => FieldDef[];
   offered: MutableRefObject<ComplaintSuggestion[]>;
 } {
-  const { user, users } = useAuth();
+  const { users } = useAuth();
   const partyMaster = useMaster('party');
   const complaintMaster = useMaster('complaint');
 
@@ -118,33 +118,13 @@ export function useCallFieldMasters(): {
     />
   );
 
-  // WHO REGISTERED THIS CALL. The field sat under Customer Contact and was
-  // filled from the request's E-Mail ID on one screen and left blank on the
-  // other — so it answered a different question depending on where the call was
-  // raised. It is the REGISTERING USER's email now (the user's rule,
-  // 2026-09-05), defaulted from the login and shown where a reader looks for
-  // who did something, not among the customer's details.
-  //
-  // A DEFAULT, not a lock: it fills a blank on a new call and never touches a
-  // call being edited, because `initial` wins over `defaultValue` — so an
-  // imported call keeps whatever address it came with, and a wrong one can
-  // still be corrected.
-  const registeredBy = (f: FieldDef): FieldDef => ({
-    ...f,
-    label: 'Registered By (email)',
-    section: 'Registration',
-    defaultValue: (user?.email ?? '').trim(),
-    help: 'Taken from your login when the call is registered.',
-  });
-
   const inject = (fs: FieldDef[]) =>
     fs.map((f) =>
       f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
         : f.name === 'standardComplaint' ? complaintField(f)
           : f.name === 'complaintReported' ? { ...f, below: reportedHelp }
             : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
-              : f.name === 'emailAddress' ? registeredBy(f)
-                : f);
+              : f);
 
   return { inject, offered };
 }
