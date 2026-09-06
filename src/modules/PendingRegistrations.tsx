@@ -235,7 +235,10 @@ export function PendingRegistrations() {
         allocatedTo: g(row, 'ENGINEER'),
         customerName: g(row, 'CUSTOMER NAME', 'CUSTOMER CONTACT DETAILS'),
         customerNumber: g(row, 'CUSTOMER CONTACT Number'),
-        emailAddress: g(row, 'E-Mail ID'),
+        // NOT the request's E-Mail ID any more: that is the engineer who RAISED
+        // it, and this field records who REGISTERS the call. Leaving it unset
+        // lets the login-derived default apply (see callFields.tsx); the
+        // request keeps its own email either way.
         personCalling: 'DIRECT ENGINEER',
         // NOT today: the day the request is about (see requestCallDate).
         complaintDate: requestCallDate(row).iso,

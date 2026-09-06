@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.96',
+    date: '2026-09-05',
+    title: 'A call records who registered it',
+    changes: [
+      '\u201cEmail address\u201d on a Field, Installation or PM call now fills with the email of the person REGISTERING the call, taken from their login. It sits under Registration, labelled \u201cRegistered By (email)\u201d, where you look for who did something \u2014 not among the customer\u2019s details, where it used to be.',
+      'It answered a different question depending on where the call came from: registering from a pending request put the email of the engineer who RAISED the request into it, and New Field Call left it blank. Now it is the same thing either way. The request keeps its own email; nothing is lost.',
+      'It fills a blank on a NEW call and never touches one being edited \u2014 so an imported call keeps whatever address it came with, and a wrong one can still be corrected by typing over it.',
+    ],
+  },
+  {
     version: '0.9.95',
     date: '2026-09-05',
     title: 'An accessory\u2019s manual now reaches the call that names the accessory',

@@ -474,5 +474,28 @@ console.log('\n-- which manuals belong on a call --');
   eq('a 2-character tag is ignored', docTags('xt, ab, CPX Care'), ['cpx care']);
 }
 
+// ---------------------------------------------------------------------------
+// "EMAIL ADDRESS" ON A CALL IS WHO REGISTERED IT.
+//
+// It sat under Customer Contact, filled from the request's E-Mail ID on one
+// screen and left blank on the other — so it answered a different question
+// depending on where the call was raised. It is the registering user's email
+// now, defaulted from the login in `callFields.tsx`.
+//
+// `initial` beats `defaultValue` in SchemaForm, so ANY prefill that sets
+// `emailAddress` silently switches the default off. That is exactly how the
+// Register panel kept putting the requesting engineer's address in.
+console.log('\n-- the call form records who registered the call --');
+{
+  const dir = `${process.cwd()}/src/modules/`;
+  eq('callFields injects the registering user',
+    /f\.name === 'emailAddress'/.test(readFileSync(`${dir}callFields.tsx`, 'utf8')), true);
+  readdirSync(dir).filter((f) => f.endsWith('.tsx') && f !== 'callFields.tsx').forEach((f) => {
+    // A prefill KEY, not a mention: `emailAddress:` assigns it.
+    eq(`${f} does not prefill emailAddress over the default`,
+      /^\s*emailAddress:/m.test(readFileSync(dir + f, 'utf8')), false);
+  });
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
