@@ -28,6 +28,8 @@ import { useAuth } from '../lib/auth';
 import { useAccessScope, allowsAllottee, useTeamEngineers, useRegionByEngineer } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import './fieldcalls.css';
+import { Ucn } from '../lib/callstate';
+import { useCallStates, callStateFor } from '../lib/callstates';
 
 // ===========================================================================
 // SPARE REQUESTS.
@@ -390,7 +392,7 @@ const SUPA_COLUMNS: Column<Row>[] = [
   { key: 'row_no', header: '#', width: 45, align: 'right', wrap: false },
   { key: 'uid', header: 'UID', width: 150, wrap: false },
   { key: 'or_req_date', header: 'OR Date', width: 110, wrap: false, render: (r) => fmtLongDate(r.or_req_date ?? r.requested_at) },
-  { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
   { key: 'party_name', header: 'Party', width: 190 },
   { key: 'product_name', header: 'Product', width: 120 },
   { key: 'part', header: 'Part', width: 180 },
@@ -818,6 +820,13 @@ export function SpareRequests() {
     return out.filter((r) => keys.some((k) => g(r, k).toLowerCase().includes(q)));
     // eslint-disable-next-line
   }, [scoped, search, onDb, stageFilter, engineerFilter, email, mayRmApprove]);
+
+  // The UCNs on screen, coloured by their calls' status (the standing rule,
+  // 2026-09-06). This register does not carry the state — a spare line knows
+  // the UCN it was raised against, not what happened to that call — so they
+  // are looked up in ONE request and shared. A UCN whose state has not arrived,
+  // or that this reader may not see, stays uncoloured rather than guessed.
+  useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
 
   const visibleWithRegion = useMemo(
     () => visible.map((r) => ({
@@ -1303,6 +1312,7 @@ function DecisionModal({
   const onForm = kind === 'approve' && (stage === 'Commercial' || stage === 'NSM');
   const gaps = !onForm ? [] : stage === 'Commercial' ? commercialGaps(com) : nsmGaps(nsm);
   const blocked = ((kind === 'reject' || kind === 'drop') && !reason.trim()) || gaps.length > 0;
+
 
   return (
     <Modal open onClose={onClose} title={title} width={520}>

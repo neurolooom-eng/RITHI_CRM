@@ -215,3 +215,38 @@ html, body { max-width: 100%; overflow-x: hidden; }
   white-space: nowrap;
   align-self: center;
 }
+
+/* ===========================================================================
+   THE CALL-STATUS COLOUR CODE.
+   The colours themselves are set inline from STATE_COLOUR (src/lib/callstate)
+   and are the SAME IN EITHER THEME on purpose — a colour people have learned
+   to read is a code, and a code that changes meaning in dark mode is not one.
+   What the theme changes is the BOX: on a dark ground a mid-tone fill needs an
+   outline to sit properly. The hue is untouched.
+   =========================================================================== */
+.state-chip, .ucn-chip {
+  display: inline-block;
+  border-radius: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.25;
+  /* Transparent in light, drawn in dark — see below. The box is what protects
+     the colour, so it is never a colour change. */
+  border: 1px solid transparent;
+}
+.state-chip { padding: 3px 9px; font-size: 12px; letter-spacing: .02em; }
+.ucn-chip   { padding: 2px 7px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ucn-plain  { font-variant-numeric: tabular-nums; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .state-chip,
+  :root:not([data-theme="light"]) .ucn-chip {
+    border-color: rgba(255, 255, 255, .55);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .35);
+  }
+}
+:root[data-theme="dark"] .state-chip,
+:root[data-theme="dark"] .ucn-chip {
+  border-color: rgba(255, 255, 255, .55);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .35);
+}

@@ -8,6 +8,8 @@ import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { partDescription } from '../lib/handstock';
 import './fieldcalls.css';
+import { Ucn } from '../lib/callstate';
+import { useCallStates, callStateFor } from '../lib/callstates';
 
 // ===========================================================================
 // RM APPROVAL — the manager's queue, shaped like Pending Dispatch.
@@ -120,6 +122,13 @@ export function SpareRmApproval() {
       .some((v) => String(v).toLowerCase().includes(q)));
   }, [lines, search]);
 
+  // The UCNs on screen, coloured by their calls' status (the standing rule,
+  // 2026-09-06). This register does not carry the state — a spare line knows
+  // the UCN it was raised against, not what happened to that call — so they
+  // are looked up in ONE request and shared. A UCN whose state has not arrived,
+  // or that this reader may not see, stays uncoloured rather than guessed.
+  useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
+
   const mine = visible.filter((l) => l.may_approve);
   const oldest = mine.reduce((n, l) => Math.max(n, l._waiting), 0);
 
@@ -162,7 +171,7 @@ export function SpareRmApproval() {
     },
     { key: '_desc', header: 'Description', width: 230 },
     { key: 'qty', header: 'Qty', width: 60, align: 'right' },
-    { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+    { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
     { key: 'party_name', header: 'Customer', width: 200 },
     { key: 'product_name', header: 'Product', width: 130 },
     { key: 'item_status', header: 'Cover', width: 90 },
@@ -179,6 +188,7 @@ export function SpareRmApproval() {
         : <span className="badge badge-neutral" title="0033: nobody approves their own request, and a manager approves only within their own reporting tree.">Not yours</span>),
     },
   ];
+
 
   return (
     <div>

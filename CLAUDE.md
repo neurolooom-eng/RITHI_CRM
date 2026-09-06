@@ -169,6 +169,18 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   the application's (user's rule, 2026-09-05). Replacing a logo is replacing one
   file in `src/assets/`; `npm run check:ui` fails a screen that imports an asset
   directly or uses the wrong one of the two.
+- **The call-status colour code is FIXED and the same in both themes.**
+  Unattended RED, Unsolved BLUE, Solved-Report Pending PINK, Solved GREEN
+  (user's spec, 2026-09-06) — literal hex in `src/lib/callstate.tsx`, never
+  theme tokens: a colour people have learned to read is a code, and a code that
+  means something else in dark mode is not one. The theme changes the BOX
+  around the chip, never the hue; `npm run check:ui` fails a dark-theme block
+  that restates a colour. **A UCN carries that colour wherever it appears** —
+  every module. Where a register does not know the state (a spare line knows
+  the UCN, not what happened to the call) `useCallStates` looks it up in one
+  request; a UCN whose state is unknown renders PLAIN, because a wrong colour on
+  a code is worse than no colour.
+
 - **"Highlight" means CONTRAST, not a tint** (user's standing preference,
   2026-09-06). A pale wash of the accent colour is what this project reached
   for first and it did not read at all on screen. Highlighting is done by

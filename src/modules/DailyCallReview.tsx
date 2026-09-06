@@ -21,6 +21,7 @@ import {
 } from '../lib/dccr';
 import './dccr.css';
 import './fieldcalls.css';
+import { Ucn } from '../lib/callstate';
 
 // ===========================================================================
 // DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
@@ -71,6 +72,10 @@ export function DailyCallReview() {
   const { user, can } = useAuth();
   const live = supabaseConfigured();
   const editable = live && can('review.edit');
+  // AUTO SAVE IS A SETTING FOR THE MODULE, not for a record. It is how this
+  // reviewer works through the whole register, so the switch sits with the
+  // register's own controls and every review opened inherits it.
+  const [autoSave, setAutoSave] = useState<boolean>(() => autoSaveOn());
 
   const [tab, setTab] = useState<Tab>('register');
   const [rows, setRows] = useState<ReviewRow[]>([]);
@@ -342,7 +347,7 @@ export function DailyCallReview() {
 
   const columns: Column<ReviewRow>[] = [
     { key: 'review_status', header: 'Review Status', width: 150, wrap: false, render: (r) => statusBadge(r.review_status, REVIEW_STATUS_TONES) },
-    { key: 'ucn', header: 'UC Number', width: 115, wrap: false },
+    { key: 'ucn', header: 'UC Number', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.last_status || r.open_state} /> },
     { key: 'call_number', header: 'Call Number', width: 130, wrap: false },
     { key: 'reg_date', header: 'Call Date', width: 105, wrap: false, render: (r) => fmtLongDate(r.reg_date) },
     { key: 'party_name', header: 'Customer', width: 200 },
@@ -419,11 +424,25 @@ export function DailyCallReview() {
           </>
         ) : undefined}
         actions={
-          tab === 'register' ? (
-            <>
+          <>
+            {/* AUTO SAVE IS A MODULE SETTING, so it lives here — beside the
+                register's own controls — and not on each review, where a tick
+                box repeated per record invited the reading that it applied to
+                that one call. It shows wherever reviews are actually edited. */}
+            {editable && (tab === 'desk' || tab === 'r2' || tab === 'r3' || tab === 'register') && (
+              <label className="row dccr-autosave" title="Answers are written as you choose them, on every review you open. Completing a stage still needs Save review.">
+                <input
+                  type="checkbox"
+                  checked={autoSave}
+                  onChange={(e) => { setAutoSave(e.target.checked); setAutoSaveOn(e.target.checked); }}
+                />
+                <span>Auto save</span>
+              </label>
+            )}
+            {tab === 'register' && (
               <button className="btn btn-primary btn-sm" onClick={() => void exportRows()} disabled={exporting || !counts.total}>{exporting ? 'Exporting…' : '⭳ Export DCCR'}</button>
-            </>
-          ) : undefined
+            )}
+          </>
         }
       />
 
@@ -586,6 +605,7 @@ export function DailyCallReview() {
               editable={editable}
               reviewer={user?.fullName || user?.email || ''}
               layout="panes"
+              autoSave={autoSave}
               onClose={() => setDeskUcn('')}
               onSaved={async () => { await load(applied); }}
               separator={<div className="dccr-split" onPointerDown={drag(1)} role="separator" aria-orientation="vertical" title="Drag to resize" />}
@@ -821,6 +841,7 @@ export function DailyCallReview() {
         stale={stale}
         editable={editable}
         reviewer={user?.fullName || user?.email || ''}
+        autoSave={autoSave}
         onClose={() => setOpen(null)}
         onSaved={async () => { setOpen(null); await load(applied); }}
       />
@@ -834,7 +855,7 @@ export function DailyCallReview() {
 // are previewed live from the same rules the database applies on save.
 // ---------------------------------------------------------------------------
 function ReviewDrawer({
-  row, stale, editable, reviewer, onClose, onSaved, layout = 'drawer', separator,
+  row, stale, editable, reviewer, onClose, onSaved, layout = 'drawer', separator, autoSave = false,
 }: {
   row: ReviewRow | null;
   stale: boolean;
@@ -853,6 +874,12 @@ function ReviewDrawer({
   // be a grid child in the right place — it cannot be added after the fact.
   // The desk owns the dragging; this only puts the node where it belongs.
   separator?: ReactNode;
+  // A MODULE-LEVEL SETTING, not a per-record one (the user's correction,
+  // 2026-09-06). It is how this reviewer works through the whole register, so
+  // the switch belongs beside the register's own controls and is passed in;
+  // a tick box repeated on every review invited the reading that it applied to
+  // that one call.
+  autoSave?: boolean;
 }) {
   const [draft, setDraft] = useState<ReviewPatch>({});
   const [groupings, setGroupings] = useState<string[]>([]);
@@ -862,7 +889,6 @@ function ReviewDrawer({
   // AUTO SAVE, off unless this reviewer turned it on (DCCR only, the user's
   // scope). `savedAt` is the acknowledgement — an automatic write that says
   // nothing is indistinguishable from one that did not happen.
-  const [autoSave, setAutoSave] = useState<boolean>(() => autoSaveOn());
   const [savedAt, setSavedAt] = useState<string>('');
   // What was last WRITTEN, so a debounce that fires with nothing changed does
   // not write anyway — and so switching to another call does not save the new
@@ -1323,17 +1349,6 @@ function ReviewDrawer({
         <button className="btn btn-primary" onClick={() => void save()} disabled={!editable || busy}>
           {busy ? 'Saving…' : 'Save review'}
         </button>
-        {editable && (
-          <label className="row" style={{ gap: 6, alignItems: 'center', fontSize: 13 }}
-            title="Answers are written as you choose them. Completing a review still needs Save.">
-            <input
-              type="checkbox"
-              checked={autoSave}
-              onChange={(e) => { setAutoSave(e.target.checked); setAutoSaveOn(e.target.checked); }}
-            />
-            <span>Auto save</span>
-          </label>
-        )}
         {/* THE ACKNOWLEDGEMENT. An automatic write that says nothing is
             indistinguishable from one that did not happen. */}
         {autoSave && savedAt && (
