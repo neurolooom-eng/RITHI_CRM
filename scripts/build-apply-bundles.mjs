@@ -54,8 +54,23 @@ const MODULES = {
     title: 'Base schema',
     blurb: ['Tables, RLS and the UCN generator that every other module builds on:',
             'profiles, parties/products/parts, calls, reports-as-history, and the',
-            'call_requests table the RBAC policies reference.'],
+            'call_requests table the RBAC policies reference.',
+            '',
+            'BOOTSTRAP ONLY. Once Roles & Permissions is in, this file REFUSES to',
+            'run: 0001-0003 create the pre-RBAC version of 23 policies and 6',
+            'functions that later modules narrow, and replaying it would put every',
+            'one of them back. Run all.sql instead --- it includes this.'],
     needs: [],
+    // The one bundle a mirror tail cannot fix: it would mean copying 29 objects
+    // into it. It refuses instead, which is the honest answer — a database that
+    // has rbac does not need base, and running it there only ever loses ground.
+    refuse: {
+      test: `to_regclass('public.app_roles') is not null`,
+      message: 'This database is already past the base schema (app_roles is present). '
+             + 'Running base.sql here would put the pre-RBAC version of 23 policies and '
+             + '6 functions back — every user seeing every call among them. '
+             + 'Run supabase/apply/all.sql instead; it carries this file and everything after it.',
+    },
     files: ['0001_init.sql', '0002_reports_history.sql', '0003_call_requests.sql'],
   },
   user_directory: {
@@ -78,7 +93,10 @@ const MODULES = {
     // was the thing that broke it. A bundle must carry the LATEST definition of
     // everything it defines, or re-running one is not safe.
     files: ['0004_user_directory.sql', '0029_engineer_address.sql', '0068_app_user_names.sql',
-            '0092_visible_engineers_by_name.sql'],
+            '0092_visible_engineers_by_name.sql',
+      // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
+      // replay of this bundle alone put it back, and policies are OR'd.
+      '0122_user_directory_replay_tail.sql'],
   },
   rbac: {
     title: 'Roles & Permissions',
@@ -104,7 +122,14 @@ const MODULES = {
             // `spare_requests` are all 0001 (base, which runs first), `has_perm` and
             // `is_admin` are 0008 above, and the helper's body is plpgsql, so it is
             // not parsed until it runs.
-            '0087_spare_line_stub_rls.sql', '0088_spare_line_parent_visible.sql'],
+            '0087_spare_line_stub_rls.sql', '0088_spare_line_parent_visible.sql',
+            // LAST, and it must stay last: it re-asserts the six policies 0008
+            // above creates and other modules narrow, so a replay of rbac.sql
+            // alone stops reverting them. Every block is guarded on what it
+            // names, so on a fresh apply — where rbac runs before masters,
+            // spare_requests and handstock — each one skips and the owning
+            // module defines it a moment later.
+            '0121_rbac_policy_tail.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -195,7 +220,11 @@ const MODULES = {
             'is allotted to an engineer or a spare they requested is dispatched. Read/',
             'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
     needs: ['profiles'],
-    files: ['0045_notifications.sql', '0054_notify_uid_ambiguous.sql'],
+    files: ['0045_notifications.sql', '0054_notify_uid_ambiguous.sql',
+      // LAST: 0064 (handstock) extends `notify_spare_dispatched()` with the
+      // REFURBISHED line, and this module running after handstock had been
+      // discarding it on every apply. Ends the module with 0064's version.
+      '0122_notifications_replay_tail.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -334,7 +363,11 @@ const MODULES = {
     blurb: ['Engineer-to-engineer hand-stock transfers, with the stock balance derived',
             'from what each engineer was dispatched and has consumed.'],
     needs: ['spareTables', 'rbac', 'visibleEngineers'],
-    files: ['0020_stock_transfer.sql'],
+    files: ['0020_stock_transfer.sql',
+      // LAST: re-asserts `engineer_stock`, `st_read` and the transfer stock
+      // guard, all owned by handstock. Without it a replay of this bundle put
+      // the SHEET-ERA engineer_stock back, silently.
+      '0122_stock_transfer_replay_tail.sql'],
   },
   spare_requests: {
     // Handed round as a NUMBERED consolidated file at the repo root rather
@@ -373,7 +406,10 @@ const MODULES = {
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
       '0118_spare_bulk_decisions.sql',
-    ],
+      // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
+      // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
+      // reverting them. Guarded, so a fresh apply skips it.
+      '0122_spare_requests_replay_tail.sql'],
   },
 };
 
@@ -451,6 +487,21 @@ end $$;
 `;
 }
 
+// A bundle that must not run against a database already past it. Only `base`
+// has one, and only because mirroring its 29 later-narrowed objects into it
+// would be worse than saying no.
+function refusal(r) {
+  if (!r) return '';
+  return `-- Refuse to run where this bundle would LOSE ground.
+do $$
+begin
+  if ${r.test} then
+    raise exception '%', $refuse$${r.message}$refuse$;
+  end if;
+end $$;
+`;
+}
+
 function build(name) {
   const m = MODULES[name];
   if (!m) throw new Error(`Unknown module "${name}". Known: ${Object.keys(MODULES).join(', ')}`);
@@ -470,7 +521,7 @@ function build(name) {
     `-- Paste into the Supabase SQL Editor and Run. Safe to run more than once.`,
     `-- ${bar}`,
     ``,
-    preflight(m.needs),
+    preflight(m.needs) + refusal(m.refuse),
     ``,
     `begin;`,
     ``,

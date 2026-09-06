@@ -61,10 +61,36 @@ const DEFS = [
   /create\s+policy\s+([a-z0-9_]+)\s+on\s+(?:public\.)?([a-z0-9_]+)/gi,
 ];
 
+// MIRROR FILES. A migration whose whole job is to re-assert, VERBATIM, the
+// latest definition of objects another module owns — so that replaying ITS
+// bundle alone leaves those objects at their latest version instead of the
+// version an earlier migration in the same bundle created.
+//
+// `0121_rbac_policy_tail.sql` is the first. 0008 (rbac) creates a policy for
+// most tables in the schema, and six of those are narrowed later by masters,
+// spare_requests and handstock. Those six could not be MOVED into rbac the way
+// 0087/0088 were — each sits in a migration doing work that belongs to its own
+// module — so rbac ends with copies of them instead.
+//
+// A copy is only safe while it stays a copy, and nothing but this check makes
+// it stay one. So a mirror is held to a stricter rule than everything else
+// here: for every object it defines, its definition must match the owning
+// migration's WORD FOR WORD (comments and whitespace aside). Edit 0040's
+// sr_read and forget the mirror, and this fails — which is the whole point,
+// because the alternative is rbac.sql quietly shipping last month's policy.
+const MIRRORS = new Set([
+  '0121_rbac_policy_tail.sql',              // rbac           -> masters, spare_requests, handstock
+  '0122_spare_requests_replay_tail.sql',    // spare_requests -> handstock
+  '0122_stock_transfer_replay_tail.sql',    // stock_transfer -> handstock
+  '0122_notifications_replay_tail.sql',     // notifications  -> handstock
+  '0122_user_directory_replay_tail.sql',    // user_directory -> rbac (a DROP, so nothing to compare)
+]);
+
 const where = new Map();   // object -> Map(module -> [files])
 for (const file of readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort()) {
   const mod = moduleOf.get(file);
   if (!mod) continue;                       // build-apply-bundles.mjs already refuses this
+  if (MIRRORS.has(file)) continue;          // checked below, against the definitions it copies
   const sql = readFileSync(`${DIR}/${file}`, 'utf8');
   for (const re of DEFS) {
     re.lastIndex = 0;
@@ -155,6 +181,107 @@ const KNOWN = new Set([
 // Policies are OR'd, so a holder of `masters.edit` can then write every list
 // again, which is exactly what 0067 narrowed. `_status.sql` row 74 reports it,
 // because a regex over the migration text never will.
+
+// ---------------------------------------------------------------------------
+// The mirror check. Two things have to hold for `0121_rbac_policy_tail.sql` to
+// do its job, and neither is visible by reading it:
+//
+//   1. it must be the LAST file in its module, or an earlier migration in the
+//      same bundle overwrites it right back;
+//   2. every definition in it must be the owning migration's, unchanged.
+// ---------------------------------------------------------------------------
+{
+  // The text of one `create ...` statement: from the keyword to the `;` that
+  // ends it, ignoring a `;` inside a quoted string or a dollar-quoted body —
+  // a function body is full of them.
+  const statementAt = (sql, from) => {
+    let i = from, q = null;
+    while (i < sql.length) {
+      if (q) {
+        if (q.length > 1) { if (sql.startsWith(q, i)) { i += q.length; q = null; continue; } }
+        else if (sql[i] === q) q = null;
+        i++;
+        continue;
+      }
+      const dollar = /^\$[a-z_]*\$/i.exec(sql.slice(i, i + 32));
+      if (dollar) { q = dollar[0]; i += q.length; continue; }
+      const c = sql[i];
+      if (c === "'" || c === '"') q = c;
+      else if (c === ';') return sql.slice(from, i);
+      i++;
+    }
+    return sql.slice(from);
+  };
+  // Comments and whitespace are not the definition; everything else is.
+  const norm = (t) => t.replace(/--[^\n]*/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  // Every definition in a file, as object -> [normalised statement]. A name can
+  // carry several: `dispatch_spare_lines` has three overloads, and a mirror may
+  // need more than one of them.
+  const defsIn = (sql) => {
+    const out = new Map();
+    for (const re of DEFS) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(sql))) {
+        const obj = (m[2] ? `${m[2]}.${m[1]}` : m[1]).toLowerCase();
+        if (!out.has(obj)) out.set(obj, []);
+        out.get(obj).push(norm(statementAt(sql, m.index)));
+      }
+    }
+    return out;
+  };
+
+  const files = readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
+
+  // Every definition any NON-mirror migration makes: statement -> the file it
+  // came from. A mirror's copy has to be one of these, word for word.
+  const owned = new Map();                  // object -> Map(statement -> file)
+  for (const f of files) {
+    if (!moduleOf.get(f) || MIRRORS.has(f)) continue;
+    for (const [obj, stmts] of defsIn(readFileSync(`${DIR}/${f}`, 'utf8'))) {
+      if (!owned.has(obj)) owned.set(obj, new Map());
+      for (const st of stmts) if (!owned.get(obj).has(st)) owned.get(obj).set(st, f);
+    }
+  }
+
+  const problems = [];
+  for (const mirror of MIRRORS) {
+    const mod = moduleOf.get(mirror);
+    if (!mod) { problems.push(`${mirror} belongs to no module`); continue; }
+
+    const inModule = files.filter((f) => moduleOf.get(f) === mod);
+    if (inModule.at(-1) !== mirror) {
+      problems.push(
+        `${mirror} must be the LAST file in module "${mod}" — it is followed by ` +
+        `${inModule.slice(inModule.indexOf(mirror) + 1).join(', ')}, which would overwrite it.`);
+    }
+
+    for (const [obj, stmts] of defsIn(readFileSync(`${DIR}/${mirror}`, 'utf8'))) {
+      const candidates = owned.get(obj);
+      if (!candidates) {
+        problems.push(`${mirror} mirrors ${obj}, which no other migration defines — it is not a mirror, it is the owner.`);
+        continue;
+      }
+      for (const st of stmts) {
+        if (candidates.has(st)) continue;
+        problems.push(
+          `${obj} in ${mirror} matches NO definition in any migration — it has drifted from the one it copies.\n` +
+          `      the mirror says:\n        ${st}\n` +
+          `      defined in: ${[...new Set(candidates.values())].join(', ')}\n` +
+          `      (WHICH definition is the right one is what \`npm run check:replay\` proves; this only\n` +
+          `       proves the copy is still a copy.)`);
+      }
+    }
+  }
+
+  if (problems.length) {
+    console.log('\nA mirror migration is no longer a faithful copy:\n');
+    problems.forEach((p) => console.log(`  ✗ ${p}\n`));
+    console.log(`${problems.length} problem(s) in mirror migrations.\n`);
+    process.exit(1);
+  }
+}
 
 const split = [...where].filter(([, by]) => by.size > 1).sort((a, b) => a[0].localeCompare(b[0]));
 const fresh = split.filter(([obj]) => !KNOWN.has(obj));

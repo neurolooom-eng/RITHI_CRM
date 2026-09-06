@@ -17,6 +17,7 @@
 --   0029_engineer_address.sql
 --   0068_app_user_names.sql
 --   0092_visible_engineers_by_name.sql
+--   0122_user_directory_replay_tail.sql
 --   0005_rbac.sql
 --   0007_user_access.sql
 --   0008_rbac_enforcement.sql
@@ -33,6 +34,7 @@
 --   0120_role_table_views.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
+--   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
 --   0047_audit_retention_compliance.sql
@@ -101,7 +103,9 @@
 --   0085_spare_request_or_no_key.sql
 --   0116_spare_bulk_approval.sql
 --   0118_spare_bulk_decisions.sql
+--   0122_spare_requests_replay_tail.sql
 --   0020_stock_transfer.sql
+--   0122_stock_transfer_replay_tail.sql
 --   0023_handstock.sql
 --   0038_spare_consumption_scope.sql
 --   0039_material_returns.sql
@@ -139,6 +143,7 @@
 --   0043_help_screenshots.sql
 --   0045_notifications.sql
 --   0054_notify_uid_ambiguous.sql
+--   0122_notifications_replay_tail.sql
 --   0046_validation_results.sql
 --   0048_record_audit.sql
 --   0049_record_retention_guard.sql
@@ -954,6 +959,28 @@ returns setof text language sql stable security definer set search_path = public
   )
   select name from tree where coalesce(name,'') <> '';
 $$;
+
+-- ------------------------------------------------------------------------
+-- 0122_user_directory_replay_tail.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- user_directory.sql must leave the directory's policies where the schema
+-- leaves them.
+--
+-- 0004 creates `ud_admin_write` — FOR ALL, using is_admin() — and 0008 DROPS
+-- it, because rbac replaced it with the narrower ud_read / ud_write pair plus
+-- 0030's address rule for dispatch. Since rbac runs after user_directory, a
+-- database built from all.sql has no ud_admin_write, which is the intended
+-- state; but replaying user_directory.sql on its own put it back, and policies
+-- are OR'd, so the narrowing went away with no error and no warning.
+--
+-- Dropping it again here is 0008's word, applied last. On a fresh apply the
+-- policy has just been created a few statements above and is dropped again
+-- immediately, which is exactly what all.sql does anyway.
+-- ===========================================================================
+
+drop policy if exists ud_admin_write on public.user_directory;
 
 -- ------------------------------------------------------------------------
 -- 0005_rbac.sql
@@ -2153,6 +2180,218 @@ create policy srl_insert on public.spare_request_lines for insert
     public.has_perm('spare.request')
     and public.spare_line_parent_ok(request_uid)
   );
+
+-- ------------------------------------------------------------------------
+-- 0121_rbac_policy_tail.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- rbac.sql must leave every policy it defines at its LATEST definition.
+--
+-- 0008 creates a policy for most tables in the schema. Six of those were later
+-- narrowed by other modules — and because the apply bundles are replayed ONE AT
+-- A TIME, running `rbac.sql` on its own put 0008's wider version back. No
+-- error, no warning, and the bundle reports success. It has now happened twice
+-- (2026-09-05 for `srl_insert`, 2026-09-06 for these six), each time reading as
+-- "the migration was never applied" when it had been applied and overwritten.
+--
+-- 0087/0088 were fixed by MOVING them into this module. These six cannot move:
+-- each sits in a migration that also does work belonging to its own module, and
+-- each depends on tables that module creates. So this file — the LAST in the
+-- rbac module — re-asserts their latest definitions instead:
+--
+--   spare_requests.sr_read        0040_spare_read_scope
+--   spare_requests.sr_update      0009_spare_receipt
+--   spare_request_lines.srl_update 0016_spare_line_approvals
+--   spare_consumption.cons_read   0038_spare_consumption_scope
+--   spare_consumption.cons_write  0059_consumption_reconciliation
+--   spare_requests_stage_guard()  0016_spare_line_approvals
+--   masters insert/update/delete  0067_master_list_permissions
+--
+-- Every block is GUARDED on what it names. On a FRESH apply rbac runs before
+-- masters, spare_requests and handstock (ALL_ORDER), so those tables do not
+-- exist yet: each block skips, and the owning module defines the policy itself
+-- a moment later — identically. On a replay against a live database everything
+-- is present, so the latest definition is restored. Idempotent either way, and
+-- the definitions here are copies: change one in its own migration and change
+-- it here too, or rbac.sql goes back to reverting it.
+-- ===========================================================================
+
+-- --------------------------------------------------------------------------
+-- spare_requests — who may SEE one (0040), and who may UPDATE one (0009).
+-- --------------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.spare_requests') is null then
+    raise notice 'skip sr_read/sr_update — public.spare_requests is not present yet';
+    return;
+  end if;
+
+  if to_regproc('public.can_view_all_calls') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'spare_requests'
+                    and column_name = 'engineer_email') then
+    drop policy if exists sr_read on public.spare_requests;
+    create policy sr_read on public.spare_requests for select
+      using (
+        (select public.can_view_all_calls())
+        or created_by = (select auth.uid())
+        or lower(engineer_email) = lower((select auth.email()))
+        or lower(btrim(engineer)) in (
+             select lower(btrim(n)) from public.visible_engineer_names() as v(n)
+           )
+      );
+  else
+    raise notice 'skip sr_read — can_view_all_calls() or engineer_email is not present yet';
+  end if;
+
+  if to_regproc('public.is_spare_requester') is not null then
+    drop policy if exists sr_update on public.spare_requests;
+    create policy sr_update on public.spare_requests for update
+      using      (public.can_approve_spares() or public.is_spare_requester(spare_requests))
+      with check (public.can_approve_spares() or public.is_spare_requester(spare_requests));
+  else
+    raise notice 'skip sr_update — is_spare_requester() is not present yet';
+  end if;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- spare_request_lines — the raiser may touch their own lines, not only an
+-- approver (0016). Without this an engineer cannot acknowledge receipt.
+-- --------------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.spare_request_lines') is null
+     or to_regproc('public.is_spare_requester') is null then
+    raise notice 'skip srl_update — spare_request_lines or is_spare_requester() is not present yet';
+    return;
+  end if;
+
+  drop policy if exists srl_update on public.spare_request_lines;
+  create policy srl_update on public.spare_request_lines for update
+    using (
+      public.can_approve_spares()
+      or exists (select 1 from public.spare_requests r
+                  where r.uid = spare_request_lines.request_uid and public.is_spare_requester(r))
+    )
+    with check (
+      public.can_approve_spares()
+      or exists (select 1 from public.spare_requests r
+                  where r.uid = spare_request_lines.request_uid and public.is_spare_requester(r))
+    );
+end $$;
+
+-- --------------------------------------------------------------------------
+-- spare_consumption — scoped reads (0038), and a Reconciliation line needing
+-- its own permission rather than calls.report (0059).
+-- --------------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.spare_consumption') is null then
+    raise notice 'skip cons_read/cons_write — public.spare_consumption is not present yet';
+    return;
+  end if;
+
+  if to_regproc('public.can_view_all_calls') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema = 'public' and table_name = 'spare_consumption'
+                    and column_name = 'engineer_email') then
+    drop policy if exists cons_read on public.spare_consumption;
+    create policy cons_read on public.spare_consumption for select
+      using (
+        (select public.can_view_all_calls())
+        or created_by = (select auth.uid())
+        or lower(engineer_email) = lower((select auth.email()))
+        or lower(trim(engineer)) in (
+             select lower(trim(n)) from public.visible_engineer_names() as v(n)
+           )
+      );
+  else
+    raise notice 'skip cons_read — can_view_all_calls() or engineer_email is not present yet';
+  end if;
+
+  if exists (select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'spare_consumption'
+                and column_name = 'source') then
+    drop policy if exists cons_write on public.spare_consumption;
+    create policy cons_write on public.spare_consumption for insert
+      with check (
+        case when coalesce(source, 'Report') = 'Reconciliation'
+             then public.has_perm('consumption.reconcile')
+             else (public.has_perm('calls.report') or public.has_perm('spare.dispatch'))
+        end
+      );
+  else
+    raise notice 'skip cons_write — spare_consumption.source is not present yet';
+  end if;
+end $$;
+
+-- --------------------------------------------------------------------------
+-- masters — write rights are PER LIST (0067).
+--
+-- This is the one no static check can see: 0008 creates `masters_write`
+-- through `execute format(...)` in a loop, so no `create policy` literal
+-- appears in its text. Policies are OR'd, so leaving 0008's version in place
+-- lets a holder of `masters.edit` write EVERY list again — exactly what 0067
+-- narrowed.
+-- --------------------------------------------------------------------------
+do $$
+begin
+  if to_regclass('public.masters') is null then
+    raise notice 'skip masters policies — public.masters is not present yet';
+    return;
+  end if;
+
+  drop policy if exists masters_write on public.masters;
+  drop policy if exists masters_admin_write on public.masters;
+  drop policy if exists masters_insert on public.masters;
+  drop policy if exists masters_update on public.masters;
+  drop policy if exists masters_delete on public.masters;
+
+  create policy masters_insert on public.masters for insert
+    with check (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'));
+
+  create policy masters_update on public.masters for update
+    using      (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'))
+    with check (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.edit'));
+
+  create policy masters_delete on public.masters for delete
+    using      (public.has_perm('masters.edit')
+             or public.has_perm('master.' || coalesce(name, '') || '.delete'));
+end $$;
+
+-- --------------------------------------------------------------------------
+-- spare_requests_stage_guard() — the per-stage approval guard.
+--
+-- 0008 creates it; 0009, 0012 and 0016 each extend it, and 0016 has the last
+-- word: the receipt columns, courier / dispatch remarks, reject_reason and the
+-- Received transition. Replaying rbac.sql put 0008's back, which refuses an
+-- engineer acknowledging receipt and lets a rejection be written without one.
+--
+-- Unlike the policies above this needs nothing that a later module creates —
+-- it is plpgsql, so its body is not resolved until it runs — so it is
+-- unguarded and correct on a fresh apply as well.
+-- --------------------------------------------------------------------------
+create or replace function public.spare_requests_stage_guard()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if public.is_admin() then return new; end if;
+  if coalesce(current_setting('app.spare_rollup', true), '') = '1' then return new; end if;
+
+  if new.stage  is distinct from old.stage
+  or new.status is distinct from old.status
+  or new.rm_approval         is distinct from old.rm_approval
+  or new.commercial_approval is distinct from old.commercial_approval
+  or new.nsm_approval        is distinct from old.nsm_approval
+  or new.stores_status       is distinct from old.stores_status
+  or new.received_at         is distinct from old.received_at then
+    raise exception 'Spare approvals are recorded per spare — update spare_request_lines, not the request';
+  end if;
+  return new;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0009_audit_log.sql
@@ -11148,6 +11387,193 @@ comment on function public.decide_spare_lines(bigint[], text, text, text) is
   'Approve / reject / drop many spare lines at once, each at the stage it is AT. Reject and drop require a reason. Skips what the caller may not decide and returns the counts.';
 
 -- ------------------------------------------------------------------------
+-- 0122_spare_requests_replay_tail.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- Spare_1.sql must leave every object it defines at its LATEST definition.
+--
+-- Proven by applying every migration to one database, replaying the bundle on
+-- a copy and diffing: without this file, running Spare_1.sql on its own put
+-- 0027's `dispatch_spare_lines()` and `sd_read` back — a dispatch that cannot
+-- book a refurbished part or a partial line, and a per-row policy check where
+-- 0095 made it an InitPlan. No error, and the bundle reports success.
+--
+-- Both are owned by `handstock`, which runs AFTER this module in ALL_ORDER, so
+-- a fresh apply is unaffected: the blocks below are guarded on tables handstock
+-- creates, skip while they are absent, and handstock defines them identically a
+-- moment later. On a replay against a live database everything is present.
+--
+-- The definitions here are COPIES. `npm run check:bundles` compares them with
+-- the owning migration word for word and fails if either side moves, which is
+-- the only thing keeping a copy a copy — see MIRRORS in check-bundles.mjs.
+-- ===========================================================================
+
+-- --------------------------------------------------------------------------
+-- dispatch_spare_lines() — 0065_refurb_stock_and_part_master
+-- --------------------------------------------------------------------------
+do $mirror$
+begin
+  if to_regclass('public.spare_dispatch_lines') is null then
+    raise notice 'skip dispatch_spare_lines — public.spare_dispatch_lines is not present yet';
+    return;
+  end if;
+  execute $body$
+create or replace function public.dispatch_spare_lines(
+  p_line_ids bigint[],
+  p_qtys     numeric[],
+  p_refurb   boolean[],
+  p_courier  text default '',
+  p_remarks  text default '',
+  p_dc_date  date default current_date,
+  p_actor    text default ''
+) returns public.spare_dispatches
+language plpgsql security definer set search_path = public as $$
+declare
+  eng text; n integer; head public.spare_dispatches; email text;
+  i integer; lid bigint; want numeric; rem numeric; send numeric; ref boolean;
+  total numeric := 0; cnt integer := 0;
+begin
+  if not (public.is_admin() or public.has_perm('spare.dispatch')) then
+    raise exception 'RBAC: dispatch requires the spare.dispatch permission';
+  end if;
+  if p_line_ids is null or array_length(p_line_ids, 1) is null then
+    raise exception 'Nothing to dispatch: no spares selected';
+  end if;
+
+  select count(*), min(v.engineer), min(v.engineer_email) into n, eng, email
+    from public.spare_pending_dispatch v where v.line_id = any (p_line_ids);
+  if coalesce(n, 0) <> array_length(p_line_ids, 1) then
+    raise exception
+      'Only % of the % selected spares are still waiting at Stores — refresh and try again',
+      coalesce(n, 0), array_length(p_line_ids, 1);
+  end if;
+  if (select count(distinct v.engineer_key) from public.spare_pending_dispatch v
+       where v.line_id = any (p_line_ids)) <> 1 then
+    raise exception 'A stock out goes to one engineer — select spares for a single engineer';
+  end if;
+
+  insert into public.spare_dispatches
+    (dc_date, engineer, engineer_email, courier, remarks, line_count, total_qty, dispatched_by)
+  values
+    (coalesce(p_dc_date, current_date), eng, coalesce(email, ''), coalesce(p_courier, ''),
+     coalesce(p_remarks, ''), 0, 0, coalesce(nullif(btrim(p_actor), ''), ''))
+  returning * into head;
+
+  for i in 1 .. array_length(p_line_ids, 1) loop
+    lid  := p_line_ids[i];
+    want := case when p_qtys   is null then null  else p_qtys[i]   end;
+    ref  := case when p_refurb is null then false else coalesce(p_refurb[i], false) end;
+
+    select greatest(coalesce(l.qty, 0) - coalesce(l.dispatched_qty, 0), 0)
+      into rem from public.spare_request_lines l where l.id = lid;
+
+    send := coalesce(want, rem);
+    if send is null or send <= 0 then
+      raise exception 'Quantity for spare % must be more than zero', lid;
+    end if;
+    if send > rem then
+      raise exception 'Only % left to send on that spare (you asked for %) — refresh and try again', rem, send;
+    end if;
+
+    -- A refurbished issue may only use a part that Part Master actually knows
+    -- and still lists as active — otherwise ticking Refurb would invent a part
+    -- number, and with it a stock line nobody can order against.
+    if ref then
+      declare rp text;
+      begin
+        select public.refurb_part(l.part) into rp from public.spare_request_lines l where l.id = lid;
+        if not public.refurb_part_ok(rp) then
+          raise exception 'Refurbished part % is not in Part Master, or is not active — add it before issuing it',
+            public.part_code(rp);
+        end if;
+      end;
+    end if;
+
+    insert into public.spare_dispatch_lines (dispatch_uid, line_id, line_uid, part, qty, refurbished)
+    select head.uid, l.id, coalesce(l.line_uid, ''),
+           case when ref then public.refurb_part(l.part) else coalesce(l.part, '') end,
+           send, ref
+      from public.spare_request_lines l where l.id = lid;
+
+    update public.spare_request_lines l
+       set dispatched_qty   = coalesce(l.dispatched_qty, 0) + send,
+           courier          = coalesce(p_courier, ''),
+           dispatch_remarks = coalesce(p_remarks, ''),
+           dispatched_by    = head.dispatched_by,
+           dispatched_at    = head.dispatched_at,
+           dc_number    = case when coalesce(l.dispatched_qty, 0) + send >= coalesce(l.qty, 0)
+                               then head.dc_number else l.dc_number end,
+           dispatch_uid = case when coalesce(l.dispatched_qty, 0) + send >= coalesce(l.qty, 0)
+                               then head.uid else l.dispatch_uid end,
+           stock_out_no = case when coalesce(l.dispatched_qty, 0) + send >= coalesce(l.qty, 0)
+                               then head.uid else l.stock_out_no end,
+           stores_status = case when coalesce(l.dispatched_qty, 0) + send >= coalesce(l.qty, 0)
+                                then 'Dispatched' else l.stores_status end
+     where l.id = lid;
+
+    total := total + send; cnt := cnt + 1;
+  end loop;
+
+  update public.spare_dispatches d set line_count = cnt, total_qty = total
+   where d.uid = head.uid returning * into head;
+  return head;
+end $$;
+  $body$;
+  grant execute on function public.dispatch_spare_lines(bigint[], numeric[], boolean[], text, text, date, text) to authenticated;
+end $mirror$;
+
+-- --------------------------------------------------------------------------
+-- dispatch_spare_lines(bigint[], text, text, date, text) — 0055_partial_dispatch
+--
+-- The five-argument OVERLOAD. 0027 defines it as the whole implementation;
+-- 0055 split partial dispatch out into a six-argument version and left this
+-- one as a thin wrapper that calls it. Replaying Spare_1.sql put 0027's
+-- implementation back under this signature, so a caller on the old shape wrote
+-- dispatches that knew nothing about partial quantities or refurbished parts.
+-- --------------------------------------------------------------------------
+do $mirror$
+begin
+  if to_regprocedure('public.dispatch_spare_lines(bigint[],numeric[],text,text,date,text)') is null then
+    raise notice 'skip dispatch_spare_lines/5 — the six-argument version it calls is not present yet';
+    return;
+  end if;
+  execute $body$
+create or replace function public.dispatch_spare_lines(
+  p_line_ids bigint[],
+  p_courier  text default '',
+  p_remarks  text default '',
+  p_dc_date  date default current_date,
+  p_actor    text default ''
+) returns public.spare_dispatches
+language sql security definer set search_path = public as $$
+  select public.dispatch_spare_lines(p_line_ids, null::numeric[], p_courier, p_remarks, p_dc_date, p_actor);
+$$;
+  $body$;
+  grant execute on function public.dispatch_spare_lines(bigint[], text, text, date, text) to authenticated;
+end $mirror$;
+
+-- --------------------------------------------------------------------------
+-- sd_read — 0095_rls_initplans
+-- --------------------------------------------------------------------------
+do $mirror$
+begin
+  if to_regclass('public.spare_dispatches') is null
+     or to_regproc('public.can_view_all_calls') is null then
+    raise notice 'skip sd_read — spare_dispatches or can_view_all_calls() is not present yet';
+    return;
+  end if;
+  drop policy if exists sd_read on public.spare_dispatches;
+  create policy sd_read on public.spare_dispatches for select
+    using (
+      (select public.is_admin())
+      or created_by = (select auth.uid())
+      or (select public.has_perm('spare.dispatch'))
+      or lower(btrim(engineer)) in (select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+    );
+end $mirror$;
+
+-- ------------------------------------------------------------------------
 -- 0020_stock_transfer.sql
 -- ------------------------------------------------------------------------
 
@@ -11349,6 +11775,102 @@ update public.app_roles
        updated_at  = now()
  where role in ('admin', 'engineer', 'rm', 'rgm', 'spare_coordinator', 'stores_incharge')
    and not coalesce(permissions, '[]'::jsonb) ? 'stock.transfer';
+
+-- ------------------------------------------------------------------------
+-- 0122_stock_transfer_replay_tail.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- stock_transfer.sql must leave every object it defines at its LATEST
+-- definition. Proven by applying every migration to one database, replaying
+-- the bundle on a copy and diffing: without this file, running
+-- stock_transfer.sql on its own put 0020's versions back —
+--
+--   engineer_stock                    the SHEET-ERA derivation, not the one
+--                                     over handstock_balance (0039). Column
+--                                     names match, so `create or replace`
+--                                     succeeds and every hand-stock balance
+--                                     silently changes meaning.
+--   st_read                           back to a permission-only test, losing
+--                                     0041's reporting-tree scope.
+--   stock_transfer_lines_check_stock  back to refusing an IMPORTED transfer
+--                                     (0089 exempts `source = import`).
+--
+-- All three are owned by `handstock`, which runs AFTER this module in
+-- ALL_ORDER, so a fresh apply is unaffected: each block is guarded on what
+-- handstock creates, skips while it is absent, and handstock defines it
+-- identically a moment later.
+--
+-- The definitions here are COPIES. `npm run check:bundles` compares them with
+-- the owning migration word for word and fails if either side moves.
+-- ===========================================================================
+
+-- --------------------------------------------------------------------------
+-- engineer_stock — 0039_material_returns
+-- --------------------------------------------------------------------------
+do $mirror$
+begin
+  if to_regclass('public.handstock_balance') is null then
+    raise notice 'skip engineer_stock — public.handstock_balance is not present yet';
+    return;
+  end if;
+  drop view if exists public.engineer_stock;
+  execute $body$
+create view public.engineer_stock as
+select b.engineer_key as engineer, b.part, b.on_hand as qty
+  from public.handstock_balance b;
+  $body$;
+  grant select on public.engineer_stock to authenticated;
+end $mirror$;
+
+-- --------------------------------------------------------------------------
+-- st_read — 0041_stock_read_scope
+-- --------------------------------------------------------------------------
+do $mirror$
+begin
+  if to_regproc('public.can_view_all_calls') is null then
+    raise notice 'skip st_read — can_view_all_calls() is not present yet';
+    return;
+  end if;
+  drop policy if exists st_read on public.stock_transfers;
+  create policy st_read on public.stock_transfers for select
+    using (
+      (select public.can_view_all_calls())          -- admin + office desks + data.view_all
+      or created_by = (select auth.uid())
+      or lower(btrim(from_engineer)) in (
+           select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+      or lower(btrim(to_engineer)) in (
+           select lower(btrim(n)) from public.visible_engineer_names() as v(n))
+    );
+end $mirror$;
+
+-- --------------------------------------------------------------------------
+-- stock_transfer_lines_check_stock() — 0089_spare_imports_load
+--
+-- plpgsql, so its body is not resolved until it runs: no guard needed, and it
+-- is correct on a fresh apply as well.
+-- --------------------------------------------------------------------------
+create or replace function public.stock_transfer_lines_check_stock()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  sender text;
+  src    text;
+  bal    numeric;
+begin
+  select from_engineer, coalesce(source, '') into sender, src
+    from public.stock_transfers where uid = new.transfer_uid;
+  if src = 'import' then
+    return null;                    -- a transfer that already happened
+  end if;
+  bal := public.engineer_stock_available(sender, new.part);
+  if bal < 0 then
+    -- bal is the balance AFTER this row, so a negative is the shortfall.
+    raise exception
+      'Stock transfer exceeds available stock: % would be left with % of %',
+      sender, bal, trim(new.part);
+  end if;
+  return null;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0023_handstock.sql
@@ -16346,6 +16868,62 @@ begin
           '/spare-requests');
   return new;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0122_notifications_replay_tail.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- The refurbished-part notice, which module ORDER had been quietly discarding.
+--
+-- `notify_spare_dispatched()` is created by 0045, corrected by 0054, and
+-- extended by 0064 to say when the dispatched part is a REFURBISHED one — the
+-- thing an engineer most needs told. But 0064 lives in `handstock`, and
+-- `notifications` runs AFTER handstock in ALL_ORDER, so 0054's version had the
+-- last word on every database built from all.sql: the refurbished line has
+-- never been sent. Replaying HandStock_X.sql put 0064's back, and replaying
+-- notifications.sql took it away again.
+--
+-- Ending this module with 0064's definition settles all three at once — the
+-- fresh apply, the handstock replay and the notifications replay.
+--
+-- The definition here is a COPY. `npm run check:bundles` compares it with
+-- 0064 word for word and fails if either side moves.
+-- ===========================================================================
+
+do $mirror$
+begin
+  if to_regclass('public.spare_dispatch_lines') is null then
+    raise notice 'skip notify_spare_dispatched — public.spare_dispatch_lines is not present yet';
+    return;
+  end if;
+  execute $body$
+create or replace function public.notify_spare_dispatched()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_uid uuid; r record; refurb_note text := '';
+begin
+  if coalesce(new.stores_status, '') !~* 'dispatch' then return new; end if;
+  if tg_op = 'UPDATE' and coalesce(old.stores_status, '') ~* 'dispatch' then return new; end if;
+  select sr.engineer, sr.engineer_email, sr.ucn, sr.party_name into r
+    from public.spare_requests sr where sr.uid = new.request_uid;
+  v_uid := public.notify_resolve_uid(r.engineer_email, r.engineer);
+  if v_uid is null then return new; end if;
+
+  if exists (select 1 from public.spare_dispatch_lines d
+              where d.line_id = new.id and d.refurbished) then
+    refurb_note := ' · REFURBISHED part';
+  end if;
+
+  insert into public.notifications (recipient_id, recipient_email, kind, title, body, link)
+  values (v_uid, coalesce(r.engineer_email, ''), 'spare_dispatched',
+          case when refurb_note <> '' then 'Spare dispatched (refurbished)' else 'Spare dispatched' end,
+          concat_ws(' · ', nullif(coalesce(new.part, ''), ''), nullif(coalesce(r.ucn, ''), ''),
+                    nullif(coalesce(r.party_name, ''), '')) || refurb_note,
+          '/spare-requests');
+  return new;
+end $$;
+  $body$;
+end $mirror$;
 
 -- ------------------------------------------------------------------------
 -- 0046_validation_results.sql

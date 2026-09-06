@@ -4,11 +4,62 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-02 (spare reconciliation shipped and applied; live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
+_Last updated: 2026-09-06 (bundle replay safety; see the top of In progress)_
+
+_Previously: 2026-09-02 (spare reconciliation shipped and applied; live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
 
 ---
 
 ## 🚧 In progress
+
+### Bundle replay safety — 2026-09-06 (shipped, NOT yet applied)
+
+`_status.sql` came back with six policy rows at NO after the user ran
+`rbac.sql`. Same fault as the `srl_insert` one the day before: a bundle carries
+its module from the beginning, so a rule written early and narrowed later goes
+BACK when the earlier bundle is re-run. It was measured rather than reasoned
+about — every migration applied to one database, each bundle replayed onto a
+copy, and every policy, function and view diffed. **Six bundles** were reverting
+something. All six are fixed and `npm run check:replay` now passes on all 19.
+
+- **Guarded mirrors.** Where the object could not be moved into the bundle that
+  owns the last word, the module now ends with a verbatim copy of the owner's
+  definition, skipped while the later module's tables are absent:
+  `0121_rbac_policy_tail` (6 policies + the per-stage approval guard),
+  `0122_spare_requests_replay_tail` (`dispatch_spare_lines`, two overloads, and
+  `sd_read`), `0122_stock_transfer_replay_tail` (`engineer_stock`, `st_read`,
+  the transfer stock guard), `0122_notifications_replay_tail`, and
+  `0122_user_directory_replay_tail` (drops `ud_admin_write` again).
+- **`base.sql` refuses** to run where `app_roles` exists. Mirroring its 29
+  later-narrowed objects would have been worse than saying no. Bootstrap is
+  unaffected; anywhere else, `all.sql` is the answer.
+- **`npm run check:replay`** (new) is the proof, and the only check that can see
+  `masters_write` — 0008 creates it through `execute format()`, so no
+  `create policy` literal exists for a text check to find.
+- **`npm run check:bundles`** grew a MIRRORS list: a mirror must be LAST in its
+  module and must match the migration it copies word for word.
+
+⚠️ **Two real faults it turned up on the way:**
+
+1. **The refurbished-part notice has never been sent.** 0064 extends
+   `notify_spare_dispatched()` to say the dispatched part is refurbished, but
+   `notifications` runs AFTER `handstock` in `ALL_ORDER`, so 0054's version
+   overwrote it on every apply. `_status.sql` row 81 reports it.
+2. **The per-stage approval guard is currently back at 0008's version on the
+   live project** — the `rbac.sql` run that produced the six NOs did that too,
+   and 0008's guard refuses an engineer acknowledging receipt. `_status.sql`
+   row 82 reports it. Running the new `rbac.sql` repairs it.
+
+**To run on the live project, in any order (that is now the point):**
+`rbac.sql`, then `notifications.sql`. Verified from a database rebuilt into the
+exact state the user reported: the two together clear all nine NO rows.
+
+**Not fixed, recorded:** `engineer_stock` has no `security_invoker` while the
+`handstock_balance` it reads does. `check:views` does not flag it because the
+view is not directly over an RLS table, and the read scope is untested. Worth
+its own change — see the `create or replace view` note in CLAUDE.md for why an
+invoker view over an owner-run one is not protection.
+
 
 ### Applied on the live project — 2026-09-01
 Run and confirmed by the user, in this order:

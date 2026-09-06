@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.119',
+    date: '2026-09-06',
+    title: 'Running a SQL bundle can no longer undo an earlier one',
+    changes: [
+      'The apply bundles are run one at a time — “run rbac.sql for the new role layouts” — and each carries its module from the beginning. So a rule written early and narrowed later went BACK to the wide version when you re-ran the earlier file. No error; the bundle said it succeeded. It has now happened twice, and the last time it put six access rules back a version.',
+      'Every bundle now ends with the latest definition of everything it touches, so they can be run in any order, as often as you like, and nothing goes backwards. Order no longer matters, and _status.sql no longer tells you it does.',
+      'FOUND ON THE WAY: the notice telling an engineer a dispatched part is REFURBISHED has never actually been sent — it was written, and then overwritten on every apply by an older version of the same notice. It works now.',
+      'ALSO: the per-stage approval guard had gone back a version on the live project, which is what stops an engineer acknowledging receipt of a spare. Running rbac.sql repairs it.',
+      'base.sql now refuses to run on a database that already has Roles & Permissions, instead of quietly putting the pre-RBAC version of 23 policies back — every user seeing every call among them.',
+      'Needs migration: run supabase/apply/rbac.sql, then supabase/apply/notifications.sql.',
+    ],
+  },
+  {
     version: '0.9.118',
     date: '2026-09-06',
     title: 'The user form suggests the managers and regions already on record',

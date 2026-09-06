@@ -7,13 +7,19 @@
 --
 -- Read-only — it changes nothing.
 --
--- ORDER MATTERS WHEN SEVERAL ROWS SAY NO. Some access rules are written in one
--- bundle and corrected in another, so running the earlier bundle puts the older
--- rule back — silently. `rbac.sql` is the early one. So if it is on your list at
--- all, RUN rbac.sql FIRST, then Spare_1.sql, HandStock_X.sql and masters.sql
--- after it. Running them the other way round leaves the six policy rows at the
--- bottom of this report back at NO. (`npm run check:bundles` lists every rule
--- with this shape.)
+-- ORDER NO LONGER MATTERS. It used to: some access rules are written in one
+-- bundle and corrected in another, so running the earlier bundle put the older
+-- rule back — silently — and `rbac.sql` was the early one. Every bundle now
+-- ends with the latest definition of everything it touches, so you can run them
+-- in any order, as many times as you like, and nothing goes backwards.
+-- `npm run check:replay` proves it by replaying each bundle onto a copy of a
+-- fully-applied database and diffing every policy, function and view; the rows
+-- at the bottom of this report still show the six that used to drift, so if one
+-- ever says NO again you will see it here.
+--
+-- ONE EXCEPTION: `base.sql` is bootstrap only, and now REFUSES to run on a
+-- database that already has Roles & Permissions. If you need it there, you
+-- don't — run all.sql.
 -- ===========================================================================
 with checks(sort_order, bundle, provides, present) as (
   values
@@ -342,28 +348,39 @@ with checks(sort_order, bundle, provides, present) as (
     -- bundle reports success. `npm run check:bundles` lists them; these rows
     -- are what makes the drift VISIBLE on a live project.
     -- Proven, not theorised: every migration applied to one database, the
-    -- bundle replayed on a copy, pg_policies diffed (2026-09-06).
-    (69, 'spares: who can SEE a spare request', 'sr_read is 0040''s -- scoped by can_view_all_calls() and the reporting tree. Replaying rbac.sql puts 0035''s back, and the visible set changes. Restore: Spare_1.sql',
+    -- bundle replayed on a copy, pg_policies diffed (2026-09-06). That is now
+    -- `npm run check:replay`, and every bundle passes it -- each ends with a
+    -- guarded mirror of whatever a later module narrows. These rows stay: they
+    -- are how the same drift would be SEEN on the live project if it returned.
+    (69, 'spares: who can SEE a spare request', 'sr_read is 0040''s -- scoped by can_view_all_calls() and the reporting tree. Replaying rbac.sql used to put 0035''s back; 0121 ends that bundle with this one, so it no longer does. Restore: Spare_1.sql',
         exists (select 1 from pg_policies
                  where schemaname='public' and tablename='spare_requests'
                    and policyname='sr_read' and qual ilike '%can_view_all_calls%')),
-    (70, 'spares: who can UPDATE a spare request', 'sr_update is 0009''s -- is_spare_requester(), so acknowledging receipt works. Replaying rbac.sql puts 0008''s back. Restore: Spare_1.sql',
+    (70, 'spares: who can UPDATE a spare request', 'sr_update is 0009''s -- is_spare_requester(), so acknowledging receipt works. Replaying rbac.sql used to put 0008''s back; 0121 ends that bundle with this one. Restore: Spare_1.sql',
         exists (select 1 from pg_policies
                  where schemaname='public' and tablename='spare_requests'
                    and policyname='sr_update' and qual ilike '%is_spare_requester%')),
-    (71, 'spares: per-LINE approvals', 'srl_update is 0016''s -- the requester may touch their own lines, not only an approver. Replaying rbac.sql puts 0008''s back. Restore: Spare_1.sql',
+    (71, 'spares: per-LINE approvals', 'srl_update is 0016''s -- the requester may touch their own lines, not only an approver. Replaying rbac.sql used to put 0008''s back; 0121 ends that bundle with this one. Restore: Spare_1.sql',
         exists (select 1 from pg_policies
                  where schemaname='public' and tablename='spare_request_lines'
                    and policyname='srl_update' and qual ilike '%is_spare_requester%')),
-    (72, 'consumption: who can SEE it', 'cons_read is 0038''s -- the engineer, their manager''s tree, the office roles. Replaying rbac.sql puts 0008/0035''s permission-only test back. Restore: HandStock_X.sql',
+    (72, 'consumption: who can SEE it', 'cons_read is 0038''s -- the engineer, their manager''s tree, the office roles. Replaying rbac.sql used to put 0008/0035''s permission-only test back; 0121 ends that bundle with this one. Restore: HandStock_X.sql',
         exists (select 1 from pg_policies
                  where schemaname='public' and tablename='spare_consumption'
                    and policyname='cons_read' and qual ilike '%can_view_all_calls%')),
-    (73, 'consumption: a RECONCILIATION line needs its own right', 'cons_write is 0059''s -- a Reconciliation row asks consumption.reconcile, not calls.report. Replaying rbac.sql puts 0008''s back and amend/void loses its gate. Restore: HandStock_X.sql',
+    (73, 'consumption: a RECONCILIATION line needs its own right', 'cons_write is 0059''s -- a Reconciliation row asks consumption.reconcile, not calls.report. Replaying rbac.sql used to put 0008''s back and amend/void lost its gate; 0121 ends that bundle with this one. Restore: HandStock_X.sql',
         exists (select 1 from pg_policies
                  where schemaname='public' and tablename='spare_consumption'
                    and policyname='cons_write' and with_check ilike '%Reconciliation%')),
-    (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql brings it back -- and policies are OR''d, so masters.edit writes every list again. Restore: masters.sql',
+    (81, 'spares: the engineer is told when the part is REFURBISHED', 'notify_spare_dispatched carries 0064''s refurbished line. `notifications` runs AFTER `handstock`, so 0054''s version had been overwriting it on every apply and the notice has never been sent. Restore: notifications.sql',
+        coalesce((select pg_get_functiondef(p.oid) ilike '%refurb%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname='public' and p.proname='notify_spare_dispatched'), false)),
+    (82, 'spare requests: the per-stage approval guard is 0016''s', 'spare_requests_stage_guard knows the receipt columns, courier / dispatch remarks and reject_reason. Replaying rbac.sql used to put 0008''s back, which refuses an engineer acknowledging receipt. Restore: rbac.sql',
+        coalesce((select pg_get_functiondef(p.oid) ilike '%received_at%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname='public' and p.proname='spare_requests_stage_guard'), false)),
+    (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
     (56, 'calls: row-level security actually applies', 'the `calls` view reads as the READER, not its owner (0105) -- without it every user sees every call',
