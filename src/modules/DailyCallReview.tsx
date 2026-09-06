@@ -7,7 +7,7 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
-  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2,
+  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
   getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FailureHistoryRow,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
 } from '../lib/supabase';
@@ -300,6 +300,40 @@ export function DailyCallReview() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live, filter]);
+
+  // REVIEW 2 ANSWERS ITSELF THE MORNING AFTER (0124). A call logged today stays
+  // pending all day; from 9:15 the next morning its Review 2 is answered No.
+  //
+  // A scheduled job does this at 9:15, and this does it again when the register
+  // opens — the same function, which is idempotent and refuses to mark anything
+  // before 9:15, so the rule holds on a project where pg_cron was never enabled.
+  // Once per mount, not per filter change: it is a sweep of the whole register,
+  // and re-running it on every keystroke of the search box would be absurd.
+  //
+  // IT SAYS WHAT IT DID. Rows quietly changing state between one visit and the
+  // next is exactly how an automatic answer stops being trusted; the ones it
+  // deliberately LEFT are the number that matters, because those are the ones
+  // still waiting for a person.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!live || autoRan.current) return;
+    autoRan.current = true;
+    void autoAnswerReview2()
+      .then((res) => {
+        if (!res.ran || res.marked === 0) return;
+        const held = res.heldFirstYear + res.heldUnknownAge;
+        setMsg({ tone: 'info', text:
+          `Review 2 answered No automatically for ${res.marked} call${res.marked === 1 ? '' : 's'} logged before today`
+          + (held > 0
+              ? `. ${held} still need${held === 1 ? 's' : ''} you: ${res.heldFirstYear} failed inside the first year, ${res.heldUnknownAge} have no age on record.`
+              : '.') });
+        void load(filter);
+      })
+      // A role that cannot complete the review cannot trigger the sweep either,
+      // and has no business being told about it.
+      .catch(() => { /* not permitted, or 0124 not applied yet */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
 
   useEffect(() => {
     if (!live) return;

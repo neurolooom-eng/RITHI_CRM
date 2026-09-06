@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.121',
+    date: '2026-09-06',
+    title: 'Review 2 answers itself the morning after',
+    changes: [
+      'A call logged today stays PENDING all day — today is when somebody is meant to look at it. From 9:15 the next morning its Review 2 is answered No on its own, and the register clears down to what actually needs a person.',
+      'It never answers a call that failed INSIDE ITS FIRST YEAR. That is your own rule from bulk Review 2, and it matters more here, not less: Review 2 asks whether this was a warranty failure, so a machine that failed in its first year is exactly the case the question exists for. A clock must not answer it.',
+      'It never answers one whose age at failure is unknown either — no warranty start, so no age, and \u201cnot known to be inside the first year\u201d is not the same as \u201cknown to be outside it\u201d.',
+      'IT NEVER OVERWRITES AN ANSWER SOMEBODY GAVE. It fills in what is blank, and nothing else.',
+      'The register tells you what it did when you open it — how many it answered, and how many it deliberately LEFT for you, split into first-year failures and ones with no age on record. Those are the ones still waiting.',
+      'It signs its work: Review 2 shows \u201cAuto (9:15 am)\u201d, so at Review 3 you can tell an automatic No from one a reviewer gave, and change it.',
+      '9:15 is 9:15 in INDIA, not on the server \u2014 the boundary between \u201ctoday\u201d and \u201cyesterday\u201d is read the same way.',
+      'Needs migration: run supabase/apply/daily_review.sql. For the 9:15 run itself you also need pg_cron switched on (Dashboard \u2192 Database \u2192 Extensions); without it the rule still applies, but only from the moment somebody opens the Daily Call Review that day. _status.sql row 85 says which you have.',
+    ],
+  },
+  {
     version: '0.9.120',
     date: '2026-09-06',
     title: 'Signing out clears your notifications',

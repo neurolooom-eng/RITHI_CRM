@@ -1016,5 +1016,29 @@ console.log('\n-- signing out clears the notifications --');
     && /from\('notifications'\)\.delete\(\)/.test(sb) === false, true);
 }
 
+// Review 2 answers itself the morning after (0124). A scheduled job does it at
+// 9:15; the register does it again on load, so the rule holds on a project
+// where pg_cron was never enabled. Both call the SAME function, which gates
+// itself on the time — the screen must not carry its own copy of the rule.
+console.log('\n-- Review 2 answers itself the morning after --');
+{
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  eq('the register runs the sweep on load', /void autoAnswerReview2\(\)/.test(dccr), true);
+  // Once per mount. It sweeps the whole register; re-running it on every
+  // keystroke of the search box would be absurd.
+  eq('...once per mount, not per filter change',
+    /autoRan\.current = true;[\s\S]{0,80}void autoAnswerReview2/.test(dccr)
+    && /\}, \[live\]\);/.test(dccr), true);
+  // Rows changing state between one visit and the next, unannounced, is how an
+  // automatic answer stops being trusted.
+  eq('...and says what it did, including what it LEFT',
+    /answered No automatically for \$\{res\.marked\}/.test(dccr)
+    && /res\.heldFirstYear/.test(dccr) && /res\.heldUnknownAge/.test(dccr), true);
+  // The screen holds no copy of the 9:15 rule or the 366-day rule: both live
+  // in the function, so the scheduled run and this one cannot disagree.
+  eq('the screen does not re-implement the timing rule',
+    /9\s*:\s*15/.test(dccr.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')), false);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
