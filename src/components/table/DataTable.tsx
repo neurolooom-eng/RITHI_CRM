@@ -256,10 +256,15 @@ export function DataTable<T>({
   const saveGroupKeys = (ks: string[]) => {
     const clean = ks.filter(Boolean);
     setGroupKeys(clean);
-    setCollapsed(new Set());
+    setExpanded(new Set());
     if (groupKeyStore) { try { localStorage.setItem(groupKeyStore, JSON.stringify(clean)); } catch { /* ignore */ } }
   };
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // GROUPS OPEN CLOSED (the user's rule, 2026-09-06). Held as the set of groups
+  // deliberately OPENED rather than the set closed: a group nobody has touched
+  // is shut, so groups that appear later — when Load more brings rows for an
+  // engineer who was not on the first page — arrive shut too, with no
+  // bookkeeping to keep them that way.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const saveFilters = (fs: TableFilter[]) => {
     setFilters(fs);
     if (filtersKey) { try { localStorage.setItem(filtersKey, JSON.stringify(fs)); } catch { /* ignore */ } }
@@ -608,7 +613,7 @@ export function DataTable<T>({
   // "Solved" under one region collapses independently of "Solved" under another.
   const renderGroups = (nodes: GroupNode<T>[]): ReactNode[] =>
     nodes.flatMap((n) => {
-      const shut = collapsed.has(n.path);
+      const shut = !expanded.has(n.path);
       const label = n.name === NO_GROUP
         ? `\u2014 no ${labelAt(n.depth).toLowerCase()} \u2014`
         : n.name;
@@ -619,7 +624,7 @@ export function DataTable<T>({
               type="button"
               className="dt-group-toggle"
               style={{ paddingLeft: 10 + n.depth * 18 }}
-              onClick={() => setCollapsed((prev) => {
+              onClick={() => setExpanded((prev) => {
                 const next = new Set(prev);
                 if (next.has(n.path)) next.delete(n.path); else next.add(n.path);
                 return next;

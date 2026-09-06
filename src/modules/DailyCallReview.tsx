@@ -124,7 +124,10 @@ export function DailyCallReview() {
   // details need depends on the reviewer and on the day's calls, and a layout
   // somebody has to re-drag every morning is one they stop using.
   const [deskUcn, setDeskUcn] = useState<string>('');
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Shut by default, same rule as the registers: the set is what has been
+  // OPENED, so a stage or a call status that only appears after Load more
+  // arrives shut like the rest.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [widths, setWidths] = useState<[number, number]>(() => {
     try {
       const raw = localStorage.getItem('rithi.dccr.desk.widths');
@@ -437,10 +440,10 @@ export function DailyCallReview() {
             {deskGroups.map(([stage, byState]) => {
               const n = [...byState.values()].reduce((a, b) => a + b.length, 0);
               const key = `g1:${stage}`;
-              const shut = collapsed.has(key);
+              const shut = !expanded.has(key);
               return (
                 <div className="dccr-grp" key={stage}>
-                  <button className="dccr-grp-head" onClick={() => setCollapsed((c) => {
+                  <button className="dccr-grp-head" onClick={() => setExpanded((c) => {
                     const next = new Set(c); if (next.has(key)) next.delete(key); else next.add(key); return next;
                   })}>
                     <span className="dccr-grp-caret">{shut ? '▸' : '▾'}</span>
@@ -450,10 +453,10 @@ export function DailyCallReview() {
                   </button>
                   {!shut && [...byState.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([state, list]) => {
                     const k2 = `g2:${stage}:${state}`;
-                    const shut2 = collapsed.has(k2);
+                    const shut2 = !expanded.has(k2);
                     return (
                       <div className="dccr-grp2" key={state}>
-                        <button className="dccr-grp-head dccr-grp-head2" onClick={() => setCollapsed((c) => {
+                        <button className="dccr-grp-head dccr-grp-head2" onClick={() => setExpanded((c) => {
                           const next = new Set(c); if (next.has(k2)) next.delete(k2); else next.add(k2); return next;
                         })}>
                           <span className="dccr-grp-caret">{shut2 ? '▸' : '▾'}</span>
@@ -769,6 +772,12 @@ function ReviewDrawer({
   if (!row) return null;
   const ctx = live ?? row;   // the freshly-read row when it has arrived
 
+  // The latest visit's hour meter, once the visits have arrived. Empty rather
+  // than "0" when there is none: an unfilled reading is not a reading of zero.
+  const hourMeter = visits && visits.length
+    ? String(((visits[0].data ?? {}) as Record<string, unknown>)['Hour Meter Reading'] ?? '').trim()
+    : '';
+
   const set = (k: keyof ReviewPatch) => (e: { target: { value: string } }) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
 
@@ -829,7 +838,17 @@ function ReviewDrawer({
           </span>
         </div>
         <div className="dccr-fields">
-          <ReadOnly label="Call Status" value={ctx.open_state || ctx.last_status || ctx.status} />
+          {/* HOUR METER READING, not Call Status: the status is already on the
+              call card above, in its own colour, and saying it twice on one
+              screen buys nothing. The hours are what a reviewer actually wants
+              beside the software version — how hard the machine has been
+              worked is part of judging the failure.
+              From the LATEST VISIT BY ENTRY: `reportsByCall` orders by
+              updated_at desc, id desc, which is the same visit the call's
+              status comes from (sync_call_last_visit, 0032). Nothing needed
+              from the database — the visits are already loaded for the list
+              below. */}
+          <ReadOnly label="Hour Meter Reading" value={hourMeter} />
           <ReadOnly label="Software Version" value={ctx.sw_version} />
           {/* The age of the product now sits under Warranty Failure (1 yr), the
               question it answers, rather than three sections above it. */}
