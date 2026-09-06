@@ -1,5 +1,7 @@
 import { PageHeader } from '../components/ui/ui';
 import { SlaRulesCard } from './SlaRulesCard';
+import { CallRegistrationCard } from './CallRegistrationCard';
+import { AuditModeCard } from './AuditModeCard';
 import { DataImport } from './DataImport';
 
 // ===========================================================================
@@ -21,13 +23,17 @@ export function AdminConfig() {
     <div>
       <PageHeader
         title="Admin Config"
-        subtitle="Bulk data loads and the service-level targets."
+        subtitle="Bulk data loads, the service-level targets, and the two switches only an administrator throws."
         icon="🛠️"
       />
 
       <DataImport />
       <div style={{ height: 16 }} />
       <SlaRulesCard />
+      <div style={{ height: 16 }} />
+      <CallRegistrationCard />
+      <div style={{ height: 16 }} />
+      <AuditModeCard />
     </div>
   );
 }

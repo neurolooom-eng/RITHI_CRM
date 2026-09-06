@@ -493,11 +493,43 @@ console.log('\n-- the call records who registered it, and the database says so -
   // customer's, not needed, and was being mistaken for both.
   eq('the call form has no emailAddress field',
     /\{ name: 'emailAddress'/.test(calls), false);
-  // What IS on it is the database's stamp, read-only.
-  eq('the call form shows Registered By, read-only',
+  // What IS on it is the database's stamp — TWO of them since 0114, and both
+  // read-only. `created_by` is the Hotline DESK the call is filed to, which is
+  // hers whoever typed it in; `actual_created_by` is the person who did. Only
+  // the second answers "who registered this?", so a screen carrying one without
+  // the other is worse than carrying neither: it looks like an answer.
+  eq('the call form shows the Hotline desk, read-only',
     /\{ name: 'registeredBy'[^}]*readOnly: true/.test(calls), true);
-  eq('the register has a Registered By column',
-    /key: 'createdBy', header: 'Registered By'/.test(calls), true);
+  eq('the call form shows who ACTUALLY registered it, read-only',
+    /\{ name: 'actuallyRegisteredBy'[^}]*readOnly: true/.test(calls), true);
+  eq('neither is editable: no registrant field is writable',
+    /\{ name: '(registeredBy|actuallyRegisteredBy)'(?![^}]*readOnly: true)[^}]*\}/.test(calls), false);
+  eq('the register has a Created By (desk) column',
+    /key: 'createdBy', header: 'Created By \(Hotline Desk\)'/.test(calls), true);
+  eq('the register has an Actually Registered By column',
+    /key: 'actualCreatedBy', header: 'Actually Registered By'/.test(calls), true);
+  // The two fields are injected from ONE place, so the Register panel on a
+  // pending request and the pre-mapping editor get them too — that is the bug
+  // callFields.tsx exists to stop repeating.
+  {
+    const cf = readFileSync(`${dir}callFields.tsx`, 'utf8');
+    eq('callFields fills the Hotline desk for every registration screen',
+      /f\.name === 'registeredBy'/.test(cf), true);
+    eq('callFields fills the signed-in person for every registration screen',
+      /f\.name === 'actuallyRegisteredBy'/.test(cf), true);
+  }
+  // The mapping the whole control rests on: the row's second stamp has to reach
+  // the client, or the column above is permanently blank.
+  {
+    const sb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
+    eq('dbToCall carries actual_created_by',
+      /out\.actualCreatedBy = row\.actual_created_by/.test(sb), true);
+    // callToDb writes only what is in CALL_COLS. Neither registrant column is
+    // there, and neither may be: the database sets both, and a column the app
+    // can write is not evidence of anything.
+    eq('the app never SENDS either registrant column',
+      /createdBy: 'created_by'|actualCreatedBy: 'actual_created_by'/.test(sb), false);
+  }
   // Nothing may prefill it: a value in `initial` beats anything the form
   // computes, and this one has to come from the row the database stamped.
   readdirSync(dir).filter((f) => f.endsWith('.tsx')).forEach((f) => {

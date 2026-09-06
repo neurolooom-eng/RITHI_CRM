@@ -133,6 +133,15 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   line is VOIDED — quantity set to 0, the row retained with its original
   quantity, reason and author, and the stock returns.
 
+- **A call has TWO registrant columns and they answer different questions.**
+  `created_by` is the Hotline DESK it is filed to — it defaults to the Hotline
+  engineer whoever typed the call in, so grouping by it shows nothing.
+  `actual_created_by` is the person who typed it in, stamped from `auth.uid()`
+  with a caller-supplied value discarded (0114). The two DIFFERING is the
+  vigilance finding. Anything asking "who registered this?" reads
+  `actual_created_by`; anything checking "may this person see it?" must test
+  BOTH, or the stand-in loses sight of the call she just registered.
+
 - `public.reports` is the **visit history** (one row per visit, keyed by `uid`).
   It has `visit_at` and `updated_at` — there is **no `created_at`**. Two
   orderings, deliberately: a **list** of visits reads by `visit_at desc nulls

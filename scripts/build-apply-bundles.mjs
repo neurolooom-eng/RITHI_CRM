@@ -127,6 +127,7 @@ const MODULES = {
       '0108_call_cancel.sql',
       '0109_close_call.sql',
       '0113_call_creator_authoritative.sql',
+      '0114_call_registrant_split.sql',
     ],
   },
   sla: {
@@ -213,7 +214,8 @@ const MODULES = {
             'took. Clients insert their own events; the identity is stamped by the',
             'database so it cannot be forged, and only admins can read it.'],
     needs: ['profiles', 'isAdmin'],
-    files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql'],
+    files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql',
+            '0114_audit_mode.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
