@@ -520,6 +520,15 @@ points at these rows.
   - ⚠️ **Restore: run `Spare_1.sql`, `HandStock_X.sql` and `masters.sql`.**
     Verified on the copy: after those three, every policy matches a full
     apply, and the policy SET is identical.
+  - ⚠️ **THE RESTORE BUNDLE FOR ROW 40 MOVED.** Because 0087/0088 are now in
+    `rbac`, `Spare_1.sql` no longer carries them — so the fix for row 40 is to
+    run **`rbac.sql`**, and I told the user Spare_1/HandStock_X/masters, which
+    left row 40 NO. And rbac.sql reverts the six, so ORDER MATTERS: rbac.sql
+    FIRST, then Spare_1.sql, HandStock_X.sql, masters.sql. Verified by
+    reproducing their exact reported state and running the four in that order:
+    every policy then matches a clean full apply and the policy SET is
+    identical. `_status.sql`'s header now states the ordering and row 40 names
+    its restore bundle, so the next reader is not relying on my having said it.
   - `_status.sql` rows 69-74 report all six by name with the bundle that
     restores each — verified BOTH ways (all yes on a full apply, all NO after
     an `rbac.sql` replay). The KNOWN list cannot tell anybody their live
