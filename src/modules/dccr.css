@@ -169,3 +169,35 @@
   .dccr-split { display: none; }
   .dccr-pane { max-height: 60vh; }
 }
+
+/* ---------------------------------------------------------------------------
+   THE FOUR FACTS THE REVIEW IS ABOUT.
+   Which machine, at which customer, in what state, complaining of what. They
+   sat in the same 13px grey as the call number and the engineer, so the ones
+   that decide the answers had to be hunted for. Lifted with weight, size and a
+   tinted ground rather than a highlighter colour, so it holds in both themes.
+   --------------------------------------------------------------------------- */
+.dccr-callcard div.is-key {
+  background: var(--primary-soft);
+  border-radius: 7px;
+  padding: 6px 9px;
+  margin: -4px -4px;
+}
+.dccr-callcard div.is-key { font-size: 14px; font-weight: 600; color: var(--text); }
+.dccr-callcard div.is-key span { font-weight: 500; margin-bottom: 2px; }
+
+/* Under a year old is the ANSWER to "Warranty Failure (1 yr)", not a note
+   about it. */
+.dccr-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 7px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.dccr-warn b { font-weight: 700; }
