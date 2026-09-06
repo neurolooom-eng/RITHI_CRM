@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer } from '../components/ui/ui';
@@ -6,6 +7,7 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
+  frequentFailureHistory, reportsByCall, spareConsumptionByCall, type FailureHistoryRow,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
 } from '../lib/supabase';
 import { fallbackList } from './masterLists';
@@ -39,9 +41,10 @@ import './fieldcalls.css';
 // per product), and the export in the register's own format.
 // ===========================================================================
 
-type Tab = 'register' | 'grouping' | 'rootcause' | 'export';
+type Tab = 'desk' | 'register' | 'grouping' | 'rootcause' | 'export';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'desk', label: 'Review Desk', icon: '🗂️' },
   { key: 'register', label: 'Review Register', icon: '📋' },
   { key: 'grouping', label: 'DCCR Complaint Grouping', icon: '🗂️' },
   { key: 'rootcause', label: 'Root Cause Key Word', icon: '🔍' },
@@ -112,6 +115,65 @@ export function DailyCallReview() {
 
   // The call whose review is open.
   const [open, setOpen] = useState<ReviewRow | null>(null);
+
+  // ---- the Review Desk -----------------------------------------------------
+  // Three panes: the calls, grouped; the reviews; what happened on the call.
+  // The widths are ADJUSTABLE and remembered, because how much room the visit
+  // details need depends on the reviewer and on the day's calls, and a layout
+  // somebody has to re-drag every morning is one they stop using.
+  const [deskUcn, setDeskUcn] = useState<string>('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [widths, setWidths] = useState<[number, number]>(() => {
+    try {
+      const raw = localStorage.getItem('rithi.dccr.desk.widths');
+      const v = raw ? JSON.parse(raw) : null;
+      return Array.isArray(v) && v.length === 2 ? [Number(v[0]), Number(v[1])] as [number, number] : [26, 38];
+    } catch { return [26, 38]; }
+  });
+  const setWidthsSaved = (w: [number, number]) => {
+    setWidths(w);
+    try { localStorage.setItem('rithi.dccr.desk.widths', JSON.stringify(w)); } catch { /* a layout is not worth an error */ }
+  };
+  // Dragging a splitter. Percentages rather than pixels so the panes keep
+  // their proportions when the window changes.
+  const drag = (which: 0 | 1) => (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const host = (e.currentTarget.parentElement as HTMLElement | null);
+    if (!host) return;
+    const move = (ev: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      const pct = ((ev.clientX - r.left) / Math.max(1, r.width)) * 100;
+      // Floors, so a pane can be made small but never dragged out of existence.
+      if (which === 0) setWidths(([, b]) => [Math.min(Math.max(pct, 14), 60), b]);
+      else setWidths(([a]) => [a, Math.min(Math.max(pct - a, 18), 70)]);
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setWidths((w) => { setWidthsSaved(w); return w; });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  // GROUP 1 REVIEW STAGE, GROUP 2 CALL STATUS — the user's order. Built from
+  // the rows LOADED, so every count here is a lower bound while more is
+  // waiting and carries the "+"; the exact per-stage totals are the cards
+  // above, which come from a full walk of the register.
+  const deskGroups = useMemo(() => {
+    const tree = new Map<string, Map<string, ReviewRow[]>>();
+    rows.forEach((r) => {
+      const g1 = String(r.review_status ?? '— no review status —');
+      const g2 = String(r.open_state ?? r.last_status ?? '— no call status —');
+      if (!tree.has(g1)) tree.set(g1, new Map());
+      const inner = tree.get(g1)!;
+      if (!inner.has(g2)) inner.set(g2, []);
+      inner.get(g2)!.push(r);
+    });
+    return [...tree.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [rows]);
+
+  const deskRow = useMemo(() => rows.find((r) => r.ucn === deskUcn) ?? null, [rows, deskUcn]);
 
   const filter = useMemo<ReviewFilter>(() => ({
     from: from || undefined, to: to || undefined, status: status || undefined,
@@ -308,6 +370,100 @@ export function DailyCallReview() {
         ))}
       </div>
 
+      {/* ================= REVIEW DESK — three adjustable panes ============
+          The setup the user asked for, and the shape the DCCR is actually
+          worked in: the calls on the left (grouped by review stage, then call
+          status), the questions in the middle, and what happened on the call
+          on the right — so the answer and the evidence for it are on screen at
+          the same time. The splitters between them are draggable and the
+          widths are remembered.                                             */}
+      {tab === 'desk' && (
+        <div className="dccr-desk" style={{ gridTemplateColumns: `${widths[0]}% 6px ${widths[1]}% 6px 1fr` }}>
+          {/* ---- 1. the calls, grouped --------------------------------- */}
+          <div className="dccr-pane dccr-pane-list">
+            <div className="dccr-pane-head">
+              <b>Calls</b>
+              <span className="muted">
+                {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
+              </span>
+              {more && (
+                <button className="btn btn-sm btn-ghost" onClick={() => void loadMore()} disabled={loadingMore}>
+                  {loadingMore ? '…' : 'Load more'}
+                </button>
+              )}
+            </div>
+            {deskGroups.length === 0 && <div className="muted" style={{ padding: 12 }}>No calls match these filters.</div>}
+            {deskGroups.map(([stage, byState]) => {
+              const n = [...byState.values()].reduce((a, b) => a + b.length, 0);
+              const key = `g1:${stage}`;
+              const shut = collapsed.has(key);
+              return (
+                <div className="dccr-grp" key={stage}>
+                  <button className="dccr-grp-head" onClick={() => setCollapsed((c) => {
+                    const next = new Set(c); if (next.has(key)) next.delete(key); else next.add(key); return next;
+                  })}>
+                    <span className="dccr-grp-caret">{shut ? '▸' : '▾'}</span>
+                    <span className="dccr-grp-name">{stage}</span>
+                    {/* Loaded rows, so it is a lower bound while more is coming. */}
+                    <span className="dccr-grp-count">{n}{more ? '+' : ''}</span>
+                  </button>
+                  {!shut && [...byState.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([state, list]) => {
+                    const k2 = `g2:${stage}:${state}`;
+                    const shut2 = collapsed.has(k2);
+                    return (
+                      <div className="dccr-grp2" key={state}>
+                        <button className="dccr-grp-head dccr-grp-head2" onClick={() => setCollapsed((c) => {
+                          const next = new Set(c); if (next.has(k2)) next.delete(k2); else next.add(k2); return next;
+                        })}>
+                          <span className="dccr-grp-caret">{shut2 ? '▸' : '▾'}</span>
+                          <span className="dccr-grp-name">{state}</span>
+                          <span className="dccr-grp-count">{list.length}{more ? '+' : ''}</span>
+                        </button>
+                        {!shut2 && list.map((r) => (
+                          <button
+                            key={r.ucn}
+                            className={`dccr-callrow${deskUcn === r.ucn ? ' is-on' : ''}`}
+                            onClick={() => setDeskUcn(r.ucn)}
+                          >
+                            <b>{r.ucn}</b>
+                            <span className="muted">{fmtLongDate(r.reg_date)}</span>
+                            <span className="dccr-callrow-party">{r.party_name || '—'}</span>
+                            <span className="muted">{[r.product_name, r.serial].filter(Boolean).join(' · ')}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="dccr-split" onPointerDown={drag(0)} role="separator" aria-orientation="vertical" title="Drag to resize" />
+
+          {/* ---- 2 and 3: the reviews, and what happened ----------------- */}
+          {deskRow ? (
+            <ReviewDrawer
+              key={deskRow.ucn}
+              row={deskRow}
+              stale={stale}
+              editable={editable}
+              reviewer={user?.fullName || user?.email || ''}
+              layout="panes"
+              onClose={() => setDeskUcn('')}
+              onSaved={async () => { await load(applied); }}
+              separator={<div className="dccr-split" onPointerDown={drag(1)} role="separator" aria-orientation="vertical" title="Drag to resize" />}
+            />
+          ) : (
+            <>
+              <div className="dccr-pane dccr-pane-empty"><span className="muted">Pick a call on the left.</span></div>
+              <div className="dccr-split" onPointerDown={drag(1)} role="separator" aria-orientation="vertical" title="Drag to resize" />
+              <div className="dccr-pane dccr-pane-empty" />
+            </>
+          )}
+        </div>
+      )}
+
       {tab === 'register' && (
         <>
           <KpiGrid min={170}>
@@ -472,7 +628,7 @@ export function DailyCallReview() {
 // are previewed live from the same rules the database applies on save.
 // ---------------------------------------------------------------------------
 function ReviewDrawer({
-  row, stale, editable, reviewer, onClose, onSaved,
+  row, stale, editable, reviewer, onClose, onSaved, layout = 'drawer', separator,
 }: {
   row: ReviewRow | null;
   stale: boolean;
@@ -480,6 +636,17 @@ function ReviewDrawer({
   reviewer: string;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
+  // ONE BODY, TWO FRAMES. The drawer stacks the call's details above its
+  // reviews, which is right when it is opened over the register. The Review
+  // Desk puts them side by side, because that is the whole point of the desk:
+  // the reviewer reads the visit and answers the question without scrolling
+  // between them. Same fields, same save, same rules — only the frame differs,
+  // so the two cannot drift apart.
+  layout?: 'drawer' | 'panes';
+  // The desk lays its panes out on a grid, so the divider BETWEEN them has to
+  // be a grid child in the right place — it cannot be added after the fact.
+  // The desk owns the dragging; this only puts the node where it belongs.
+  separator?: ReactNode;
 }) {
   const [draft, setDraft] = useState<ReviewPatch>({});
   const [groupings, setGroupings] = useState<string[]>([]);
@@ -489,6 +656,15 @@ function ReviewDrawer({
   // The row on the register is from a page read; re-read this one call so the
   // report context (visits, spares, software version) is what it is right now.
   const [live, setLive] = useState<ReviewRow | null>(null);
+  // WHAT THE MACHINE HAS DONE BEFORE (0117). Review 2 asks whether this is a
+  // frequent failure; the register knows, so it answers instead of the
+  // reviewer's memory. Loaded per call, and a failure to load leaves the
+  // question unanswered rather than showing a confident zero.
+  const [history, setHistory] = useState<FailureHistoryRow[] | null>(null);
+  // The visits and the spares as ROWS rather than the view's pre-joined text,
+  // so the report can be a link and the spares can be a table.
+  const [visits, setVisits] = useState<Record<string, unknown>[] | null>(null);
+  const [spares, setSpares] = useState<Record<string, unknown>[] | null>(null);
 
   const ucn = row?.ucn ?? '';
   const productName = row?.product_name ?? '';
@@ -517,6 +693,24 @@ function ReviewDrawer({
       .then((r) => { if (!cancelled && r) setLive(r as ReviewRow); })
       .catch(() => { /* the register's own row stands */ });
     return () => { cancelled = true; };
+  }, [ucn]);
+
+  // The machine's own history, and this call's visits and spares. Three small
+  // reads for the call being looked at, not for the page.
+  useEffect(() => {
+    if (!ucn) { setHistory(null); setVisits(null); setSpares(null); return; }
+    let cancelled = false;
+    setHistory(null); setVisits(null); setSpares(null);
+    const cn = String(row?.call_number ?? '') || ucn;
+    void frequentFailureHistory(ucn)
+      .then((h) => { if (!cancelled) setHistory(h); })
+      // NULL, not []. An empty list says "no earlier failures"; a failed read
+      // must not be allowed to say that.
+      .catch(() => { /* stays null — the panel says it could not be read */ });
+    void reportsByCall(cn).then((v) => { if (!cancelled) setVisits(v); }).catch(() => { if (!cancelled) setVisits([]); });
+    void spareConsumptionByCall(cn).then((v) => { if (!cancelled) setSpares(v); }).catch(() => { if (!cancelled) setSpares([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ucn]);
 
   // The two masters, narrowed to this call's product (plus the COMM values).
@@ -559,8 +753,9 @@ function ReviewDrawer({
     await onSaved();
   };
 
-  return (
-    <Drawer open onClose={onClose} title={`Daily Review — ${ucn}`} width={760}>
+  // ---- pane: what happened (the call, its visits, its spares) -------------
+  const detailsPane = (
+    <>
       <div className="dccr-callcard">
         <div><span>Call Number</span>{row.call_number || '—'}</div>
         <div><span>Call Date</span>{fmtLongDate(row.reg_date) || '—'}</div>
@@ -585,32 +780,108 @@ function ReviewDrawer({
         <div className="dccr-fields">
           <ReadOnly label="Call Status" value={ctx.open_state || ctx.last_status || ctx.status} />
           <ReadOnly label="Software Version" value={ctx.sw_version} />
-          <ReadOnly
-            label="Age of the Product at failure"
-            value={ctx.age_days == null ? '' : `${ctx.age_days.toLocaleString()} days · ${ctx.age_group}`}
-          />
+          {/* The age of the product now sits under Warranty Failure (1 yr), the
+              question it answers, rather than three sections above it. */}
         </div>
         {ctx.pending_reason && (
           <p className="muted" style={{ margin: '10px 0 0' }}>Pending reason: {ctx.pending_reason}</p>
         )}
+        {/* VISITS, NEWEST FIRST, one block each — not the view's joined text.
+            The report is a LINK where the engineer uploaded one: it is the
+            document the review is actually judging, and it was previously
+            reachable only by leaving this screen. */}
         <div style={{ marginTop: 12 }}>
-          <label className="field-label">Visit Details</label>
-          {ctx.visit_details
-            ? <pre className="dccr-visits">{ctx.visit_details}</pre>
-            : <div className="muted">{stale
-                ? 'Run supabase/apply/daily_review.sql to bring the visits onto the review.'
-                : 'No visit has been reported against this call yet.'}</div>}
+          <label className="field-label">
+            Visit Details{visits && visits.length ? ` (${visits.length}, latest first)` : ''}
+          </label>
+          {visits === null
+            ? <div className="muted">Loading the visits…</div>
+            : visits.length === 0
+              ? <div className="muted">{stale
+                  ? 'Run supabase/apply/daily_review.sql to bring the visits onto the review.'
+                  : 'No visit has been reported against this call yet.'}</div>
+              : (
+                <div className="dccr-visitlist">
+                  {visits.map((v, i) => {
+                    const d = (v.data ?? {}) as Record<string, unknown>;
+                    const link = String(v.manual_report ?? '').trim();
+                    const done = String(d['Job Done'] ?? '').trim() || String(d['Complaint Observation'] ?? '').trim();
+                    return (
+                      <div className="dccr-visit" key={String(v.uid ?? v.id ?? i)}>
+                        <div className="dccr-visit-head">
+                          <b>{fmtLongDate(String(v.visit_at ?? v.updated_at ?? ''))}</b>
+                          <span className="badge badge-neutral">{String(v.call_status ?? '—')}</span>
+                          <span className="muted">{String(v.engineer ?? '')}</span>
+                          {link && (
+                            <a className="dccr-report-link" href={link} target="_blank" rel="noreferrer"
+                               title="Open the service report">📄 Service Report</a>
+                          )}
+                        </div>
+                        {done && <div className="dccr-visit-body">{done}</div>}
+                        {String(v.pending_reason ?? '').trim() && (
+                          <div className="muted" style={{ fontSize: 12.5 }}>Pending: {String(v.pending_reason)}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
         </div>
+
+        {/* SPARES AS A TABLE — #, part number, description, quantity — because
+            a comma-joined line of eight parts is not something anybody reads
+            a quantity out of. */}
         <div style={{ marginTop: 12 }}>
-          <label className="field-label">Spares Consumed{ctx.spares_count ? ` (${ctx.spares_count})` : ''}</label>
-          {ctx.spares_consumed
-            ? <div className="dccr-spares">{ctx.spares_consumed}</div>
-            : <div className="muted">{stale
-                ? 'Run supabase/apply/daily_review.sql to bring the consumption onto the review.'
-                : 'No spare booked against this call.'}</div>}
+          <label className="field-label">
+            Spares Consumed{spares && spares.length ? ` (${spares.length})` : ''}
+          </label>
+          {spares === null
+            ? <div className="muted">Loading the consumption…</div>
+            : spares.length === 0
+              ? <div className="muted">{stale
+                  ? 'Run supabase/apply/daily_review.sql to bring the consumption onto the review.'
+                  : 'No spare booked against this call.'}</div>
+              : (
+                <div className="assoc-scroll">
+                  <table className="assoc-table dccr-sparetable">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 34 }}>#</th>
+                        <th style={{ width: 150 }}>Part No</th>
+                        <th>Description</th>
+                        <th style={{ width: 60, textAlign: 'right' }}>Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spares.map((sp, i) => {
+                        const part = String(sp.part ?? '');
+                        // "CODE|DESCRIPTION" is how a part is written throughout
+                        // the register; split so each half gets its own column.
+                        const bar = part.indexOf('|');
+                        const code = bar >= 0 ? part.slice(0, bar).trim() : part.trim();
+                        const desc = bar >= 0 ? part.slice(bar + 1).trim() : '';
+                        return (
+                          <tr key={String(sp.id ?? i)}>
+                            <td>{i + 1}</td>
+                            <td>{code || '—'}</td>
+                            <td>{desc || '—'}</td>
+                            <td style={{ textAlign: 'right' }}>{String(sp.qty ?? '')}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
         </div>
       </div>
 
+    </>
+  );
+
+  // ---- pane: what the reviewer decides ------------------------------------
+  const reviewPane = (
+    <>
       {/* ---- Review 1 — answered at registration -------------------------- */}
       <div className="dccr-stage">
         <div className="dccr-stage-head">
@@ -636,11 +907,67 @@ function ReviewDrawer({
           <h3>Review 2 · Risk assessment</h3>
           {statusBadge(stage2Done ? 'Completed' : 'Pending', { Completed: 'success', Pending: 'warning' })}
           <span className="dccr-stage-date">{row.review2_at ? fmtLongDate(row.review2_at) : 'dated when completed'}</span>
+          {/* MOST CALLS ARE NO TO ALL THREE, and clicking NO three times per
+              call across a day's review is the work this removes. It fills the
+              boxes; it does not save — the reviewer still reads the answers and
+              presses Save, so nothing is recorded that nobody looked at. */}
+          {editable && (
+            <button
+              className="btn btn-sm"
+              style={{ marginLeft: 'auto' }}
+              title="Set all three Review 2 answers to NO — then check them and Save"
+              onClick={() => setDraft((d) => ({ ...d, risk_to_patient: 'NO', warranty_failure: 'NO', frequent_failure: 'NO' }))}
+            >
+              All NO
+            </button>
+          )}
         </div>
         <div className="dccr-fields">
           <Choice label="Risk to Patient / Any Clinical Impact" value={draft.risk_to_patient} onChange={set('risk_to_patient')} disabled={!editable} />
-          <Choice label="Warranty Failure (1 yr)" value={draft.warranty_failure} onChange={set('warranty_failure')} disabled={!editable} />
-          <Choice label="Frequent Failure" value={draft.frequent_failure} onChange={set('frequent_failure')} disabled={!editable} />
+          <div>
+            <Choice label="Warranty Failure (1 yr)" value={draft.warranty_failure} onChange={set('warranty_failure')} disabled={!editable} />
+            {/* HOW OLD THE MACHINE WAS WHEN IT FAILED, right under the question
+                it answers. It was three sections further up, which meant
+                scrolling away from the question to find the fact that settles
+                it. The one-year line is drawn for the reviewer rather than
+                left as mental arithmetic on a day count. */}
+            <div className="field-help" style={{ marginTop: 6 }}>
+              {ctx.age_days == null
+                ? 'Age of the product at failure: not known — no warranty start on the machine.'
+                : <>Age of the product at failure: <b>{ctx.age_days.toLocaleString()} days</b>
+                    {ctx.age_group ? ` · ${ctx.age_group}` : ''}
+                    {' — '}
+                    <b>{ctx.age_days <= 365 ? 'within the first year' : 'over a year old'}</b>.</>}
+            </div>
+          </div>
+          <div>
+            <Choice label="Frequent Failure" value={draft.frequent_failure} onChange={set('frequent_failure')} disabled={!editable} />
+            {/* THE REGISTER ANSWERS, the reviewer decides. Same product AND
+                serial, same complaint, six months before THIS call's date. The
+                UCNs are listed because the next question after a number is
+                always "which ones?", and this judgement may have to be
+                defended. */}
+            <div className="field-help" style={{ marginTop: 6 }}>
+              {history === null
+                ? 'Earlier failures on this machine: could not be read.'
+                : history.length === 0
+                  ? 'No earlier failure on this machine with this complaint in the last 6 months.'
+                  : <>
+                      <b>{history.length}</b> earlier failure{history.length === 1 ? '' : 's'} on this machine
+                      with this complaint in the last 6 months:
+                    </>}
+            </div>
+            {history !== null && history.length > 0 && (
+              <ul className="dccr-history">
+                {history.map((h) => (
+                  <li key={h.ucn}>
+                    <b>{h.ucn}</b> · {fmtLongDate(h.reg_date)} · {h.days_before}d before
+                    {h.engineer ? ` · ${h.engineer}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         <div className="dccr-derived">
           <b>Any Potential Effect:</b>
@@ -707,9 +1034,26 @@ function ReviewDrawer({
         <button className="btn btn-primary" onClick={() => void save()} disabled={!editable || busy}>
           {busy ? 'Saving…' : 'Save review'}
         </button>
-        <button className="btn" onClick={onClose}>Close</button>
+        {layout === 'drawer' && <button className="btn" onClick={onClose}>Close</button>}
         {!editable && <span className="muted">You need the “Complete the daily call review” permission to change this.</span>}
       </div>
+    </>
+  );
+
+  if (layout === 'panes') {
+    return (
+      <>
+        <div className="dccr-pane dccr-pane-review">{reviewPane}</div>
+        {separator}
+        <div className="dccr-pane dccr-pane-details">{detailsPane}</div>
+      </>
+    );
+  }
+
+  return (
+    <Drawer open onClose={onClose} title={`Daily Review — ${ucn}`} width={760}>
+      {detailsPane}
+      {reviewPane}
     </Drawer>
   );
 }

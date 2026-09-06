@@ -324,6 +324,8 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regprocedure('public.approve_spare_lines(bigint[],text)') is not null
      and to_regclass('public.spare_pending_rm') is not null
      and coalesce((select permissions ? 'spare.approve_rm' from public.app_roles where role='nsm'), false))),
+    (77, 'DCCR: the register answers "is this a frequent failure?"', 'frequent_failure_history() -- earlier calls on the same product+serial with the same complaint, in the 6 months BEFORE this call''s own date (0117). Restore: daily_review.sql',
+        to_regprocedure('public.frequent_failure_history(text,integer)') is not null),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running

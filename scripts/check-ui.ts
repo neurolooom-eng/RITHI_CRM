@@ -616,5 +616,48 @@ console.log('\n-- the DCCR is grouped by review status --');
     /if \(!raw\) return defaultGroup/.test(dt), false);
 }
 
+// ---------------------------------------------------------------------------
+// THE REVIEW DESK — three adjustable panes, and the two facts Review 2 needs.
+console.log('\n-- the DCCR review desk --');
+{
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  eq('there is a Review Desk tab', /key: 'desk'/.test(dccr), true);
+  eq('the calls are grouped by review stage, then call status',
+    /review_status[\s\S]{0,200}open_state[\s\S]{0,120}deskGroups|const deskGroups[\s\S]{0,400}review_status[\s\S]{0,200}open_state/.test(dccr), true);
+  eq('the panes are draggable', /onPointerDown=\{drag\(0\)\}/.test(dccr) && /onPointerDown=\{drag\(1\)\}/.test(dccr), true);
+  eq('and their widths are remembered', /rithi\.dccr\.desk\.widths/.test(dccr), true);
+  // ONE BODY IN TWO FRAMES. If the desk ever grew its own copy of the review
+  // fields, the two would drift and one of them would stop matching the rules.
+  eq('the desk reuses the review body rather than copying it',
+    /layout="panes"/.test(dccr) && (dccr.match(/Review 2 · Risk assessment/g) ?? []).length === 1, true);
+  // The splitter has to be a GRID CHILD between the two panes, not appended
+  // after them — otherwise it lands in the wrong column and the details pane
+  // gets the 6px track.
+  eq('the divider sits BETWEEN the review and the details',
+    /\{separator\}\s*\n\s*<div className="dccr-pane dccr-pane-details">/.test(dccr), true);
+
+  // Review 2's two new facts, each under the question it answers.
+  eq('the product age sits under Warranty Failure',
+    /Warranty Failure \(1 yr\)[\s\S]{0,600}Age of the product at failure/.test(dccr), true);
+  eq('the frequent-failure history sits under Frequent Failure',
+    /label="Frequent Failure"[\s\S]{0,900}earlier failure/.test(dccr), true);
+  // A FAILED READ MUST NOT READ AS "no earlier failures" — that is the one
+  // wrong answer that would talk somebody out of raising an FFR.
+  eq('a history that could not be read says so, rather than showing zero',
+    /history === null[\s\S]{0,120}could not be read/.test(dccr), true);
+  eq('Review 2 can be answered NO in one action', /All NO/.test(dccr), true);
+  // ...but it FILLS the answers, it does not save them: nothing is recorded
+  // that nobody looked at.
+  eq('“All NO” fills the boxes and does not save',
+    // setDraft is on the button's onClick, which precedes its label in the JSX.
+    /setDraft\(\(d\) => \(\{ \.\.\.d, risk_to_patient: 'NO', warranty_failure: 'NO', frequent_failure: 'NO' \}\)\)[\s\S]{0,200}All NO/.test(dccr)
+    && !/All NO[\s\S]{0,300}void save\(\)/.test(dccr), true);
+
+  eq('the spares are a table with number, part, description and quantity',
+    /<th style=\{\{ width: 34 \}\}>#<\/th>[\s\S]{0,300}Part No[\s\S]{0,200}Description[\s\S]{0,200}Qty/.test(dccr), true);
+  eq('the service report is a link',
+    /href=\{link\}[\s\S]{0,120}Service Report/.test(dccr), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -12,6 +12,23 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.104',
+    date: '2026-09-06',
+    title: 'A Review Desk for the DCCR, and Review 2 stops relying on memory',
+    changes: [
+      'NEW \u2014 Daily Call Review \u2192 Review Desk: three panes side by side. The calls on the left, grouped by Review Stage and then Call Status; the review questions in the middle; what actually happened on the call on the right. Drag the dividers to resize, and the widths are remembered.',
+      'So the answer and the evidence for it are on screen at once \u2014 no scrolling away from the question to find the fact that settles it.',
+      'AGE OF THE PRODUCT now sits directly under \u201cWarranty Failure (1 yr)\u201d, with the one-year line drawn for you (\u201c412 days \u2014 over a year old\u201d) instead of left as arithmetic. It used to be three sections further up.',
+      'FREQUENT FAILURE ANSWERS ITSELF. Under the question, the register now shows earlier failures on the SAME machine (product + serial) with the SAME complaint in the last 6 months \u2014 and lists their UCNs and dates, because the next question after a number is always \u201cwhich ones?\u201d.',
+      'The six months are counted back from the CALL\u2019S OWN DATE, not from today, so reopening an old review does not change its answer. A machine with no serial number says so rather than matching every other blank-serial call.',
+      '\u201cAll NO\u201d sets the three Review 2 answers in one click. It FILLS them \u2014 you still read them and press Save, so nothing is recorded that nobody looked at.',
+      'VISITS are now listed newest first as separate entries with their status and engineer, and the Service Report is a LINK you can open from the review. Previously it was one block of joined text and the report was not reachable from here at all.',
+      'SPARES CONSUMED is a proper table \u2014 #, Part No, Description, Qty \u2014 rather than a comma-joined line nobody could read a quantity out of.',
+      'The flat register is unchanged and still the default tab.',
+      'Needs migration: run supabase/apply/daily_review.sql.',
+    ],
+  },
+  {
     version: '0.9.103',
     date: '2026-09-06',
     title: 'Tick the boxes and approve — and RM Approval gets a screen of its own',

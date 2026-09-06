@@ -1617,6 +1617,27 @@ export async function listPendingRmApproval(limit = 2000): Promise<Record<string
   return data ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// IS THIS A FREQUENT FAILURE? (0117)
+//
+// Review 2 asks it, and until now it was answered from memory. The register
+// knows: earlier calls on the SAME product + serial with the SAME complaint,
+// within six months BEFORE this call's own date — measured from the call so
+// that reopening an old review does not change its answer.
+//
+// It returns the CALLS, not just a count. The reviewer is recording a
+// judgement they may have to defend, and "which ones?" is the next question.
+// ---------------------------------------------------------------------------
+export interface FailureHistoryRow {
+  ucn: string; call_number: string; reg_date: string;
+  complaint: string; engineer: string; party_name: string; days_before: number;
+}
+export async function frequentFailureHistory(ucn: string, months = 6): Promise<FailureHistoryRow[]> {
+  const { data, error } = await must().rpc('frequent_failure_history', { p_ucn: ucn, p_months: months });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as FailureHistoryRow[];
+}
+
 // The engineer acknowledges every outstanding SHIPMENT on these lines. A line
 // whose whole quantity is now confirmed closes as Received; one still waiting
 // for a balance stays at Stores.
