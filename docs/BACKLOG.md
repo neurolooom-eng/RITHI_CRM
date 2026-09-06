@@ -12,6 +12,40 @@ _Previously: 2026-09-02 (spare reconciliation shipped and applied; live project 
 
 ## 🚧 In progress
 
+### The UCN counter restarts daily — 2026-09-06 (shipped, NOT yet applied)
+
+Asked: "why is the UCN not resetting the last 2 digits on a daily basis?"
+
+Because nothing ever reset it. `next_ucn()` took the last four digits from
+`ucn_seq`, ONE sequence for the whole database, created in 0001 and never reset
+— so the date in front changed daily and the number behind it climbed forever,
+shared across all three call types. Not a regression: 0001's own comment said
+"confirm this matches the legacy format before go-live", and
+`docs/SUPABASE_MIGRATION.md` carried "whether the sequence should reset per
+day/month" as an open item from the beginning. Now settled there.
+
+The register is the evidence: it holds `26H28F0009` then `26H29F0003`, and a
+monotonic counter cannot go down. The sheet reset daily; the database did not.
+
+**0125** replaces the sequence with `ucn_counters` (day, type_letter, last_no):
+- restarts at 0001 each day, **per call type** (user's choice) — the type letter
+  is already in the UCN so nothing collides, and a Field register that counts
+  1, 2, 3 is the one that reads properly on paper;
+- **numbers already issued are untouched** (user's choice). A day's counter is
+  SEEDED past whatever that day already carries, so applying it mid-day
+  continues the day rather than colliding with a UCN already on a challan;
+- ⚠️ **and the day is now Asia/Kolkata.** `next_ucn()` read `now()` in UTC, so
+  the DD inside a UCN rolled at **5:30 am IST** — a call registered before then
+  already carried yesterday's date. A daily reset on that clock would have reset
+  at 5:30 too, so both are fixed together.
+
+`ucn_seq` is dropped. `_reset_for_production.sql` truncates `ucn_counters`
+instead of resetting it, and `_backup_before_reset.sql` snapshots that table and
+no longer lists the sequence.
+
+**To run:** `supabase/apply/call_requests.sql` — `_status.sql` row 86.
+
+
 ### Bundle replay safety — 2026-09-06 (shipped, NOT yet applied)
 
 `_status.sql` came back with six policy rows at NO after the user ran

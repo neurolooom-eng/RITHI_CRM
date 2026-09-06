@@ -48,7 +48,7 @@ declare
     'sale_entries','sale_items','contract_entries','contract_items',
     -- section 3a — the numbering counters
     'call_number_seq','spare_or_counters','spare_dispatch_counters',
-    'material_return_counters','stock_transfer_counters',
+    'material_return_counters','stock_transfer_counters','ucn_counters',
     -- section 4 — snapshot them too, whether or not you clear them
     'audit_log','record_audit','validation_results','kb_articles',
     'documents','help_screenshots'
@@ -69,13 +69,15 @@ begin
     raise notice '% -> bak.%  (% rows)', t, t, n;
   end loop;
 
-  -- The three sequences TRUNCATE cannot reset are worth recording too, so a
-  -- restore can put the series back exactly where it was.
+  -- The two sequences TRUNCATE cannot reset are worth recording too, so a
+  -- restore can put the series back exactly where it was. (ucn_seq was the
+  -- third until 0125 replaced it with the ucn_counters table above, which is
+  -- snapshotted like any other table.)
   create table if not exists bak._sequences (name text primary key, last_value bigint, is_called boolean);
   insert into bak._sequences (name, last_value, is_called)
   select s, (select last_value from pg_sequences where schemaname='public' and sequencename=s),
             (select last_value is not null from pg_sequences where schemaname='public' and sequencename=s)
-    from unnest(array['ucn_seq','call_req_seq','call_split_id_seq']) s
+    from unnest(array['call_req_seq','call_split_id_seq']) s
   on conflict (name) do nothing;
 
   create table if not exists bak._taken_at (at timestamptz primary key);

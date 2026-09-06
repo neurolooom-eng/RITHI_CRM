@@ -166,6 +166,9 @@ const MODULES = {
       '0109_close_call.sql',
       '0113_call_creator_authoritative.sql',
       '0114_call_registrant_split.sql',
+      // LAST in this module for next_ucn: 0001 (base) creates it and 0040 above
+      // redefines it, so the daily counter has to come after both.
+      '0125_ucn_daily_reset.sql',
     ],
   },
   sla: {
