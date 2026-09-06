@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
-import { sbSignIn, sbSignOut, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
+import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
 import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
@@ -437,7 +437,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_KEY);
     setViewAs(null);
     setUserId(null);
-    if (supaMode) { logAudit({ action: 'logout', status: 'ok' }); setAuditUser(null); setSupaUser(null); setSupaUsers([]); void sbSignOut(); }
+    if (supaMode) {
+      logAudit({ action: 'logout', status: 'ok' });
+      setAuditUser(null); setSupaUser(null); setSupaUsers([]);
+      // Clear the bell BEFORE signing out — `clear_my_notifications()` works
+      // from auth.uid(), so after signOut() there is no "my" left to clear.
+      // The sign-out itself must happen either way: a bell that would not empty
+      // is no reason to leave somebody signed in.
+      void (async () => {
+        try { await clearMyNotifications(); } catch { /* offline / not migrated */ }
+        await sbSignOut();
+      })();
+    }
   };
 
   const createUser: AuthContextValue['createUser'] = (input) => {

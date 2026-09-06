@@ -990,5 +990,31 @@ console.log('\n-- the user directory suggests, it does not insist --');
   eq('the box says how many are on offer', /already in the directory — or type a new one/.test(um), true);
 }
 
+// Signing out clears the bell IN THE DATABASE, so the next session starts empty
+// on every device. The ordering is the whole risk: `clear_my_notifications()`
+// works from auth.uid(), so calling it after signOut() clears nothing at all
+// and would fail silently — the sign-out would still look like it worked.
+console.log('\n-- signing out clears the notifications --');
+{
+  const auth = readFileSync(`${process.cwd()}/src/lib/auth.tsx`, 'utf8');
+  eq('logout clears them', /clearMyNotifications\(\)/.test(auth), true);
+  eq('...BEFORE signing out, or auth.uid() is already gone',
+    /clearMyNotifications\(\)[\s\S]{0,120}await sbSignOut\(\)/.test(auth), true);
+  // A bell that will not empty is no reason to leave somebody signed in.
+  eq('...and a failure to clear still signs you out',
+    /try \{ await clearMyNotifications\(\); \} catch/.test(auth), true);
+  // The two paths that are NOT a person signing out: abandoning a recovery
+  // link (never really signed in) and ejecting a login that was deactivated.
+  eq('cancelling a password recovery does not clear anything',
+    /cancelRecovery = \(\) => \{ setRecovering\(false\); void sbSignOut\(\); \}/.test(auth), true);
+
+  const sb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
+  // Through the function, never a delete from the client: the rule about whose
+  // rows go lives in one place, in the database.
+  eq('it goes through clear_my_notifications(), not a delete',
+    /rpc\('clear_my_notifications'\)/.test(sb)
+    && /from\('notifications'\)\.delete\(\)/.test(sb) === false, true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.120',
+    date: '2026-09-06',
+    title: 'Signing out clears your notifications',
+    changes: [
+      'The bell now empties when you sign out — in the DATABASE, not just on the screen you closed. Sign in again, on this device or any other, and it starts clean.',
+      'UNREAD ONES GO TOO. Signing out is the clearing event, not having read it — otherwise the people with most piled up are exactly the ones who would never get a clean slate. Nothing is lost with them: the call is still in the register and the spare is still on its request, which is where you go to act on either.',
+      'It clears YOURS and nobody else\u2019s, and there is no way to ask it for anybody else\u2019s — the database works out whose they are.',
+      'Two things that are NOT you signing out leave them alone: abandoning a password-reset link, and a login being deactivated while it is signed in.',
+      'If clearing them cannot be reached, you are still signed out — a bell that will not empty is no reason to keep you in.',
+      'Needs migration: run supabase/apply/notifications.sql.',
+    ],
+  },
+  {
     version: '0.9.119',
     date: '2026-09-06',
     title: 'Running a SQL bundle can no longer undo an earlier one',

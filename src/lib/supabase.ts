@@ -2824,6 +2824,20 @@ export async function markNotificationsRead(ids?: number[]): Promise<void> {
   if (ids && ids.length) q = q.in('id', ids);
   await q;
 }
+// Signing out clears the bell — in the DATABASE, not just on screen, so the
+// next session starts empty on every device. Unread ones go too: sign-out is
+// the clearing event. The work behind them is not lost; the call is still in
+// the register and the spare still on its request.
+//
+// The rule lives in `clear_my_notifications()` (0123), which takes no arguments
+// and filters on auth.uid() — `authenticated` holds no `delete` on the table at
+// all, so there is no shape of this that reaches somebody else's rows.
+export async function clearMyNotifications(): Promise<number> {
+  const c = getSupabase(); if (!c) return 0;
+  const { data, error } = await c.rpc('clear_my_notifications');
+  if (error) throw new Error(errMsg(error));
+  return Number(data ?? 0);
+}
 
 // ---------------------------------------------------------------------------
 // Validation execution tracker (0046_validation_results).
