@@ -315,6 +315,9 @@ export function DailyCallReview() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load(filter)}
+        refreshing={busy || !live}
+        syncedAt={lastSync}
         title="Daily Call Review"
         subtitle="DCCR — every field call through Review 1, 2 and 3"
         icon="🩺"
@@ -335,13 +338,11 @@ export function DailyCallReview() {
             <span className="conn-dot conn-off">
               showing {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
             </span>
-            {lastSync && <span className="conn-dot conn-off" title={new Date(lastSync).toLocaleString()}>⟳ synced {timeAgo(lastSync)}</span>}
           </>
         ) : undefined}
         actions={
           tab === 'register' ? (
             <>
-              <button className="btn btn-sm" onClick={() => void load(filter)} disabled={busy || !live}>{busy ? '…' : '↻ Refresh'}</button>
               <button className="btn btn-primary btn-sm" onClick={() => void exportRows()} disabled={exporting || !counts.total}>{exporting ? 'Exporting…' : '⭳ Export DCCR'}</button>
             </>
           ) : undefined

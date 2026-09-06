@@ -162,6 +162,9 @@ export function PendingCalls() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Pending Calls"
         subtitle="Every open call across Field, Installation and PM — unattended, unsolved or awaiting a report."
         icon="🔥"
@@ -180,7 +183,6 @@ export function PendingCalls() {
             <span className={`conn-dot ${supabaseConfigured() ? 'conn-on' : 'conn-off'}`} title={supabaseConfigured() ? 'Reading from the Supabase database' : 'Not connected'}>
               {supabaseConfigured() ? '● Database connected' : '○ Not connected'}
             </span>
-            {!!lastSync && <span className="conn-dot conn-off" title="When this screen last read the database">⟳ synced {timeAgo(lastSync)}</span>}
           </>
         }
       />
@@ -262,7 +264,6 @@ export function PendingCalls() {
             <select className="select" value={state} onChange={(e) => setState(e.target.value as CallState | '')}>
               {STATES.map((s) => <option key={s || 'any'} value={s}>{s || 'Any status'}</option>)}
             </select>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <button
               className="btn btn-sm"
               onClick={() => csvExport('pending-calls.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}

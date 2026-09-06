@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.105',
+    date: '2026-09-06',
+    title: 'Load more, Refresh and “last synced” are in one place on every register',
+    changes: [
+      'They used to be split \u2014 the count and Load more up in the heading, Refresh and the \u201c4 min ago\u201d down in the table\u2019s toolbar, in a different order on different screens. They answer the same question (\u201cis this current, and is there more of it?\u201d), so they now sit together beside the count.',
+      'Twenty-six registers moved. The toolbar keeps what acts on the rows \u2014 search, filters, Export CSV.',
+      'FIXED, found while doing it: Pending Calls had been showing \u201c\u27f3 synced never\u201d. It records the sync time as a number and the formatter could only read text \u2014 so it said \u201cnever\u201d, which looks like an answer rather than a fault, which is why nobody reported it.',
+      'Master value lists keep their own Refresh: that table is embedded inside other screens and has no heading of its own.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.104',
     date: '2026-09-06',
     title: 'A Review Desk for the DCCR, and Review 2 stops relying on memory',

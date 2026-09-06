@@ -16,6 +16,7 @@ import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
+import { timeAgo } from '../src/lib/format';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -657,6 +658,48 @@ console.log('\n-- the DCCR review desk --');
     /<th style=\{\{ width: 34 \}\}>#<\/th>[\s\S]{0,300}Part No[\s\S]{0,200}Description[\s\S]{0,200}Qty/.test(dccr), true);
   eq('the service report is a link',
     /href=\{link\}[\s\S]{0,120}Service Report/.test(dccr), true);
+}
+
+// ---------------------------------------------------------------------------
+// ONE PLACE FOR "IS THIS CURRENT, AND IS THERE MORE?"
+//
+// The user's rule (2026-09-06): Load more, Refresh and the sync age go
+// TOGETHER, beside the count in the page heading — not scattered between the
+// heading and each table's toolbar. They answer the same question the count
+// does; the toolbar is for acting on the rows, not describing them. Every
+// register carried its own copy in its own order, which is how they drifted.
+console.log('\n-- Load more, Refresh and the sync age live together --');
+{
+  const dir = `${process.cwd()}/src/modules/`;
+  // MasterListTable is the one exception, and it is a principled one: it is
+  // EMBEDDED inside All Masters, the Daily Call Review's two master tabs and
+  // the master list page, so it has no heading of its own to put them in.
+  const EMBEDDED = new Set(['MasterListTable.tsx']);
+  const offenders: string[] = [];
+  readdirSync(dir).filter((f) => f.endsWith('.tsx') && !EMBEDDED.has(f)).forEach((f) => {
+    const src = readFileSync(dir + f, 'utf8');
+    for (const m of src.matchAll(/<Toolbar>([\s\S]*?)<\/Toolbar>/g)) {
+      if (/↻ Refresh/.test(m[1])) offenders.push(`${f}: Refresh`);
+      if (/timeAgo\(/.test(m[1])) offenders.push(`${f}: sync age`);
+    }
+  });
+  eq(`no Refresh or sync age is left in a table toolbar${offenders.length ? ` (${offenders.join(', ')})` : ''}`,
+    offenders.length, 0);
+
+  // The heading is what offers them, and it offers them next to Load more.
+  const ui = readFileSync(`${process.cwd()}/src/components/ui/ui.tsx`, 'utf8');
+  eq('the page heading takes a Refresh', /onRefresh\?: \(\) => void \| Promise<void>;/.test(ui), true);
+  eq('...and a sync time', /syncedAt\?: string \| number \| null;/.test(ui), true);
+  eq('...and renders them beside Load more',
+    /Load more[\s\S]{0,400}onRefresh &&[\s\S]{0,400}syncedAt &&/.test(ui), true);
+
+  // A NUMBER IS EPOCH MILLISECONDS. `new Date(String(1757…))` is an Invalid
+  // Date, so a register holding Date.now() showed "⟳ synced never" — which
+  // Pending Calls had been doing, silently, because "never" looks like an
+  // answer rather than a fault.
+  eq('timeAgo reads epoch milliseconds', timeAgo(Date.now() - 30_000), '30s ago');
+  eq('timeAgo still reads an ISO string', timeAgo(new Date(Date.now() - 30_000).toISOString()), '30s ago');
+  eq('timeAgo still says never for rubbish', timeAgo('not a date'), 'never');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

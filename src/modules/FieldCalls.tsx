@@ -972,6 +972,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void refresh()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title={config.title}
         subtitle={config.subtitle}
         icon={config.icon}
@@ -1073,9 +1076,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               <input className="input" placeholder="Party" value={srch.partyName} onChange={(e) => setSrch1('partyName', e.target.value)} />
               <input className="input call-search-global" placeholder="🔎 Global" value={srch.q} onChange={(e) => setSrch1('q', e.target.value)} />
             </div>
-            <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>
-              {busy ? '…' : '↻ Refresh'}
-            </button>
             <button
               className={`chip ${openOnly ? 'chip-on' : ''}`}
               onClick={() => setOpenOnly((o) => !o)}

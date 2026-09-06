@@ -204,3 +204,14 @@ h4 {
 /* Never let the page scroll sideways — wide content scrolls inside its own
    container (tables use .dt-scroll). */
 html, body { max-width: 100%; overflow-x: hidden; }
+
+/* The sync age, beside Load more and Refresh in the page title (the user's
+   rule: Load more, Refresh and the sync details together, not scattered
+   between the heading and the table's toolbar). */
+.page-title-sync {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+  align-self: center;
+}

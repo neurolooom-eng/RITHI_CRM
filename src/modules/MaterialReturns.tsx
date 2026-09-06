@@ -141,6 +141,9 @@ export function MaterialReturns() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Material Returns (MRN)"
         subtitle="Spares an engineer has sent back to Stores. Every return comes off their hand stock."
         icon="↩️"
@@ -180,9 +183,7 @@ export function MaterialReturns() {
               <option value="">All engineers</option>
               {engineers.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('material-returns.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

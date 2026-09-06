@@ -121,6 +121,8 @@ export function OwnershipTransfer() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
         title="Ownership Transfer" icon="🔁"
         subtitle="Where each machine has been, and the warranty details recovered for machines whose paperwork was lost."
         count={tab === 'transfers' ? visT.length : visE.length}
@@ -157,7 +159,6 @@ export function OwnershipTransfer() {
             emptyText={busy ? 'Loading…' : 'No transfers recorded.'}
             toolbar={<Toolbar>
               <input className="input" placeholder="Search serial, party, reference…" value={search} onChange={(e) => setSearch(e.target.value)} />
-              <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             </Toolbar>}
           />
         ) : (
@@ -167,7 +168,6 @@ export function OwnershipTransfer() {
             emptyText={busy ? 'Loading…' : 'Nothing recorded.'}
             toolbar={<Toolbar>
               <input className="input" placeholder="Search serial, warranty, source…" value={search} onChange={(e) => setSearch(e.target.value)} />
-              <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             </Toolbar>}
           />
         )}

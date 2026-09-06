@@ -206,6 +206,9 @@ export function SpareDispatch() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Pending Dispatch"
         subtitle="Approved spares waiting at Stores, grouped by engineer. Tick and book them out in one stock out."
         icon="🚚"
@@ -237,11 +240,9 @@ export function SpareDispatch() {
         <>
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Engineer, OR, spare ID, part, party…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <button className="btn btn-sm" onClick={() => setOpen(new Set(queues.map((q) => q.engineer_key)))}>⌄ Expand all</button>
             <button className="btn btn-sm" onClick={() => setOpen(new Set())}>⌃ Collapse all</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {lines.length > 0 && (
               <button
                 className="btn btn-sm"

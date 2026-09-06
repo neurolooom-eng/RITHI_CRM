@@ -108,7 +108,10 @@ export function CustomerFeedback() {
 
   return (
     <div>
-      <PageHeader title="Customer Feedback" subtitle="Feedback captured on each call report." icon="⭐" count={visible.length} countMore={onDb && more} />
+      <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync} title="Customer Feedback" subtitle="Feedback captured on each call report." icon="⭐" count={visible.length} countMore={onDb && more} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -130,9 +133,7 @@ export function CustomerFeedback() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Call, party, engineer, feedback…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off">⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('customer-feedback.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

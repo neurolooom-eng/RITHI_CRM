@@ -371,6 +371,8 @@ export function UserMasterView() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
         title="User Master"
         subtitle="Everyone in the directory, signed in or not — and the role each one is given."
         icon="👤"
@@ -412,7 +414,6 @@ export function UserMasterView() {
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder="Name, email, region, designation, role…" />
-              <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               {editable && (
                 <span className="muted">
                   {editing

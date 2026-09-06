@@ -126,6 +126,9 @@ export function RequestCallRegistration() {
   return (
     <div>
       <PageHeader
+        syncedAt={lastSync}
+        onRefresh={() => void load()}
+        refreshing={busy}
         title="Request Call Registration"
         subtitle="Every call registration request raised, and what became of it. REQID is assigned automatically."
         icon="📝"
@@ -163,10 +166,6 @@ export function RequestCallRegistration() {
                 </button>
               ))}
             </div>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
-            {lastSync && (
-              <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>
-            )}
             <button
               className="btn btn-sm"
               onClick={() => csvExport('call-requests.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}

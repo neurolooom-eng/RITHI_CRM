@@ -98,7 +98,10 @@ export function AuditLog() {
 
   return (
     <div>
-      <PageHeader title="Audit Log" subtitle="Actions, logins, errors and how long each took." icon="🧾" />
+      <PageHeader
+        onRefresh={() => void refresh()}
+        refreshing={busy}
+        syncedAt={lastSync} title="Audit Log" subtitle="Actions, logins, errors and how long each took." icon="🧾" />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -126,9 +129,7 @@ export function AuditLog() {
                 <option value="">Any status</option><option value="ok">ok</option><option value="error">error</option>
               </select>
             </div>
-            <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('audit-log.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

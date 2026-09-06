@@ -312,7 +312,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     <div>
       {/* The register's size is its entries — the deals — not the machines
           under them, so the nav count means the same thing on both tabs. */}
-      <PageHeader title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
+      <PageHeader
+        onRefresh={() => void refresh(tab)}
+        refreshing={busy}
+        syncedAt={tab === 'machines' ? feeds.machines.at : feeds.entries.at}
+        title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon}
         count={tab === 'machines' ? machines.length : rows.length}
         countMore={feed.more} />
 
@@ -355,11 +359,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
-              <button className="btn btn-sm" onClick={() => void refresh('entries')} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               <div className="spacer" />
-              {feeds.entries.at && (
-                <span className="conn-dot conn-off" title={`Last synced ${new Date(feeds.entries.at).toLocaleString()}`}>⟳ {timeAgo(feeds.entries.at)}</span>
-              )}
               {canEdit && (
                 <button className="btn btn-sm btn-primary" onClick={() => { setOpen({}); setDraft({}); setItems([]); }}>+ New entry</button>
               )}
@@ -384,11 +384,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           toolbar={
             <Toolbar>
               <SearchBox value={q} onChange={setQ} placeholder="Serial, product, party…" />
-              <button className="btn btn-sm" onClick={() => void refresh('machines')} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
               <div className="spacer" />
-              {feeds.machines.at && (
-                <span className="conn-dot conn-off" title={`Last synced ${new Date(feeds.machines.at).toLocaleString()}`}>⟳ {timeAgo(feeds.machines.at)}</span>
-              )}
               {machines.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport(`${kind}-machines.csv`, machineColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), machines)}>⭳ Export CSV</button>
               )}

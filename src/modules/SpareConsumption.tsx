@@ -324,7 +324,10 @@ export function SpareConsumption() {
 
   return (
     <div>
-      <PageHeader title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" count={visible.length} />
+      <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync} title="Spare Consumption" subtitle="Spares consumed against every call report (v2Consumption), traceable by UCN." icon="🧾" count={visible.length} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -348,14 +351,12 @@ export function SpareConsumption() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="UCN, part, party, engineer…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             {mayReconcile && onDb && (
               <button className="btn btn-sm btn-primary" onClick={() => setForm({ ...emptyForm })}>
                 ＋ Add consumption
               </button>
             )}
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off">⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('spare-consumption.csv', headerKeys.map((k) => ({ key: k, header: k })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

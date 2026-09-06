@@ -281,6 +281,9 @@ export function StockTransfer() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Stock Transfer"
         subtitle="Move hand-stock between engineers. Balances live in Hand Stock."
         icon="🔄"
@@ -314,9 +317,7 @@ export function StockTransfer() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Transfer no, engineer, part…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {visible.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('stock-transfers.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

@@ -185,6 +185,9 @@ export function PartMaster() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void refresh()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Part Master"
         subtitle="Spare parts catalogue (ITEM Master) — cached locally, synced from the database."
         icon="🔩" count={visible.length}
@@ -230,9 +233,7 @@ export function PartMaster() {
                 </select>
               )}
             </div>
-            <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {visible.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('part-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
