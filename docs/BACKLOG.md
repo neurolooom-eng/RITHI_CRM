@@ -264,6 +264,33 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### To run on the live project — NOTHING PENDING (2026-09-06)
+
+**Everything run by the user on 2026-09-06.** In one go, after the ordering
+note went into `_status.sql`'s header:
+
+| bundle | brings |
+| --- | --- |
+| `call_requests.sql` | 0113 (created_by is the database's to say), 0114 (the desk of record + `actual_created_by`) — rows 66, 67 |
+| `audit.sql`         | 0114 audit (the Audit Mode switch + its change log) — row 68 |
+| `rbac.sql`          | 0087/0088 moved here, so `srl_insert` stops being reverted — row 40 |
+| `Spare_1.sql`, `HandStock_X.sql`, `masters.sql` | the five policies a bundle replay had reverted, and the blanket `masters_write` it had recreated — rows 69-74 |
+| `reports.sql`       | 0115 (a visit cannot be dated in the future or before the complaint) — row 75 |
+
+ORDER MATTERED and is now written into `_status.sql`'s header rather than only
+in a chat message: `rbac.sql` FIRST, then the other three. Run the other way
+round it re-reverts rows 69-74, which is exactly how row 40 came back NO after
+the first attempt.
+
+⚠️ REPORTED, NOT VERIFIED FROM HERE — the same rule as every round above.
+`_status.sql` is the evidence; this file is a note, and it has twice claimed
+the opposite of what was actually applied.
+
+⚠️ **Still outstanding on the user's side, and NOT SQL** — "ran all sql
+scripts" does not cover these: the 77 missing yearly consumptions (delete +
+re-upload the four files per `_yearly_consumption_check.sql`, to 39,801 total
+with 12,015 in 2024), and the Ownership Transfer upload.
+
 ### To run on the live project — NOTHING PENDING (2026-09-05, third round)
 
 **`daily_review.sql` and `data_integrity.sql` run by the user on 2026-09-05**,
@@ -517,14 +544,16 @@ points at these rows.
     `execute format()` — so no `create policy` literal exists for the checker
     to find, and policies being OR'd, `masters.edit` could write every list
     again.
-  - ⚠️ **Restore: run `Spare_1.sql`, `HandStock_X.sql` and `masters.sql`.**
-    Verified on the copy: after those three, every policy matches a full
-    apply, and the policy SET is identical.
-  - ⚠️ **THE RESTORE BUNDLE FOR ROW 40 MOVED.** Because 0087/0088 are now in
-    `rbac`, `Spare_1.sql` no longer carries them — so the fix for row 40 is to
-    run **`rbac.sql`**, and I told the user Spare_1/HandStock_X/masters, which
-    left row 40 NO. And rbac.sql reverts the six, so ORDER MATTERS: rbac.sql
-    FIRST, then Spare_1.sql, HandStock_X.sql, masters.sql. Verified by
+  - ✅ **Restored 2026-09-06** by `Spare_1.sql`, `HandStock_X.sql` and
+    `masters.sql`, run after `rbac.sql`. Verified on the copy beforehand:
+    after those three, every policy matches a full apply and the policy SET is
+    identical.
+  - ✅ **Row 40 restored 2026-09-06 by `rbac.sql`.** ITS RESTORE BUNDLE HAD
+    MOVED, and that cost a round trip: because 0087/0088 are now in `rbac`,
+    `Spare_1.sql` no longer carries them — so the fix for row 40 is `rbac.sql`,
+    and I named Spare_1/HandStock_X/masters, which left row 40 NO. And
+    `rbac.sql` reverts the six, so ORDER MATTERS: `rbac.sql` FIRST, then
+    `Spare_1.sql`, `HandStock_X.sql`, `masters.sql`. Verified by
     reproducing their exact reported state and running the four in that order:
     every policy then matches a clean full apply and the policy SET is
     identical. `_status.sql`'s header now states the ordering and row 40 names
@@ -561,8 +590,8 @@ points at these rows.
     in the future until 05:30 IST — a naive test would refuse a visit entered
     early in the morning and dated today. It compares DAYS, the visit's own
     (UTC, as written) against today in India.
-  - ⚠️ **Run `reports.sql`** — `_status.sql` row 75, verified NO before and yes
-    after.
+  - ✅ **`reports.sql` run 2026-09-06** — `_status.sql` row 75, verified NO
+    before and yes after.
 
 ### Calls
 - **The desk of record and the person at the keyboard** (v0.9.98,
@@ -586,7 +615,7 @@ points at these rows.
     created", and with `created_by` now naming the DESK that arm stops matching
     for exactly the people this is about. Devika would have lost sight of the
     call she had just typed in. It tests either column now.
-  - ⚠️ **Run `call_requests.sql`** — `_status.sql` rows 66 and 67.
+  - ✅ **`call_requests.sql` run 2026-09-06** — `_status.sql` rows 66 and 67.
   - Two hotline profiles and no pinned setting is an AMBIGUITY: the database
     returns no desk and files the call to whoever registered it, rather than
     picking one arbitrarily. That is the case the Admin Config card exists for.
@@ -600,7 +629,7 @@ points at these rows.
   Requirement** — a statement about PROVENANCE (not derived from a regulatory
   clause, not offered as evidence against one), not about its use going
   unrecorded.
-  - ⚠️ **Run `audit.sql`** — `_status.sql` row 68.
+  - ✅ **`audit.sql` run 2026-09-06** — `_status.sql` row 68.
   - 🔜 **Pending from the user:** the rules. Each is to be assessed on its own
     merits when it arrives; a rule that would alter, conceal or suppress a
     quality record, or change what a record shows an assessor, is outside the
@@ -629,7 +658,7 @@ points at these rows.
   client-side and skipped whenever `initial` carried an empty string. The
   engineer's email is off the call form entirely; the column and its sheet
   header stay so imported values still export.
-  ⚠️ **Run `call_requests.sql`** — `_status.sql` row 66.
+  ✅ **`call_requests.sql` run 2026-09-06** — `_status.sql` row 66.
 - **The DCCR can be filtered by CALL status** (v0.9.93,
   `0111_dccr_call_status.sql`) — `field_call_review_summary` gains `open_state`
   and `cancelled_at`, APPENDED (`create or replace view` can only add at the
