@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.116',
+    date: '2026-09-06',
+    title: 'An admin can set Auto save for everyone',
+    changes: [
+      'Next to the Auto save switch, an administrator now gets \u201cApply ON for everyone\u201d (or OFF \u2014 it applies whatever the switch beside it says, so you can see what you are about to apply).',
+      'WHAT HAPPENS WHEN THE TWO DISAGREE: the later decision wins. Applying it for everyone overrides the choices people made before that moment \u2014 which is what \u201cfor everyone\u201d has to mean \u2014 and anyone who changes it for themselves afterwards keeps their own choice.',
+      'Neither rule on its own would be honest: \u201cthe admin always wins\u201d makes each reviewer\u2019s switch a lie, and \u201cyour own choice always wins\u201d makes \u201capply for everyone\u201d a lie.',
+      'The message says exactly that when you apply it, so nobody has to guess.',
+      'No migration \u2014 it is stored with the other settings, which only an administrator can write.',
+    ],
+  },
+  {
     version: '0.9.115',
     date: '2026-09-06',
     title: 'One colour code for call status, and the UCN carries it everywhere',

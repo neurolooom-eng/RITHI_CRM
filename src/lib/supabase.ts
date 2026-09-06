@@ -1301,6 +1301,38 @@ export async function listCallStates(ucns: string[]): Promise<Record<string, str
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// AUTO SAVE, SET FOR EVERYONE (DCCR).
+//
+// Stored in `app_settings`, whose write policy is already admin-only (0047) —
+// so the gate is the database's, not a hidden button. Two keys, written
+// together: what it was set to, and WHEN. The time is what lets a reviewer's
+// later choice stand while an administrator's "apply for everyone" overrides
+// the choices made before it.
+// ---------------------------------------------------------------------------
+export const DCCR_AUTOSAVE_KEY = 'dccr.autosave_default';
+export const DCCR_AUTOSAVE_AT_KEY = 'dccr.autosave_default_at';
+
+export async function getDccrAutoSaveDefault(): Promise<{ on: boolean; at: number } | null> {
+  const { data, error } = await must().from('app_settings')
+    .select('key,value').in('key', [DCCR_AUTOSAVE_KEY, DCCR_AUTOSAVE_AT_KEY]);
+  if (error) throw new Error(errMsg(error));
+  const rows = (data ?? []) as { key: string; value: string }[];
+  const on = rows.find((r) => r.key === DCCR_AUTOSAVE_KEY)?.value;
+  if (on === undefined) return null;                    // never set for anybody
+  const at = Number(rows.find((r) => r.key === DCCR_AUTOSAVE_AT_KEY)?.value ?? 0);
+  return { on: String(on).trim() === 'on', at: Number.isFinite(at) ? at : 0 };
+}
+
+export async function setDccrAutoSaveDefault(on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const { error } = await must().from('app_settings').upsert([
+    { key: DCCR_AUTOSAVE_KEY, value: on ? 'on' : 'off', updated_at: now },
+    { key: DCCR_AUTOSAVE_AT_KEY, value: String(Date.now()), updated_at: now },
+  ], { onConflict: 'key' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- masters (dropdown value-lists) ----------------------------------------
 // App master keys map to different sources: party -> parties, spare -> parts,
 // product -> products, complaint -> the 'standardComplaint' list; the rest are

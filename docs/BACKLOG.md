@@ -650,6 +650,21 @@ points at these rows.
     "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
+- **Auto save: two decisions, the later one wins** (v0.9.116) — an admin can
+  apply it to everyone; a reviewer can still set their own. The rule for the
+  disagreement is the whole design: `effectiveAutoSave(mine, org)` compares
+  WHEN each was decided. "The admin always wins" would make every reviewer's
+  switch a lie; "a personal choice always wins" would make "apply for everyone"
+  a lie.
+  - The org default lives in `app_settings`, whose write policy is already
+    admin-only (0047) — so the gate is the database's, not a hidden button. No
+    migration.
+  - Two keys, written together: the value and WHEN it was set. The timestamp is
+    the load-bearing part.
+  - The pre-existing `'1'`/`'0'` localStorage shape reads as "chosen at time 0",
+    so an upgrade cannot look like somebody actively choosing and outrank the
+    administrator. Pinned in `check:ui`.
+
 - **Review 2 in bulk, except inside the first year** (v0.9.112,
   `0119_bulk_review2.sql`) — the user's rule: "if the Age at failure is less
   than 366, then it has to be done 1 by 1. If it is not, then it can be bulk
