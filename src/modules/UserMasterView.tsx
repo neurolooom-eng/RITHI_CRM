@@ -45,6 +45,29 @@ export function UserMasterView() {
 
   const [q, setQ] = useState('');
   const [dir, setDir] = useState<DirectoryRow[]>([]);
+
+  // WHAT THE DIRECTORY ALREADY HOLDS, for the three boxes that name something
+  // in it. Every NAME (any of them can be somebody's manager — the tree is
+  // built by matching these strings), and every REGION already in use.
+  // Case-folded so "South" and "SOUTH" are offered once, but the spelling
+  // already on record is the one suggested.
+  const dirNames = useMemo(() => {
+    const seen = new Map<string, string>();
+    dir.forEach((d) => {
+      const n = String(d.name ?? '').trim();
+      if (n && !seen.has(n.toLowerCase())) seen.set(n.toLowerCase(), n);
+    });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [dir]);
+
+  const dirRegions = useMemo(() => {
+    const seen = new Map<string, string>();
+    dir.forEach((d) => {
+      const r = String(d.region ?? '').trim();
+      if (r && !seen.has(r.toLowerCase())) seen.set(r.toLowerCase(), r);
+    });
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }, [dir]);
   const [sheetRows, setSheetRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
   const [edit, setEdit] = useState<DirectoryRow | null>(null);   // the drawer (new user)
@@ -488,6 +511,8 @@ export function UserMasterView() {
             row={edit}
             busy={busy}
             signedInRole={(profileByEmail.get(edit.email.trim().toLowerCase()) ?? profileByEmail.get(edit.gmail.trim().toLowerCase()))?.role}
+            names={dirNames}
+            regions={dirRegions}
             onChange={setEdit}
             onCancel={() => { setEdit(null); setCloneSrc(null); setMkLogin(false); }}
             onSave={() => void save(edit)}
@@ -710,18 +735,43 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, regions, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
+  // WHAT THE DIRECTORY ALREADY SAYS. Offered, not imposed (the user's ask,
+  // 2026-09-06): a manager who is not in the directory yet has to be typeable,
+  // or the first person entered could have no manager and a new region could
+  // never be started. `names` are the people already here — the RM and RGM are
+  // matched BY NAME to build the reporting tree, so choosing from the list is
+  // what makes that tree work.
+  names: string[]; regions: string[];
   onChange: (r: DirectoryRow) => void; onCancel: () => void; onSave: () => void;
 }) {
   const set = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) => onChange({ ...row, [k]: v });
-  const field = (label: string, k: keyof DirectoryRow, placeholder = '', type = 'text') => (
-    <label className="rep-field">
-      <span className="field-label">{label}</span>
-      <input className="input" type={type} placeholder={placeholder}
-        value={String(row[k] ?? '')} onChange={(e) => set(k, e.target.value as DirectoryRow[typeof k])} />
-    </label>
-  );
+  // A DATALIST, NOT A SELECT. A select would refuse anything not already in the
+  // directory; this suggests and gets out of the way — the same shape the call
+  // form uses for Party Name.
+  const field = (label: string, k: keyof DirectoryRow, placeholder = '', type = 'text', options?: string[]) => {
+    const listId = options ? `dir-${String(k)}-list` : undefined;
+    return (
+      <label className="rep-field">
+        <span className="field-label">{label}</span>
+        <input className="input" type={type} placeholder={placeholder} list={listId}
+          value={String(row[k] ?? '')} onChange={(e) => set(k, e.target.value as DirectoryRow[typeof k])} />
+        {options && (
+          <datalist id={listId}>
+            {options.map((o) => <option key={o} value={o} />)}
+          </datalist>
+        )}
+        {options && (
+          <span className="muted rep-hint">
+            {options.length
+              ? `${options.length.toLocaleString()} already in the directory — or type a new one.`
+              : 'Nothing in the directory yet — type one.'}
+          </span>
+        )}
+      </label>
+    );
+  };
 
   return (
     <div>
@@ -750,9 +800,9 @@ function UserForm({ row, busy, signedInRole, onChange, onCancel, onSave }: {
           </select>
         </label>
 
-        {field('Reporting Manager (name)', 'reporting_manager', 'RM as named in this directory')}
-        {field('Regional Manager (name)', 'regional_manager', 'RGM as named in this directory')}
-        {field('Region', 'region', 'e.g. South')}
+        {field('Reporting Manager (name)', 'reporting_manager', 'RM as named in this directory', 'text', names)}
+        {field('Regional Manager (name)', 'regional_manager', 'RGM as named in this directory', 'text', names)}
+        {field('Region', 'region', 'e.g. South', 'text', regions)}
         {field('Contact No', 'phone', '', 'tel')}
         <label className="rep-field rep-span2">
           <span className="field-label">Address</span>

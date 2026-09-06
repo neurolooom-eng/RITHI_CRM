@@ -962,5 +962,33 @@ console.log('\n-- a layout can be set for a role --');
   eq('the panel says whose layout is in force', /In force here: the layout set for/.test(dt), true);
 }
 
+// ---------------------------------------------------------------------------
+// THE DIRECTORY SUGGESTS ITSELF — AND DOES NOT INSIST.
+//
+// Reporting Manager, Regional Manager and Region offer what is already in the
+// directory (the user's ask, 2026-09-06) "but not mandatory to choose from
+// that". A <select> would refuse anything new: the first person entered could
+// then have no manager, and a new region could never be started. So a
+// datalist, the same shape the call form uses for Party Name.
+console.log('\n-- the user directory suggests, it does not insist --');
+{
+  const um = readFileSync(`${process.cwd()}/src/modules/UserMasterView.tsx`, 'utf8');
+  eq('the three boxes offer what is already in the directory',
+    /'reporting_manager'[^)]*names\)/.test(um)
+    && /'regional_manager'[^)]*names\)/.test(um)
+    && /'region'[^)]*regions\)/.test(um), true);
+  // The distinction that matters: suggested, not required.
+  eq('...as a datalist, so a new one can still be typed',
+    /<datalist id=\{listId\}>/.test(um) && /<input className="input"[^>]*list=\{listId\}/.test(um), true);
+  eq('...and they are not selects', /<select[^>]*value=\{String\(row\[k\]/.test(um), false);
+  // Every name, because any of them can be somebody's manager — the tree is
+  // built by matching these strings.
+  eq('the names offered are every name in the directory',
+    /const dirNames = useMemo\([\s\S]{0,320}dir\.forEach/.test(um), true);
+  eq('...case-folded, so one spelling is offered once',
+    /seen\.has\(n\.toLowerCase\(\)\)/.test(um), true);
+  eq('the box says how many are on offer', /already in the directory — or type a new one/.test(um), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
