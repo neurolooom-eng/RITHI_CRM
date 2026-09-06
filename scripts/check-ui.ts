@@ -588,5 +588,33 @@ console.log('\n-- a visit date that could not have happened --');
     /complaintISO[\s\S]{0,400}?regDate/.test(rep), false);
 }
 
+// ---------------------------------------------------------------------------
+// THE DAILY CALL REVIEW OPENS GROUPED BY REVIEW STATUS.
+//
+// The register is worked stage by stage, so it should say which pile each call
+// is in before anybody filters for it (the user's ask, 2026-09-06).
+console.log('\n-- the DCCR is grouped by review status --');
+{
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  eq('the register offers grouping at all',
+    /groupable=\{\[/.test(dccr), true);
+  eq('Review Status is the first grouping offered',
+    /groupable=\{\[\s*\{ key: 'review_status', label: 'Review Status' \}/.test(dccr), true);
+  eq('and it is how the register opens',
+    /defaultGroup=\{\['review_status'\]\}/.test(dccr), true);
+  // The group headings count LOADED rows, so they must carry the "+" — the
+  // exact per-stage totals are the KPI cards, which come from a full walk.
+  eq('the group headings still say when more is coming',
+    /moreAvailable=\{more\}/.test(dccr), true);
+
+  // NOTHING STORED is not the same as STORED EMPTY: a reader who deliberately
+  // ungroups must stay ungrouped, or the default fights them on every visit.
+  const dt = readFileSync(`${process.cwd()}/src/components/table/DataTable.tsx`, 'utf8');
+  eq('a default grouping applies only when nothing is stored',
+    /if \(raw === null\) return defaultGroup \?\? \[\];/.test(dt), true);
+  eq('an empty stored grouping is honoured, not overridden',
+    /if \(!raw\) return defaultGroup/.test(dt), false);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

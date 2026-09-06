@@ -374,6 +374,26 @@ export function DailyCallReview() {
               getRowId={(r) => r.ucn}
               onRowClick={(r) => setOpen(r)}
               storageKey="dccr-register"
+              // GROUPED BY REVIEW STATUS, and that is how it OPENS. The register
+              // is worked stage by stage — what is waiting at Review 2 is a
+              // different job from what is waiting at Review 3 — so the register
+              // should say which pile each call is in before anybody filters for
+              // it. That is the shape the DCCR has always been read in.
+              //
+              // Every group heading counts the rows LOADED, so with more waiting
+              // behind Load more each one carries the "+" (`moreAvailable`, just
+              // below). The EXACT totals per stage are the KPI cards above:
+              // `countCallReviews` walks the whole register for those, so they
+              // take no "+". The two are different questions and both are
+              // labelled for which one they answer.
+              groupable={[
+                { key: 'review_status', label: 'Review Status' },
+                { key: 'open_state', label: 'Call Status' },
+                { key: 'product_name', label: 'Product' },
+                { key: 'allocated_to', label: 'Engineer' },
+                { key: 'complaint_grouping', label: 'Complaint Grouping' },
+              ]}
+              defaultGroup={['review_status']}
               rowsBeforeScroll={12}
               dense
               // Load more lives beside the count in the heading (see PageHeader),
