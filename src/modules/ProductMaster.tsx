@@ -117,6 +117,9 @@ export function ProductMaster() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void run({})}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Product Master"
         subtitle="Search the install base and register a call straight from a product."
         icon="🩺"
@@ -156,8 +159,6 @@ export function ProductMaster() {
         toolbar={
           <Toolbar>
             <span className="muted">{rows.length ? `${rows.length} shown` : ''}</span>
-            <button className="btn btn-sm" onClick={() => void run({})} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             <div className="spacer" />
             {rows.length > 0 && (
               <button

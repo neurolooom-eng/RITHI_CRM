@@ -251,6 +251,8 @@ function Library({ cfg }: { cfg: Cfg }) {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
         title={cfg.title} subtitle={cfg.subtitle} icon={cfg.icon} count={visible.length}
         actions={mayEdit && <button className="btn btn-primary" onClick={() => { setEditing(null); setDraft({ ...EMPTY }); }}>＋ Add document</button>}
       />
@@ -277,7 +279,6 @@ function Library({ cfg }: { cfg: Cfg }) {
               <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
               Show retired
             </label>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
             <span className="muted">{visible.length.toLocaleString()} {visible.length === 1 ? 'document' : 'documents'}</span>
           </Toolbar>

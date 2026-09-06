@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setModuleCount } from '../../lib/counts';
 import './ui.css';
+import { timeAgo } from '../../lib/format';
 
 export function PageHeader({
   title,
@@ -13,6 +14,9 @@ export function PageHeader({
   moreAvailable,
   onLoadMore,
   loadingMore,
+  onRefresh,
+  refreshing,
+  syncedAt,
   status,
 }: {
   title: string;
@@ -38,6 +42,17 @@ export function PageHeader({
   // means NOT passing onLoadMore to the table, so there is one of them.
   onLoadMore?: () => void | Promise<void>;
   loadingMore?: boolean;
+  // REFRESH AND THE SYNC AGE BELONG BESIDE LOAD MORE, not in the table's
+  // toolbar (the user's rule, 2026-09-06). They answer the same question the
+  // count does — "is what I am looking at current, and is there more of it?" —
+  // and the toolbar is for acting on the rows, not for describing them. Every
+  // register was carrying its own copy in its own order; this is the one
+  // place, so they cannot drift apart again.
+  onRefresh?: () => void | Promise<void>;
+  refreshing?: boolean;
+  // An ISO timestamp. Rendered as "⟳ 4 min ago", with the full time on hover.
+  // ISO string or epoch milliseconds — registers hold it both ways.
+  syncedAt?: string | number | null;
   // Standing facts about the screen — what you can see, when it last synced,
   // what it is reading from. They belong under the title with the other things
   // that describe the screen, not in the toolbar among the controls, where
@@ -60,6 +75,17 @@ export function PageHeader({
               <button className="btn btn-sm page-title-more" onClick={() => void onLoadMore()} disabled={loadingMore}>
                 {loadingMore ? 'Loading…' : '↓ Load more'}
               </button>
+            )}
+            {onRefresh && (
+              <button className="btn btn-sm page-title-more" onClick={() => void onRefresh()} disabled={refreshing}
+                      title="Read the register again">
+                {refreshing ? '…' : '↻ Refresh'}
+              </button>
+            )}
+            {syncedAt && (
+              <span className="page-title-sync" title={`Last synced ${new Date(syncedAt).toLocaleString()}`}>
+                ⟳ {timeAgo(syncedAt)}
+              </span>
             )}
           </h1>
           {subtitle && <div className="page-subtitle">{subtitle}</div>}

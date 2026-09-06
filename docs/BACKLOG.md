@@ -598,8 +598,29 @@ points at these rows.
   - Found by running it: `why := why || 'text'` on a `text[]` makes Postgres
     parse the literal AS an array and fail. `array_append` says which meaning
     is wanted.
-  - ⚠️ **Run `Spare_1.sql`** — `_status.sql` row 76, verified NO before and yes
-    after.
+  - ✅ **`Spare_1.sql` run 2026-09-06** — `_status.sql` row 76.
+
+### Every register
+- **Load more, Refresh and the sync age live together** (v0.9.105) — the user's
+  rule, with the AppSheet screens as the reference: they answer the same
+  question the count does ("is this current, and is there more?"), so they
+  belong beside it in the heading, not in each table's toolbar among the
+  controls that act on rows. 21 registers moved by script plus 5 by hand;
+  `PageHeader` gained `onRefresh` / `refreshing` / `syncedAt`.
+  - `check:ui` now REFUSES a `↻ Refresh` or a `timeAgo()` inside a `<Toolbar>`,
+    so they cannot drift back. **`MasterListTable` is the one exception and a
+    principled one**: it is embedded inside All Masters, both DCCR master tabs
+    and the master list page, so it has no heading of its own.
+  - ⚠️ **Found by the sweep: Pending Calls had been showing "⟳ synced never".**
+    Its `lastSync` is epoch milliseconds and `timeAgo` did
+    `new Date(String(iso))`, which is an Invalid Date for a number. It advertises
+    `unknown`, so it now honours one. "never" is the worst kind of wrong answer
+    here — it looks like an answer rather than a fault, so nobody reported it.
+  - 🔜 **Engineer grouping is NOT yet everywhere.** The `<FacetChips>` strip is
+    on Field Calls, Pending Calls, Spare Requests and KPI Analytics only. Other
+    registers group by engineer through the DataTable's `groupable` instead.
+    Extending the strip is per-register work: each needs a count source, and the
+    "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
 - **The Review Desk, and Review 2's two facts** (v0.9.104,
@@ -636,8 +657,7 @@ points at these rows.
   - Visits are rows (newest first, status, engineer, **the Service Report as a
     link** — previously unreachable from the review); spares are a table
     (#, Part No, Description, Qty) rather than a comma-joined line.
-  - ⚠️ **Run `daily_review.sql`** — `_status.sql` row 77, verified NO before and
-    yes after.
+  - ✅ **`daily_review.sql` run 2026-09-06** — `_status.sql` row 77.
 
 ### Reporting
 - **A visit cannot be dated in the future, or before the complaint** (v0.9.100,

@@ -194,6 +194,7 @@ export function AllMasters() {
   return (
     <div>
       <PageHeader
+        syncedAt={lastSync}
         title="All Masters"
         subtitle="Every master the app reads. Each value list is its own table — add and remove entries here."
         icon="🗂️"
@@ -227,7 +228,6 @@ export function AllMasters() {
         toolbar={
           <Toolbar>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('all-masters.csv',
                 [{ key: 'label', header: 'Master' }, { key: 'kind', header: 'Kind' }, { key: 'source', header: 'Source' }, { key: 'count', header: 'Entries' }, { key: 'status', header: 'Status' }, { key: 'usedBy', header: 'Used by' }],

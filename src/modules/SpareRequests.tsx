@@ -836,6 +836,9 @@ export function SpareRequests() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="Spare Requests"
         subtitle="Raise, approve, dispatch and acknowledge spare requests against calls."
         icon="📦"
@@ -927,9 +930,7 @@ export function SpareRequests() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="UID, UCN, party, part, engineer, DC, status…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('spare-requests.csv', columns.filter((c) => c.key !== '_wf').map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

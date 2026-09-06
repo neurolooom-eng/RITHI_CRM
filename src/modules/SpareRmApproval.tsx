@@ -173,6 +173,9 @@ export function SpareRmApproval() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
+        syncedAt={lastSync}
         title="RM Approval"
         subtitle="Every spare waiting for a Reporting Manager — tick and approve."
         icon="✅"
@@ -180,12 +183,10 @@ export function SpareRmApproval() {
         status={
           <>
             <span className={`conn-dot ${onDb ? 'conn-on' : 'conn-off'}`}>{onDb ? 'Database connected' : 'Not connected'}</span>
-            {lastSync && <span className="conn-dot conn-off" title={new Date(lastSync).toLocaleString()}>⟳ synced {timeAgo(lastSync)}</span>}
           </>
         }
         actions={
           <>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             {visible.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('rm-approval.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

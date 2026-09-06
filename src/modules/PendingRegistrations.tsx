@@ -261,7 +261,9 @@ export function PendingRegistrations() {
 
   return (
     <div>
-      <PageHeader title="Pending Call Registrations" subtitle="Engineer requests awaiting action — map to an existing call, register a new one, or cancel." icon="⏳" count={visible.length} />
+      <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy} title="Pending Call Registrations" subtitle="Engineer requests awaiting action — map to an existing call, register a new one, or cancel." icon="⏳" count={visible.length} />
 
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
@@ -282,7 +284,6 @@ export function PendingRegistrations() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Party, product, serial, engineer…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
           </Toolbar>
         }
       />

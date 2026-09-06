@@ -61,7 +61,12 @@ export function makeRequestUID(prefix = 'WA'): string {
 // Relative "x ago" for cache-age messaging.
 export function timeAgo(iso: unknown): string {
   if (!iso) return 'never';
-  const t = new Date(String(iso)).getTime();
+  // A NUMBER IS EPOCH MILLISECONDS, not a string to be parsed. `new Date(String(1757…))`
+  // is an Invalid Date, so a caller holding `Date.now()` got "never" — which is
+  // exactly what Pending Calls had been showing, silently, because "never" is a
+  // plausible-looking answer rather than an obvious fault. The signature says
+  // `unknown`; it should honour what that admits.
+  const t = typeof iso === 'number' ? iso : new Date(String(iso)).getTime();
   if (Number.isNaN(t)) return 'never';
   const s = Math.max(0, Math.round((Date.now() - t) / 1000));
   if (s < 60) return `${s}s ago`;

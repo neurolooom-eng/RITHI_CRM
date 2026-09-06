@@ -132,7 +132,10 @@ export function Reports() {
 
   return (
     <div>
-      <PageHeader title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
+      <PageHeader
+        onRefresh={() => void refresh()}
+        refreshing={busy}
+        syncedAt={lastSync} title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -160,9 +163,7 @@ export function Reports() {
               <input className="input" placeholder="Engineer" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)} />
               <input className="input" placeholder="Status" value={filter.status} onChange={(e) => set('status', e.target.value)} />
             </div>
-            <button className="btn btn-sm" onClick={() => void refresh()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
-            {lastSync && <span className="conn-dot conn-off" title={`Last synced ${new Date(lastSync).toLocaleString()}`}>⟳ {timeAgo(lastSync)}</span>}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('reports.csv', COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}

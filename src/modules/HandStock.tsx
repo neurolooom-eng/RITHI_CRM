@@ -295,6 +295,8 @@ export function HandStock() {
   return (
     <div>
       <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy}
         title="Hand Stock"
         subtitle="Stock level per engineer and spare: stock out from Stores − consumption − transfers out + transfers in."
         icon="🎒"
@@ -408,7 +410,6 @@ export function HandStock() {
                     </option>
                   ))}
                 </select>
-                <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
                 <div className="spacer" />
                 {rows.length > 0 && (
                   <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
@@ -552,7 +553,6 @@ function Movements({
               <option value="">All engineers</option>
               {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer}</option>)}
             </select>
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <div className="spacer" />
             {moves.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('hand-stock-movements.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>

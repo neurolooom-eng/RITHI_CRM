@@ -364,7 +364,9 @@ export function KnowledgeBase() {
 
   return (
     <div>
-      <PageHeader title="Knowledge Base" subtitle="How to use RITHI CRM, plus field solutions written by the team." icon="📚" />
+      <PageHeader
+        onRefresh={() => void load()}
+        refreshing={busy} title="Knowledge Base" subtitle="How to use RITHI CRM, plus field solutions written by the team." icon="📚" />
 
       {/* ---------- Field Solutions (team articles) ---------- */}
       <div className="kb-fs-head">
@@ -386,7 +388,6 @@ export function KnowledgeBase() {
         <>
           <div className="kb-fs-tools">
             <SearchBox value={search} onChange={setSearch} placeholder="Search field solutions…" />
-            <button className="btn btn-sm" onClick={() => void load()} disabled={busy}>{busy ? '…' : '↻ Refresh'}</button>
             <span className="kb-count">{visible.length} article{visible.length === 1 ? '' : 's'}</span>
           </div>
           {visible.length === 0 ? (
