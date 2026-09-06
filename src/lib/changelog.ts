@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.118',
+    date: '2026-09-06',
+    title: 'The user form suggests the managers and regions already on record',
+    changes: [
+      'On a new or edited user, Reporting Manager, Regional Manager and Region now drop down what is already in the directory \u2014 every name for the two managers, every region in use for the region.',
+      'YOU CAN STILL TYPE SOMETHING NEW. They suggest, they do not insist \u2014 otherwise the first person entered could have no manager, and a new region could never be started.',
+      'It says how many are on offer, so an empty list reads as \u201cnothing here yet\u201d rather than a broken box.',
+      'A name that appears with two spellings is offered once, in the spelling already on record \u2014 which matters, because the reporting tree is built by matching these names.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.117',
     date: '2026-09-06',
     title: 'A register\u2019s layout can be set for a role',
