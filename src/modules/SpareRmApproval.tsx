@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PageHeader, Toolbar, SearchBox, EmptyState } from '../components/ui/ui';
+import { PageHeader, Toolbar, SearchBox, EmptyState, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
-import { listPendingRmApproval, approveSpareLines, supabaseConfigured } from '../lib/supabase';
+import { listPendingRmApproval, decideSpareLines, supabaseConfigured, type SpareDecision } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { partDescription } from '../lib/handstock';
@@ -67,6 +67,10 @@ export function SpareRmApproval() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [approving, setApproving] = useState(false);
+  // Nothing happens on the press: the button opens a confirmation naming the
+  // decision and the count, and takes the reason a reject needs.
+  const [confirm, setConfirm] = useState<{ decision: SpareDecision; ids: string[]; clear: () => void } | null>(null);
+  const [why, setWhy] = useState('');
   const [search, setSearch] = useState('');
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
@@ -119,26 +123,32 @@ export function SpareRmApproval() {
   const mine = visible.filter((l) => l.may_approve);
   const oldest = mine.reduce((n, l) => Math.max(n, l._waiting), 0);
 
-  const approve = async (ids: string[], clear: () => void) => {
+  const VERB: Record<SpareDecision, string> = { approve: 'Approve', reject: 'Reject', drop: 'Drop' };
+  const DONE: Record<SpareDecision, string> = { approve: 'approved', reject: 'rejected', drop: 'dropped' };
+
+  const runDecision = async () => {
+    if (!confirm) return;
+    const { decision, ids, clear } = confirm;
     const lineIds = ids.map(Number).filter((n) => Number.isFinite(n) && n > 0);
     if (!lineIds.length) return;
     setApproving(true);
     const t0 = performance.now();
-    const res = await approveSpareLines(lineIds, user?.fullName || user?.email || '');
+    const res = await decideSpareLines(lineIds, decision, user?.fullName || user?.email || '', why.trim());
     logAudit({
-      action: 'spare.approve', target: `RM queue: ${lineIds.length} spares`,
+      action: `spare.${decision}`, target: `RM queue: ${lineIds.length} spares`,
       status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
       duration_ms: Math.round(performance.now() - t0),
-      meta: { scope: 'rm-queue', selected: lineIds.length, approved: res.approved ?? 0, skipped: res.skipped ?? 0 },
+      meta: { scope: 'rm-queue', selected: lineIds.length, decided: res.decided ?? 0, skipped: res.skipped ?? 0 },
     });
     setApproving(false);
-    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not approve.' }); return; }
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? `Could not ${decision}.` }); return; }
     const skipped = res.skipped ?? 0;
     setMsg({
       tone: skipped ? 'info' : 'ok',
-      text: `${res.approved ?? 0} spare${res.approved === 1 ? '' : 's'} approved`
-        + (skipped ? ` — ${skipped} skipped (${res.reason || 'not yours to approve'}).` : '.'),
+      text: `${res.decided ?? 0} spare${res.decided === 1 ? '' : 's'} ${DONE[decision]}`
+        + (skipped ? ` — ${skipped} skipped (${res.reason || 'not yours to decide'}).` : '.'),
     });
+    setConfirm(null); setWhy('');
     clear();
     void load();
   };
@@ -243,8 +253,13 @@ export function SpareRmApproval() {
               <b>{ids.length}</b>
               <span className="muted">selected</span>
               <div className="spacer" />
-              <button className="btn btn-sm btn-primary" disabled={approving} onClick={() => void approve(ids, clear)}>
-                {approving ? 'Approving…' : `✔ Approve ${ids.length}`}
+              <button className="btn btn-sm btn-primary" disabled={approving}
+                onClick={() => { setWhy(''); setConfirm({ decision: 'approve', ids, clear }); }}>
+                ✔ Approve {ids.length}
+              </button>
+              <button className="btn btn-sm" disabled={approving}
+                onClick={() => { setWhy(''); setConfirm({ decision: 'reject', ids, clear }); }}>
+                ✕ Reject {ids.length}
               </button>
               <button className="btn btn-sm btn-ghost" onClick={clear} disabled={approving}>Clear</button>
             </div>
@@ -266,6 +281,39 @@ export function SpareRmApproval() {
             </Toolbar>
           }
         />
+      )}
+
+      {confirm && (
+        <Modal
+          open
+          title={`${VERB[confirm.decision]} ${confirm.ids.length} spare${confirm.ids.length === 1 ? '' : 's'}?`}
+          onClose={() => { if (!approving) { setConfirm(null); setWhy(''); } }}
+        >
+          <p style={{ marginTop: 0 }}>
+            {confirm.decision === 'approve'
+              ? <>Each spare moves on from RM Approval to its next stage. Nothing skips a review.</>
+              : <>Each spare is <b>refused at RM Approval</b> and closes there, with the reason recorded against it.</>}
+          </p>
+          <p className="muted" style={{ fontSize: 13 }}>
+            Anything that is not yours to decide is skipped and counted, not applied quietly.
+          </p>
+          {confirm.decision !== 'approve' && (
+            <label className="rep-field">
+              <span className="field-label">Reason *</span>
+              <textarea className="textarea" rows={2} value={why} onChange={(e) => setWhy(e.target.value)}
+                placeholder="Why is this being refused?" />
+              <span className="muted rep-hint">Required — recorded against every spare in this batch.</span>
+            </label>
+          )}
+          <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+            <button className="btn" onClick={() => { setConfirm(null); setWhy(''); }} disabled={approving}>Cancel</button>
+            <button className="btn btn-primary"
+              disabled={approving || (confirm.decision !== 'approve' && !why.trim())}
+              onClick={() => void runDecision()}>
+              {approving ? 'Working…' : `${VERB[confirm.decision]} ${confirm.ids.length}`}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

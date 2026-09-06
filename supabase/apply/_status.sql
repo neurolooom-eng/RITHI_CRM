@@ -326,6 +326,9 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select permissions ? 'spare.approve_rm' from public.app_roles where role='nsm'), false))),
     (77, 'DCCR: the register answers "is this a frequent failure?"', 'frequent_failure_history() -- earlier calls on the same product+serial with the same complaint, in the 6 months BEFORE this call''s own date (0117). Restore: daily_review.sql',
         to_regprocedure('public.frequent_failure_history(text,integer)') is not null),
+    (78, 'spares: reject and drop in bulk, and somebody can actually drop', 'decide_spare_lines() -- approve / reject / drop many at once, each at the stage it is AT, a reason required for the last two. AND the spare.drop permission 0036 never granted to any role (0118). Restore: Spare_1.sql',
+        (to_regprocedure('public.decide_spare_lines(bigint[],text,text,text)') is not null
+     and exists (select 1 from public.app_roles where permissions ? 'spare.drop'))),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running
