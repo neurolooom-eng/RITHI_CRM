@@ -6,6 +6,8 @@ import { listFeedbackRows, supabaseConfigured } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAccessScope } from '../lib/access';
 import './fieldcalls.css';
+import { Ucn } from '../lib/callstate';
+import { useCallStates, callStateFor } from '../lib/callstates';
 
 // ===========================================================================
 // CUSTOMER FEEDBACK — the structured feedback captured on each call report,
@@ -22,7 +24,7 @@ const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
 const BASE_COLS = [
   { key: 'created_at', header: 'Date' },
   { key: 'call_number', header: 'Call Number' },
-  { key: 'ucn', header: 'UCN' },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r: Record<string, unknown>) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
   { key: 'party_name', header: 'Party' },
   { key: 'product_name', header: 'Product' },
   { key: 'engineer', header: 'Engineer' },
@@ -98,6 +100,13 @@ export function CustomerFeedback() {
     return scoped.filter((r) => allCols.some((c) => g(r, c.key).toLowerCase().includes(q)) || g(r, 'complaint').toLowerCase().includes(q));
   }, [scoped, search, allCols]);
 
+  // The UCNs on screen, coloured by their calls' status (the standing rule,
+  // 2026-09-06). This register does not carry the state — a spare line knows
+  // the UCN it was raised against, not what happened to that call — so they
+  // are looked up in ONE request and shared. A UCN whose state has not arrived,
+  // or that this reader may not see, stays uncoloured rather than guessed.
+  useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
+
   const columns: Column<Row>[] = allCols.map((c) => ({
     key: c.key, header: c.header,
     width: c.key === 'created_at' ? 170 : c.key.startsWith('fb::') ? 160 : 140,
@@ -105,6 +114,7 @@ export function CustomerFeedback() {
     ...(c.key === 'created_at' ? { render: (r: Row) => fmtLongDate(r[c.key]) } : {}),
   }));
   const allFields = allCols.map((c) => ({ key: c.key, header: c.header }));
+
 
   return (
     <div>

@@ -1280,6 +1280,27 @@ export async function bulkSetReview2(
   return { ok: true, updated: Number(row?.updated ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
 }
 
+// The state of many calls at once, for colouring their UCNs wherever they are
+// shown. `call_state` is the view that already answers "what is this call
+// doing?" — Cancelled before Reopened before its visit-derived state (0108).
+// RLS applies, so a caller gets states only for calls they may see; the rest
+// come back absent and render uncoloured rather than guessed.
+export async function listCallStates(ucns: string[]): Promise<Record<string, string>> {
+  const want = [...new Set(ucns.filter(Boolean))];
+  const out: Record<string, string> = {};
+  const CHUNK = 200;                       // keep the URL inside PostgREST's limits
+  for (let i = 0; i < want.length; i += CHUNK) {
+    const { data, error } = await must().from('call_state')
+      .select('ucn,state,last_status').in('ucn', want.slice(i, i + CHUNK));
+    if (error) throw new Error(errMsg(error));
+    (data ?? []).forEach((r) => {
+      const row = r as { ucn?: string; state?: string; last_status?: string };
+      if (row.ucn) out[row.ucn] = String(row.last_status || row.state || '');
+    });
+  }
+  return out;
+}
+
 // ---- masters (dropdown value-lists) ----------------------------------------
 // App master keys map to different sources: party -> parties, spare -> parts,
 // product -> products, complaint -> the 'standardComplaint' list; the rest are

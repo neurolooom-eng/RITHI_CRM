@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.115',
+    date: '2026-09-06',
+    title: 'One colour code for call status, and the UCN carries it everywhere',
+    changes: [
+      'UNATTENDED RED \u00b7 UNSOLVED BLUE \u00b7 SOLVED-REPORT PENDING PINK \u00b7 SOLVED GREEN. One code, used everywhere a call\u2019s status is shown.',
+      'THE COLOURS DO NOT CHANGE WITH THE THEME. Switch to dark and the same red is still red \u2014 what changes is a box drawn around it so it reads on a dark background. A colour people have learned is a code; a code that means something else in dark mode is not one.',
+      'THE UCN NOW CARRIES THAT COLOUR wherever it appears \u2014 Field Calls, Pending Calls, the DCCR, Reports, Spare Requests, RM Approval, Customer Feedback and Call Registration Requests. You can see what a call is doing without opening it.',
+      'Where a screen does not know the status \u2014 a spare line knows which call it was raised against, not what happened to it \u2014 the statuses are fetched in one request. A UCN whose status is not known stays plain rather than being given a colour that might be wrong.',
+      'AUTO SAVE IS NOW A SWITCH FOR THE WHOLE MODULE, in the Daily Call Review\u2019s own controls, rather than a tick box repeated on every review.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.114',
     date: '2026-09-06',
     title: 'First-year failures are marked in the call list',

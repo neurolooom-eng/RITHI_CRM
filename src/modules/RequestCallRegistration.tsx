@@ -10,6 +10,8 @@ import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
+import { Ucn } from '../lib/callstate';
+import { useCallStates, callStateFor } from '../lib/callstates';
 
 // ===========================================================================
 // REQUEST CALL REGISTRATION — the register of every request raised, whatever
@@ -56,7 +58,7 @@ const COLUMNS: Column<Row>[] = [
       return <span className={`badge ${STATUS_TONE[st] ?? 'badge-neutral'}`} title={String(r.cancelReason || r.actionedBy || '')}>{st}</span>;
     },
   },
-  { key: 'ucn', header: 'UCN', width: 120, wrap: false, render: (r) => (r.ucn ? String(r.ucn) : <span className="muted">—</span>) },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
   { key: 'engineer', header: 'Engineer', width: 150 },
   { key: 'callType', header: 'Call Type', width: 120, wrap: false },
   { key: 'partyName', header: 'Party', width: 210 },
@@ -116,6 +118,13 @@ export function RequestCallRegistration() {
       )),
     );
   }, [rows, q, status]);
+
+  // The UCNs on screen, coloured by their calls' status (the standing rule,
+  // 2026-09-06). This register does not carry the state — a spare line knows
+  // the UCN it was raised against, not what happened to that call — so they
+  // are looked up in ONE request and shared. A UCN whose state has not arrived,
+  // or that this reader may not see, stays uncoloured rather than guessed.
+  useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
 
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
@@ -555,6 +564,7 @@ function DriveFileField({
       setErr(e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); onBusy(false); }
   };
+
 
   return (
     <label className="rep-field rep-span2">

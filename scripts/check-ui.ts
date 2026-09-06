@@ -18,6 +18,7 @@ import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block } from '../src/lib/dccr';
+import { stateColour } from '../src/lib/callstate';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -850,7 +851,12 @@ console.log('\n-- Review 2 in bulk, except inside the first year --');
   eq('auto save does not complete a review',
     /if \(!auto\) \{[\s\S]{0,220}review2_by = reviewer;[\s\S]{0,120}review3_by = reviewer;/.test(dccr), true);
   eq('...and it is off unless the reviewer turns it on',
-    /useState<boolean>\(\(\) => autoSaveOn\(\)\)/.test(dccr), true);
+    /const \[autoSave, setAutoSave\] = useState<boolean>\(\(\) => autoSaveOn\(\)\)/.test(dccr), true);
+  // A MODULE SETTING, not a per-record one: one switch, in the register's own
+  // controls, inherited by every review opened. A tick box repeated on each
+  // review invited the reading that it applied to that one call.
+  eq('...and the switch is on the module, not on each review',
+    /autoSave=\{autoSave\}/.test(dccr) && /autoSave\?: boolean;/.test(dccr), true);
   eq('...and it says when it last saved',
     /answers saved \{timeAgo\(savedAt\)\}/.test(dccr), true);
 
@@ -862,6 +868,51 @@ console.log('\n-- Review 2 in bulk, except inside the first year --');
   const css = readFileSync(`${process.cwd()}/src/modules/dccr.css`, 'utf8');
   eq('the Service Report link is a contrast chip, not faint text',
     /\.dccr-report-link \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE CALL-STATUS COLOUR CODE, AND THE UCN THAT CARRIES IT.
+//
+// The user's specification (2026-09-06): Unattended RED, Unsolved BLUE,
+// Solved - Report Pending PINK, Solved GREEN — and "during colour theme switch,
+// don't change the colours, instead make a box around it". A colour people have
+// learned to read is a CODE; a code that means something else in dark mode is
+// not one. So these are literal hex, not theme tokens, and the theme changes
+// the BOX instead.
+console.log('\n-- the call-status colour code --');
+{
+  const c = (v: string) => stateColour(v)?.bg ?? '';
+  eq('Unattended is red',                       c('Unattended'), '#d32f2f');
+  eq('Unsolved is blue',                        c('Unsolved'), '#1565c0');
+  eq('Solved - Report Pending is pink',         c('Solved - Report Pending'), '#c2185b');
+  eq('Solved is green',                         c('Solved'), '#2e7d32');
+  eq('Solved - Report Completed is green too',  c('Solved - Report Completed'), '#2e7d32');
+  // THE ONE CONFUSION THAT MATTERS: "Solved - Report Pending" begins with
+  // "Solved". Read it as green and the register says a call is closed when a
+  // report is still owed.
+  eq('“Solved - Report Pending” is NOT green',
+    stateColour('Solved - Report Pending')?.bg !== stateColour('Solved')?.bg, true);
+  eq('an unknown status gets no colour rather than a wrong one', stateColour('Whatever'), null);
+  eq('an empty status gets no colour', stateColour(''), null);
+
+  const css = readFileSync(`${process.cwd()}/src/styles.css`, 'utf8');
+  // The theme must change the BOX, never the hue. If a colour ever appears in
+  // a dark-theme block, the code has started meaning two things.
+  const darkBlocks = css.match(/:root\[data-theme="dark"\] \.state-chip[\s\S]{0,240}?\}/g) ?? [];
+  eq('the dark theme adds a border, it does not restate the colour',
+    darkBlocks.length > 0 && darkBlocks.every((b) => /border-color/.test(b) && !/background:/.test(b)), true);
+
+  // EVERYWHERE a UCN is shown — that was the instruction.
+  const dir = `${process.cwd()}/src/modules/`;
+  const WITH_UCN = ['FieldCalls.tsx', 'PendingCalls.tsx', 'DailyCallReview.tsx', 'Reports.tsx',
+                    'SpareRequests.tsx', 'SpareRmApproval.tsx', 'CustomerFeedback.tsx',
+                    'RequestCallRegistration.tsx'];
+  const bare = WITH_UCN.filter((f) => {
+    const src = readFileSync(dir + f, 'utf8');
+    return /key: 'ucn'/.test(src) && !/<Ucn /.test(src);
+  });
+  eq(`every UCN column is coloured by its call's status${bare.length ? ` (bare: ${bare.join(', ')})` : ''}`,
+    bare.length, 0);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

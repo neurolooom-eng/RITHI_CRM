@@ -6,6 +6,7 @@ import { queryReports, supabaseConfigured, type ReportFilter } from '../lib/supa
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
 import { REPORT_FIELD_KEYS } from './CallReporting';
+import { Ucn } from '../lib/callstate';
 
 // ===========================================================================
 // REPORTS — the visit history (one row per visit) from the Supabase `reports`
@@ -20,7 +21,7 @@ const j = (r: Row, k: string) => String(((r.data as Record<string, unknown>) ?? 
 
 const COLUMNS: Column<Row>[] = [
   { key: 'visit_at', header: 'Visit Date', width: 130, render: (r) => fmtLongDate(r.visit_at) },
-  { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.call_status} /> },
   { key: 'call_number', header: 'Call Number', width: 170 },
   { key: 'call_status', header: 'Status', width: 180 },
   { key: 'engineer', header: 'Engineer', width: 160 },

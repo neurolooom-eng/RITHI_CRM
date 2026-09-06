@@ -26,7 +26,7 @@ import {
 } from '../lib/sheets';
 import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
-import { StateBadge } from '../lib/callstate';
+import { StateBadge, Ucn } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
@@ -165,7 +165,9 @@ const COLUMNS: Column<Rec>[] = [
     key: '_sync', header: '', width: 44, sortable: false, wrap: false, align: 'center',
     render: (r) => (r._pending ? <span title="Not yet in the sheet">⏳</span> : <span title="In the sheet" className="muted">✓</span>),
   },
-  { key: 'ucn', header: 'UCN', width: 120, wrap: false },
+  // The UCN carries its call's status everywhere it is shown (the user's
+  // standing rule, 2026-09-06). Here the register already knows it.
+  { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={r.lastStatus || r.callState} /> },
   {
     // Filled from the `call_state` view after the register loads — a call is
     // Solved / Unsolved / Report pending / Unattended by its LATEST visit.
