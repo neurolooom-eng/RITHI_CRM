@@ -7,7 +7,8 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
-  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2, type FailureHistoryRow,
+  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2,
+  getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FailureHistoryRow,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
 } from '../lib/supabase';
 import { fallbackList } from './masterLists';
@@ -15,7 +16,7 @@ import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
-  bulkReview2Block, firstYearFailure, autoSaveOn, setAutoSaveOn, AUTOSAVE_DELAY_MS,
+  bulkReview2Block, firstYearFailure, readMyAutoSave, writeMyAutoSave, effectiveAutoSave, AUTOSAVE_DELAY_MS,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
@@ -69,13 +70,44 @@ const CALL_STATES = ['Unattended', 'Unsolved', 'Report pending', 'Solved'];
 
 
 export function DailyCallReview() {
-  const { user, can } = useAuth();
+  const { user, can, isAdmin } = useAuth();
   const live = supabaseConfigured();
   const editable = live && can('review.edit');
-  // AUTO SAVE IS A SETTING FOR THE MODULE, not for a record. It is how this
-  // reviewer works through the whole register, so the switch sits with the
-  // register's own controls and every review opened inherits it.
-  const [autoSave, setAutoSave] = useState<boolean>(() => autoSaveOn());
+  // AUTO SAVE IS A SETTING FOR THE MODULE, not for a record — and there are two
+  // of them: this reviewer's, and the one an administrator applied to everyone.
+  // The LATER decision wins (see effectiveAutoSave), so "apply for everyone"
+  // genuinely reaches everyone and a reviewer who changes it afterwards keeps
+  // their change.
+  const [mine, setMine] = useState(() => readMyAutoSave());
+  const [org, setOrg] = useState<{ on: boolean; at: number } | null>(null);
+  const [applying, setApplying] = useState(false);
+  const autoSave = effectiveAutoSave(mine, org);
+
+  useEffect(() => {
+    if (!live) return;
+    let alive = true;
+    void getDccrAutoSaveDefault()
+      .then((d) => { if (alive) setOrg(d); })
+      // No default set, or it could not be read: this reviewer's own choice
+      // stands, which is what it did before there was an org setting at all.
+      .catch(() => { /* leave org null */ });
+    return () => { alive = false; };
+  }, [live]);
+
+  const chooseAutoSave = (on: boolean) => { writeMyAutoSave(on); setMine(readMyAutoSave()); };
+
+  const applyAutoSaveToEveryone = async () => {
+    setApplying(true);
+    const res = await setDccrAutoSaveDefault(autoSave);
+    setApplying(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not apply it for everyone.' }); return; }
+    logAudit({ action: 'dccr.autosave.default', target: autoSave ? 'on' : 'off', meta: { on: autoSave } });
+    setOrg(await getDccrAutoSaveDefault().catch(() => null));
+    setMsg({
+      tone: 'ok',
+      text: `Auto save is now ${autoSave ? 'ON' : 'OFF'} for everyone. Anyone who changes it for themselves after this keeps their own choice.`,
+    });
+  };
 
   const [tab, setTab] = useState<Tab>('register');
   const [rows, setRows] = useState<ReviewRow[]>([]);
@@ -434,7 +466,7 @@ export function DailyCallReview() {
                 <input
                   type="checkbox"
                   checked={autoSave}
-                  onChange={(e) => { setAutoSave(e.target.checked); setAutoSaveOn(e.target.checked); }}
+                  onChange={(e) => chooseAutoSave(e.target.checked)}
                 />
                 <span>Auto save</span>
               </label>

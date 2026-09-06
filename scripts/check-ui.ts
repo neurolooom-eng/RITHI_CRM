@@ -17,7 +17,7 @@ import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
-import { bulkReview2Block } from '../src/lib/dccr';
+import { bulkReview2Block, effectiveAutoSave } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
 
 let fail = 0;
@@ -850,8 +850,24 @@ console.log('\n-- Review 2 in bulk, except inside the first year --');
   // AUTO SAVE writes the answers and never the "completed by" stamps.
   eq('auto save does not complete a review',
     /if \(!auto\) \{[\s\S]{0,220}review2_by = reviewer;[\s\S]{0,120}review3_by = reviewer;/.test(dccr), true);
-  eq('...and it is off unless the reviewer turns it on',
-    /const \[autoSave, setAutoSave\] = useState<boolean>\(\(\) => autoSaveOn\(\)\)/.test(dccr), true);
+  eq('...and it is off unless somebody turns it on',
+    effectiveAutoSave(null, null), false);
+  // TWO DECISIONS, AND THE LATER ONE WINS. Neither "the admin always wins" nor
+  // "a personal choice always wins" is right: the first makes the reviewer's
+  // switch a lie, the second makes "apply for everyone" a lie.
+  eq('a reviewer with no admin default keeps their own choice',
+    effectiveAutoSave({ on: true, at: 100 }, null), true);
+  eq('an admin default reaches a reviewer who never chose',
+    effectiveAutoSave(null, { on: true, at: 100 }), true);
+  eq('“apply for everyone” overrides a choice made BEFORE it',
+    effectiveAutoSave({ on: true, at: 100 }, { on: false, at: 200 }), false);
+  eq('...and a reviewer who changes it AFTERWARDS keeps their change',
+    effectiveAutoSave({ on: true, at: 300 }, { on: false, at: 200 }), true);
+  // The pre-existing '1'/'0' shape must read as "chosen at the dawn of time",
+  // or upgrading would look like somebody actively choosing and would beat the
+  // administrator.
+  eq('an old stored preference does not outrank an admin default',
+    effectiveAutoSave({ on: true, at: 0 }, { on: false, at: 1 }), false);
   // A MODULE SETTING, not a per-record one: one switch, in the register's own
   // controls, inherited by every review opened. A tick box repeated on each
   // review invited the reading that it applied to that one call.

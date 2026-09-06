@@ -67,11 +67,50 @@ export const CALL_STATE_TONES: Record<string, 'success' | 'warning' | 'danger' |
 export const AUTOSAVE_KEY = 'rithi.dccr.autosave';
 export const AUTOSAVE_DELAY_MS = 1500;
 
-export function autoSaveOn(): boolean {
-  try { return localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch { return false; }
+// ---------------------------------------------------------------------------
+// WHOSE SETTING IS IT? BOTH, AND THE LATER ONE WINS.
+//
+// An administrator can set it for everyone ("Save / Apply for Everyone", the
+// user's ask 2026-09-06) and a reviewer can still set it for themselves. The
+// question that then decides everything is what happens when the two disagree.
+//
+// Neither "the admin always wins" nor "a personal choice always wins" is
+// right: the first makes the reviewer's switch a lie, the second makes "apply
+// for everyone" a lie. So BOTH CARRY A TIME, and the later decision stands. An
+// administrator applying it to everyone overrides the choices made before that
+// moment — which is what "for everyone" has to mean — and a reviewer who
+// changes it afterwards keeps their change.
+//
+// The same shape the ALMS theme uses for its default: a stored value is
+// honoured against WHEN it was stored, not merely because it exists.
+// ---------------------------------------------------------------------------
+export interface AutoSaveChoice { on: boolean; at: number }
+
+export function readMyAutoSave(): AutoSaveChoice | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (!raw) return null;
+    // The old shape was a bare '1'/'0'. Treat it as a choice made at the dawn
+    // of time, so any admin default supersedes it — an upgrade must not look
+    // like somebody actively choosing.
+    if (raw === '1' || raw === '0') return { on: raw === '1', at: 0 };
+    const v = JSON.parse(raw) as Partial<AutoSaveChoice>;
+    return typeof v?.on === 'boolean' ? { on: v.on, at: Number(v.at ?? 0) } : null;
+  } catch { return null; }
 }
-export function setAutoSaveOn(on: boolean): void {
-  try { localStorage.setItem(AUTOSAVE_KEY, on ? '1' : '0'); } catch { /* a preference is not worth an error */ }
+
+export function writeMyAutoSave(on: boolean): void {
+  try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ on, at: Date.now() })); }
+  catch { /* a preference is not worth an error */ }
+}
+
+// The effective setting: the later of the two decisions, or off if neither was
+// ever made. `orgAt` is when an administrator last applied it to everyone.
+export function effectiveAutoSave(mine: AutoSaveChoice | null, org: { on: boolean; at: number } | null): boolean {
+  if (!mine && !org) return false;
+  if (!mine) return org!.on;
+  if (!org) return mine.on;
+  return mine.at >= org.at ? mine.on : org.on;
 }
 
 // A CALL THAT FAILED INSIDE ITS FIRST YEAR IS REVIEWED ONE BY ONE.
