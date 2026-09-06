@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.107',
+    date: '2026-09-06',
+    title: 'Review 2 Pending and Review 3 Pending are their own tabs',
+    changes: [
+      'Two new tabs on the Daily Call Review, each carrying its own count: the calls waiting at Review 2, and the calls waiting at Review 3.',
+      'They are the Review Desk narrowed to one stage \u2014 the same three panes, the same questions, the same Save. Not a second copy of it, so they cannot drift apart.',
+      'These are the two lists somebody actually sits down to clear, which is why they are tabs rather than a filter to set each morning.',
+      'The counts on the tabs are exact totals for the year; the number in the Calls pane is what has LOADED, so it carries the \u201c+\u201d until you Load more.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.106',
     date: '2026-09-06',
     title: 'Reject and Drop in bulk too, and nothing happens until you confirm it',

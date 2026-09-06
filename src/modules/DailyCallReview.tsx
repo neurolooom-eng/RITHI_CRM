@@ -41,10 +41,12 @@ import './fieldcalls.css';
 // per product), and the export in the register's own format.
 // ===========================================================================
 
-type Tab = 'desk' | 'register' | 'grouping' | 'rootcause' | 'export';
+type Tab = 'desk' | 'r2' | 'r3' | 'register' | 'grouping' | 'rootcause' | 'export';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'desk', label: 'Review Desk', icon: '🗂️' },
+  { key: 'r2', label: 'Review 2 Pending', icon: '②' },
+  { key: 'r3', label: 'Review 3 Pending', icon: '③' },
   { key: 'register', label: 'Review Register', icon: '📋' },
   { key: 'grouping', label: 'DCCR Complaint Grouping', icon: '🗂️' },
   { key: 'rootcause', label: 'Root Cause Key Word', icon: '🔍' },
@@ -160,9 +162,11 @@ export function DailyCallReview() {
   // the rows LOADED, so every count here is a lower bound while more is
   // waiting and carries the "+"; the exact per-stage totals are the cards
   // above, which come from a full walk of the register.
+  // The two worklist tabs are the desk scoped to one review stage.
+  const deskStage = tab === 'r2' ? 'Review 2 Pending' : tab === 'r3' ? 'Review 3 Pending' : '';
   const deskGroups = useMemo(() => {
     const tree = new Map<string, Map<string, ReviewRow[]>>();
-    rows.forEach((r) => {
+    rows.filter((r) => !deskStage || String(r.review_status ?? '') === deskStage).forEach((r) => {
       const g1 = String(r.review_status ?? '— no review status —');
       const g2 = String(r.open_state ?? r.last_status ?? '— no call status —');
       if (!tree.has(g1)) tree.set(g1, new Map());
@@ -171,7 +175,12 @@ export function DailyCallReview() {
       inner.get(g2)!.push(r);
     });
     return [...tree.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [rows]);
+  }, [rows, deskStage]);
+
+  const deskShown = useMemo(
+    () => deskGroups.reduce((n, [, byState]) => n + [...byState.values()].reduce((a, b) => a + b.length, 0), 0),
+    [deskGroups],
+  );
 
   const deskRow = useMemo(() => rows.find((r) => r.ucn === deskUcn) ?? null, [rows, deskUcn]);
 
@@ -367,6 +376,10 @@ export function DailyCallReview() {
           >
             {t.icon} {t.label}
             {t.key === 'register' && counts.total > 0 && <span className="dccr-tab-count">{counts.total.toLocaleString()}</span>}
+            {/* EXACT: countCallReviews walks every page of the summary view, so
+                these take no "+" even while only the first page is on screen. */}
+            {t.key === 'r2' && statusCount('Review 2 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 2 Pending').toLocaleString()}</span>}
+            {t.key === 'r3' && statusCount('Review 3 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 3 Pending').toLocaleString()}</span>}
           </button>
         ))}
       </div>
@@ -378,14 +391,21 @@ export function DailyCallReview() {
           on the right — so the answer and the evidence for it are on screen at
           the same time. The splitters between them are draggable and the
           widths are remembered.                                             */}
-      {tab === 'desk' && (
+      {/* REVIEW 2 PENDING and REVIEW 3 PENDING are the DESK, narrowed to one
+          stage — the two worklists somebody actually sits down to clear, which
+          is why they are tabs rather than a filter to set each morning. Same
+          panes, same rules, same save; only the left-hand list is scoped, so
+          they cannot drift from the desk. */}
+      {(tab === 'desk' || tab === 'r2' || tab === 'r3') && (
         <div className="dccr-desk" style={{ gridTemplateColumns: `${widths[0]}% 6px ${widths[1]}% 6px 1fr` }}>
           {/* ---- 1. the calls, grouped --------------------------------- */}
           <div className="dccr-pane dccr-pane-list">
             <div className="dccr-pane-head">
               <b>Calls</b>
+              {/* LOADED (a lower bound, so "+") against the EXACT total for
+                  whatever this tab is scoped to. */}
               <span className="muted">
-                {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
+                {deskShown.toLocaleString()}{more ? '+' : ''} of {(deskStage ? statusCount(deskStage) : counts.total).toLocaleString()}
               </span>
               {more && (
                 <button className="btn btn-sm btn-ghost" onClick={() => void loadMore()} disabled={loadingMore}>

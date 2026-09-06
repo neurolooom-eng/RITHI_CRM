@@ -623,6 +623,17 @@ console.log('\n-- the DCCR review desk --');
 {
   const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
   eq('there is a Review Desk tab', /key: 'desk'/.test(dccr), true);
+  // The two worklists somebody sits down to clear are TABS, not a filter to
+  // set each morning — and they are the DESK narrowed, not a second copy of it.
+  eq('Review 2 Pending and Review 3 Pending are tabs',
+    /key: 'r2', label: 'Review 2 Pending'/.test(dccr) && /key: 'r3', label: 'Review 3 Pending'/.test(dccr), true);
+  eq('they render the same desk, scoped',
+    /tab === 'desk' \|\| tab === 'r2' \|\| tab === 'r3'/.test(dccr), true);
+  eq('and scope it by review status',
+    /deskStage = tab === 'r2' \? 'Review 2 Pending' : tab === 'r3' \? 'Review 3 Pending' : ''/.test(dccr), true);
+  // Their tab counts come from the full walk, so they are exact and take no "+".
+  eq('the worklist tab counts are the exact ones',
+    /t\.key === 'r2' && statusCount\('Review 2 Pending'\)/.test(dccr), true);
   eq('the calls are grouped by review stage, then call status',
     /review_status[\s\S]{0,200}open_state[\s\S]{0,120}deskGroups|const deskGroups[\s\S]{0,400}review_status[\s\S]{0,200}open_state/.test(dccr), true);
   eq('the panes are draggable', /onPointerDown=\{drag\(0\)\}/.test(dccr) && /onPointerDown=\{drag\(1\)\}/.test(dccr), true);

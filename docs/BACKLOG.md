@@ -650,6 +650,16 @@ points at these rows.
     "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
+- **Review 2 Pending / Review 3 Pending are tabs** (v0.9.107) — the two lists
+  somebody sits down to clear, so they are tabs rather than a filter to set
+  every morning. Each is the **Review Desk narrowed** (`deskStage`), not a
+  second copy: same three panes, same questions, same save, so they cannot
+  drift from it. `check:ui` asserts they render `tab === 'desk' || 'r2' || 'r3'`
+  through one block.
+  - The tab counts come from `countCallReviews`' full walk, so they are EXACT
+    and take no "+". The Calls pane's own number is what has LOADED and does
+    carry one. Both ways of the rule on one screen again.
+
 - **The Review Desk, and Review 2's two facts** (v0.9.104,
   `0117_frequent_failure.sql`) — the three-pane setup the user asked for, from
   the AppSheet original: calls grouped (Review Stage, then Call Status) |
