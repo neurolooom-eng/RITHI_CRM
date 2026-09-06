@@ -830,6 +830,30 @@ console.log('\n-- Review 2 in bulk, except inside the first year --');
     /onClick=\{\(\) => setConfirmBulk\(ids\)\}/.test(dccr), true);
   // SAID, NOT HIDDEN: a count of what the button will not take answers "why
   // is it not all of them?" where the question is asked.
+  // WHERE THE WORK IS. It shipped on the Review Register only and the first
+  // question was "where is it?" — asked from the Review 2 Pending tab, which
+  // is the list being cleared.
+  eq('the worklist tabs offer the bulk button too',
+    /Mark \{eligible\.length\} as NO/.test(dccr), true);
+  eq('Expand all / Collapse all are offered on the grouped list',
+    /⌄ Expand all/.test(dccr) && /⌃ Collapse all/.test(dccr), true);
+  {
+    const dt = readFileSync(`${process.cwd()}/src/components/table/DataTable.tsx`, 'utf8');
+    eq('...and on every grouped register',
+      /⌄ Expand all/.test(dt) && /⌃ Collapse all/.test(dt), true);
+    // Expand all has to reach every depth, or a nested grouping still needs a
+    // click per branch — which is the work the button exists to remove.
+    eq('Expand all opens every level, not just the top',
+      /if \(n\.children\?\.length\) walk\(n\.children\);/.test(dt), true);
+  }
+  // AUTO SAVE writes the answers and never the "completed by" stamps.
+  eq('auto save does not complete a review',
+    /if \(!auto\) \{[\s\S]{0,220}review2_by = reviewer;[\s\S]{0,120}review3_by = reviewer;/.test(dccr), true);
+  eq('...and it is off unless the reviewer turns it on',
+    /useState<boolean>\(\(\) => autoSaveOn\(\)\)/.test(dccr), true);
+  eq('...and it says when it last saved',
+    /answers saved \{timeAgo\(savedAt\)\}/.test(dccr), true);
+
   eq('the excluded ones are counted on screen',
     /must be reviewed one by one/.test(dccr), true);
 

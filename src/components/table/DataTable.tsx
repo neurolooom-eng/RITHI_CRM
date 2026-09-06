@@ -521,6 +521,18 @@ export function DataTable<T>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [liveKeys.join('|'), sortedRows],
   );
+  // Every path in the tree, at every depth — what "expand all" has to mean
+  // when the grouping is nested.
+  const allGroupPaths = (nodes: GroupNode<T>[]): Set<string> => {
+    const out = new Set<string>();
+    const walk = (ns: GroupNode<T>[]) => ns.forEach((n) => {
+      out.add(n.path);
+      if (n.children?.length) walk(n.children);
+    });
+    walk(nodes);
+    return out;
+  };
+
   const labelAt = (depth: number) =>
     groupable?.find((g) => g.key === liveKeys[depth])?.label ?? 'value';
 
@@ -552,6 +564,19 @@ export function DataTable<T>({
               .map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
           </select>
         ))}
+      {/* GROUPS OPEN CLOSED, so opening them one at a time is the common case
+          and worth a button — the shape Pending Dispatch already uses. Expand
+          all walks the whole tree, not just the top level: a two-level grouping
+          that opened only its outer headings would still need a click per
+          branch, which is the work this removes. */}
+      {liveKeys.length > 0 && groups && (
+        <>
+          <button className="btn btn-sm" title="Open every group"
+            onClick={() => setExpanded(allGroupPaths(groups))}>⌄ Expand all</button>
+          <button className="btn btn-sm" title="Close every group"
+            onClick={() => setExpanded(new Set())}>⌃ Collapse all</button>
+        </>
+      )}
     </span>
   ) : null;
 

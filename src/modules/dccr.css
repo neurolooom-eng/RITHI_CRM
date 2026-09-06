@@ -247,3 +247,13 @@
   line-height: 1.4;
 }
 .dccr-warn b { font-weight: 700; }
+
+/* The Expand all / Collapse all pair under the Calls heading. */
+.dccr-pane-subhead { top: 38px; gap: 6px; }
+.dccr-pane-note {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+}

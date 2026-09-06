@@ -1,5 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -15,7 +15,7 @@ import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
-  bulkReview2Block,
+  bulkReview2Block, autoSaveOn, setAutoSaveOn, AUTOSAVE_DELAY_MS,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
@@ -471,6 +471,42 @@ export function DailyCallReview() {
                 </button>
               )}
             </div>
+            {/* The list is grouped and opens closed, so the same pair the
+                registers have. Expand all opens BOTH levels — stage and call
+                status — or it would still be a click per stage. */}
+            {deskGroups.length > 0 && (
+              <div className="dccr-pane-head dccr-pane-subhead">
+                <button className="btn btn-sm" title="Open every group"
+                  onClick={() => setExpanded(new Set(deskGroups.flatMap(([stage, byState]) =>
+                    [`g1:${stage}`, ...[...byState.keys()].map((st) => `g2:${stage}:${st}`)])))}>
+                  ⌄ Expand all
+                </button>
+                <button className="btn btn-sm" title="Close every group"
+                  onClick={() => setExpanded(new Set())}>⌃ Collapse all</button>
+                {/* THE BULK BUTTON BELONGS WHERE THE WORK IS. It shipped on the
+                    Review Register only, and the first question asked was
+                    "where is it?" — from somebody standing on the Review 2
+                    Pending tab, which is the list they were clearing. Same
+                    confirmation, same function, same first-year rule; on this
+                    tab the loaded calls are already only the ones pending. */}
+                {editable && eligible.length > 0 && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    style={{ marginLeft: 'auto' }}
+                    title="Answer Review 2 as NO on every loaded call that may be answered in bulk"
+                    onClick={() => setConfirmBulk(eligible.map((r) => r.ucn))}
+                  >
+                    Mark {eligible.length} as NO
+                  </button>
+                )}
+              </div>
+            )}
+            {editable && blockedCount > 0 && (
+              <div className="dccr-pane-note">
+                {blockedCount} of the loaded calls must be reviewed one by one — under a year old,
+                age unknown, or already answered.
+              </div>
+            )}
             {deskGroups.length === 0 && <div className="muted" style={{ padding: 12 }}>No calls match these filters.</div>}
             {deskGroups.map(([stage, byState]) => {
               const n = [...byState.values()].reduce((a, b) => a + b.length, 0);
@@ -802,6 +838,15 @@ function ReviewDrawer({
   const [keywords, setKeywords] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  // AUTO SAVE, off unless this reviewer turned it on (DCCR only, the user's
+  // scope). `savedAt` is the acknowledgement — an automatic write that says
+  // nothing is indistinguishable from one that did not happen.
+  const [autoSave, setAutoSave] = useState<boolean>(() => autoSaveOn());
+  const [savedAt, setSavedAt] = useState<string>('');
+  // What was last WRITTEN, so a debounce that fires with nothing changed does
+  // not write anyway — and so switching to another call does not save the new
+  // call's untouched draft over itself.
+  const written = useRef<string>('');
   // The row on the register is from a page read; re-read this one call so the
   // report context (visits, spares, software version) is what it is right now.
   const [live, setLive] = useState<ReviewRow | null>(null);
@@ -896,17 +941,49 @@ function ReviewDrawer({
   const withCurrent = (list: string[], current?: string) =>
     current && !list.includes(current) ? [current, ...list] : list;
 
-  const save = async () => {
+  // ONE WRITER, TWO CALLERS. `auto` is the difference that matters: an
+  // automatic save writes the ANSWERS and nothing else, while pressing Save
+  // also stamps "completed by". Choosing the third dropdown must not put
+  // somebody's name against a judgement they have not read — and "All NO"
+  // fills three boxes in one click precisely so a person can then read them.
+  const write = async (auto: boolean) => {
     setBusy(true); setErr('');
     const patch: Record<string, unknown> = { ...draft };
-    if (stage2Done && !row.review2_done) patch.review2_by = reviewer;
-    if (stage3Done && !row.review3_done) patch.review3_by = reviewer;
+    if (!auto) {
+      if (stage2Done && !row.review2_done) patch.review2_by = reviewer;
+      if (stage3Done && !row.review3_done) patch.review3_by = reviewer;
+    }
     const r = await saveCallReview(ucn, String(row.call_number ?? ''), patch);
     setBusy(false);
-    if (!r.ok) { setErr(r.error ?? 'Could not save this review.'); return; }
-    logAudit({ action: 'dccr.review', target: ucn, meta: { stage2: stage2Done, stage3: stage3Done } });
-    await onSaved();
+    if (!r.ok) { setErr(r.error ?? `Could not ${auto ? 'auto-save' : 'save'} this review.`); return false; }
+    logAudit({
+      action: auto ? 'dccr.review.autosave' : 'dccr.review',
+      target: ucn, meta: { stage2: stage2Done, stage3: stage3Done, auto },
+    });
+    if (auto) setSavedAt(new Date().toISOString()); else await onSaved();
+    return true;
   };
+  const save = async () => { await write(false); };
+
+  // The draft as written, so an identical redraw is not a reason to save.
+  const draftKey = JSON.stringify(draft);
+
+  // WHEN THE CALL CHANGES, the baseline moves with it — otherwise opening a
+  // second call would look like an edit to the first and write it back.
+  useEffect(() => { written.current = ''; setSavedAt(''); }, [ucn]);
+
+  useEffect(() => {
+    if (!autoSave || !editable || !ucn) return;
+    // Nothing has been typed yet on this call: the first render is not an edit.
+    if (written.current === '') { written.current = draftKey; return; }
+    if (written.current === draftKey) return;
+    const t = setTimeout(() => {
+      written.current = draftKey;
+      void write(true);
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, autoSave, editable, ucn]);
 
   // ---- pane: what happened (the call, its visits, its spares) -------------
   const detailsPane = (
@@ -1221,10 +1298,33 @@ function ReviewDrawer({
 
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
 
-      <div className="row" style={{ marginTop: 12 }}>
+      <div className="row" style={{ marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={() => void save()} disabled={!editable || busy}>
           {busy ? 'Saving…' : 'Save review'}
         </button>
+        {editable && (
+          <label className="row" style={{ gap: 6, alignItems: 'center', fontSize: 13 }}
+            title="Answers are written as you choose them. Completing a review still needs Save.">
+            <input
+              type="checkbox"
+              checked={autoSave}
+              onChange={(e) => { setAutoSave(e.target.checked); setAutoSaveOn(e.target.checked); }}
+            />
+            <span>Auto save</span>
+          </label>
+        )}
+        {/* THE ACKNOWLEDGEMENT. An automatic write that says nothing is
+            indistinguishable from one that did not happen. */}
+        {autoSave && savedAt && (
+          <span className="muted" style={{ fontSize: 12.5 }}>
+            ✓ answers saved {timeAgo(savedAt)}
+          </span>
+        )}
+        {autoSave && (
+          <span className="muted" style={{ fontSize: 12.5 }}>
+            — auto save records the ANSWERS; <b>Save review</b> is what completes the stage.
+          </span>
+        )}
         {layout === 'drawer' && <button className="btn" onClick={onClose}>Close</button>}
         {!editable && <span className="muted">You need the “Complete the daily call review” permission to change this.</span>}
       </div>
