@@ -33,11 +33,19 @@ written so the only errors in its output are the ones labelled `expect ERROR`:
 
 ```bash
 node scripts/build-apply-bundles.mjs
-initdb -D /tmp/pg/data -U postgres --auth=trust
+initdb -D /tmp/pg/data -U postgres --auth=trust      # as a NON-root user
 pg_ctl -D /tmp/pg/data -o "-p 55432 -k /tmp/pg" -l /tmp/pg/log start
 psql -h /tmp/pg -p 55432 -U postgres -v ON_ERROR_STOP=1 \
   -f supabase/tests/_stub.sql $(for f in supabase/migrations/*.sql; do echo -n " -f $f"; done)
 psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
+```
+
+Then the two checks that need a database — the first proves no bundle undoes
+another, the second that no view has lost `security_invoker`:
+
+```bash
+npm run check:replay -- "-h /tmp/pg -p 55432 -U postgres"          # no -d: it makes its own
+npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
 ```
 
 ## Conventions
@@ -109,8 +117,21 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   Reporting Manager lost team visibility twice: 0092 was filed under `rbac`
   while `user_directory.sql` replays 0004, which defines the same function
   without the fix. It reads as "the migration was never applied"; it had been,
-  and was then overwritten. `npm run check:bundles` catches a NEW one; twelve
-  are already split and listed in that script.
+  and was then overwritten.
+  **`npm run check:replay -- "<psql args, no -d>"` is the one that proves it**:
+  it builds a database from `all.sql`, replays each bundle onto a copy, and
+  diffs every policy, function and view. Every bundle passes it today and it
+  must stay that way. Where an object cannot be moved into the bundle that owns
+  the last word, the module ends with a **guarded mirror** — a verbatim copy of
+  the owner's definition, skipped while the later module's tables are absent
+  (`0121_rbac_policy_tail.sql`, and the four `0122_*_replay_tail.sql`). A mirror
+  is only safe while it stays a copy, so `check:bundles` compares each one with
+  the migration it copies WORD FOR WORD and fails on drift; list it in `MIRRORS`
+  and keep it LAST in its module. `base.sql` is the one bundle with no mirror —
+  it would need 29 — so it **refuses** to run on a database that already has
+  `app_roles`.
+  `npm run check:bundles` also still catches a NEW object split across modules;
+  the ones already split are listed in that script.
 - **Every migration must be listed in a module in `build-apply-bundles.mjs`,**
   or the generator refuses to build. A migration in no module is also missing
   from every apply bundle, so a rebuilt project silently lacks it (0057/0058

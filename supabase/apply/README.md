@@ -26,6 +26,35 @@ Re-run it whenever a migration is added or edited, and commit the result. One
 file per module, regenerated in place, so bundles never duplicate or overwrite
 each other.
 
+## Running one must never undo another
+
+A bundle carries its module from the beginning, so a rule written early and
+narrowed by a LATER module used to go back to the wide version when the earlier
+bundle was re-run — no error, and the bundle reported success. That is fixed and
+kept fixed by proof, not by care:
+
+```bash
+npm run check:replay -- "-h /tmp/pg -p 55432 -U postgres"     # no -d: it makes its own
+```
+
+It builds a database from `all.sql`, replays each bundle onto a copy of it, and
+diffs every policy, function and view. Anything that comes back different is
+something that bundle silently reverts. Run it after any change under
+`supabase/migrations/`.
+
+When a fix lands, put it in the module that has the **last** word on the object.
+Where that is impossible — the migration also does work belonging to its own
+module — end the earlier module with a **guarded mirror** instead: a verbatim
+copy of the owner's definition, wrapped so it skips while the later module's
+tables are absent. See `0121_rbac_policy_tail.sql` and the four
+`0122_*_replay_tail.sql`, list it in `MIRRORS` in `scripts/check-bundles.mjs`,
+and keep it LAST in its module — `check:bundles` enforces both, and compares the
+copy with what it copies word for word.
+
+`base.sql` is the exception: it would need 29 mirrors, so it **refuses** to run
+on a database that already has `app_roles`. Bootstrap is unaffected; anywhere
+else, run `all.sql`.
+
 ## Using them
 
 1. Run **`_status.sql`** in the Supabase SQL Editor first. It reports one row
