@@ -1260,6 +1260,26 @@ export async function saveCallReview(
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// ANSWER REVIEW 2 FOR MANY CALLS AT ONCE (0119).
+//
+// The rule the function exists for: a call that failed inside its FIRST YEAR
+// is reviewed one by one, never in bulk — Review 2 is where "Warranty Failure
+// (1 yr)" is answered, so those are exactly the ones a person has to look at.
+// The screen hides them from the selection; the DATABASE refuses them, which
+// is what makes it a control rather than a convenience.
+// ---------------------------------------------------------------------------
+export async function bulkSetReview2(
+  ucns: string[], risk: string, warranty: string, frequent: string, by: string,
+): Promise<{ ok: boolean; updated?: number; skipped?: number; reason?: string; error?: string }> {
+  const { data, error } = await must().rpc('bulk_set_review2', {
+    p_ucns: ucns, p_risk: risk, p_warranty: warranty, p_frequent: frequent, p_by: by,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  const row = (Array.isArray(data) ? data[0] : data) as { updated?: number; skipped?: number; reason?: string } | null;
+  return { ok: true, updated: Number(row?.updated ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
+}
+
 // ---- masters (dropdown value-lists) ----------------------------------------
 // App master keys map to different sources: party -> parties, spare -> parts,
 // product -> products, complaint -> the 'standardComplaint' list; the rest are

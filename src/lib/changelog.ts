@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.112',
+    date: '2026-09-06',
+    title: 'Review 2 in bulk \u2014 except for anything that failed inside its first year',
+    changes: [
+      'On the Review Register you can now tick calls and answer Review 2 for all of them at once: Risk to Patient, Warranty Failure and Frequent Failure all set to NO. There is a \u201cSelect all eligible\u201d button, and a confirmation before anything is written.',
+      'A CALL THAT FAILED UNDER 366 DAYS CANNOT BE TICKED. Review 2 is where Warranty Failure (1 yr) is answered, so those are exactly the ones a person has to look at \u2014 they stay one by one. The database refuses them too, not just the screen.',
+      'A machine whose age is not known is treated the same way. \u201cNot known to be inside its first year\u201d is not \u201cknown to be outside it\u201d.',
+      'The toolbar says how many of the loaded calls are excluded, so \u201cwhy is it not all of them?\u201d is answered where you ask it.',
+      'A call whose Review 2 is already answered is left exactly as it is \u2014 this fills what is pending, it does not rewrite a decision.',
+      'The Service Report link in the visit list is now a proper button rather than faint grey text \u2014 it is the document the review is judging.',
+      'Needs migration: run supabase/apply/daily_review.sql.',
+    ],
+  },
+  {
     version: '0.9.111',
     date: '2026-09-06',
     title: 'Groups open collapsed, and the report shows the hour meter',

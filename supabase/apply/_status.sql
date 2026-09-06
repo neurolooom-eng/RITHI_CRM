@@ -329,6 +329,8 @@ with checks(sort_order, bundle, provides, present) as (
     (78, 'spares: reject and drop in bulk, and somebody can actually drop', 'decide_spare_lines() -- approve / reject / drop many at once, each at the stage it is AT, a reason required for the last two. AND the spare.drop permission 0036 never granted to any role (0118). Restore: Spare_1.sql',
         (to_regprocedure('public.decide_spare_lines(bigint[],text,text,text)') is not null
      and exists (select 1 from public.app_roles where permissions ? 'spare.drop'))),
+    (79, 'DCCR: Review 2 in bulk, except inside the first year', 'bulk_set_review2() -- answers Review 2 for many calls at once and REFUSES any that failed under 366 days or whose age is unknown; those are reviewed one by one (0119). Restore: daily_review.sql',
+        to_regprocedure('public.bulk_set_review2(text[],text,text,text,text)') is not null),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running
