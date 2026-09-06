@@ -4,6 +4,8 @@ import { useAuth } from '../../lib/auth';
 import { formatSmartDate } from '../../lib/format';
 import { useUserNames, looksLikeUserId, nameForUserId } from '../../lib/userNames';
 import { getView, setView, sheetsConfigured, type TableView } from '../../lib/sheets';
+import { myTableView, setRoleTableView, clearRoleTableView, supabaseConfigured, type RoleTableView } from '../../lib/supabase';
+import { ROLE_KEYS } from '../../lib/rbac';
 import './table.css';
 
 // Cache of shared (admin-set) views per table key, so we fetch each once.
@@ -127,6 +129,11 @@ interface Persisted {
   order: string[];
   widths: Record<string, number>;
   hidden?: string[];
+  // WHEN this reader arranged it. Compared against the role layout's `set_at`
+  // so the later decision wins; absent on a layout saved before 0120, which
+  // therefore reads as "arranged at the dawn of time" and yields to an
+  // administrator — an upgrade must not look like somebody actively choosing.
+  at?: number;
 }
 
 export function DataTable<T>({
@@ -209,6 +216,9 @@ export function DataTable<T>({
   const [overKey, setOverKey] = useState<string | null>(null);
   const [colPanel, setColPanel] = useState(false);
   const [viewMsg, setViewMsg] = useState('');
+  // The role layout in force, so the panel can say whose it is.
+  const [roleView, setRoleView] = useState<{ view: RoleTableView; setAt: number; role: string } | null>(null);
+  const [roleTarget, setRoleTarget] = useState('');
 
   // Wrap text in every cell — ON by default for every table, with a toggle so a
   // user can switch to single-line (truncated) rows. Persisted per table.
@@ -333,32 +343,69 @@ export function DataTable<T>({
     if (Array.isArray(v.hidden)) setHidden(new Set(v.hidden));
   };
 
-  // Restore this user's saved layout; else fall back to the shared default.
+  // ---- whose layout applies ------------------------------------------------
+  //
+  // Three answers, and they are ranked BY WHEN THEY WERE DECIDED, not by who
+  // decided (0120, the same rule as the DCCR's Auto Save default):
+  //
+  //   1. what an administrator set FOR THIS READER'S ROLE, or for everyone;
+  //   2. what this reader arranged themselves;
+  //   3. the register's built-in columns.
+  //
+  // Between 1 and 2, the LATER one wins. "The admin always wins" would make
+  // every reader's column picker a lie; "your own always wins" would make
+  // "apply to a role" a lie. The reader's arrangement therefore carries a time
+  // (`at`), and the role layout carries `set_at`, stamped by the database so a
+  // caller cannot back-date one.
   useEffect(() => {
     if (!persistKey) return;
-    const raw = localStorage.getItem(persistKey);
-    if (raw) {
-      try {
-        const p: Persisted = JSON.parse(raw);
-        setWidths((w) => ({ ...w, ...p.widths }));
-        if (p.order) applyView({ order: p.order });
-        setHidden(new Set(Array.isArray(p.hidden) ? p.hidden : [...defaultHidden]));
-        viewActiveRef.current = true;
-      } catch { /* ignore corrupt layout */ }
-      return;
-    }
-    // No personal view — load the shared "default for everyone" if present.
-    if (!storageKey || !sheetsConfigured()) return;
-    if (globalViewCache[storageKey] !== undefined) {
-      const cached = globalViewCache[storageKey];
-      if (cached) { applyView(cached); viewActiveRef.current = true; }
-      return;
-    }
     let cancelled = false;
-    void getView(storageKey).then((v) => {
-      globalViewCache[storageKey] = v;
-      if (!cancelled && v) { applyView(v); viewActiveRef.current = true; }
-    });
+
+    const mine = (() => {
+      const raw = localStorage.getItem(persistKey);
+      if (!raw) return null;
+      try { return JSON.parse(raw) as Persisted; } catch { return null; }
+    })();
+    const applyMine = () => {
+      if (!mine) return;
+      setWidths((w) => ({ ...w, ...mine.widths }));
+      if (mine.order) applyView({ order: mine.order });
+      setHidden(new Set(Array.isArray(mine.hidden) ? mine.hidden : [...defaultHidden]));
+      viewActiveRef.current = true;
+    };
+
+    // Show the reader's own immediately — the role layout is a round trip away
+    // and a register that renders bare for half a second reads as broken.
+    applyMine();
+
+    if (!storageKey || !supabaseConfigured()) {
+      // No database: the sheet-era shared default is the only other answer.
+      if (mine || !sheetsConfigured()) return;
+      if (globalViewCache[storageKey ?? ''] !== undefined) {
+        const cached = globalViewCache[storageKey ?? ''];
+        if (cached) { applyView(cached); viewActiveRef.current = true; }
+        return;
+      }
+      void getView(storageKey ?? '').then((v) => {
+        globalViewCache[storageKey ?? ''] = v;
+        if (!cancelled && v) { applyView(v); viewActiveRef.current = true; }
+      });
+      return () => { cancelled = true; };
+    }
+
+    void myTableView(storageKey)
+      .then((role: { view: RoleTableView; setAt: number; role: string } | null) => {
+        if (cancelled || !role) return;
+        setRoleView(role);
+        // The later decision stands.
+        if (mine && Number(mine.at ?? 0) >= role.setAt) return;
+        applyView(role.view);
+        if (Array.isArray(role.view.group)) saveGroupKeys(role.view.group);
+        if (typeof role.view.wrap === 'boolean') setWrapAll(role.view.wrap);
+        viewActiveRef.current = true;
+      })
+      .catch(() => { /* no role layout readable — the reader's own stands */ });
+
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persistKey]);
@@ -392,7 +439,11 @@ export function DataTable<T>({
   const persist = (nextOrder: string[], nextWidths: Record<string, number>, nextHidden: Set<string> = hidden) => {
     viewActiveRef.current = true; // user has an explicit view now
     if (persistKey)
-      localStorage.setItem(persistKey, JSON.stringify({ order: nextOrder, widths: nextWidths, hidden: [...nextHidden] }));
+      // `at` is what makes this a DECISION rather than just a state: it is
+      // compared against a role layout's set_at, and the later one wins.
+      localStorage.setItem(persistKey, JSON.stringify({
+        order: nextOrder, widths: nextWidths, hidden: [...nextHidden], at: Date.now(),
+      }));
   };
 
   const colMap = useMemo(() => Object.fromEntries(mergedColumns.map((c) => [c.key, c])), [mergedColumns]);
@@ -427,8 +478,41 @@ export function DataTable<T>({
     setViewMsg('Reset to default.');
   };
 
+  // WHAT IS ON SCREEN, as a layout. The grouping and the wrap go with it: a
+  // "view" that carried only the columns and left the reader grouped by
+  // something else is not the view anybody arranged.
+  const currentView = (): RoleTableView => ({
+    order, widths, hidden: [...hidden], group: groupKeys, wrap: wrapAll,
+  });
+
+  // Apply it to a role — or to everyone, which is the same mechanism with an
+  // empty role, so the two cannot drift apart (0120).
+  const applyToRole = async (role: string) => {
+    if (!storageKey) return;
+    setViewMsg(role ? `Applying to ${role}…` : 'Applying to everyone…');
+    const res = await setRoleTableView(storageKey, role, currentView());
+    if (!res.ok) { setViewMsg(res.error ?? 'Could not apply it.'); return; }
+    const fresh = await myTableView(storageKey).catch(() => null);
+    setRoleView(fresh);
+    setViewMsg(role
+      ? `Applied to ${role}. Anyone in that role who rearranges it afterwards keeps their own.`
+      : 'Applied to everyone. Anyone who rearranges it afterwards keeps their own.');
+  };
+
+  const clearForRole = async (role: string) => {
+    if (!storageKey) return;
+    setViewMsg('Clearing…');
+    const res = await clearRoleTableView(storageKey, role);
+    if (!res.ok) { setViewMsg(res.error ?? 'Could not clear it.'); return; }
+    setRoleView(await myTableView(storageKey).catch(() => null));
+    setViewMsg(role ? `Cleared for ${role}.` : 'Cleared for everyone.');
+  };
+
   const saveForEveryone = async () => {
     if (!storageKey) return;
+    // The database is the register's home; the sheet path is what is left of
+    // the sheet era and only carries the columns.
+    if (supabaseConfigured()) { await applyToRole(''); return; }
     setViewMsg('Saving…');
     const view: TableView = { order, widths, hidden: [...hidden] };
     const ok = await setView(storageKey, view);
@@ -881,12 +965,45 @@ export function DataTable<T>({
                     <button className="btn btn-sm" onClick={resetLayout}>Reset</button>
                     <div className="spacer" />
                     {can('manage-users') && (
-                      <button className="btn btn-sm btn-primary" onClick={() => void saveForEveryone()} title="Save this layout as the default for all users">
+                      <button className="btn btn-sm btn-primary" onClick={() => void saveForEveryone()} title="Apply this layout — columns, order, widths, grouping — to everybody">
                         Save for everyone
                       </button>
                     )}
                   </div>
-                  <div className="dt-cols-note muted">Your changes are saved for you automatically.</div>
+                  {/* AND FOR ONE ROLE. Same layout, same mechanism, narrower
+                      audience: "this is how the Stores In-charge should see
+                      Pending Dispatch" is a thing an administrator can now say
+                      (the user's ask, 2026-09-06). Everyone is the same
+                      mechanism with an empty role, so the two cannot drift. */}
+                  {can('manage-users') && supabaseConfigured() && (
+                    <div className="dt-cols-role">
+                      <label className="field-label" style={{ marginBottom: 4 }}>…or apply it to one role</label>
+                      <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                        <select className="select" value={roleTarget} onChange={(e) => setRoleTarget(e.target.value)}>
+                          <option value="">— pick a role —</option>
+                          {ROLE_KEYS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <button className="btn btn-sm" disabled={!roleTarget} onClick={() => void applyToRole(roleTarget)}>
+                          Apply to {roleTarget || 'role'}
+                        </button>
+                        <button className="btn btn-sm btn-ghost" disabled={!roleTarget} onClick={() => void clearForRole(roleTarget)}>
+                          Clear
+                        </button>
+                      </div>
+                      {/* Whose layout is actually in force, said rather than
+                          left to be worked out. */}
+                      {roleView && (
+                        <div className="dt-cols-note muted" style={{ marginTop: 6 }}>
+                          In force here: the layout set for <b>{roleView.role || 'everyone'}</b>.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="dt-cols-note muted">
+                    Your changes are saved for you automatically — and they win over a layout set for
+                    your role if you make them afterwards.
+                  </div>
+                  {viewMsg && <div className="dt-cols-note">{viewMsg}</div>}
                 </div>
               </>
             )}

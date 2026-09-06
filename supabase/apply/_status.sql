@@ -331,6 +331,10 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from public.app_roles where permissions ? 'spare.drop'))),
     (79, 'DCCR: Review 2 in bulk, except inside the first year', 'bulk_set_review2() -- answers Review 2 for many calls at once and REFUSES any that failed under 366 days or whose age is unknown; those are reviewed one by one (0119). Restore: daily_review.sql',
         to_regprocedure('public.bulk_set_review2(text[],text,text,text,text)') is not null),
+    (80, 'registers: a layout can be set for a ROLE', 'role_table_views + set_role_table_view() / my_table_view() -- columns, order, widths and grouping, per role (role '''' = everyone). set_at is stamped by the database, so the reader''s own arrangement and the administrator''s are ranked by WHEN, not by who (0120). Restore: rbac.sql',
+        (to_regclass('public.role_table_views') is not null
+     and to_regprocedure('public.set_role_table_view(text,text,jsonb)') is not null
+     and to_regprocedure('public.my_table_view(text)') is not null)),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running

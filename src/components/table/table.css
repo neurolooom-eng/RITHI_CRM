@@ -238,3 +238,11 @@
   border: 1px solid var(--primary, #3b6fd4);
   border-radius: 8px;
 }
+
+/* Applying a layout to one role — an administrator's control, so it is set
+   apart from the reader's own column picker above it. */
+.dt-cols-role {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 8px;
+}

@@ -628,6 +628,29 @@ points at these rows.
   - ✅ **`Spare_1.sql` run 2026-09-06** — `_status.sql` row 76.
 
 ### Every register
+- **A layout can be set for a ROLE** (v0.9.117, `0120_role_table_views.sql`) —
+  "like save for everyone, I need option to set the views to roles". One row
+  per (register, role) holding columns, order, widths and GROUPING; `role = ''`
+  is everyone, so the same mechanism answers both and they cannot drift.
+  - The old "save for everyone" went through the Apps Script sheet bridge,
+    carried only the columns, and had no notion of a role. On a Supabase
+    project it now routes through the same function with an empty role.
+  - **Ranked by WHEN, not by who** — the reader's own arrangement carries
+    `at`, the role layout carries `set_at` stamped by the database (a caller
+    cannot back-date one). Same rule as the Auto Save default and for the same
+    reason: "the admin always wins" makes every column picker a lie, "your own
+    always wins" makes "apply to a role" a lie.
+  - A layout stored before 0120 has no `at`, so it reads as time 0 and yields
+    to the first administrator layout — an upgrade must not look like somebody
+    actively arranging.
+  - Writes go through `set_role_table_view()` / `clear_role_table_view()`; the
+    table itself refuses `insert` from `authenticated`, so the rule lives in
+    one place and `set_at` cannot be forged. Test 9 asserts that.
+  - `my_table_view()` resolves the role IN THE DATABASE — a role name is never
+    matched in the browser against a role the browser only thinks it has.
+  - ⚠️ **Run `rbac.sql`** — `_status.sql` row 80, verified NO before and yes
+    after.
+
 - **Load more, Refresh and the sync age live together** (v0.9.105) — the user's
   rule, with the AppSheet screens as the reference: they answer the same
   question the count does ("is this current, and is there more?"), so they
