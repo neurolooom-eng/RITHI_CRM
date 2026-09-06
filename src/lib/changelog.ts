@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.108',
+    date: '2026-09-06',
+    title: 'A failure inside the first year says so, in red',
+    changes: [
+      'On Review 2, a machine that failed at under 366 days now shows a red warning \u2014 \u26a0\ufe0f \u201cAge at failure 211 days \u00b7 With in 1 yr \u2014 WITHIN THE FIRST YEAR\u201d \u2014 instead of a grey note in the same type as \u201cover a year old\u201d. It is the answer to the Warranty Failure question sitting right above it, so it reads like one.',
+      'Over a year old stays a plain note; a machine with no warranty start still says the age is not known rather than guessing.',
+      'The four facts a review is actually about are lifted out of the reference ones on the Call Details card: CUSTOMER, PRODUCT \u00b7 SERIAL, CALL STATUS and NATURE OF COMPLAINT. They used to be the same grey 13px as the call number and the engineer.',
+      'Call Status now carries its own colour \u2014 Unattended red, Unsolved amber, Report pending blue, Solved green \u2014 so the state reads before the word does.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.107',
     date: '2026-09-06',
     title: 'Review 2 Pending and Review 3 Pending are their own tabs',

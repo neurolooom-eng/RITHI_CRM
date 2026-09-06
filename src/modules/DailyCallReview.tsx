@@ -14,7 +14,7 @@ import { fallbackList } from './masterLists';
 import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
-  DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
+  CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
@@ -777,14 +777,24 @@ function ReviewDrawer({
   // ---- pane: what happened (the call, its visits, its spares) -------------
   const detailsPane = (
     <>
+      {/* FOUR OF THESE SEVEN ARE WHAT THE REVIEW IS ABOUT — which machine, at
+          which customer, in what state, complaining of what. The other three
+          are reference. They were all set in the same 13px grey, so the ones
+          that decide the answers had to be hunted for; `is-key` lifts them
+          (the user's marks on the screen, 2026-09-06). Call Status keeps its
+          own state colour, because "Unattended" and "Solved" are not the same
+          kind of fact. */}
       <div className="dccr-callcard">
         <div><span>Call Number</span>{row.call_number || '—'}</div>
         <div><span>Call Date</span>{fmtLongDate(row.reg_date) || '—'}</div>
-        <div><span>Customer</span>{row.party_name || '—'}</div>
-        <div><span>Product · Serial</span>{[row.product_name, row.serial].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="is-key"><span>Customer</span>{row.party_name || '—'}</div>
+        <div className="is-key"><span>Product · Serial</span>{[row.product_name, row.serial].filter(Boolean).join(' · ') || '—'}</div>
         <div><span>Engineer</span>{row.allocated_to || '—'}</div>
-        <div><span>Call Status</span>{row.open_state || row.last_status || row.status || '—'}</div>
-        <div className="dccr-wide" style={{ gridColumn: '1 / -1' }}>
+        <div className="is-key">
+          <span>Call Status</span>
+          {statusBadge(String(row.open_state || row.last_status || row.status || '—'), CALL_STATE_TONES)}
+        </div>
+        <div className="dccr-wide is-key" style={{ gridColumn: '1 / -1' }}>
           <span>Nature of Complaint</span>{row.complaint_reported || row.standard_complaint || '—'}
         </div>
       </div>
@@ -952,14 +962,30 @@ function ReviewDrawer({
                 scrolling away from the question to find the fact that settles
                 it. The one-year line is drawn for the reviewer rather than
                 left as mental arithmetic on a day count. */}
-            <div className="field-help" style={{ marginTop: 6 }}>
-              {ctx.age_days == null
-                ? 'Age of the product at failure: not known — no warranty start on the machine.'
-                : <>Age of the product at failure: <b>{ctx.age_days.toLocaleString()} days</b>
-                    {ctx.age_group ? ` · ${ctx.age_group}` : ''}
-                    {' — '}
-                    <b>{ctx.age_days <= 365 ? 'within the first year' : 'over a year old'}</b>.</>}
-            </div>
+            {/* UNDER A YEAR IS THE ANSWER TO THE QUESTION ABOVE IT, so it is a
+                WARNING and not a note. A machine that failed inside its first
+                year is the case Warranty Failure exists for, and it was set in
+                the same grey as "over a year old" — the reviewer had to read
+                the number and do the arithmetic to notice. 366, not 365: the
+                user's line (2026-09-06). */}
+            {ctx.age_days == null ? (
+              <div className="field-help" style={{ marginTop: 6 }}>
+                Age of the product at failure: not known — no warranty start on the machine.
+              </div>
+            ) : ctx.age_days < 366 ? (
+              <div className="dccr-warn" style={{ marginTop: 6 }}>
+                <span aria-hidden="true">⚠️</span>
+                <span>
+                  Age at failure <b>{ctx.age_days.toLocaleString()} days</b>
+                  {ctx.age_group ? ` · ${ctx.age_group}` : ''} — <b>WITHIN THE FIRST YEAR</b>
+                </span>
+              </div>
+            ) : (
+              <div className="field-help" style={{ marginTop: 6 }}>
+                Age at failure: <b>{ctx.age_days.toLocaleString()} days</b>
+                {ctx.age_group ? ` · ${ctx.age_group}` : ''} — over a year old.
+              </div>
+            )}
           </div>
           <div>
             <Choice label="Frequent Failure" value={draft.frequent_failure} onChange={set('frequent_failure')} disabled={!editable} />

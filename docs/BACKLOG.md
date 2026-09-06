@@ -650,6 +650,20 @@ points at these rows.
     "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
+- **A first-year failure is a warning, and the review's four facts are lifted**
+  (v0.9.108) — the user's marks on the Review Desk screenshot.
+  - `age_days < 366` (the user's line, not 365) renders as a red warning with
+    ⚠️ rather than a grey note. It is the ANSWER to "Warranty Failure (1 yr)"
+    sitting directly above it, and it was set in the same type as "over a year
+    old", so the reviewer had to read the number and do the arithmetic.
+    `check:ui` pins the boundary — `<= 365` or `< 365` would move the day
+    silently.
+  - CUSTOMER, PRODUCT · SERIAL, CALL STATUS and NATURE OF COMPLAINT get
+    `is-key` on the call card: weight, size and a tinted ground rather than a
+    highlighter colour, so it holds in both themes. Call Status uses the new
+    `CALL_STATE_TONES` — the call's own state is not a review stage and must
+    not be coloured as one.
+
 - **Review 2 Pending / Review 3 Pending are tabs** (v0.9.107) — the two lists
   somebody sits down to clear, so they are tabs rather than a filter to set
   every morning. Each is the **Review Desk narrowed** (`deskStage`), not a

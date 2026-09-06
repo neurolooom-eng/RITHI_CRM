@@ -31,6 +31,18 @@ export const COMMON_PRODUCT = 'COMM';
 export type ReviewStatus = 'Review 1 Pending' | 'Review 2 Pending' | 'Review 3 Pending' | 'Review Completed';
 export const REVIEW_STATUSES: ReviewStatus[] = ['Review 1 Pending', 'Review 2 Pending', 'Review 3 Pending', 'Review Completed'];
 
+// THE CALL's own state, which is a different fact from the paperwork's. Kept
+// beside the review tones so the two are read together and nobody colours
+// "Unattended" as though it were a review stage.
+export const CALL_STATE_TONES: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'primary'> = {
+  Unattended: 'danger',
+  Unsolved: 'warning',
+  'Report pending': 'info',
+  Solved: 'success',
+  Cancelled: 'neutral',
+  Reopened: 'warning',
+};
+
 export const REVIEW_STATUS_TONES: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'primary'> = {
   'Review 1 Pending': 'danger',
   'Review 2 Pending': 'warning',

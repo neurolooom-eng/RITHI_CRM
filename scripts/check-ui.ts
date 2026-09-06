@@ -649,8 +649,22 @@ console.log('\n-- the DCCR review desk --');
     /\{separator\}\s*\n\s*<div className="dccr-pane dccr-pane-details">/.test(dccr), true);
 
   // Review 2's two new facts, each under the question it answers.
+  // UNDER A YEAR IS THE ANSWER to the question above it, so it is a warning
+  // and not a note. 366, not 365 — the user's line. If the comparison ever
+  // becomes <= 365 or < 365 the boundary day changes silently.
+  eq('a failure inside the first year is shown as a warning',
+    /ctx\.age_days < 366 \? \([\s\S]{0,200}dccr-warn/.test(dccr), true);
+  eq('...with a warning symbol', /dccr-warn[\s\S]{0,200}⚠️/.test(dccr), true);
+  eq('...and over a year old stays a plain note',
+    /over a year old/.test(dccr), true);
+  // The four facts the review is about, lifted out of the reference ones.
+  eq('customer, machine, call status and complaint are lifted',
+    (dccr.match(/className="dccr-wide is-key"|className="is-key"/g) ?? []).length, 4);
+  eq('the call status carries its own state colour, not a review-stage one',
+    /statusBadge\(String\(row\.open_state[\s\S]{0,80}CALL_STATE_TONES\)/.test(dccr), true);
+
   eq('the product age sits under Warranty Failure',
-    /Warranty Failure \(1 yr\)[\s\S]{0,600}Age of the product at failure/.test(dccr), true);
+    /Warranty Failure \(1 yr\)[\s\S]{0,1400}Age (of the product )?at failure/.test(dccr), true);
   eq('the frequent-failure history sits under Frequent Failure',
     /label="Frequent Failure"[\s\S]{0,900}earlier failure/.test(dccr), true);
   // A FAILED READ MUST NOT READ AS "no earlier failures" — that is the one
