@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.102',
+    date: '2026-09-06',
+    title: 'The Daily Call Review opens grouped by Review Status',
+    changes: [
+      'The register now opens with the calls sorted into their review stages \u2014 Review 1 Pending, Review 2 Pending, Review 3 Pending, Review Completed \u2014 each heading collapsible, so what is waiting at each stage is visible before you filter for anything.',
+      'You can group by something else instead, or nest up to three levels: Review Status, Call Status, Product, Engineer, Complaint Grouping. Whatever you pick is remembered.',
+      'TURN IT OFF AND IT STAYS OFF. Clearing the grouping is remembered too \u2014 the register will not put it back on your next visit.',
+      'TWO SETS OF NUMBERS, AND THEY MEAN DIFFERENT THINGS. The cards along the top are EXACT totals for the whole year. A group heading counts the rows LOADED, so while more is waiting behind Load more it shows a \u201c+\u201d \u2014 \u201cReview Completed 470+\u201d means at least 470.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.101',
     date: '2026-09-06',
     title: 'An early PM visit is not a mistake',

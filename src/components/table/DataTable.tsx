@@ -70,6 +70,11 @@ export interface DataTableProps<T> {
    *  The chosen one is remembered per user, as filters are: what you are
    *  looking at is yours, not the machine's. */
   groupable?: { key: string; label: string }[];
+  // How the register OPENS when this reader has never chosen a grouping. A
+  // stored choice always wins — including the empty one, so somebody who
+  // deliberately ungroups stays ungrouped rather than having it put back on
+  // every visit.
+  defaultGroup?: string[];
 }
 
 // A cell value straight from the data may not be a primitive: a jsonb column
@@ -144,6 +149,7 @@ export function DataTable<T>({
   dense = false,
   allFields,
   groupable,
+  defaultGroup,
   selectable,
   selected,
   onSelectedChange,
@@ -239,10 +245,13 @@ export function DataTable<T>({
   const [groupKeys, setGroupKeys] = useState<string[]>(() => {
     try {
       const raw = groupKeyStore ? localStorage.getItem(groupKeyStore) : null;
-      if (!raw) return [];
+      // NOTHING STORED is different from STORED AS EMPTY. The first is a reader
+      // who has never touched the grouping, and gets the register's own default;
+      // the second is one who deliberately turned it off, and keeps it off.
+      if (raw === null) return defaultGroup ?? [];
       const v = raw.startsWith('[') ? JSON.parse(raw) : [raw];
       return Array.isArray(v) ? v.filter((k) => typeof k === 'string' && k) : [];
-    } catch { return []; }
+    } catch { return defaultGroup ?? []; }
   });
   const saveGroupKeys = (ks: string[]) => {
     const clean = ks.filter(Boolean);
