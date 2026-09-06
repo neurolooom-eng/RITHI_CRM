@@ -489,6 +489,14 @@ points at these rows.
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
 ### Calls
+- **`supabase/apply/_registered_by_check.sql`** — read-only: how much of the
+  register is attributable at all, where the line falls between stamped and
+  unstamped, and WHO has been registering calls (the vigilance question). Two
+  defects were found by running it against a fixture rather than by reading it:
+  sections 3/4 used an INNER join to `profiles`, which silently dropped a call
+  whose registrar's profile had gone — out of a count whose whole purpose is to
+  be complete; and section 5 gave the same label to "no registrar stamped" and
+  "stamped, but no profile", which are different facts and only one is a gap.
 - **Who REGISTERED a call is the database's to say** (v0.9.97,
   `0113_call_creator_authoritative.sql`) — a COMPLIANCE control, not a
   convenience: only the Hotline engineer is trained on the vigilance questions
