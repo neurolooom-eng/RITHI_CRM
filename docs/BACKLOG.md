@@ -282,9 +282,18 @@ in a chat message: `rbac.sql` FIRST, then the other three. Run the other way
 round it re-reverts rows 69-74, which is exactly how row 40 came back NO after
 the first attempt.
 
-⚠️ REPORTED, NOT VERIFIED FROM HERE — the same rule as every round above.
-`_status.sql` is the evidence; this file is a note, and it has twice claimed
-the opposite of what was actually applied.
+✅ **VERIFIED — every row of `_status.sql` reads `yes`, all 85**, from the
+user's own output on 2026-09-06 after the runs above. Not "reported" this time:
+this round has the evidence behind it, which is the only thing that makes a
+line in this file worth reading. (The rule still stands for every other entry —
+`_status.sql` is the evidence, this file is a note, and it has twice claimed
+the opposite of what was actually applied.)
+
+Worth keeping in view because two rows now read `yes` for a REASON THAT CAN BE
+UNDONE: row 40 and rows 69-74 are correct because `rbac.sql` was run FIRST.
+Running it again on its own, without the other three afterwards, puts them
+back to NO. `_status.sql`'s header says so; `npm run check:bundles` lists the
+24 further rules with the same shape.
 
 ⚠️ **Still outstanding on the user's side, and NOT SQL** — "ran all sql
 scripts" does not cover these: the 77 missing yearly consumptions (delete +
