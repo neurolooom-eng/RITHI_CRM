@@ -488,6 +488,43 @@ points at these rows.
 - Versioned default Web App URL baked into the app (clients auto-adopt on bump).
 - Local caching with 30-min force-sync and "synced X ago"; force-update button.
 
+### Apply bundles
+- ⚠️ **A bundle replay was reverting policies, and the check could not see it**
+  (v0.9.99, 2026-09-06) — the user's `_status.sql` came back with row 40 NO.
+  Nothing had failed to apply: `srl_insert` is created by 0008 (`rbac`) and
+  redefined by 0087/0088, which sat in `spare_requests`. Running `rbac.sql`
+  for 0110 the day before put 0008's version back, silently, and a spare line
+  against a stub parent was refused again. Reproduced exactly: full apply →
+  row 40 yes; replay `rbac.sql` → NO.
+  - **FIXED for this object**: 0087 and 0088 MOVED into the `rbac` module, so
+    every definition of `srl_insert` is in one bundle. Safe order-wise —
+    `spare_request_lines`, `request_uid` and `spare_requests` are all 0001
+    (base, which runs first), `has_perm`/`is_admin` are 0008 above them, and
+    the helper's body is plpgsql so it is not parsed until it runs. Verified:
+    fresh `all.sql` clean and all-yes; replay `rbac.sql` alone → row 40 still
+    yes.
+  - **`check:bundles` NOW SEES POLICIES.** It checked functions, views and
+    procedures only, which is why this was invisible to it. Keyed on
+    `table.policy`, because two tables may each have an `xxx_read`.
+  - It found **24 more**, all older than the check. Listed in `KNOWN` rather
+    than unpicked: moving migrations between modules changes the order a FRESH
+    apply runs in, which is the other way this project has broken itself.
+  - **SIX ARE NOT MERELY LATENT — they had already reverted on the live
+    project.** Established by replaying the user's exact bundle sequence
+    against a copy and diffing `pg_policies`: `sr_read` (0040), `sr_update`
+    (0009), `srl_update` (0016), `cons_read` (0038), `cons_write` (0059), and
+    `masters_write`, which 0067 DROPPED and 0008 recreates through
+    `execute format()` — so no `create policy` literal exists for the checker
+    to find, and policies being OR'd, `masters.edit` could write every list
+    again.
+  - ⚠️ **Restore: run `Spare_1.sql`, `HandStock_X.sql` and `masters.sql`.**
+    Verified on the copy: after those three, every policy matches a full
+    apply, and the policy SET is identical.
+  - `_status.sql` rows 69-74 report all six by name with the bundle that
+    restores each — verified BOTH ways (all yes on a full apply, all NO after
+    an `rbac.sql` replay). The KNOWN list cannot tell anybody their live
+    project has drifted; these rows can.
+
 ### Calls
 - **The desk of record and the person at the keyboard** (v0.9.98,
   `0114_call_registrant_split.sql`) — the user's correction to 0113: one column

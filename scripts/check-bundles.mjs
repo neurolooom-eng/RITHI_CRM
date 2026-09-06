@@ -43,10 +43,22 @@ const moduleOf = new Map();
 
 // Objects a migration DEFINES. Only `create [or replace]` counts — a migration
 // that merely calls or grants on an object does not redefine it.
+//
+// POLICIES COUNT, and they were the blind spot. This checked functions, views
+// and procedures only — so `srl_insert`, created by 0008 in `rbac` and
+// redefined by 0087/0088 in `spare_requests`, was invisible to it. On
+// 2026-09-06 the user's `_status.sql` came back with row 40 as NO: they had
+// run `rbac.sql` the day before for 0110, which put 0008's version back and
+// broke spare-line inserts against a stub parent again. Exactly the fault this
+// file was written for, in the one object class it did not look at.
+//
+// A policy's identity is its NAME AND ITS TABLE — two tables may each have a
+// `xxx_read` and they are different objects — so it is keyed on both.
 const DEFS = [
   /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi,
   /create\s+(?:or\s+replace\s+)?(?:recursive\s+)?view\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z0-9_]+)/gi,
   /create\s+(?:or\s+replace\s+)?procedure\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi,
+  /create\s+policy\s+([a-z0-9_]+)\s+on\s+(?:public\.)?([a-z0-9_]+)/gi,
 ];
 
 const where = new Map();   // object -> Map(module -> [files])
@@ -58,7 +70,9 @@ for (const file of readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort()) {
     re.lastIndex = 0;
     let m;
     while ((m = re.exec(sql))) {
-      const obj = m[1].toLowerCase();
+      // A policy match carries its table in the second group; everything else
+      // is named on its own.
+      const obj = (m[2] ? `${m[2]}.${m[1]}` : m[1]).toLowerCase();
       if (!where.has(obj)) where.set(obj, new Map());
       const by = where.get(obj);
       if (!by.has(mod)) by.set(mod, []);
@@ -90,7 +104,57 @@ const KNOWN = new Set([
   'spare_requests_stage_guard',     // rbac 0008        -> spare_requests 0016
   'stock_transfer_lines_check_stock', // stock_transfer -> handstock 0089
   'visible_engineer_names',         // base 0001        -> user_directory 0092
+
+  // POLICIES, found the day this check learned to see them (2026-09-06), all of
+  // them older than the check. `srl_insert` is NOT on this list: it is the one
+  // that actually bit — the user ran `rbac.sql` for 0110 and spare-line inserts
+  // against a stub parent broke again — so 0087/0088 were MOVED into `rbac`
+  // and it is genuinely fixed. The rest are the same latent fault waiting.
+  //
+  // Six of them are not merely latent: replaying `rbac.sql` alone DOES revert
+  // them today, proven by applying every migration to one database, replaying
+  // the bundle on a copy, and diffing pg_policies. `_status.sql` rows 69-74
+  // now report each one, so the next time somebody runs a bundle the drift is
+  // visible instead of silent — which is what this list cannot give them.
+  //
+  // Unpicking the rest means moving migrations between modules, and that
+  // changes the order a FRESH apply runs in — the other way this project has
+  // broken itself. Each is its own change with its own verification.
+  'call_requests.cr_insert',           // base 0003 -> rbac 0008 -> call_requests 0011
+  'call_requests.cr_read',             // base 0003 -> call_requests 0053
+  'call_requests.cr_update',           // base 0003 -> rbac 0008 -> call_requests 0011
+  'calls.calls_insert',                // base 0001 -> rbac 0008
+  'calls.calls_scoped_read',           // base 0001 -> call_requests 0008 -> rbac 0008
+  'calls.calls_update',                // base 0001 -> call_requests 0008 -> rbac 0008
+  'feedback.fb_read',                  // base 0001 -> rbac 0008
+  'feedback.fb_write',                 // base 0001 -> rbac 0008
+  'pending_registrations.pend_insert', // base 0001 -> rbac 0008
+  'pending_registrations.pend_read',   // base 0001 -> rbac 0008
+  'pending_registrations.pend_update', // base 0001 -> rbac 0008
+  'profiles.profiles_admin_write',     // base 0001 -> rbac 0008
+  'profiles.profiles_self_read',       // base 0001 -> rbac 0008
+  'reports.reports_read',              // base 0001 -> rbac 0008 -> call_requests 0040
+  'reports.reports_write',             // base 0001 -> rbac 0008
+  'spare_consumption.cons_read',       // base 0001 -> rbac 0008 -> handstock 0038   ** reverts in practice
+  'spare_consumption.cons_write',      // base 0001 -> rbac 0008 -> handstock 0059   ** reverts in practice
+  'spare_dispatches.sd_read',          // spare_requests 0027 -> handstock 0095
+  'spare_request_lines.srl_read',      // base 0001 -> rbac 0008
+  'spare_request_lines.srl_update',    // rbac 0008 -> spare_requests 0016           ** reverts in practice
+  'spare_requests.sr_insert',          // base 0001 -> rbac 0008
+  'spare_requests.sr_read',            // base 0001 -> rbac 0008 -> spare_requests 0040  ** reverts in practice
+  'spare_requests.sr_update',          // spare_requests 0006 -> rbac 0008           ** reverts in practice
+  'stock_transfers.st_read',           // stock_transfer 0020 -> handstock 0041
+  'user_directory.ud_read',            // user_directory 0004 -> rbac 0008
 ]);
+
+// AND ONE THIS CHECK CANNOT SEE AT ALL, recorded so the next reader knows the
+// limit rather than trusting a clean run too far: 0008 creates `masters_write`
+// through `execute format(...)` in a loop, so no `create policy` literal
+// appears in the file. 0067 DROPS it and replaces it with per-list
+// insert/update/delete policies — and replaying `rbac.sql` brings it back.
+// Policies are OR'd, so a holder of `masters.edit` can then write every list
+// again, which is exactly what 0067 narrowed. `_status.sql` row 74 reports it,
+// because a regex over the migration text never will.
 
 const split = [...where].filter(([, by]) => by.size > 1).sort((a, b) => a[0].localeCompare(b[0]));
 const fresh = split.filter(([obj]) => !KNOWN.has(obj));

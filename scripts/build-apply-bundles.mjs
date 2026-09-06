@@ -91,7 +91,19 @@ const MODULES = {
             '0030_engineer_address_write.sql', '0033_user_directory_role.sql', '0034_office_roles_see_all.sql',
             '0035_data_view_all.sql', '0037_call_read_scale.sql', '0051_pending_registrations_view_all.sql',
             '0069_nsm_service_manager.sql', '0093_lookup_module.sql',
-            '0110_admin_reset_password.sql'],
+            '0110_admin_reset_password.sql',
+            // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
+            // created by 0008 in THIS module and redefined by these two. While they
+            // sat in spare_requests, replaying `rbac.sql` on its own put 0008's
+            // version back — silently — and a spare line whose parent is a stub was
+            // refused again. It is the `visible_engineer_names()` fault exactly, and
+            // it happened: the user ran rbac.sql for 0110 on 2026-09-05 and
+            // `_status.sql` row 40 went from yes to NO.
+            // Safe to run here: `spare_request_lines`, `request_uid` and
+            // `spare_requests` are all 0001 (base, which runs first), `has_perm` and
+            // `is_admin` are 0008 above, and the helper's body is plpgsql, so it is
+            // not parsed until it runs.
+            '0087_spare_line_stub_rls.sql', '0088_spare_line_parent_visible.sql'],
   },
   call_requests: {
     title: 'Call Requests & Call State',
@@ -353,8 +365,6 @@ const MODULES = {
       '0036_spare_drop.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
-      '0087_spare_line_stub_rls.sql',
-      '0088_spare_line_parent_visible.sql',
     ],
   },
 };
