@@ -485,14 +485,23 @@ console.log('\n-- which manuals belong on a call --');
 // `initial` beats `defaultValue` in SchemaForm, so ANY prefill that sets
 // `emailAddress` silently switches the default off. That is exactly how the
 // Register panel kept putting the requesting engineer's address in.
-console.log('\n-- the call form records who registered the call --');
+console.log('\n-- the call records who registered it, and the database says so --');
 {
   const dir = `${process.cwd()}/src/modules/`;
-  eq('callFields injects the registering user',
-    /f\.name === 'emailAddress'/.test(readFileSync(`${dir}callFields.tsx`, 'utf8')), true);
-  readdirSync(dir).filter((f) => f.endsWith('.tsx') && f !== 'callFields.tsx').forEach((f) => {
-    // A prefill KEY, not a mention: `emailAddress:` assigns it.
-    eq(`${f} does not prefill emailAddress over the default`,
+  const calls = readFileSync(`${dir}FieldCalls.tsx`, 'utf8');
+  // The engineer's email is NOT a field on the call form — it is not the
+  // customer's, not needed, and was being mistaken for both.
+  eq('the call form has no emailAddress field',
+    /\{ name: 'emailAddress'/.test(calls), false);
+  // What IS on it is the database's stamp, read-only.
+  eq('the call form shows Registered By, read-only',
+    /\{ name: 'registeredBy'[^}]*readOnly: true/.test(calls), true);
+  eq('the register has a Registered By column',
+    /key: 'createdBy', header: 'Registered By'/.test(calls), true);
+  // Nothing may prefill it: a value in `initial` beats anything the form
+  // computes, and this one has to come from the row the database stamped.
+  readdirSync(dir).filter((f) => f.endsWith('.tsx')).forEach((f) => {
+    eq(`${f} does not prefill emailAddress`,
       /^\s*emailAddress:/m.test(readFileSync(dir + f, 'utf8')), false);
   });
 }

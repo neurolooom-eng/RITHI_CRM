@@ -27,6 +27,7 @@ import {
 import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge } from '../lib/callstate';
+import { useUserNames, nameForUserId } from '../lib/userNames';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 import {
@@ -43,11 +44,15 @@ import {
 
 // Date fields render as Long Date (Reg. Date shows time when present). Others plain.
 const DATE_KEYS = new Set(['regDate', 'complaintDate', 'breakdownDate', 'warrantyStart', 'warrantyEnd', 'contractStart', 'contractEnd']);
-const CALL_ALL_FIELDS = FIELD_HEADERS.map((h) => (
+const CALL_ALL_FIELDS = [
+  ...FIELD_HEADERS.map((h) => (
   DATE_KEYS.has(h.key)
     ? { key: h.key, header: h.header, render: (r: Rec) => (h.key === 'regDate' ? fmtLongSmart(r[h.key]) : fmtLongDate(r[h.key])) }
     : { key: h.key, header: h.header }
-));
+  )),
+  // Not a sheet column — the database's own stamp of who registered the call.
+  { key: 'createdBy', header: 'Registered By' },
+];
 
 // Warranty/contract fields freeze (read-only) once loaded from Product Master.
 // Item Status comes from the machine, like its warranty and contract, so it is
@@ -127,7 +132,15 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   { name: 'customerName', label: 'Customer Name', section: 'Customer Contact', span: 1 },
   { name: 'customerNumber', label: 'Customer Number', type: 'tel', section: 'Customer Contact', span: 1 },
   { name: 'customerDesignation', label: 'Customer Designation', section: 'Customer Contact', span: 1 },
-  { name: 'emailAddress', label: 'Email address', type: 'email', section: 'Customer Contact', span: 1 },
+  // 'emailAddress' is NOT on this form. It holds the email of the engineer who
+  // RAISED the request — not the customer's, and not needed on the call. Who
+  // REGISTERED the call is a different fact and a controlled one: it is stamped
+  // by the database into `created_by` and shown read-only below, because the
+  // Hotline engineer is the only person trained on the vigilance questions and
+  // a call registered by anyone else has to be findable. The column and its
+  // sheet header stay, so imported values still export.
+  { name: 'registeredBy', label: 'Registered By', section: 'Registration', readOnly: true,
+    help: 'Stamped by the database from the signed-in user. Not editable, and not settable by the app.', span: 1 },
 ];
 
 const COLUMNS: Column<Rec>[] = [
@@ -149,6 +162,10 @@ const COLUMNS: Column<Rec>[] = [
     ),
   },
   { key: 'callNumber', header: 'Call Number', width: 170 },
+  // Stamped by the database. Group by it to see who has been registering
+  // calls — the Hotline engineer is the only person trained on the vigilance
+  // questions, so anyone else appearing here is the thing to look at.
+  { key: 'createdBy', header: 'Registered By', width: 160 },
   { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
@@ -375,6 +392,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const isReopened = (row: Rec) => String(row.callState ?? '') === 'Reopened';
   const canCloseReopen = (row: Rec) => isReopened(row) && !row._pending && (can('pending.register') || can('calls.create'));
   const scope = useAccessScope();
+  const userNameMap = useUserNames();
   // Party datalist, the Standard Complaint master + its suggestions, and the
   // engineer list — shared with the Register panel and the pre-mapping editor
   // in Pending Registrations, which are the same form (see callFields.tsx).
@@ -1120,7 +1138,17 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
               fields={injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS)}
-              initial={drawer.mode === 'create' ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) } : (drawer.row as unknown as FormValues)}
+              initial={drawer.mode === 'create'
+                ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }
+                // The row carries the UUID; the form shows the person. A call
+                // loaded before the stamp existed has none, and says so rather
+                // than showing a blank box.
+                : ({
+                  ...drawer.row,
+                  registeredBy: drawer.row?.createdBy
+                    ? nameForUserId(String(drawer.row.createdBy), userNameMap)
+                    : '— not recorded (registered before this was kept) —',
+                } as unknown as FormValues)}
               readOnly={drawer.mode === 'view'}
               submitLabel={busy ? 'Saving…' : drawer.mode === 'edit' ? 'Save Changes' : `Register ${config.singular}`}
               onSubmit={drawer.mode === 'edit' ? handleEdit : handleCreate}

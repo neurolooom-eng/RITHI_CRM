@@ -114,6 +114,11 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
     if (key) out[key] = val ?? '';
   }
   out._id = row.id;
+  // WHO REGISTERED THE CALL, stamped by the database (calls_before_insert), not
+  // by the app — the register has to be able to show that a call was raised by
+  // somebody other than the Hotline engineer trained on the vigilance
+  // questions. A UUID here; the table and the form resolve it to a name.
+  out.createdBy = row.created_by ?? '';
   // Denormalised call state (0014) — rides along with every call the register
   // already loads, so no second query is needed to colour the list.
   // A re-opened call is open again whatever its last visit said (0057).

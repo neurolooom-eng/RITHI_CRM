@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.97',
+    date: '2026-09-06',
+    title: 'The register shows who registered each call \u2014 and the database decides it',
+    changes: [
+      'WHY THIS MATTERS: only the Hotline engineer is trained on the vigilance questions asked at registration \u2014 Public Health Threat, Death, Serious Incident. A call registered by anyone else has those answered by somebody untrained, and that has to be findable.',
+      'There is a \u201cRegistered By\u201d column on the Field, Installation and PM registers now. Group by it to see who has been registering calls; anyone other than the Hotline engineer is what to look at.',
+      'IT IS STAMPED BY THE DATABASE, not typed. It is read-only on the call, the app cannot set it, and a signed-in user who tries to attribute a call to somebody else is recorded as themselves. A record that can be pointed at another name on request is not evidence of anything.',
+      'Yesterday\u2019s attempt at this was wrong and is withdrawn: \u201cEmail address\u201d was an editable box holding the email of the engineer who RAISED the request \u2014 not the customer\u2019s, not the registrar\u2019s, and overwritable by anyone. It is off the call form. The column and its export keep whatever was imported into them.',
+      'A call registered before this says \u201cnot recorded\u201d rather than showing a blank box.',
+    ],
+  },
+  {
     version: '0.9.96',
     date: '2026-09-05',
     title: 'A call records who registered it',

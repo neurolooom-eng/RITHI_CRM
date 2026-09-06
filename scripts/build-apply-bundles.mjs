@@ -126,6 +126,7 @@ const MODULES = {
       '0107_complaint_text_help.sql',
       '0108_call_cancel.sql',
       '0109_close_call.sql',
+      '0113_call_creator_authoritative.sql',
     ],
   },
   sla: {
