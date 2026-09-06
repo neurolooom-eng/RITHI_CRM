@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.109',
+    date: '2026-09-06',
+    title: 'Review 2 Pending shows all 175, and highlights actually stand out',
+    changes: [
+      'FIXED: the Review 2 / Review 3 Pending tabs said 175 and showed 85. They were filtering the loaded page in the browser \u2014 the register reads 500 rows of everything, of which only some are at that stage. The stage now goes into the query, so one page covers the whole worklist and 175 means 175.',
+      '\u201cCalls in view\u201d and the count beside the title now follow the stage you are looking at, instead of reporting the whole register.',
+      'The tab counts keep working because the counters are deliberately not narrowed by review status \u2014 a counter narrowed by the thing it counts can only ever report itself, and the other tabs would read 0.',
+      'HIGHLIGHTS ARE CONTRAST NOW, not a tint. Customer, Product \u00b7 Serial and Nature of Complaint invert against the page so they project off it; the first-year warning is solid red rather than a pale pink note beside a grey one. Call Status keeps its own colour \u2014 Solved green, Unattended red \u2014 because that colour is carrying a fact.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.108',
     date: '2026-09-06',
     title: 'A failure inside the first year says so, in red',

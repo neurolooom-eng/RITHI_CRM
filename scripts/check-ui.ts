@@ -659,7 +659,16 @@ console.log('\n-- the DCCR review desk --');
     /over a year old/.test(dccr), true);
   // The four facts the review is about, lifted out of the reference ones.
   eq('customer, machine, call status and complaint are lifted',
-    (dccr.match(/className="dccr-wide is-key"|className="is-key"/g) ?? []).length, 4);
+    (dccr.match(/className="[^"]*\bis-key\b[^"]*"/g) ?? []).length, 4);
+  // HIGHLIGHT MEANS CONTRAST, NOT A TINT (the user's standing rule). A wash of
+  // --primary-soft was the first attempt and it barely read on screen.
+  {
+    const css = readFileSync(`${process.cwd()}/src/modules/dccr.css`, 'utf8');
+    eq('the lifted facts INVERT against the page rather than tinting it',
+      /\.dccr-callcard div\.is-key \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
+    eq('...and the first-year warning is solid, not a wash',
+      /\.dccr-warn \{[\s\S]*?background: var\(--danger\);/.test(css), true);
+  }
   eq('the call status carries its own state colour, not a review-stage one',
     /statusBadge\(String\(row\.open_state[\s\S]{0,80}CALL_STATE_TONES\)/.test(dccr), true);
 
