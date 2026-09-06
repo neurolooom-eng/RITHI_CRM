@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.113',
+    date: '2026-09-06',
+    title: 'Auto save for the DCCR, Expand all, and the bulk button where you look for it',
+    changes: [
+      'AUTO SAVE, on the review itself \u2014 a tick box beside Save review, off until you turn it on, and remembered per person. DCCR only, nowhere else in the app.',
+      'IT SAVES THE ANSWERS AND NOTHING ELSE. Completing a review \u2014 putting your name against a stage as \u201ccompleted by\u201d \u2014 still needs the Save button. Choosing the third dropdown should not sign off a judgement you have not read, and \u201cAll NO\u201d fills three boxes in one click precisely so you can read them first.',
+      'It says \u201c\u2713 answers saved 8s ago\u201d, because a save that says nothing looks the same as one that did not happen.',
+      'EXPAND ALL / COLLAPSE ALL on every grouped register and on the Review Desk list \u2014 the pair Pending Dispatch already had. Expand all opens every level, not just the outer one.',
+      'THE BULK \u201cMark as NO\u201d IS NOW ON THE REVIEW 2 PENDING TAB, not only the Review Register. That is the list you are clearing, so that is where the button belongs. The count of calls it will not take (under a year old, age unknown, already answered) sits underneath it.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.112',
     date: '2026-09-06',
     title: 'Review 2 in bulk \u2014 except for anything that failed inside its first year',

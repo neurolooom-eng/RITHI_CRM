@@ -43,6 +43,37 @@ export const CALL_STATE_TONES: Record<string, 'success' | 'warning' | 'danger' |
   Reopened: 'warning',
 };
 
+// ---------------------------------------------------------------------------
+// AUTO SAVE — DCCR ONLY, AND OFF UNLESS SOMEBODY TURNS IT ON.
+//
+// The user asked for it and scoped it themselves: "Auto Save is RESTRICTED
+// only to DCCR". So the switch lives here rather than in Settings, where it
+// would read as an application-wide behaviour, and it is per-reviewer: it is a
+// preference about how somebody works, not a configuration of the register.
+//
+// WHAT IT WILL AND WILL NOT DO, because in a quality record that distinction
+// is the whole design:
+//
+//   * it saves the ANSWERS as they are chosen;
+//   * it does NOT complete a review. `review2_by` / `review3_by` — "this stage
+//     was completed by" — are stamped only by the Save button. Choosing the
+//     third dropdown must not, by itself, put somebody's name against a
+//     judgement they have not looked at, and "All NO" fills three boxes in one
+//     click precisely so a person can then read them.
+//
+// Off by default: a reviewer opting into it has decided their edits should
+// land as they type; nobody should discover that by accident.
+// ---------------------------------------------------------------------------
+export const AUTOSAVE_KEY = 'rithi.dccr.autosave';
+export const AUTOSAVE_DELAY_MS = 1500;
+
+export function autoSaveOn(): boolean {
+  try { return localStorage.getItem(AUTOSAVE_KEY) === '1'; } catch { return false; }
+}
+export function setAutoSaveOn(on: boolean): void {
+  try { localStorage.setItem(AUTOSAVE_KEY, on ? '1' : '0'); } catch { /* a preference is not worth an error */ }
+}
+
 // A CALL THAT FAILED INSIDE ITS FIRST YEAR IS REVIEWED ONE BY ONE.
 //
 // The user's rule (2026-09-06). Review 2 asks whether the failure was a
