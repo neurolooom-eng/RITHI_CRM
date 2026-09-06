@@ -578,6 +578,14 @@ console.log('\n-- a visit date that could not have happened --');
     /min=\{complaintISO \|\| undefined\}/.test(rep), true);
   eq('and the rule is checked again on submit',
     /visitDateProblem\(visitDate, complaintISO, todayISO\(\)\)/.test(rep), true);
+  // THE LOWER BOUND IS THE COMPLAINT DATE AND NOTHING ELSE. It briefly fell
+  // back to the REGISTRATION date, which a PM batch sets to the first of the
+  // due month — so an October PM refused a visit entered on 28 September, and
+  // said "before the complaint" about a date the call does not carry. The
+  // database (0115) only ever tested complaint_date, so the form was also
+  // stricter than the rule it claims to enforce.
+  eq('the lower bound never falls back to the registration date',
+    /complaintISO[\s\S]{0,400}?regDate/.test(rep), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

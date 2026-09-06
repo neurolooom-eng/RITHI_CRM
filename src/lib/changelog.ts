@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.101',
+    date: '2026-09-06',
+    title: 'An early PM visit is not a mistake',
+    changes: [
+      'FIX, found in a code review of this morning\u2019s change: on a PM call, the Visit Date would not accept a date before the 1st of the call\u2019s due month \u2014 so attending a PM early was refused, with a message about a \u201ccomplaint date\u201d the PM call does not have.',
+      'A PM batch dates every call to the first of its due month, and the new rule was reading that as the complaint date when the call had none. It now uses the Complaint Date and nothing else: no complaint date means no lower limit, which is what the database was already doing.',
+      '\u201cNot in the future\u201d is unchanged and applies to every call.',
+      'No migration \u2014 the database rule was already right; this brings the form into line with it.',
+    ],
+  },
+  {
     version: '0.9.100',
     date: '2026-09-06',
     title: 'A visit cannot be dated in the future, or before the complaint',
