@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.122',
+    date: '2026-09-06',
+    title: 'The UCN number restarts every day again',
+    changes: [
+      'The last four digits of a UCN now START AGAIN AT 0001 EACH DAY, and each call type counts its own \u2014 Field, Installation and PM. So tomorrow opens at 26I07F0001, not wherever yesterday finished.',
+      'WHY IT WAS NOT DOING THAT: the number came from one counter for the whole database that had never been reset since day one. The date in front changed every morning; the number behind it just kept climbing, across all three call types together. It was never settled at go-live \u2014 the note asking whether it should reset had been sitting in the migration document since the beginning.',
+      'The register itself is what proves it should: it holds 26H28F0009 and then 26H29F0003, and a number that only ever counts up cannot go down.',
+      'THE DAY IS NOW INDIA\u2019S DAY. The date inside a UCN was being taken in UTC, so it changed at 5:30 in the morning \u2014 a call registered before then already carried yesterday\u2019s date. Fixed with the same change, because a daily reset on the wrong clock would have reset at 5:30 too.',
+      'NOTHING ALREADY ISSUED HAS CHANGED. Every UCN on a delivery challan, a spare request or a visit report is exactly as it was. Today carries on from where it had got to, and the reset starts from tomorrow.',
+      'Needs migration: run supabase/apply/call_requests.sql.',
+    ],
+  },
+  {
     version: '0.9.121',
     date: '2026-09-06',
     title: 'Review 2 answers itself the morning after',

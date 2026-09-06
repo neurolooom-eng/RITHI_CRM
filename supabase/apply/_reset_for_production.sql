@@ -91,21 +91,24 @@ truncate table
   public.spare_dispatch_counters,
   public.material_return_counters,
   public.stock_transfer_counters,
+  public.ucn_counters,    -- the per-day, per-type UCN counter (0125)
   public.party_key_seq;   -- so production starts again at Party-1
 
--- (b) Three SEQUENCES that TRUNCATE ... RESTART IDENTITY cannot reach, because
+-- (b) Two SEQUENCES that TRUNCATE ... RESTART IDENTITY cannot reach, because
 --     they are not owned by the column that uses them. Without these the test
 --     run's count stays visible in production:
 --
---       ucn_seq          the last 4 digits of EVERY UCN (YYMMDD<T>nnnn), so a
---                        fresh project would open at ...F0042 instead of F0001
 --       call_req_seq     the request REQID (R1, R2, …)
 --       call_split_id_seq  the id shared by field / installation / pm calls, so
 --                        that `calls` (their union view) has unique ids — 0040
 --                        made it shared on purpose, which is why it is unowned
 --
+--     `ucn_seq` used to be the third. It is gone: 0125 replaced the single
+--     running series with `ucn_counters`, one row per day per call type, and
+--     that table is TRUNCATEd above like any other. A fresh project opens at
+--     ...F0001 on its first day because it has no counter row for that day.
+--
 --     `false` means "the NEXT value is 1", not "skip 1".
-select setval('public.ucn_seq',           1, false);
 select setval('public.call_req_seq',      1, false);
 select setval('public.call_split_id_seq', 1, false);
 

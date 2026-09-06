@@ -146,9 +146,13 @@ doesn't race that handoff.
 
 ## Open items to confirm before go-live
 
-- **UCN format**: `next_ucn()` currently emits `<YY><MonthLetter><DD><TypeLetter><Seq4>`
-  (e.g. `26H28F0009`). Confirm this exactly matches the legacy sheet format,
-  and whether the sequence should reset per day/month.
+- ~~**UCN format**~~ — SETTLED 2026-09-06 (0125). `<YY><MonthLetter><DD><TypeLetter><nnnn>`
+  (e.g. `26H28F0009`), and `nnnn` **restarts at 0001 every day, per call type**.
+  It had been one running sequence for the whole database, which is why the
+  number never reset; the register's own history shows the sheet did reset
+  (`26H28F0009` then `26H29F0003` — a global counter cannot go down). The day is
+  **Asia/Kolkata**: `next_ucn()` read `now()` in UTC, so the date in the UCN
+  rolled at 5:30 am India time. Numbers already issued were left alone.
 - **Auth**: Supabase Auth email/password or Google sign-in? (Maps to
   `profiles`; the existing User Master login is replaced.)
 - **Credentials**: Supabase Project URL + anon (public) key.
