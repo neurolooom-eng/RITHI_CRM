@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.103',
+    date: '2026-09-06',
+    title: 'Tick the boxes and approve — and RM Approval gets a screen of its own',
+    changes: [
+      'SPARE REQUESTS: tick boxes down the left, then \u201cApprove N\u201d. The selection can span requests and stages \u2014 the old \u201call N\u201d button only ever covered one OR at one stage.',
+      'EACH SPARE IS APPROVED AT THE STAGE IT IS AT, so a mixed selection moves everything on by exactly one step and nothing skips a review it has not had. Press it again to move them on again.',
+      'IT TELLS YOU ABOUT ALL OF THEM. If some of the selection was not yours to approve, it says how many were skipped and why, rather than failing the whole batch or going quiet about it.',
+      'NSM now holds all three approvals (RM, Commercial, NSM), so bulk works at every stage. Admin and Super Admin already did. It is a permission on the Roles screen, so it can be taken away again without a code change.',
+      'STILL TRUE, INCLUDING IN BULK: nobody gives RM approval to their own request, and a manager approves only within their own team. Those are skipped and counted, not quietly approved.',
+      'NEW SCREEN \u2014 RM Approval, under Spares, shaped like Pending Dispatch: only what is waiting for a Reporting Manager, grouped by engineer, with how long each has waited. \u201cSelect all mine\u201d then Approve.',
+      'Spares that are NOT yours to approve are shown greyed and marked \u201cNot yours\u201d rather than hidden \u2014 so \u201cwhy is my spare not in the queue?\u201d is answered on the screen.',
+      'Needs migration: run Spare_1.sql.',
+    ],
+  },
+  {
     version: '0.9.102',
     date: '2026-09-06',
     title: 'The Daily Call Review opens grouped by Review Status',

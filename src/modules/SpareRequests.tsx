@@ -10,6 +10,7 @@ import {
   addSpareRequest, listSpareRequestLines, updateSpareRequestLine, updateSpareRequestLinesAtStage,
   searchCalls, supabaseConfigured, receiveSpareShipments,
   sbReassignSpareRequest, sbListEngineerChanges, type EngineerChange,
+  approveSpareLines,
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
@@ -472,6 +473,47 @@ export function SpareRequests() {
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | typeof MINE | ''>('');
+  // ---- approval in bulk (0116) ---------------------------------------------
+  // The ask (2026-09-06): NSM / Admin / Super Admin tick boxes and approve, at
+  // EVERY stage. The register is the right place for it because the selection
+  // spans requests — the per-OR "all N" button beside a row only ever covered
+  // one request at one stage.
+  //
+  // Each line is approved at the stage it is AT, so nothing skips a review.
+  // What the caller may not approve is skipped and reported, not silently
+  // dropped and not enough to fail the batch.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState(false);
+  const mayBulkApprove = can('spare.approve_rm') || can('spare.approve_commercial') || can('spare.approve_nsm');
+
+  const bulkApprove = async (ids: string[], clear: () => void) => {
+    const lineIds = ids
+      .map((id) => Number((rows.find((r) => String(r.id) === id) as Row | undefined)?.line_id ?? id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (!lineIds.length) { setMsg({ tone: 'error', text: 'Nothing selected.' }); return; }
+    setApproving(true);
+    const t0 = performance.now();
+    const res = await approveSpareLines(lineIds, user?.fullName || user?.email || '');
+    logAudit({
+      action: 'spare.approve', target: `${lineIds.length} spares`,
+      status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error,
+      duration_ms: Math.round(performance.now() - t0),
+      meta: { scope: 'bulk', selected: lineIds.length, approved: res.approved ?? 0, skipped: res.skipped ?? 0 },
+    });
+    setApproving(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not approve.' }); return; }
+    // BOTH numbers, always. "12 approved" over a selection of 14 leaves
+    // somebody wondering about the other two.
+    const skipped = res.skipped ?? 0;
+    setMsg({
+      tone: skipped ? 'info' : 'ok',
+      text: `${res.approved ?? 0} spare${res.approved === 1 ? '' : 's'} approved`
+        + (skipped ? ` — ${skipped} skipped (${res.reason || 'not yours to approve at that stage'}).` : '.'),
+    });
+    clear();
+    void load();
+  };
+
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
@@ -861,6 +903,23 @@ export function SpareRequests() {
         ]}
         rowsBeforeScroll={14}
         dense
+        // Tick boxes appear only for somebody who can actually approve
+        // something — an engineer gets a column of boxes leading to a button
+        // that would refuse them, which is worse than not offering it.
+        selectable={mayBulkApprove}
+        selected={picked}
+        onSelectedChange={setPicked}
+        bulkBar={mayBulkApprove ? (ids, clear) => (
+          <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+            <b>{ids.length}</b>
+            <span className="muted">selected — each is approved at the stage it is at, so nothing skips a review.</span>
+            <div className="spacer" />
+            <button className="btn btn-sm btn-primary" disabled={approving} onClick={() => void bulkApprove(ids, clear)}>
+              {approving ? 'Approving…' : `✔ Approve ${ids.length}`}
+            </button>
+            <button className="btn btn-sm btn-ghost" onClick={clear} disabled={approving}>Clear</button>
+          </div>
+        ) : undefined}
         // Load more lives beside the count in the heading (see PageHeader), so
         // it is NOT passed here — there is one of it, not two.
         moreAvailable={partial}
