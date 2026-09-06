@@ -668,6 +668,11 @@ console.log('\n-- the DCCR review desk --');
       /\.dccr-callcard div\.is-key \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
     eq('...and the first-year warning is solid, not a wash',
       /\.dccr-warn \{[\s\S]*?background: var\(--danger\);/.test(css), true);
+    // Call Status gets the same projection by a different route: the SOLID
+    // state colour, not an inversion, because that colour is carrying a fact.
+    eq('...and Call Status is a solid state colour, not a tint',
+      /\.dccr-callcard div\.is-state \.badge-danger\s*\{ background: var\(--danger\); \}/.test(css)
+      && /\.dccr-callcard div\.is-state \.badge-success \{ background: var\(--success\); \}/.test(css), true);
   }
   eq('the call status carries its own state colour, not a review-stage one',
     /statusBadge\(String\(row\.open_state[\s\S]{0,80}CALL_STATE_TONES\)/.test(dccr), true);
