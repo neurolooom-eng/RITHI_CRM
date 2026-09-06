@@ -382,6 +382,19 @@ with checks(sort_order, bundle, provides, present) as (
                    where n.nspname='public' and p.proname='spare_requests_stage_guard'), false)),
     (83, 'notifications: signing out clears them', 'clear_my_notifications() -- the bell empties in the DATABASE at sign-out, read and unread alike, so the next session starts clean on every device. Takes no arguments and filters on auth.uid(), and `authenticated` is not granted execute on it by PUBLIC (0123). Restore: notifications.sql',
         to_regprocedure('public.clear_my_notifications()') is not null),
+    (84, 'DCCR: Review 2 answers itself the morning after', 'auto_answer_review2() -- a call logged today stays pending all day; from 9:15 am Asia/Kolkata the next morning its Review 2 is answered No. Never a first-year failure, never an unknown age, never an answer somebody already gave; recorded as "Auto (9:15 am)" so Review 3 can tell (0124). The scheduled run needs pg_cron -- see row 85. Restore: daily_review.sql',
+        to_regprocedure('public.auto_answer_review2()') is not null),
+    (85, 'DCCR: ...at a quarter past nine, not just when somebody opens it', 'the pg_cron job `auto-answer-review2`, 03:45 UTC = 09:15 Asia/Kolkata. WITHOUT IT the rule still applies -- the register runs the same function when it loads -- but only once somebody opens the Daily Call Review that day. Enable pg_cron (Dashboard -> Database -> Extensions) and re-run daily_review.sql',
+        -- cron.job is READ THROUGH query_to_xml, not named directly: a plain
+        -- reference is resolved when this statement is PLANNED, so on a project
+        -- without pg_cron the whole report would fail with "relation cron.job
+        -- does not exist" instead of reporting the one row as NO -- which is
+        -- exactly the project that needs to be told.
+        (case when to_regclass('cron.job') is null then false
+              else coalesce((xpath('/row/c/text()', query_to_xml(
+                     'select count(*) as c from cron.job where jobname = ''auto-answer-review2''',
+                     false, true, '')))[1]::text::int > 0, false)
+         end)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

@@ -1280,6 +1280,25 @@ export async function bulkSetReview2(
   return { ok: true, updated: Number(row?.updated ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
 }
 
+// REVIEW 2 ANSWERS ITSELF THE MORNING AFTER (0124). Called when the register
+// loads, so the rule applies on a project without pg_cron too — then it happens
+// when somebody opens the screen after 9:15 rather than at a quarter past nine.
+// Idempotent and self-gating: before 9:15 it marks nothing, and it only ever
+// fills in a Review 2 that is still blank, so calling it on every load is safe.
+export async function autoAnswerReview2():
+  Promise<{ marked: number; heldFirstYear: number; heldUnknownAge: number; ran: boolean; note: string }> {
+  const { data, error } = await must().rpc('auto_answer_review2');
+  if (error) throw new Error(errMsg(error));
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | null;
+  return {
+    marked: Number(row?.marked ?? 0),
+    heldFirstYear: Number(row?.held_first_year ?? 0),
+    heldUnknownAge: Number(row?.held_unknown_age ?? 0),
+    ran: Boolean(row?.ran),
+    note: String(row?.note ?? ''),
+  };
+}
+
 // The state of many calls at once, for colouring their UCNs wherever they are
 // shown. `call_state` is the view that already answers "what is this call
 // doing?" — Cancelled before Reopened before its visit-derived state (0108).

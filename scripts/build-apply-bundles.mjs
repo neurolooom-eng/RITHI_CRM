@@ -211,7 +211,7 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'fieldCalls', 'masterLists'],
     files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql', '0094_masters_upsert_target.sql', '0047_daily_review_report_context.sql', '0111_dccr_call_status.sql',
             '0117_frequent_failure.sql',
-            '0119_bulk_review2.sql',
+            '0119_bulk_review2.sql', '0124_auto_review2.sql',
             '0048_daily_review_map_by_call_number.sql'],
   },
   notifications: {
