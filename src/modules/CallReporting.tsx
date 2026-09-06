@@ -122,16 +122,23 @@ export function CallReportDrawer({
   // locale — it is stored as text on the visit and read back everywhere.
   const [visitEntry] = useState(() => fmtLongDateTime(new Date()));
   const [visitDate, setVisitDate] = useState(todayISO());
-  // WHAT THE VISIT DATE IS MEASURED AGAINST. The call's Complaint Date — the
-  // day the fault was reported — falling back to the day the call was
-  // registered where a call carries no complaint date (installations, PMs, and
-  // imported calls that never had one). Read through the date helpers because
-  // a call loaded from the database carries an ISO string and one loaded from a
-  // sheet carries a day-first one, and the two must not be told apart here.
+  // WHAT THE VISIT DATE IS MEASURED AGAINST: the call's Complaint Date, and
+  // NOTHING ELSE. Read through the date helpers because a call loaded from the
+  // database carries an ISO string and one loaded from a sheet carries a
+  // day-first one, and the two must not be told apart here.
+  //
+  // IT USED TO FALL BACK TO THE REGISTRATION DATE and that was wrong three
+  // ways. A PM batch dates every call to the FIRST OF ITS DUE MONTH, so an
+  // October PM carried reg_date 2026-10-01 and a visit entered on 28 September
+  // — attending it early, which happens — was refused. The message then named
+  // a "complaint" date the call does not have. And the DATABASE only ever
+  // tested complaint_date (0115), so the form was stricter than the rule it
+  // claims to enforce.
+  //
+  // No complaint date means no lower bound. That is the user's rule as stated,
+  // and refusing the visit invents a requirement the call never carried.
   const complaintISO = localIsoDate(call?.complaintDate ?? call?.['complaint_date'])
     ?? toIsoDate(call?.complaintDate ?? call?.['complaint_date'])
-    ?? localIsoDate(call?.regDate ?? call?.['reg_date'])
-    ?? toIsoDate(call?.regDate ?? call?.['reg_date'])
     ?? '';
   const [engineer, setEngineer] = useState('');
   const [updateWork, setUpdateWork] = useState('Yes');
