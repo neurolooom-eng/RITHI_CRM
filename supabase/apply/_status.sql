@@ -6,6 +6,14 @@
 -- what to run instead of discovering it one error at a time.
 --
 -- Read-only — it changes nothing.
+--
+-- ORDER MATTERS WHEN SEVERAL ROWS SAY NO. Some access rules are written in one
+-- bundle and corrected in another, so running the earlier bundle puts the older
+-- rule back — silently. `rbac.sql` is the early one. So if it is on your list at
+-- all, RUN rbac.sql FIRST, then Spare_1.sql, HandStock_X.sql and masters.sql
+-- after it. Running them the other way round leaves the six policy rows at the
+-- bottom of this report back at NO. (`npm run check:bundles` lists every rule
+-- with this shape.)
 -- ===========================================================================
 with checks(sort_order, bundle, provides, present) as (
   values
@@ -259,7 +267,7 @@ with checks(sort_order, bundle, provides, present) as (
                     and column_name='created_by' and column_default like '%auth.uid%')
      and coalesce(pg_get_functiondef(to_regprocedure('public.consumption_reconcile_guard()'))
                     ilike '%new.source_ref%', false))),
-    (40, 'spare lines: a stub parent is allowed', 'srl_insert asks spare_line_parent_ok(), which can see the stub (0088)',
+    (40, 'spare lines: a stub parent is allowed', 'srl_insert asks spare_line_parent_ok(), which can see the stub (0088). Restore: rbac.sql -- 0087/0088 moved there in v0.9.99 so a bundle replay stops reverting them, so Spare_1.sql no longer carries this',
         (to_regprocedure('public.spare_line_parent_ok(text)') is not null
      and exists (select 1 from pg_policies
                   where schemaname='public' and tablename='spare_request_lines'
