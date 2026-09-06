@@ -315,6 +315,11 @@ with checks(sort_order, bundle, provides, present) as (
     (68, 'audit mode: the switch exists and every flip is kept', 'set_audit_mode() + audit_mode_changes -- admin-only, needs a reason, and the history outlives the audit_log retention window (0114 audit)',
         (to_regprocedure('public.set_audit_mode(boolean,text)') is not null
      and to_regclass('public.audit_mode_changes') is not null)),
+    (75, 'visits: a visit date that could not have happened is refused', 'reports_visit_date_guard -- not in the future, not before the call''s complaint date, on visits ENTERED on the form (uid WEB-...). Imported history is exempt by design (0115). Restore: reports.sql',
+        (to_regprocedure('public.reports_visit_date_guard()') is not null
+     and exists (select 1 from pg_trigger
+                  where tgrelid = 'public.reports'::regclass
+                    and tgname = 'reports_visit_date_guard'))),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running

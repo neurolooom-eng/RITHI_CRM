@@ -262,7 +262,10 @@ const MODULES = {
             'be re-resolved) and `mapped_at` (this visit was recovered in bulk, not',
             'reported live).'],
     needs: ['profiles'],
-    files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql'],
+    // 0115 belongs HERE and not in call_requests: it is a trigger on `reports`.
+    // The `reports` module runs AFTER call_requests in ALL_ORDER, so the `calls`
+    // view it reads already exists on a fresh apply.
+    files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql', '0115_visit_date_sanity.sql'],
   },
   handstock: {
     // Written to the repo root as HandStock_X.sql, alongside Spare_1.sql — it

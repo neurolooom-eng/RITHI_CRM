@@ -534,6 +534,36 @@ points at these rows.
     an `rbac.sql` replay). The KNOWN list cannot tell anybody their live
     project has drifted; these rows can.
 
+### Reporting
+- **A visit cannot be dated in the future, or before the complaint** (v0.9.100,
+  `0115_visit_date_sanity.sql`) — the user's two rules for the Visit Update
+  form. The future one is the one with teeth: a call's status comes from its
+  LATEST visit, so a visit dated next week closes a call nobody has been to and
+  keeps it closed until that day passes.
+  - The form bounds the picker (`max` today, `min` the complaint date) AND
+    re-checks on submit, because `min`/`max` stop the picker and not a pasted
+    value. The rule itself is `src/lib/visitdate.ts`, pure and with TODAY passed
+    in, so `check:ui` pins it without a DOM — the same shape as
+    `fieldcall.ts` / `docmatch.ts`.
+  - The complaint date falls back to the registration date where a call carries
+    none (installations, PMs, older imports); with neither, only the future rule
+    applies. Refusing the visit instead would invent a requirement the call
+    never carried.
+  - **The database enforces it too, and deliberately NOT on history.**
+    `reports` is also where the superseded system's visits live, and they must
+    load exactly as they were — an imperfect date is still the record of what
+    happened, and refusing the file leaves a GAP instead of an imperfection
+    (0089 makes the same exemption for imported stock). The signal is the row's
+    own id: `WEB-…` is the form (checked), `IMP-…` is Bulk Uploads and anything
+    else is Bulk Report Mapping / a restore (not checked). Tests 5, 6 and 9
+    exist to catch it if that ever stops holding.
+  - Not `> now()`: the app writes the chosen day as UTC midnight, which is still
+    in the future until 05:30 IST — a naive test would refuse a visit entered
+    early in the morning and dated today. It compares DAYS, the visit's own
+    (UTC, as written) against today in India.
+  - ⚠️ **Run `reports.sql`** — `_status.sql` row 75, verified NO before and yes
+    after.
+
 ### Calls
 - **The desk of record and the person at the keyboard** (v0.9.98,
   `0114_call_registrant_split.sql`) — the user's correction to 0113: one column
