@@ -14,6 +14,7 @@ import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags } from '../src/lib/docmatch';
+import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
 
 let fail = 0;
@@ -536,6 +537,47 @@ console.log('\n-- the call records who registered it, and the database says so -
     eq(`${f} does not prefill emailAddress`,
       /^\s*emailAddress:/m.test(readFileSync(dir + f, 'utf8')), false);
   });
+}
+
+// ---------------------------------------------------------------------------
+// WHEN A VISIT CAN HAVE HAPPENED.
+//
+// Two rules, both the user's (2026-09-06): not in the future, and not before
+// the complaint. Pinned on the RULE rather than the screen, so it is testable
+// without a DOM and cannot drift from the database trigger that enforces the
+// same thing (0115).
+console.log('\n-- a visit date that could not have happened --');
+{
+  const C = '2026-09-01';        // complaint
+  const T = '2026-09-06';        // today
+  const ok = (v: string) => visitDateProblem(v, C, T) === '';
+  eq('today is fine',                       ok('2026-09-06'), true);
+  eq('the complaint day itself is fine',    ok('2026-09-01'), true);
+  eq('a day in between is fine',            ok('2026-09-03'), true);
+  eq('tomorrow is refused',                 ok('2026-09-07'), false);
+  eq('next year is refused',                ok('2027-01-02'), false);
+  eq('the day before the complaint is refused', ok('2026-08-31'), false);
+  eq('a blank date is refused',             ok(''), false);
+  // A call with no complaint date is held to the future rule ONLY — refusing
+  // the visit would invent a requirement the call never carried.
+  eq('no complaint date: an old visit is fine',
+    visitDateProblem('2020-01-01', '', T) === '', true);
+  eq('no complaint date: a future visit is still refused',
+    visitDateProblem('2026-09-07', '', T) === '', false);
+  // The message has to name the date, or the person cannot tell WHICH rule
+  // they hit or what to type instead.
+  eq('the future message names the day', /07-Sep-2026/.test(visitDateProblem('2026-09-07', C, T)), true);
+  eq('the complaint message names the complaint day',
+    /01-Sep-2026/.test(visitDateProblem('2026-08-31', C, T)), true);
+
+  // ...and on the screen: the picker is bounded AND the value is re-checked on
+  // submit, because min/max stop the PICKER, not a pasted value.
+  const rep = readFileSync(`${process.cwd()}/src/modules/CallReporting.tsx`, 'utf8');
+  eq('the visit date picker cannot reach the future', /max=\{todayISO\(\)\}/.test(rep), true);
+  eq('the visit date picker cannot reach before the complaint',
+    /min=\{complaintISO \|\| undefined\}/.test(rep), true);
+  eq('and the rule is checked again on submit',
+    /visitDateProblem\(visitDate, complaintISO, todayISO\(\)\)/.test(rep), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

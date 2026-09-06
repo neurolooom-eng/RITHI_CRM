@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.100',
+    date: '2026-09-06',
+    title: 'A visit cannot be dated in the future, or before the complaint',
+    changes: [
+      'On Visit Update, the Visit Date picker will not go past today, and will not go earlier than the call\u2019s Complaint Date. It says what its limits are underneath the box.',
+      'WHY THE FUTURE ONE MATTERS: a call\u2019s status comes from its LATEST visit, so a visit dated next week closed the call \u2014 and kept it closed until that day came round.',
+      'AND THE OTHER: nobody attended a fault that had not been reported yet, and any response time measured from the pair came out negative.',
+      'A call with no Complaint Date (installations, PMs, older imported calls) falls back to the date it was registered; if it has neither, only the \u201cnot in the future\u201d rule applies.',
+      'The database refuses both as well, so a date typed or pasted past the picker does not get through either.',
+      'IMPORTED HISTORY IS NOT JUDGED BY THIS. Old visits load exactly as they were, dates and all \u2014 a file with imperfect dates is still the record of what happened, and refusing it would leave a gap instead.',
+      'Needs migration: run supabase/apply/reports.sql.',
+    ],
+  },
+  {
     version: '0.9.99',
     date: '2026-09-06',
     title: 'Running one SQL bundle was quietly undoing another',

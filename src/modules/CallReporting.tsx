@@ -7,7 +7,9 @@ import { useMaster } from '../lib/masters';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, useTeamEngineers } from '../lib/access';
-import { todayISO, fmtLongDateTime } from '../lib/format';
+import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
+import { visitDateProblem } from '../lib/visitdate';
+import { localIsoDate, toIsoDate } from '../lib/dates';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -120,6 +122,17 @@ export function CallReportDrawer({
   // locale — it is stored as text on the visit and read back everywhere.
   const [visitEntry] = useState(() => fmtLongDateTime(new Date()));
   const [visitDate, setVisitDate] = useState(todayISO());
+  // WHAT THE VISIT DATE IS MEASURED AGAINST. The call's Complaint Date — the
+  // day the fault was reported — falling back to the day the call was
+  // registered where a call carries no complaint date (installations, PMs, and
+  // imported calls that never had one). Read through the date helpers because
+  // a call loaded from the database carries an ISO string and one loaded from a
+  // sheet carries a day-first one, and the two must not be told apart here.
+  const complaintISO = localIsoDate(call?.complaintDate ?? call?.['complaint_date'])
+    ?? toIsoDate(call?.complaintDate ?? call?.['complaint_date'])
+    ?? localIsoDate(call?.regDate ?? call?.['reg_date'])
+    ?? toIsoDate(call?.regDate ?? call?.['reg_date'])
+    ?? '';
   const [engineer, setEngineer] = useState('');
   const [updateWork, setUpdateWork] = useState('Yes');
   const [status, setStatus] = useState('');
@@ -302,6 +315,10 @@ export function CallReportDrawer({
 
   const validate = (): string => {
     if (!ucn) return 'This call has no UC Number to report against.';
+    // Checked here as well as on the input: `min`/`max` stop the PICKER, not a
+    // typed or pasted value, and this is a quality record.
+    const whenProblem = visitDateProblem(visitDate, complaintISO, todayISO());
+    if (whenProblem) return whenProblem;
     if (!status) return 'Choose a Call Status.';
     if (unsolved && !pendingReason.trim()) return 'Call Pending Reason is mandatory for an unsolved call.';
     if (workOpen) {
@@ -508,7 +525,17 @@ export function CallReportDrawer({
               </label>
               <label className="rep-field">
                 <span className="field-label">Visit Date &amp; Time</span>
-                <input type="date" className="input" value={visitDate} onChange={(e) => setVisitDate(e.target.value)} />
+                <input
+                  type="date" className="input" value={visitDate}
+                  max={todayISO()}
+                  min={complaintISO || undefined}
+                  onChange={(e) => setVisitDate(e.target.value)}
+                />
+                <span className="muted rep-hint">
+                  {complaintISO
+                    ? <>Not in the future, and not before the complaint ({fmtLongDate(complaintISO)}).</>
+                    : <>Not in the future.</>}
+                </span>
               </label>
               <label className="rep-field">
                 <span className="field-label">Visiting Service Engineer</span>
