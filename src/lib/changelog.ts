@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.99',
+    date: '2026-09-06',
+    title: 'Running one SQL bundle was quietly undoing another',
+    changes: [
+      'FOUND BY YOUR OWN STATUS REPORT: after running the bundles, one line came back \u201cspare lines: a stub parent is allowed \u2014 NO\u201d. Nothing had failed to apply. Running rbac.sql had put an OLDER version of that rule back, silently, because the rule was written in one bundle and corrected in another.',
+      'FIXED SO IT CANNOT HAPPEN TO THAT RULE AGAIN \u2014 the correction now lives in the same bundle as the original, so whichever bundle you run, it ends up right.',
+      'CHECKED WHAT ELSE THE SAME RUNS UNDID, by replaying your exact sequence of bundles against a copy and comparing every access rule. FIVE MORE were affected: who can see a spare request, who can update one, per-line approvals, who can see consumption, and the right needed to amend or void a consumption line. Plus the master-list write rules, which went back to \u201canyone with Edit Masters can write every list\u201d.',
+      'TO PUT THEM RIGHT, run three more bundles \u2014 Spare_1.sql, HandStock_X.sql and masters.sql \u2014 then _status.sql again. Verified on a copy: after those three, every rule matches.',
+      'AND SO IT IS NEVER SILENT AGAIN: _status.sql now reports all six by name, saying which bundle restores each. It used to have no way of telling you.',
+      'No change to the app itself \u2014 this is entirely about the database rules behind it.',
+    ],
+  },
+  {
     version: '0.9.98',
     date: '2026-09-06',
     title: 'Two names on a call: the Hotline desk, and whoever actually registered it',
