@@ -1586,6 +1586,37 @@ export async function dispatchSpareLines(
   return { ok: true, dispatch: (row ?? {}) as Record<string, unknown> };
 }
 
+// ---------------------------------------------------------------------------
+// APPROVAL IN BULK (0116) — tick the boxes, press Approve.
+//
+// Each line is approved AT THE STAGE IT IS AT, so a mixed selection advances
+// every line by exactly one step and nothing skips a review it has not had.
+// It SKIPS what the caller may not approve instead of failing the batch — a
+// batch of forty that stops on the one line you may not touch is a batch you
+// then take apart by hand — and returns both counts with a reason, so the
+// screen can say what happened to all forty.
+// ---------------------------------------------------------------------------
+export async function approveSpareLines(
+  lineIds: number[], actor: string,
+): Promise<{ ok: boolean; approved?: number; skipped?: number; reason?: string; error?: string }> {
+  const { data, error } = await must().rpc('approve_spare_lines', { p_line_ids: lineIds, p_actor: actor });
+  if (error) return { ok: false, error: errMsg(error) };
+  const row = (Array.isArray(data) ? data[0] : data) as { approved?: number; skipped?: number; reason?: string } | null;
+  return { ok: true, approved: Number(row?.approved ?? 0), skipped: Number(row?.skipped ?? 0), reason: String(row?.reason ?? '') };
+}
+
+// What is waiting for an RM, and — per row, per reader — whether THIS reader
+// may give it. `may_approve` is on the row rather than filtered out, so a spare
+// somebody cannot approve is shown greyed rather than missing: "why is my spare
+// not in the queue" then has an answer on the screen.
+export async function listPendingRmApproval(limit = 2000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().from('spare_pending_rm').select('*')
+    .order('engineer', { ascending: true }).order('or_no', { ascending: true })
+    .order('row_no', { ascending: true }).range(0, limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return data ?? [];
+}
+
 // The engineer acknowledges every outstanding SHIPMENT on these lines. A line
 // whose whole quantity is now confirmed closes as Received; one still waiting
 // for a balance stays at Stores.

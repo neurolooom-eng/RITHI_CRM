@@ -47,6 +47,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/report-mapping', label: 'Bulk Report Mapping', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/spare-requests', label: 'Spare Requests' },
+  { path: '/spare-rm-approval', label: 'RM Approval' },
   { path: '/spare-dispatch', label: 'Pending Dispatch' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
   { path: '/handstock', label: 'Hand Stock' },
@@ -236,6 +237,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Spares', pages: [
     { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },
+    { path: '/spare-rm-approval', label: 'RM Approval', actions: ['spare.approve_rm'] },
     { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch'] },
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
     { path: '/handstock', label: 'Hand Stock', actions: [] },

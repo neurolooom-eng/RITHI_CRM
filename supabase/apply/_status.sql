@@ -320,6 +320,10 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from pg_trigger
                   where tgrelid = 'public.reports'::regclass
                     and tgname = 'reports_visit_date_guard'))),
+    (76, 'spares: approve a batch, and the RM queue', 'approve_spare_lines() + spare_pending_rm -- tick and approve, each line at the stage it is AT so nothing skips a review; the NSM role holds all three approvals (0116). Restore: Spare_1.sql',
+        (to_regprocedure('public.approve_spare_lines(bigint[],text)') is not null
+     and to_regclass('public.spare_pending_rm') is not null
+     and coalesce((select permissions ? 'spare.approve_rm' from public.app_roles where role='nsm'), false))),
     -- ---- POLICIES THAT A BUNDLE REPLAY QUIETLY REVERTS -------------------
     -- Each of these is created early (0001/0008) and REDEFINED later, in a
     -- different module. The bundles are replayed one at a time, so re-running

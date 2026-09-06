@@ -572,6 +572,35 @@ points at these rows.
     an `rbac.sql` replay). The KNOWN list cannot tell anybody their live
     project has drifted; these rows can.
 
+### Spares
+- **Bulk approval, and an RM queue of its own** (v0.9.103,
+  `0116_spare_bulk_approval.sql`) — tick boxes on the spare register plus a new
+  `/spare-rm-approval` screen modelled on Pending Dispatch.
+  - `approve_spare_lines(ids, actor)` approves each line **at the stage it is
+    at**, so a mixed selection advances everything one step and nothing skips a
+    review. It SKIPS what the caller may not approve and returns
+    `approved / skipped / reason` — a batch of forty that fails on one line is a
+    batch you take apart by hand.
+  - **"All stages" is a PERMISSION, not a bypass.** The NSM role gains
+    `spare.approve_rm` and `spare.approve_commercial` (MERGED, never
+    overwritten). A bypass flag would put a second invisible rule beside the
+    0016 guard; a permission shows on the Roles screen and an admin can revoke
+    it without a migration. Admin/Super Admin already pass the guard.
+  - 0033 still applies inside bulk — never your own request, a manager only
+    within their tree. Tests 2 and 3 are what fail if that stops holding.
+  - ⚠️ **`spare_rm_may_approve()` depends on `user_directory`, not `profiles`.**
+    With no directory row `my_dir_name()` is null, the self-test never matches
+    and `has_reports()` is false, so the function falls through to its
+    permissive branch. My first run of the suite proved exactly that against
+    profile-only fixtures. Pre-existing (the single-line guard uses the same
+    function), but worth knowing: an approver missing from the directory is
+    less constrained, not more.
+  - Found by running it: `why := why || 'text'` on a `text[]` makes Postgres
+    parse the literal AS an array and fail. `array_append` says which meaning
+    is wanted.
+  - ⚠️ **Run `Spare_1.sql`** — `_status.sql` row 76, verified NO before and yes
+    after.
+
 ### Reporting
 - **A visit cannot be dated in the future, or before the complaint** (v0.9.100,
   `0115_visit_date_sanity.sql`) — the user's two rules for the Visit Update

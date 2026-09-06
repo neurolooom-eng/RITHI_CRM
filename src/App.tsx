@@ -22,6 +22,7 @@ import { PendingRegistrations } from './modules/PendingRegistrations';
 import { PendingCalls } from './modules/PendingCalls';
 import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
+import { SpareRmApproval } from './modules/SpareRmApproval';
 import { SpareDispatch } from './modules/SpareDispatch';
 import { DeliveryChallan } from './modules/DeliveryChallan';
 import { Declaration } from './modules/Declaration';
@@ -127,6 +128,7 @@ function Shell() {
         {/* Breakdown calls are the same as the Field Call Register */}
         <Route path="/breakdowns" element={<Navigate to="/field-calls" replace />} />
         <Route path="/spare-requests" element={<SpareRequests />} />
+        <Route path="/spare-rm-approval" element={<SpareRmApproval />} />
         <Route path="/spare-dispatch" element={<SpareDispatch />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
