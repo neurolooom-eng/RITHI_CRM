@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.117',
+    date: '2026-09-06',
+    title: 'A register\u2019s layout can be set for a role',
+    changes: [
+      'In the \u2699 Columns panel, an administrator can now apply the layout on screen \u2014 which columns, in what order, how wide, and how it is grouped \u2014 TO ONE ROLE. \u201cThis is how the Stores In-charge should see Pending Dispatch.\u201d',
+      '\u201cSave for everyone\u201d is the same thing with no role picked, so the two cannot drift apart. It also now carries the GROUPING, which it never did before.',
+      'THE LATER DECISION WINS, as with Auto save: applying a layout to a role overrides how people had it arranged before that moment, and anyone who rearranges it afterwards keeps their own.',
+      'The panel says whose layout is currently in force \u2014 yours, your role\u2019s, or everyone\u2019s \u2014 rather than leaving you to work it out.',
+      'An arrangement you saved before this change counts as \u201carranged long ago\u201d, so the first layout an administrator applies does reach you.',
+      'Needs migration: run supabase/apply/rbac.sql.',
+    ],
+  },
+  {
     version: '0.9.116',
     date: '2026-09-06',
     title: 'An admin can set Auto save for everyone',

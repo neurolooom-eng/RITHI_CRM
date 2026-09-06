@@ -92,6 +92,7 @@ const MODULES = {
             '0035_data_view_all.sql', '0037_call_read_scale.sql', '0051_pending_registrations_view_all.sql',
             '0069_nsm_service_manager.sql', '0093_lookup_module.sql',
             '0110_admin_reset_password.sql',
+            '0120_role_table_views.sql',
             // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
             // created by 0008 in THIS module and redefined by these two. While they
             // sat in spare_requests, replaying `rbac.sql` on its own put 0008's

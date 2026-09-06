@@ -931,5 +931,36 @@ console.log('\n-- the call-status colour code --');
     bare.length, 0);
 }
 
+// ---------------------------------------------------------------------------
+// A REGISTER'S LAYOUT CAN BE SET FOR A ROLE (0120).
+//
+// The same rule as the Auto Save default, and for the same reason: the
+// reader's own arrangement and the administrator's are ranked BY WHEN, not by
+// who. "The admin always wins" makes every reader's column picker a lie; "your
+// own always wins" makes "apply to a role" a lie.
+console.log('\n-- a layout can be set for a role --');
+{
+  const dt = readFileSync(`${process.cwd()}/src/components/table/DataTable.tsx`, 'utf8');
+  eq('a layout can be applied to one role', /const applyToRole = async \(role: string\)/.test(dt), true);
+  eq('...and cleared again', /const clearForRole = async \(role: string\)/.test(dt), true);
+  // EVERYONE IS THE SAME MECHANISM with an empty role, or the two drift.
+  eq('“everyone” goes through the same path as a role',
+    /if \(supabaseConfigured\(\)\) \{ await applyToRole\(''\); return; \}/.test(dt), true);
+  // The layout must carry the GROUPING too — a "view" that restored the
+  // columns and left the reader grouped by something else is not the view
+  // anybody arranged.
+  eq('the layout carries the grouping, not just the columns',
+    /const currentView = \(\): RoleTableView[\s\S]{0,160}group: groupKeys/.test(dt), true);
+  // The reader's own arrangement carries a TIME, or it cannot be ranked.
+  eq("the reader's own arrangement is stamped", /hidden: \[\.\.\.nextHidden\], at: Date\.now\(\)/.test(dt), true);
+  eq('...and the later decision wins',
+    /if \(mine && Number\(mine\.at \?\? 0\) >= role\.setAt\) return;/.test(dt), true);
+  // A layout saved before 0120 has no `at`, so it reads as time 0 and yields —
+  // an upgrade must not look like somebody actively arranging.
+  eq('an older stored layout does not outrank an administrator',
+    /at\?: number;/.test(dt), true);
+  eq('the panel says whose layout is in force', /In force here: the layout set for/.test(dt), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

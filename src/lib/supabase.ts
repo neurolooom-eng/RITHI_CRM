@@ -1333,6 +1333,34 @@ export async function setDccrAutoSaveDefault(on: boolean): Promise<{ ok: boolean
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// A REGISTER'S LAYOUT, SET FOR A ROLE (0120).
+//
+// Which columns, in what order, how wide, grouped by what. `role: ''` is
+// EVERYONE, and the same table answers both — one mechanism, so the two cannot
+// drift. `setAt` is stamped by the database and is what the reader's own
+// arrangement is compared against: the later decision wins, like Auto Save.
+// ---------------------------------------------------------------------------
+export interface RoleTableView {
+  order?: string[]; widths?: Record<string, number>; hidden?: string[];
+  group?: string[]; wrap?: boolean;
+}
+export async function myTableView(storageKey: string): Promise<{ view: RoleTableView; setAt: number; role: string } | null> {
+  const { data, error } = await must().rpc('my_table_view', { p_storage_key: storageKey });
+  if (error) throw new Error(errMsg(error));
+  const row = (Array.isArray(data) ? data[0] : data) as { view?: RoleTableView; set_at?: number; role?: string } | null;
+  if (!row) return null;
+  return { view: (row.view ?? {}) as RoleTableView, setAt: Number(row.set_at ?? 0), role: String(row.role ?? '') };
+}
+export async function setRoleTableView(storageKey: string, role: string, view: RoleTableView): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('set_role_table_view', { p_storage_key: storageKey, p_role: role, p_view: view });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+export async function clearRoleTableView(storageKey: string, role: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('clear_role_table_view', { p_storage_key: storageKey, p_role: role });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- masters (dropdown value-lists) ----------------------------------------
 // App master keys map to different sources: party -> parties, spare -> parts,
 // product -> products, complaint -> the 'standardComplaint' list; the rest are
