@@ -28,6 +28,11 @@ const DIR = 'supabase/migrations';
 // rather than imported from it: that module builds every bundle the moment it
 // loads, and a check has no business writing files.
 const moduleOf = new Map();
+// …and the ORDER the module declares them in, which is the order the bundle
+// emits and therefore the order that decides who has the last word. It is NOT
+// the filename order: a migration numbered above a mirror can still be listed
+// before it, and only this list says so.
+const moduleFiles = new Map();
 {
   const src = readFileSync('scripts/build-apply-bundles.mjs', 'utf8');
   const body = src.slice(src.indexOf('const MODULES = {'));
@@ -35,9 +40,9 @@ const moduleOf = new Map();
   const starts = [...body.matchAll(re)].map((m) => ({ name: m[1], at: m.index }));
   starts.forEach((s0, i) => {
     const chunk = body.slice(s0.at, i + 1 < starts.length ? starts[i + 1].at : body.length);
-    for (const f of chunk.match(/'(\d{4}_[a-z0-9_]+\.sql)'/g) ?? []) {
-      moduleOf.set(f.slice(1, -1), s0.name);
-    }
+    const listed = (chunk.match(/'(\d{4}_[a-z0-9_]+\.sql)'/g) ?? []).map((f) => f.slice(1, -1));
+    moduleFiles.set(s0.name, listed);
+    for (const f of listed) moduleOf.set(f, s0.name);
   });
 }
 
@@ -250,7 +255,7 @@ const KNOWN = new Set([
     const mod = moduleOf.get(mirror);
     if (!mod) { problems.push(`${mirror} belongs to no module`); continue; }
 
-    const inModule = files.filter((f) => moduleOf.get(f) === mod);
+    const inModule = moduleFiles.get(mod) ?? [];
     if (inModule.at(-1) !== mirror) {
       problems.push(
         `${mirror} must be the LAST file in module "${mod}" — it is followed by ` +

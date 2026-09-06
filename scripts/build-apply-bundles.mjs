@@ -221,6 +221,7 @@ const MODULES = {
             'marked by the recipient; rows created by SECURITY DEFINER triggers.'],
     needs: ['profiles'],
     files: ['0045_notifications.sql', '0054_notify_uid_ambiguous.sql',
+      '0123_clear_notifications_on_signout.sql',
       // LAST: 0064 (handstock) extends `notify_spare_dispatched()` with the
       // REFURBISHED line, and this module running after handstock had been
       // discarding it on every apply. Ends the module with 0064's version.

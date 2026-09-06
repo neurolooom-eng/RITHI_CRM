@@ -380,6 +380,8 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select pg_get_functiondef(p.oid) ilike '%received_at%'
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname='public' and p.proname='spare_requests_stage_guard'), false)),
+    (83, 'notifications: signing out clears them', 'clear_my_notifications() -- the bell empties in the DATABASE at sign-out, read and unread alike, so the next session starts clean on every device. Takes no arguments and filters on auth.uid(), and `authenticated` is not granted execute on it by PUBLIC (0123). Restore: notifications.sql',
+        to_regprocedure('public.clear_my_notifications()') is not null),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
