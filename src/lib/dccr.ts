@@ -89,6 +89,16 @@ export function setAutoSaveOn(on: boolean): void {
 // a hidden checkbox is never the only thing standing in the way.
 export const FIRST_YEAR_DAYS = 366;
 
+// DID THIS MACHINE FAIL INSIDE ITS FIRST YEAR? A different question from
+// "may it be answered in bulk": a call already answered is not eligible for
+// bulk but is not a warning, and a warning is what this is for.
+export function firstYearFailure(row: { age_days?: unknown }): boolean {
+  const age = row.age_days;
+  if (age === null || age === undefined || age === '') return false;
+  const n = Number(age);
+  return Number.isFinite(n) && n < FIRST_YEAR_DAYS;
+}
+
 export function bulkReview2Block(row: { age_days?: unknown; review2_done?: unknown }): string {
   if (row.review2_done === true) return 'Review 2 is already answered';
   const age = row.age_days;

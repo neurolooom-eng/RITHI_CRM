@@ -15,7 +15,7 @@ import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
-  bulkReview2Block, autoSaveOn, setAutoSaveOn, AUTOSAVE_DELAY_MS,
+  bulkReview2Block, firstYearFailure, autoSaveOn, setAutoSaveOn, AUTOSAVE_DELAY_MS,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
 } from '../lib/dccr';
@@ -77,6 +77,9 @@ export function DailyCallReview() {
   const [busy, setBusy] = useState(false);
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  // The counters could not be read. Kept apart from the numbers themselves so
+  // the screen can say so rather than showing a figure it does not stand behind.
+  const [countErr, setCountErr] = useState(false);
   const [counts, setCounts] = useState<{ total: number; byStatus: Record<string, number>; effects: number }>(
     { total: 0, byStatus: {}, effects: 0 },
   );
@@ -226,8 +229,15 @@ export function DailyCallReview() {
       // can only ever report itself: every other stage would read 0, and the
       // Review 2 tab would hide the number on the Review 3 tab. Same rule the
       // facet chips follow — a count shows what choosing it would give you.
-      void countCallReviews({ ...f, status: undefined }).then(setCounts)
-        .catch(() => { /* counters stay as they were */ });
+      // A FAILED COUNT MUST NOT KEEP THE LAST GOOD ANSWER. It used to swallow
+      // the error and leave `counts` as it was, so the header could read
+      // "showing 99 of 76" — the rows from this filter against a total from a
+      // previous one — or a row of zeros that reads as "no calls". A number
+      // nobody can tell is stale is worse than an admission.
+      setCountErr(false);
+      void countCallReviews({ ...f, status: undefined })
+        .then((c) => { setCounts(c); setCountErr(false); })
+        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0 }); setCountErr(true); });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -403,7 +413,8 @@ export function DailyCallReview() {
             {/* Rows ON SCREEN against the whole filtered set — the one number
                 here that IS partial, so it carries the "+". */}
             <span className="conn-dot conn-off">
-              showing {rows.length.toLocaleString()}{more ? '+' : ''} of {inView.toLocaleString()}
+              showing {rows.length.toLocaleString()}{more ? '+' : ''}
+              {countErr ? ' — total could not be counted' : ` of ${inView.toLocaleString()}`}
             </span>
           </>
         ) : undefined}
@@ -463,7 +474,8 @@ export function DailyCallReview() {
               {/* LOADED (a lower bound, so "+") against the EXACT total for
                   whatever this tab is scoped to. */}
               <span className="muted">
-                {deskShown.toLocaleString()}{more ? '+' : ''} of {inView.toLocaleString()}
+                {deskShown.toLocaleString()}{more ? '+' : ''}
+                {countErr ? ' — total could not be counted' : ` of ${inView.toLocaleString()}`}
               </span>
               {more && (
                 <button className="btn btn-sm btn-ghost" onClick={() => void loadMore()} disabled={loadingMore}>
@@ -537,13 +549,22 @@ export function DailyCallReview() {
                         {!shut2 && list.map((r) => (
                           <button
                             key={r.ucn}
-                            className={`dccr-callrow${deskUcn === r.ucn ? ' is-on' : ''}`}
+                            // MARKED IN THE LIST, not only once it is open. A
+                            // machine that failed inside its first year is the
+                            // case Review 2 exists for and the one that cannot
+                            // be answered in bulk — so it is worth seeing
+                            // BEFORE clicking, not after.
+                            className={`dccr-callrow${deskUcn === r.ucn ? ' is-on' : ''}${firstYearFailure(r) ? ' is-firstyear' : ''}`}
                             onClick={() => setDeskUcn(r.ucn)}
+                            title={firstYearFailure(r) ? `Failed at ${Number(r.age_days).toLocaleString()} days — within the first year` : undefined}
                           >
                             <b>{r.ucn}</b>
                             <span className="muted">{fmtLongDate(r.reg_date)}</span>
                             <span className="dccr-callrow-party">{r.party_name || '—'}</span>
                             <span className="muted">{[r.product_name, r.serial].filter(Boolean).join(' · ')}</span>
+                            {firstYearFailure(r) && (
+                              <span className="dccr-firstyear-tag">⚠️ {Number(r.age_days).toLocaleString()}d · 1st yr</span>
+                            )}
                           </button>
                         ))}
                       </div>

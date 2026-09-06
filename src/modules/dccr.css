@@ -257,3 +257,21 @@
   border-bottom: 1px solid var(--border);
   background: var(--surface-alt);
 }
+
+/* A CALL THAT FAILED INSIDE ITS FIRST YEAR, marked in the list. Contrast, like
+   every other highlight here: a solid danger rail down the row and a solid tag,
+   so it is visible while scrolling rather than only once the call is open. */
+.dccr-callrow.is-firstyear { box-shadow: inset 4px 0 0 var(--danger); }
+.dccr-callrow.is-firstyear.is-on { box-shadow: inset 4px 0 0 var(--danger), inset 0 0 0 1px var(--primary); }
+.dccr-firstyear-tag {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 3px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border-radius: 5px;
+  padding: 2px 7px;
+}

@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.114',
+    date: '2026-09-06',
+    title: 'First-year failures are marked in the call list',
+    changes: [
+      'In the Review Desk\u2019s call list, a call whose machine failed inside its first year now carries a red rail and a \u201c191d \u00b7 1st yr\u201d tag \u2014 so you can see which ones need individual attention while scrolling, not only after opening them.',
+      'FIXED: the count beside the calls could read \u201c99 of 76\u201d, or show zeros across every card. When the counting query failed the screen quietly kept the previous answer, so a stale number looked like a current one. It now says \u201ctotal could not be counted\u201d instead of standing behind a figure it cannot.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.113',
     date: '2026-09-06',
     title: 'Auto save for the DCCR, Expand all, and the bulk button where you look for it',
