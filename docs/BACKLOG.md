@@ -650,6 +650,26 @@ points at these rows.
     "+" rule decides whether those counts carry one.
 
 ### Daily Call Review
+- **The worklist tabs scope the QUERY, and highlight means contrast**
+  (v0.9.109) — two user reports on the Review Desk.
+  - ⚠️ **"Review 2 Pending 175" was showing 85.** The tabs narrowed the LOADED
+    PAGE in the browser: the register reads 500 rows of everything, of which 85
+    happened to be at that stage, and Load more was the only way to the rest.
+    `deskStage` now goes into `ReviewFilter.status`, so the read is scoped and
+    one page covers the worklist.
+  - The counters are deliberately **not** scoped by review status — a counter
+    narrowed by the very thing it counts can only report itself, and the Review
+    2 tab would zero the number on the Review 3 tab. Same rule the facet chips
+    follow. `inView` is what that leaves: the stage's own total where one is
+    chosen, the register's where none is.
+  - **"Highlight" means CONTRAST, not a tint** — now in CLAUDE.md as a standing
+    preference. The first attempt was `--primary-soft` and it did not read on
+    screen. The lifted facts INVERT (`background: var(--text); color:
+    var(--surface)`) and the first-year warning is solid `--danger`; both hold
+    in either theme by construction. Call Status is the exception and keeps its
+    semantic colour, because inverting it would throw away what the colour is
+    carrying.
+
 - **A first-year failure is a warning, and the review's four facts are lifted**
   (v0.9.108) — the user's marks on the Review Desk screenshot.
   - `age_days < 366` (the user's line, not 365) renders as a red warning with

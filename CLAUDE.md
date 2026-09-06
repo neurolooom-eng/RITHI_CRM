@@ -169,6 +169,14 @@ psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
   the application's (user's rule, 2026-09-05). Replacing a logo is replacing one
   file in `src/assets/`; `npm run check:ui` fails a screen that imports an asset
   directly or uses the wrong one of the two.
+- **"Highlight" means CONTRAST, not a tint** (user's standing preference,
+  2026-09-06). A pale wash of the accent colour is what this project reached
+  for first and it did not read at all on screen. Highlighting is done by
+  INVERTING against the page — `background: var(--text); color: var(--surface)`
+  — or by a saturated, solid state colour, so the thing projects off the
+  surface instead of sitting slightly on top of it. Both work in either theme
+  by construction, which a hand-picked highlighter colour does not.
+
 - **A count over partly-loaded data is a LOWER BOUND and must show `+`.**
   Every register loads in pages, so a chip reading "MAYANK GUPTA 90" over the
   first 800 rows means *at least* 90. A number that looks exact and is not is

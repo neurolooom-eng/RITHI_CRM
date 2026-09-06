@@ -162,11 +162,11 @@ export function DailyCallReview() {
   // the rows LOADED, so every count here is a lower bound while more is
   // waiting and carries the "+"; the exact per-stage totals are the cards
   // above, which come from a full walk of the register.
-  // The two worklist tabs are the desk scoped to one review stage.
-  const deskStage = tab === 'r2' ? 'Review 2 Pending' : tab === 'r3' ? 'Review 3 Pending' : '';
   const deskGroups = useMemo(() => {
     const tree = new Map<string, Map<string, ReviewRow[]>>();
-    rows.filter((r) => !deskStage || String(r.review_status ?? '') === deskStage).forEach((r) => {
+    // No client-side narrowing: the READ is already scoped to the tab's stage,
+    // so filtering again here would only hide rows the query meant to return.
+    rows.forEach((r) => {
       const g1 = String(r.review_status ?? '— no review status —');
       const g2 = String(r.open_state ?? r.last_status ?? '— no call status —');
       if (!tree.has(g1)) tree.set(g1, new Map());
@@ -175,7 +175,7 @@ export function DailyCallReview() {
       inner.get(g2)!.push(r);
     });
     return [...tree.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [rows, deskStage]);
+  }, [rows]);
 
   const deskShown = useMemo(
     () => deskGroups.reduce((n, [, byState]) => n + [...byState.values()].reduce((a, b) => a + b.length, 0), 0),
@@ -184,12 +184,20 @@ export function DailyCallReview() {
 
   const deskRow = useMemo(() => rows.find((r) => r.ucn === deskUcn) ?? null, [rows, deskUcn]);
 
+  // THE WORKLIST TABS SCOPE THE QUERY, not just the list on screen. They used
+  // to filter the loaded page in the browser: the register reads 500 rows of
+  // everything, of which 85 happened to be Review 2 Pending, so a tab saying
+  // 175 showed 85 and Load more was the only way to the rest. The stage now
+  // goes into the READ, so one page covers the whole worklist and 175 means
+  // 175.
+  const deskStage = tab === 'r2' ? 'Review 2 Pending' : tab === 'r3' ? 'Review 3 Pending' : '';
   const filter = useMemo<ReviewFilter>(() => ({
-    from: from || undefined, to: to || undefined, status: status || undefined,
+    from: from || undefined, to: to || undefined,
+    status: deskStage || status || undefined,
     callState: callState || undefined,
     product: product || undefined, engineer: engineer || undefined,
     effectOnly: effectOnly || undefined, q: search.trim() || undefined,
-  }), [from, to, status, callState, product, engineer, effectOnly, search]);
+  }), [from, to, status, deskStage, callState, product, engineer, effectOnly, search]);
 
   const load = async (f: ReviewFilter) => {
     if (!live) return;
@@ -208,8 +216,14 @@ export function DailyCallReview() {
       setMsg(stale
         ? { tone: 'info', text: 'The visits, spares consumed, software version and product age are not in this database yet — run supabase/apply/daily_review.sql, then refresh.' }
         : null);
-      // The stage counters cover the WHOLE filtered set, not the page shown.
-      void countCallReviews(f).then(setCounts).catch(() => { /* counters stay as they were */ });
+      // The stage counters cover the WHOLE filtered set, not the page shown —
+      // and NOT scoped by review status, whichever tab is open or whatever the
+      // Review Status box says. A counter narrowed by the very thing it counts
+      // can only ever report itself: every other stage would read 0, and the
+      // Review 2 tab would hide the number on the Review 3 tab. Same rule the
+      // facet chips follow — a count shows what choosing it would give you.
+      void countCallReviews({ ...f, status: undefined }).then(setCounts)
+        .catch(() => { /* counters stay as they were */ });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -248,6 +262,12 @@ export function DailyCallReview() {
   }, [live]);
 
   const statusCount = (s: string) => counts.byStatus[s] ?? 0;
+  // WHAT IS IN VIEW. The counters are deliberately not scoped by review status
+  // (so every tab keeps its own number), which means `counts.total` is the
+  // whole register — right for the Review Register tab, wrong the moment a
+  // stage is chosen. This is the number for the stage actually being looked at.
+  const inView = (deskStage || status) ? statusCount(deskStage || status) : counts.total;
+
 
   // Export covers the WHOLE filtered set, not the pages that happen to be on
   // screen — so it is read here rather than taken from `rows`.
@@ -333,7 +353,7 @@ export function DailyCallReview() {
         // The count is EXACT — countCallReviews walks every page of the summary
         // view — so no "+", even though only the first page of rows is on
         // screen. `moreAvailable` is what puts Load more beside it.
-        count={tab === 'register' ? counts.total : undefined}
+        count={tab === 'register' ? inView : undefined}
         moreAvailable={tab === 'register' && more}
         onLoadMore={tab === 'register' ? () => void loadMore() : undefined}
         loadingMore={loadingMore}
@@ -345,7 +365,7 @@ export function DailyCallReview() {
             {/* Rows ON SCREEN against the whole filtered set — the one number
                 here that IS partial, so it carries the "+". */}
             <span className="conn-dot conn-off">
-              showing {rows.length.toLocaleString()}{more ? '+' : ''} of {counts.total.toLocaleString()}
+              showing {rows.length.toLocaleString()}{more ? '+' : ''} of {inView.toLocaleString()}
             </span>
           </>
         ) : undefined}
@@ -405,7 +425,7 @@ export function DailyCallReview() {
               {/* LOADED (a lower bound, so "+") against the EXACT total for
                   whatever this tab is scoped to. */}
               <span className="muted">
-                {deskShown.toLocaleString()}{more ? '+' : ''} of {(deskStage ? statusCount(deskStage) : counts.total).toLocaleString()}
+                {deskShown.toLocaleString()}{more ? '+' : ''} of {inView.toLocaleString()}
               </span>
               {more && (
                 <button className="btn btn-sm btn-ghost" onClick={() => void loadMore()} disabled={loadingMore}>
@@ -488,7 +508,7 @@ export function DailyCallReview() {
       {tab === 'register' && (
         <>
           <KpiGrid min={170}>
-            <KpiCard label="Calls in view" value={counts.total} tone="primary" icon="📋" />
+            <KpiCard label="Calls in view" value={inView} tone="primary" icon="📋" />
             <KpiCard label="Review 1 Pending" value={statusCount('Review 1 Pending')} tone={statusCount('Review 1 Pending') ? 'danger' : 'neutral'} />
             <KpiCard label="Review 2 Pending" value={statusCount('Review 2 Pending')} tone={statusCount('Review 2 Pending') ? 'warning' : 'neutral'} />
             <KpiCard label="Review 3 Pending" value={statusCount('Review 3 Pending')} tone={statusCount('Review 3 Pending') ? 'info' : 'neutral'} />
@@ -790,7 +810,7 @@ function ReviewDrawer({
         <div className="is-key"><span>Customer</span>{row.party_name || '—'}</div>
         <div className="is-key"><span>Product · Serial</span>{[row.product_name, row.serial].filter(Boolean).join(' · ') || '—'}</div>
         <div><span>Engineer</span>{row.allocated_to || '—'}</div>
-        <div className="is-key">
+        <div className="is-key is-state">
           <span>Call Status</span>
           {statusBadge(String(row.open_state || row.last_status || row.status || '—'), CALL_STATE_TONES)}
         </div>
