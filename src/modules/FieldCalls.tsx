@@ -419,13 +419,38 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // engineer list — shared with the Register panel and the pre-mapping editor
   // in Pending Registrations, which are the same form (see callFields.tsx).
   const { inject: injectMasters, offered: offeredComplaints } = useCallFieldMasters();
-  // The drawer is the OTHER way to move a call, so it obeys the same right.
-  // Read-only with a reason rather than removed: the engineer on the call is
-  // worth seeing even when you may not change it.
-  const lockAllottee = (fields: FieldDef[]): FieldDef[] =>
-    can('calls.allot') ? fields : fields.map((f) => (f.name === 'allocatedTo'
-      ? { ...f, readOnly: true, help: 'Needs the "Re-allocate a call to another engineer" permission' }
-      : f));
+  // WHAT OF A CALL MAY THIS PERSON CHANGE? "Edit calls" used to be all of it,
+  // which suited the Hotline desk and nobody else (0127). Each section now has
+  // its own right, with `calls.edit` as the parent — so a role that had the
+  // whole thing still has it, and a manager can be given the parts they need.
+  //
+  // Read-only with a reason, never removed: what is on the call is worth seeing
+  // whether or not you may change it, and a field that quietly vanishes is how
+  // "where has it gone?" starts. The database enforces the same rule (the form
+  // is the courtesy), so the two cannot drift apart into a lie.
+  const FIELD_RIGHT: Record<string, { perm: string; what: string }> = {
+    allocatedTo:         { perm: 'calls.allot',          what: 'Re-allocate a call to another engineer' },
+    standardComplaint:   { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
+    complaintReported:   { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
+    breakdownDate:       { perm: 'calls.edit.complaint', what: 'Edit the complaint' },
+    partyName:           { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    city:                { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    state:               { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    productName:         { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    serial:              { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    itemStatus:          { perm: 'calls.edit.customer',  what: 'Edit customer & product' },
+    publicHealthThreat:  { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
+    death:               { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
+    seriousIncident:     { perm: 'calls.edit.vigilance', what: 'Edit the vigilance answers' },
+    customerName:        { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
+    customerNumber:      { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
+    customerDesignation: { perm: 'calls.edit.contact',   what: 'Edit customer contact details' },
+  };
+  const lockByRight = (fields: FieldDef[]): FieldDef[] => fields.map((f) => {
+    const r = FIELD_RIGHT[f.name];
+    if (!r || f.readOnly || can(r.perm)) return f;
+    return { ...f, readOnly: true, help: `Needs the "${r.what}" permission` };
+  });
 
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   // Engineers default to seeing only OPEN calls (anything not fully Solved),
@@ -1182,7 +1207,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
-              fields={lockAllottee(injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS))}
+              fields={lockByRight(injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS))}
               initial={drawer.mode === 'create'
                 ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }
                 // The row carries the UUID; the form shows the person. A call

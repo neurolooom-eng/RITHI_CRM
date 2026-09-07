@@ -402,6 +402,18 @@ with checks(sort_order, bundle, provides, present) as (
         (exists (select 1 from public.app_roles where permissions ? 'calls.allot')
      and (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
            where t.tgname = 'zz_calls_allot_guard' and not t.tgisinternal) = 3)),
+    (88, 'calls: editing one is FOUR rights, not one', 'calls.edit.complaint / .customer / .vigilance / .contact, with calls.edit as their PARENT -- so a role holding the whole right keeps everything and nothing changed on the day it ran. To narrow a manager, untick "Edit calls" and tick the sections they should have. Enforced by zz_calls_edit_section_guard on all three call tables (0127). Restore: call_requests.sql',
+        (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+          where t.tgname = 'zz_calls_edit_section_guard' and not t.tgisinternal) = 3),
+    (89, 'calls: a section right can actually reach the call', 'calls_update admits calls.allot and the four section rights, not only calls.edit / calls.report. WITHOUT THIS every finer right is decoration: the row does not match the policy, the update reports 0 rows, and nothing says why (0127). Restore: call_requests.sql',
+        exists (select 1 from pg_policies
+                 where schemaname='public' and tablename='field_calls'
+                   and policyname='calls_update' and qual ilike '%calls.edit.vigilance%')),
+    (90, 'calls: every change to a vigilance answer is kept', 'call_vigilance_changes -- Public Health Threat / Death / Serious Incident are Review 1, so each change after registration is written with who, when, and from what to what, in the same statement that makes it. No insert or update policy: the trigger is the only author (0127). Restore: call_requests.sql',
+        (to_regclass('public.call_vigilance_changes') is not null
+     and not exists (select 1 from pg_policies
+                      where schemaname='public' and tablename='call_vigilance_changes'
+                        and cmd in ('INSERT','UPDATE')))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

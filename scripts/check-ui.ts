@@ -1073,7 +1073,43 @@ console.log('\n-- re-allocating a call is its own permission --');
   // otherwise the permission would be decoration on one route out of two.
   const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
   eq('the drawer locks the engineer box without it too',
-    /lockAllottee/.test(fc) && /f\.name === 'allocatedTo'[\s\S]{0,120}readOnly: true/.test(fc), true);
+    /allocatedTo: +\{ perm: 'calls\.allot'/.test(fc) && /lockByRight/.test(fc), true);
+}
+
+// "Edit calls" was one right over the whole call — right for the Hotline desk,
+// wrong for everybody else (user, 2026-09-06). It is four now, with calls.edit
+// as the parent, so a role that had the whole thing still has it.
+console.log('\n-- editing a call is four rights, not one --');
+{
+  const rbacSrc = readFileSync(`${process.cwd()}/src/lib/rbac.ts`, 'utf8');
+  const SECTIONS = ['complaint', 'customer', 'vigilance', 'contact'];
+  eq('all four sections are on the Roles & Permissions screen',
+    SECTIONS.every((k) => rbacSrc.includes(`key: 'calls.edit.${k}'`)), true);
+  // The parent rule is what makes this safe to ship: without it, every role
+  // holding calls.edit would lose the lot the moment the sections existed.
+  eq('...and calls.edit is their PARENT, so nobody loses anything',
+    /\/\^calls\\\.edit\\\..\+\$\/\.test\(key\)\) return 'calls\.edit'/.test(rbacSrc), true);
+  eq('they are listed on the Field Call Register page in the tree',
+    SECTIONS.every((k) => rbacSrc.includes(`'calls.edit.${k}'`)) && rbacSrc.includes("'calls.allot', 'calls.report'"), true);
+
+  const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  // Every field the database guards must be locked on the form, or the screen
+  // offers a box that saving will refuse — which is worse than not offering it.
+  const guarded: Record<string, string> = {
+    standardComplaint: 'complaint', complaintReported: 'complaint', breakdownDate: 'complaint',
+    partyName: 'customer', city: 'customer', state: 'customer',
+    productName: 'customer', serial: 'customer', itemStatus: 'customer',
+    publicHealthThreat: 'vigilance', death: 'vigilance', seriousIncident: 'vigilance',
+    customerName: 'contact', customerNumber: 'contact', customerDesignation: 'contact',
+  };
+  const missing = Object.entries(guarded)
+    .filter(([field, sec]) => !new RegExp(`${field}: +\\{ perm: 'calls\\.edit\\.${sec}'`).test(fc))
+    .map(([field]) => field);
+  eq('every field the database guards is locked on the form too', missing.join(',') || 'none', 'none');
+  // Read-only with a reason, not removed: a field that vanishes is how "where
+  // has it gone?" starts.
+  eq('...read-only with the reason, not hidden',
+    /readOnly: true, help: `Needs the "\$\{r\.what\}" permission`/.test(fc), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
