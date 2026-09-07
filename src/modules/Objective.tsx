@@ -124,14 +124,36 @@ export function Objective() {
   // disagreement — a Re-Calc that has not been run since the calls changed —
   // is visible in the evidence rather than hidden by it.
   const CALL_COLUMNS = ['ucn', 'call_number', 'reg_date', 'product_name', 'serial',
-                        'party_name', 'call_type', 'status', 'allocated_to'];
+                        'party_name', 'call_type', 'status', 'allocated_to',
+                        'warranty_number', 'warranty_start', 'warranty_end',
+                        'contract_number', 'contract_start', 'contract_end', 'contract_type'];
+
+  // SHEET 2 IS A PRODUCT MASTER LISTING, and is laid out to be read beside that
+  // screen — same fields, same order — so a reader can reconcile it line by
+  // line rather than take the denominator on trust. Its first row is the FILTER
+  // the database applied, in the database's own words: the file states which
+  // machines are in and why, instead of leaving that to be inferred from the
+  // rows that happen to be there.
+  const BASE_COLUMNS: [string, string][] = [
+    ['Product', 'product_name'], ['Serial', 'serial'], ['Customer', 'party_name'],
+    ['Status', 'status'],
+    ['Warranty no.', 'warranty_number'], ['Warranty from', 'warranty_start'],
+    ['Warranty to', 'warranty_end'],
+    ['Contract no.', 'contract_number'], ['Contract from', 'contract_start'],
+    ['Contract to', 'contract_end'], ['Contract type', 'contract_type'],
+  ];
+  const baseRow = (r: Record<string, unknown>) =>
+    Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
     try {
       const rows = await objectiveEvidence(o.id, monthIndex + 1);
       if (!rows.length) { setOMsg('There is nothing behind that figure to download.'); return; }
       const role = (r: Record<string, unknown>) => String(r.role ?? '');
-      const calls = rows.filter((r) => role(r) !== 'machine');
+      const calls = rows.filter((r) => role(r) !== 'machine' && role(r) !== 'filter');
       const machines = rows.filter((r) => role(r) === 'machine');
+      // The filter row is not a machine and must not be counted as one — it is
+      // the caption of sheet 2, carried in the same columns.
+      const filterRow = rows.find((r) => role(r) === 'filter');
 
       const isRate = o.calc_key === 'failure_rate_12m';
       const numerator = isRate ? calls.length : calls.filter((r) => role(r) === 'open').length;
@@ -160,19 +182,29 @@ export function Objective() {
                 ? 'yes' : 'NO — re-calculate; the calls have changed since the figure was written') },
         { Item: '', Value: '' },
         { Item: 'Measured as at', Value: 'the end of that month, never later than today' },
+      ];
+      if (filterRow) calc.push(
+        { Item: 'Installation base from', Value: 'Product Master (Product Register)' },
+        { Item: 'Product filter', Value: filterRow.product_name },
+        { Item: 'Serial filter', Value: filterRow.serial },
+      );
+      calc.push(
         { Item: 'Machines counted', Value: 'as the Product Register stands today — it keeps no history of past installs' },
         { Item: 'Downloaded', Value: new Date().toISOString() },
-      ];
+      );
 
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
         { name: 'List of Field Calls', columns: ['role', ...CALL_COLUMNS], rows: calls },
         {
           name: 'Installation Base',
-          columns: machines.length ? ['product_name', 'serial', 'party_name', 'status'] : ['Note'],
-          // An empty tab reads as a bug. This rate is calls over calls, and
-          // saying so is the honest content of the sheet.
-          rows: machines.length ? machines : [{ Note: 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
+          columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],
+          // An empty tab reads as a bug. Where there is no installed base at
+          // all the sheet says why; where there is one, the filter leads it —
+          // even if it selected nothing, which is itself worth seeing.
+          rows: filterRow
+            ? [baseRow(filterRow), ...machines.map(baseRow)]
+            : [{ Note: 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
         },
         { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
       ]);

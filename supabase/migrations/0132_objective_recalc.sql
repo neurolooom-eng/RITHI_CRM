@@ -65,7 +65,13 @@ $$;
 -- the figure is computed from exactly those rows. A number and its evidence
 -- cannot disagree, because there is only one query.
 -- ---------------------------------------------------------------------------
-create or replace function public.objective_evidence(p_id bigint, p_month integer)
+-- The return type has widened since (0135), and `create or replace function`
+-- CANNOT change one — replaying this file onto a database that already carries
+-- the later shape would fail outright. So it is DROPPED first, exactly as the
+-- views are: a bundle has to be runnable on a database in any state, not only
+-- on an empty one.
+drop function if exists public.objective_evidence(bigint, integer);
+create function public.objective_evidence(p_id bigint, p_month integer)
 returns table (
   role text, ucn text, call_number text, reg_date date, product_name text,
   serial text, party_name text, call_type text, status text, allocated_to text

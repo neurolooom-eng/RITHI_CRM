@@ -349,6 +349,34 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### To run on the live project — PENDING (2026-09-07)
+
+Everything this round is in two bundles. Run them, then `_status.sql`:
+
+| bundle | brings | rows |
+| --- | --- | --- |
+| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated | 93, 95, 96, 97, 98 |
+| [`performance.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)) | 0128 the KPI Field & Installation export (columns A–AB), 0131 Phase 2 (AC–AG + Pending Days), 0129 `products.serial_key` | 94 |
+
+⚠️ **This is a note, not evidence.** Run
+[`_status.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql)
+before diagnosing anything here — this file has twice claimed the opposite of
+what was applied.
+
+**0132–0134 now DROP `objective_evidence` before creating it.** The return type
+widened in 0135, and `create or replace function` cannot change a return type —
+so replaying `objective.sql` onto a database that already carried the new shape
+failed outright, the same way `create or replace view` failed once 0131 widened
+`kpi_field_inst`. Caught by `npm run check:replay`, which is the only thing that
+finds this class. Both are the same rule stated twice: **a file has to be
+runnable on a database in any state, not only on an empty one.**
+
+**`products.active` is deliberately NOT honoured** by the installation base.
+The column exists and defaults to true; nothing in this system reads it, and
+nothing maintains it. Filtering on it would move every failure rate on the
+strength of data that has never been kept. If it is ever maintained, that is
+the moment to revisit — not before.
+
 ### To run on the live project — NOTHING PENDING (2026-09-06)
 
 **Everything run by the user on 2026-09-06.** In one go, after the ordering
