@@ -3,6 +3,7 @@ import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
   countKpiFieldInst, listKpiFieldInst, listQualityObjectives, saveObjectiveCell,
   recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
+  objectiveCutoffLocked, setObjectiveCutoffLock,
   saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
 } from '../lib/supabase';
@@ -61,7 +62,10 @@ const showValue = (target: string, v: number | null): string => {
 export function Objective() {
   const live = supabaseConfigured();
   const scope = useAccessScope();
-  const { can } = useAuth();
+  // `isAdmin` from the same place Audit Mode reads it — the lock is an ADMIN's
+  // switch, and `config.manage` is the audience it exists to hold back, so
+  // config.manage must not be what unlocks it.
+  const { can, isAdmin } = useAuth();
   const mayEdit = can('config.manage');
   const YEAR = new Date().getFullYear();
   const [objectives, setObjectives] = useState<QualityObjective[]>([]);
@@ -110,9 +114,12 @@ export function Objective() {
   // stand behind at an audit.
   const [recalcing, setRecalcing] = useState(false);
   const [confirmRecalc, setConfirmRecalc] = useState(false);
+  const [recalcCutoff, setRecalcCutoff] = useState('');
+  const [cutoffLocked, setCutoffLocked] = useState(false);
+  useEffect(() => { void objectiveCutoffLocked().then(setCutoffLocked); }, []);
   const doRecalc = async () => {
     setRecalcing(true);
-    const res = await recalcObjectives(YEAR);
+    const res = await recalcObjectives(YEAR, recalcCutoff);
     setRecalcing(false);
     setConfirmRecalc(false);
     if (!res.ok) { setOMsg(`Could not re-calculate: ${res.error}`); return; }
@@ -120,7 +127,9 @@ export function Objective() {
     const months = (res.written ?? []).reduce((a, w) => a + Number(w.months_written ?? 0), 0);
     setOMsg(n === 0
       ? 'Nothing is set to compute yet — every objective is still typed.'
-      : `Re-calculated ${n} objective${n === 1 ? '' : 's'}, ${months} month${months === 1 ? '' : 's'} in all. Typed figures were left alone.`);
+      : `Re-calculated ${n} objective${n === 1 ? '' : 's'}, ${months} month${months === 1 ? '' : 's'} in all`
+        + (recalcCutoff ? `, with calls counted closed up to ${recalcCutoff}` : '')
+        + '. Typed figures were left alone.');
     loadObjectives();
   };
 
@@ -408,6 +417,28 @@ export function Objective() {
             <button className="btn" onClick={() => void addObjective(YEAR, (objectives.length ? objectives[objectives.length - 1].sort_order : 0) + 1).then(loadObjectives)}>
               + Add an objective
             </button>
+            {/* THE ADMIN'S SWITCH over whether anyone else may re-base the
+                figures by moving the cut-off. Shown to an administrator only —
+                a control that refuses everyone who can see it is noise. */}
+            {isAdmin && (
+              <button
+                className="btn"
+                title={cutoffLocked
+                  ? 'Anyone with config.manage may change the cut-off again'
+                  : 'Stop anyone but an administrator changing the cut-off date'}
+                onClick={() => {
+                  void setObjectiveCutoffLock(!cutoffLocked).then((r) => {
+                    if (!r.ok) { setOMsg(`Could not change the lock: ${r.error}`); return; }
+                    setCutoffLocked(!cutoffLocked);
+                    setOMsg(cutoffLocked
+                      ? 'The cut-off date is UNLOCKED — anyone who can re-calculate may change it.'
+                      : 'The cut-off date is LOCKED. Only an administrator can change it now.');
+                  });
+                }}
+              >
+                {cutoffLocked ? '🔒 Cut-off locked' : '🔓 Cut-off unlocked'}
+              </button>
+            )}
             <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
               Re-calculate writes only the <b>ƒ</b> rows, and only up to this month. It never touches a
               figure somebody typed.
@@ -564,11 +595,42 @@ export function Objective() {
             This reads the register and writes the months of the <b>{objectives.filter((o) => o.calc_key).length}</b>{' '}
             objective{objectives.filter((o) => o.calc_key).length === 1 ? '' : 's'} marked <b>ƒ</b>, up to this month.
           </p>
+          {/* THE CUT-OFF, set at the moment of submission — where the person
+              running the numbers actually is. Blank does NOT mean "no cut-off":
+              it means leave whatever is stored alone, because a set date
+              overrides always. */}
+          <div style={{ marginBottom: 10 }}>
+            <label className="field-label">
+              Cut-off date — count a call closed if it was <b>visited</b> on or before this day
+            </label>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <input
+                type="date" className="input" style={{ maxWidth: 190 }}
+                value={recalcCutoff}
+                disabled={recalcing || (cutoffLocked && !isAdmin)}
+                onChange={(e) => setRecalcCutoff(e.target.value)}
+              />
+              {recalcCutoff && !(cutoffLocked && !isAdmin) && (
+                <button className="btn btn-ghost btn-sm" disabled={recalcing}
+                  onClick={() => setRecalcCutoff('')}>Leave as stored</button>
+              )}
+            </div>
+            <div className="field-help">
+              {cutoffLocked && !isAdmin
+                ? 'The cut-off is LOCKED. An administrator can unlock it on this page.'
+                : <>Leave it blank and nothing about the cut-off changes: each objective keeps whatever it
+                    already has, and one with nothing set measures to the <b>end of its own period</b>.
+                    A date set here is <b>stored on every open-rate objective</b> and applies to
+                    <b> every month this run writes</b> — re-calculating in October with 9 October also
+                    re-reads January as at 9 October.</>}
+            </div>
+          </div>
           <ul className="muted" style={{ fontSize: 12.5, lineHeight: 1.7 }}>
             <li><b>A typed figure is never touched.</b> The {objectives.filter((o) => !o.calc_key).length} objectives
               nobody computes keep exactly what was entered.</li>
-            <li>Each month is measured <b>as at the end of that month</b>, so a call closed since does not move an
-              earlier figure.</li>
+            <li>A call counts as closed on the date it was <b>visited</b>, not the date the report was typed up.</li>
+            <li>Calls are still those <b>registered</b> in the period — a cut-off never changes which calls
+              are counted, only how many of them were closed in time.</li>
             <li>A month with nothing to measure stays <b>blank</b>, not zero.</li>
             <li>It replaces whatever those months currently hold, including a figure typed over a computed one.</li>
           </ul>

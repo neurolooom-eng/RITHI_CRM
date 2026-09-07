@@ -1370,9 +1370,13 @@ console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
   eq('Re-Calc is a button, never a page load',
     /onClick=\{\(\) => setConfirmRecalc\(true\)\}/.test(obj)
     && /useEffect\([^)]*recalcObjectives/.test(obj) === false, true);
+  // The dialog's promises moved with the rules: closure is now the VISIT date,
+  // and a cut-off never changes which calls are counted. Both are things
+  // somebody acts on, so the dialog has to say them.
   eq('...and it asks first, saying what it will and will not touch',
     /A typed figure is never touched/.test(obj)
-    && /as at the end of that month<\/b>/.test(obj), true);
+    && /the date it was <b>visited<\/b>/.test(obj)
+    && /a cut-off never changes which calls\s+are counted/.test(obj), true);
   // The evidence is offered only where we computed the figure: a typed number
   // has no working to show.
   eq('evidence is downloadable, and only for a computed figure',
@@ -1414,6 +1418,7 @@ console.log('\n-- the evidence workbook --');
   eq('...and text is escaped', s.includes('x &amp; &lt;y&gt;'), true);
 
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  const objSb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
   // Sheet 1 is named for the register the objective actually read — the user's
   // shape ("List of Field Calls") for a field objective, and the truth for a PM
   // or Installation one, which is a different register and not field calls.
@@ -1444,6 +1449,19 @@ console.log('\n-- the evidence workbook --');
   eq('the cut-off controls clear one another',
     /setParam\('cutoff_days', e\.target\.value, 'cutoff_date'\)/.test(obj)
     && /setParam\('cutoff_date', e\.target\.value, 'cutoff_days'\)/.test(obj), true);
+  // The cut-off is set where the person running the numbers actually is.
+  eq('the cut-off can be set at Re-calculate',
+    /recalcObjectives\(YEAR, recalcCutoff\)/.test(obj), true);
+  // A blank date must mean "leave what is stored" — sending it as a value
+  // would silently clear a setting the user never touched.
+  eq('a blank cut-off leaves the stored one alone',
+    /if \(cutoff && cutoff\.trim\(\)\) args\.p_cutoff/.test(objSb), true);
+  // The lock is an ADMIN's switch; config.manage is who it holds back, so
+  // config.manage must not be what unlocks it.
+  eq('the cut-off lock is an admin switch, not a config.manage one',
+    /const \{ can, isAdmin \} = useAuth\(\)/.test(obj)
+    && /\{isAdmin && \(/.test(obj)
+    && /cutoffLocked && !isAdmin/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)

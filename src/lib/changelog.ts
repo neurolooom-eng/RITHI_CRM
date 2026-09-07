@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.138',
+    date: '2026-09-07',
+    title: 'A call closes on the day it was visited, and the cut-off is set at Re-Calculate',
+    changes: [
+      'A CALL NOW COUNTS AS CLOSED ON THE DATE IT WAS VISITED, not the date somebody typed the report up. A visit on 30 May written up on 3 June is closed in MAY. THIS MOVES FIGURES \u2014 deliberately, and every call it moves is one the export was already flagging.',
+      'Where a solving report carries NO visit date, the date it was entered is used instead, and the export says so on that row. Treating a blank as \u201cnever solved\u201d would push a closed call into the open column for a missing keystroke \u2014 the figure would get worse because of a data-entry lapse.',
+      'THE CUT-OFF DATE IS NOW SET ON THE RE-CALCULATE DIALOG, where the person running the numbers actually is. Leave it blank and nothing about the cut-off changes: each objective keeps whatever it has, and one with nothing set measures to the end of its own period.',
+      'A DATE SET THERE IS STORED on every open-rate objective, so the figure and the setting behind it can never disagree \u2014 and the evidence file can still say what was applied months later.',
+      'IT APPLIES TO EVERY MONTH THAT RUN WRITES. Re-calculating in October with 9 October also re-reads January as at 9 October. That is the way the team reports, and the dialog, the page and the evidence all say it plainly rather than letting a figure move quietly.',
+      'AN ADMINISTRATOR CAN LOCK THE CUT-OFF \u2014 a button on the Objective page. Locked, nobody but an administrator can change it, whether through Re-Calculate or by editing the objective, because a lock the parameters box walks around is decoration. It is OFF by default, and an administrator is never locked out of their own switch.',
+      'The Re-Calculate dialog now also says what a cut-off does NOT do: it never changes which calls are counted, only how many of them were closed in time.',
+      'Needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.137',
     date: '2026-09-07',
     title: 'A cut-off you set, and an export that names the calls it excluded',
