@@ -17,6 +17,7 @@ import { byColumnSet } from './uploads';
 import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
+import { masterValueApplies } from './dccr';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -1448,18 +1449,19 @@ export async function listMasterItems(key: string, limit = 5000): Promise<Master
 }
 
 // The values of a PER-PRODUCT master (DCCR Complaint Grouping, Root Cause Key
-// Word) for one product: what is tagged with that product, plus everything
-// tagged COMM — common to every product. Sorted, de-duplicated.
+// Word) for one product. Sorted, de-duplicated.
+//
+// WHICH ONES is `masterValueApplies` in src/lib/dccr.ts, and it is there rather
+// than here so the rule can be read and tested without a database: T60 and T75
+// get their own curated list and nothing else; every other product gets all of
+// them. Until 2026-09-07 this offered the product's own PLUS everything tagged
+// COMM, which buried a Monnal's alarm codes in the common list and left every
+// other product with only the handful of COMM values.
 export async function listMasterValuesForProduct(key: string, product: string, limit = 5000): Promise<string[]> {
   const items = await listMasterItems(key, limit);
-  const want = String(product ?? '').trim().toUpperCase();
   const seen = new Set<string>();
   return items
-    .filter((i) => {
-      const p = String(i.extra?.product ?? '').trim().toUpperCase();
-      if (!p || p === 'COMM') return true;      // untagged / common to every product
-      return want !== '' && p === want;
-    })
+    .filter((i) => masterValueApplies(String(i.extra?.product ?? ''), product))
     .map((i) => i.value)
     .filter((v) => v && !seen.has(v) && seen.add(v))
     .sort((a, b) => a.localeCompare(b));
