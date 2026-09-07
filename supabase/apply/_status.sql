@@ -489,6 +489,17 @@ with checks(sort_order, bundle, provides, present) as (
                      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                     where n.nspname = 'public' and p.proname = 'objective_notes'
                     limit 1), false))),
+    (102, 'Objective: the "solved by" cut-off is settable, and separate from the registration window', 'objective_period() now returns solve_cutoff alongside period_start/period_end. The WINDOW decides which calls are counted and does not move; the CUT-OFF decides whether each was closed, and calc_params can set it as cutoff_days (a grace after the period, for reports written up late) or cutoff_date (one fixed day, for reporting as at a stated date). Nothing set = the period end, exactly as before. ALWAYS capped at today: a future cut-off would count a period the record cannot yet know about, and can only ever move a call from open to closed -- it would flatter the figure (0137). Restore: objective.sql',
+        coalesce((select pg_get_function_result(p.oid) like '%solve_cutoff%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_period'
+                   limit 1), false)),
+    (103, 'Objective: the evidence carries the ACTUAL closure date and names what the cut-off excluded', 'objective_evidence returns closure_date (the VISIT that solved the call -- the Call Solved Date rule) and closure_recorded_on (when that report was ENTERED, which is what the cut-off tests), plus after_cutoff spelling out that a call was solved after the cut-off and is therefore counted as OPEN. Both dates are carried because they disagree -- a visit late in a period written up after it -- and "still open" and "solved, but later" are different facts that the file must not make look the same (0137). Restore: objective.sql',
+        coalesce((select pg_get_function_result(p.oid) like '%after_cutoff%'
+                     and pg_get_function_result(p.oid) like '%closure_date%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_evidence'
+                   limit 1), false)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

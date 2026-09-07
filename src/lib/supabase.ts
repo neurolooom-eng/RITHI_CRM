@@ -377,11 +377,22 @@ export async function objectiveNotes(id: number, month: number): Promise<{ kind:
 // carry no figure.
 export async function objectivePeriod(
   id: number, month: number,
-): Promise<{ applies: boolean; period_start: string | null; period_end: string | null; label: string } | null> {
+): Promise<ObjectivePeriod | null> {
   const { data, error } = await must().rpc('objective_period', { p_id: id, p_month: month });
   if (error) throw new Error(errMsg(error));
-  const rows = (data ?? []) as { applies: boolean; period_start: string | null; period_end: string | null; label: string }[];
-  return rows[0] ?? null;
+  return ((data ?? []) as ObjectivePeriod[])[0] ?? null;
+}
+
+// The window, AND the date a solve must be recorded by. The two are separate on
+// purpose: a cut-off must never change which calls are counted, only how many
+// of them were closed in time.
+export interface ObjectivePeriod {
+  applies: boolean;
+  period_start: string | null;
+  period_end: string | null;
+  solve_cutoff: string | null;
+  label: string;
+  cutoff_note: string;
 }
 
 // An objective's definition — everything except the twelve figures. Editable

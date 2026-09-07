@@ -46,12 +46,13 @@ grant select on public.harness to authenticated;
 -- EVERY fixture cleared before ANYTHING is measured, so the suite says the same
 -- thing on a second run. (Learned twice the hard way: a leftover January call
 -- moves a denominator and the failure looks like a formula bug.)
-delete from public.reports            where ucn like 'QP-%';
+delete from public.reports            where ucn like 'QP-%' or ucn like 'QC-%';
 delete from public.spare_requests     where ucn like 'QP-%';
-delete from public.field_calls        where ucn like 'QP-%';
+delete from public.field_calls        where ucn like 'QP-%' or ucn like 'QC-%';
 delete from public.pm_calls           where ucn like 'QP-%';
 delete from public.installation_calls where ucn like 'QP-%';
-delete from public.quality_objectives where year = 2026 and parameter like 'TESTQ %';
+delete from public.quality_objectives
+ where year = 2026 and (parameter like 'TESTQ %' or parameter like 'TESTC %');
 
 -- ---------------------------------------------------------------------------
 -- THE FIXTURE THAT SEPARATES POOLED FROM AVERAGED.
@@ -317,3 +318,111 @@ update public.field_calls set cancelled_at = now(), cancel_reason = 'test'
 select public.objective_value(
   (select id from public.quality_objectives where year=2026 and parameter='TESTQ quarterly field'), 3) as q1_after_cancel;
 update public.field_calls set cancelled_at = null, cancel_reason = '' where ucn = 'QP-F1';
+
+-- ===========================================================================
+-- 17-22. THE SETTABLE SOLVE CUT-OFF, AND THE CALLS IT EXCLUDED (0137).
+--
+-- "For KPI 8, 9, 10 - Give me a Provision to select a Cut Off Date for
+--  Calculation" / "Give me the Actual Call Closure Date in the Export And
+--  Explicitly call out that the Call was Solved After the Set Cut Off Date."
+--
+-- The fixture is a May month with two calls: one solved INSIDE May, one solved
+-- on 3 June -- four days after the month ended. With no cut-off set that second
+-- call is open (1/2); with five days' grace it is closed (0/2). The same two
+-- calls, two defensible figures, and the difference is a setting somebody made
+-- rather than something the code decided.
+-- ===========================================================================
+insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_date,
+                                complaint_date, party_name, city, state, item_status,
+                                complaint_reported, standard_complaint, allocated_to)
+values ('QC-1','QC1','FIELD','QVENT','QC-S1', date '2026-05-10', date '2026-05-10','H','C','S','CMC','x','y','E'),
+       ('QC-2','QC2','FIELD','QVENT','QC-S2', date '2026-05-20', date '2026-05-20','H','C','S','CMC','x','y','E');
+-- QC-1 solved inside May. QC-2 was VISITED on 30 May but the report was only
+-- ENTERED on 3 June -- the exact case the two closure columns exist for.
+insert into public.reports (uid, ucn, call_number, call_status, engineer, visit_at, updated_at) values
+ ('QCR1','QC-1','QC1','Solved - Report Completed','E',
+  timestamptz '2026-05-12 10:00+05:30', timestamptz '2026-05-12 10:00+05:30'),
+ ('QCR2','QC-2','QC2','Solved - Report Completed','E',
+  timestamptz '2026-05-30 10:00+05:30', timestamptz '2026-06-03 10:00+05:30');
+
+insert into public.quality_objectives
+  (year, sort_order, process, parameter, yearly_target, frequency, responsible, calc_key, calc_params)
+values
+  (2026, 97, 'SERVICE', 'TESTC no cutoff',   '<35%', 'Monthly', 'X',
+   'open_rate_monthly', '{"family":"field"}'::jsonb),
+  (2026, 98, 'SERVICE', 'TESTC grace 5',     '<35%', 'Monthly', 'X',
+   'open_rate_monthly', '{"family":"field","cutoff_days":5}'::jsonb),
+  (2026, 99, 'SERVICE', 'TESTC fixed date',  '<35%', 'Monthly', 'X',
+   'open_rate_monthly', '{"family":"field","cutoff_date":"2026-06-30"}'::jsonb),
+  (2026,100, 'SERVICE', 'TESTC future date', '<35%', 'Monthly', 'X',
+   'open_rate_monthly', '{"family":"field","cutoff_date":"2099-01-01"}'::jsonb);
+
+\echo '--- 17. WITH NO CUT-OFF SET, NOTHING CHANGES ---'
+\echo 'expect: 2026-05-01  2026-05-31  2026-05-31 — the solve cut-off is the'
+\echo 'expect: period end, which is exactly what it was before this existed.'
+select period_start, period_end, solve_cutoff from public.objective_period(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5);
+\echo 'expect: 0.500000 — QC-2 was written up on 3 June, so at the end of May it'
+\echo 'expect: was still open as far as the register knew.'
+select public.objective_value(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5) as may;
+
+\echo '--- 18. A GRACE MOVES THE SOLVE CUT-OFF AND NOT THE REGISTRATION WINDOW ---'
+\echo 'expect: 2026-05-01  2026-05-31  2026-06-05 — the window is untouched.'
+\echo 'expect: THIS IS THE POINT: a grace that also moved period_end would pull'
+\echo 'expect: in June''s calls and change the denominator nobody asked to change.'
+select period_start, period_end, solve_cutoff from public.objective_period(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC grace 5'), 5);
+\echo 'expect: 0.000000 — five days'' grace admits the 3 June entry'
+select public.objective_value(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC grace 5'), 5) as may;
+\echo 'expect: 2 — the denominator is the SAME two calls in both readings'
+select count(*) from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC grace 5'), 5);
+
+\echo '--- 19. A FIXED CUT-OFF DATE, for reporting a period as at a stated day ---'
+\echo 'expect: 2026-06-30 as the cut-off, and 0.000000'
+select solve_cutoff, public.objective_value(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC fixed date'), 5) as may
+  from public.objective_period(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTC fixed date'), 5);
+
+\echo '--- 20. A CUT-OFF IS NEVER LATER THAN TODAY ---'
+\echo 'expect: t — 2099-01-01 is capped at today. A future cut-off would count'
+\echo 'expect: a period the record cannot yet know about, and it can only ever'
+\echo 'expect: move a call from open to CLOSED — so it would flatter the figure,'
+\echo 'expect: which is the direction nobody questions.'
+select solve_cutoff <= (now() at time zone 'Asia/Kolkata')::date as capped_at_today,
+       solve_cutoff < date '2099-01-01' as not_the_future
+  from public.objective_period(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTC future date'), 5);
+
+\echo '--- 21. THE EXPORT CARRIES THE ACTUAL CLOSURE DATE ---'
+\echo 'expect: QC-2 closed_on 2026-05-30 (the VISIT) but recorded 2026-06-03.'
+\echo 'expect: The two disagreeing is the whole reason both are on the sheet:'
+\echo 'expect: the call was solved inside May by a record written after it.'
+select ucn, role, closure_date, closure_recorded_on from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)
+ order by ucn;
+
+\echo '--- 22. ...AND SAYS SO WHEN THE CUT-OFF EXCLUDED IT ---'
+\echo 'expect: QC-2 marked YES with the cut-off date in words; QC-1 blank.'
+\echo 'expect: "Still open" and "solved, but after the cut-off" are different'
+\echo 'expect: facts and only one of them is a problem — the file must not make'
+\echo 'expect: them look the same.'
+select ucn, role, after_cutoff from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)
+ order by ucn;
+\echo 'expect: nothing marked once the grace admits it — it is closed, not'
+\echo 'expect: excluded, so there is nothing to call out'
+select count(*) filter (where after_cutoff <> '') as flagged,
+       count(*) filter (where role = 'closed')    as closed
+  from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTC grace 5'), 5);
+
+\echo '--- 23. the cut-off is NAMED in the assumptions and the hard stops ---'
+\echo 'expect: the grace objective states its cut-off date and where it came from'
+select note from public.objective_notes(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC grace 5'), 5)
+ where note like 'CUT-OFF:%' or note like '%solved AFTER the cut-off%'
+    or note like '%NEVER LATER THAN TODAY%';

@@ -134,7 +134,13 @@ export function Objective() {
   const CALL_COLUMNS = ['ucn', 'call_number', 'reg_date', 'product_name', 'serial',
                         'party_name', 'call_type', 'status', 'allocated_to',
                         'warranty_number', 'warranty_start', 'warranty_end',
-                        'contract_number', 'contract_start', 'contract_end', 'contract_type'];
+                        'contract_number', 'contract_start', 'contract_end', 'contract_type',
+                        // The user's ask, 2026-09-07: the ACTUAL closure date, and an
+                        // explicit callout when the cut-off excluded it. Both closure
+                        // dates are carried because they disagree — a visit late in the
+                        // period written up after it — and the disagreement is the part
+                        // worth seeing.
+                        'closure_date', 'closure_recorded_on', 'after_cutoff'];
 
   // SHEET 2 IS A PRODUCT MASTER LISTING, and is laid out to be read beside that
   // screen — same fields, same order — so a reader can reconcile it line by
@@ -184,6 +190,9 @@ export function Objective() {
       // The period, not "the month" — on a quarterly objective these rows are
       // a whole quarter and a sheet that said "month" would be wrong.
       const over = period?.label || `${YEAR} ${MONTHS[monthIndex]}`;
+      // Counted here rather than asserted by the database, on the same footing
+      // as the rest of sheet 3: the file adds up to itself.
+      const lateSolves = calls.filter((r) => String(r.after_cutoff ?? '') !== '').length;
       // The user's shape is "List of Field Calls (Sheet1)", and that is what a
       // field objective gets. A PM or Installation objective reads a different
       // register, and calling its rows field calls would be plainly wrong.
@@ -203,6 +212,8 @@ export function Objective() {
         { Item: 'Objective', Value: o.parameter },
         { Item: 'Reported in', Value: `${YEAR} ${MONTHS[monthIndex]}` },
         { Item: 'Measured over', Value: period?.label || `${YEAR} ${MONTHS[monthIndex]}` },
+        { Item: 'Calls registered', Value: period ? `${period.period_start} to ${period.period_end}` : '' },
+        { Item: 'Solved by (cut-off)', Value: period?.cutoff_note || '' },
         { Item: 'Monitoring frequency', Value: o.frequency },
         { Item: 'Yearly target', Value: o.yearly_target },
         { Item: 'Worked out by', Value: o.calc_key || 'not computed — this figure is typed' },
@@ -211,6 +222,11 @@ export function Objective() {
         { Item: numeratorLabel, Value: numerator },
         { Item: denominatorLabel, Value: denominator },
         { Item: 'Calculation', Value: `${numerator} ÷ ${denominator}` },
+        ...(lateSolves > 0
+          ? [{ Item: 'of which SOLVED AFTER THE CUT-OFF',
+               Value: `${lateSolves} — counted as open. Sheet 1 marks each one; `
+                 + 'they were solved, just not in time for this figure.' }]
+          : []),
         { Item: 'Result', Value: computed == null ? '' : computed },
         { Item: 'Result (%)', Value: computed == null ? '' : `${(computed * 100).toFixed(2)}%` },
         { Item: '', Value: '' },
@@ -275,6 +291,25 @@ export function Objective() {
   // into a migration any more.
   const [defOpen, setDefOpen] = useState<QualityObjective | null>(null);
   const [defDraft, setDefDraft] = useState<Partial<QualityObjective>>({});
+
+  // THE CUT-OFF, as two controls over the SAME calc_params the JSON box edits —
+  // never a second copy of the setting. Whichever is typed clears the other,
+  // because a grace and a fixed date are two answers to one question and
+  // holding both would leave the screen unable to say which is in force.
+  const paramsObj = (): Record<string, unknown> => {
+    const raw = defDraft.calc_params;
+    if (typeof raw === 'string') { try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; } }
+    return (raw as Record<string, unknown>) ?? {};
+  };
+  const cutoffDays = String(paramsObj().cutoff_days ?? '');
+  const cutoffDate = String(paramsObj().cutoff_date ?? '');
+  const setParam = (key: string, value: string, clears: string) => {
+    const next = { ...paramsObj() };
+    if (value.trim()) next[key] = key === 'cutoff_days' ? Number(value) : value;
+    else delete next[key];
+    delete next[clears];
+    setDefDraft((d) => ({ ...d, calc_params: JSON.stringify(next) as never }));
+  };
   const saveDef = async () => {
     if (!defOpen) return;
     const patch = { ...defDraft };
@@ -579,9 +614,39 @@ export function Objective() {
               >
                 <option value="">— typed, not computed —</option>
                 <option value="failure_rate_12m">failure_rate_12m — failures in 12 months ÷ machines</option>
-                <option value="open_rate_monthly">open_rate_monthly — still open at the month's end ÷ that month's calls</option>
+                <option value="open_rate_monthly">open_rate_monthly — still open at the cut-off ÷ that period's calls</option>
+                <option value="attended_within_days">attended_within_days — attended inside the limit ÷ that period's calls</option>
               </select>
             </div>
+            {String(defDraft.calc_key ?? '') === 'open_rate_monthly' && (
+              <>
+                <div>
+                  <label className="field-label">Cut-off — days after the period ends</label>
+                  <input
+                    className="input" type="number" min={0} placeholder="0"
+                    value={cutoffDays}
+                    onChange={(e) => setParam('cutoff_days', e.target.value, 'cutoff_date')}
+                  />
+                  <div className="field-help">
+                    A grace for reports written up late. <b>0 or blank</b> means the period&rsquo;s own
+                    end. This is the one that works for all twelve months at once.
+                  </div>
+                </div>
+                <div>
+                  <label className="field-label">…or a fixed cut-off date</label>
+                  <input
+                    className="input" type="date"
+                    value={cutoffDate}
+                    onChange={(e) => setParam('cutoff_date', e.target.value, 'cutoff_days')}
+                  />
+                  <div className="field-help">
+                    For reporting a period <b>as at</b> one stated day. It wins over the grace, and is
+                    never read later than TODAY — a cut-off in the future would count a period the
+                    record cannot yet know about, and can only ever move a call to closed.
+                  </div>
+                </div>
+              </>
+            )}
             <div>
               <label className="field-label">Parameters (JSON)</label>
               <input
