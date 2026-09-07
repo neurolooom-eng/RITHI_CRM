@@ -35,7 +35,14 @@
 -- PM calls are not here: the workbook keeps them on their own tab.
 -- ===========================================================================
 
-create or replace view public.kpi_field_inst as
+-- DROPPED AND RECREATED, not `create or replace`. 0131 adds six columns to
+-- this view, and `create or replace view` CANNOT DROP COLUMNS — so replaying
+-- this file on a database that already has Phase 2 failed with "cannot drop
+-- columns from view" and took the whole performance bundle down with it. Found
+-- by `npm run check:replay`, which is what it is for. Nothing depends on this
+-- view, so the drop is free.
+drop view if exists public.kpi_field_inst;
+create view public.kpi_field_inst as
 with c as (
   select ucn, call_number, reg_at, reg_date, complaint_date, party_name, city, state,
          product_name, serial, item_status, warranty_number, warranty_start, warranty_end,

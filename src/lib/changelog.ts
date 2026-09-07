@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.131',
+    date: '2026-09-07',
+    title: 'The KPI export now carries the computed columns too',
+    changes: [
+      'ATTENDED IN DAYS, SOLVED IN DAYS, TTA, TTS and FAILURE MONTH \u2014 columns AC to AG \u2014 are now computed and exported, by the workbook\u2019s own formulas. The file still drops straight into the tab.',
+      'The day counts run from the LATER of the Complaint Date and the Registration Date, and are never negative \u2014 a call complained about on the 30th, registered on the 3rd and attended on the 30th is 0 days, not \u22124. Checked against the workbook\u2019s own answers.',
+      'THE FINER BANDS: the same up to 60 days, then 61-90D, 91-180D, >180D, >1 yr, >2 yrs and on to >5 yrs. A machine open eleven months no longer reads the same as one open sixty-one days.',
+      'A NEW COLUMN THE WORKBOOK DOES NOT HAVE \u2014 PENDING DAYS: how long an open call has been waiting, today. The sheet computes 0 for a call nobody has been to, so every unattended call in it reads as attended AND solved the same day and is counted in the bands. Those two are left blank now and this column carries the real answer.',
+      'OPEN / CLOSE HAS CHANGED: Close is now any \u201cSolved \u2026\u201d status, report-pending included, as the workbook\u2019s own lookup has it. A report-pending call therefore has no solved date and no Solved in Days.',
+      'Failure Month is taken from the Registration date, as the formula has it.',
+      'The Objective page now says how each of these is worked out, rather than promising them.',
+      'Needs migration: run supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.130',
     date: '2026-09-07',
     title: 'In Review 3, typing searches \u2014 it no longer chooses',

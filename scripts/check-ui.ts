@@ -1209,16 +1209,20 @@ console.log('\n-- the DCCR dropdowns are scoped to the product --');
 // column the workbook will not accept.
 console.log('\n-- the KPI export matches the workbook --');
 {
-  eq('columns A to AB, and no more', KPI_FIELD_INST_COLUMNS.length, 28);
+  // A to AG as the workbook has them, then the one it does not have.
+  eq('columns A to AG, then Pending Days', KPI_FIELD_INST_COLUMNS.length, 34);
   eq('the first is UC Number', KPI_FIELD_INST_COLUMNS[0], 'UC Number');
   eq('AB is the solved date', KPI_FIELD_INST_COLUMNS[27], 'Call Solved Date & Time');
   eq('AA is the attended date', KPI_FIELD_INST_COLUMNS[26], 'Call Attended On');
   // The workbook's own spelling, not ours.
   eq('the workbook\'s spelling is kept', KPI_FIELD_INST_COLUMNS[2], 'Call Registeration Date');
-  // AC-AG are workbook formulas and Phase 2 — exporting an empty column would
-  // be worse than not exporting it.
-  eq('no Phase 2 column has crept in',
-    KPI_FIELD_INST_COLUMNS.some((c) => /Attended in Days|Solved in Days|TTA|TTS|Failure Month/.test(c)), false);
+  // AC-AG in the sheet's order, so the file drops into the tab unchanged.
+  eq('AC to AG are the workbook\'s five, in its order',
+    KPI_FIELD_INST_COLUMNS.slice(28, 33).join('|'),
+    'Attended in Days|Solved in Days|TTA ( R )|TTS ( R )|Failure Month');
+  // Ours goes LAST, so A-AG still line up with the workbook exactly.
+  eq('...and Pending Days is appended after them, not among them',
+    KPI_FIELD_INST_COLUMNS[33], 'Pending Days');
 
   // Dates in the register's own dd-mmm-yyyy, unambiguous wherever the file is
   // opened; the registration column is the only one carrying a time.
@@ -1244,7 +1248,12 @@ console.log('\n-- the KPI export matches the workbook --');
     /earlier of the first visit and the first spare request/.test(objPage)
     && /Solved - Report Completed/.test(objPage)
     && /cancelled calls are not included at\s*\n?\s*all/i.test(objPage), true);
-  eq('...and says AC-AG are Phase 2', /Phase 2:/.test(objPage), true);
+  // The page must say how each computed column is arrived at: a number nobody
+  // can account for is not evidence.
+  eq('...and says how the computed columns are worked out',
+    /later<\/b> of the\s*\n?\s*Complaint Date and the Registration Date/.test(objPage)
+    && /finer<\/b> of/.test(objPage)
+    && /attended and solved the same day/.test(objPage), true);
 }
 
 // LOOKING UP ONE MACHINE BY SERIAL IS AN EQUALITY (0129). It was a
@@ -1296,7 +1305,11 @@ console.log('\n-- the Objective page --');
   eq('Phase 1 moved here', /Export — KPI workbook \(Field_INST\)/.test(obj), true);
   eq('...and is gone from KPI & Failure Analysis',
     /Export — KPI workbook/.test(kpi) || /listKpiFieldInst/.test(kpi), false);
-  eq('...and Phase 2 is named as still to come', /Phase 2 — the objectives themselves/.test(obj), true);
+  // Phase 2 has landed: the page now explains each computed column instead of
+  // promising it. A number nobody can account for is not evidence.
+  eq('...and the computed columns are explained, not promised',
+    /How the computed columns are worked out/.test(obj)
+    && /Phase 2 — the objectives themselves/.test(obj) === false, true);
 
   // A month that was not measured is NOT zero. On a rate that is the difference
   // between "we did not measure" and "it was perfect".

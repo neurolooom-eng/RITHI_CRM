@@ -94,9 +94,9 @@ select "UC Number", "Call Attended On"
 select "UC Number", "Call Solved Date & Time"
   from public.kpi_field_inst where "UC Number" in ('KP-BOTH','KP-REDONE') order by 1;
 
-\echo '--- 4. OPEN / CLOSE — Close ONLY when Solved - Report Completed ---'
-\echo 'expect: BOTH Close, REDONE Close, everything else Open'
-\echo 'expect: KP-PENDING is OPEN — report pending is not solved'
+\echo '--- 4. OPEN / CLOSE — Close for ANY Solved... status ---'
+\echo 'expect: BOTH Close, REDONE Close, KP-PENDING **Close** (report pending'
+\echo 'expect: counts as closed, per the sheet), everything else Open'
 select "UC Number", "Open/Close", "Call Status"
   from public.kpi_field_inst where "UC Number" like 'KP-%' order by 1;
 
@@ -123,3 +123,57 @@ select string_agg(column_name, ' | ' order by ordinal_position) as last_six
 \echo 'expect: t'
 select coalesce(array_to_string(reloptions, ',') like '%security_invoker=on%', false) as invoker
   from pg_class where oid = 'public.kpi_field_inst'::regclass;
+
+-- ===========================================================================
+-- PHASE 2 — the computed columns (0131).
+-- ===========================================================================
+
+\echo '--- 9. THE WORKBOOK''S OWN ROW, computed here ---'
+\echo 'expect: complaint 30-Dec, registered 3-Jan, attended 30-Dec, solved 11-Jan'
+\echo 'expect: -> Attended in Days 0 (NOT -4: the count runs from the LATER of'
+\echo 'expect:    complaint and registration), Solved in Days 8, TTA 00-03D,'
+\echo 'expect:    TTS 08-30D. These are the sheet''s own answers for its row 3.'
+delete from public.reports     where ucn = 'KP-SHEET';
+delete from public.field_calls where ucn = 'KP-SHEET';
+insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_at, reg_date,
+                                complaint_date, party_name, city, state, item_status,
+                                complaint_reported, standard_complaint, allocated_to, breakdown_date)
+values ('KP-SHEET','R6882','FIELD','MONNAL T75','9297',
+        timestamptz '2024-01-03 10:55:11+05:30', date '2024-01-03', date '2023-12-30',
+        'PINNACLE','THANE','MAHARASHTRA','CMC','Alarm 043','43 ERROR','FIRDOUS', date '2023-12-30');
+insert into public.reports (uid, ucn, call_number, call_status, engineer, visit_at, updated_at) values
+ ('KPV-S1','KP-SHEET','R6882','Unsolved','FIRDOUS', timestamptz '2023-12-30 10:00+05:30', timestamptz '2023-12-30 10:00+05:30'),
+ ('KPV-S2','KP-SHEET','R6882','Solved - Report Completed','FIRDOUS', timestamptz '2024-01-11 10:00+05:30', timestamptz '2024-01-11 10:00+05:30');
+select "Attended in Days", "Solved in Days", "TTA ( R )", "TTS ( R )", "Failure Month"
+  from public.kpi_field_inst where "UC Number" = 'KP-SHEET';
+
+\echo '--- 10. AN UNATTENDED CALL HAS NO DAY COUNTS — and says how long it HAS waited ---'
+\echo 'expect: both day counts blank, both bands blank, Pending Days > 0.'
+\echo 'expect: The sheet reads 0 / 0 / 00-03D / 00-03D here, which says a call'
+\echo 'expect: nobody has been to was attended and solved the same day.'
+select "Attended in Days" as attended_days, "Solved in Days" as solved_days,
+       coalesce("TTA ( R )",'(blank)') as tta, coalesce("TTS ( R )",'(blank)') as tts,
+       "Pending Days" > 0 as has_pending_days
+  from public.kpi_field_inst where "UC Number" = 'KP-NEITHER';
+
+\echo '--- 11. a CLOSED call has no Pending Days ---'
+\echo 'expect: blank — it is not pending'
+select coalesce("Pending Days"::text, '(blank)') as pending from public.kpi_field_inst where "UC Number" = 'KP-BOTH';
+
+\echo '--- 12. report-pending is CLOSE, and so has no Pending Days — but also no'
+\echo '--- solved date, so no Solved in Days ---'
+\echo 'expect: Close | blank | blank'
+select "Open/Close", coalesce("Solved in Days"::text,'(blank)') as solved_days,
+       coalesce("Pending Days"::text,'(blank)') as pending
+  from public.kpi_field_inst where "UC Number" = 'KP-PENDING';
+
+\echo '--- 13. THE FINER BANDS, at every boundary ---'
+\echo 'expect: 0,3=00-03D 4,7=04-07D 8,30=08-30D 31,60=31-60D 61,90=61-90D'
+\echo 'expect: 91,180=91-180D 181,365=>180D 366=>1 yr 731=>2 yrs 1081=>3 yrs'
+\echo 'expect: 1461=>4 yrs 1826=>5 yrs'
+select d, public.kpi_days_band(d) as band
+  from unnest(array[0,3,4,7,8,30,31,60,61,90,91,180,181,365,366,731,1081,1461,1826]) as d;
+
+\echo '--- 14. a day count is never negative ---'
+\echo 'expect: 0 — attended BEFORE the call was registered still reads 0'
+select "Attended in Days" from public.kpi_field_inst where "UC Number" = 'KP-SHEET';
