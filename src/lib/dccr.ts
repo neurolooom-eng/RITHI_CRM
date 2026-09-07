@@ -371,7 +371,7 @@ export function ageGroup(days: number | null | undefined): string {
 
 // dd-mmm-yyyy, the shape every date in the register carries.
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function exportDate(v: unknown, withTime = false): string {
+export function exportDate(v: unknown, withTime = false): string {
   const s = String(v ?? '').trim();
   if (!s) return '';
   const d = new Date(s);

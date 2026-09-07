@@ -6,10 +6,13 @@ import { BarChart, DonutChart } from '../components/charts/Charts';
 import { DataTable, type Column } from '../components/table/DataTable';
 import {
   sbFailureRates, sbFailureModes, sbSpareUsage, supabaseConfigured,
+  countKpiFieldInst, listKpiFieldInst,
   type FailureRate, type FailureMode, type SpareUsage,
 } from '../lib/supabase';
+import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow } from '../lib/kpi';
+import { logAudit } from '../lib/audit';
 import { useAccessScope, scopeLabel } from '../lib/access';
-import { timeAgo } from '../lib/format';
+import { csvExport, timeAgo } from '../lib/format';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -147,6 +150,54 @@ export function KpiAnalytics() {
     return [...by].map(([key, count]) => ({ key, count }));
   }, [usage]);
 
+  // ---- The KPI workbook's Field_INST tab ----------------------------------
+  // Phase 1 of the user's scoping (2026-09-07): columns A-AB, the same fields
+  // under the same headings, plus the two dates the workbook fills in by eye.
+  // The database does all of it (0128); this reads the view and writes the file.
+  const live = supabaseConfigured();
+  const [xFrom, setXFrom] = useState('');
+  const [xTo, setXTo] = useState('');
+  const [xCount, setXCount] = useState<number | null>(null);
+  const [xErr, setXErr] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [xMsg, setXMsg] = useState('');
+
+  // The count is the whole range, not a page — so the button can say what it is
+  // about to export, and a failed count says so rather than showing a stale
+  // number from the last range (the "99 of 76" lesson).
+  useEffect(() => {
+    if (!live) return;
+    let cancelled = false;
+    setXErr(false);
+    void countKpiFieldInst({ from: xFrom || undefined, to: xTo || undefined })
+      .then((n) => { if (!cancelled) setXCount(n); })
+      .catch(() => { if (!cancelled) { setXCount(null); setXErr(true); } });
+    return () => { cancelled = true; };
+  }, [live, xFrom, xTo]);
+
+  const exportFieldInst = async () => {
+    if (exporting) return;
+    setExporting(true);
+    setXMsg('Reading the calls…');
+    try {
+      const PAGE = 1000;
+      const range = { from: xFrom || undefined, to: xTo || undefined };
+      const all: Record<string, unknown>[] = [];
+      for (let off = 0; ; off += PAGE) {
+        const page = await listKpiFieldInst(range, off, PAGE);
+        all.push(...page);
+        if (page.length < PAGE) break;
+        setXMsg(`Read ${all.length.toLocaleString()}…`);
+      }
+      const span = xFrom || xTo ? `${xFrom || 'start'}_${xTo || 'today'}` : new Date().toISOString().slice(0, 10);
+      csvExport(`kpi-field-inst-${span}.csv`, kpiExportColumns(), all.map(toKpiExportRow));
+      setXMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
+      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from: xFrom, to: xTo } });
+    } catch (e) {
+      setXMsg(`Could not export: ${e instanceof Error ? e.message : String(e)}`);
+    } finally { setExporting(false); }
+  };
+
   return (
     <div>
       <PageHeader
@@ -163,6 +214,62 @@ export function KpiAnalytics() {
       />
 
       {msg && <div className="sheet-banner sheet-banner-info"><span>{msg}</span></div>}
+
+      <SectionCard title="Export — KPI workbook (Field_INST)">
+        <p className="muted" style={{ marginTop: 0 }}>
+          The workbook's own tab, computed from the register: <b>columns A to AB</b>, the same fields
+          in the same order under the same headings, so the file drops straight in. Field and
+          Installation calls only — PM keeps its own tab — and <b>cancelled calls are not included at
+          all</b>.
+        </p>
+        <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.7 }}>
+          <li><b>Call Attended On</b> — the earlier of the first visit and the first spare request.
+            A spare raised before anyone visits is still somebody attending to the call.</li>
+          <li><b>Call Solved Date &amp; Time</b> — the visit date of the entry that moved the call to
+            <b> Solved - Report Completed</b>. Not the last visit, and not the day it was typed in.</li>
+          <li><b>Open/Close</b> — Close only when the call is Solved - Report Completed. Anything
+            else is Open, <b>including Solved - Report Pending</b>.</li>
+        </ul>
+        <div className="row" style={{ gap: 10, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
+          <div>
+            <label className="field-label">Registered from</label>
+            <input type="date" className="input" value={xFrom} onChange={(e) => setXFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="field-label">to</label>
+            <input type="date" className="input" value={xTo} onChange={(e) => setXTo(e.target.value)} />
+          </div>
+          {(xFrom || xTo) && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setXFrom(''); setXTo(''); }}>
+              Whole register
+            </button>
+          )}
+          <button
+            className="btn btn-primary"
+            disabled={!live || exporting || xCount === 0}
+            onClick={() => void exportFieldInst()}
+          >
+            {exporting ? 'Exporting…'
+              : xErr ? '⭳ Export'
+              : `⭳ Export ${xCount == null ? '' : xCount.toLocaleString()} ${xCount === 1 ? 'call' : 'calls'}`}
+          </button>
+        </div>
+        {/* A count nobody can tell is stale is worse than an admission. */}
+        {xErr && <div className="sheet-banner sheet-banner-error"><span>Could not count the calls for that range — the export will still read them.</span></div>}
+        {xMsg && <div className="sheet-banner sheet-banner-info"><span>{xMsg}</span></div>}
+        <p className="muted" style={{ fontSize: 12.5, marginBottom: 4 }}>
+          <b>Phase 2:</b> Attended in Days, Solved in Days, TTA, TTS and Failure Month (AC–AG) are
+          formulas in the workbook and are not exported yet.
+        </p>
+        <details>
+          <summary className="muted" style={{ cursor: 'pointer', fontSize: 12.5 }}>
+            Columns ({KPI_FIELD_INST_COLUMNS.length})
+          </summary>
+          <ol className="dccr-export-cols">
+            {KPI_FIELD_INST_COLUMNS.map((c) => <li key={c}>{c}</li>)}
+          </ol>
+        </details>
+      </SectionCard>
 
       <KpiGrid min={200}>
         <KpiCard label="Machines in the field" value={fmt(fleet)} tone="neutral" icon="🏭" sub="the Product Register" />

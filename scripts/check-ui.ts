@@ -19,6 +19,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
+import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -1200,6 +1201,49 @@ console.log('\n-- the DCCR dropdowns are scoped to the product --');
   // The old wording promised COMM on top, which is no longer true anywhere.
   eq('nothing still promises the COMM values on top of the product\'s',
     /incl\. COMM/.test(dccr) || /plus anything tagged <b>COMM<\/b>/.test(dccr), false);
+}
+
+// THE KPI WORKBOOK'S Field_INST TAB. Phase 1 is columns A-AB, "same format,
+// same fields" — so the headings are not ours to tidy. "Registeration" is the
+// workbook's spelling and it stays, because a heading that does not match is a
+// column the workbook will not accept.
+console.log('\n-- the KPI export matches the workbook --');
+{
+  eq('columns A to AB, and no more', KPI_FIELD_INST_COLUMNS.length, 28);
+  eq('the first is UC Number', KPI_FIELD_INST_COLUMNS[0], 'UC Number');
+  eq('AB is the solved date', KPI_FIELD_INST_COLUMNS[27], 'Call Solved Date & Time');
+  eq('AA is the attended date', KPI_FIELD_INST_COLUMNS[26], 'Call Attended On');
+  // The workbook's own spelling, not ours.
+  eq('the workbook\'s spelling is kept', KPI_FIELD_INST_COLUMNS[2], 'Call Registeration Date');
+  // AC-AG are workbook formulas and Phase 2 — exporting an empty column would
+  // be worse than not exporting it.
+  eq('no Phase 2 column has crept in',
+    KPI_FIELD_INST_COLUMNS.some((c) => /Attended in Days|Solved in Days|TTA|TTS|Failure Month/.test(c)), false);
+
+  // Dates in the register's own dd-mmm-yyyy, unambiguous wherever the file is
+  // opened; the registration column is the only one carrying a time.
+  const row = toKpiExportRow({
+    'UC Number': '26I06F0001',
+    'Call Registeration Date': '2026-09-06T10:43:51+05:30',
+    'Complaint Date': '2026-09-01',
+    'Call Attended On': '2026-09-03',
+    'Call Solved Date & Time': null,
+    'Open/Close': 'Open',
+  });
+  eq('a date is dd-mmm-yyyy', row['Complaint Date'], '01-Sep-2026');
+  eq('...and the registration date carries its time', String(row['Call Registeration Date']).slice(0, 12), '06-Sep-2026 ');
+  eq('a missing date is blank, not a zero date', row['Call Solved Date & Time'], '');
+  eq('a plain value is passed through', row['Open/Close'], 'Open');
+  // Every column is present in every row, or the CSV's columns slide.
+  eq('every column is written, even when the view has no value',
+    KPI_FIELD_INST_COLUMNS.every((c) => c in row), true);
+
+  const kpi = readFileSync(`${process.cwd()}/src/modules/KpiAnalytics.tsx`, 'utf8');
+  eq('the screen says the three rules it was given',
+    /earlier of the first visit and the first spare request/.test(kpi)
+    && /Solved - Report Completed/.test(kpi)
+    && /cancelled calls are not included at\s*\n?\s*all/i.test(kpi), true);
+  eq('...and says AC-AG are Phase 2', /Phase 2:/.test(kpi), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
