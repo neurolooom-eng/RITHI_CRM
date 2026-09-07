@@ -172,6 +172,7 @@ const MODULES = {
       // AFTER 0040 above, which creates the three call tables the guard attaches
       // to — and after rbac in ALL_ORDER, which creates app_roles.
       '0126_call_allot_permission.sql',
+      '0127_call_edit_sections.sql',
     ],
   },
   sla: {

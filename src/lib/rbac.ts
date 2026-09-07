@@ -89,6 +89,19 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // should — and it appeared nowhere on this screen, so "where is
   // re-allocation?" had no answer to find (reported 2026-09-06).
   { group: 'Calls', key: 'calls.allot', label: 'Re-allocate a call to another engineer' },
+  // "EDIT" IS NOT ONE THING. It let anybody who could correct a customer's
+  // phone number also rewrite the machine, the complaint and the vigilance
+  // answers. The Hotline desk does need all of that; a manager needs almost
+  // none of it (user, 2026-09-06: "1 single edit permission will not suffice").
+  //
+  // So `calls.edit` stays as the WHOLE right — Hotline's — and is the PARENT of
+  // these four, exactly as `masters.edit` is the parent of the per-list keys
+  // (0067). A role holding it keeps everything, so nothing changes until an
+  // administrator unticks it and picks the sections instead.
+  { group: 'Calls', key: 'calls.edit.complaint', label: ' Edit the complaint (complaint, breakdown date)' },
+  { group: 'Calls', key: 'calls.edit.customer', label: ' Edit customer & product (party, city, product, serial)' },
+  { group: 'Calls', key: 'calls.edit.vigilance', label: ' Edit the vigilance answers (health threat, death, incident)' },
+  { group: 'Calls', key: 'calls.edit.contact', label: ' Edit customer contact details (name, number, designation)' },
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
@@ -233,7 +246,7 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },
     { path: '/pending-registrations', label: 'Pending Registrations', actions: ['pending.register'] },
-    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.report'] },
+    { path: '/field-calls', label: 'Field Call Register', actions: ['calls.view', 'calls.create', 'calls.edit', 'calls.edit.complaint', 'calls.edit.customer', 'calls.edit.vigilance', 'calls.edit.contact', 'calls.allot', 'calls.report', 'calls.cancel'] },
     { path: '/installations', label: 'Installation Calls', actions: ['install.create'] },
     { path: '/pm-calls', label: 'Preventive (PM)', actions: [] },
     { path: '/pending-calls', label: 'Pending Calls', actions: [] },
@@ -291,6 +304,10 @@ export const dynamicActionLabel = (key: string): string | undefined => {
 export const parentAction = (key: string): string | undefined => {
   if (key.startsWith('mod:/masters/')) return 'mod:/masters';
   if (/^master\..+\.(edit|delete)$/.test(key)) return 'masters.edit';
+  // A section of a call is covered by the whole-call right, the same way.
+  // Whoever may edit everything may edit any part of it, so a role that had
+  // `calls.edit` before the sections existed loses nothing by their existing.
+  if (/^calls\.edit\..+$/.test(key)) return 'calls.edit';
   return undefined;
 };
 

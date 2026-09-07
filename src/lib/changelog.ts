@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.124',
+    date: '2026-09-06',
+    title: 'Editing a call is four rights, not one',
+    changes: [
+      '\u201cEdit calls\u201d was all of it \u2014 whoever could correct a customer\u2019s phone number could also rewrite the machine, the complaint and the vigilance answers. That is right for the Hotline desk and wrong for everybody else.',
+      'It is now four: EDIT THE COMPLAINT (complaint, breakdown date), EDIT CUSTOMER & PRODUCT (party, city, product, serial), EDIT THE VIGILANCE ANSWERS (health threat, death, serious incident), and EDIT CUSTOMER CONTACT DETAILS (name, number, designation).',
+      'NOTHING CHANGED THE DAY IT LANDED. \u201cEdit calls\u201d is still there and still means all four \u2014 it is the parent, the same way \u201cEdit masters\u201d covers each individual list. Everyone kept exactly what they had.',
+      'TO NARROW A MANAGER: untick \u201cEdit calls\u201d on the role and tick the sections they should have. They keep re-allocation and reporting, and stop being able to rewrite the rest of the call.',
+      'On the form, a section you may not change is shown READ-ONLY WITH THE REASON rather than hidden \u2014 what is on the call is worth seeing whether or not you may change it.',
+      'The rule is the DATABASE\u2019s, on all three call registers, so it holds however the change is attempted. One save that touches two sections is refused whole if either is missing \u2014 there is no half-write.',
+      'EVERY CHANGE TO A VIGILANCE ANSWER IS NOW KEPT: who changed it, when, and what it moved from and to. Those three answers are Review 1, so an auditor can be shown the history rather than told about it. Answering them at registration is not a change and records nothing.',
+      'Registration dates, call numbers, warranty and contract stay under \u201cEdit calls\u201d \u2014 they are assigned or locked from Product Master, so a right of their own would be a right over almost nothing.',
+      'Needs migration: run supabase/apply/call_requests.sql.',
+    ],
+  },
+  {
     version: '0.9.123',
     date: '2026-09-06',
     title: 'Re-allocating a call is now its own permission',
