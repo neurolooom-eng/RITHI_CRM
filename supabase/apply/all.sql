@@ -18497,15 +18497,22 @@ comment on function public.objective_evidence(bigint, integer) is
 --    the window is simply widened, the same query answers both frequencies and
 --    there is no second code path to keep in step.
 --
--- 2. AN OBJECTIVE NAMES ITS REGISTER, NOT A `call_type` STRING. Preventive
---    Maintenance and Installation calls live in their own tables (the 0040
---    split), and `call_type` cannot be trusted to tell them apart: all three
---    tables DEFAULT it to 'FIELD', and the stored spellings run to "P M VISIT",
---    "PM", "INSTALLATION CALL". `calc_params.family` names the register --
---    field / pm / installation -- so an objective counts exactly the rows that
---    register shows, which is what "Preventive Maintenance Calls" means to the
---    person reading it. A `call_type` filter is still honoured on top, so an
---    administrator's own narrowing keeps working.
+-- 2. AN OBJECTIVE NAMES ITS REGISTER. Preventive Maintenance and Installation
+--    calls live in their own tables (the 0040 split), so `calc_params.family`
+--    names one -- field / pm / installation -- and the objective reads exactly
+--    the rows that register shows, which is what "Preventive Maintenance Calls"
+--    means to the person reading it.
+--
+--    An `ilike` on `call_type` would in fact have given the same rows: each
+--    table carries a CHECK that `call_table_for(call_type)` equals its own
+--    name, so a row's type and its table cannot disagree. (Worth stating,
+--    because the column DEFAULTS to 'FIELD' in all three tables and the stored
+--    spellings run to "P M VISIT", "PM", "INSTALLATION CALL" -- it LOOKS
+--    untrustworthy and is not.) Naming the table is preferred for two duller
+--    reasons: it reads one register instead of scanning the union of three,
+--    and "which register" is the question the objective is actually asking. A
+--    `call_type` filter is still honoured on top, so an administrator's own
+--    narrowing keeps working.
 --
 -- 3. THE EVIDENCE STATES ITS ASSUMPTIONS AND ITS HARD STOPS. `objective_notes`
 --    returns them as rows, per objective, so the Calculation sheet carries them
@@ -18622,7 +18629,7 @@ returns text language sql immutable as $$
          end;
 $$;
 comment on function public.objective_call_table(jsonb) is
-  'The call register an objective reads, from calc_params.family. PM and Installation calls live in their own tables (0040) and call_type cannot tell them apart -- all three tables default it to FIELD.';
+  'The call register an objective reads, from calc_params.family. PM and Installation calls live in their own tables (0040); each table CHECKs that call_table_for(call_type) matches it, so naming the table and filtering on call_type agree -- the table is named because it reads one register rather than the union of three.';
 
 create or replace function public.objective_register_name(p_params jsonb)
 returns text language sql immutable as $$
