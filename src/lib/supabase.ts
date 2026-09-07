@@ -336,6 +336,7 @@ export interface QualityObjective {
   m05: number | null; m06: number | null; m07: number | null; m08: number | null;
   m09: number | null; m10: number | null; m11: number | null; m12: number | null;
   total: number | null; source: string; notes: string; updated_at: string;
+  calc_key: string; calc_params: Record<string, unknown>;
 }
 
 export async function listQualityObjectives(year: number): Promise<QualityObjective[]> {
@@ -343,6 +344,42 @@ export async function listQualityObjectives(year: number): Promise<QualityObject
     .eq('year', year).order('sort_order', { ascending: true });
   if (error) throw new Error(errMsg(error));
   return (data ?? []) as QualityObjective[];
+}
+
+// RE-CALC — explicit, never on a page load. A figure that changes because
+// somebody opened a screen is not a figure anybody can defend.
+export async function recalcObjectives(year: number): Promise<{ ok: boolean; written?: { objective: string; months_written: number }[]; error?: string }> {
+  const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, written: (data ?? []) as { objective: string; months_written: number }[] };
+}
+
+// THE ROWS BEHIND ONE FIGURE. The same query that produced the number, so the
+// two cannot disagree — counting the evidence reproduces the fraction.
+export async function objectiveEvidence(id: number, month: number): Promise<Record<string, unknown>[]> {
+  const { data, error } = await must().rpc('objective_evidence', { p_id: id, p_month: month });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as Record<string, unknown>[];
+}
+
+// An objective's definition — everything except the twelve figures. Editable
+// by an administrator, because none of it should be baked into a migration.
+export async function saveObjectiveDef(
+  id: number, patch: Partial<QualityObjective>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('quality_objectives').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function addObjective(year: number, sort_order: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('quality_objectives')
+    .insert({ year, sort_order, process: 'SERVICE', parameter: 'New objective', yearly_target: 'To Monitor', frequency: 'Monthly' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function deleteObjective(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('quality_objectives').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 export async function objectiveYears(): Promise<number[]> {

@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.132',
+    date: '2026-09-07',
+    title: 'Objectives that work themselves out, and can show you how',
+    changes: [
+      'RE-CALCULATE \u2014 a button on the Objective page. It reads the register and fills in the objectives that can be computed, and it says what it is about to do before it does it.',
+      'IT NEVER TOUCHES A FIGURE SOMEBODY TYPED. Objectives nobody computes keep exactly what was entered, and stay editable. A row that works itself out is marked \u0192 so you can tell the two apart at a glance.',
+      'IT IS EXPLICIT \u2014 never on opening the page. A number that moves because somebody looked at a screen is not one you can stand behind at an audit.',
+      'EACH MONTH IS MEASURED AS AT THE END OF THAT MONTH. A call closed in September does not change July\u2019s figure. A month with nothing to measure stays blank, not zero, and a month that has not happened is left alone.',
+      'DOWNLOAD THE EVIDENCE for any computed figure \u2014 the calls behind it, as a file. It is the same query that produced the number, so counting the rows gives you the fraction back.',
+      'TWO FORMULAS SO FAR, both from your rules: OPEN RATE \u2014 calls of a type raised in the month that were still open at the month\u2019s end \u00f7 that month\u2019s calls; and FAILURE RATE \u2014 failures on a product in the trailing 12 months \u00f7 machines of that product in the field. Seven of the twelve objectives use them.',
+      'NOTHING ABOUT AN OBJECTIVE IS FIXED ANY MORE. An administrator can edit the parameter, target, frequency, who is responsible, which formula computes it and what it is given \u2014 and add or remove objectives. Teaching a new one to compute itself is two fields on the screen, not a code change.',
+      'Needs migration: run supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.131',
     date: '2026-09-07',
     title: 'The KPI export now carries the computed columns too',

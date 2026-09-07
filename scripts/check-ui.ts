@@ -1357,5 +1357,36 @@ console.log('\n-- typing filters, it never selects --');
     (dccr.match(/emptyHint="If it is not here, add it to Masters\."/g) ?? []).length, 2);
 }
 
+// THE OBJECTIVES COMPUTE THEMSELVES, AND CAN SHOW THEIR WORKING (0132).
+// "calculated values should be fed automatically upon Re-Calc [Explicitly done
+// at the time of Submission]. Add a Provision to download evidence ... if the
+// value is not calculated by us, leave it to be editable."
+console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
+{
+  const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  // EXPLICIT. A figure that moves because somebody opened a screen is not one
+  // anybody can stand behind at an audit, so Re-Calc must never be in an effect.
+  eq('Re-Calc is a button, never a page load',
+    /onClick=\{\(\) => setConfirmRecalc\(true\)\}/.test(obj)
+    && /useEffect\([^)]*recalcObjectives/.test(obj) === false, true);
+  eq('...and it asks first, saying what it will and will not touch',
+    /A typed figure is never touched/.test(obj)
+    && /as at the end of that month<\/b>/.test(obj), true);
+  // The evidence is offered only where we computed the figure: a typed number
+  // has no working to show.
+  eq('evidence is downloadable, and only for a computed figure',
+    /o\.calc_key && v != null && \(/.test(obj) && /downloadEvidence\(o, MONTH_KEYS\.indexOf\(k\)\)/.test(obj), true);
+  // Nothing about an objective is baked in: the definition, the formula and its
+  // parameters are all editable by an administrator.
+  eq('every part of an objective is editable, formula included',
+    /saveObjectiveDef/.test(obj) && /calc_key: e\.target\.value/.test(obj)
+    && /calc_params: e\.target\.value/.test(obj), true);
+  eq('...and objectives can be added and removed',
+    /addObjective\(YEAR/.test(obj) && /deleteObjective\(defOpen\.id\)/.test(obj), true);
+  // A row that computes itself is marked, or nobody can tell which figures are
+  // evidence and which are somebody's typing.
+  eq('a computed row is marked on the screen', /className="obj-calc"/.test(obj), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

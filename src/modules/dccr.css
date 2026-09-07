@@ -301,3 +301,7 @@
 .obj-edit { cursor: text; }
 .obj-edit:hover { outline: 1px dashed var(--border); }
 .obj-input { width: 68px; padding: 2px 4px; font-size: 12.5px; text-align: right; }
+/* The objectives register: which rows compute themselves, and the evidence. */
+.obj-calc { color: var(--primary); margin-right: 6px; font-style: italic; }
+.obj-defbtn, .obj-eyebtn { padding: 0 4px; margin-left: 6px; opacity: 0.45; }
+.obj-defbtn:hover, .obj-eyebtn:hover { opacity: 1; }

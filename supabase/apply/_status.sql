@@ -438,6 +438,12 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='kpi_field_inst'
                     and column_name = 'Pending Days'))),
+    (95, 'Objective: the figures compute themselves, and can show their working', 'quality_objectives.calc_key + calc_params, recalc_quality_objectives() and objective_evidence(). Re-Calc is EXPLICIT -- never on a page load -- writes only the objectives that have a calc_key, only up to this month, and NEVER touches a typed figure. Each month is measured as at the END of that month, so a call closed since does not move an earlier figure. The evidence is the same query that produced the number, so counting it reproduces the fraction (0132). Restore: objective.sql',
+        (to_regprocedure('public.recalc_quality_objectives(integer)') is not null
+     and to_regprocedure('public.objective_evidence(bigint,integer)') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='quality_objectives'
+                    and column_name='calc_key'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
