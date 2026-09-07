@@ -35,12 +35,18 @@
 
 insert into auth.users (id,email) values
  ('e2e2e2e2-0000-0000-0000-000000000001','op_admin@x.com'),
- ('e2e2e2e2-0000-0000-0000-000000000002','or_eng2@x.com')
+ ('e2e2e2e2-0000-0000-0000-000000000002','or_eng2@x.com'),
+ ('e2e2e2e2-0000-0000-0000-000000000003','op_eng@x.com')
 on conflict do nothing;
 insert into public.profiles (id,email,full_name,role) values
  ('e2e2e2e2-0000-0000-0000-000000000001','op_admin@x.com','OP Admin','admin'),
  -- Holds config.manage but is NOT an admin: exactly who the lock is for.
- ('e2e2e2e2-0000-0000-0000-000000000002','or_eng2@x.com','OP Manager','nsm')
+ ('e2e2e2e2-0000-0000-0000-000000000002','or_eng2@x.com','OP Manager','nsm'),
+ -- A plain engineer: no config.manage, and the user EXISTS. A fixture whose
+ -- user does not exist leaves auth.uid() NULL, and a null uid tests the null
+ -- path rather than the role -- which is exactly how the guard's own
+ -- null-propagation bug slipped past this suite once.
+ ('e2e2e2e2-0000-0000-0000-000000000003','op_eng@x.com','OP Engineer','engineer')
 on conflict (id) do update set role = excluded.role, full_name = excluded.full_name;
 insert into public.app_roles (role, permissions) values
  ('nsm', '["config.manage","calls.view","reports.view","mod:/objective"]'::jsonb)
@@ -62,6 +68,7 @@ delete from public.pm_calls           where ucn like 'QP-%';
 delete from public.installation_calls where ucn like 'QP-%';
 delete from public.quality_objectives
  where year = 2026 and (parameter like 'TESTQ %' or parameter like 'TESTC %');
+delete from public.objective_cutoffs where year = 2026;
 
 -- ---------------------------------------------------------------------------
 -- THE FIXTURE THAT SEPARATES POOLED FROM AVERAGED.
@@ -441,69 +448,114 @@ select role from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)
  where ucn = 'QC-5';
 
-\echo '--- 23. RE-CALCULATE TAKES THE CUT-OFF, AND STORES IT ---'
+\echo '--- 23. A CUT-OFF BELONGS TO A MONTH, AND ONLY TO THAT MONTH ---'
 call public.be('op_admin@x.com');
-select count(*) from public.recalc_quality_objectives(2026, date '2026-06-05');
-\echo 'expect: every open-rate objective now carries cutoff_date 2026-06-05 and'
-\echo 'expect: no cutoff_days — the figure and the setting behind it cannot'
-\echo 'expect: disagree, because there is only one of them.'
-select parameter, calc_params->>'cutoff_date' as cutoff_date,
-       coalesce(calc_params->>'cutoff_days', '(none)') as cutoff_days
-  from public.quality_objectives
- where year = 2026 and parameter like 'TESTC %' order by parameter;
-\echo 'expect: 0.000000 for May — the stored cut-off is what got used'
-select m05 from public.quality_objectives where year=2026 and parameter='TESTC no cutoff';
+delete from public.objective_cutoffs where year = 2026;
+\echo 'expect: 0.400000 for May with nothing set — the Default EMONTH'
+select public.objective_value(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5) as may_before;
+select public.set_objective_cutoff(2026, 5, date '2026-06-05') as set_for_may;
+\echo 'expect: 0.000000 — May now measures to 5 June, so all five are closed'
+select public.objective_value(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5) as may_after;
+\echo 'expect: 2026-06-05 for May and the MONTH END for March — setting May did'
+\echo 'expect: NOT touch any other month. This is the whole change: a figure'
+\echo 'expect: already reported cannot be re-based by a later round.'
+select 5 as month, solve_cutoff from public.objective_period(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)
+union all
+select 3, solve_cutoff from public.objective_period(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 3)
+order by month;
 
-\echo '--- 24. ...and RE-CALCULATE WITH NO DATE LEAVES THE STORED ONE ALONE ---'
-\echo 'expect: still 2026-06-05. "The Set Date overrides always" — an override'
-\echo 'expect: that evaporated when the dialog closed would not be one.'
+\echo '--- 24. ...and it is SHARED by every objective, not copied onto each ---'
+\echo 'expect: 2026-06-05 on all three — the cut-off is a property of the'
+\echo 'expect: reporting round, not of any one measure. Twelve objectives times'
+\echo 'expect: twelve months would be 144 dates that are all the same date.'
+select o.parameter, p.solve_cutoff
+  from public.quality_objectives o
+  cross join lateral public.objective_period(o.id, 5) p
+ where o.year = 2026 and o.parameter like 'TESTC %' order by o.parameter;
+
+\echo '--- 25. CLEARING A MONTH PUTS IT BACK TO THE END OF THE PERIOD ---'
+\echo 'expect: 2026-05-31 and 0.400000 — there has to be a way back, or the'
+\echo 'expect: first mistyped date is permanent.'
+select public.set_objective_cutoff(2026, 5, null) as cleared;
+select (select solve_cutoff from public.objective_period(
+          (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)) as back_to,
+       public.objective_value(
+          (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5) as may;
+
+\echo '--- 26. A QUARTERLY OBJECTIVE TAKES ITS QUARTER-END MONTH''S CUT-OFF ---'
+select public.set_objective_cutoff(2026, 3, date '2026-04-09') as set_for_march;
+\echo 'expect: 2026-01-01  2026-03-31  2026-04-09 — the WINDOW is still Q1 and'
+\echo 'expect: the cut-off is March''s, because March is where a quarterly'
+\echo 'expect: objective reports.'
+select period_start, period_end, solve_cutoff from public.objective_period(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTQ quarterly field'), 3);
+select public.set_objective_cutoff(2026, 3, null) as cleared_march;
+
+\echo '--- 27. A CUT-OFF IS NEVER LATER THAN TODAY ---'
+select public.set_objective_cutoff(2026, 5, date '2099-01-01') as set_far_future;
+\echo 'expect: t t — capped. A future cut-off would count a month the record'
+\echo 'expect: cannot yet know about, and can only ever move a call from open to'
+\echo 'expect: CLOSED, so it would flatter the figure.'
+select solve_cutoff <= (now() at time zone 'Asia/Kolkata')::date as capped_at_today,
+       solve_cutoff < date '2099-01-01' as not_the_future
+  from public.objective_period(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5);
+select public.set_objective_cutoff(2026, 5, null) as cleared_may;
+
+\echo '--- 28. RE-CALCULATE READS THE MONTHS'' CUT-OFFS; it does not set one ---'
+select public.set_objective_cutoff(2026, 5, date '2026-06-05') as may_cutoff;
 select count(*) from public.recalc_quality_objectives(2026);
-select calc_params->>'cutoff_date' as still_set from public.quality_objectives
- where year = 2026 and parameter = 'TESTC no cutoff';
+\echo 'expect: 0.000000 for May — the month''s own cut-off was used'
+select m05 from public.quality_objectives where year=2026 and parameter='TESTC no cutoff';
+\echo 'expect: t — Re-Calculate takes ONE argument. A date passed to it would be'
+\echo 'expect: a SECOND way to set a cut-off, and two ways to set one thing is'
+\echo 'expect: how a figure ends up disagreeing with the setting behind it.'
+select to_regprocedure('public.recalc_quality_objectives(integer)') is not null
+   and to_regprocedure('public.recalc_quality_objectives(integer,date)') is null
+       as one_way_to_set_a_cutoff;
 
-\echo '--- 25. THE LOCK IS OFF BY DEFAULT, and only an ADMIN may set it ---'
-\echo 'expect: f — a lock nobody asked for that quietly refuses an edit is'
-\echo 'expect: worse than no lock'
-select public.objective_cutoff_locked() as locked_by_default;
-\echo 'expect ERROR: only an administrator can lock or unlock the objective cut-off'
-call public.be('or_eng@x.com');
+\echo '--- 29. the month''s cut-off is NAMED in the notes ---'
+\echo 'expect: the note says 2026-06-05 and that it is May''s, plus the promise'
+\echo 'expect: that setting one month never touches another'
+select note from public.objective_notes(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTC no cutoff'), 5)
+ where note like 'CUT-OFF:%' or note like 'EACH MONTH CARRIES%';
+
+\echo '--- 30. ONLY config.manage MAY SET ONE, and the LOCK holds ---'
+\echo 'expect ERROR: you cannot change the objective cut-off dates'
+call public.be('op_eng@x.com');
 begin;
   set local role authenticated;
-  select public.set_objective_cutoff_lock(true);
+  select public.set_objective_cutoff(2026, 6, date '2026-07-09');
 commit;
 
-\echo '--- 26. LOCKED, THE CUT-OFF CANNOT BE CHANGED — INCLUDING THROUGH THE JSON ---'
 call public.be('op_admin@x.com');
-select public.set_objective_cutoff_lock(true) as now_locked;
-\echo 'expect ERROR: the objective cut-off is locked (a non-admin re-calculating'
-\echo 'expect: with a date)'
+select public.set_objective_cutoff_lock(true) as locked;
+\echo 'expect ERROR: the objective cut-off is locked (a manager, not an admin)'
 call public.be('or_eng2@x.com');
 begin;
   set local role authenticated;
-  select * from public.recalc_quality_objectives(2026, date '2026-07-01');
+  select public.set_objective_cutoff(2026, 6, date '2026-07-09');
 commit;
-\echo 'expect ERROR: the objective cut-off is locked (editing calc_params direct)'
-\echo 'expect: — a lock the JSON box on the definition screen walks around is'
-\echo 'expect: decoration, so it is enforced by a TRIGGER on the table.'
+\echo 'expect ERROR: the table itself refuses a direct write — there is no write'
+\echo 'expect: policy at all, so the lock has ONE door rather than two'
 begin;
   set local role authenticated;
-  update public.quality_objectives set calc_params = calc_params || '{"cutoff_date":"2026-07-01"}'::jsonb
-   where year = 2026 and parameter = 'TESTC no cutoff';
+  insert into public.objective_cutoffs (year, month, cutoff_date) values (2026, 6, date '2026-07-09');
 commit;
-\echo 'expect: 2026-06-05 — unmoved by either attempt'
-select calc_params->>'cutoff_date' as unmoved from public.quality_objectives
- where year = 2026 and parameter = 'TESTC no cutoff';
+\echo 'expect: 0 rows for June — unmoved by either attempt'
+select count(*) from public.objective_cutoffs where year = 2026 and month = 6;
 
-\echo '--- 27. ...but an ADMINISTRATOR is not locked out of their own switch ---'
-\echo 'expect: 2026-07-02 — the lock stops whoever else holds config.manage from'
-\echo 'expect: re-basing the figure. Locking the admin out of the switch they set'
-\echo 'expect: only teaches them to leave it off.'
+\echo '--- 31. ...but an ADMINISTRATOR is not locked out of their own switch ---'
+\echo 'expect: 2026-07-09 — the lock holds back whoever else has config.manage'
 call public.be('op_admin@x.com');
 begin;
   set local role authenticated;
-  update public.quality_objectives set calc_params = calc_params || '{"cutoff_date":"2026-07-02"}'::jsonb
-   where year = 2026 and parameter = 'TESTC no cutoff';
+  select public.set_objective_cutoff(2026, 6, date '2026-07-09');
 commit;
-select calc_params->>'cutoff_date' as admin_changed_it from public.quality_objectives
- where year = 2026 and parameter = 'TESTC no cutoff';
+select cutoff_date from public.objective_cutoffs where year = 2026 and month = 6;
 select public.set_objective_cutoff_lock(false) as unlocked;

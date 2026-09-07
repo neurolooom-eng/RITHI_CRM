@@ -3,7 +3,7 @@ import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
   countKpiFieldInst, listKpiFieldInst, listQualityObjectives, saveObjectiveCell,
   recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
-  objectiveCutoffLocked, setObjectiveCutoffLock,
+  objectiveCutoffLocked, setObjectiveCutoffLock, listObjectiveCutoffs, setObjectiveCutoff,
   saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
 } from '../lib/supabase';
@@ -114,12 +114,30 @@ export function Objective() {
   // stand behind at an audit.
   const [recalcing, setRecalcing] = useState(false);
   const [confirmRecalc, setConfirmRecalc] = useState(false);
-  const [recalcCutoff, setRecalcCutoff] = useState('');
   const [cutoffLocked, setCutoffLocked] = useState(false);
+  // ONE CUT-OFF PER MONTH, keyed by month number. A month absent from this map
+  // measures to the end of its own period — the default, and the thing a blank
+  // input means.
+  const [cutoffs, setCutoffs] = useState<Record<number, string>>({});
+  const [cutoffBusy, setCutoffBusy] = useState(0);
+  const loadCutoffs = () => { void listObjectiveCutoffs(YEAR).then(setCutoffs); };
   useEffect(() => { void objectiveCutoffLocked().then(setCutoffLocked); }, []);
+  useEffect(loadCutoffs, [live, YEAR]);
+  const maySetCutoff = mayEdit && (!cutoffLocked || isAdmin);
+  const saveCutoff = (month: number, value: string) => {
+    // Optimistic, then reconciled from the database: a date that looks saved
+    // and was refused is the one somebody reports a figure from.
+    setCutoffs((c) => { const n = { ...c }; if (value) n[month] = value; else delete n[month]; return n; });
+    setCutoffBusy((b) => b + 1);
+    void setObjectiveCutoff(YEAR, month, value || null).then((r) => {
+      setCutoffBusy((b) => b - 1);
+      if (!r.ok) setOMsg(`Could not set the ${MONTHS[month - 1]} cut-off: ${r.error}`);
+      loadCutoffs();
+    });
+  };
   const doRecalc = async () => {
     setRecalcing(true);
-    const res = await recalcObjectives(YEAR, recalcCutoff);
+    const res = await recalcObjectives(YEAR);
     setRecalcing(false);
     setConfirmRecalc(false);
     if (!res.ok) { setOMsg(`Could not re-calculate: ${res.error}`); return; }
@@ -128,7 +146,10 @@ export function Objective() {
     setOMsg(n === 0
       ? 'Nothing is set to compute yet — every objective is still typed.'
       : `Re-calculated ${n} objective${n === 1 ? '' : 's'}, ${months} month${months === 1 ? '' : 's'} in all`
-        + (recalcCutoff ? `, with calls counted closed up to ${recalcCutoff}` : '')
+        + (Object.keys(cutoffs).length
+            ? `, using the cut-off set for ${Object.keys(cutoffs).length} month`
+              + `${Object.keys(cutoffs).length === 1 ? '' : 's'}`
+            : '')
         + '. Typed figures were left alone.');
     loadObjectives();
   };
@@ -595,34 +616,37 @@ export function Objective() {
             This reads the register and writes the months of the <b>{objectives.filter((o) => o.calc_key).length}</b>{' '}
             objective{objectives.filter((o) => o.calc_key).length === 1 ? '' : 's'} marked <b>ƒ</b>, up to this month.
           </p>
-          {/* THE CUT-OFF, set at the moment of submission — where the person
-              running the numbers actually is. Blank does NOT mean "no cut-off":
-              it means leave whatever is stored alone, because a set date
-              overrides always. */}
-          <div style={{ marginBottom: 10 }}>
+          {/* A CUT-OFF PER MONTH. Each month is reported on its own day — this
+              September as at 9 October, last August as at 9 September — so
+              setting one must not touch any other. Twelve inputs rather than
+              one date, because one date across the year silently re-bases every
+              figure already reported. */}
+          <div style={{ marginBottom: 12 }}>
             <label className="field-label">
-              Cut-off date — count a call closed if it was <b>visited</b> on or before this day
+              Cut-off dates — a call counts as closed if it was <b>visited</b> on or before its month&rsquo;s day
             </label>
-            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
-              <input
-                type="date" className="input" style={{ maxWidth: 190 }}
-                value={recalcCutoff}
-                disabled={recalcing || (cutoffLocked && !isAdmin)}
-                onChange={(e) => setRecalcCutoff(e.target.value)}
-              />
-              {recalcCutoff && !(cutoffLocked && !isAdmin) && (
-                <button className="btn btn-ghost btn-sm" disabled={recalcing}
-                  onClick={() => setRecalcCutoff('')}>Leave as stored</button>
-              )}
+            <div className="obj-cutoff-grid">
+              {MONTHS.map((mo, i) => (
+                <div key={mo}>
+                  <span className="obj-cutoff-mo">{mo}</span>
+                  <input
+                    type="date" className="input obj-cutoff-in"
+                    value={cutoffs[i + 1] ?? ''}
+                    disabled={recalcing || !maySetCutoff}
+                    onChange={(e) => saveCutoff(i + 1, e.target.value)}
+                  />
+                </div>
+              ))}
             </div>
             <div className="field-help">
-              {cutoffLocked && !isAdmin
-                ? 'The cut-off is LOCKED. An administrator can unlock it on this page.'
-                : <>Leave it blank and nothing about the cut-off changes: each objective keeps whatever it
-                    already has, and one with nothing set measures to the <b>end of its own period</b>.
-                    A date set here is <b>stored on every open-rate objective</b> and applies to
-                    <b> every month this run writes</b> — re-calculating in October with 9 October also
-                    re-reads January as at 9 October.</>}
+              {!maySetCutoff
+                ? 'The cut-off dates are LOCKED. An administrator can unlock them on this page.'
+                : <>A blank month measures to the <b>end of that month</b>. Clearing a date puts the month
+                    back to that. Each date is saved as you set it and applies to
+                    <b> that month alone</b> — setting September&rsquo;s never moves a figure already
+                    reported for January. A quarterly objective takes its <b>quarter-end</b> month&rsquo;s
+                    date (Mar, Jun, Sep, Dec).</>}
+              {cutoffBusy > 0 && ' Saving…'}
             </div>
           </div>
           <ul className="muted" style={{ fontSize: 12.5, lineHeight: 1.7 }}>

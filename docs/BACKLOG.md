@@ -349,6 +349,42 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### A cut-off PER MONTH (2026-09-07) — and a null-propagation bug it turned up
+
+**0138 got the shape wrong and 0139 fixes it.** "Set the Cut Off Date before
+Recalculation" was read as ONE date per objective applied to every month a run
+wrote; the user meant one **per month**. The consequence was exactly what was
+flagged at the time: re-calculating in October with 09-Oct also re-read January
+as at 09-Oct, re-basing a figure reported eight months earlier.
+
+`objective_cutoffs(year, month, cutoff_date)` — one row per month per year,
+**shared by every objective**, because a cut-off belongs to the reporting round
+rather than to any one measure. No write policy at all; `set_objective_cutoff()`
+is the only way in, so the admin lock has one door. `recalc_quality_objectives`
+is back to **one argument**: it reads the cut-offs, it does not set one.
+
+⚠️ **`has_perm()` RETURNS NULL WHEN THERE IS NO SIGNED-IN USER**, because
+`my_extra_perms()` does. So the common guard
+
+```sql
+if not public.has_perm('config.manage') then raise exception ... end if;
+```
+
+**does not fire** — `not NULL` is NULL, which is not true, and execution falls
+straight through into the write. Found when a test fixture referenced a user
+that did not exist in that suite and the "engineer" successfully set a cut-off.
+
+`set_objective_cutoff` and `recalc_quality_objectives` now use
+`coalesce(public.has_perm(...), false)`. **The bare pattern appears in 15 other
+migrations** and has NOT been changed — that is a separate pass, and worth
+doing. Not reachable from the API today (execute is granted to `authenticated`,
+and a null uid means `anon`), but that is a second lock, not a reason to leave
+the first one open.
+
+**A test fixture whose user does not exist tests the null path, not the role.**
+That is why it hid this. Fixtures in `objective_periods_test` now create every
+user they impersonate.
+
 ### The cut-off, settled (2026-09-07)
 
 **The open question below is CLOSED: the cut-off tests the VISIT date.** A call
@@ -463,7 +499,7 @@ What the two bundles brought:
 
 | bundle | brings | rows |
 | --- | --- | --- |
-| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated, 0136 quarterly periods + objectives 8-11 + the stated assumptions, 0137 the settable solve cut-off + the closure date in the export, 0138 closure on the visit date + the cut-off at Re-Calc + the admin lock | 93, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106 |
+| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated, 0136 quarterly periods + objectives 8-11 + the stated assumptions, 0137 the settable solve cut-off + the closure date in the export, 0138 closure on the visit date + the admin lock, 0139 a cut-off PER MONTH | 93, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106 |
 | [`performance.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)) | 0128 the KPI Field & Installation export (columns A–AB), 0131 Phase 2 (AC–AG + Pending Days), 0129 `products.serial_key` | 94 |
 
 ⚠️ **This is a note, not evidence.** Run

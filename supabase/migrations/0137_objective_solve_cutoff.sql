@@ -60,6 +60,8 @@
 -- ---------------------------------------------------------------------------
 -- THE WINDOW, PLUS THE DATE A SOLVE MUST BE RECORDED BY.
 -- ---------------------------------------------------------------------------
+-- Dropped first for the same reason 0136 does: 0139 rebuilds this function and
+-- a table return type cannot be replaced in place.
 drop function if exists public.objective_period(bigint, integer);
 
 create function public.objective_period(p_id bigint, p_month integer)

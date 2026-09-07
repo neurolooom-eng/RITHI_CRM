@@ -1449,19 +1449,26 @@ console.log('\n-- the evidence workbook --');
   eq('the cut-off controls clear one another',
     /setParam\('cutoff_days', e\.target\.value, 'cutoff_date'\)/.test(obj)
     && /setParam\('cutoff_date', e\.target\.value, 'cutoff_days'\)/.test(obj), true);
-  // The cut-off is set where the person running the numbers actually is.
-  eq('the cut-off can be set at Re-calculate',
-    /recalcObjectives\(YEAR, recalcCutoff\)/.test(obj), true);
-  // A blank date must mean "leave what is stored" — sending it as a value
-  // would silently clear a setting the user never touched.
-  eq('a blank cut-off leaves the stored one alone',
-    /if \(cutoff && cutoff\.trim\(\)\) args\.p_cutoff/.test(objSb), true);
+  // ONE CUT-OFF PER MONTH. A single date across the year silently re-bases
+  // every figure already reported — the bug this replaced.
+  eq('there is a cut-off date for every month, not one for the year',
+    /MONTHS\.map\(\(mo, i\) => \(/.test(obj)
+    && /saveCutoff\(i \+ 1, e\.target\.value\)/.test(obj), true);
+  // Re-Calculate READS them; setting is its own act. Two ways to set one thing
+  // is how a figure ends up disagreeing with the setting behind it.
+  eq('Re-calculate reads the cut-offs and does not set one',
+    /recalcObjectives\(YEAR\)/.test(obj)
+    && !/recalcObjectives\(YEAR,/.test(obj), true);
+  // Clearing a date must put the month back — otherwise the first mistyped
+  // date is permanent.
+  eq('a blank date clears the month rather than storing an empty one',
+    /p_date: date && date\.trim\(\) \? date\.trim\(\) : null/.test(objSb), true);
   // The lock is an ADMIN's switch; config.manage is who it holds back, so
   // config.manage must not be what unlocks it.
   eq('the cut-off lock is an admin switch, not a config.manage one',
     /const \{ can, isAdmin \} = useAuth\(\)/.test(obj)
     && /\{isAdmin && \(/.test(obj)
-    && /cutoffLocked && !isAdmin/.test(obj), true);
+    && /!cutoffLocked \|\| isAdmin/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)
