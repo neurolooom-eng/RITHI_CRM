@@ -250,7 +250,8 @@ const MODULES = {
     ],
     needs: ['profiles', 'rbac'],
     files: ['0130_quality_objectives.sql', '0132_objective_recalc.sql', '0133_objective_serial_filter.sql',
-             '0134_objective_evidence_rows.sql', '0135_evidence_product_master.sql'],
+             '0134_objective_evidence_rows.sql', '0135_evidence_product_master.sql',
+             '0136_objective_periods.sql'],
   },
   validation: {
     title: 'Software Validation',

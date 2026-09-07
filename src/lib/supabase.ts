@@ -362,6 +362,28 @@ export async function objectiveEvidence(id: number, month: number): Promise<Reco
   return (data ?? []) as Record<string, unknown>[];
 }
 
+// THE ASSUMPTIONS AND THE HARD STOPS behind one figure, in words. A second
+// call rather than more columns on the evidence: these are derived from the
+// objective's own definition, not from the rows, so they cannot drift out of
+// step with the number the way a hand-written note in the page would.
+export async function objectiveNotes(id: number, month: number): Promise<{ kind: string; note: string }[]> {
+  const { data, error } = await must().rpc('objective_notes', { p_id: id, p_month: month });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as { kind: string; note: string }[];
+}
+
+// The window one figure is measured over — a month, or a whole quarter on a
+// quarterly objective. `applies` is false for the two months of a quarter that
+// carry no figure.
+export async function objectivePeriod(
+  id: number, month: number,
+): Promise<{ applies: boolean; period_start: string | null; period_end: string | null; label: string } | null> {
+  const { data, error } = await must().rpc('objective_period', { p_id: id, p_month: month });
+  if (error) throw new Error(errMsg(error));
+  const rows = (data ?? []) as { applies: boolean; period_start: string | null; period_end: string | null; label: string }[];
+  return rows[0] ?? null;
+}
+
 // An objective's definition — everything except the twelve figures. Editable
 // by an administrator, because none of it should be baked into a migration.
 export async function saveObjectiveDef(

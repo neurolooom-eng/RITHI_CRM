@@ -465,6 +465,30 @@ with checks(sort_order, bundle, provides, present) as (
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.proname = 'objective_evidence'
                    limit 1), false)),
+    (99, 'Objective: a QUARTERLY objective is measured over its quarter, cumulatively', 'objective_period() reads the register''s own Monitoring Frequency: Monthly measures the month, "3 Months" measures the WHOLE QUARTER and reports it in the quarter''s last month only -- the other two are NA (NULL), and Re-Calc clears them on an objective it computes. Cumulative means POOLED, not averaged: one fraction over the three months, so a month with four calls does not weigh the same as a month with ninety (0136). Restore: objective.sql',
+        (to_regprocedure('public.objective_period(bigint,integer)') is not null
+     and to_regprocedure('public.objective_is_quarterly(text)') is not null)),
+    (100, 'Objective: calls 8-10 count their OWN register, and 11 counts attended-in-days', 'calc_params.family names the register -- field / pm / installation -- so Preventive Maintenance Calls counts pm_calls and Installation call counts installation_calls, rather than all three reading the field register. Breakdown Calls (8), PM Calls (9) and Installation call (10) are one formula over three registers: calls registered in the period by REGISTRATION DATE, less those solved by its end. Problem Call attending within 3 days (11) is attended_within_days, the attended date being the EARLIER of first visit and first spare request, boundary inclusive. b.Customer feedback (12) stays TYPED -- its logic has not been given (0136). Restore: objective.sql',
+        -- Checked on the THREE NAMED objectives, not on a count: a count is
+        -- satisfied by any three rows, and a test fixture or an administrator's
+        -- own objective would answer for the ones this is about.
+        (to_regprocedure('public.objective_call_table(jsonb)') is not null
+     and coalesce((select count(*) = 3 from public.quality_objectives o
+                    join (values ('breakdown calls', 'field'),
+                                 ('preventive maintenance calls', 'pm'),
+                                 ('installation call', 'installation')) v(param, fam)
+                      on lower(btrim(o.parameter)) = v.param
+                   where o.year = 2026 and o.calc_key = 'open_rate_monthly'
+                     and o.calc_params->>'family' = v.fam), false)
+     and coalesce((select count(*) = 1 from public.quality_objectives
+                    where year = 2026 and calc_key = 'attended_within_days'
+                      and lower(btrim(parameter)) = 'problem call attending within 3 days'), false))),
+    (101, 'Objective: the evidence states its ASSUMPTIONS and its HARD STOPS', 'objective_notes() returns them as rows for the Calculation sheet, told apart on purpose: an ASSUMPTION is a choice that could have gone another way and an administrator can change it (which register, which product pattern, which date the clock runs from); a HARD STOP is what the number MEANS and will not bend (cancelled calls never counted, the cutoff never later than today, no calls means no rate rather than 0%). Derived from the objective''s own definition, so it cannot go on describing a register the objective no longer reads (0136). Restore: objective.sql',
+        (to_regprocedure('public.objective_notes(bigint,integer)') is not null
+     and coalesce((select pg_get_functiondef(p.oid) like '%HARD STOP%'
+                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                    where n.nspname = 'public' and p.proname = 'objective_notes'
+                    limit 1), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
