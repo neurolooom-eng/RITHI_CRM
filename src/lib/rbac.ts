@@ -56,6 +56,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/feedback', label: 'Customer Feedback' },
   { path: '/failure-report', label: 'Field Failure Report' },
   { path: '/kpi', label: 'KPI & Failure Analysis' },
+  { path: '/objective', label: 'Objective' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
@@ -267,6 +268,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
     { path: '/failure-report', label: 'Field Failure Report', actions: [] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
+    { path: '/objective', label: 'Objective', actions: [] },
   ] },
   { title: 'Administration', pages: [
     { path: '/users', label: 'User Access', actions: [] },

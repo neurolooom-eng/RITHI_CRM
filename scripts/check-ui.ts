@@ -1238,12 +1238,13 @@ console.log('\n-- the KPI export matches the workbook --');
   eq('every column is written, even when the view has no value',
     KPI_FIELD_INST_COLUMNS.every((c) => c in row), true);
 
-  const kpi = readFileSync(`${process.cwd()}/src/modules/KpiAnalytics.tsx`, 'utf8');
+  // The export moved to the Objective page (0130); the rules moved with it.
+  const objPage = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   eq('the screen says the three rules it was given',
-    /earlier of the first visit and the first spare request/.test(kpi)
-    && /Solved - Report Completed/.test(kpi)
-    && /cancelled calls are not included at\s*\n?\s*all/i.test(kpi), true);
-  eq('...and says AC-AG are Phase 2', /Phase 2:/.test(kpi), true);
+    /earlier of the first visit and the first spare request/.test(objPage)
+    && /Solved - Report Completed/.test(objPage)
+    && /cancelled calls are not included at\s*\n?\s*all/i.test(objPage), true);
+  eq('...and says AC-AG are Phase 2', /Phase 2:/.test(objPage), true);
 }
 
 // LOOKING UP ONE MACHINE BY SERIAL IS AN EQUALITY (0129). It was a
@@ -1272,6 +1273,42 @@ console.log('\n-- one machine, by its serial --');
 
   const sh = readFileSync(`${process.cwd()}/src/lib/sheets.ts`, 'utf8');
   eq('the sheet-era path still has an answer', /export async function productBySerial/.test(sh), true);
+}
+
+// THE OBJECTIVE PAGE (0130). "create a separate page called objective.. and
+// move the phase 1 to that", then "I need all these there".
+console.log('\n-- the Objective page --');
+{
+  const rbacSrc = readFileSync(`${process.cwd()}/src/lib/rbac.ts`, 'utf8');
+  const layout = readFileSync(`${process.cwd()}/src/components/layout/Layout.tsx`, 'utf8');
+  const app = readFileSync(`${process.cwd()}/src/App.tsx`, 'utf8');
+  eq('it is a module, so a role can be given or refused it',
+    /\{ path: '\/objective', label: 'Objective' \}/.test(rbacSrc), true);
+  eq('...it is on the permission tree, or it can never be granted',
+    /path: '\/objective', label: 'Objective', actions: \[\]/.test(rbacSrc), true);
+  eq('...in the menu', /to: '\/objective'/.test(layout), true);
+  eq('...and routed', /path="\/objective"/.test(app), true);
+
+  const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  const kpi = readFileSync(`${process.cwd()}/src/modules/KpiAnalytics.tsx`, 'utf8');
+  // MOVED, not copied: two export buttons writing the same file from two
+  // screens is how they drift apart.
+  eq('Phase 1 moved here', /Export — KPI workbook \(Field_INST\)/.test(obj), true);
+  eq('...and is gone from KPI & Failure Analysis',
+    /Export — KPI workbook/.test(kpi) || /listKpiFieldInst/.test(kpi), false);
+  eq('...and Phase 2 is named as still to come', /Phase 2 — the objectives themselves/.test(obj), true);
+
+  // A month that was not measured is NOT zero. On a rate that is the difference
+  // between "we did not measure" and "it was perfect".
+  eq('a blank month is stored as null, not zero', /value: number \| null = null;/.test(obj), true);
+  eq('...and the screen says so', /NOT MEASURED, which is not the same as zero/.test(obj), true);
+  // Every figure is typed today, and the page says it rather than letting a
+  // number look computed.
+  eq('the page admits the figures are typed', /Every figure here is <b>typed<\/b> today/.test(obj), true);
+  // A target reads "<5%" / ">75%" / "To Monitor" — the last has no line, so it
+  // must not be coloured as met or missed.
+  eq('an unparseable target is neither met nor missed',
+    /if \(!m\) return '';/.test(obj), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

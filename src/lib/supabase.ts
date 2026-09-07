@@ -325,6 +325,41 @@ export async function listKpiFieldInst(range: KpiRange = {}, offset = 0, limit =
   return (data ?? []) as Record<string, unknown>[];
 }
 
+// ---------------------------------------------------------------------------
+// QUALITY & BUSINESS OBJECTIVES (0130). Twelve rows a year, read whole — there
+// is no paging to do and no filter worth having.
+// ---------------------------------------------------------------------------
+export interface QualityObjective {
+  id: number; year: number; sort_order: number; process: string; parameter: string;
+  yearly_target: string; current_target: string; frequency: string; responsible: string;
+  m01: number | null; m02: number | null; m03: number | null; m04: number | null;
+  m05: number | null; m06: number | null; m07: number | null; m08: number | null;
+  m09: number | null; m10: number | null; m11: number | null; m12: number | null;
+  total: number | null; source: string; notes: string; updated_at: string;
+}
+
+export async function listQualityObjectives(year: number): Promise<QualityObjective[]> {
+  const { data, error } = await must().from('quality_objectives').select('*')
+    .eq('year', year).order('sort_order', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as QualityObjective[];
+}
+
+export async function objectiveYears(): Promise<number[]> {
+  const { data, error } = await must().from('quality_objectives').select('year');
+  if (error) throw new Error(errMsg(error));
+  return [...new Set((data ?? []).map((r) => Number((r as { year: number }).year)))].sort((a, b) => b - a);
+}
+
+// One cell at a time: the register is edited a figure at a time, and a whole-row
+// save would make two people overwrite each other's month.
+export async function saveObjectiveCell(
+  id: number, field: string, value: number | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('quality_objectives').update({ [field]: value }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // ---- Product Master (cascade + search) -------------------------------------
 // Page through a single column past PostgREST's 1000-row response cap and return
 // the distinct, sorted values. Used for the party / product / spare pick-lists,
