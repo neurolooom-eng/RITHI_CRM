@@ -349,16 +349,37 @@ export async function listQualityObjectives(year: number): Promise<QualityObject
 // RE-CALC — explicit, never on a page load. A figure that changes because
 // somebody opened a screen is not a figure anybody can defend.
 export async function recalcObjectives(
-  year: number, cutoff?: string,
+  year: number,
 ): Promise<{ ok: boolean; written?: { objective: string; months_written: number }[]; error?: string }> {
-  // A blank date is NOT a cut-off of "nothing" — it means leave whatever is
-  // stored alone, which is what "the Set Date overrides always" requires. So
-  // the argument is omitted rather than sent as null.
-  const args: Record<string, unknown> = { p_year: year };
-  if (cutoff && cutoff.trim()) args.p_cutoff = cutoff.trim();
-  const { data, error } = await must().rpc('recalc_quality_objectives', args);
+  // Re-Calculate READS the months' cut-offs; it does not set one. Two ways to
+  // set the same thing is how a figure ends up disagreeing with the setting
+  // that supposedly produced it.
+  const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year });
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, written: (data ?? []) as { objective: string; months_written: number }[] };
+}
+
+// ONE CUT-OFF PER MONTH, shared by every objective. A month with no row
+// measures to the end of its own period.
+export async function listObjectiveCutoffs(year: number): Promise<Record<number, string>> {
+  const { data, error } = await must()
+    .from('objective_cutoffs').select('month,cutoff_date').eq('year', year);
+  if (error) return {};
+  const out: Record<number, string> = {};
+  for (const r of (data ?? []) as { month: number; cutoff_date: string }[]) out[r.month] = r.cutoff_date;
+  return out;
+}
+
+// A null date CLEARS the month, putting it back to the end of its period —
+// there has to be a way back, or the first mistyped date is permanent.
+export async function setObjectiveCutoff(
+  year: number, month: number, date: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('set_objective_cutoff', {
+    p_year: year, p_month: month, p_date: date && date.trim() ? date.trim() : null,
+  });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
 }
 
 // THE CUT-OFF LOCK. An admin's switch over whether anyone else may re-base the

@@ -392,6 +392,10 @@ grant execute on function public.objective_evidence(bigint, integer) to authenti
 -- The 1-argument form is dropped -- leaving both would make
 -- `recalc_quality_objectives(2026)` ambiguous.
 -- ---------------------------------------------------------------------------
+-- 0139 takes the cut-off argument away again (a cut-off is set per month, in
+-- one place, and a second way to set one is how a figure ends up disagreeing
+-- with the setting that produced it). Both forms are dropped either way, so
+-- this file replays whichever shape the database currently has.
 drop function if exists public.recalc_quality_objectives(integer);
 drop function if exists public.recalc_quality_objectives(integer, date);
 

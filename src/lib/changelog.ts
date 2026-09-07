@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.139',
+    date: '2026-09-07',
+    title: 'A cut-off date for every month, not one for the year',
+    changes: [
+      'THERE IS NOW A CUT-OFF DATE FOR EACH OF THE TWELVE MONTHS, set on the Re-Calculate dialog. September can be read as at 9 October and August as at 9 September \u2014 which is how the reporting round actually works.',
+      'SETTING ONE MONTH NEVER TOUCHES ANOTHER. The previous version took a single date and applied it to every month it wrote, so re-calculating in October also re-read January as at 9 October \u2014 quietly re-basing a figure reported eight months earlier. That is fixed.',
+      'A BLANK MONTH MEASURES TO THE END OF THAT MONTH, as before. Clearing a date puts the month straight back to that, so a mistyped date is never permanent.',
+      'The dates are SHARED by every objective \u2014 a cut-off belongs to the reporting round, not to one measure. Twelve objectives times twelve months would be a hundred and forty-four dates that were all the same date anyway.',
+      'A QUARTERLY OBJECTIVE TAKES ITS QUARTER-END MONTH\u2019S DATE (Mar, Jun, Sep, Dec) \u2014 that is the month it reports in.',
+      'Each date saves as you set it, and Re-Calculate simply reads them. It no longer takes a date of its own: two ways to set one thing is how a figure ends up disagreeing with the setting that produced it.',
+      'The admin lock still holds, and now has only ONE door \u2014 the cut-off table cannot be written through the API at all, only through the one function that checks the permission and the lock together.',
+      'Still never later than today, and the evidence still names the exact date each month was measured to.',
+      'Needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.138',
     date: '2026-09-07',
     title: 'A call closes on the day it was visited, and the cut-off is set at Re-Calculate',

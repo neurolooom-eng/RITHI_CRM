@@ -252,7 +252,8 @@ const MODULES = {
     files: ['0130_quality_objectives.sql', '0132_objective_recalc.sql', '0133_objective_serial_filter.sql',
              '0134_objective_evidence_rows.sql', '0135_evidence_product_master.sql',
              '0136_objective_periods.sql', '0137_objective_solve_cutoff.sql',
-             '0138_objective_cutoff_visit_date.sql'],
+             '0138_objective_cutoff_visit_date.sql',
+             '0139_objective_cutoffs_per_month.sql'],
   },
   validation: {
     title: 'Software Validation',

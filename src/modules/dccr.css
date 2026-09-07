@@ -305,3 +305,20 @@
 .obj-calc { color: var(--primary); margin-right: 6px; font-style: italic; }
 .obj-defbtn, .obj-eyebtn { padding: 0 4px; margin-left: 6px; opacity: 0.45; }
 .obj-defbtn:hover, .obj-eyebtn:hover { opacity: 1; }
+
+/* THE TWELVE CUT-OFF DATES. A grid rather than a column: twelve months read as
+   a year when they sit together, and as a form when they are stacked. */
+.obj-cutoff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 10px;
+  margin-top: 4px;
+}
+.obj-cutoff-mo {
+  display: block;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.obj-cutoff-in { width: 100%; padding: 4px 6px; font-size: 12.5px; }
