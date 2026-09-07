@@ -234,6 +234,23 @@ const MODULES = {
       // discarding it on every apply. Ends the module with 0064's version.
       '0122_notifications_replay_tail.sql'],
   },
+  objective: {
+    title: 'Quality & Business Objectives',
+    blurb: [
+      'The ALMS-INDIA Quality & Business Objectives register --- twelve objectives,',
+      'each with its yearly target, how often it is measured, who is responsible,',
+      'and the month-by-month actual. Kept in Excel until now.',
+      '',
+      'Every actual is TYPED today (`source` says so). As each objective is',
+      'automated it stops being typed and starts being read from the calls; the',
+      'column is there so the page can say which are and which are not.',
+      '',
+      'Also grants the Objective page to every role that can see KPI & Failure',
+      'Analysis --- the same audience, and the KPI workbook export moved onto it.',
+    ],
+    needs: ['profiles', 'rbac'],
+    files: ['0130_quality_objectives.sql'],
+  },
   validation: {
     title: 'Software Validation',
     blurb: ['Validation execution tracker (validation_results): stores the executed',
@@ -557,7 +574,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'data_integrity', 'performance'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

@@ -429,6 +429,10 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='products' and column_name='serial_key')
      and exists (select 1 from pg_indexes
                   where schemaname='public' and tablename='products' and indexname='products_serial_key_col_idx'))),
+    (93, 'Objective: the Quality & Business Objectives register', 'quality_objectives -- the twelve objectives for the year with their targets, frequency, who is responsible and the month-by-month actual, on their own page. A month not measured is NULL, never 0 ("NA" on a quarterly objective is not zero). Every figure is TYPED today (source = manual); the column is there so the page can say which are automated as they are. Re-running the seed never overwrites one somebody typed. Also grants mod:/objective to every role holding mod:/kpi (0130). Restore: objective.sql',
+        (to_regclass('public.quality_objectives') is not null
+     and exists (select 1 from pg_policies
+                  where schemaname='public' and tablename='quality_objectives' and policyname='qo_write'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

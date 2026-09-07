@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.129',
+    date: '2026-09-07',
+    title: 'Objective \u2014 a page of its own for the quality objectives',
+    changes: [
+      'A new page, OBJECTIVE, under Quality & Analytics. It carries the ALMS-INDIA Quality & Business Objectives for the year \u2014 all twelve, with their yearly target, how often each is measured, who is responsible, and the month-by-month actual, exactly as the workbook has them.',
+      'A figure that MEETS its target reads green; one that misses it is called out. A target of \u201cTo Monitor\u201d has no line to pass or fail, so it is coloured neither way.',
+      'A MONTH THAT WAS NOT MEASURED IS BLANK, NOT ZERO \u2014 on a quarterly objective that is the difference between \u201cwe did not measure\u201d and \u201cit was perfect\u201d.',
+      'Whoever owns the numbers can click a month and type the figure; everyone else reads it. Each change records who and when.',
+      'EVERY FIGURE IS STILL TYPED, the Total included, and the page says so rather than letting a number look computed. In the workbook the total is a sum on some rows and an average on others, and which it is cannot be told from the row \u2014 so it is carried across rather than guessed at.',
+      'The KPI workbook export (Phase 1) has MOVED here from KPI & Failure Analysis. It is the same export; it belongs with the objectives rather than with the analytics.',
+      'Phase 2 \u2014 Attended in Days, Solved in Days, TTA, TTS, Failure Month \u2014 is named on the page as still to come.',
+      'Needs migration: run supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.128',
     date: '2026-09-07',
     title: 'Registering a call from a request stops timing out',

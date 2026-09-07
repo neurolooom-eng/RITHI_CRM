@@ -282,3 +282,22 @@
   padding: 4px 10px; border: 1px solid var(--border); border-radius: 7px;
   background: var(--surface);
 }
+
+/* ---------------------------------------------------------------------------
+   THE OBJECTIVES REGISTER (0130). Twelve rows, twelve months, read across.
+   Numbers are tabular so a column of percentages lines up and an outlier is
+   visible without reading every one.
+   --------------------------------------------------------------------------- */
+.obj-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.obj-table th,
+.obj-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.obj-table th { font-weight: 700; color: var(--text-muted); text-transform: uppercase; font-size: 11px; letter-spacing: 0.03em; }
+.obj-num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Met and missed, as a saturated solid state colour rather than a wash — the
+   standing rule is that a highlight is a contrast projection, and these are
+   read at a glance down a column. */
+.obj-good { color: var(--success, #16a34a); font-weight: 600; }
+.obj-bad  { background: var(--danger, #dc2626); color: #fff; font-weight: 700; }
+.obj-edit { cursor: text; }
+.obj-edit:hover { outline: 1px dashed var(--border); }
+.obj-input { width: 68px; padding: 2px 4px; font-size: 12.5px; text-align: right; }
