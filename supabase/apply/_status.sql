@@ -444,6 +444,10 @@ with checks(sort_order, bundle, provides, present) as (
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='quality_objectives'
                     and column_name='calc_key'))),
+    (96, 'Objective: a rate can be narrowed by SERIAL, not only product', 'failure_rate_12m takes an optional `serial` in calc_params -- how the Indian Extend is told from the rest ("Extend XT with serial numbers starting from INXT"), since no column says Indian. It narrows the FAILURES AND THE MACHINES they are counted against: narrowing only the failures would read LOWER than the truth, and a rate that flatters itself is the one nobody questions (0133). Restore: objective.sql',
+        coalesce((select calc_params ? 'serial' from public.quality_objectives
+                   where year = 2026 and calc_key = 'failure_rate_12m'
+                     and parameter ilike '%extend%' limit 1), false)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

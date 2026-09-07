@@ -131,3 +131,67 @@ begin;
 commit;
 select parameter, m01 from public.quality_objectives
  where year = 2026 and parameter like 'TEST %' order by parameter;
+
+-- ===========================================================================
+-- A RATE CAN BE NARROWED BY SERIAL AS WELL AS PRODUCT (0133).
+--
+-- "Indian Extend are the Extend XT with serial numbers starting from INXT."
+-- The register has no column that says Indian; the SERIAL says it.
+--
+-- The whole risk is narrowing only the NUMERATOR: Indian failures counted
+-- against the whole Extend fleet reads LOWER than the truth, and a failure
+-- rate that flatters itself is the one nobody questions.
+-- ===========================================================================
+
+delete from public.reports     where ucn like 'SF-%';
+delete from public.field_calls where ucn like 'SF-%';
+delete from public.products    where party_name = 'SF FLEET';
+
+-- 4 Indian machines (INXT) and 6 imported (EXTD). 2 Indian failures, 3 imported.
+insert into public.products (item_name, serial_number, party_name)
+select 'EXTEND-XT', 'INXT ' || g, 'SF FLEET' from generate_series(1,4) g;
+insert into public.products (item_name, serial_number, party_name)
+select 'EXTEND-XT', 'EXTD ' || g, 'SF FLEET' from generate_series(1,6) g;
+
+insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_date,
+                                complaint_date, party_name, city, state, item_status,
+                                complaint_reported, standard_complaint, allocated_to)
+values
+ ('SF-1','S1','FIELD','EXTEND-XT','INXT 1', date '2026-01-05', date '2026-01-05','H','C','S','CMC','x','y','E'),
+ ('SF-2','S2','FIELD','EXTEND-XT','INXT 2', date '2026-01-06', date '2026-01-06','H','C','S','CMC','x','y','E'),
+ ('SF-3','S3','FIELD','EXTEND-XT','EXTD 1', date '2026-01-07', date '2026-01-07','H','C','S','CMC','x','y','E'),
+ ('SF-4','S4','FIELD','EXTEND-XT','EXTD 2', date '2026-01-08', date '2026-01-08','H','C','S','CMC','x','y','E'),
+ ('SF-5','S5','FIELD','EXTEND-XT','EXTD 3', date '2026-01-09', date '2026-01-09','H','C','S','CMC','x','y','E');
+
+delete from public.quality_objectives where year = 2026 and parameter like 'TESTSF %';
+insert into public.quality_objectives
+  (year, sort_order, process, parameter, yearly_target, frequency, responsible, calc_key, calc_params)
+values
+ (2026, 111, 'TEST', 'TESTSF indian only', '<8%', 'Monthly', 'NSM', 'failure_rate_12m',
+  '{"product":"EXTEND-XT","serial":"INXT%"}'),
+ (2026, 112, 'TEST', 'TESTSF whole fleet', '<8%', 'Monthly', 'NSM', 'failure_rate_12m',
+  '{"product":"EXTEND-XT"}');
+
+\echo '--- 10. THE SERIAL NARROWS BOTH HALVES OF THE FRACTION ---'
+\echo 'expect: indian 0.5 (2 failures / 4 Indian machines)'
+\echo 'expect: whole  0.5 (5 failures / 10 machines)'
+\echo 'expect: If only the numerator were narrowed the Indian rate would read'
+\echo 'expect: 2/10 = 0.2 — a rate that flatters itself, which is the one'
+\echo 'expect: nobody questions. The two coming out EQUAL here is the point:'
+\echo 'expect: the same 0.5 reached from 2/4 and from 5/10.'
+select parameter, public.objective_value(id, 1) as jan
+  from public.quality_objectives where year = 2026 and parameter like 'TESTSF %' order by parameter;
+
+\echo '--- 11. and the EVIDENCE narrows the same way, or the file does not add up ---'
+\echo 'expect: 2 failure rows (both INXT) and a fleet row reading 4'
+select role, ucn, serial from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
+ order by role, ucn;
+
+\echo '--- 12. a rate with no serial named is unchanged — the five others ---'
+\echo 'expect: 5 failure rows and a fleet row reading 10'
+select count(*) filter (where role = 'failure') as failures,
+       max(call_number) filter (where role = 'fleet') as fleet_label,
+       max(ucn) filter (where role = 'fleet') as fleet_count
+  from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1);
