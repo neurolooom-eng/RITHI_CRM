@@ -12,6 +12,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.136',
+    date: '2026-09-07',
+    title: 'Quarterly objectives, three registers, and a sheet that states its assumptions',
+    changes: [
+      'QUARTERLY OBJECTIVES ARE NOW MEASURED OVER THEIR QUARTER. A quarterly KPI carries ONE cumulative figure, in the last month of the quarter (Mar, Jun, Sep, Dec); the other two months are NA \u2014 and NA is blank, not zero.',
+      'CUMULATIVE MEANS POOLED, NOT AVERAGED. The quarter\u2019s figure is the three months\u2019 numerators over the three months\u2019 denominators \u2014 one fraction over the whole window. Averaging three monthly rates would give a month with four calls the same weight as a month with ninety, which is how a bad quarter comes out looking ordinary.',
+      'THE OBJECTIVE PAGE NOW SAYS OUTRIGHT which KPIs are Monthly and which are Quarterly, above the table, instead of leaving you to read it out of twelve rows.',
+      'BREAKDOWN CALLS, PREVENTIVE MAINTENANCE CALLS and INSTALLATION CALL are now computed: of the calls REGISTERED in the period, the ones not solved by its end. Each counts its OWN register \u2014 PM Calls counts the PM register, Installation call the Installation register \u2014 so the three cannot report the same number.',
+      'PROBLEM CALL ATTENDING WITHIN 3 DAYS is computed too. Attended is the EARLIER of the first visit and the first spare request \u2014 the same Call Attended rule the KPI export uses \u2014 and the clock runs from the later of the complaint and the registration. Read as 3 DAYS OR FEWER; a call never attended counts against it.',
+      'THE EVIDENCE SHEET NOW STATES ITS ASSUMPTIONS AND ITS HARD STOPS, in words, at the bottom of the Calculation tab. They are told apart on purpose: an ASSUMPTION is a choice that could have gone another way and an admin can change it (which register, which product, which date the clock runs from); a HARD STOP is what the number means and will not bend (cancelled calls are never counted, the cutoff is never later than today, a period with no calls gives no rate rather than 0%).',
+      'The notes are worked out from the objective\u2019s own definition, so re-pointing an objective at another register changes what the file says about it \u2014 the sheet cannot go on describing the old one.',
+      'The Calculation tab now says what period it covers (\u201cQ1 (Jan\u2013Mar 2026)\u201d), and Sheet 1 is named for the register it actually lists.',
+      'Re-Calculate now CLEARS the off-quarter months of a quarterly objective it computes, so a stale monthly figure cannot sit beside a quarterly total. It still never touches a TYPED figure \u2014 quarterly or not.',
+      'b.CUSTOMER FEEDBACK IS STILL TYPED. Its logic has not been given yet, and a number nobody agreed to is worse on a quality record than a blank one.',
+      'Needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.135',
     date: '2026-09-07',
     title: 'The Installation Base is a Product Master listing, and says what filtered it',

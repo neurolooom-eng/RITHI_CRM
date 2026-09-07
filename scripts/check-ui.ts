@@ -1414,9 +1414,24 @@ console.log('\n-- the evidence workbook --');
   eq('...and text is escaped', s.includes('x &amp; &lt;y&gt;'), true);
 
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  // Sheet 1 is named for the register the objective actually read — the user's
+  // shape ("List of Field Calls") for a field objective, and the truth for a PM
+  // or Installation one, which is a different register and not field calls.
   eq('the three sheets are the ones asked for',
-    /name: 'List of Field Calls'/.test(obj) && /name: 'Installation Base'/.test(obj)
+    /sheet1Name = fam === 'pm' \? 'List of PM Calls'/.test(obj)
+    && /: 'List of Field Calls'/.test(obj)
+    && /name: 'Installation Base'/.test(obj)
     && /name: 'Calculation'/.test(obj), true);
+  // The user asked for the assumptions and the hard stops IN the sheet, and for
+  // them to be told apart: an assumption is a choice somebody may want changed,
+  // a hard stop is what the number means.
+  eq('the calculation sheet states its assumptions and its hard stops',
+    /'ASSUMPTION', 'HARD STOP'/.test(obj)
+    && /ASSUMPTIONS/.test(obj) && /HARD STOPS/.test(obj), true);
+  // A quarterly objective carries no figure in ten months of the year. Saying
+  // "nothing to download" there reads as a broken export.
+  eq('a month that carries no figure says why, not "nothing to download"',
+    /if \(period && !period\.applies\)/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)

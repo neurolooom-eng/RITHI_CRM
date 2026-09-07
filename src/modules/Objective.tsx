@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
   countKpiFieldInst, listKpiFieldInst, listQualityObjectives, saveObjectiveCell,
-  recalcObjectives, objectiveEvidence, saveObjectiveDef, addObjective, deleteObjective,
+  recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
+  saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -97,6 +98,13 @@ export function Objective() {
     loadObjectives();
   };
 
+  // The two frequencies, named. `objective_is_quarterly` in the database is the
+  // authority; this is its mirror for the page, and the same rule: anything not
+  // recognisably quarterly is monthly.
+  const isQuarterly = (f: string) => /quarter|3\s*month/i.test(f || '');
+  const monthlyNames = objectives.filter((o) => !isQuarterly(o.frequency)).map((o) => o.parameter);
+  const quarterlyNames = objectives.filter((o) => isQuarterly(o.frequency)).map((o) => o.parameter);
+
   // RE-CALC — explicit, at the moment of submission. Never on a page load: a
   // figure that moves because somebody opened a screen is not one anybody can
   // stand behind at an audit.
@@ -146,8 +154,21 @@ export function Objective() {
     Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
     try {
-      const rows = await objectiveEvidence(o.id, monthIndex + 1);
-      if (!rows.length) { setOMsg('There is nothing behind that figure to download.'); return; }
+      const [rows, notes, period] = await Promise.all([
+        objectiveEvidence(o.id, monthIndex + 1),
+        objectiveNotes(o.id, monthIndex + 1),
+        objectivePeriod(o.id, monthIndex + 1),
+      ]);
+      // A quarterly objective carries no figure in ten of the twelve months,
+      // and that is not an error — say which month DOES hold it rather than
+      // "nothing to download", which reads as a fault in the export.
+      if (period && !period.applies) {
+        setOMsg(period.label || 'That month has not been reached yet.');
+        return;
+      }
+      if (!rows.length && !notes.length) {
+        setOMsg('There is nothing behind that figure to download.'); return;
+      }
       const role = (r: Record<string, unknown>) => String(r.role ?? '');
       const calls = rows.filter((r) => role(r) !== 'machine' && role(r) !== 'filter');
       const machines = rows.filter((r) => role(r) === 'machine');
@@ -156,20 +177,39 @@ export function Objective() {
       const filterRow = rows.find((r) => role(r) === 'filter');
 
       const isRate = o.calc_key === 'failure_rate_12m';
-      const numerator = isRate ? calls.length : calls.filter((r) => role(r) === 'open').length;
+      const isAttended = o.calc_key === 'attended_within_days';
+      const numerator = isRate ? calls.length
+        : calls.filter((r) => role(r) === (isAttended ? 'attended' : 'open')).length;
       const denominator = isRate ? machines.length : calls.length;
+      // The period, not "the month" — on a quarterly objective these rows are
+      // a whole quarter and a sheet that said "month" would be wrong.
+      const over = period?.label || `${YEAR} ${MONTHS[monthIndex]}`;
+      // The user's shape is "List of Field Calls (Sheet1)", and that is what a
+      // field objective gets. A PM or Installation objective reads a different
+      // register, and calling its rows field calls would be plainly wrong.
+      const fam = String((o.calc_params as Record<string, unknown> | null)?.family ?? '').toLowerCase();
+      const sheet1Name = fam === 'pm' ? 'List of PM Calls'
+        : fam.startsWith('install') ? 'List of Installation Calls'
+        : 'List of Field Calls';
+      const numeratorLabel = isRate ? 'Failures (Sheet 1)'
+        : isAttended ? `Attended inside the limit (Sheet 1)`
+        : `Still open at the end of ${over} (Sheet 1)`;
+      const denominatorLabel = isRate ? 'Machines in the field (Sheet 2)'
+        : `Calls registered in ${over} (Sheet 1)`;
       const computed = denominator ? numerator / denominator : null;
       const stored = o[MONTH_KEYS[monthIndex]];
 
       const calc: Record<string, unknown>[] = [
         { Item: 'Objective', Value: o.parameter },
-        { Item: 'Year / month', Value: `${YEAR} ${MONTHS[monthIndex]}` },
+        { Item: 'Reported in', Value: `${YEAR} ${MONTHS[monthIndex]}` },
+        { Item: 'Measured over', Value: period?.label || `${YEAR} ${MONTHS[monthIndex]}` },
+        { Item: 'Monitoring frequency', Value: o.frequency },
         { Item: 'Yearly target', Value: o.yearly_target },
         { Item: 'Worked out by', Value: o.calc_key || 'not computed — this figure is typed' },
         { Item: 'Parameters', Value: JSON.stringify(o.calc_params ?? {}) },
         { Item: '', Value: '' },
-        { Item: isRate ? 'Failures (Sheet 1)' : 'Still open at month end (Sheet 1)', Value: numerator },
-        { Item: isRate ? 'Machines in the field (Sheet 2)' : 'Calls raised in the month (Sheet 1)', Value: denominator },
+        { Item: numeratorLabel, Value: numerator },
+        { Item: denominatorLabel, Value: denominator },
         { Item: 'Calculation', Value: `${numerator} ÷ ${denominator}` },
         { Item: 'Result', Value: computed == null ? '' : computed },
         { Item: 'Result (%)', Value: computed == null ? '' : `${(computed * 100).toFixed(2)}%` },
@@ -188,14 +228,27 @@ export function Objective() {
         { Item: 'Product filter', Value: filterRow.product_name },
         { Item: 'Serial filter', Value: filterRow.serial },
       );
-      calc.push(
-        { Item: 'Machines counted', Value: 'as the Product Register stands today — it keeps no history of past installs' },
-        { Item: 'Downloaded', Value: new Date().toISOString() },
-      );
+      calc.push({ Item: 'Downloaded', Value: new Date().toISOString() });
+
+      // THE ASSUMPTIONS AND THE HARD STOPS, in the database's own words (the
+      // user's ask, 2026-09-07). They come from the objective's definition, so
+      // a figure re-pointed at another register cannot be described here by
+      // the old one. Assumptions first — those are the ones a reader may want
+      // changed; the hard stops are what the number MEANS.
+      for (const kind of ['ASSUMPTION', 'HARD STOP'] as const) {
+        const mine = notes.filter((n) => n.kind === kind);
+        if (!mine.length) continue;
+        calc.push({ Item: '', Value: '' },
+                  { Item: kind === 'ASSUMPTION' ? 'ASSUMPTIONS' : 'HARD STOPS',
+                    Value: kind === 'ASSUMPTION'
+                      ? 'choices that could have gone another way — an administrator can change these on the Objective page'
+                      : 'rules this figure will not bend — changing one would make it a different number' });
+        mine.forEach((n, i) => calc.push({ Item: `${i + 1}.`, Value: n.note }));
+      }
 
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
-        { name: 'List of Field Calls', columns: ['role', ...CALL_COLUMNS], rows: calls },
+        { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
         {
           name: 'Installation Base',
           columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],
@@ -298,6 +351,18 @@ export function Objective() {
           {mayEdit
             ? ' Click a month to type the figure — a blank month means NOT MEASURED, which is not the same as zero.'
             : ' The figures are maintained by whoever owns the numbers.'}
+        </p>
+        {/* WHICH ARE MONTHLY AND WHICH ARE QUARTERLY, said outright (the user's
+            ask). It is in the Freq. column too, but reading it out of twelve
+            rows is work, and the two behave differently enough — a quarterly
+            objective carries ONE cumulative figure in the last month of its
+            quarter and NA in the other two — that the difference deserves
+            saying rather than looking up. */}
+        <p className="muted" style={{ marginTop: 0 }}>
+          <strong>Monthly ({monthlyNames.length})</strong>: {monthlyNames.join(', ') || '—'}.
+          {' '}<strong>Quarterly ({quarterlyNames.length})</strong>: {quarterlyNames.join(', ') || '—'} —
+          {' '}measured CUMULATIVELY over the three months and reported in the last month of the
+          quarter (Mar, Jun, Sep, Dec); the other months are NA, which is not zero.
           {' '}A row marked <b>ƒ</b> is worked out from the register; the rest are typed.
         </p>
         {mayEdit && (

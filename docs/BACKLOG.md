@@ -349,13 +349,47 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### Objectives 8-12 — what is computed and what is still typed (2026-09-07)
+
+| # | Objective | Freq. | Computed by | State |
+| --- | --- | --- | --- | --- |
+| 8  | Breakdown Calls | Monthly | `open_rate_monthly` `{"family":"field"}` | ✅ |
+| 9  | Preventive Maintenance Calls | **Quarterly** | `open_rate_monthly` `{"family":"pm"}` | ✅ |
+| 10 | Installation call | **Quarterly** | `open_rate_monthly` `{"family":"installation"}` | ✅ |
+| 11 | Problem Call attending within 3 days | Monthly | `attended_within_days` `{"family":"field","days":3}` | ✅ |
+| 12 | b.Customer feedback | **Quarterly** | — | ⏳ typed; the user is detailing the logic |
+
+`public.feedback` exists (one row per visit, `answers jsonb`) but nothing says
+how a score is derived from it. **Left typed on purpose** — a number nobody
+agreed to is worse on a quality record than a blank one.
+
+**Two readings put into 11 that the user has not confirmed**, both one field on
+the screen to change, and both now STATED in the evidence file rather than
+buried: "within 3 days" is read as an attended-in-days of **3 or fewer**, and
+"Problem call" is read as the **field** register.
+
+⚠️ **`frequency` is now load-bearing.** It used to be a label. `objective_period`
+reads it, so editing an objective's Monitoring Frequency changes how it is
+measured. "Monthly" and "3 Months"/"Quarterly" are recognised; anything else
+reads as monthly — the safer wrong answer, since a monthly reading of a
+quarterly objective still reports every month and the reverse loses eight.
+
+**`call_type` turned out to be trustworthy after all.** The plan was to stop
+using it because all three call tables DEFAULT it to 'FIELD'; the schema in
+fact CHECKs `call_table_for(call_type)` against each table's own name, so a row
+cannot sit in the wrong register. `calc_params.family` is still what the
+objectives use — it reads one register instead of the union of three, and
+"which register" is the question being asked — but not for the reason first
+assumed. Found by inserting a fixture and reading the constraint, not by
+reading the column default.
+
 ### To run on the live project — PENDING (2026-09-07)
 
 Everything this round is in two bundles. Run them, then `_status.sql`:
 
 | bundle | brings | rows |
 | --- | --- | --- |
-| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated | 93, 95, 96, 97, 98 |
+| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated, 0136 quarterly periods + objectives 8-11 + the stated assumptions | 93, 95, 96, 97, 98, 99, 100, 101 |
 | [`performance.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)) | 0128 the KPI Field & Installation export (columns A–AB), 0131 Phase 2 (AC–AG + Pending Days), 0129 `products.serial_key` | 94 |
 
 ⚠️ **This is a note, not evidence.** Run
