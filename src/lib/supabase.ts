@@ -285,6 +285,46 @@ export async function reallocateCalls(
   return { ok: true, updated };
 }
 
+// ---------------------------------------------------------------------------
+// THE KPI WORKBOOK'S Field_INST TAB (0128).
+//
+// Read straight from the view, which does all of it: cancelled calls dropped,
+// Open/Close from the current status, Call Attended On from the earlier of the
+// first visit and the first spare, Call Solved from the entry that completed
+// it. The view is security_invoker, so an engineer exports their own calls and
+// a manager their team's — the same scope every other screen shows them.
+//
+// Paged, because a year of calls is thousands of rows and PostgREST caps a
+// response at 1,000.
+// ---------------------------------------------------------------------------
+export interface KpiRange { from?: string; to?: string }
+
+const kpiQuery = (range: KpiRange) => {
+  let q = must().from('kpi_field_inst').select('*');
+  // Ranged on the REGISTRATION date, which is what the workbook is built by
+  // period on. `to` is inclusive of its whole day.
+  if (range.from) q = q.gte('Call Registeration Date', range.from);
+  if (range.to) q = q.lte('Call Registeration Date', `${range.to}T23:59:59.999+05:30`);
+  return q;
+};
+
+export async function countKpiFieldInst(range: KpiRange = {}): Promise<number> {
+  let q = must().from('kpi_field_inst').select('"UC Number"', { count: 'exact', head: true });
+  if (range.from) q = q.gte('Call Registeration Date', range.from);
+  if (range.to) q = q.lte('Call Registeration Date', `${range.to}T23:59:59.999+05:30`);
+  const { count, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+export async function listKpiFieldInst(range: KpiRange = {}, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
+  const { data, error } = await kpiQuery(range)
+    .order('Call Registeration Date', { ascending: true })
+    .range(offset, offset + limit - 1);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as Record<string, unknown>[];
+}
+
 // ---- Product Master (cascade + search) -------------------------------------
 // Page through a single column past PostgREST's 1000-row response cap and return
 // the distinct, sorted values. Used for the party / product / spare pick-lists,

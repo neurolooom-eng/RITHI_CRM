@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.127',
+    date: '2026-09-07',
+    title: 'The KPI workbook\u2019s Field_INST tab, exported from the register',
+    changes: [
+      'KPI & Failure Analysis has a new EXPORT: the workbook\u2019s own Field_INST tab, columns A to AB, the same fields in the same order under the same headings \u2014 the file drops straight in. Field and Installation calls; PM keeps its own tab.',
+      'CALL ATTENDED ON is the EARLIER of the first visit and the first spare request. A spare raised before anyone visits is still somebody attending to the call, and on a fault that needs a part it is usually the first thing that happens.',
+      'CALL SOLVED is the visit date of the entry that moved the call to \u201cSolved - Report Completed\u201d \u2014 not the last visit, and not the day it was typed in. On a call that was solved, reopened and solved again, it is the solve that is currently standing.',
+      'OPEN / CLOSE: Close only when the call is Solved - Report Completed. Everything else is Open, INCLUDING \u201cSolved - Report Pending\u201d.',
+      'CANCELLED CALLS ARE NOT INCLUDED AT ALL \u2014 not as Open, not as Close, not in the count. The workbook counted them as Close, which is why its 581 closed rows were 563 completed calls and 18 cancellations.',
+      'Pick a registration date range, or export the whole register. The button says how many calls it is about to write.',
+      'PHASE 2, not in this: Attended in Days, Solved in Days, TTA, TTS and Failure Month (AC\u2013AG) are formulas in the workbook and are not exported yet. The screen says so.',
+      'You export what you can already see \u2014 an engineer their own calls, a manager their team\u2019s.',
+      'Needs migration: run supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.126',
     date: '2026-09-07',
     title: 'The DCCR dropdowns fit the machine in front of you',

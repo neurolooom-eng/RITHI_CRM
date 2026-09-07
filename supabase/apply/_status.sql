@@ -414,6 +414,16 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (select 1 from pg_policies
                       where schemaname='public' and tablename='call_vigilance_changes'
                         and cmd in ('INSERT','UPDATE')))),
+    (91, 'KPI: the workbook''s Field_INST tab, from the register', 'kpi_field_inst -- columns A-AB in the workbook''s own order and spelling. Cancelled calls are excluded entirely (the sheet counted them as Close); Close means Solved - Report Completed and nothing else; Call Attended On is the EARLIER of the first visit and the first spare request; Call Solved is the visit date of the entry that completed it. AC-AG are workbook formulas -- Phase 2 (0128). Restore: performance.sql',
+        -- Looked up BY NAME, never `'public.kpi_field_inst'::regclass`: a cast
+        -- is resolved when this statement is PLANNED, so on a project without
+        -- the view the WHOLE report would fail with "relation does not exist"
+        -- instead of reporting this one row as NO -- which is exactly the
+        -- project that needs telling. (Same trap as cron.job in row 85.)
+        (to_regclass('public.kpi_field_inst') is not null
+     and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%'
+                     from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                    where n.nspname = 'public' and c.relname = 'kpi_field_inst'), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
