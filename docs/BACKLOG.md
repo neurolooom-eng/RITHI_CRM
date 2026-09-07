@@ -407,9 +407,28 @@ objectives use — it reads one register instead of the union of three, and
 assumed. Found by inserting a fixture and reading the constraint, not by
 reading the column default.
 
-### To run on the live project — PENDING (2026-09-07)
+### To run on the live project — NOTHING PENDING (2026-09-07)
 
-Everything this round is in two bundles. Run them, then `_status.sql`:
+**"all sql executed" — the user, 2026-09-07**, covering both bundles below.
+
+⚠️ **REPORTED, NOT VERIFIED FROM HERE.** No `_status.sql` output has been seen
+for this round, so rows 93-103 are *expected* to read `yes` and nothing in this
+file is evidence that they do. The live project cannot be reached from the
+sandbox. Run
+[`_status.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql)
+before diagnosing anything here — that is the check, and this is only a note.
+
+Two rows are expected to stay `NO` and are NOT missing migrations:
+**`performance: JIT is OFF`** and **`DCCR: ...at a quarter past nine`** (pg_cron
+must be enabled in Dashboard → Database → Extensions, then `daily_review.sql`
+re-run). Both are project settings rather than SQL.
+
+**The figures do not appear until Re-Calculate.** Applying the SQL installs the
+machinery; `recalc_quality_objectives` is explicit by design and nothing is
+written to the twelve month columns until an administrator presses it on the
+Objective page.
+
+What the two bundles brought:
 
 | bundle | brings | rows |
 | --- | --- | --- |
