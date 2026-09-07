@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { PageHeader, SectionCard } from '../components/ui/ui';
+import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
   countKpiFieldInst, listKpiFieldInst, listQualityObjectives, saveObjectiveCell,
+  recalcObjectives, objectiveEvidence, saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -94,6 +95,57 @@ export function Objective() {
     setOMsg('');
     loadObjectives();
   };
+
+  // RE-CALC — explicit, at the moment of submission. Never on a page load: a
+  // figure that moves because somebody opened a screen is not one anybody can
+  // stand behind at an audit.
+  const [recalcing, setRecalcing] = useState(false);
+  const [confirmRecalc, setConfirmRecalc] = useState(false);
+  const doRecalc = async () => {
+    setRecalcing(true);
+    const res = await recalcObjectives(YEAR);
+    setRecalcing(false);
+    setConfirmRecalc(false);
+    if (!res.ok) { setOMsg(`Could not re-calculate: ${res.error}`); return; }
+    const n = (res.written ?? []).length;
+    const months = (res.written ?? []).reduce((a, w) => a + Number(w.months_written ?? 0), 0);
+    setOMsg(n === 0
+      ? 'Nothing is set to compute yet — every objective is still typed.'
+      : `Re-calculated ${n} objective${n === 1 ? '' : 's'}, ${months} month${months === 1 ? '' : 's'} in all. Typed figures were left alone.`);
+    loadObjectives();
+  };
+
+  // THE ROWS BEHIND A FIGURE. Downloaded rather than shown: it is the calls
+  // themselves, and the point of it is to be attached to something.
+  const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
+    try {
+      const rows = await objectiveEvidence(o.id, monthIndex + 1);
+      if (!rows.length) { setOMsg('There is nothing behind that figure to download.'); return; }
+      const cols = Object.keys(rows[0]).map((k) => ({ key: k, header: k }));
+      const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      csvExport(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.csv`, cols, rows);
+      setOMsg(`Downloaded ${rows.length} row${rows.length === 1 ? '' : 's'} behind ${o.parameter} — ${MONTHS[monthIndex]}.`);
+      logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`, meta: { rows: rows.length } });
+    } catch (e) {
+      setOMsg(`Could not read the evidence: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  // The definition — everything except the twelve figures. None of it is baked
+  // into a migration any more.
+  const [defOpen, setDefOpen] = useState<QualityObjective | null>(null);
+  const [defDraft, setDefDraft] = useState<Partial<QualityObjective>>({});
+  const saveDef = async () => {
+    if (!defOpen) return;
+    const patch = { ...defDraft };
+    if (typeof patch.calc_params === 'string') {
+      try { patch.calc_params = JSON.parse(patch.calc_params as unknown as string); }
+      catch { setOMsg('The parameters must be valid JSON, e.g. {"product":"%T75%"}'); return; }
+    }
+    const res = await saveObjectiveDef(defOpen.id, patch);
+    if (!res.ok) { setOMsg(`Could not save: ${res.error}`); return; }
+    setDefOpen(null); setOMsg(''); loadObjectives();
+  };
   const [xFrom, setXFrom] = useState('');
   const [xTo, setXTo] = useState('');
   const [xCount, setXCount] = useState<number | null>(null);
@@ -159,7 +211,22 @@ export function Objective() {
           {mayEdit
             ? ' Click a month to type the figure — a blank month means NOT MEASURED, which is not the same as zero.'
             : ' The figures are maintained by whoever owns the numbers.'}
+          {' '}A row marked <b>ƒ</b> is worked out from the register; the rest are typed.
         </p>
+        {mayEdit && (
+          <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" disabled={recalcing} onClick={() => setConfirmRecalc(true)}>
+              {recalcing ? 'Re-calculating…' : '↻ Re-calculate'}
+            </button>
+            <button className="btn" onClick={() => void addObjective(YEAR, (objectives.length ? objectives[objectives.length - 1].sort_order : 0) + 1).then(loadObjectives)}>
+              + Add an objective
+            </button>
+            <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
+              Re-calculate writes only the <b>ƒ</b> rows, and only up to this month. It never touches a
+              figure somebody typed.
+            </span>
+          </div>
+        )}
         <div style={{ overflowX: 'auto' }}>
           <table className="obj-table">
             <thead>
@@ -175,7 +242,17 @@ export function Objective() {
                 <tr key={o.id}>
                   <td>{o.sort_order}</td>
                   <td>{o.process}</td>
-                  <td title={`Responsible: ${o.responsible}`}>{o.parameter}</td>
+                  <td title={`Responsible: ${o.responsible}${o.calc_key ? ` · computed by ${o.calc_key} ${JSON.stringify(o.calc_params)}` : ' · typed'}`}>
+                    {o.calc_key ? <b className="obj-calc" title={`Computed: ${o.calc_key}`}>ƒ</b> : null}
+                    {o.parameter}
+                    {mayEdit && (
+                      <button
+                        className="btn btn-ghost btn-sm obj-defbtn"
+                        title="Edit this objective"
+                        onClick={() => { setDefOpen(o); setDefDraft({ ...o, calc_params: JSON.stringify(o.calc_params ?? {}) as never }); }}
+                      >✏️</button>
+                    )}
+                  </td>
                   <td><b>{o.yearly_target}</b></td>
                   <td>{o.frequency}</td>
                   {MONTH_KEYS.map((k) => {
@@ -197,7 +274,21 @@ export function Objective() {
                               onKeyDown={(e) => { if (e.key === 'Enter') void commit(); if (e.key === 'Escape') setEditing(null); }}
                             />
                           )
-                          : showValue(o.yearly_target, v)}
+                          : (
+                            <>
+                              {showValue(o.yearly_target, v)}
+                              {/* The rows behind the figure, for whoever asks how
+                                  it was arrived at. Only where we computed it —
+                                  a typed number has no evidence to give. */}
+                              {o.calc_key && v != null && (
+                                <button
+                                  className="btn btn-ghost btn-sm obj-eyebtn"
+                                  title={`Download the calls behind ${MONTHS[MONTH_KEYS.indexOf(k)]}`}
+                                  onClick={(e) => { e.stopPropagation(); void downloadEvidence(o, MONTH_KEYS.indexOf(k)); }}
+                                >⭳</button>
+                              )}
+                            </>
+                          )}
                       </td>
                     );
                   })}
@@ -275,6 +366,97 @@ export function Objective() {
           </ol>
         </details>
       </SectionCard>
+
+      {confirmRecalc && (
+        <Modal
+          open
+          title={`Re-calculate the ${YEAR} objectives?`}
+          onClose={() => { if (!recalcing) setConfirmRecalc(false); }}
+        >
+          <p>
+            This reads the register and writes the months of the <b>{objectives.filter((o) => o.calc_key).length}</b>{' '}
+            objective{objectives.filter((o) => o.calc_key).length === 1 ? '' : 's'} marked <b>ƒ</b>, up to this month.
+          </p>
+          <ul className="muted" style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+            <li><b>A typed figure is never touched.</b> The {objectives.filter((o) => !o.calc_key).length} objectives
+              nobody computes keep exactly what was entered.</li>
+            <li>Each month is measured <b>as at the end of that month</b>, so a call closed since does not move an
+              earlier figure.</li>
+            <li>A month with nothing to measure stays <b>blank</b>, not zero.</li>
+            <li>It replaces whatever those months currently hold, including a figure typed over a computed one.</li>
+          </ul>
+          <div className="row" style={{ gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button className="btn" disabled={recalcing} onClick={() => setConfirmRecalc(false)}>Cancel</button>
+            <button className="btn btn-primary" disabled={recalcing} onClick={() => void doRecalc()}>
+              {recalcing ? 'Re-calculating…' : 'Re-calculate'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {defOpen && (
+        <Modal
+          open
+          title={`Objective — ${defOpen.parameter}`}
+          onClose={() => setDefOpen(null)}
+        >
+          <div className="sf-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {([
+              ['parameter', 'Monitoring Parameter'],
+              ['process', 'Process (SERVICE / BUSINESS)'],
+              ['yearly_target', 'Yearly Target — the sheet\'s own words, e.g. <5%'],
+              ['current_target', 'Current Target'],
+              ['frequency', 'Monitoring Frequency'],
+              ['responsible', 'Responsible'],
+            ] as [keyof QualityObjective, string][]).map(([k, label]) => (
+              <div key={String(k)}>
+                <label className="field-label">{label}</label>
+                <input
+                  className="input"
+                  value={String(defDraft[k] ?? '')}
+                  onChange={(e) => setDefDraft((d) => ({ ...d, [k]: e.target.value }))}
+                />
+              </div>
+            ))}
+            <div>
+              <label className="field-label">Computed by</label>
+              <select
+                className="select"
+                value={String(defDraft.calc_key ?? '')}
+                onChange={(e) => setDefDraft((d) => ({ ...d, calc_key: e.target.value }))}
+              >
+                <option value="">— typed, not computed —</option>
+                <option value="failure_rate_12m">failure_rate_12m — failures in 12 months ÷ machines</option>
+                <option value="open_rate_monthly">open_rate_monthly — still open at the month's end ÷ that month's calls</option>
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Parameters (JSON)</label>
+              <input
+                className="input"
+                value={String(defDraft.calc_params ?? '{}')}
+                placeholder={'{"product":"%T75%"}'}
+                onChange={(e) => setDefDraft((d) => ({ ...d, calc_params: e.target.value as never }))}
+              />
+              <div className="field-help">
+                <code>{'{"product":"%T75%"}'}</code> for a rate, <code>{'{"call_type":"FIELD"}'}</code> for an open
+                rate. Re-calculate, then download the evidence to see what the pattern actually matched.
+              </div>
+            </div>
+          </div>
+          <div className="row" style={{ gap: 8, justifyContent: 'space-between', marginTop: 14 }}>
+            <button className="btn btn-danger" onClick={() => {
+              if (confirm(`Delete "${defOpen.parameter}" and its twelve figures?`)) {
+                void deleteObjective(defOpen.id).then(() => { setDefOpen(null); loadObjectives(); });
+              }
+            }}>Delete</button>
+            <span className="row" style={{ gap: 8 }}>
+              <button className="btn" onClick={() => setDefOpen(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => void saveDef()}>Save</button>
+            </span>
+          </div>
+        </Modal>
+      )}
 
       <SectionCard title="How the computed columns are worked out">
         <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.75 }}>
