@@ -2,6 +2,7 @@ import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
+import { PickList } from '../components/ui/PickList';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
@@ -1381,16 +1382,31 @@ function ReviewDrawer({
         <div className="dccr-fields">
           <div>
             <label className="field-label">Complaint Grouping</label>
-            <select className="select" value={draft.complaint_grouping ?? ''} onChange={set('complaint_grouping')} disabled={!editable}>
-              {OPT(withCurrent(groupings, draft.complaint_grouping)).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
-            </select>
+            {/* A PICK LIST, NOT A SELECT. A native select does type-ahead — press
+                "A" and it selects the first option beginning with A — and with
+                Auto Save on that is written the instant the key lands. Here
+                typing only FILTERS; the answer changes on a click or Enter and
+                at no other time. */}
+            <PickList
+              value={String(draft.complaint_grouping ?? '')}
+              options={withCurrent(groupings, draft.complaint_grouping)}
+              onPick={(v) => setDraft((d) => ({ ...d, complaint_grouping: v }))}
+              disabled={!editable}
+              placeholder="Type to search the groupings…"
+              emptyHint="If it is not here, add it to Masters."
+            />
             <div className="field-help">{masterScope(groupings.length)}</div>
           </div>
           <div>
             <label className="field-label">Root Cause Key Word</label>
-            <select className="select" value={draft.root_cause_keyword ?? ''} onChange={set('root_cause_keyword')} disabled={!editable}>
-              {OPT(withCurrent(keywords, draft.root_cause_keyword)).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
-            </select>
+            <PickList
+              value={String(draft.root_cause_keyword ?? '')}
+              options={withCurrent(keywords, draft.root_cause_keyword)}
+              onPick={(v) => setDraft((d) => ({ ...d, root_cause_keyword: v }))}
+              disabled={!editable}
+              placeholder="Type to search the key words…"
+              emptyHint="If it is not here, add it to Masters."
+            />
             <div className="field-help">{masterScope(keywords.length)}</div>
           </div>
           {/* Both boxes come from the masters, so the way to change what they
@@ -1403,9 +1419,17 @@ function ReviewDrawer({
           </div>
           <div>
             <label className="field-label">Spare / Consumable / Correction / Calibration</label>
-            <select className="select" value={draft.spare_category ?? ''} onChange={set('spare_category')} disabled={!editable}>
-              {OPT(withCurrent(SPARE_CATEGORY, draft.spare_category)).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
-            </select>
+            {/* The third Review 3 answer goes the same way as the other two: it
+                is the same drawer, the same auto-save, and the same risk that a
+                keystroke picks something. Five options rather than five hundred
+                does not make type-ahead safe, only quieter. */}
+            <PickList
+              value={String(draft.spare_category ?? '')}
+              options={withCurrent(SPARE_CATEGORY, draft.spare_category)}
+              onPick={(v) => setDraft((d) => ({ ...d, spare_category: v }))}
+              disabled={!editable}
+              placeholder="Type to search…"
+            />
           </div>
           <div className="dccr-wide">
             <label className="field-label">Service Dept Observation</label>

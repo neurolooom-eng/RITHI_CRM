@@ -1311,5 +1311,38 @@ console.log('\n-- the Objective page --');
     /if \(!m\) return '';/.test(obj), true);
 }
 
+// TYPING MUST NEVER CHOOSE AN ANSWER (2026-09-07): "currently if I start
+// typing it is getting selected automatically -- I see that as a risk with
+// Auto Save in place." A native <select> does type-ahead, and on a record that
+// saves itself the wrong answer is written before anybody sees it.
+console.log('\n-- typing filters, it never selects --');
+{
+  const pl = readFileSync(`${process.cwd()}/src/components/ui/PickList.tsx`, 'utf8');
+  // onPick may be called from exactly one place: `choose`. If a second call
+  // site appears, typing can commit again.
+  const pickCalls = (pl.match(/onPick\(/g) ?? []).length;
+  eq('onPick is called from ONE place', pickCalls, 1);
+  eq('...and that place is `choose`', /const choose = \(v: string\) => \{ onPick\(v\); close\(\); \};/.test(pl), true);
+  // Typing sets the query and the highlight, never the value.
+  eq('typing only filters', /onChange=\{\(e\) => \{ setQuery\(e\.target\.value\); setHi\(0\); \}\}/.test(pl), true);
+  // Walking away must leave the record alone — the whole point with auto-save.
+  eq('clicking away abandons, it does not pick', /if \(boxRef\.current && !boxRef\.current\.contains\(e\.target as Node\)\) close\(\);/.test(pl), true);
+  eq('Escape leaves it alone too', /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); close\(\);/.test(pl), true);
+  // Enter with nothing matching must not invent a value from the search box.
+  eq('Enter with no match does nothing', /if \(matches\[hi\] != null\) choose\(matches\[hi\]\);/.test(pl), true);
+
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  // All THREE Review 3 answers, not just the two that were reported: same
+  // drawer, same auto-save, same risk.
+  for (const f of ['complaint_grouping', 'root_cause_keyword', 'spare_category']) {
+    eq(`${f} is a pick list`, new RegExp(`value=\\{String\\(draft\\.${f} \\?\\? ''\\)\\}`).test(dccr), true);
+  }
+  eq('...and none of them is a native select any more',
+    /<select className="select" value=\{draft\.(complaint_grouping|root_cause_keyword|spare_category)/.test(dccr), false);
+  // The two master-backed ones say where a missing value comes from.
+  eq('a search that matches nothing points at Masters',
+    (dccr.match(/emptyHint="If it is not here, add it to Masters\."/g) ?? []).length, 2);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
