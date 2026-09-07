@@ -1246,5 +1246,33 @@ console.log('\n-- the KPI export matches the workbook --');
   eq('...and says AC-AG are Phase 2', /Phase 2:/.test(kpi), true);
 }
 
+// LOOKING UP ONE MACHINE BY SERIAL IS AN EQUALITY (0129). It was a
+// leading-wildcard substring scan, which is what kept timing out on Pending
+// Registrations — and which could miss the serial entirely.
+console.log('\n-- one machine, by its serial --');
+{
+  const sb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
+  eq('there is an exact lookup, on the indexed key',
+    /eq\('serial_key', key\)/.test(sb), true);
+  // The EXACT branch of the search must use the key too: eq('serial_number')
+  // is case-sensitive and has no plain btree behind it, so the one filter that
+  // meant equality was the one that could not use an index.
+  eq('...and the exact SEARCH uses it as well',
+    /q\.eq\('serial_key', filters\.serial\.trim\(\)\.toLowerCase\(\)\)/.test(sb), true);
+  eq('nothing looks a serial up with eq on the raw column',
+    /eq\('serial_number'/.test(sb), false);
+
+  const pr = readFileSync(`${process.cwd()}/src/modules/PendingRegistrations.tsx`, 'utf8');
+  eq('registering from a request asks for the ONE machine',
+    /await productBySerial\(serial\)/.test(pr), true);
+  // The shape that timed out: read 25 substring matches, then find the exact
+  // one here. If it ever comes back, so does the timeout.
+  eq('...not 25 substring matches sifted in the browser',
+    /searchProducts\(\{ serial \}/.test(pr), false);
+
+  const sh = readFileSync(`${process.cwd()}/src/lib/sheets.ts`, 'utf8');
+  eq('the sheet-era path still has an answer', /export async function productBySerial/.test(sh), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

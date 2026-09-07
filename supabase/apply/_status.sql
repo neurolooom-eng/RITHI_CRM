@@ -424,6 +424,11 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select array_to_string(c.reloptions, ',') like '%security_invoker=on%'
                      from pg_class c join pg_namespace n on n.oid = c.relnamespace
                     where n.nspname = 'public' and c.relname = 'kpi_field_inst'), false))),
+    (92, 'products: one machine can be found by its serial WITHOUT a scan', 'products.serial_key -- a STORED lower(btrim(serial_number)) with its own index, so a client can match one machine by EQUALITY. It used to ask for serial_number ILIKE ''%serial%'': a 4-character pattern gives the trigram index no selectivity, so the planner scanned all ~21k machines and Supabase cancelled the statement -- "canceling statement due to statement timeout" on Pending Registrations. 0037''s expression index cannot be reached through PostgREST, which is why an index alone never fixed it (0129). Restore: masters.sql',
+        (exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='products' and column_name='serial_key')
+     and exists (select 1 from pg_indexes
+                  where schemaname='public' and tablename='products' and indexname='products_serial_key_col_idx'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
