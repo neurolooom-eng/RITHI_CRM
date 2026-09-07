@@ -169,6 +169,9 @@ const MODULES = {
       // LAST in this module for next_ucn: 0001 (base) creates it and 0040 above
       // redefines it, so the daily counter has to come after both.
       '0125_ucn_daily_reset.sql',
+      // AFTER 0040 above, which creates the three call tables the guard attaches
+      // to — and after rbac in ALL_ORDER, which creates app_roles.
+      '0126_call_allot_permission.sql',
     ],
   },
   sla: {

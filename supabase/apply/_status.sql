@@ -398,6 +398,10 @@ with checks(sort_order, bundle, provides, present) as (
     (86, 'calls: the UCN counter restarts every day, per call type', 'ucn_counters + next_ucn() reading Asia/Kolkata. It used to be ONE running sequence for the whole database (ucn_seq), so the date changed daily and the number behind it just kept climbing -- and the date itself rolled at 5:30 am, because next_ucn read UTC. Numbers already issued are untouched: a day is seeded past whatever it already carries (0125). Restore: call_requests.sql',
         (to_regclass('public.ucn_counters') is not null
      and to_regclass('public.ucn_seq') is null)),
+    (87, 'calls: re-allocating one is its OWN permission', 'calls.allot -- "Re-allocate a call to another engineer", which now appears on Roles & Permissions and can be granted apart from calls.edit. Every role that had calls.edit was MERGED with it, so nobody lost anything. Enforced by zz_calls_allot_guard on all three call tables, not only by hiding the tick-boxes (0126). Restore: call_requests.sql',
+        (exists (select 1 from public.app_roles where permissions ? 'calls.allot')
+     and (select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid
+           where t.tgname = 'zz_calls_allot_guard' and not t.tgisinternal) = 3)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

@@ -1040,5 +1040,41 @@ console.log('\n-- Review 2 answers itself the morning after --');
     /9\s*:\s*15/.test(dccr.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')), false);
 }
 
+// Re-allocating a call is its own right (0126), not a corner of "Edit calls".
+// The report that produced it was in two halves — the control was not visible,
+// AND there was nothing in Roles & Permissions to look for — so both halves
+// are pinned: the permission exists on the Roles screen, both registers gate
+// on it, and a person who lacks it is TOLD rather than shown nothing.
+console.log('\n-- re-allocating a call is its own permission --');
+{
+  const rbacSrc = readFileSync(`${process.cwd()}/src/lib/rbac.ts`, 'utf8');
+  eq('it is offered on the Roles & Permissions screen',
+    /key: 'calls\.allot', label: 'Re-allocate a call to another engineer'/.test(rbacSrc), true);
+  // Nobody may lose the ability on the day it lands: every default that has
+  // calls.edit must also have calls.allot. (The migration does the same by
+  // merging into app_roles, which is what the live project actually reads.)
+  const defaults = rbacSrc.slice(rbacSrc.indexOf('const FUNCTIONAL_DEFAULTS'));
+  const lost = [...defaults.matchAll(/^ {2}([a-z_]+): \[([^\]]*)\]/gm)]
+    .filter(([, , perms]) => perms.includes("'calls.edit'") && !perms.includes("'calls.allot'"))
+    .map(([, role]) => role);
+  eq('every role default that can edit a call can also re-allocate one', lost.join(',') || 'none', 'none');
+
+  for (const mod of ['FieldCalls', 'PendingCalls']) {
+    const src = readFileSync(`${process.cwd()}/src/modules/${mod}.tsx`, 'utf8');
+    eq(`${mod} gates re-allocation on calls.allot, not calls.edit`,
+      /mayAllot = can\('calls\.allot'\)/.test(src), true);
+    // "Bulk only, but say why it is hidden" (user's choice, 2026-09-06): a
+    // control that is simply absent teaches nobody anything.
+    eq(`${mod} says why the tick-boxes are not there`,
+      /allotBlocked = !can\('calls\.allot'\) && allotTeam\.canPick/.test(src)
+      && /Re-allocating a call needs the/.test(src), true);
+  }
+  // The drawer is the OTHER way to move a call, so it obeys the same right —
+  // otherwise the permission would be decoration on one route out of two.
+  const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  eq('the drawer locks the engineer box without it too',
+    /lockAllottee/.test(fc) && /f\.name === 'allocatedTo'[\s\S]{0,120}readOnly: true/.test(fc), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

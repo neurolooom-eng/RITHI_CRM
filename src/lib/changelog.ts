@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.123',
+    date: '2026-09-06',
+    title: 'Re-allocating a call is now its own permission',
+    changes: [
+      'Moving a call to another engineer has its own entry on Roles & Permissions at last: \u201cRe-allocate a call to another engineer\u201d, under Calls. It used to be a corner of \u201cEdit calls\u201d, which is why it could not be found on that screen \u2014 there was nothing there to find.',
+      'So it can now be given to a manager who should be able to hand a call on WITHOUT letting them rewrite the rest of it, and taken away while leaving the rest.',
+      'NOBODY LOSES ANYTHING. Every role that could edit a call already has been given the new right, so everyone who could re-allocate yesterday still can.',
+      'IF YOUR ROLE DOES NOT HAVE IT, THE SCREEN NOW SAYS SO. Before, the tick-boxes simply were not there and no reason was given \u2014 which is exactly how this came to be reported as missing rather than as not permitted.',
+      'The rule is enforced by the DATABASE, on all three call registers, so it holds however the change is attempted \u2014 not just by hiding the tick-boxes.',
+      'Allotting a call as you REGISTER it is unchanged; that goes with creating the call.',
+      'REMINDER OF WHERE IT LIVES: tick the calls in the register and an \u201cAllot to\u201d bar appears at the top. It is a bulk action, not a button on the row.',
+      'Needs migration: run supabase/apply/call_requests.sql.',
+    ],
+  },
+  {
     version: '0.9.122',
     date: '2026-09-06',
     title: 'The UCN number restarts every day again',

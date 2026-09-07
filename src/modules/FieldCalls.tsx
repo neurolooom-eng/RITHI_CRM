@@ -419,6 +419,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // engineer list — shared with the Register panel and the pre-mapping editor
   // in Pending Registrations, which are the same form (see callFields.tsx).
   const { inject: injectMasters, offered: offeredComplaints } = useCallFieldMasters();
+  // The drawer is the OTHER way to move a call, so it obeys the same right.
+  // Read-only with a reason rather than removed: the engineer on the call is
+  // worth seeing even when you may not change it.
+  const lockAllottee = (fields: FieldDef[]): FieldDef[] =>
+    can('calls.allot') ? fields : fields.map((f) => (f.name === 'allocatedTo'
+      ? { ...f, readOnly: true, help: 'Needs the "Re-allocate a call to another engineer" permission' }
+      : f));
 
   const [srch, setSrch] = useState({ ucn: '', productName: '', serial: '', partyName: '', q: '' });
   // Engineers default to seeing only OPEN calls (anything not fully Solved),
@@ -444,7 +451,16 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [allotTo, setAllotTo] = useState('');
   const [allotBusy, setAllotBusy] = useState(false);
-  const mayAllot = can('calls.edit') && allotTeam.names.length > 0;
+  // RE-ALLOCATION IS ITS OWN RIGHT (0126), not a corner of `calls.edit`. It was
+  // bundled there, so it could not be given to a manager who should not be
+  // rewriting the rest of the call, and it appeared nowhere on Roles &
+  // Permissions — which is how "where is re-allocation?" ended up with no
+  // answer to find.
+  const mayAllot = can('calls.allot') && allotTeam.names.length > 0;
+  // A control that is simply absent teaches nobody anything. Said only to
+  // people who would otherwise have somebody to allot TO — an engineer whose
+  // list is just themselves is not missing a feature.
+  const allotBlocked = !can('calls.allot') && allotTeam.canPick;
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
@@ -1036,6 +1052,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         more={moreAvailable}
       />
 
+      {allotBlocked && (
+        <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
+          Re-allocating a call needs the <b>Re-allocate a call to another engineer</b> permission,
+          which your role does not have — an administrator can grant it under Roles &amp; Permissions → Calls.
+        </p>
+      )}
+
       <DataTable<Rec>
         columns={[actionsColumn, ...COLUMNS]}
         allFields={CALL_ALL_FIELDS}
@@ -1159,7 +1182,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
-              fields={injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS)}
+              fields={lockAllottee(injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS))}
               initial={drawer.mode === 'create'
                 ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }
                 // The row carries the UUID; the form shows the person. A call
