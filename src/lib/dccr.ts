@@ -28,6 +28,47 @@ export const GROUPING_MASTER = 'dccrgrouping';
 export const ROOT_CAUSE_MASTER = 'rootcause';
 export const COMMON_PRODUCT = 'COMM';
 
+// ---------------------------------------------------------------------------
+// WHICH VALUES A CALL'S PRODUCT MAY BE REVIEWED WITH.
+//
+// The user's rule (2026-09-07): "in case of T60 and T75 -- only the specific
+// drop downs should come. in case of Other Products all the drop-downs can
+// come."
+//
+// The two Monnal ventilators are the machines with a CURATED list — alarm
+// codes and failure modes that belong to that machine and mean nothing on
+// another. Offering a T60 engineer the common list alongside them buries the
+// codes they actually need, so for those two the list is exactly their own.
+//
+// Every other product has no curated list of its own, so narrowing it to COMM
+// would leave a handful of generic values and no way to say what happened.
+// They get everything, and pick.
+//
+// Matched on the T60 / T75 TOKEN rather than the whole name: the register
+// writes "MONNAL T60" and the master tags "MONNAL T60", but a name that says
+// "Monnal T-60" or just "T75" must not silently fall out of the rule. The
+// boundary check is what stops "T750" reading as "T75".
+// ---------------------------------------------------------------------------
+export const CURATED_PRODUCTS = ['T60', 'T75'] as const;
+export type CuratedProduct = typeof CURATED_PRODUCTS[number];
+
+export function curatedProduct(name: string): CuratedProduct | '' {
+  const s = String(name ?? '').toUpperCase();
+  for (const p of CURATED_PRODUCTS) {
+    // T60 / T75 as its own token: preceded and followed by a non-digit (or an
+    // edge), so MONNAL T60, T60, T-60 all match and T601 does not.
+    if (new RegExp(`(^|[^0-9A-Z])${p}([^0-9]|$)`).test(s.replace(/T-(\d)/g, 'T$1'))) return p;
+  }
+  return '';
+}
+
+// Does a master value tagged `tag` belong in the dropdown for `product`?
+export function masterValueApplies(tag: string, product: string): boolean {
+  const want = curatedProduct(product);
+  if (!want) return true;                          // any other product — all of them
+  return curatedProduct(tag) === want;             // T60 / T75 — only their own
+}
+
 export type ReviewStatus = 'Review 1 Pending' | 'Review 2 Pending' | 'Review 3 Pending' | 'Review Completed';
 export const REVIEW_STATUSES: ReviewStatus[] = ['Review 1 Pending', 'Review 2 Pending', 'Review 3 Pending', 'Review Completed'];
 

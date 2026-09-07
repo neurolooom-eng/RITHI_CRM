@@ -17,7 +17,7 @@ import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { readdirSync, readFileSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
-import { bulkReview2Block, effectiveAutoSave } from '../src/lib/dccr';
+import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
 
 let fail = 0;
@@ -1155,6 +1155,51 @@ console.log('\n-- the vigilance questions stand on their own --');
     /background: var\(--text\)/.test(vital) && /color: var\(--surface\)/.test(vital), true);
   eq('...it is not a tint of the accent colour',
     /color-mix[^;]*--primary/.test(vital), false);
+}
+
+// WHICH MASTER VALUES A CALL MAY BE REVIEWED WITH (user, 2026-09-07): "in case
+// of T60 and T75 -- only the specific drop downs should come. in case of Other
+// Products all the drop-downs can come."
+console.log('\n-- the DCCR dropdowns are scoped to the product --');
+{
+  // The register writes "MONNAL T60"; the master tags "MONNAL T60"; and a
+  // hand-typed "T-60" or a bare "T75" must not fall out of the rule.
+  for (const [name, want] of [
+    ['MONNAL T60', 'T60'], ['MONNAL T75', 'T75'], ['Monnal T-60', 'T60'], ['T75', 'T75'],
+    ['VEGA', ''], ['EXTEND-XT', ''], ['COMM', ''], ['', ''],
+    // The boundary: a longer number that merely starts with 60/75 is NOT one.
+    ['T750', ''], ['MONNAL T601', ''],
+  ] as [string, string][]) {
+    eq(`curatedProduct("${name}")`, curatedProduct(name), want);
+  }
+
+  // A MONNAL gets its own list and NOTHING else — not COMM, not the other
+  // Monnal's. That is the whole instruction: the alarm codes mean nothing on
+  // another machine, and the common list buries them.
+  eq('a T60 call is NOT offered the COMM values', masterValueApplies('COMM', 'MONNAL T60'), false);
+  eq('a T60 call is NOT offered the T75 values', masterValueApplies('MONNAL T75', 'MONNAL T60'), false);
+  eq('a T60 call IS offered its own', masterValueApplies('MONNAL T60', 'MONNAL T60'), true);
+  eq('...and an untagged value is not one of its own either',
+    masterValueApplies('', 'MONNAL T60'), false);
+
+  // Everything else gets the lot: narrowing a product with no curated list to
+  // COMM alone would leave a handful of generic values and nothing to say.
+  for (const tag of ['COMM', 'MONNAL T60', 'MONNAL T75', '']) {
+    eq(`a VEGA call is offered the "${tag || '(untagged)'}" values`, masterValueApplies(tag, 'VEGA'), true);
+  }
+
+  const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
+  // The note, in the user's own words. Somebody staring at a list that does
+  // not have what they need should be told where it comes from, there.
+  eq('the review says where to add a missing value',
+    /If what you are looking for is not available here, please add it to Masters/.test(dccr), true);
+  // And the hint under each box must say WHICH of the two rules is in force —
+  // "12 values" reads as a short list either way.
+  eq('...and each box says whether the list is the product\'s own or everyone\'s',
+    /only`/.test(dccr) && /every product's, because/.test(dccr), true);
+  // The old wording promised COMM on top, which is no longer true anywhere.
+  eq('nothing still promises the COMM values on top of the product\'s',
+    /incl\. COMM/.test(dccr) || /plus anything tagged <b>COMM<\/b>/.test(dccr), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

@@ -15,7 +15,7 @@ import { fallbackList } from './masterLists';
 import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
-  CALL_STATE_TONES, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
+  CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
   bulkReview2Block, firstYearFailure, readMyAutoSave, writeMyAutoSave, effectiveAutoSave, AUTOSAVE_DELAY_MS,
   SPARE_CATEGORY, YES_NO, actionFor, potentialEffect, toExportRow, yearStartISO,
   type ReviewPatch, type ReviewRow,
@@ -834,8 +834,10 @@ export function DailyCallReview() {
       {tab === 'grouping' && (
         <SectionCard title="DCCR Complaint Grouping">
           <p className="muted" style={{ marginTop: 0 }}>
-            Tagged per product — Review 3 offers a call only the groupings for its own product,
-            plus anything tagged <b>COMM</b> (common to every product).
+            Tagged per product. A <b>T60</b> or <b>T75</b> call is offered ONLY the groupings tagged
+            for that machine — its alarm codes mean nothing on another, and the common list buries
+            them. Every other product is offered ALL of them, because it has no curated list of its
+            own and <b>COMM</b> alone would leave nothing to say.
           </p>
           <MasterListTable list={masterList(GROUPING_MASTER)} />
         </SectionCard>
@@ -844,8 +846,9 @@ export function DailyCallReview() {
       {tab === 'rootcause' && (
         <SectionCard title="Root Cause Key Word">
           <p className="muted" style={{ marginTop: 0 }}>
-            Tagged per product — Review 3 offers a call only the key words for its own product,
-            plus anything tagged <b>COMM</b> (common to every product).
+            Tagged per product. A <b>T60</b> or <b>T75</b> call is offered ONLY the key words tagged
+            for that machine; every other product is offered ALL of them, because it has no curated
+            list of its own.
           </p>
           <MasterListTable list={masterList(ROOT_CAUSE_MASTER)} />
         </SectionCard>
@@ -1040,6 +1043,15 @@ function ReviewDrawer({
   const hourMeter = visits && visits.length
     ? String(((visits[0].data ?? {}) as Record<string, unknown>)['Hour Meter Reading'] ?? '').trim()
     : '';
+
+  // WHAT THIS LIST IS. A T60 or a T75 is offered its own curated values and
+  // nothing else; every other product is offered all of them (0.9.126). Saying
+  // which of the two is in force matters — "12 values" reads as a short list
+  // either way, and only one of them means "your machine's own".
+  const curated = curatedProduct(productName);
+  const masterScope = (n: number) => (curated
+    ? `${n} for ${productName || curated} only`
+    : `${n} — every product's, because ${productName || 'this product'} has no list of its own`);
 
   const set = (k: keyof ReviewPatch) => (e: { target: { value: string } }) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
@@ -1372,14 +1384,22 @@ function ReviewDrawer({
             <select className="select" value={draft.complaint_grouping ?? ''} onChange={set('complaint_grouping')} disabled={!editable}>
               {OPT(withCurrent(groupings, draft.complaint_grouping)).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
             </select>
-            <div className="field-help">{groupings.length} for {productName || 'this product'} (incl. COMM)</div>
+            <div className="field-help">{masterScope(groupings.length)}</div>
           </div>
           <div>
             <label className="field-label">Root Cause Key Word</label>
             <select className="select" value={draft.root_cause_keyword ?? ''} onChange={set('root_cause_keyword')} disabled={!editable}>
               {OPT(withCurrent(keywords, draft.root_cause_keyword)).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
             </select>
-            <div className="field-help">{keywords.length} for {productName || 'this product'} (incl. COMM)</div>
+            <div className="field-help">{masterScope(keywords.length)}</div>
+          </div>
+          {/* Both boxes come from the masters, so the way to change what they
+              offer is to change the master — said here, where somebody is
+              looking at a list that does not have what they need, rather than
+              left for them to work out. */}
+          <div className="dccr-wide field-help">
+            If what you are looking for is not available here, please add it to Masters
+            {' '}— the <b>DCCR Complaint Grouping</b> and <b>Root Cause Key Word</b> tabs on this screen.
           </div>
           <div>
             <label className="field-label">Spare / Consumable / Correction / Calibration</label>

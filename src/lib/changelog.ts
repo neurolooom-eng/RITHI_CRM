@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.126',
+    date: '2026-09-07',
+    title: 'The DCCR dropdowns fit the machine in front of you',
+    changes: [
+      'A T60 or T75 call is now offered ONLY that machine\u2019s own Complaint Groupings and Root Cause Key Words. Its alarm codes mean nothing on another machine, and the common list was burying them: a T60 review used to scroll through 468 groupings and now shows 123. A T75 goes from 584 to 239, and the key words from about 530 to 106 and 124.',
+      'EVERY OTHER PRODUCT NOW GETS ALL OF THEM. It used to see only the values tagged COMM \u2014 a few hundred generic ones \u2014 with no way to reach anything more specific. Complaint Grouping goes from 345 to 707, Root Cause from 427 to 657.',
+      'A NOTE UNDER THE TWO BOXES says where they come from: if what you are looking for is not there, add it to Masters \u2014 the two tabs are on this same screen.',
+      'Each box also says which list you are looking at \u2014 \u201c123 for MONNAL T60 only\u201d, or \u201c707 \u2014 every product\u2019s\u201d \u2014 because a count on its own does not tell you that.',
+      'AN ANSWER ALREADY RECORDED IS NEVER LOST. If a call was reviewed with a value the new rule would not offer, that value still shows in its box.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.125',
     date: '2026-09-07',
     title: 'The three vigilance questions stand on their own',
