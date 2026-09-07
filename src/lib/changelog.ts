@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.128',
+    date: '2026-09-07',
+    title: 'Registering a call from a request stops timing out',
+    changes: [
+      '\u201cCould not prepare registration: canceling statement due to statement timeout\u201d on Pending Registrations \u2014 fixed at the cause, not papered over.',
+      'WHY IT KEPT COMING BACK: to fill in the warranty and contract, the screen asked Product Master for every machine whose serial CONTAINS the one on the request, then picked the exact one in the browser. A four-digit serial gives the search index almost nothing to go on, so the database read all ~21,000 machines every time. It got slower as the register grew, which is why it came back after each fix.',
+      'IT ALSO GAVE WRONG ANSWERS. It read the first 25 matches only \u2014 so a serial that other serials happen to contain could be reported as \u201cnot found in Product Master\u201d, and the call registered with no warranty or contract even though the machine is on record.',
+      'Now it asks for the ONE machine with that serial, and the database answers from an index. It matches however the serial was typed \u2014 upper case, lower case, extra spaces.',
+      'The same correction applies to the exact search on Product & Party Search, which had the same problem for the same reason.',
+      'Needs migration: run supabase/apply/masters.sql.',
+    ],
+  },
+  {
     version: '0.9.127',
     date: '2026-09-07',
     title: 'The KPI workbook\u2019s Field_INST tab, exported from the register',

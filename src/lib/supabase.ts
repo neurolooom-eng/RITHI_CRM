@@ -580,9 +580,32 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
   if (error) throw new Error(errMsg(error));
   return (data ?? []).map(productRowToSheet);
 }
+// ONE MACHINE, BY ITS SERIAL. An EQUALITY on the stored `serial_key` (0129),
+// which is indexed — not `ILIKE '%serial%'`, which is a leading-wildcard scan
+// over every machine and is what kept timing out on Pending Registrations.
+//
+// `serial_key` is `lower(btrim(serial_number))`, so this matches however the
+// serial was typed or spaced, and it matches ONE row rather than "the first 25
+// that contain it" — a serial another 25 serials happen to contain used to come
+// back as not in Product Master at all.
+export async function sbProductBySerial(serial: string): Promise<Record<string, unknown> | null> {
+  const key = String(serial ?? '').trim().toLowerCase();
+  if (!key) return null;
+  const { data, error } = await must().from('products').select('*').eq('serial_key', key).limit(1).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return data ? productRowToSheet(data) : null;
+}
+
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   let q = must().from('products').select('*').range(offset, offset + limit - 1);
-  if (filters.serial) q = filters.exact ? q.eq('serial_number', filters.serial) : q.ilike('serial_number', `%${filters.serial}%`);
+  // An EXACT serial goes through the indexed key, not `eq(serial_number)`:
+  // that was case-sensitive AND had no plain btree behind it, so the one
+  // filter that meant equality was the one that could not use an index.
+  if (filters.serial) {
+    q = filters.exact
+      ? q.eq('serial_key', filters.serial.trim().toLowerCase())
+      : q.ilike('serial_number', `%${filters.serial}%`);
+  }
   if (filters.party) q = q.ilike('party_name', `%${filters.party}%`);
   if (filters.product) q = filters.exact ? q.eq('item_name', filters.product) : q.ilike('item_name', `%${filters.product}%`);
   if (filters.q) q = q.or(`serial_number.ilike.%${filters.q}%,item_name.ilike.%${filters.q}%,party_name.ilike.%${filters.q}%`);

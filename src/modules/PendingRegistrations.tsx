@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
-import { addFieldCall, listPending, searchProducts, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
+import { addFieldCall, listPending, productBySerial, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
 import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
@@ -208,8 +208,12 @@ export function PendingRegistrations() {
       const prodFill: Record<string, unknown> = {};
       let validated = false;
       if (serial) {
-        const found = await searchProducts({ serial }, 25);
-        const exact = found.find((p) => String(p['Item Serial Number'] ?? '').trim().toLowerCase() === serial.toLowerCase());
+        // ONE MACHINE, BY EQUALITY (0129). This used to read the first 25
+        // products whose serial CONTAINS this one and then find the exact match
+        // among them — a leading-wildcard scan of every machine, which is what
+        // timed out, and which missed the serial entirely whenever 25 other
+        // serials contained it.
+        const exact = await productBySerial(serial);
         if (exact) {
           const full = productToCallPrefill(exact);
           PRODMASTER_FILL.forEach((k) => { if (full[k] != null && String(full[k]) !== '') prodFill[k] = full[k]; });

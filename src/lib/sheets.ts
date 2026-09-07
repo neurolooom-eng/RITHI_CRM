@@ -226,6 +226,21 @@ export interface ProdFilters {
 }
 
 // Product Master search. Explicit fields + optional global q; empty = browse.
+// ONE MACHINE, BY ITS SERIAL — an equality, not a substring scan (0129).
+//
+// On Supabase this is an indexed match on the stored `serial_key`. On the sheet
+// bridge there is no such key, so it falls back to the old shape: ask for
+// matches and pick the exact one here. That is what timed out on a 21k-row
+// Postgres table; against the sheet it is the only thing available, and the
+// sheet is not where the register lives any more.
+export async function productBySerial(serial: string): Promise<Record<string, unknown> | null> {
+  const want = String(serial ?? '').trim();
+  if (!want) return null;
+  if (sb.supabaseConfigured()) return sb.sbProductBySerial(want);
+  const found = await searchProducts({ serial: want }, 25);
+  return found.find((p) => String(p['Item Serial Number'] ?? '').trim().toLowerCase() === want.toLowerCase()) ?? null;
+}
+
 export async function searchProducts(filters: ProdFilters | string = {}, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
   const f: ProdFilters = typeof filters === 'string' ? { q: filters } : filters;
   if (sb.supabaseConfigured()) return sb.sbSearchProducts(f, limit, offset);
