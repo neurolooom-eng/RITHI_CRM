@@ -440,7 +440,11 @@ export function Objective() {
               />
               <div className="field-help">
                 <code>{'{"product":"%T75%"}'}</code> for a rate, <code>{'{"call_type":"FIELD"}'}</code> for an open
-                rate. Re-calculate, then download the evidence to see what the pattern actually matched.
+                rate. A rate can also narrow on the SERIAL, which is how the Indian Extend is told from
+                the rest: <code>{'{"product":"%EXTEND%","serial":"INXT%"}'}</code>. The serial narrows the
+                failures AND the machines they are counted against — narrowing only the failures would
+                read lower than the truth. Re-calculate, then download the evidence to see what the
+                pattern actually matched.
               </div>
             </div>
           </div>

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.133',
+    date: '2026-09-07',
+    title: 'The Indian Extend is counted on its own',
+    changes: [
+      '\u201cRecent Failure Rate of Extend (Indian)\u201d now counts only the Extend XT machines whose serial starts INXT \u2014 nothing in the register says \u201cIndian\u201d, so the serial is what says it.',
+      'IT NARROWS BOTH HALVES: the failures counted AND the machines they are counted against. Narrowing only the failures would have read LOWER than the truth, and a failure rate that flatters itself is the one nobody questions.',
+      'Any rate can be narrowed this way now, not just this one \u2014 add a serial pattern beside the product on the objective, and the evidence file narrows with it so it still adds up to the figure.',
+      'The other five product rates are untouched.',
+      'Needs migration: run supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.132',
     date: '2026-09-07',
     title: 'Objectives that work themselves out, and can show you how',
