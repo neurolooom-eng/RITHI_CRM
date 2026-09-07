@@ -41,9 +41,15 @@ grant select on public.harness to authenticated;
 -- at the end of January and closed in March. So:
 --   January open rate  = 1/4 = 0.25   (NOT 0/4, which is what "today" would say)
 --   failure rate       = 4/10 = 0.4   at any cutoff within 12 months of them
-delete from public.reports     where ucn like 'OB-%';
-delete from public.field_calls where ucn like 'OB-%';
-delete from public.products    where party_name = 'OBJ FLEET';
+-- EVERY fixture this suite makes, cleared before ANYTHING is measured. The
+-- serial-filter rows further down are also January FIELD calls, so on a second
+-- run they would be counted by the open-rate objective above and its figure
+-- would move. Clearing them here rather than beside their own section is what
+-- makes the suite say the same thing twice.
+delete from public.reports     where ucn like 'OB-%' or ucn like 'SF-%';
+delete from public.field_calls where ucn like 'OB-%' or ucn like 'SF-%';
+delete from public.products    where party_name in ('OBJ FLEET', 'SF FLEET');
+delete from public.quality_objectives where year = 2026 and (parameter like 'TEST %' or parameter like 'TESTSF %');
 insert into public.products (item_name, serial_number, party_name)
 select 'TESTVENT X1', 'OBJ-' || g, 'OBJ FLEET' from generate_series(1,10) g;
 
@@ -98,10 +104,13 @@ select coalesce(public.objective_value(
 select role, ucn, reg_date from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TEST open rate'), 1) order by ucn;
 
-\echo '--- 6. ...and for the rate, the failures plus one fleet row ---'
-\echo 'expect: 4 failure rows and a fleet row reading 10'
-select role, ucn as value from public.objective_evidence(
-  (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1) order by role, ucn;
+\echo '--- 6. ...and for the rate, the failures AND the machines, one row each ---'
+\echo 'expect: 4 failures and 10 machines. The denominator is LISTED, not'
+\echo 'expect: asserted: a count of 10 that nobody can enumerate is worth as'
+\echo 'expect: much as no denominator at all.'
+select role, count(*) from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
+ group by role order by role;
 
 \echo '--- 7. an ENGINEER cannot re-calculate ---'
 \echo 'expect ERROR: only an administrator can re-calculate the objectives'
@@ -131,6 +140,20 @@ begin;
 commit;
 select parameter, m01 from public.quality_objectives
  where year = 2026 and parameter like 'TEST %' order by parameter;
+
+\echo '--- 9b. COUNTING THE EVIDENCE REPRODUCES THE FIGURE, for the open rate ---'
+\echo 'expect: t, and NO machine rows — that rate has no install base.'
+\echo 'expect: RUN BEFORE the serial fixtures below: those are January FIELD'
+\echo 'expect: calls too, and this objective counts every one of them.'
+with e as (
+  select role from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TEST open rate'), 1))
+select round((count(*) filter (where role='open'))::numeric / nullif(count(*), 0), 6)
+       = public.objective_value(
+           (select id from public.quality_objectives where year=2026 and parameter='TEST open rate'), 1)
+       as evidence_matches_figure,
+       count(*) filter (where role = 'machine') as machine_rows
+  from e;
 
 -- ===========================================================================
 -- A RATE CAN BE NARROWED BY SERIAL AS WELL AS PRODUCT (0133).
@@ -183,15 +206,31 @@ select parameter, public.objective_value(id, 1) as jan
   from public.quality_objectives where year = 2026 and parameter like 'TESTSF %' order by parameter;
 
 \echo '--- 11. and the EVIDENCE narrows the same way, or the file does not add up ---'
-\echo 'expect: 2 failure rows (both INXT) and a fleet row reading 4'
-select role, ucn, serial from public.objective_evidence(
+\echo 'expect: 2 failures (both INXT) and 4 machines — the DENOMINATOR AS ROWS,'
+\echo 'expect: so a reader can count it instead of taking a total on trust'
+select role, count(*) from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
- order by role, ucn;
+ group by role order by role;
+\echo 'expect: every machine listed is an INXT one'
+select serial from public.objective_evidence(
+  (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
+ where role = 'machine' order by serial;
 
 \echo '--- 12. a rate with no serial named is unchanged — the five others ---'
-\echo 'expect: 5 failure rows and a fleet row reading 10'
-select count(*) filter (where role = 'failure') as failures,
-       max(call_number) filter (where role = 'fleet') as fleet_label,
-       max(ucn) filter (where role = 'fleet') as fleet_count
-  from public.objective_evidence(
-    (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1);
+\echo 'expect: 5 failures and 10 machines'
+select role, count(*) from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1)
+ group by role order by role;
+
+\echo '--- 13. COUNTING THE EVIDENCE REPRODUCES THE FIGURE ---'
+\echo 'expect: t — failures / machines equals what the objective reports.'
+\echo 'expect: This is the whole promise of the file: it adds up to the number.'
+with e as (
+  select role from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1))
+select round((count(*) filter (where role='failure'))::numeric
+             / nullif(count(*) filter (where role='machine'), 0), 6)
+       = public.objective_value(
+           (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
+       as evidence_matches_figure
+  from e;

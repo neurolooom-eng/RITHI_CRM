@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../lib/auth';
 import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow } from '../lib/kpi';
 import { csvExport } from '../lib/format';
+import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import { useAccessScope, scopeLabel } from '../lib/access';
 import './dccr.css';
@@ -115,17 +116,71 @@ export function Objective() {
     loadObjectives();
   };
 
-  // THE ROWS BEHIND A FIGURE. Downloaded rather than shown: it is the calls
-  // themselves, and the point of it is to be attached to something.
+  // THE ROWS BEHIND A FIGURE, AS A WORKBOOK — the calls, the machines they were
+  // counted against, and the arithmetic, on three tabs (the user's shape).
+  //
+  // Sheet 3 is COUNTED FROM SHEETS 1 AND 2, not read from the objective: the
+  // file has to add up to itself. The stored figure is put beside it so a
+  // disagreement — a Re-Calc that has not been run since the calls changed —
+  // is visible in the evidence rather than hidden by it.
+  const CALL_COLUMNS = ['ucn', 'call_number', 'reg_date', 'product_name', 'serial',
+                        'party_name', 'call_type', 'status', 'allocated_to'];
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
     try {
       const rows = await objectiveEvidence(o.id, monthIndex + 1);
       if (!rows.length) { setOMsg('There is nothing behind that figure to download.'); return; }
-      const cols = Object.keys(rows[0]).map((k) => ({ key: k, header: k }));
+      const role = (r: Record<string, unknown>) => String(r.role ?? '');
+      const calls = rows.filter((r) => role(r) !== 'machine');
+      const machines = rows.filter((r) => role(r) === 'machine');
+
+      const isRate = o.calc_key === 'failure_rate_12m';
+      const numerator = isRate ? calls.length : calls.filter((r) => role(r) === 'open').length;
+      const denominator = isRate ? machines.length : calls.length;
+      const computed = denominator ? numerator / denominator : null;
+      const stored = o[MONTH_KEYS[monthIndex]];
+
+      const calc: Record<string, unknown>[] = [
+        { Item: 'Objective', Value: o.parameter },
+        { Item: 'Year / month', Value: `${YEAR} ${MONTHS[monthIndex]}` },
+        { Item: 'Yearly target', Value: o.yearly_target },
+        { Item: 'Worked out by', Value: o.calc_key || 'not computed — this figure is typed' },
+        { Item: 'Parameters', Value: JSON.stringify(o.calc_params ?? {}) },
+        { Item: '', Value: '' },
+        { Item: isRate ? 'Failures (Sheet 1)' : 'Still open at month end (Sheet 1)', Value: numerator },
+        { Item: isRate ? 'Machines in the field (Sheet 2)' : 'Calls raised in the month (Sheet 1)', Value: denominator },
+        { Item: 'Calculation', Value: `${numerator} ÷ ${denominator}` },
+        { Item: 'Result', Value: computed == null ? '' : computed },
+        { Item: 'Result (%)', Value: computed == null ? '' : `${(computed * 100).toFixed(2)}%` },
+        { Item: '', Value: '' },
+        { Item: 'Figure on the Objective page', Value: stored == null ? '(blank)' : Number(stored) },
+        { Item: 'Agrees with this file?',
+          Value: stored == null || computed == null
+            ? 'no figure recorded'
+            : (Math.abs(Number(stored) - computed) < 1e-6
+                ? 'yes' : 'NO — re-calculate; the calls have changed since the figure was written') },
+        { Item: '', Value: '' },
+        { Item: 'Measured as at', Value: 'the end of that month, never later than today' },
+        { Item: 'Machines counted', Value: 'as the Product Register stands today — it keeps no history of past installs' },
+        { Item: 'Downloaded', Value: new Date().toISOString() },
+      ];
+
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-      csvExport(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.csv`, cols, rows);
-      setOMsg(`Downloaded ${rows.length} row${rows.length === 1 ? '' : 's'} behind ${o.parameter} — ${MONTHS[monthIndex]}.`);
-      logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`, meta: { rows: rows.length } });
+      xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
+        { name: 'List of Field Calls', columns: ['role', ...CALL_COLUMNS], rows: calls },
+        {
+          name: 'Installation Base',
+          columns: machines.length ? ['product_name', 'serial', 'party_name', 'status'] : ['Note'],
+          // An empty tab reads as a bug. This rate is calls over calls, and
+          // saying so is the honest content of the sheet.
+          rows: machines.length ? machines : [{ Note: 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
+        },
+        { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
+      ]);
+      setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: `
+        + `${calls.length} call${calls.length === 1 ? '' : 's'}`
+        + (machines.length ? ` and ${machines.length} machines` : '') + '.');
+      logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`,
+                 meta: { calls: calls.length, machines: machines.length } });
     } catch (e) {
       setOMsg(`Could not read the evidence: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -283,7 +338,7 @@ export function Objective() {
                               {o.calc_key && v != null && (
                                 <button
                                   className="btn btn-ghost btn-sm obj-eyebtn"
-                                  title={`Download the calls behind ${MONTHS[MONTH_KEYS.indexOf(k)]}`}
+                                  title={`Download the evidence for ${MONTHS[MONTH_KEYS.indexOf(k)]} — the calls, the machines and the arithmetic, on three tabs`}
                                   onClick={(e) => { e.stopPropagation(); void downloadEvidence(o, MONTH_KEYS.indexOf(k)); }}
                                 >⭳</button>
                               )}
