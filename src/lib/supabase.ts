@@ -348,10 +348,31 @@ export async function listQualityObjectives(year: number): Promise<QualityObject
 
 // RE-CALC — explicit, never on a page load. A figure that changes because
 // somebody opened a screen is not a figure anybody can defend.
-export async function recalcObjectives(year: number): Promise<{ ok: boolean; written?: { objective: string; months_written: number }[]; error?: string }> {
-  const { data, error } = await must().rpc('recalc_quality_objectives', { p_year: year });
+export async function recalcObjectives(
+  year: number, cutoff?: string,
+): Promise<{ ok: boolean; written?: { objective: string; months_written: number }[]; error?: string }> {
+  // A blank date is NOT a cut-off of "nothing" — it means leave whatever is
+  // stored alone, which is what "the Set Date overrides always" requires. So
+  // the argument is omitted rather than sent as null.
+  const args: Record<string, unknown> = { p_year: year };
+  if (cutoff && cutoff.trim()) args.p_cutoff = cutoff.trim();
+  const { data, error } = await must().rpc('recalc_quality_objectives', args);
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, written: (data ?? []) as { objective: string; months_written: number }[] };
+}
+
+// THE CUT-OFF LOCK. An admin's switch over whether anyone else may re-base the
+// objectives by moving the cut-off. Read by anyone; set by an administrator.
+export async function objectiveCutoffLocked(): Promise<boolean> {
+  const { data, error } = await must().rpc('objective_cutoff_locked');
+  if (error) return false;   // a lock we cannot read is not a lock we enforce
+  return Boolean(data);
+}
+
+export async function setObjectiveCutoffLock(on: boolean): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().rpc('set_objective_cutoff_lock', { p_on: on });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
 }
 
 // THE ROWS BEHIND ONE FIGURE. The same query that produced the number, so the

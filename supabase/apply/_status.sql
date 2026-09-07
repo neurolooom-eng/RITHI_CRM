@@ -439,7 +439,8 @@ with checks(sort_order, bundle, provides, present) as (
                   where table_schema='public' and table_name='kpi_field_inst'
                     and column_name = 'Pending Days'))),
     (95, 'Objective: the figures compute themselves, and can show their working', 'quality_objectives.calc_key + calc_params, recalc_quality_objectives() and objective_evidence(). Re-Calc is EXPLICIT -- never on a page load -- writes only the objectives that have a calc_key, only up to this month, and NEVER touches a typed figure. Each month is measured as at the END of that month, so a call closed since does not move an earlier figure. The evidence is the same query that produced the number, so counting it reproduces the fraction (0132). Restore: objective.sql',
-        (to_regprocedure('public.recalc_quality_objectives(integer)') is not null
+        -- The signature gained a cut-off in 0138; the 1-argument form is gone.
+        (to_regprocedure('public.recalc_quality_objectives(integer,date)') is not null
      and to_regprocedure('public.objective_evidence(bigint,integer)') is not null
      and exists (select 1 from information_schema.columns
                   where table_schema='public' and table_name='quality_objectives'
@@ -500,6 +501,20 @@ with checks(sort_order, bundle, provides, present) as (
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.proname = 'objective_evidence'
                    limit 1), false)),
+    (104, 'Objective: a call closes on the VISIT DATE, not the date the report was typed up', 'open_rate_monthly tests coalesce(reports.visit_at, reports.updated_at) against the cut-off. A visit on 30 May entered on 3 June is CLOSED in May -- the user''s decision after 0137 put both dates on the sheet. The fallback to the entry date where a solving report carries NO visit date is deliberate and stated in the evidence: treating a blank as "never solved" would move a closed call into the open column for a missing keystroke, making the figure worse for a data-entry lapse (0138). Restore: objective.sql',
+        coalesce((select pg_get_functiondef(p.oid) like '%coalesce(r.visit_at::date, r.updated_at::date) <= $4%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_value'
+                   limit 1), false)),
+    (105, 'Objective: the cut-off is set at Re-Calculate, and STORED', 'recalc_quality_objectives(year, cutoff) writes the date onto every open-rate objective BEFORE computing, so the figure and the setting behind it cannot disagree and the evidence can still say what was applied months later. Passing no date changes nothing -- whatever is stored still applies, and where nothing is stored the cut-off is the period end (the "Default EMONTH"). A stored date applies to EVERY month the run writes, which is the reporting practice this was asked for and is named in the notes so the figure says how it was reached (0138). Restore: objective.sql',
+        (to_regprocedure('public.recalc_quality_objectives(integer,date)') is not null
+     and to_regprocedure('public.recalc_quality_objectives(integer)') is null)),
+    (106, 'Objective: an ADMIN can lock the cut-off, and the lock holds at the table', 'objective_cutoff_locked() / set_objective_cutoff_lock() in app_settings, the same shape as Audit Mode (0114), plus a TRIGGER on quality_objectives -- because a lock the definition screen''s JSON box walks around is decoration. Locked, nobody but an administrator can change cutoff_date or cutoff_days, through Re-Calculate or by editing the row. OFF by default. An administrator is NOT blocked: the lock exists to stop whoever else holds config.manage re-basing the figure, and locking the admin out of their own switch only teaches them to leave it off (0138). Restore: objective.sql',
+        (to_regprocedure('public.objective_cutoff_locked()') is not null
+     and to_regprocedure('public.set_objective_cutoff_lock(boolean)') is not null
+     and exists (select 1 from pg_trigger
+                  where tgrelid = 'public.quality_objectives'::regclass
+                    and tgname = 'zz_quality_objectives_cutoff_guard'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

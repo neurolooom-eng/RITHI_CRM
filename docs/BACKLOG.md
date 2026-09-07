@@ -349,6 +349,38 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### The cut-off, settled (2026-09-07)
+
+**The open question below is CLOSED: the cut-off tests the VISIT date.** A call
+visited 30 May and written up 3 June is closed in May. Figures moved when 0138
+was applied, and that was the point.
+
+The fallback when a solving report has **no visit date** is the entry date, and
+the evidence marks the row. Treating a blank as "never solved" would make the
+figure worse for a missing keystroke — a metric that degrades on a data-entry
+lapse teaches people to distrust it.
+
+**`recalc_quality_objectives(year, cutoff)`** stores the date on every open-rate
+objective before computing, rather than holding it for the run. A figure and the
+setting behind it must not be able to disagree, and the evidence has to be able
+to say what was applied months later. Passing no date changes nothing.
+
+⚠️ **A stored cut-off applies to EVERY month the run writes** — re-calculating in
+October with 09-Oct also re-reads January as at 09-Oct. The user asked for this
+("the Team is used to this way of Working") and knows a monthly KPI is not
+strictly measured that way. It is not hidden: stored on the objective, on the
+Re-Calculate dialog, and in the evidence notes.
+
+**The lock** is `objective_cutoff_locked` in `app_settings`, the Audit Mode shape
+(0114), plus a TRIGGER on `quality_objectives` — a lock the definition screen's
+JSON box could walk around would be decoration. Admins are exempt: the lock holds
+back whoever else has `config.manage`, and locking an admin out of their own
+switch only teaches them to leave it off.
+
+⚠️ **`recalc_quality_objectives(integer)` NO LONGER EXISTS** — the 1-argument form
+is dropped so `recalc_quality_objectives(2026)` is not ambiguous. `_status.sql`
+row 95 checks the new signature; anything else calling the old one will fail.
+
 ### The solve cut-off (2026-09-07)
 
 `objective_period` returns **three** dates now, and the split is the point:
@@ -366,12 +398,11 @@ change — the bug this shape exists to prevent.
 move a call from open to closed, so it flatters the figure; that is a HARD STOP
 in `objective_notes`, not a preference.
 
-**Open question, deliberately left as it was.** The cut-off tests when the
-solving report was **ENTERED** (`reports.updated_at`), not the visit date. A
-call visited on 30 May and written up on 3 June therefore reads as open at the
-end of May. Both dates are now in the export (`closure_date` /
-`closure_recorded_on`) so the user can see exactly which calls the other rule
-would move before deciding. No figure changed in this round.
+~~**Open question, deliberately left as it was.** The cut-off tests when the
+solving report was **ENTERED** (`reports.updated_at`), not the visit date.~~
+**ANSWERED 2026-09-07 and changed in 0138: it tests the VISIT date.** Putting
+both dates in the export is what let the question be settled by looking rather
+than arguing — see the entry above.
 
 ### Objectives 8-12 — what is computed and what is still typed (2026-09-07)
 
@@ -432,7 +463,7 @@ What the two bundles brought:
 
 | bundle | brings | rows |
 | --- | --- | --- |
-| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated, 0136 quarterly periods + objectives 8-11 + the stated assumptions, 0137 the settable solve cut-off + the closure date in the export | 93, 95, 96, 97, 98, 99, 100, 101, 102, 103 |
+| [`objective.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/objective.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)) | 0130 the objectives register, 0132 Re-Calc + evidence, 0133 the serial filter (the Indian Extend), 0134 the machines as rows, 0135 the installation base as a Product Master listing with the filter stated, 0136 quarterly periods + objectives 8-11 + the stated assumptions, 0137 the settable solve cut-off + the closure date in the export, 0138 closure on the visit date + the cut-off at Re-Calc + the admin lock | 93, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106 |
 | [`performance.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql) ([raw](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)) | 0128 the KPI Field & Installation export (columns A–AB), 0131 Phase 2 (AC–AG + Pending Days), 0129 `products.serial_key` | 94 |
 
 ⚠️ **This is a note, not evidence.** Run
