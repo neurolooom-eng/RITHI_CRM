@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.130',
+    date: '2026-09-07',
+    title: 'In Review 3, typing searches \u2014 it no longer chooses',
+    changes: [
+      'Complaint Grouping, Root Cause Key Word and Spare / Consumable / Correction / Calibration are now TYPE-TO-SEARCH boxes. Start typing and the list narrows; the answer changes when you click one or press Enter on it, and at no other moment.',
+      'WHY IT MATTERED: a plain dropdown jumps to the first entry beginning with whatever key you press \u2014 and with Auto Save on, that was written to the review the instant the key landed. A stray keystroke could put a Root Cause on a call that nobody chose.',
+      'CLICKING AWAY OR PRESSING ESC LEAVES THE ANSWER EXACTLY AS IT WAS. An abandoned search changes nothing.',
+      'Arrow keys move, Enter chooses, and the box says how many of the list match what you have typed.',
+      'If nothing matches, it says so and points you at Masters \u2014 you still cannot type a value that is not on the list, because these come from the masters.',
+      'The third box went the same way as the two that were reported: same drawer, same Auto Save, and five options rather than five hundred does not make it safe, only quieter.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.129',
     date: '2026-09-07',
     title: 'Objective \u2014 a page of its own for the quality objectives',

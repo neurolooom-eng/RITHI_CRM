@@ -212,3 +212,37 @@
    there, and the hover says which one you are about to open. */
 .row-link { cursor: pointer; }
 .row-link:hover { background: var(--surface-alt); }
+
+/* ---------------------------------------------------------------------------
+   PICK LIST — type to search, then pick. Typing never selects; see PickList.tsx
+   for why that matters on a record that saves itself.
+   --------------------------------------------------------------------------- */
+.picklist { position: relative; }
+.picklist-value {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; text-align: left; cursor: pointer; font: inherit;
+}
+.picklist-value:disabled { cursor: default; opacity: 0.6; }
+.picklist-empty { color: var(--text-muted); }
+.picklist-caret { opacity: 0.55; font-size: 11px; }
+.picklist-input { width: 100%; }
+.picklist-menu {
+  position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 3px);
+  max-height: 280px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+}
+.picklist-opt {
+  display: block; width: 100%; text-align: left; border: 0; background: none;
+  padding: 6px 10px; font: inherit; font-size: 12.5px; color: var(--text); cursor: pointer;
+}
+/* The highlighted row INVERTS against the page rather than tinting: the
+   standing rule, and the only thing that reads at a glance in both themes. */
+.picklist-hi { background: var(--text); color: var(--surface); }
+.picklist-cur { font-weight: 700; }
+.picklist-clear { color: var(--text-muted); font-style: italic; }
+.picklist-none { padding: 8px 10px; font-size: 12.5px; color: var(--text-muted); }
+.picklist-foot {
+  padding: 5px 10px; font-size: 11.5px; color: var(--text-muted);
+  border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--surface);
+}
