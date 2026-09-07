@@ -74,7 +74,10 @@ export function PendingCalls() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [allotTo, setAllotTo] = useState('');
   const [allotBusy, setAllotBusy] = useState(false);
-  const mayAllot = can('calls.edit') && allotTeam.names.length > 0;
+  // The same right as on the register (0126) — re-allocation is its own
+  // permission, not a corner of `calls.edit`.
+  const mayAllot = can('calls.allot') && allotTeam.names.length > 0;
+  const allotBlocked = !can('calls.allot') && allotTeam.canPick;
   const [state, setState] = useState<CallState | ''>('');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -216,6 +219,13 @@ export function PendingCalls() {
         blankLabel="— not allotted —"
         more={moreAvailable}
       />
+
+      {allotBlocked && (
+        <p className="muted" style={{ margin: '4px 2px 0', fontSize: 12.5 }}>
+          Re-allocating a call needs the <b>Re-allocate a call to another engineer</b> permission,
+          which your role does not have — an administrator can grant it under Roles &amp; Permissions → Calls.
+        </p>
+      )}
 
       <DataTable<Row>
         columns={COLUMNS}
