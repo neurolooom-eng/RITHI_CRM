@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.137',
+    date: '2026-09-07',
+    title: 'A cut-off you set, and an export that names the calls it excluded',
+    changes: [
+      'BREAKDOWN CALLS, PM CALLS and INSTALLATION CALL NOW TAKE A CUT-OFF DATE. Open the objective (the \u0192 button) and set either a GRACE \u2014 so many days after the period ends, for reports that get written up late \u2014 or a FIXED DATE, for reporting a period as at one stated day. Leave both blank and nothing changes: the cut-off is the period\u2019s own end, exactly as before.',
+      'THE CUT-OFF NEVER CHANGES WHICH CALLS ARE COUNTED, only how many of them were closed in time. The calls are still the ones REGISTERED in the period; a grace that also moved the period would have pulled in the next month\u2019s calls and quietly changed the denominator.',
+      'A CUT-OFF IS NEVER READ LATER THAN TODAY, whatever is set. A cut-off in the future would count a period the record cannot yet know about, and it can only ever move a call from open to closed \u2014 so it would flatter the figure, which is the direction nobody questions.',
+      'THE EXPORT NOW CARRIES THE ACTUAL CALL CLOSURE DATE \u2014 the visit date of the report that solved it \u2014 alongside the date that report was ENTERED. Both, because they disagree: a visit on the 30th written up on the 3rd is a call solved inside the month by a record made after it.',
+      'AND IT SAYS SO WHEN THE CUT-OFF EXCLUDED A CALL: \u201cYES \u2014 solved after the cut-off of \u2026, so it is counted as OPEN\u201d. Such a call still counts as open, but it is no longer indistinguishable from one that was never solved at all \u2014 those are different facts and only one of them is a problem.',
+      'The Calculation tab says which cut-off was applied and where it came from, and counts how many calls it excluded.',
+      'The cut-off tests when the report was ENTERED, not the date of the visit. That is unchanged, and no figure moves unless you set a cut-off \u2014 but both dates are now on the sheet, so if you want the other rule you can see exactly which calls it would move before asking.',
+      'Needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.136',
     date: '2026-09-07',
     title: 'Quarterly objectives, three registers, and a sheet that states its assumptions',

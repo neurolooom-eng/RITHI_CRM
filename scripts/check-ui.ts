@@ -1432,6 +1432,18 @@ console.log('\n-- the evidence workbook --');
   // "nothing to download" there reads as a broken export.
   eq('a month that carries no figure says why, not "nothing to download"',
     /if \(period && !period\.applies\)/.test(obj), true);
+  // The user asked for the ACTUAL closure date in the export, and for a call
+  // solved after the cut-off to be called out rather than left looking like
+  // one that was never solved at all.
+  eq('the export carries the closure date and the after-cut-off callout',
+    /'closure_date', 'closure_recorded_on', 'after_cutoff'/.test(obj), true);
+  eq('...and the calculation sheet counts how many the cut-off excluded',
+    /of which SOLVED AFTER THE CUT-OFF/.test(obj), true);
+  // A grace and a fixed date are two answers to one question; holding both
+  // would leave the screen unable to say which is in force.
+  eq('the cut-off controls clear one another',
+    /setParam\('cutoff_days', e\.target\.value, 'cutoff_date'\)/.test(obj)
+    && /setParam\('cutoff_date', e\.target\.value, 'cutoff_days'\)/.test(obj), true);
   // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
   eq('the calculation is counted from the rows, not read off the page',
     /const numerator = isRate \? calls\.length/.test(obj)

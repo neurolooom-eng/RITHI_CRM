@@ -94,7 +94,12 @@ comment on function public.objective_is_quarterly(text) is
 -- figure is what was true at the end of July and does not drift as calls are
 -- closed in September.
 -- ---------------------------------------------------------------------------
-create or replace function public.objective_period(p_id bigint, p_month integer)
+-- The return type has widened since (0137 adds solve_cutoff and cutoff_note),
+-- and `create or replace function` CANNOT change one -- replaying this file
+-- onto a database already carrying the later shape would fail outright. So it
+-- is DROPPED first: a file must be runnable on a database in any state.
+drop function if exists public.objective_period(bigint, integer);
+create function public.objective_period(p_id bigint, p_month integer)
 returns table (applies boolean, period_start date, period_end date, label text)
 language plpgsql stable security definer set search_path = public as $$
 declare
@@ -518,7 +523,10 @@ update public.quality_objectives
 --
 -- The return type is unchanged, so this is a plain `create or replace`.
 -- ===========================================================================
-create or replace function public.objective_evidence(p_id bigint, p_month integer)
+-- Widened again in 0137 (the closure date and the cut-off callout), so this
+-- one is dropped first for the same reason.
+drop function if exists public.objective_evidence(bigint, integer);
+create function public.objective_evidence(p_id bigint, p_month integer)
 returns table (
   role text, ucn text, call_number text, reg_date date, product_name text,
   serial text, party_name text, call_type text, status text, allocated_to text,
