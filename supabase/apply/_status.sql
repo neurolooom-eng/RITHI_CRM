@@ -456,6 +456,15 @@ with checks(sort_order, bundle, provides, present) as (
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.proname = 'objective_evidence'
                    limit 1), false)),
+    (98, 'Objective: the installation base is a Product Master listing, and says what filtered it', 'objective_evidence returns each machine as its PRODUCT MASTER ROW -- warranty and contract with the rest -- so Sheet 2 reconciles line by line against that screen instead of merely resembling it, and a leading role=filter row names the product pattern and the serial pattern actually applied. Every product except Extend XT is filtered on the PRODUCT ALONE, and the file now says so in words rather than leaving it to be inferred (0135). Restore: objective.sql',
+        -- Checked on the SIGNATURE, not on any word in the body: the return
+        -- type gaining contract_type is the thing 0135 did, and no earlier
+        -- version can accidentally satisfy it.
+        coalesce((select pg_get_function_result(p.oid) like '%contract_type%'
+                    and pg_get_functiondef(p.oid) like '%''filter''::text%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_evidence'
+                   limit 1), false)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

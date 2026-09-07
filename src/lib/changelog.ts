@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.135',
+    date: '2026-09-07',
+    title: 'The Installation Base is a Product Master listing, and says what filtered it',
+    changes: [
+      'The INSTALLATION BASE tab now carries the PRODUCT MASTER ROW for every machine \u2014 warranty number and dates, contract number, dates and type, alongside the product, serial, customer and status. You can put the sheet beside the Product Master screen and tick it off line by line, instead of it merely resembling that screen.',
+      'THE FILTER IS NOW THE FIRST ROW OF THAT TAB, in the database\u2019s own words: which product was asked of Product Master, and which serials. For every product EXCEPT Extend XT it says \u201cno serial filter \u2014 product only\u201d, so the file states which machines are counted and why rather than leaving you to work it out from the rows that happen to be there.',
+      'The Extend objective is the one that narrows on serial (the Indian Extend, INXT\u2026), and the row names that pattern instead \u2014 so the two cases are told apart on the face of the file.',
+      'The CALCULATION tab repeats the filter, so a printed third page still says where the denominator came from.',
+      'The LIST OF FIELD CALLS tab gained the same warranty and contract columns.',
+      'A note on what is NOT filtered: Product Master carries an \u201cactive\u201d flag, nothing in the system maintains it, and the installation base deliberately ignores it. Filtering on a column nobody keeps up to date would move every failure rate on the strength of data that has never been kept.',
+      'Needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.134',
     date: '2026-09-07',
     title: 'The evidence is a workbook: the calls, the machines, the arithmetic',

@@ -52,6 +52,15 @@ delete from public.products    where party_name in ('OBJ FLEET', 'SF FLEET');
 delete from public.quality_objectives where year = 2026 and (parameter like 'TEST %' or parameter like 'TESTSF %');
 insert into public.products (item_name, serial_number, party_name)
 select 'TESTVENT X1', 'OBJ-' || g, 'OBJ FLEET' from generate_series(1,10) g;
+-- Two of them carry a warranty and a contract, so the evidence can be seen to
+-- bring the Product Master ROW across and not merely four columns of it.
+update public.products
+   set warranty_number = 'W-' || serial_number,
+       warranty_start = date '2025-06-01', warranty_end = date '2026-05-31',
+       contract_number = 'CT-' || serial_number,
+       contract_start = date '2026-01-01', contract_end = date '2026-12-31',
+       contract_type = 'CMC', item_status = 'CMC'
+ where serial_number in ('OBJ-1', 'OBJ-2');
 
 insert into public.field_calls (ucn, call_number, call_type, product_name, serial, reg_date,
                                 complaint_date, party_name, city, state, item_status,
@@ -105,9 +114,10 @@ select role, ucn, reg_date from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TEST open rate'), 1) order by ucn;
 
 \echo '--- 6. ...and for the rate, the failures AND the machines, one row each ---'
-\echo 'expect: 4 failures and 10 machines. The denominator is LISTED, not'
-\echo 'expect: asserted: a count of 10 that nobody can enumerate is worth as'
-\echo 'expect: much as no denominator at all.'
+\echo 'expect: 4 failures, 10 machines, and 1 filter. The denominator is'
+\echo 'expect: LISTED, not asserted: a count of 10 that nobody can enumerate is'
+\echo 'expect: worth as much as no denominator at all. The filter row is the'
+\echo 'expect: caption of that listing — what was asked of Product Master.'
 select role, count(*) from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
  group by role order by role;
@@ -206,7 +216,7 @@ select parameter, public.objective_value(id, 1) as jan
   from public.quality_objectives where year = 2026 and parameter like 'TESTSF %' order by parameter;
 
 \echo '--- 11. and the EVIDENCE narrows the same way, or the file does not add up ---'
-\echo 'expect: 2 failures (both INXT) and 4 machines — the DENOMINATOR AS ROWS,'
+\echo 'expect: 2 failures (both INXT), 4 machines and 1 filter — the DENOMINATOR AS ROWS,'
 \echo 'expect: so a reader can count it instead of taking a total on trust'
 select role, count(*) from public.objective_evidence(
   (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
@@ -217,7 +227,7 @@ select serial from public.objective_evidence(
  where role = 'machine' order by serial;
 
 \echo '--- 12. a rate with no serial named is unchanged — the five others ---'
-\echo 'expect: 5 failures and 10 machines'
+\echo 'expect: 5 failures, 10 machines and 1 filter'
 select role, count(*) from public.objective_evidence(
     (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1)
  group by role order by role;
@@ -234,3 +244,45 @@ select round((count(*) filter (where role='failure'))::numeric
            (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
        as evidence_matches_figure
   from e;
+
+\echo '--- 14. THE INSTALLATION BASE SAYS WHAT FILTERED IT ---'
+\echo 'expect: one filter row naming the Product Master product pattern, and'
+\echo 'expect: saying in words that NO serial filter was applied. That sentence'
+\echo 'expect: is the assurance the instruction asks for: every product except'
+\echo 'expect: Extend XT is selected on the product and nothing else, and the'
+\echo 'expect: file states it rather than leaving the reader to infer it.'
+select product_name as filtered_by, serial as serial_filter
+  from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1)
+ where role = 'filter';
+
+\echo 'expect: the Extend objective, the one product that DOES narrow on serial,'
+\echo 'expect: names that pattern instead'
+select product_name as filtered_by, serial as serial_filter
+  from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TESTSF indian only'), 1)
+ where role = 'filter';
+
+\echo '--- 15. AND EACH MACHINE ARRIVES AS ITS PRODUCT MASTER ROW ---'
+\echo 'expect: OBJ-1 and OBJ-2 with warranty W-OBJ-n, contract CT-OBJ-n, CMC —'
+\echo 'expect: so the sheet can be reconciled line by line against the Product'
+\echo 'expect: Master screen rather than merely resembling it.'
+select serial, status, warranty_number, warranty_start, warranty_end,
+       contract_number, contract_start, contract_end, contract_type
+  from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
+ where role = 'machine' and serial in ('OBJ-1', 'OBJ-2') order by serial;
+
+\echo 'expect: 10 — the untouched eight come through too, blank rather than absent'
+select count(*) from public.objective_evidence(
+    (select id from public.quality_objectives where year=2026 and parameter='TEST failure rate'), 1)
+ where role = 'machine';
+
+\echo '--- 16. the FILTER ROW IS NOT A MACHINE ---'
+\echo 'expect: t — it carries no serial of its own, so no count of the'
+\echo 'expect: installed base can pick it up by accident'
+select not exists (
+  select 1 from public.products p
+   where p.serial_number = (select serial from public.objective_evidence(
+     (select id from public.quality_objectives where year=2026 and parameter='TESTSF whole fleet'), 1)
+     where role = 'filter')) as filter_row_is_not_a_machine;
