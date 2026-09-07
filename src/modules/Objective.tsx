@@ -222,10 +222,10 @@ export function Objective() {
 
       <SectionCard title="Export — KPI workbook (Field_INST)">
         <p className="muted" style={{ marginTop: 0 }}>
-          The workbook's own tab, computed from the register: <b>columns A to AB</b>, the same fields
-          in the same order under the same headings, so the file drops straight in. Field and
-          Installation calls only — PM keeps its own tab — and <b>cancelled calls are not included at
-          all</b>.
+          The workbook's own tab, computed from the register: <b>columns A to AG</b>, the same
+          fields in the same order under the same headings, so the file drops straight in — plus
+          <b>Pending Days</b>, which the workbook does not have. Field and Installation calls only
+          — PM keeps its own tab — and <b>cancelled calls are not included at all</b>.
         </p>
         <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.7 }}>
           <li><b>Call Attended On</b> — the earlier of the first visit and the first spare request.
@@ -276,13 +276,25 @@ export function Objective() {
         </details>
       </SectionCard>
 
-      <SectionCard title="Phase 2 — the objectives themselves">
-        <p className="muted" style={{ marginTop: 0 }}>
-          <b>Attended in Days</b>, <b>Solved in Days</b>, <b>TTA</b>, <b>TTS</b> and
-          <b> Failure Month</b> — columns AC to AG — are formulas in the workbook today, and are
-          not exported yet. They are the objectives themselves rather than the record they are
-          computed from, so this is where they will be measured when they move across.
-        </p>
+      <SectionCard title="How the computed columns are worked out">
+        <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.75 }}>
+          <li><b>Attended in Days</b> / <b>Solved in Days</b> — counted from the <b>later</b> of the
+            Complaint Date and the Registration Date, never negative. That is the workbook's own
+            formula: a call complained about on the 30th, registered on the 3rd and attended on the
+            30th is <b>0 days</b>, not −4.</li>
+          <li><b>TTA</b> / <b>TTS</b> — the band the day count falls in, using the <b>finer</b> of
+            the two tables in LOOKUPVALUES: the same up to 60 days, then 61-90D, 91-180D, &gt;180D,
+            &gt;1 yr, and so on to &gt;5 yrs. A machine open eleven months no longer reads the same
+            as one open sixty-one days.</li>
+          <li><b>Failure Month</b> — from the <b>Registration</b> date, as the formula has it.</li>
+          <li><b>Pending Days</b> — how long an OPEN call has been waiting, today. It is not in the
+            workbook. The sheet computes 0 days for a call nobody has been to, so every unattended
+            call reads <b>attended and solved the same day</b> and is counted in the bands; here
+            those two are left blank and this column carries the real answer.</li>
+          <li><b>Open / Close</b> — Close for any <b>Solved…</b> status, report-pending included,
+            as the workbook's own lookup has it. A report-pending call therefore has no solved
+            date and so no Solved in Days.</li>
+        </ul>
       </SectionCard>
     </div>
   );

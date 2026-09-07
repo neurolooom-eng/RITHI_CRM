@@ -433,6 +433,11 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.quality_objectives') is not null
      and exists (select 1 from pg_policies
                   where schemaname='public' and tablename='quality_objectives' and policyname='qo_write'))),
+    (94, 'KPI: the computed columns (Phase 2)', 'AC-AG by the workbook''s own formulas -- days counted from the LATER of complaint and registration and never negative, the band from the FINER of the two LOOKUPVALUES tables (61-90D, 91-180D, >180D, >1 yr ... >5 yrs), Failure Month off the REGISTRATION date. Plus Pending Days, which the workbook has no column for: the sheet computes 0 for a call nobody has been to, so every unattended call reads as attended and solved the same day. Open/Close is now Close for ANY Solved... status, report-pending included, per the sheet (0131). Restore: performance.sql',
+        (to_regprocedure('public.kpi_days_band(integer)') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='kpi_field_inst'
+                    and column_name = 'Pending Days'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

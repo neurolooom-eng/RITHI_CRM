@@ -1,11 +1,16 @@
 // ===========================================================================
 // THE KPI WORKBOOK'S "Field_INST" TAB.
 //
-// The workbook is kept by hand; `kpi_field_inst` (0128) computes the same tab
-// from the register. PHASE 1 is columns A to AB — the same fields, in the same
-// order, under the same headings, so the file drops straight in. AC to AG
-// (Attended in Days, Solved in Days, TTA, TTS, Failure Month) are formulas in
-// the workbook and are Phase 2.
+// The workbook is kept by hand; `kpi_field_inst` computes the same tab from
+// the register — A to AB as the sheet has them (0128), AC to AG by the sheet's
+// own formulas, and one column it does not have (0131).
+//
+// PENDING DAYS is that extra column, and it is the reason the export is not
+// simply the workbook. The sheet computes AC and AD for a call nobody has been
+// to and gets 0, because Excel reads a blank date as zero — so an unattended
+// call reads "attended and solved the same day, 00-03D" and is counted in the
+// bands. Here those stay BLANK and Pending Days says how long it has actually
+// been waiting.
 //
 // THE HEADINGS ARE THE VIEW'S OWN COLUMN NAMES, spelling and all — including
 // "Registeration" and "Call Solved Date & Time", which is how the workbook
@@ -44,6 +49,13 @@ export const KPI_FIELD_INST_COLUMNS = [
   'Visiting Service Engineer',
   'Call Attended On',
   'Call Solved Date & Time',
+  'Attended in Days',
+  'Solved in Days',
+  'TTA ( R )',
+  'TTS ( R )',
+  'Failure Month',
+  // NOT in the workbook — appended so A to AG still line up with it exactly.
+  'Pending Days',
 ] as const;
 
 // Which of them are dates, and which carries a TIME. The registration column

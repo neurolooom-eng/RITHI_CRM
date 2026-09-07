@@ -278,7 +278,10 @@ const MODULES = {
     files: ['0052_search_indexes.sql', '0098_product_register_names.sql', '0099_no_jit.sql', '0101_kpi_views.sql',
       // The KPI workbook's Field_INST tab. LAST in this module: it reads the
       // split call tables and `reports`, both of which earlier modules create.
-      '0128_kpi_field_inst.sql'],
+      '0128_kpi_field_inst.sql',
+      // Phase 2: AC-AG and Pending Days. Redefines the view, so it must come
+      // after 0128 and stay after it.
+      '0131_kpi_phase2.sql'],
   },
   audit: {
     title: 'Audit Log',
