@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.125',
+    date: '2026-09-07',
+    title: 'The three vigilance questions stand on their own',
+    changes: [
+      'PUBLIC HEALTH THREAT, DEATH and SERIOUS INCIDENT now sit in a section of their own on the call form, projected against the page so they cannot be skimmed past \u2014 on the register, and on both forms in Pending Registrations.',
+      'They are not \u201creporting details\u201d: they are Review 1, they are what the Daily Call Review reads, and since yesterday every change to one after registration is kept. A section of their own says so.',
+      'PERSON CALLING and MODE OF COMPLAINT REPORTING have moved in with Customer Contact \u2014 they are facts about the person on the phone, and that is where somebody looks for them. The old Reporting section is gone; nothing has been removed from the form.',
+      'The highlight is a CONTRAST PROJECTION, not a tint, so it reads the same in either theme.',
+      'No migration.',
+    ],
+  },
+  {
     version: '0.9.124',
     date: '2026-09-06',
     title: 'Editing a call is four rights, not one',

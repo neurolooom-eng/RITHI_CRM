@@ -66,6 +66,13 @@ interface FormProps {
   footer?: ReactNode;
   // When set, users can reorder the form's sections and the order persists.
   sectionOrderKey?: string;
+  // Sections that must not be skimmed past. Rendered by INVERTING against the
+  // page rather than tinting it — a pale wash of the accent colour is what this
+  // project reached for first and it did not read on screen at all (the user's
+  // standing preference: "I would always prefer a Contrast Projection when I
+  // say Highlight"). Used for the vigilance questions on a call, which are a
+  // regulatory record and the one part of the form nobody may overlook.
+  emphasisSections?: string[];
 }
 
 const resolveOptions = (f: FieldDef): FieldOption[] =>
@@ -88,6 +95,7 @@ export function SchemaForm({
   columns = 2,
   footer,
   sectionOrderKey,
+  emphasisSections,
 }: FormProps) {
   const initValues = (): FormValues => {
     const v: FormValues = {};
@@ -207,7 +215,10 @@ export function SchemaForm({
   return (
     <form className="sf" onSubmit={submit}>
       {orderedSections.map(([section, secFields], si) => (
-        <div className="sf-section" key={section || '_'}>
+        <div
+          className={`sf-section${emphasisSections?.includes(section) ? ' sf-section-vital' : ''}`}
+          key={section || '_'}
+        >
           {section && (
             <div className="sf-section-title">
               <span>{section}</span>

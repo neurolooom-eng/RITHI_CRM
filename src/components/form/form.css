@@ -96,3 +96,32 @@
 .cs-note { font-size: 11px; color: var(--text-muted); font-style: italic; }
 .cs-warn { font-size: 11.5px; color: var(--danger); font-weight: 600; }
 .cs-undo { font-size: 12px; color: var(--text-muted); }
+
+/* ---------------------------------------------------------------------------
+   A SECTION NOBODY MAY SKIM PAST.
+   Used for the vigilance questions on a call — Public Health Threat, Death,
+   Serious Incident. They are a regulatory record, they default to NO, and a
+   default that is never read is the way one goes missing.
+
+   INVERTED AGAINST THE PAGE, not tinted. The project reached for a pale wash of
+   the accent colour first and it did not read on screen; the standing rule is
+   that "highlight" means contrast projection — background: var(--text) on
+   color: var(--surface) — which works in either theme by construction, unlike
+   a hand-picked highlighter colour. The controls keep their own surface, so
+   the band is dark and the boxes inside it are not.
+   --------------------------------------------------------------------------- */
+.sf-section-vital {
+  background: var(--text);
+  color: var(--surface);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  margin: 2px 0;
+}
+.sf-section-vital .sf-section-title {
+  color: var(--surface);
+  border-bottom-color: color-mix(in srgb, var(--surface) 35%, transparent);
+}
+.sf-section-vital .field-label { color: var(--surface); }
+.sf-section-vital .field-help { color: var(--surface); opacity: 0.75; }
+/* The buttons that reorder sections sit on the inverted ground too. */
+.sf-section-vital .sf-section-move .btn { color: var(--surface); }

@@ -90,6 +90,10 @@ type Rec = BaseRecord & { _synced?: boolean; _pending?: boolean };
 
 const OPT = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
 
+// ONE STRING, used by the schema below and by every form that renders it, so a
+// rename cannot leave the emphasis pointing at a section that no longer exists.
+export const VIGILANCE_SECTION = 'Vigilance — answer these';
+
 // ---- Add / edit form schema (mapped to the FIELD tab columns) -------------
 export const FIELD_CALL_FIELDS: FieldDef[] = [
   // Registration (auto-assigned)
@@ -123,17 +127,27 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   { name: 'allocatedTo', label: 'Call Allocated To', type: 'select', options: [], section: 'Complaint', span: 1 },
   { name: 'breakdownDate', label: 'Breakdown Date', type: 'date', section: 'Complaint', span: 1 },
 
-  // Reporting / risk
-  { name: 'personCalling', label: 'Person Calling', type: 'select', options: OPT(PERSON_CALLING), section: 'Reporting', span: 1 },
-  { name: 'modeOfReporting', label: 'Mode of Complaint Reporting', type: 'select', options: OPT(MODE_OF_REPORTING), section: 'Reporting', span: 1 },
-  { name: 'publicHealthThreat', label: 'Public Health Threat?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
-  { name: 'death', label: 'Death?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
-  { name: 'seriousIncident', label: 'Serious Incident?', type: 'select', options: OPT(YES_NO), section: 'Reporting', span: 1, defaultValue: 'NO' },
+  // VIGILANCE — the three answers a regulator asks about, on their own and
+  // impossible to skim past (user, 2026-09-06: "highlight these 3 ... so it is
+  // prominent and never goes missing").
+  //
+  // A section of their own because they are not "reporting details": they are
+  // Review 1, they are what the DCCR reads, and every change to one after
+  // registration is kept (0127). Who called and how they called are ordinary
+  // facts about the customer's call, so they have moved in with the customer.
+  { name: 'publicHealthThreat', label: 'Public Health Threat?', type: 'select', options: OPT(YES_NO), section: VIGILANCE_SECTION, span: 1, defaultValue: 'NO' },
+  { name: 'death', label: 'Death?', type: 'select', options: OPT(YES_NO), section: VIGILANCE_SECTION, span: 1, defaultValue: 'NO' },
+  { name: 'seriousIncident', label: 'Serious Incident?', type: 'select', options: OPT(YES_NO), section: VIGILANCE_SECTION, span: 1, defaultValue: 'NO' },
 
-  // Customer contact
+  // Customer contact — who reported it, and how they reached us. Person Calling
+  // and Mode of Reporting moved here from Reporting on the user's instruction:
+  // they are facts about the person on the phone, and grouping them with the
+  // rest of the caller's details is where somebody looks for them.
   { name: 'customerName', label: 'Customer Name', section: 'Customer Contact', span: 1 },
   { name: 'customerNumber', label: 'Customer Number', type: 'tel', section: 'Customer Contact', span: 1 },
   { name: 'customerDesignation', label: 'Customer Designation', section: 'Customer Contact', span: 1 },
+  { name: 'personCalling', label: 'Person Calling', type: 'select', options: OPT(PERSON_CALLING), section: 'Customer Contact', span: 1 },
+  { name: 'modeOfReporting', label: 'Mode of Complaint Reporting', type: 'select', options: OPT(MODE_OF_REPORTING), section: 'Customer Contact', span: 1 },
   // 'emailAddress' is NOT on this form. It holds the email of the engineer who
   // RAISED the request — not the customer's, and not needed on the call. Who
   // REGISTERED the call is a different fact and a controlled one, and since
@@ -1207,6 +1221,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             <SchemaForm
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
+              emphasisSections={[VIGILANCE_SECTION]}
               fields={lockByRight(injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS))}
               initial={drawer.mode === 'create'
                 ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }

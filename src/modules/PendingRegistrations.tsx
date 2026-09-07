@@ -5,7 +5,7 @@ import { SchemaForm, type FormValues } from '../components/form/Form';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
 import { addFieldCall, listPending, searchProducts, setPendingUcn, updateFieldCall, dataConfigured } from '../lib/sheets';
 import { cancelCallRequest, callByUcn, openCallsFor, callsForMachine, machineKey, supabaseConfigured, type OpenCall, type MachineCall } from '../lib/supabase';
-import { FIELD_CALL_FIELDS } from './FieldCalls';
+import { FIELD_CALL_FIELDS, VIGILANCE_SECTION } from './FieldCalls';
 import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
@@ -595,6 +595,7 @@ function RequestActions({
                 </div>
                 {editErr && <div className="sheet-banner sheet-banner-error"><span>{editErr}</span></div>}
                 <SchemaForm
+                  emphasisSections={[VIGILANCE_SECTION]}
                   fields={editFields}
                   initial={editing.values}
                   columns={1}
@@ -734,6 +735,7 @@ function RegisterPanel({
             <SchemaForm
               key={pfKey}
               sectionOrderKey="callform"
+              emphasisSections={[VIGILANCE_SECTION]}
               fields={registerFields}
               initial={{ complaintDate: todayISO(), breakdownDate: todayISO(), ...pf }}
               submitLabel={busy ? 'Registering…' : `Register ${config.singular}`}

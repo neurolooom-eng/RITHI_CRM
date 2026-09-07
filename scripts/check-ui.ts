@@ -1112,5 +1112,50 @@ console.log('\n-- editing a call is four rights, not one --');
     /readOnly: true, help: `Needs the "\$\{r\.what\}" permission`/.test(fc), true);
 }
 
+// THE THREE VIGILANCE QUESTIONS ARE PROMINENT AND NEVER GO MISSING (user's
+// instruction, 2026-09-06), and the two ordinary questions that used to sit
+// with them have moved in with the customer.
+console.log('\n-- the vigilance questions stand on their own --');
+{
+  const fc = readFileSync(`${process.cwd()}/src/modules/FieldCalls.tsx`, 'utf8');
+  const sectionOf = (field: string): string => {
+    const m = new RegExp(`\\{ name: '${field}',[^\\n]*?section: (VIGILANCE_SECTION|'[^']+')`).exec(fc);
+    return m ? m[1].replace(/'/g, '') : '(not found)';
+  };
+  for (const f of ['publicHealthThreat', 'death', 'seriousIncident']) {
+    eq(`${f} is in the vigilance section`, sectionOf(f), 'VIGILANCE_SECTION');
+  }
+  // "move the other 2 questions in reporting to customer section"
+  for (const f of ['personCalling', 'modeOfReporting']) {
+    eq(`${f} has moved to Customer Contact`, sectionOf(f), 'Customer Contact');
+  }
+  // Nothing else may join them: the section is prominent BECAUSE it is only
+  // these three. One ordinary field in it and the emphasis starts to read as
+  // decoration.
+  const inVital = [...fc.matchAll(/\{ name: '([a-zA-Z]+)',[^\n]*?section: VIGILANCE_SECTION/g)].map((m) => m[1]);
+  eq('...and nothing else is in it', inVital.sort().join(','), 'death,publicHealthThreat,seriousIncident');
+  // The old "Reporting" section is gone entirely — an empty heading would be
+  // worse than none.
+  eq('the old Reporting section is gone', /section: 'Reporting'/.test(fc), false);
+
+  // Every form that renders the call schema must ask for the emphasis, or the
+  // section exists on that screen and simply does not stand out.
+  eq('the register asks for the emphasis', /emphasisSections=\{\[VIGILANCE_SECTION\]\}/.test(fc), true);
+  const pr = readFileSync(`${process.cwd()}/src/modules/PendingRegistrations.tsx`, 'utf8');
+  eq('...and BOTH forms on Pending Registrations do too',
+    (pr.match(/emphasisSections=\{\[VIGILANCE_SECTION\]\}/g) ?? []).length, 2);
+
+  // CONTRAST PROJECTION, NOT A TINT. The standing preference, and the thing
+  // this project got wrong first: a pale wash of the accent did not read at
+  // all on screen. Inverting against the page works in either theme by
+  // construction, which a hand-picked highlighter colour does not.
+  const css = readFileSync(`${process.cwd()}/src/components/form/form.css`, 'utf8');
+  const vital = /\.sf-section-vital \{[\s\S]*?\}/.exec(css)?.[0] ?? '';
+  eq('the emphasis INVERTS against the page',
+    /background: var\(--text\)/.test(vital) && /color: var\(--surface\)/.test(vital), true);
+  eq('...it is not a tint of the accent colour',
+    /color-mix[^;]*--primary/.test(vital), false);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
