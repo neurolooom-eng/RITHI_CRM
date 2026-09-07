@@ -20,6 +20,7 @@ import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
+import { buildXlsx } from '../src/lib/xlsx';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -1386,6 +1387,46 @@ console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
   // A row that computes itself is marked, or nobody can tell which figures are
   // evidence and which are somebody's typing.
   eq('a computed row is marked on the screen', /className="obj-calc"/.test(obj), true);
+}
+
+// THE EVIDENCE IS A WORKBOOK (user, 2026-09-07): "List of Field Calls
+// (Sheet1), Installation Base (Sheet2), Calculation (Sheet3)".
+console.log('\n-- the evidence workbook --');
+{
+  // A real .xlsx, written without a dependency. The bytes are checked rather
+  // than the code: a ZIP whose CRC or offsets are wrong opens as a corrupt file.
+  const bytes = buildXlsx([
+    { name: 'List of Field Calls', columns: ['UCN', 'Days'], rows: [{ UCN: 'x & <y>', Days: 3 }] },
+    { name: 'Installation Base', columns: ['Serial'], rows: [{ Serial: 'INXT 1' }] },
+    { name: 'Calculation', columns: ['Item', 'Value'], rows: [{ Item: 'Rate', Value: 0.2 }] },
+  ]);
+  const s = Array.from(bytes).map((b) => String.fromCharCode(b)).join('');
+  eq('it is a ZIP', s.slice(0, 2), 'PK');
+  eq('...with an end-of-directory record', s.includes('\x50\x4b\x05\x06'), true);
+  eq('...carrying the workbook part', s.includes('xl/workbook.xml'), true);
+  eq('...and one worksheet per sheet',
+    ['sheet1.xml', 'sheet2.xml', 'sheet3.xml'].every((n) => s.includes(`xl/worksheets/${n}`)), true);
+  eq('the tabs are named as asked',
+    s.includes('List of Field Calls') && s.includes('Installation Base') && s.includes('Calculation'), true);
+  // A number must be a number, or the Calculation tab cannot be added up.
+  eq('a number is written as a number, not text', s.includes('<v>0.2</v>'), true);
+  // XML-unsafe text must not break the part.
+  eq('...and text is escaped', s.includes('x &amp; &lt;y&gt;'), true);
+
+  const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  eq('the three sheets are the ones asked for',
+    /name: 'List of Field Calls'/.test(obj) && /name: 'Installation Base'/.test(obj)
+    && /name: 'Calculation'/.test(obj), true);
+  // Sheet 3 is counted from sheets 1 and 2 — the file has to add up to itself.
+  eq('the calculation is counted from the rows, not read off the page',
+    /const numerator = isRate \? calls\.length/.test(obj)
+    && /const denominator = isRate \? machines\.length/.test(obj), true);
+  // ...and it says so when the page disagrees, rather than hiding it.
+  eq('...and it flags a figure that no longer agrees',
+    /re-calculate; the calls have changed since the figure was written/.test(obj), true);
+  // An empty tab reads as a bug; the open rate has no install base and says so.
+  eq('an objective with no install base says so on the tab',
+    /it has no installed base/.test(obj), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

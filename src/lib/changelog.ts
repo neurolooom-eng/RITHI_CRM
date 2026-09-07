@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.134',
+    date: '2026-09-07',
+    title: 'The evidence is a workbook: the calls, the machines, the arithmetic',
+    changes: [
+      'Downloading the evidence behind a figure now gives you an EXCEL FILE WITH THREE TABS \u2014 LIST OF FIELD CALLS, INSTALLATION BASE, and CALCULATION.',
+      'THE INSTALLATION BASE IS LISTED, machine by machine. It used to be a single line saying how many; a denominator of 47 that nobody can enumerate is worth as much as no denominator at all. Now you can count it.',
+      'The CALCULATION tab is worked out FROM THE OTHER TWO \u2014 not read off the page \u2014 so the file adds up to itself. It shows the numerator, the denominator, the division, the result as a fraction and as a percentage, the target, and how the figure was arrived at.',
+      'IT ALSO SAYS WHETHER IT STILL AGREES WITH THE PAGE. If the calls have changed since the last Re-Calculate, the file says so rather than quietly differing from the number on screen.',
+      'An objective with no installed base \u2014 an open rate is calls over calls \u2014 says that on the tab instead of leaving it blank, because an empty sheet reads as a fault.',
+      'It records the two things about these numbers that are not obvious: each month is measured as at the END of that month, and the machines are counted as the Product Register stands TODAY, since it keeps no history of past installs.',
+      'No migration for the file itself; the machine-by-machine listing needs supabase/apply/objective.sql.',
+    ],
+  },
+  {
     version: '0.9.133',
     date: '2026-09-07',
     title: 'The Indian Extend is counted on its own',

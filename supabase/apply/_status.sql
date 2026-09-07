@@ -448,6 +448,14 @@ with checks(sort_order, bundle, provides, present) as (
         coalesce((select calc_params ? 'serial' from public.quality_objectives
                    where year = 2026 and calc_key = 'failure_rate_12m'
                      and parameter ilike '%extend%' limit 1), false)),
+    (97, 'Objective: the evidence lists the MACHINES, not just a count', 'objective_evidence returns the installed base one row per machine (role = machine), so the denominator can be COUNTED rather than taken on trust -- a denominator of 47 nobody can list is as good as none. The page puts the calls, the machines and the arithmetic on three tabs of one workbook, and Sheet 3 is counted from Sheets 1 and 2 so the file adds up to itself (0134). Restore: objective.sql',
+        -- The word "machine" alone does NOT discriminate: 0133's version says
+        -- "machines in the field" in its summary row. What is new in 0134 is
+        -- the ROLE — machines come back as rows labelled 'machine'.
+        coalesce((select pg_get_functiondef(p.oid) like '%''machine''::text%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_evidence'
+                   limit 1), false)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
