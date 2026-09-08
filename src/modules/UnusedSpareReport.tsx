@@ -121,6 +121,10 @@ export function UnusedSpareReport() {
           <b>Dispatched counts as reached.</b> Acknowledging a delivery is not mandatory, so waiting for a
           receipt would leave most of these unreported.
         </p>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+          <b>Dispatched counts as reached.</b> Acknowledging a delivery is not mandatory, so waiting for a
+          receipt would leave most of these unreported.
+        </p>
 
         <div className="row" style={{ gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
           <label className="field-label" style={{ display: 'grid', gap: 4 }}>Dispatched from
