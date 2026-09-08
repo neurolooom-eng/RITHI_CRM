@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
-import { supabaseConfigured, countUnusedSpares, listUnusedSpares } from '../lib/supabase';
+import { supabaseConfigured, countUnusedSpares, listUnusedSpares, unusedSpareEngineers } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { xlsxDownload } from '../lib/xlsx';
 import { csvExport, fmtLongDate } from '../lib/format';
@@ -41,6 +41,11 @@ export function UnusedSpareReport() {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // The engineers this report can offer, read once. An empty list means the
+  // view is not there yet (or nothing is flagged), and the box falls back to
+  // free text rather than becoming a dropdown with nothing in it.
+  const [engineers, setEngineers] = useState<string[]>([]);
+  useEffect(() => { if (live) void unusedSpareEngineers().then(setEngineers).catch(() => setEngineers([])); }, [live]);
   const set = (k: keyof UnusedSpareFilter, v: string) => setFilter((f) => ({ ...f, [k]: v }));
 
   // How many the filter matches, asked of the database as the filter changes,
@@ -134,7 +139,14 @@ export function UnusedSpareReport() {
             <input className="input" type="date" value={filter.to} onChange={(e) => set('to', e.target.value)} />
           </label>
           <label className="field-label" style={{ display: 'grid', gap: 4 }}>Engineer
-            <input className="input" placeholder="any" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)} />
+            {engineers.length ? (
+              <select className="select" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)}>
+                <option value="">Any engineer</option>
+                {engineers.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            ) : (
+              <input className="input" placeholder="any" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)} />
+            )}
           </label>
           <label className="field-label" style={{ display: 'grid', gap: 4 }}>Product
             <input className="input" placeholder="any" value={filter.product} onChange={(e) => set('product', e.target.value)} />

@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.158',
+    date: '2026-09-08',
+    title: 'The Engineer filter is a dropdown, and the Tracker catches up',
+    changes: [
+      'ON THE NOT CONSUMED REPORT, the Engineer filter is a dropdown \u2014 built from the engineers actually IN the report, so every option returns something. A list of every engineer on the system would mostly return an empty screen.',
+      'THE TRACKER NOW CARRIES WHAT THE BACKLOG DOES: the three decisions you parked, and the findings from the 13485 review. Eight items added; nothing already on your list is closed, renamed or touched.',
+      'Needs supabase/apply/tracker.sql.',
+    ],
+  },
+  {
     version: '0.9.157',
     date: '2026-09-08',
     title: 'Spare Insights',

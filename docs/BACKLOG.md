@@ -29,7 +29,7 @@ that explains it.
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
 | 🩺 | **Is any servicing subcontracted?** §7.5.4 says "the organization **or its supplier**". If any is, those records sit outside the daily analysis entirely and the gap is invisible from inside RITHI. Worth confirming either way. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-035/036* |
-| 🩺 | **Do nonconformity, CAPA, complaints and vigilance belong IN this system**, or in a separate quality system this one feeds? Governance, not engineering — and it decides whether four requirements are work here or duplication of a register that already exists. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-028/031/034* |
+| 🩺 | **A complaint that never becomes a call has nowhere to live (SR-038).** The exposure the boundary decision created: either every complaint enters as a call, or the complaint register is elsewhere and this system feeds it. What cannot stand is the middle — a register presented as the complaint population with a route into complaints that bypasses it. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-038* |
 
 ✅ **THE CALLREG REDEPLOY IS DONE (2026-09-08, v0.9.150).** The user redeployed
 and sent the new `/exec` URL, which is baked into `DEFAULT_SHEETS_URL` with
@@ -42,6 +42,15 @@ it not matter.
 **Reported, not verified from here** — `script.google.com` is blocked from the
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
+
+⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
+with this file: eight items added (0150), the three parked decisions and the
+13485 findings. Additive and idempotent by title; nothing already on the list is
+closed, renamed or touched. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+(It also carries the Air Liquide ID item from 0146, if that has not been run.)
 
 🟡 **`performance.sql` RUN — reported, not verified (2026-09-08, v0.9.157).**
 The user ran it after v0.9.157 shipped. That bundle carries BOTH
@@ -130,6 +139,12 @@ finished.
 | 💰 | **Pro vs splitting projects.** Nine years of history is ~1.25 GB with this indexing; the free tier cannot hold it even split three ways. The recommendation is Pro (8 GB). |
 | 🧹 | **REINDEX the fat tables.** Index bloat is real here — `record_audit` holds 8 MB of indexes over 792 kB of rows. Likely 30–60 MB back for no behaviour change. |
 | 🩺 | **The two 13485 gaps that rank first**, and they are a pair: post-service verification against acceptance criteria (SR-006 — §7.5.4 asks for it, and "Solved" is a call outcome, not a statement about the device), and tying a measurement to a calibrated instrument (SR-020 — without it a reading does not evidence conformity). The second is only worth building after the first. Cheapest real gain is SR-027, the complaint determination: one controlled field and a reason on a review that already runs daily. |
+
+*One question that used to sit in this index is **answered**: nonconformity, CAPA
+and advisory notices live OUTSIDE this system, and the field call register IS the
+complaint register (the user, 2026-09-08). It was still listed as open a round
+later — recorded here so the index stops asking it. What the answer created is
+SR-038 and SR-039, both above.*
 
 #### 🅿️ PARKED, at the user's direction (2026-09-08)
 
