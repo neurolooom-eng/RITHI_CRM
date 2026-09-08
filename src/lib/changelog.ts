@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.140',
+    date: '2026-09-08',
+    title: 'The DCCR export pastes straight into the reliability workbook',
+    changes: [
+      'THE DCCR EXPORT NOW CARRIES ALL 53 COLUMNS OF WRR-2026 (columns 15\u201367), in that exact order \u2014 so an export drops into the reliability workbook without shifting a single column. It already matched on 43 of them; the other ten were the whole difference.',
+      'The ten added: Updated By, Updated Date, CALL PENDING REASON, CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint and DUMMY COLUMN.',
+      'NINE OF THEM ARE BLANK FOR NOW, on purpose. Six came from the old AppSheet export and nothing in this system records what they held \u2014 and three of those are near-duplicates of columns that ARE exported, which is exactly where a wrong guess would go unnoticed. A column present and empty still holds the sheet\u2019s shape, which is why they are there.',
+      'CALL PENDING REASON IS FILLED, not blank \u2014 the register already carries it, and an empty column where the data is in hand is a loss rather than a placeholder.',
+      'Nothing was reordered: the 43 columns that already existed were in the same relative order as the workbook, so this is pure insertion. The daily-review workbook keeps every column it had.',
+      'No migration \u2014 this is the export format only.',
+    ],
+  },
+  {
     version: '0.9.139',
     date: '2026-09-07',
     title: 'A cut-off date for every month, not one for the year',
