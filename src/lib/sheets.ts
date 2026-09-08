@@ -19,8 +19,8 @@ const TAB_KEY = 'rithi.sheets.tab';
 // out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
 // on an older version adopt the new default automatically (their stale saved
 // URL is superseded until they explicitly Save a new one in Settings).
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwpid30IrUQzyUdRErp2eDKSt8H_A0TYv-9TJMYpetSGZUQkN36SqK7fspxviaPMj4R/exec';
-const DEFAULT_URL_VERSION = 9;   // v9: the redeploy carrying `drivefind` (0.9.23)
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxNS2GI7cp2n4eKAINQLtYW1FrxqTQo0TFYulRl3_dCvMG6iH992RkS5XJOFr8F0ZOs/exec';
+const DEFAULT_URL_VERSION = 10;  // v10: the redeploy carrying `drivefile` (0.9.150)
 
 export function getSheetsUrl(): string {
   try {
