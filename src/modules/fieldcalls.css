@@ -481,3 +481,17 @@
   background: #b45309;
   color: #fff;
 }
+
+/* AGING. A stopped clock is never coloured: the call is finished, and colouring
+   a finished thing red says something is wrong when nothing is. Contrast for
+   the two that need attention, per the project's rule — a saturated solid,
+   never a tint. */
+.age-chip {
+  display: inline-block; white-space: nowrap;
+  font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 2px 8px; border-radius: 999px;
+}
+.age-none { color: var(--text-muted); }
+.age-ok   { color: var(--text-muted); }
+.age-warn { background: #b45309; color: #fff; }
+.age-late { background: #b3261e; color: #fff; }

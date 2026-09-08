@@ -13,6 +13,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
 import { csvExport, fmtDateTime, fmtLongDate, fmtLongSmart, timeAgo, todayISO } from '../lib/format';
+import { callAging, agingTone } from '../lib/aging';
 import { C } from './collections';
 import {
   addFieldCall,
@@ -204,6 +205,25 @@ const COLUMNS: Column<Rec>[] = [
   { key: 'createdBy', header: 'Created By (Hotline Desk)', width: 170 },
   { key: 'actualCreatedBy', header: 'Actually Registered By', width: 180 },
   { key: 'regDate', header: 'Registered Date', width: 190, render: (r) => fmtLongSmart(r.regDate) },
+  // AGING — one column, every call type, because FieldCalls is the register for
+  // Field, Installation and PM alike. The clock stops when the call is Solved
+  // (the user, 2026-09-08) and, for the same reason, when it is Cancelled:
+  // nobody is waiting, so counting on would report a delay that is not
+  // happening. A stopped age says so rather than being coloured — see aging.ts.
+  { key: 'agingDays', header: 'Aging', width: 110, wrap: false, align: 'right',
+    render: (r) => {
+      const a = callAging(r as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+      if (a.days == null) return <span className="muted">—</span>;
+      const tone = agingTone(a);
+      return (
+        <span className={`age-chip age-${tone}`}
+              title={a.stopped
+                ? `Stopped on ${fmtLongDate(a.on)} — the call is ${String(r.callState ?? 'closed').toLowerCase()}`
+                : `Open ${a.days} day${a.days === 1 ? '' : 's'} and counting`}>
+          {a.days}d{a.stopped ? ' ⏹' : ''}
+        </span>
+      );
+    } },
   { key: 'complaintDate', header: 'Complaint Date', width: 150, render: (r) => fmtLongDate(r.complaintDate) },
   { key: 'partyName', header: 'Party Name', width: 220 },
   { key: 'city', header: 'City', width: 110 },
