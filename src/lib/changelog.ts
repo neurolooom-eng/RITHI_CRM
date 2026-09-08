@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.151',
+    date: '2026-09-08',
+    title: 'The report viewer says how long it has been waiting, and only fetches once',
+    changes: [
+      'IT WAS NOT STUCK \u2014 it was waiting, and it had no way of telling you which. The viewer sat on an unchanging \u201cFetching the report…\u201d for up to a hundred seconds. A wait nobody can tell from a failure IS a failure, and that is on me.',
+      'THE WAIT NOW COUNTS UP IN SECONDS, so you can see it working. After five seconds it also says why a big scan is slow, and points at \u201cOpen in Drive\u201d, which has been there all along.',
+      'AND IT ENDS. Forty-five seconds at the outside, then it tells you what went wrong instead of waiting on.',
+      'A REPORT YOU HAVE ALREADY OPENED OPENS INSTANTLY. The file is kept for the rest of your session, so going back to a call you just looked at costs nothing. The last four are kept \u2014 each one is megabytes, and a morning\u2019s work would otherwise fill the browser.',
+      'WHY IT IS SLOW AT ALL, plainly: the bridge has to read the whole file from Drive, encode it, and send it in one piece \u2014 there is no way to send it a bit at a time. A scanned report is several megabytes and that takes as long as it takes. The next improvement is asking its SIZE first, so a very large one can say so at once rather than making you wait to find out.',
+    ],
+  },
+  {
     version: '0.9.150',
     date: '2026-09-08',
     title: 'The bridge is redeployed — reports open for everyone now',

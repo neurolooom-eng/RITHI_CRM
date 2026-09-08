@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { driveFileId, drivePreviewUrl } from '../../lib/drive';
-import { fetchAppDocument, base64ToBlob, sheetsConfigured } from '../../lib/sheets';
+import { fetchAppDocumentBlob, sheetsConfigured } from '../../lib/sheets';
 import './docpreview.css';
 
 // ===========================================================================
@@ -54,6 +54,14 @@ export function DocPreview({ url, title, subtitle, onClose }: {
   // Drive's frame takes a moment to draw; without this it is a grey rectangle
   // for a second or two, which reads as "nothing happened".
   const [frameLoaded, setFrameLoaded] = useState(false);
+  // Seconds spent waiting on the bridge — see the loading block below.
+  const [waited, setWaited] = useState(0);
+
+  useEffect(() => {
+    if (mode !== 'loading') return;
+    const id = window.setInterval(() => setWaited((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [mode]);
 
   // Ask the bridge for the bytes. A blob URL is a live handle into this tab's
   // memory, so it is released when the viewer closes or the document changes --
@@ -63,10 +71,10 @@ export function DocPreview({ url, title, subtitle, onClose }: {
     let alive = true;
     let made = '';
     setMode('loading'); setWhy('');
-    void fetchAppDocument(fileId).then((r) => {
+    void fetchAppDocumentBlob(fileId).then((r) => {
       if (!alive) return;
       if (r.ok && r.doc) {
-        made = URL.createObjectURL(base64ToBlob(r.doc.dataBase64, r.doc.mimeType));
+        made = URL.createObjectURL(r.doc.blob);
         setBlobUrl(made); setMimeType(r.doc.mimeType); setFileName(r.doc.name);
         setMode('bytes');
         return;
@@ -110,7 +118,20 @@ export function DocPreview({ url, title, subtitle, onClose }: {
 
         {mode === 'loading' && (
           <div className="docprev-frame">
-            <div className="docprev-loading muted">Fetching the report…</div>
+            <div className="docprev-loading">
+              {/* A COUNTER, BECAUSE A STATIC LINE IS NOT PROGRESS. The first
+                  version of this screen said "Fetching the report…" and then
+                  said it for up to a hundred seconds, which reads as a hang and
+                  was reported as one. A number that moves is the difference
+                  between "working" and "broken", and it costs one interval. */}
+              <div>Fetching the report from the CallReg bridge… <b>{waited}s</b></div>
+              {waited >= 5 && (
+                <div className="docprev-hint">
+                  A large scan can take a while — the file is read from Drive, encoded and sent whole.
+                  <br />“Open in Drive ↗” above works now if you would rather not wait.
+                </div>
+              )}
+            </div>
           </div>
         )}
 

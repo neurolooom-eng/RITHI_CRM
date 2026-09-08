@@ -1659,6 +1659,7 @@ console.log('\n-- the report, shown in the app --');
 
   const rep = readFileSync('src/modules/CallReporting.tsx', 'utf8');
   const prev = readFileSync('src/components/doc/DocPreview.tsx', 'utf8');
+  const sheets = readFileSync('src/lib/sheets.ts', 'utf8');
 
   // UPLOADED, NEVER PASTED (the user, 2026-09-08). This is what makes the
   // preview trustworthy: an upload is shared by CallReg.gs, a pasted link is
@@ -1685,17 +1686,41 @@ console.log('\n-- the report, shown in the app --');
   eq('a link that cannot be framed says so',
     /cannot be shown here/.test(prev), true);
 
+  // A WAIT NOBODY CAN TELL FROM A FAILURE IS A FAILURE. This shipped at 60s +
+  // a 45s fallback behind an unchanging line of text, and was reported as a
+  // hang within the hour. Both halves are pinned: the budget ends in an answer,
+  // and the screen shows the wait moving while it does.
+  eq('the bridge fetch is bounded, and ends in an answer',
+    /controller\.abort\(\), 25000\)/.test(sheets)
+    && /jsonp\(url, 20000\)/.test(sheets), true);
+  eq('...and both failures are reported, not just the fallback\u2019s',
+    /first attempt: \$\{a\}/.test(sheets), true);
+  eq('the viewer counts the seconds it has waited',
+    /setWaited\(\(n\) => n \+ 1\)/.test(prev)
+    && /<b>\{waited\}s<\/b>/.test(prev), true);
+  eq('...and offers the way out once the wait is noticeable',
+    /waited >= 5 &&/.test(prev), true);
+
   const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
 
   // THE BYTES COME THROUGH THE BRIDGE FIRST, not from Drive. The org forbids
   // link sharing, so Drive's own preview only works for somebody already signed
   // in with folder access — a small set, and not the engineers.
   eq('the report is fetched through the bridge before Drive is tried',
-    /fetchAppDocument\(fileId\)/.test(prev)
+    /fetchAppDocumentBlob\(fileId\)/.test(prev)
     && /setMode\(driveSrc \? 'drive' : 'plain'\)/.test(prev), true);
   // A blob URL is a live handle into this tab's memory.
   eq('...and the blob is released when the viewer closes',
     /URL\.revokeObjectURL\(made\)/.test(prev), true);
+  // Paying the transfer twice for the same report is the part that WAS fixable.
+  // Revoking an object URL does not touch the Blob it came from, so a cached
+  // document survives the viewer closing.
+  eq('a report already fetched is not fetched again',
+    /const docCache = new Map<string, AppDocumentBlob>\(\)/.test(sheets)
+    && /if \(hit\) return \{ ok: true, doc: hit, cached: true \}/.test(sheets), true);
+  eq('...and the cache is bounded, because each entry is megabytes',
+    /DOC_CACHE_MAX = 4/.test(sheets)
+    && /docCache\.delete\(oldest\)/.test(sheets), true);
   // Under a policy that blocks link sharing this is the only route to a copy
   // that does not need a Google account.
   eq('...and bytes in hand mean a download is offered',

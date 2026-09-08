@@ -545,18 +545,30 @@ export async function fetchAppDocument(fileId: string): Promise<{ ok: boolean; d
   if (!base) return { ok: false, error: 'No Google Sheet URL configured — set it in Settings.' };
   if (!fileId) return { ok: false, error: 'No file id.' };
   const url = `${base}?${new URLSearchParams({ action: 'drivefile', id: fileId }).toString()}`;
+  // BOUNDED, AND THE BOUND IS THE POINT. This first shipped at 60s with a 45s
+  // JSONP fallback behind it -- 105 seconds of an unchanging "Fetching the
+  // report…" on a blank panel, which is indistinguishable from a hang and was
+  // reported as one within the hour. A wait nobody can tell from a failure is a
+  // failure. 25 + 20 is still generous for a few megabytes of base64 over a
+  // script that has to read the file and encode it, and it ends in an ANSWER.
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  const timer = setTimeout(() => controller.abort(), 25000);
   let r: Record<string, unknown>;
   try {
     const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok) throw new Error(`Bridge responded ${res.status}`);
     r = await res.json();
-  } catch {
+  } catch (first) {
     clearTimeout(timer);
-    try { r = await jsonp(url); } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    try { r = await jsonp(url, 20000); } catch (e) {
+      // BOTH reasons, not just the second. The fetch failure is usually the
+      // informative one (a CORS refusal, a 401, an abort) and the JSONP one is
+      // usually "timed out" — reporting only the fallback's throws away what
+      // actually went wrong.
+      const a = first instanceof Error ? first.message : String(first);
+      const b = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: a === b ? a : `${b} (first attempt: ${a})` };
     }
   }
   if (!r.ok || !r.dataBase64) return { ok: false, error: String(r.error ?? 'The bridge could not read that file.') };
@@ -569,6 +581,53 @@ export async function fetchAppDocument(fileId: string): Promise<{ ok: boolean; d
       dataBase64: String(r.dataBase64),
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// FETCHED ONCE PER SESSION, NOT ONCE PER OPEN.
+//
+// The user, 2026-09-08: "i think it is taking quite some time to load.." — and
+// it does, unavoidably: the bridge reads the file, base64-encodes it (+33%) and
+// sends the whole thing, because ContentService cannot return binary. A scanned
+// report is megabytes and there is no streaming and no progress to report.
+//
+// What CAN be fixed is paying that cost twice. A reviewer working the Daily Call
+// Review opens the same report, closes it, and opens it again; a second visit to
+// a call re-fetches what the browser already had. So the decoded blob is kept.
+//
+// FOUR OF THEM, and the oldest is dropped. Each is megabytes of live memory, and
+// somebody working through fifty calls in a morning would otherwise accumulate
+// every one of them. Four covers going back to what you just looked at, which is
+// the actual pattern, without holding a session's worth of scans.
+//
+// The BLOB is cached, not the base64 — a quarter smaller, and it skips the
+// decode on the way back out. Revoking an object URL does not touch the Blob it
+// came from, so each open makes its own URL from the same cached bytes.
+// ---------------------------------------------------------------------------
+export interface AppDocumentBlob { name: string; mimeType: string; size: number; blob: Blob }
+const docCache = new Map<string, AppDocumentBlob>();
+const DOC_CACHE_MAX = 4;
+
+export async function fetchAppDocumentBlob(
+  fileId: string,
+): Promise<{ ok: boolean; doc?: AppDocumentBlob; cached?: boolean; error?: string }> {
+  const hit = docCache.get(fileId);
+  if (hit) return { ok: true, doc: hit, cached: true };
+  const r = await fetchAppDocument(fileId);
+  if (!r.ok || !r.doc) return { ok: false, error: r.error };
+  const doc: AppDocumentBlob = {
+    name: r.doc.name,
+    mimeType: r.doc.mimeType,
+    size: r.doc.size,
+    blob: base64ToBlob(r.doc.dataBase64, r.doc.mimeType),
+  };
+  docCache.set(fileId, doc);
+  while (docCache.size > DOC_CACHE_MAX) {
+    const oldest = docCache.keys().next().value;
+    if (oldest === undefined) break;
+    docCache.delete(oldest);
+  }
+  return { ok: true, doc, cached: false };
 }
 
 /** base64 → a Blob the browser can render. Chunked: a single
