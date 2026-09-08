@@ -1778,7 +1778,7 @@ console.log('\n-- the report, shown in the app --');
     /DRIVE_SERVE_MAX_BYTES/.test(gs) && /too large to show here/.test(gs), true);
 }
 
-console.log('\n-- Not Used as per the Request --');
+console.log('\n-- Not Consumed Against this Call --');
 {
   const view = readFileSync('supabase/migrations/0147_unused_spare_report.sql', 'utf8');
   const scr  = readFileSync('src/modules/UnusedSpareReport.tsx', 'utf8');
@@ -1787,6 +1787,19 @@ console.log('\n-- Not Used as per the Request --');
   // WHAT IT DOES NOT SAY is the whole value. A flag that fires on a refused
   // request sends somebody to look for a part that was never in the van, and
   // after two of those nobody reads the report again.
+  // TWO FINDINGS, and quantities on both sides. Presence alone missed "2 sent,
+  // 1 used" entirely.
+  eq('a shortfall is a finding, not just a total absence',
+    /coalesce\(b\.qty_used, 0\) < s\.qty_sent/.test(view)
+    && /then 'Not used' else 'Short' end/.test(view), true);
+  // A part sent twice on one call and booked once would otherwise flag BOTH
+  // lines as short — the false finding that makes this an aggregate report.
+  eq('...summed per call and part, never compared line by line',
+    /sent_total as \(/.test(view)
+    && /group by ucn, part_code/.test(view), true);
+  eq('the call flags a shortfall too, and says which',
+    /Short \{gap\.sent - gap\.used\} of \{gap\.sent\}/.test(assoc), true);
+
   eq('only lines that actually arrived are flagged',
     /l\.received_at is not null or coalesce\(l\.stores_status, ''\) ilike '%dispatch%'/.test(view)
     && /not ilike '%drop%'/.test(view)
@@ -1809,9 +1822,31 @@ console.log('\n-- Not Used as per the Request --');
   eq('...and the file carries its own scope',
     /describeUnusedFilter\(filter\)/.test(scr) && /name: 'About'/.test(scr), true);
 
+  // A DRAWER IS READ, NOT SCANNED. The mini-table styling clips every cell to
+  // one ellipsised line, which is right where ten visits have to fit and wrong
+  // in the detail drawer — it turned the two fields somebody opens it FOR, Job
+  // Done and the Complaint Observation, into "…calibration d…".
+  const detail = readFileSync('src/modules/ReportDetail.tsx', 'utf8');
+  const fcss = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  eq('the report drawer wraps its values instead of clipping them',
+    /assoc-table assoc-read/.test(detail)
+    && /\.assoc-table\.assoc-read td \{[^}]*white-space: pre-wrap/.test(fcss), true);
+  // …while the mini tables keep clipping, which is what makes them scannable.
+  eq('...and the mini tables still clip, because they are scanned',
+    /\.assoc-table th, \.assoc-table td \{[\s\S]{0,120}white-space: nowrap/.test(fcss), true);
+  // It was rendered as its raw Drive URL: too long to read and not clickable.
+  eq('the manual report in the drawer opens the viewer',
+    /isManualReport\(k\) && reportUrl/.test(detail)
+    && /<DocPreview/.test(detail), true);
+
   // The OR number is what Stores, the paperwork and the customer all say. It is
   // `or_no`; the detail pane had asked for `or_number` since it was written, so
   // it rendered blank.
+  // NOTHING THAT NEVER ARRIVED, on the call or in the report. A line that reads
+  // like a part is a part somebody will go looking for in the machine.
+  eq('the call lists neither rejected nor dropped spares',
+    /stage !== 'Rejected' && stage !== 'Dropped'/.test(assoc), true);
+
   eq('the call shows the OR number, by its real column name',
     /\{ key: 'or_no', label: 'OR No' \}/.test(assoc)
     && !/or_number/.test(assoc), true);

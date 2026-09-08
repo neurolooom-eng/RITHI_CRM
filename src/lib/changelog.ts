@@ -12,6 +12,30 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.156',
+    date: '2026-09-08',
+    title: 'Not Consumed Against this Call \u2014 renamed, and now catches short quantities',
+    changes: [
+      'THE REPORT IS NOW CALLED \u201cNot Consumed Against this Call\u201d, on the menu, on the screen, on the call and in the downloaded file.',
+      'IT CATCHES A SHORT QUANTITY, not just a part nobody booked at all. Two sent and one used is now a finding \u2014 \u201cShort 1 of 2\u201d \u2014 and the row says which of the two it is: NOT USED where none of it was booked, SHORT where some was.',
+      'QUANTITIES ARE ADDED UP PER PART, NOT PER LINE. A part sent twice on one call and booked once in a single entry would otherwise have been reported as short twice over \u2014 a false finding, and the kind that stops people trusting a report.',
+      'The call flags the same thing, in the same words.',
+      'DROPPED SPARES ARE GONE FROM THE CALL as well as the report.',
+      'Needs supabase/apply/performance.sql (again if you have already run it \u2014 the report has changed shape).',
+    ],
+  },
+  {
+    version: '0.9.155',
+    date: '2026-09-08',
+    title: 'The visit report reads properly, and its report opens',
+    changes: [
+      'THE REPORT DRAWER NO LONGER CUTS SENTENCES OFF. Job Done and Complaint Observation \u2014 the two fields somebody opens it to read \u2014 were being clipped to one line with a \u201c\u2026\u201d. They wrap now, and keep the line breaks the engineer typed.',
+      'THE MANUAL REPORT IS A BUTTON, not a raw Drive address. It was shown as a long link, truncated: too long to read and not clickable. It opens the viewer, with \u201cOpen in Drive\u201d beside it \u2014 and it also appears at the top of the drawer, where somebody looking for it looks.',
+      'The mini tables on a call still clip to one line, because those are scanned rather than read \u2014 ten visits have to fit.',
+      'DROPPED SPARES NO LONGER APPEAR ON A CALL either. A dropped line and a refused one are both \u201cnothing arrived\u201d, and on a call anything that reads like a part is a part somebody goes looking for in the machine. A drop is chased on the spare register, where it was decided \u2014 and the Not Used report already left them out.',
+    ],
+  },
+  {
     version: '0.9.154',
     date: '2026-09-08',
     title: 'The Service Report opens on the Review Desk',

@@ -71,7 +71,7 @@ export function UnusedSpareReport() {
       const all = await listUnusedSpares(filter, (n) => setMsg(`Reading… ${n.toLocaleString()} rows`));
       if (!all.length) { setMsg('Nothing is flagged for that filter — nothing to download.'); return; }
       const stamp = new Date().toISOString().slice(0, 10);
-      const name = `not-used-as-per-request-${stamp}`;
+      const name = `not-consumed-against-call-${stamp}`;
       const cols = UNUSED_SPARE_COLUMNS.map((c) => ({ key: c, header: c }));
       if (kind === 'csv') {
         csvExport(`${name}.csv`, cols, all);
@@ -81,12 +81,12 @@ export function UnusedSpareReport() {
         // the whole register — and this one exists to be sent to people who
         // were not here when it was made.
         xlsxDownload(`${name}.xlsx`, [
-          { name: 'Not Used', columns: UNUSED_SPARE_COLUMNS, rows: all },
+          { name: 'Not Consumed', columns: UNUSED_SPARE_COLUMNS, rows: all },
           {
             name: 'About',
             columns: ['Item', 'Value'],
             rows: [
-              { Item: 'Report', Value: 'Not Used as per the Request' },
+              { Item: 'Report', Value: 'Not Consumed Against this Call' },
               { Item: 'What it lists', Value: 'Spares DISPATCHED or RECEIVED against a call whose part code never appears in that call’s consumption.' },
               { Item: 'What it excludes', Value: 'Lines refused by an approver, and lines Stores dropped — nothing arrived, so nothing could be fitted.' },
               { Item: 'Matched on', Value: 'The part CODE, not the description, which drifts.' },
@@ -110,11 +110,16 @@ export function UnusedSpareReport() {
 
   return (
     <div>
-      <SectionCard title="Not Used as per the Request">
+      <SectionCard title="Not Consumed Against this Call">
         <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
-          Parts that <b>reached the engineer</b> and were never booked against the call they were sent for —
-          either fitted and not recorded, or still in the van. A line refused by an approver, or dropped by
-          Stores, is <b>not</b> here: nothing arrived, so nothing could be fitted.
+          Parts that <b>reached the engineer</b> and are not fully accounted for in the call's consumption —
+          either fitted and not recorded, or still in the van. <b>Not used</b> means none of it was booked;
+          <b>Short</b> means less was booked than was sent (2 sent, 1 used). A line refused by an approver, or
+          dropped by Stores, is <b>not</b> here: nothing arrived, so nothing could be fitted.
+        </p>
+        <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+          <b>Dispatched counts as reached.</b> Acknowledging a delivery is not mandatory, so waiting for a
+          receipt would leave most of these unreported.
         </p>
         <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
           <b>Dispatched counts as reached.</b> Acknowledging a delivery is not mandatory, so waiting for a
@@ -159,7 +164,7 @@ export function UnusedSpareReport() {
           <div className="assoc-scroll" style={{ marginTop: 12 }}>
             <table className="assoc-table">
               <thead>
-                <tr>{['UCN', 'OR No', 'Part Code', 'Part name', 'Qty Sent', 'Stage', 'Engineer', 'Customer', 'Dispatched On']
+                <tr>{['UCN', 'OR No', 'Part Code', 'Part name', 'Finding', 'Sent', 'Used', 'Short', 'Engineer', 'Customer', 'Dispatched On']
                   .map((h) => <th key={h}>{h}</th>)}</tr>
               </thead>
               <tbody>
@@ -169,8 +174,10 @@ export function UnusedSpareReport() {
                     <td>{String(r['OR No'] ?? '')}</td>
                     <td>{String(r['Part Code'] ?? '')}</td>
                     <td>{String(r['Part name'] ?? '')}</td>
+                    <td>{String(r.Finding ?? '')}</td>
                     <td>{String(r['Qty Sent'] ?? '')}</td>
-                    <td>{String(r.Stage ?? '')}</td>
+                    <td>{String(r['Qty Used'] ?? '')}</td>
+                    <td>{String(r['Qty Short'] ?? '')}</td>
                     <td>{String(r.Engineer ?? '')}</td>
                     <td>{String(r.Customer ?? '')}</td>
                     <td>{fmtLongDate(r['Dispatched On'])}</td>

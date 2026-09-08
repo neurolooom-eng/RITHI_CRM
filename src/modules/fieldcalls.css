@@ -217,6 +217,27 @@
 }
 .assoc-table th { color: var(--muted, #64748b); font-weight: 600; background: var(--surface-2, #f7f9fb); position: sticky; top: 0; }
 
+/* A TABLE YOU READ, not one you scan. The rules above clip every cell to one
+   ellipsised line, which is right for the mini tables on a call — ten visits
+   have to fit — and wrong for a detail drawer, where the whole reason somebody
+   opened it is to read the sentence the engineer wrote. "Checked machine,
+   rectified problem, calibration d…" is the field NOT doing its job.
+
+   A modifier rather than a change to the base, because both behaviours are
+   correct in their own place. */
+.assoc-table.assoc-read td {
+  white-space: pre-wrap;      /* keep the engineer's own line breaks */
+  overflow-wrap: anywhere;    /* a 300-character link cannot widen the drawer */
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  vertical-align: top;
+  line-height: 1.55;
+  padding: 7px 8px;
+}
+/* The label stays on one line and keeps its width, so the values line up. */
+.assoc-table.assoc-read td:first-child { white-space: nowrap; }
+
 /* RBAC permission matrix */
 .rbac-scroll { overflow-x: auto; }
 .rbac-table { border-collapse: collapse; font-size: 13px; min-width: 720px; }
