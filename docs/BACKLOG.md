@@ -99,6 +99,9 @@ finished.
 | --- | --- |
 | 🛠️ | **The reliability export itself.** `reliability_wrr` (WRR-2026 cols 1–14) and the DCCR export (cols 15–67) are both ready; nothing yet writes the file. |
 | 🛡️ | **`has_perm()` returns NULL with no signed-in user**, so the bare `if not has_perm(...)` guard never fires. Fixed in the two functions I touched; **15 other migrations still use the bare pattern**. Latent, not exploitable — execute is granted to `authenticated` only. |
+| 🔁 | **Review 2 frequent failure — the rule and the code disagree** (spec supplied 2026-09-08, see below). Not changed yet: Review 2 **auto-answers on a schedule** (0124), so altering the rule re-bases how calls were judged. |
+| 🏥 | **Indoor Service** — procedure §4.5 supplied 2026-09-08. Requirements written up as SR-040…SR-044 in `ISO13485_SERVICING.md`; the module is not built and the design decisions are listed there. It also unblocks the long-pending *"Add a Heading — Indoor Service"* left-menu group, which needs a page before it can appear at all (`Layout.tsx`: an empty group renders nothing). |
+| ⏱️ | **ANNEXURE A is not what the SLA rules say** (SR-010, downgraded from Met). `sla_rules` holds one `target_hours` per key and the procedure sets a cover × criticality × spare-availability matrix; criticality and spare availability are not fields on a call. Every completion target either differs or keys on the wrong dimension. **CMC is not in ANNEXURE A** and is a live cover type. |
 
 ### Long-standing
 
@@ -106,6 +109,45 @@ Audit Mode rules · the security migration (D-2/D-3/D-4) · a CI workflow · two
 data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 `security_invoker`.
 
+
+---
+
+## Review 2's frequent-failure rule — SETTLED, not yet built (2026-09-08)
+
+The procedure (image supplied 2026-09-08) and the user's answers to the two
+questions it left open:
+
+> Frequent Failure — **two or more failures within a month**, either the same
+> equipment or same spares.
+> *"2 or More including the call in question — Maybe make it editable in Admin
+> Pannel."* · *"Same Part in same Machine."*
+
+**So the rule is:**
+
+| | Procedure | `0117_frequent_failure.sql` today |
+| --- | --- | --- |
+| Window | **1 month** | 6 months (`p_months` default 6) |
+| Count | **≥ 2 INCLUDING the call under review** — so **one prior failure is enough** | excludes the call and lists priors, so a reviewer sees 1 where the rule counts 2 |
+| Match | same **equipment**, **or** the **same part in the same machine** | same product + serial **and** same complaint |
+| Settings | window and threshold **editable in Admin Config** | fixed in the function signature |
+
+**Three real differences, and the direction matters.** The window is 6× too wide,
+so the register flags failures the procedure would not — which inflates the
+frequent-failure count feeding the objectives. The count is off by one against
+the rule as stated. And the *same part in the same machine* path **does not exist
+at all**; instead the code requires the complaints to match, which the procedure
+does not ask for.
+
+**NOT CHANGED YET, deliberately.** `0124_auto_review2.sql` answers Review 2 on a
+schedule, so a new rule re-bases judgements already recorded against the old one
+— including automatic answers carrying `review2_by = 'Auto (9:15 am)'`. That is a
+quality record being restated, and it needs the user's word plus a decision on
+whether history is left as answered or re-opened.
+
+**One question still open:** does the *same equipment* path still require the same
+complaint? The user's original rule (2026-09-06) said yes; the written procedure
+does not mention it. Making it a third setting is the cheap answer and matches
+"editable in Admin Pannel".
 
 ---
 
