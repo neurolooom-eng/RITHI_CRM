@@ -29,24 +29,22 @@ that explains it.
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
 
-⚠️ **PENDING ON THE DATABASE (2026-09-08, v0.9.146):**
+🟡 **NOTHING KNOWN TO BE PENDING — reported run, not verified (2026-09-08).**
 
-* **`rbac.sql`** — the Technical Support role (`_status.sql` row 111). Until it
-  is run, picking the role in User Master gives somebody a role the database has
-  never heard of, and `has_perm()` falls back to the **engineer** defaults — so
-  they would see less than an engineer expects, not more. Read it:
-  <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
-  copy it:
-  <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
-* **`tracker.sql`** — again, for the "You" → "Rithi Admin" rename. Read it:
-  <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
-  copy it:
-  <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+The user ran **`rbac.sql`** (the Technical Support role) and **`tracker.sql`**
+(the "You" → "Rithi Admin" rename) after v0.9.147 shipped. No `_status.sql`
+output has been seen since, so this is a REPORT, not evidence — the distinction
+this file exists to keep, having twice claimed the opposite of what was applied.
 
+**Row 111** settles the first one, and it checks the CLAIM rather than the
+presence of a row: every module key the admin role holds, `data.view_all`,
+`admin.view`, and not one action any write policy asks for. For the second,
+`select owner, count(*) from tracker_items group by 1` should show no "You".
 
-`tracker.sql` (row 110) run by the user later the same day — **reported, not
-verified**: no `_status.sql` output has been seen since. The Tracker is usable,
-and adding the few other people to it is a tick each on Roles & Permissions.
+Nothing further is needed to USE the role: the picker on User Master reads the
+same list the matrix does, so **Technical Support** is already in the dropdown.
+The Tracker is the same shape — it is usable, and adding the few other people to
+it is a tick each on Roles & Permissions.
 
 The round below IS verified — from the user's own `_status.sql` output: **all 119
 rows read `yes`**, including row 109 (the consumption report) and, for the first
