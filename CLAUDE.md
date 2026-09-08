@@ -75,6 +75,17 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   and link that file.
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
+- **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
+  SERVICING PROCESS must do — 37 requirements (SR-001…SR-037) from ISO 13485
+  §7.5.4 and the clauses it reaches into, each assessed against this system.
+  **Read it before building anything in the servicing path**, and update the
+  requirement's status line in the same change that closes it. Two things it is
+  not: it is not the software validation package (`src/lib/validation.ts`, which
+  answers §4.1.6 — whether the app is fit to be *used* in the QMS), and it is not
+  approved — it is a DRAFT whose clause mappings are for RA/QA to confirm.
+  **Software validation does not discharge a process requirement**, which is why
+  the two are separate documents and must not be merged.
+  Shareable copy: <https://claude.ai/code/artifact/3696155c-2394-43ad-b017-a614f69c3219>
 - **CallReg redeploys** — a change to `apps-script/CallReg.gs` is not live until
   the Web App is redeployed. When a new `/exec` URL arrives, bake it into
   `DEFAULT_SHEETS_URL` in `src/lib/sheets.ts` and bump `DEFAULT_URL_VERSION`, so

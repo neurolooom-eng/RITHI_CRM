@@ -5,6 +5,17 @@ Author: prepared for RITHI CRM, 2026-09-08. The clause mappings are the author's
 and are to be confirmed against the current text of ISO 13485:2016 and of the
 Medical Devices Rules, 2017 (Fifth Schedule) before this is relied on.
 
+**This file is the standing reference** for the servicing process, kept at the
+user's direction (2026-09-08: *"keep this for future reference"*). It is pointed
+at from `CLAUDE.md`, so a future session reads it before building anything in the
+servicing path, and its two open decisions are indexed in `docs/BACKLOG.md`.
+A shareable copy for RA/QA:
+<https://claude.ai/code/artifact/3696155c-2394-43ad-b017-a614f69c3219>
+
+**Keeping it current is part of the change that closes a gap.** A requirement's
+status line is updated in the same commit that makes it true — a gap analysis
+that lags the system is worse than none, because somebody plans around it.
+
 ---
 
 ## What this is, and what it is not
