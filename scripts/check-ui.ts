@@ -24,6 +24,7 @@ import { buildXlsx } from '../src/lib/xlsx';
 import { DEFAULT_PERMS, MODULES, moduleAction } from '../src/lib/rbac';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
+import { callAging, agingTone } from '../src/lib/aging';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -1870,6 +1871,61 @@ console.log('\n-- Not Consumed Against this Call --');
   eq('the call shows the OR number, by its real column name',
     /\{ key: 'or_no', label: 'OR No' \}/.test(assoc)
     && !/or_number/.test(assoc), true);
+}
+
+console.log('\n-- call aging, and where the clock stops --');
+{
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const daysAgo = (n: number) => iso(new Date(Date.now() - n * 86400000));
+
+  // An OPEN call ages against today.
+  eq('an open call counts to today',
+    callAging({ regDate: daysAgo(10), callState: 'Unattended' }).days, 10);
+  eq('...and says it has not stopped',
+    callAging({ regDate: daysAgo(10), callState: 'Unsolved' }).stopped, false);
+
+  // THE COUNTER STOPS ONCE THE CALL IS SOLVED (the user, 2026-09-08). It stops
+  // on the VISIT that closed it, not on today and not on the day the report was
+  // typed up — the same rule the objectives use, so a call that took nine days
+  // reads as nine on both screens.
+  const solved = callAging({ regDate: daysAgo(30), callState: 'Solved', lastVisitAt: daysAgo(21) });
+  eq('a solved call stops at the closing visit', solved.days, 9);
+  eq('...and is marked stopped', solved.stopped, true);
+  eq('...and does not drift with today',
+    callAging({ regDate: '2026-01-01', callState: 'Solved', lastVisitAt: '2026-01-10' }).days, 9);
+
+  // A missing keystroke should not age a finished call forever.
+  eq('a solved call with no visit date stops rather than running on',
+    callAging({ regDate: daysAgo(40), callState: 'Solved' }).days, 0);
+
+  // Cancelled is the same case for the same reason: nobody is waiting.
+  eq('a cancelled call stops on its cancellation',
+    callAging({ regDate: daysAgo(20), callState: 'Cancelled', cancelledAt: daysAgo(14) }).days, 6);
+
+  // A re-opened call is open again, and counts from the ORIGINAL registration:
+  // the customer has been waiting since the day they first called.
+  eq('a re-opened call ages again, from the original registration',
+    callAging({ regDate: daysAgo(12), callState: 'Reopened', lastVisitAt: daysAgo(5) }).days, 12);
+
+  eq('no registration date is no age, not zero',
+    callAging({ regDate: '', callState: 'Unattended' }).days, null);
+
+  // A STOPPED CLOCK IS NEVER COLOURED — the call is finished, and colouring a
+  // finished thing red says something is wrong when nothing is. The thresholds
+  // are the SLA's own shape: 3 days to attend on every row of ANNEXURE A, 15 as
+  // its longest completion target.
+  eq('a finished call is not coloured',
+    agingTone(callAging({ regDate: daysAgo(90), callState: 'Solved', lastVisitAt: daysAgo(2) })), 'none');
+  eq('an open call past the attending target warns',
+    agingTone(callAging({ regDate: daysAgo(9), callState: 'Unsolved' })), 'warn');
+  eq('...and past the longest completion target it is late',
+    agingTone(callAging({ regDate: daysAgo(40), callState: 'Unsolved' })), 'late');
+
+  // The value rides on the ROW so the column sorts numerically — rendered text
+  // would put "10 d" before "9 d" on a register people scan for the oldest.
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('the age is on the row, so the column sorts as a number',
+    /out\.agingDays = age\.days;/.test(sb), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

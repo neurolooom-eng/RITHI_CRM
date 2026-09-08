@@ -18,6 +18,7 @@ import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
+import { callAging } from './aging';
 import { manualReportLink } from './reports';
 
 const URL_KEY = 'rithi.supabase.url';
@@ -139,6 +140,12 @@ function dbToCall(row: Record<string, unknown>): Record<string, unknown> {
   out.reopenedAt = row.reopened_at ?? '';
   out.reopenCount = Number(row.reopen_count ?? 0);
   out.lastVisitAt = row.last_visit_at ?? '';
+  // AGE, on the row rather than only in the cell, so the column sorts as a
+  // NUMBER. Rendered text would sort "10 d" before "9 d", which on a register
+  // people scan for the oldest call is worse than not offering the sort.
+  const age = callAging(out as { regDate?: unknown; callState?: unknown; lastVisitAt?: unknown; cancelledAt?: unknown });
+  out.agingDays = age.days;
+  out.agingStopped = age.stopped;
   return out;
 }
 function callToDb(rec: Record<string, unknown>): Record<string, unknown> {

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.159',
+    date: '2026-09-08',
+    title: 'Aging on every call, and the clock stops when it is solved',
+    changes: [
+      'EVERY CALL REGISTER \u2014 Field, Installation and PM \u2014 now shows AGING: how many days the call has been open. Sortable, so \u201cwhat is oldest\u201d is one click.',
+      'THE COUNTER STOPS WHEN THE CALL IS SOLVED, on the VISIT that closed it \u2014 not on the day the report was typed up. A call that took nine days reads as nine days here and nine days on the objectives.',
+      'IT STOPS ON A CANCELLED CALL TOO. Nobody is waiting on it, so counting on would report a delay that is not happening.',
+      'A RE-OPENED CALL AGES AGAIN, and from the ORIGINAL registration \u2014 the customer has been waiting since the day they first called, not since somebody re-opened the record.',
+      'A FINISHED CALL IS NEVER COLOURED RED. Colour is for calls somebody still has to do something about: amber past three days, red past fifteen \u2014 the attending and longest completion targets in ANNEXURE A.',
+    ],
+  },
+  {
     version: '0.9.158',
     date: '2026-09-08',
     title: 'The Engineer filter is a dropdown, and the Tracker catches up',
