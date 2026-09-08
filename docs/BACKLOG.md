@@ -31,7 +31,11 @@ that explains it.
 
 ✅ **NOTHING PENDING ON THE DATABASE (2026-09-08).**
 
-**VERIFIED, not reported** — from the user's own `_status.sql` output: **all 119
+`tracker.sql` (row 110) run by the user later the same day — **reported, not
+verified**: no `_status.sql` output has been seen since. The Tracker is usable,
+and adding the few other people to it is a tick each on Roles & Permissions.
+
+The round below IS verified — from the user's own `_status.sql` output: **all 119
 rows read `yes`**, including row 109 (the consumption report) and, for the first
 time, the two that had been expected to stay `NO`:
 
