@@ -168,9 +168,39 @@ procedure, the right instruments, a competent person.** *§7.5.1.*
 filing a report.
 
 **SR-010 — Response and completion against a defined service level is
-measurable.** *§8.4, and customer requirements under §7.2.1.*
-**Status: Met.** SLA rules (URS-014), the pending-calls view, and the quality
-objectives with per-month cut-offs (0139).
+measurable, against the levels the procedure actually sets.** *§8.4, and
+customer requirements under §7.2.1.*
+**Status: Downgraded to Partial, 2026-09-08 — the mechanism is there and it is
+configured with the wrong numbers.** The SLA machinery works (URS-014, the
+pending-calls view, the objectives with per-month cut-offs). But **ANNEXURE A**
+of the service procedure sets completion targets on a three-dimensional matrix —
+cover type × problem criticality × spare availability — and the system cannot
+express it:
+
+* `sla_rules` is a flat list of `{key, label, target_hours}`. **One number per
+  key**, with no dimensions to vary along.
+* **Problem criticality does not exist** as a field on a call.
+* **Spare availability** is not recorded as a fact about the call either; the
+  nearest rule, `closure_spare`, keys on whether a spare was *requested*, which
+  is a different question.
+* The seeded targets do not match the procedure. "Attending: 3 days" is right
+  (`first_visit` = 72h, and it is 3 days for every row). Completion is not:
+
+| Cover | Critical | Spare | ANNEXURE A | Configured today |
+| --- | --- | --- | --- | --- |
+| AMC/WGP | No | Yes | 3 days | `closure` = 5 days |
+| AMC/WGP | No | No | 7 days | `closure_spare` = 7 days *(right number, wrong question)* |
+| AMC/WGP | Yes | Yes | 7 days | — |
+| AMC/WGP | Yes | No | 15 days | `closure_spare_noncover` = 10 days |
+| OGP | No | Yes | 15 days | — |
+| OGP | No | No | 15 days | — |
+| OGP | Yes | Yes | 30 days | — |
+| OGP | Yes | No | 30 days | — |
+
+So a breach today is measured against a target the procedure does not set, in
+both directions. **CMC is not in ANNEXURE A at all** and is a live cover type in
+this system (`ITEM_STATUS = WGP, OGP, CMC, AMC`) — which bucket it falls in is a
+question for whoever owns the procedure, not an assumption for this file.
 
 ## B. Installation
 
@@ -410,6 +440,65 @@ use, and revalidated on change.** *§4.1.6.*
 its own change control.
 
 ---
+
+## L. Indoor service — equipment taken into the workshop
+
+*Added 2026-09-08 from procedure §4.5. **This section exists because the Indoor
+process brings a clause into scope that the first revision missed entirely**:
+once the organisation takes a customer's device onto its own premises, §7.5.10
+applies, and nothing in the first 39 requirements covered it. A field-only
+reading of the servicing provision does not see it.*
+
+**SR-040 — Customer property in the organisation's possession is identified,
+verified, protected and safeguarded; and where it is lost, damaged or found
+unfit for use, that is REPORTED TO THE CUSTOMER and recorded.** *§7.5.10.*
+**Status: Absent.** Procedure §4.5.2 receives the equipment as *"Customer
+Property"* and records it in the Indoor Service Register — so the process exists
+and the obligation is recognised. The register is not in this system, and there
+is no custody record: nothing says which customer devices are held, since when,
+or in what condition they arrived. The reporting duty on damage has no record at
+all. **A device on the workshop bench is the organisation's responsibility in a
+way a device in the field is not**, which is what makes this the requirement the
+Indoor process adds rather than one it inherits.
+
+**SR-041 — Equipment is cleaned and decontaminated before it is worked on, to
+the work instruction, and that is recorded.** *§7.5.2, §6.4.*
+**Status: Absent.** Procedure §4.5.3 requires it against **WI/SER/01**. The step
+protects the person doing the work as much as the product, so "it was done" is a
+record somebody may need to rely on later; nothing holds it.
+
+**SR-042 — The equipment carries an identified STATUS throughout, and its
+accessories are identified to the equipment they came with.** *§7.5.8.*
+**Status: Absent — and this is SR-007 made concrete.** Procedure §4.5.4 puts a
+physical **identification tag** on the device to show its status, and tags the
+accessories with the details of the parent equipment. §4.5.5 adds a separate
+**process tag** for DEMO units. The system holds none of the three, and the
+distinction in the last one matters beyond housekeeping: **a DEMO unit is the
+organisation's own stock, not customer property**, so SR-040 does not apply to it
+— and telling them apart is exactly what the separate tag exists to do.
+
+**SR-043 — A quality check is performed on completion, before the equipment goes
+back, and the record is kept.** *§7.5.4.*
+**Status: Absent in the system; REQUIRED BY THE PROCEDURE.** §4.5.6: *"After the
+Service completion a quality check is performed and Records are maintained."*
+
+This is **SR-006** — the largest gap in this document — and the Indoor procedure
+settles a question the first revision left open. The gap is *not* that the
+organisation fails to verify a serviced device: its own procedure says it does.
+The gap is that **the record of that check lives outside this system**, so the
+service record here cannot show it happened. That is a much better problem to
+have, and a smaller one to close.
+
+**SR-044 — A call that moves between departments keeps its identity and its
+history.** *§4.2.5, §7.5.9.*
+**Status: Absent.** Procedure §4.5.1 has the Field Engineer consult the manager,
+send the equipment in, and ask the Hotline Engineer to **transfer the call to the
+Indoor Service department** — the same call, changing hands. Nothing models a
+transfer, so today it would be done by closing one call and raising another,
+which breaks the chain from the customer's original complaint to what was
+eventually found: two records where the standard expects one traceable history.
+§4.5.7 closes the loop — the field engineer reinstalls, checks, and files the
+completion report — so the call ends where it began.
 
 ## The gap, in order of consequence
 
