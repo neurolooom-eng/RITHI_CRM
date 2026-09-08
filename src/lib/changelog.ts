@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.145',
+    date: '2026-09-08',
+    title: 'The Tracker starts with the backlog already on it',
+    changes: [
+      'THE TRACKER ARRIVES WITH THE FIFTEEN OPEN ITEMS from the project backlog already on it \u2014 what is waiting on you, what is waiting on a decision, what is waiting on me, and the long-standing ones.',
+      '\u201cWith whom\u201d is filled in: You, Decision, or Claude. That is the question a shared list is actually asked \u2014 what is waiting on me?',
+      'ONLY WHAT IS OPEN CAME ACROSS. The backlog is 2,000 lines and most of it is the record of decisions already made; copying the rest would bury fifteen live items under two hundred settled ones. The two are not the same list: the backlog keeps the reasoning, the Tracker keeps what is being worked on now.',
+      'Running the file twice adds nothing, and an item you have since edited or closed is left exactly as you left it.',
+      'Needs supabase/apply/tracker.sql (again \u2014 it now carries the seed).',
+    ],
+  },
+  {
     version: '0.9.144',
     date: '2026-09-08',
     title: 'A shared Tracker, under Administration',

@@ -48,11 +48,19 @@ This is the entry to trust: it has the evidence behind it. Every other line in
 this file is a note, and this file has twice claimed the opposite of what was
 applied.
 
-🧭 **THERE IS NOW AN IN-APP TRACKER** (`/tracker`, Administration, v0.9.144).
-Shared, one permission to see and edit, granted to admins on apply. It does not
-replace this file — this one carries the reasoning and the warnings, the tracker
-carries what is being worked on right now — but a short-lived item belongs there
-rather than here.
+🧭 **THERE IS NOW AN IN-APP TRACKER** (`/tracker`, Administration, v0.9.144),
+and **0144 seeds it with the fifteen open items indexed above** (v0.9.145).
+
+It does not replace this file, and the two must not converge. **This file keeps
+the reasoning** — why a rule is the way it is, what was tried, what went wrong,
+which claims are evidence and which are notes. **The tracker keeps what is being
+worked on now.** Only OPEN items crossed over: copying two hundred settled
+entries would bury fifteen live ones, and a list nobody can scan is a list nobody
+reads.
+
+⚠️ **They will drift, and that is fine.** Closing an item on the tracker does not
+close it here; this index is still the one to update when something is genuinely
+finished.
 
 ### Waiting on a decision
 

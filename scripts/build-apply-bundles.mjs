@@ -313,7 +313,7 @@ const MODULES = {
     // ancestor table -- the tracker's view joins it for the "who touched it last"
     // name. `rbac` is has_perm(), which the one policy asks.
     needs: ['rbac', 'visibleEngineers'],
-    files: ['0143_tracker.sql'],
+    files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql'],
   },
   documents: {
     title: 'Document Library (service manuals & QMS)',
