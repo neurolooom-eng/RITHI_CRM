@@ -19,6 +19,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'THE REPORT DRAWER NO LONGER CUTS SENTENCES OFF. Job Done and Complaint Observation \u2014 the two fields somebody opens it to read \u2014 were being clipped to one line with a \u201c\u2026\u201d. They wrap now, and keep the line breaks the engineer typed.',
       'THE MANUAL REPORT IS A BUTTON, not a raw Drive address. It was shown as a long link, truncated: too long to read and not clickable. It opens the viewer, with \u201cOpen in Drive\u201d beside it \u2014 and it also appears at the top of the drawer, where somebody looking for it looks.',
       'The mini tables on a call still clip to one line, because those are scanned rather than read \u2014 ten visits have to fit.',
+      'DROPPED SPARES NO LONGER APPEAR ON A CALL either. A dropped line and a refused one are both \u201cnothing arrived\u201d, and on a call anything that reads like a part is a part somebody goes looking for in the machine. A drop is chased on the spare register, where it was decided \u2014 and the Not Used report already left them out.',
     ],
   },
   {

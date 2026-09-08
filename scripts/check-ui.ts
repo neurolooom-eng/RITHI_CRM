@@ -1829,6 +1829,11 @@ console.log('\n-- Not Used as per the Request --');
   // The OR number is what Stores, the paperwork and the customer all say. It is
   // `or_no`; the detail pane had asked for `or_number` since it was written, so
   // it rendered blank.
+  // NOTHING THAT NEVER ARRIVED, on the call or in the report. A line that reads
+  // like a part is a part somebody will go looking for in the machine.
+  eq('the call lists neither rejected nor dropped spares',
+    /stage !== 'Rejected' && stage !== 'Dropped'/.test(assoc), true);
+
   eq('the call shows the OR number, by its real column name',
     /\{ key: 'or_no', label: 'OR No' \}/.test(assoc)
     && !/or_number/.test(assoc), true);

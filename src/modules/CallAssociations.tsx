@@ -203,12 +203,22 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
   // a part as unused because somebody re-typed its name.
   const partKey = (v: unknown) => s(v).split('|')[0].trim().toUpperCase();
 
-  // REJECTED LINES ARE NOT SHOWN (the user, 2026-09-08). A refused request is a
-  // decision that belongs to the spare register, not a fact about the call; on
-  // the call it reads as a part that might have been fitted. Dropped lines stay
-  // — Stores dropping an approved part is a supply failure the call should show.
+  // NEITHER REJECTED NOR DROPPED IS SHOWN (the user, 2026-09-08: "Dropped
+  // Spares also should not be Listed in the Call or in the Flag Report").
+  //
+  // I had kept dropped lines here, reasoning that Stores dropping an approved
+  // part is a supply failure worth seeing on the call. That is overruled, and
+  // the rule it leaves is simpler and better: THIS TABLE SHOWS PARTS THAT
+  // REACHED THIS CALL. Refused and dropped are both "nothing arrived", and on a
+  // call a line that reads like a part is a part somebody will go looking for in
+  // the machine. A drop is chased on the spare register, where it was decided.
+  //
+  // The flag report (0147) already excludes both, for the same reason.
   const requestedLive = useMemo(
-    () => requested.filter((r) => deriveStage(r as SpareReq) !== 'Rejected'),
+    () => requested.filter((r) => {
+      const stage = deriveStage(r as SpareReq);
+      return stage !== 'Rejected' && stage !== 'Dropped';
+    }),
     [requested],
   );
 
