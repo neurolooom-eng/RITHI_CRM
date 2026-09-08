@@ -67,7 +67,7 @@ export const NAV: NavGroup[] = [
       { to: '/installations', label: 'Installation Calls', icon: '🔧' },
       { to: '/pm-calls', label: 'Preventive (PM)', icon: '🗓️' },
       { to: '/pending-calls', label: 'Pending Calls', icon: '🔥' },
-      { to: '/reports', label: 'Reports', icon: '🗒️' },
+      { to: '/reports', label: 'Visit Reports / Service Reports', icon: '🗒️' },
       { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
       { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
     ],

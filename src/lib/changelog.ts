@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.142',
+    date: '2026-09-08',
+    title: 'Reports is now Visit Reports / Service Reports',
+    changes: [
+      'THE MENU ITEM UNDER SERVICE CALLS IS NOW \u201cVISIT REPORTS / SERVICE REPORTS\u201d. It says both names because the business does \u2014 the engineer files a service report and the register holds it as a visit \u2014 and a bare \u201cReports\u201d had become ambiguous once a second report moved onto the screen.',
+      'Inside, the first tab is now \u201cVisit Reports\u201d rather than \u201cVisit History\u201d. Spare Consumption is unchanged.',
+      'NOTHING ELSE MOVED: the address is still /reports, so every bookmark still works, and access is keyed on the address rather than the name \u2014 so no role gained or lost anything.',
+    ],
+  },
+  {
     version: '0.9.141',
     date: '2026-09-08',
     title: 'Reports has tabs, and the first new one is Spare Consumption',
