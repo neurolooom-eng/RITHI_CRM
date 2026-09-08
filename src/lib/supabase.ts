@@ -563,6 +563,33 @@ export async function countUnusedSpares(f: UnusedSpareQuery): Promise<number> {
   return count ?? 0;
 }
 
+/** The engineers this report can actually offer, from the report itself.
+ *
+ *  FROM THE VIEW, NOT THE DIRECTORY. A dropdown built from every engineer on
+ *  the system offers dozens of names that return nothing — a filter whose
+ *  options mostly produce an empty screen teaches people not to use it.
+ *
+ *  SPLIT, BECAUSE THE VIEW AGGREGATES. A part sent on two orders by two
+ *  engineers comes back as "ENG A, ENG B" (the view joins them rather than
+ *  picking one, so neither is hidden from whoever has to chase it). Offering
+ *  that composite as an option would be nonsense; the names are split apart
+ *  here, and each still matches its composite row because the filter is a
+ *  contains-match. */
+export async function unusedSpareEngineers(): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('unused_spare_report').select('Engineer').limit(5000);
+  if (error) return [];
+  const names = new Set<string>();
+  (data ?? []).forEach((r) => {
+    String((r as Record<string, unknown>).Engineer ?? '')
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean)
+      .forEach((n) => names.add(n));
+  });
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
 export async function listUnusedSpares(
   f: UnusedSpareQuery, onProgress?: (n: number) => void,
 ): Promise<Record<string, unknown>[]> {

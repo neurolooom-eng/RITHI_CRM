@@ -29,7 +29,7 @@ that explains it.
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
 | 🩺 | **Is any servicing subcontracted?** §7.5.4 says "the organization **or its supplier**". If any is, those records sit outside the daily analysis entirely and the gap is invisible from inside RITHI. Worth confirming either way. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-035/036* |
-| 🩺 | **Do nonconformity, CAPA, complaints and vigilance belong IN this system**, or in a separate quality system this one feeds? Governance, not engineering — and it decides whether four requirements are work here or duplication of a register that already exists. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-028/031/034* |
+| 🩺 | **A complaint that never becomes a call has nowhere to live (SR-038).** The exposure the boundary decision created: either every complaint enters as a call, or the complaint register is elsewhere and this system feeds it. What cannot stand is the middle — a register presented as the complaint population with a route into complaints that bypasses it. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-038* |
 
 ✅ **THE CALLREG REDEPLOY IS DONE (2026-09-08, v0.9.150).** The user redeployed
 and sent the new `/exec` URL, which is baked into `DEFAULT_SHEETS_URL` with
@@ -43,11 +43,29 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
-⚠️ **PENDING: `performance.sql`** (2026-09-08, v0.9.153) — `unused_spare_report`,
-the "Not Used as per the Request" view (`_status.sql` row 112). Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
+⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
+with this file: eight items added (0150), the three parked decisions and the
+13485 findings. Additive and idempotent by title; nothing already on the list is
+closed, renamed or touched. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
 copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+(It also carries the Air Liquide ID item from 0146, if that has not been run.)
+
+🟡 **`performance.sql` RUN — reported, not verified (2026-09-08, v0.9.157).**
+The user ran it after v0.9.157 shipped. That bundle carries BOTH
+`unused_spare_report` (row 112) and `spare_insights` + the Part Master's new
+fields (row 113), so the two screens that needed it should now load.
+
+**No `_status.sql` output has been seen**, so this is a report rather than
+evidence — the distinction this file exists to keep. Rows 112 and 113 settle it;
+113 checks the property rather than the presence, refusing a `spare_insights`
+that is SECURITY DEFINER.
+
+If Spare Insights still shows an error, the message names the function, which
+means the bundle did not reach the database — PostgREST also caches the schema
+for a few seconds after a function appears, so a reload is worth trying before
+re-running anything.
 
 ⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
 every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
@@ -121,6 +139,57 @@ finished.
 | 💰 | **Pro vs splitting projects.** Nine years of history is ~1.25 GB with this indexing; the free tier cannot hold it even split three ways. The recommendation is Pro (8 GB). |
 | 🧹 | **REINDEX the fat tables.** Index bloat is real here — `record_audit` holds 8 MB of indexes over 792 kB of rows. Likely 30–60 MB back for no behaviour change. |
 | 🩺 | **The two 13485 gaps that rank first**, and they are a pair: post-service verification against acceptance criteria (SR-006 — §7.5.4 asks for it, and "Solved" is a call outcome, not a statement about the device), and tying a measurement to a calibrated instrument (SR-020 — without it a reading does not evidence conformity). The second is only worth building after the first. Cheapest real gain is SR-027, the complaint determination: one controlled field and a reason on a review that already runs daily. |
+
+*One question that used to sit in this index is **answered**: nonconformity, CAPA
+and advisory notices live OUTSIDE this system, and the field call register IS the
+complaint register (the user, 2026-09-08). It was still listed as open a round
+later — recorded here so the index stops asking it. What the answer created is
+SR-038 and SR-039, both above.*
+
+#### 🅿️ PARKED, at the user's direction (2026-09-08)
+
+*"Park it in Backlog."* Three decisions, each blocking work that is otherwise
+ready to build. **They are not questions to re-ask** — they sit here until
+somebody picks one up.
+
+**1 · Frequent Failure — the rule is settled, the migration is not written.**
+The spec is recorded in full in this file (*"Review 2's frequent-failure rule —
+SETTLED, not yet built"*): two or more failures **including the call under
+review**, within **a month**, same equipment **or the same part in the same
+machine**, window and threshold **editable in Admin Config**. Two things stop it
+being built:
+
+* **Does the *same equipment* path still require a matching complaint?** The
+  user's rule of 2026-09-06 said yes; the written procedure does not mention it.
+  A third setting is the cheap answer and matches "editable in Admin Pannel".
+* **What happens to Review 2 answers already recorded under the OLD rule?**
+  `0124` auto-answers on a schedule, so a new rule re-bases judgements already
+  made — including automatic ones stamped `Auto (9:15 am)`. Leave them as
+  answered, or re-open them? That is a quality record being restated either way,
+  and it needs a decision before a line of SQL.
+
+**2 · ANNEXURE A — the SLA cannot express the procedure.** `sla_rules` holds ONE
+`target_hours` per key; the procedure sets a **cover × criticality × spare
+availability** matrix (SR-010). Blocking:
+
+* **Which bucket does CMC fall in?** It is a live cover type here
+  (`WGP, OGP, CMC, AMC`) and ANNEXURE A does not mention it at all.
+* **Problem criticality and spare availability do not exist as fields on a
+  call.** Both have to be captured before a target can key on them — which is a
+  change to call registration, not just to the rules table.
+
+Until then, breach highlighting measures against targets the procedure does not
+set: `closure` = 5 days where ANNEXURE A says 3, `closure_spare_noncover` = 10
+where it says 15, and nothing at all for the four OGP rows.
+
+**3 · Indoor Service — five questions**, all in
+[`INDOOR_SERVICE_PLAN.md`](INDOOR_SERVICE_PLAN.md): whether Central Service holds
+its own spare stock; whether QC must be done by somebody other than the person
+who did the work; whether the SLA clock keeps running while a machine is on the
+bench; the job-number series; and who may transfer a call to Indoor. The plan is
+written and phased — Phase 1 stands alone and is also what finally makes the
+**Indoor Service** heading appear, since a nav group with no pages renders as
+nothing.
 
 ### Waiting on me
 

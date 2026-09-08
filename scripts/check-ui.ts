@@ -1842,6 +1842,19 @@ console.log('\n-- Not Consumed Against this Call --');
   eq('...and the mini tables still clip, because they are scanned',
     /\.assoc-table th, \.assoc-table td \{[\s\S]{0,120}white-space: nowrap/.test(fcss), true);
   // It was rendered as its raw Drive URL: too long to read and not clickable.
+  // A 90-CHARACTER URL AS TEXT made every row of the register four times taller
+  // than it needed to be and still could not be clicked. The register's own
+  // rules apply: a cell is one line, and what you do with the thing in it is a
+  // control. Both keys, because the value is on the row twice — the column and
+  // the report form's own field.
+  const reg = readFileSync('src/modules/Reports.tsx', 'utf8');
+  eq('the register shows the report as a control, not its address',
+    /const reportCell = \(r: Row\)/.test(reg)
+    && /Open in Drive ↗/.test(reg)
+    && /REPORT_KEYS = \['manual_report', 'Manual Report'\]/.test(reg), true);
+  eq('...and opening it does not also open the row',
+    /onClick=\{\(e\) => \{ e\.stopPropagation\(\); setDocFor\(r\); \}\}/.test(reg), true);
+
   eq('the manual report in the drawer opens the viewer',
     /isManualReport\(k\) && reportUrl/.test(detail)
     && /<DocPreview/.test(detail), true);

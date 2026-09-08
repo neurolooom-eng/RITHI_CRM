@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.158',
+    date: '2026-09-08',
+    title: 'The Engineer filter is a dropdown, and the Tracker catches up',
+    changes: [
+      'ON THE NOT CONSUMED REPORT, the Engineer filter is a dropdown \u2014 built from the engineers actually IN the report, so every option returns something. A list of every engineer on the system would mostly return an empty screen.',
+      'THE TRACKER NOW CARRIES WHAT THE BACKLOG DOES: the three decisions you parked, and the findings from the 13485 review. Eight items added; nothing already on your list is closed, renamed or touched.',
+      'ON VISIT REPORTS, the Manual Report column was printing the raw Drive address \u2014 ninety characters wrapping over five lines, making every row four times taller than it needed to be, and still not clickable. It is a \u201cShow\u201d button with \u201cOpen in Drive\u201d beside it now, on one line.',
+      'Needs supabase/apply/tracker.sql.',
+    ],
+  },
+  {
     version: '0.9.157',
     date: '2026-09-08',
     title: 'Spare Insights',
