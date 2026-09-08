@@ -23,7 +23,7 @@ that explains it.
 
 | | what | where |
 | --- | --- | --- |
-| 🗄️ | **Run `objective.sql`** — rows 93, 95–108. The last four rounds of objective work are merged but NOT applied. | *To run on the live project* |
+| 🗄️ | **Run `performance.sql`** — row 109, the consumption report view. (`objective.sql` was run 2026-09-08.) | *Reports* |
 | 🔢 | **The PM count is short** — 7,029 rows where two years at 10,000/yr should be ~20,000. Find out before nine years load through the same path. | *Nine years vs the 500 MB cap* |
 | 📏 | **PM rows measure ~2× field-call rows** for identical columns. Bloat, or genuinely longer text? 140 MB either way across a backfill. | *Nine years vs the 500 MB cap* |
 | 🔒 | **`handstock_period.closed_through`** — while NULL, none of the 68 MB of spare history can move without silently changing stock balances. | *Nine years vs the 500 MB cap* |

@@ -287,7 +287,11 @@ const MODULES = {
       '0128_kpi_field_inst.sql',
       // Phase 2: AC-AG and Pending Days. Redefines the view, so it must come
       // after 0128 and stay after it.
-      '0131_kpi_phase2.sql'],
+      '0131_kpi_phase2.sql',
+      // The consumption report. Here rather than in a spares module because it
+      // reads the `calls` view and `reports` as well as `spare_consumption`, and
+      // this module already runs after everything it needs exists.
+      '0142_consumption_report.sql'],
   },
   audit: {
     title: 'Audit Log',

@@ -7,11 +7,21 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
 import { REPORT_FIELD_KEYS } from './CallReporting';
 import { Ucn } from '../lib/callstate';
+import { ConsumptionReport } from './ConsumptionReport';
 
 // ===========================================================================
-// REPORTS — the visit history (one row per visit) from the Supabase `reports`
-// table. Local browser cache + last-sync + 30-min auto/force sync; field
-// filters (UCN / Call Number / Engineer / Status) query the server live.
+// REPORTS — two of them now, on tabs.
+//
+//   Visit history   one row per visit, from `reports`. Local browser cache +
+//                   last-sync + 30-min auto/force sync; field filters query the
+//                   server live. Unchanged.
+//   Consumption     one row per spare booked, filtered in the DATABASE, with a
+//                   column picker (the user's ask, 2026-09-08).
+//
+// The two are separate COMPONENTS rather than one with a branch: the visit
+// history syncs, caches and polls on mount, and a component that returned early
+// for the other tab would be skipping hooks. `Reports` is now a thin wrapper
+// that picks one; neither knows about the other.
 // ===========================================================================
 
 const CACHE_KEY = 'reports';
@@ -38,7 +48,7 @@ const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.ma
   id: String(p.uid ?? p.id ?? base + i),
 } as Row));
 
-export function Reports() {
+function VisitHistory() {
   const cached = loadCache<Row>(CACHE_KEY);
   const [filter, setFilter] = useState<ReportFilter>({ ucn: '', callNumber: '', engineer: '', status: '' });
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
@@ -172,6 +182,38 @@ export function Reports() {
         }
       />
       {detail && <ReportDetail report={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+type Tab = 'visits' | 'consumption';
+
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'visits', label: 'Visit History', icon: '🗒️' },
+  { key: 'consumption', label: 'Spare Consumption', icon: '🔩' },
+];
+
+export function Reports() {
+  const [tab, setTab] = useState<Tab>('visits');
+  return (
+    <div>
+      <div className="dccr-tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            className={`dccr-tab${tab === t.key ? ' is-on' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            <span aria-hidden>{t.icon}</span> {t.label}
+          </button>
+        ))}
+      </div>
+      {/* Mounted one at a time, not hidden: the visit history syncs and polls on
+          mount, and keeping the unseen tab alive would have it fetching in the
+          background for a screen nobody is looking at. */}
+      {tab === 'visits' ? <VisitHistory /> : <ConsumptionReport />}
     </div>
   );
 }

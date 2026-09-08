@@ -404,6 +404,71 @@ export async function objectiveEvidence(id: number, month: number): Promise<Reco
   return (data ?? []) as Record<string, unknown>[];
 }
 
+// ---------------------------------------------------------------------------
+// THE CONSUMPTION REPORT. Filtered IN THE DATABASE and paged, because the
+// register is far larger than one response: a filter applied after the fetch
+// would narrow the first page and report it as the whole answer.
+// ---------------------------------------------------------------------------
+export interface ConsumptionReportQuery {
+  from?: string; to?: string; product?: string; party?: string; city?: string;
+  engineer?: string; part?: string; callType?: string; ucn?: string;
+}
+
+// The SELECT is passed in rather than fixed: a count wants
+// `{ count: 'exact', head: true }`, and PostgREST only accepts those options on
+// the FIRST select — chaining a second one onto a built filter is a type error
+// and, worse, would silently not count.
+function consumptionQuery(
+  f: ConsumptionReportQuery,
+  opts?: { count: 'exact'; head: true },
+) {
+  let q = opts
+    ? must().from('consumption_report').select('*', opts)
+    : must().from('consumption_report').select('*');
+  if (f.from) q = q.gte('Call Date', f.from);
+  if (f.to) q = q.lte('Call Date', f.to);
+  if (f.product) q = q.ilike('Product', `%${f.product}%`);
+  if (f.party) q = q.ilike('Customer', `%${f.party}%`);
+  if (f.city) q = q.ilike('City', `%${f.city}%`);
+  if (f.engineer) q = q.ilike('Visiting Service Engineer', `%${f.engineer}%`);
+  if (f.ucn) q = q.ilike('UC Number', `%${f.ucn}%`);
+  if (f.callType) q = q.ilike('Call Type', `%${f.callType}%`);
+  // The part is ONE string in the table and two columns in the report, so a
+  // search for "MP-010" and one for "OXYGEN SENSOR" both have to work. The
+  // undivided column is what carries both.
+  if (f.part) q = q.ilike('Part (code|description)', `%${f.part}%`);
+  return q;
+}
+
+/** How many rows the filter matches — EXACT, from the database, so the button
+ *  can say what it is about to export rather than what it has loaded. */
+export async function countConsumptionReport(f: ConsumptionReportQuery): Promise<number> {
+  const { count, error } = await consumptionQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+/** Every matching row, paged until the register is exhausted. Supabase caps one
+ *  response at ~1000 rows; a report that stopped there would be wrong and would
+ *  not look it. */
+export async function listConsumptionReport(
+  f: ConsumptionReportQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await consumptionQuery(f)
+      .order('Call Date', { ascending: false })
+      .order('Line ID', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}
+
 // THE ASSUMPTIONS AND THE HARD STOPS behind one figure, in words. A second
 // call rather than more columns on the evidence: these are derived from the
 // objective's own definition, not from the rows, so they cannot drift out of
