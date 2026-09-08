@@ -43,6 +43,27 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
+every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+It is a row somebody could equally add on the page in twenty seconds; the
+migration exists so it also travels with the bundle.
+
+🔎 **WHY THE HOTLINE DESK SAID "RITHI ADMIN", found while writing the fix
+(2026-09-08).** `default_registrant()` (0114) resolves the desk from the
+`calls.default_registrant_email` setting, or from the single hotline profile
+where there is exactly one. Where neither holds it returns NULL, and the stamp
+falls back to `coalesce(default_registrant(), auth.uid())` — **whoever
+registered the call**. So every call registered from the admin login was filed
+to the admin desk, which is what the screenshot showed.
+
+`supabase/apply/_hotline_desk_fix.sql` corrects the calls already filed that
+way. **Setting the default registrant on Admin Config is what stops it
+recurring** — otherwise the next person to use the admin login reproduces it
+exactly.
+
 🟡 **NOTHING KNOWN TO BE PENDING ON THE DATABASE — reported run, not verified (2026-09-08).**
 
 The user ran **`rbac.sql`** (the Technical Support role) and **`tracker.sql`**

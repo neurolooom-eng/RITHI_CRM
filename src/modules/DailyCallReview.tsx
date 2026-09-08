@@ -47,10 +47,15 @@ import { DocPreview } from '../components/doc/DocPreview';
 // per product), and the export in the register's own format.
 // ===========================================================================
 
-type Tab = 'desk' | 'r2' | 'r3' | 'register' | 'grouping' | 'rootcause' | 'export';
+type Tab = 'desk' | 'todo' | 'r2' | 'r3' | 'register' | 'grouping' | 'rootcause' | 'export';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'desk', label: 'Review Desk', icon: '🗂️' },
+  // TO BE REVIEWED — the work that is FINISHED but not signed off (the user,
+  // 2026-09-08). Solved calls still waiting on Review 2 or Review 3, which is
+  // the one worklist neither of the stage tabs can show: each of those asks for
+  // a single stage, and neither asks whether the call is actually done.
+  { key: 'todo', label: 'To be Reviewed', icon: '📋' },
   { key: 'r2', label: 'Review 2 Pending', icon: '②' },
   { key: 'r3', label: 'Review 3 Pending', icon: '③' },
   { key: 'register', label: 'Review Register', icon: '📋' },
@@ -120,8 +125,8 @@ export function DailyCallReview() {
   // The counters could not be read. Kept apart from the numbers themselves so
   // the screen can say so rather than showing a figure it does not stand behind.
   const [countErr, setCountErr] = useState(false);
-  const [counts, setCounts] = useState<{ total: number; byStatus: Record<string, number>; effects: number }>(
-    { total: 0, byStatus: {}, effects: 0 },
+  const [counts, setCounts] = useState<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }>(
+    { total: 0, byStatus: {}, effects: 0, solvedPending: 0 },
   );
   const [lastSync, setLastSync] = useState('');
   // True when the database predates the report context (0047/0048).
@@ -238,13 +243,37 @@ export function DailyCallReview() {
   // goes into the READ, so one page covers the whole worklist and 175 means
   // 175.
   const deskStage = tab === 'r2' ? 'Review 2 Pending' : tab === 'r3' ? 'Review 3 Pending' : '';
+  // "To be Reviewed" is TWO stages and a call state, so it cannot ride on
+  // `status` the way the single-stage tabs do. It also OVERRIDES the Call State
+  // box while it is open: a tab that says Solved and then shows unsolved calls
+  // because a filter was left set is worse than no tab.
+  const todo = tab === 'todo';
   const filter = useMemo<ReviewFilter>(() => ({
     from: from || undefined, to: to || undefined,
-    status: deskStage || status || undefined,
+    status: deskStage || (todo ? undefined : status) || undefined,
+    statuses: todo ? ['Review 2 Pending', 'Review 3 Pending'] : undefined,
+    callState: todo ? 'Solved' : (callState || undefined),
+    product: product || undefined, engineer: engineer || undefined,
+    effectOnly: effectOnly || undefined, q: search.trim() || undefined,
+  }), [from, to, status, deskStage, todo, callState, product, engineer, effectOnly, search]);
+
+  // THE COUNTERS ARE NOT SCOPED BY THE TAB. They already drop `status` for the
+  // reason given in `load()` — a counter narrowed by the thing it counts can
+  // only report itself — and the same has to hold for the two constraints this
+  // tab adds, or opening it would silently rewrite every other tab's number to
+  // its own Solved-only view.
+  const countFilter = useMemo<ReviewFilter>(() => ({
+    from: from || undefined, to: to || undefined,
     callState: callState || undefined,
     product: product || undefined, engineer: engineer || undefined,
     effectOnly: effectOnly || undefined, q: search.trim() || undefined,
-  }), [from, to, status, deskStage, callState, product, engineer, effectOnly, search]);
+  }), [from, to, callState, product, engineer, effectOnly, search]);
+
+  // The count filter reaches `load()` through a ref rather than a second
+  // argument: `load` is called from four places and threading a second filter
+  // through all of them is how one of them ends up passing the wrong one.
+  const countFilterRef = useRef<ReviewFilter>(countFilter);
+  countFilterRef.current = countFilter;
 
   const load = async (f: ReviewFilter) => {
     if (!live) return;
@@ -275,9 +304,9 @@ export function DailyCallReview() {
       // previous one — or a row of zeros that reads as "no calls". A number
       // nobody can tell is stale is worse than an admission.
       setCountErr(false);
-      void countCallReviews({ ...f, status: undefined })
+      void countCallReviews({ ...countFilterRef.current, status: undefined, statuses: undefined })
         .then((c) => { setCounts(c); setCountErr(false); })
-        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0 }); setCountErr(true); });
+        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -498,7 +527,7 @@ export function DailyCallReview() {
                 register's own controls — and not on each review, where a tick
                 box repeated per record invited the reading that it applied to
                 that one call. It shows wherever reviews are actually edited. */}
-            {editable && (tab === 'desk' || tab === 'r2' || tab === 'r3' || tab === 'register') && (
+            {editable && (tab === 'desk' || tab === 'todo' || tab === 'r2' || tab === 'r3' || tab === 'register') && (
               <label className="row dccr-autosave" title="Answers are written as you choose them, on every review you open. Completing a stage still needs Save review.">
                 <input
                   type="checkbox"
@@ -535,6 +564,7 @@ export function DailyCallReview() {
             {t.key === 'register' && counts.total > 0 && <span className="dccr-tab-count">{counts.total.toLocaleString()}</span>}
             {/* EXACT: countCallReviews walks every page of the summary view, so
                 these take no "+" even while only the first page is on screen. */}
+            {t.key === 'todo' && counts.solvedPending > 0 && <span className="dccr-tab-count">{counts.solvedPending.toLocaleString()}</span>}
             {t.key === 'r2' && statusCount('Review 2 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 2 Pending').toLocaleString()}</span>}
             {t.key === 'r3' && statusCount('Review 3 Pending') > 0 && <span className="dccr-tab-count">{statusCount('Review 3 Pending').toLocaleString()}</span>}
           </button>
@@ -553,7 +583,7 @@ export function DailyCallReview() {
           is why they are tabs rather than a filter to set each morning. Same
           panes, same rules, same save; only the left-hand list is scoped, so
           they cannot drift from the desk. */}
-      {(tab === 'desk' || tab === 'r2' || tab === 'r3') && (
+      {(tab === 'desk' || tab === 'todo' || tab === 'r2' || tab === 'r3') && (
         <div className="dccr-desk" style={{ gridTemplateColumns: `${widths[0]}% 6px ${widths[1]}% 6px 1fr` }}>
           {/* ---- 1. the calls, grouped --------------------------------- */}
           <div className="dccr-pane dccr-pane-list">
@@ -1507,7 +1537,7 @@ function ReviewDrawer({
           url={manualReportLink(docFor)}
           title={`Service Report — ${ucn}`}
           subtitle={[
-            String(docFor.visit_at ?? docFor.updated_at ?? '').slice(0, 10),
+            fmtLongDate(docFor.visit_at ?? docFor.updated_at),
             String(docFor.engineer ?? ''),
             String(docFor.call_status ?? ''),
           ].filter(Boolean).join(' · ')}

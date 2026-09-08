@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
-import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
+import { csvExport, fmtDate, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
@@ -38,7 +38,9 @@ const TONES: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
 };
 
 const str = (v: unknown) => (v == null ? '' : String(v));
-const dateVal = (v: unknown) => str(v).slice(0, 10);
+// Through the one formatter — see the note in CallAssociations. (The date
+// arithmetic further down keeps slicing: that is a VALUE, not a rendering.)
+const dateVal = (v: unknown) => fmtLongDate(v);
 
 // A form value on its way back to the database: '' means "no value" (and on an
 // inheriting field, "follow the header"), never an empty string.

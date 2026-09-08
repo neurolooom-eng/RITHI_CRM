@@ -8,13 +8,31 @@
    code is — a colour people learn to read is a code, and a code that means
    something else in dark mode is not one.
    --------------------------------------------------------------------------- */
+/* A FLAT LIST (the user, 2026-09-08). The row was two stacked bands — the
+   title and detail above, everything else wrapped underneath — so ten items
+   filled a screen and the list could not be scanned. One line per item now:
+   number, title, then the fields that get changed, on a single baseline. The
+   detail sits under the title only where there IS one, so an item with a
+   sentence of context costs a line and an item without one costs nothing. */
 .trk-row {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(300px, auto);
-  grid-template-areas: 'main meta' 'who who';
-  gap: 8px 12px;
-  padding: 10px 0;
+  grid-template-columns: 30px minmax(240px, 1fr) minmax(280px, auto);
+  grid-template-areas: 'no main meta' '. who who';
+  gap: 4px 10px;
+  align-items: start;
+  padding: 7px 0;
   border-bottom: 1px solid var(--border);
+}
+
+/* The row number: quiet, right-aligned so the digits line up down the list,
+   and tabular so 9 and 10 do not shift the titles beside them. */
+.trk-no {
+  grid-area: no;
+  text-align: right;
+  padding-top: 7px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
 }
 .trk-row:last-child { border-bottom: 0; }
 
@@ -22,14 +40,21 @@
    Faded, never hidden: see the note in Tracker.tsx. */
 .trk-row.is-closed { opacity: 0.55; }
 
-.trk-main { grid-area: main; display: flex; flex-direction: column; gap: 6px; }
-.trk-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
-.trk-who  { grid-area: who; font-size: 12px; }
+.trk-main { grid-area: main; display: flex; flex-direction: column; gap: 4px; }
+.trk-meta { grid-area: meta; display: flex; flex-wrap: nowrap; gap: 6px; align-items: flex-start; }
+.trk-who  { grid-area: who; font-size: 11.5px; }
+
+/* The detail grows from one line to what it needs while you are in it, and
+   goes back to one line after — so a long note does not push every other item
+   off the screen for people who are only scanning. */
+.trk-detail { min-height: 0; height: 30px; transition: height .12s ease; }
+.trk-detail:focus { height: 84px; }
 
 .trk-title { font-weight: 600; }
-.trk-detail { resize: vertical; min-height: 40px; font: inherit; }
+.trk-detail { resize: vertical; font: inherit; }
 
-.trk-meta .input, .trk-meta .select { max-width: 150px; }
+.trk-meta .input, .trk-meta .select { max-width: 132px; }
+.trk-meta .input[type="date"] { max-width: 138px; }
 .trk-status { font-weight: 600; }
 
 /* The status carries the only colour on the row. */
@@ -42,4 +67,14 @@
 @media (max-width: 780px) {
   .trk-row { grid-template-columns: 1fr; grid-template-areas: 'main' 'meta' 'who'; }
   .trk-meta .input, .trk-meta .select { max-width: none; flex: 1 1 130px; }
+}
+
+@media (max-width: 900px) {
+  /* Below this the three columns cannot hold a line, so it folds back to
+     stacked bands rather than squeezing the fields to nothing. */
+  .trk-row {
+    grid-template-columns: 30px 1fr;
+    grid-template-areas: 'no main' '. meta' '. who';
+  }
+  .trk-meta { flex-wrap: wrap; }
 }

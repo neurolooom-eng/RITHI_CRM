@@ -142,6 +142,9 @@ function Shell() {
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
         <Route path="/exports" element={<ReportsHub />} />
+        {/* One page, one tab per report — so the menu can name each report
+            instead of hiding it behind a tab strip. */}
+        <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/tracker" element={<Tracker />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />

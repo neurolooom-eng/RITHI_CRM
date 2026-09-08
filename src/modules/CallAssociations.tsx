@@ -1,11 +1,12 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured,
   serviceManualsForProduct, kbForCall, type DocRow, type KbLite,
 } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { deriveStage } from '../lib/spareflow';
+import { deriveStage, type SpareReq } from '../lib/spareflow';
 import { manualReportLink } from '../lib/reports';
+import { fmtLongDate } from '../lib/format';
 import { DocPreview } from '../components/doc/DocPreview';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
@@ -26,7 +27,12 @@ import './fieldcalls.css';
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? '' : String(v));
-const d = (v: unknown) => s(v).slice(0, 10);
+// EVERY DATE THROUGH THE ONE FORMATTER (the user, 2026-09-08: "Make all the
+// Date Formats alligned -- DD-MMM-YYYY"). This used to slice the ISO string,
+// which is why the visit history read 2026-09-03 while the call above it read
+// 03-Sep-2026 — the same day, twice, in two languages. `format.tsx` has been
+// dd-mmm-yyyy all along; what was wrong was going round it.
+const d = (v: unknown) => fmtLongDate(v);
 
 // `fmt` returns a NODE, not a string: the visit history carries the service
 // report, and a link is not text. Every existing column returns a string, which
@@ -191,6 +197,34 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
     return () => { alive = false; };
   }, [callNumber]);
 
+  // A part is the CODE, not the code-plus-description: consumption and the
+  // request line both carry "CODE|Description" and the description drifts
+  // (case, spacing, a renamed part), so matching the whole string would report
+  // a part as unused because somebody re-typed its name.
+  const partKey = (v: unknown) => s(v).split('|')[0].trim().toUpperCase();
+
+  // REJECTED LINES ARE NOT SHOWN (the user, 2026-09-08). A refused request is a
+  // decision that belongs to the spare register, not a fact about the call; on
+  // the call it reads as a part that might have been fitted. Dropped lines stay
+  // — Stores dropping an approved part is a supply failure the call should show.
+  const requestedLive = useMemo(
+    () => requested.filter((r) => deriveStage(r as SpareReq) !== 'Rejected'),
+    [requested],
+  );
+
+  // Which parts got as far as the engineer and were never booked here.
+  const unusedParts = useMemo(() => {
+    const consumedKeys = new Set(consumed.map((c) => partKey(c.part)));
+    const out = new Set<string>();
+    requestedLive.forEach((r) => {
+      const stage = deriveStage(r as SpareReq);
+      if (stage !== 'Dispatched' && stage !== 'Received') return;
+      const k = partKey(r.part);
+      if (k && !consumedKeys.has(k)) out.add(k);
+    });
+    return out;
+  }, [requestedLive, consumed]);
+
   if (!supabaseConfigured()) return null;
 
   return (
@@ -228,16 +262,29 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
       />
 
       <MiniTable
-        title="Spares requested" icon="📦" rows={requested}
+        title="Spares requested" icon="📦" rows={requestedLive}
         empty="No spare requests raised."
         onRowClick={setSpareDetail}
         cols={[
           { key: 'requested_at', label: 'Date', fmt: (r) => d(r.requested_at) },
-          { key: 'uid', label: 'Req UID' },
+          // THE OR NUMBER, not the request UID (the user, 2026-09-08). The uid
+          // is this system's own handle; the OR is what the paperwork, Stores
+          // and the customer all say, so it is the one somebody can act on.
+          { key: 'or_number', label: 'OR No' },
           { key: 'part', label: 'Part' },
           { key: 'qty', label: 'Qty' },
           { key: 'stage', label: 'Stage', fmt: (r) => deriveStage(r) },
           { key: 'dc_number', label: 'DC No' },
+          // REQUESTED, SENT, AND NOT BOOKED. A part that reached the engineer
+          // and appears nowhere in this call's consumption is either fitted and
+          // unrecorded or still in the van — both worth knowing, neither
+          // visible until now. A part that never got past an approver is NOT
+          // flagged: it was never supplied, so there was nothing to use.
+          { key: '_unused', label: '', fmt: (r) => (
+            unusedParts.has(partKey(r.part))
+              ? <span className="assoc-flag" title="Requested and sent, but not booked against this call">Not Used as per the Request</span>
+              : null
+          ) },
         ]}
       />
       {spareDetail && <SpareDetail row={spareDetail} onClose={() => setSpareDetail(null)} />}

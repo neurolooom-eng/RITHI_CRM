@@ -17,6 +17,11 @@ interface NavItem {
   icon: string;
   adminOnly?: boolean;
   alwaysOpen?: boolean; // visible to every role, not RBAC-gated (e.g. help pages)
+  // THE PERMISSION, where the path is not it. Reports is one page with a tab
+  // per report, so its entries are `/exports/consumption` and `/exports/kpi` —
+  // and `mod:/exports/consumption` is a key nobody holds. One module, two ways
+  // in; without this the whole heading would be invisible to everyone.
+  perm?: string;
 }
 interface NavGroup {
   title: string;
@@ -91,7 +96,19 @@ export const NAV: NavGroup[] = [
       { to: '/failure-report', label: 'Field Failure Report', icon: '🧪' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
-      { to: '/exports', label: 'Reports', icon: '📄' },
+    ],
+  },
+  {
+    // A HEADING, not a page under Quality & Analytics (the user, 2026-09-08).
+    // Every export is taken from here and the list grows — "and more to come"
+    // was the brief when the screen was created — so each report is its own
+    // entry rather than a tab somebody has to know is there. They are one
+    // module (`mod:/exports`), named by `perm` above, because the path is no
+    // longer the permission.
+    title: 'Reports',
+    items: [
+      { to: '/exports/consumption', label: 'Consumption Report', icon: '🔩', perm: 'mod:/exports' },
+      { to: '/exports/kpi', label: 'KPI Export', icon: '📈', perm: 'mod:/exports' },
     ],
   },
   {
@@ -122,7 +139,7 @@ export const NAV: NavGroup[] = [
 // control on them still asks separately for the right that changes something.
 const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
   !!it.alwaysOpen
-  || (it.adminOnly ? (can('manage-users') || can('admin.view')) : can(actionForPath(it.to)));
+  || (it.adminOnly ? (can('manage-users') || can('admin.view')) : can(it.perm ?? actionForPath(it.to)));
 
 // Global search across all modules (nav items). Jump straight to any screen.
 function ModuleSearch() {

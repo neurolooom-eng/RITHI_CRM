@@ -635,7 +635,20 @@ console.log('\n-- the DCCR review desk --');
   eq('Review 2 Pending and Review 3 Pending are tabs',
     /key: 'r2', label: 'Review 2 Pending'/.test(dccr) && /key: 'r3', label: 'Review 3 Pending'/.test(dccr), true);
   eq('they render the same desk, scoped',
-    /tab === 'desk' \|\| tab === 'r2' \|\| tab === 'r3'/.test(dccr), true);
+    /tab === 'desk' \|\| tab === 'todo' \|\| tab === 'r2' \|\| tab === 'r3'/.test(dccr), true);
+  // TO BE REVIEWED is the same desk again, and the one worklist neither stage
+  // tab can express: two stages AND a call state. It overrides the Call State
+  // box while it is open — a tab that says Solved and shows unsolved calls
+  // because a filter was left set is worse than no tab.
+  eq('To be Reviewed is solved calls awaiting either review',
+    /key: 'todo', label: 'To be Reviewed'/.test(dccr)
+    && /statuses: todo \? \['Review 2 Pending', 'Review 3 Pending'\] : undefined/.test(dccr)
+    && /callState: todo \? 'Solved' :/.test(dccr), true);
+  // Its badge cannot come from the tab's own filter — see the counter rule
+  // below — so the count carries the figure, from the same full walk.
+  eq('...and its count is not scoped by the tab that shows it',
+    /solvedPending/.test(dccr)
+    && /countCallReviews\(\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined \}\)/.test(dccr), true);
   eq('and scope it by review status',
     /deskStage = tab === 'r2' \? 'Review 2 Pending' : tab === 'r3' \? 'Review 3 Pending' : ''/.test(dccr), true);
   // Their tab counts come from the full walk, so they are exact and take no "+".
@@ -1690,11 +1703,20 @@ console.log('\n-- the report, shown in the app --');
   // a 45s fallback behind an unchanging line of text, and was reported as a
   // hang within the hour. Both halves are pinned: the budget ends in an answer,
   // and the screen shows the wait moving while it does.
-  eq('the bridge fetch is bounded, and ends in an answer',
-    /controller\.abort\(\), 25000\)/.test(sheets)
-    && /jsonp\(url, 20000\)/.test(sheets), true);
-  eq('...and both failures are reported, not just the fallback\u2019s',
-    /first attempt: \$\{a\}/.test(sheets), true);
+  // THE PATH THAT WORKS IS TRIED FIRST. The browser cannot read a cross-origin
+  // Apps Script response, so the fetch attempt was 25 seconds spent proving
+  // that again on every single report before JSONP did the work.
+  // Scoped to this function's body: `getJson` above has the same fetch call and
+  // tries it FIRST, which is right for a one-line answer and is what made a
+  // naive whole-file search pass no matter which order this one used.
+  const fetchDoc = sheets.slice(sheets.indexOf('export async function fetchAppDocument('));
+  eq('the report is fetched by the transport that actually works, first',
+    /r = await jsonp\(url, 40000\);/.test(fetchDoc)
+    && fetchDoc.indexOf('await jsonp(url, 40000)') < fetchDoc.indexOf('await fetch(url'), true);
+  eq('...and it is still bounded, so it ends in an answer',
+    /controller\.abort\(\), 20000\)/.test(sheets), true);
+  eq('...and both failures are reported, not just the second\u2019s',
+    /\(then: \$\{b\}\)/.test(sheets), true);
   eq('the viewer counts the seconds it has waited',
     /setWaited\(\(n\) => n \+ 1\)/.test(prev)
     && /<b>\{waited\}s<\/b>/.test(prev), true);

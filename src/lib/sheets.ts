@@ -545,30 +545,42 @@ export async function fetchAppDocument(fileId: string): Promise<{ ok: boolean; d
   if (!base) return { ok: false, error: 'No Google Sheet URL configured — set it in Settings.' };
   if (!fileId) return { ok: false, error: 'No file id.' };
   const url = `${base}?${new URLSearchParams({ action: 'drivefile', id: fileId }).toString()}`;
-  // BOUNDED, AND THE BOUND IS THE POINT. This first shipped at 60s with a 45s
-  // JSONP fallback behind it -- 105 seconds of an unchanging "Fetching the
-  // report…" on a blank panel, which is indistinguishable from a hang and was
-  // reported as one within the hour. A wait nobody can tell from a failure is a
-  // failure. 25 + 20 is still generous for a few megabytes of base64 over a
-  // script that has to read the file and encode it, and it ends in an ANSWER.
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
+  // JSONP FIRST, AND THAT IS THE PERFORMANCE FIX.
+  //
+  // The user, 2026-09-08: "It take 45 secs to load the file -- Way looong for
+  // Field engineers." Forty-five is not a coincidence: the budget was 25s of
+  // `fetch` and then 20s of JSONP, and the file arrived at the end of the
+  // second. The browser cannot read a cross-origin Apps Script response — the
+  // reason `getJson` above has carried a JSONP fallback since the beginning —
+  // so the first attempt was never going to succeed, and every report paid the
+  // whole 25 seconds to find that out again.
+  //
+  // So the order is reversed for THIS action: the path that works is tried
+  // first, and `fetch` becomes the fallback in case a future deployment does
+  // send the CORS headers. Same work, half the wait, no redeploy.
+  //
+  // It is still not FAST, and no amount of ordering will make it so: the bridge
+  // reads the whole file, base64-encodes it (+33%) and sends it in one piece,
+  // because ContentService cannot return binary. That ceiling moves only by
+  // storing reports somewhere the browser can fetch directly.
   let r: Record<string, unknown>;
   try {
-    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`Bridge responded ${res.status}`);
-    r = await res.json();
+    r = await jsonp(url, 40000);
   } catch (first) {
-    clearTimeout(timer);
-    try { r = await jsonp(url, 20000); } catch (e) {
-      // BOTH reasons, not just the second. The fetch failure is usually the
-      // informative one (a CORS refusal, a 401, an abort) and the JSONP one is
-      // usually "timed out" — reporting only the fallback's throws away what
-      // actually went wrong.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`Bridge responded ${res.status}`);
+      r = await res.json();
+    } catch (e) {
+      clearTimeout(timer);
+      // BOTH reasons, not just the second. Each attempt fails for its own
+      // reason and the second one's is usually the less informative.
       const a = first instanceof Error ? first.message : String(first);
       const b = e instanceof Error ? e.message : String(e);
-      return { ok: false, error: a === b ? a : `${b} (first attempt: ${a})` };
+      return { ok: false, error: a === b ? a : `${a} (then: ${b})` };
     }
   }
   if (!r.ok || !r.dataBase64) return { ok: false, error: String(r.error ?? 'The bridge could not read that file.') };
