@@ -349,6 +349,41 @@ transfer guard and the cap all inherit them untouched:
   for IST; (2) display reads a non-ISO date DAY-FIRST like the imports, so a
   visit's report date is the day the export meant (`parseAnyDate`).
 
+### The 500 MB cap — MEASURE BEFORE SPLITTING (2026-09-07)
+
+The user is at ~450 MB of a 500 MB per-project allowance and asked whether
+tables could live in a SECOND Supabase project and still be queried and compared
+from here.
+
+**They can, but a second project is a second Postgres database**: no SQL joins
+across the two, no shared `auth.uid()`, no shared `has_perm()` / `app_roles`, and
+none of the apply bundles, `_status.sql`, `check:replay` or `check:views` can see
+across the boundary. That is a permanent architectural cost and worth paying only
+if the space is genuinely in use.
+
+**A separate SCHEMA does not help here** — same database, same disk. Schemas buy
+separation, not capacity. (It would have been the answer if the reason were
+ownership or retention.)
+
+⚠️ **Measure first.** `supabase/apply/_storage_check.sql` (read-only) reports the
+database total, every table by size split into heap / indexes / toast, the ten
+biggest indexes with their use counts, and dead-row bloat.
+
+**The prime suspect is `record_audit` (0048).** It stored a FULL jsonb copy of
+every row on every insert, update and delete — an UPDATE wrote the old row AND
+the new one — across every bulk upload this project has run, with three indexes
+on top. **0112 stopped the trigger and RETAINED the table**, so it is dead weight
+that nothing writes to and only an admin screen reads. What happens to it is a
+quality-record decision, not a technical one, but its size is the first number
+worth knowing.
+
+Second suspect: dead rows. Autovacuum marks them reusable but does not return
+them to disk; only `VACUUM FULL` does, and it takes an ACCESS EXCLUSIVE lock, so
+it is an out-of-hours job.
+
+File storage is a separate Supabase allowance and this project does not use it —
+uploads go to Drive through the Apps Script bridge.
+
 ### A cut-off PER MONTH (2026-09-07) — and a null-propagation bug it turned up
 
 **0138 got the shape wrong and 0139 fixes it.** "Set the Cut Off Date before
