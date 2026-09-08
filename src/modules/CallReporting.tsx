@@ -10,6 +10,7 @@ import { useAccessScope, useTeamEngineers } from '../lib/access';
 import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
 import { manualReportLink } from '../lib/reports';
+import { DocPreview } from '../components/doc/DocPreview';
 import { localIsoDate, toIsoDate } from '../lib/dates';
 import './fieldcalls.css';
 
@@ -297,6 +298,11 @@ export function CallReportDrawer({
 
   // The manual report filed on the most recent visit, so it is one click away.
   const lastManualReport = manualReportLink(priorVisits[0]);
+  // Two things can be shown: the report being uploaded on THIS visit, and the
+  // one filed on the previous visit. Separate flags, because they are different
+  // documents and an engineer comparing them will open one after the other.
+  const [showReport, setShowReport] = useState(false);
+  const [showPrior, setShowPrior] = useState(false);
 
   // Manual report: paste a Drive link, or upload the signed report to the same
   // CallReg Drive folder the request-form documents go to — the returned link
@@ -332,7 +338,7 @@ export function CallReportDrawer({
       if (miss.length) return `Fill the Service Report: ${miss.join(', ')}.`;
     }
     if (solved) {
-      if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload it or paste its link.';
+      if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report.';
       const missFb = fbQuestions.filter((q) => (q.answer === 'rating' || q.answer === 'yesno') && !String(feedback[q.col] ?? '').trim());
       if (missFb.length) return `Customer feedback is mandatory for a solved call. Answer: ${missFb.map((q) => q.col).join(', ')}.`;
     }
@@ -422,25 +428,46 @@ export function CallReportDrawer({
     const val = work[f.key] ?? '';
     const label = <span className="field-label">{f.key}{f.req ? ' *' : ''}</span>;
     if (f.kind === 'manual') {
+      // UPLOADED, NEVER PASTED (the user, 2026-09-08: "pasting link shouldnt be
+      // an option"). The box that took a link is gone, and this is not tidying:
+      // an upload goes through CallReg.gs, which sets the file to
+      // ANYONE_WITH_LINK so the report can be SHOWN in the app. A link somebody
+      // pasted points at a file in their own Drive that nobody else can open --
+      // and the frame cannot tell us it failed, so the report would silently
+      // become Google's "you need access" page. Removing the box is what makes
+      // the preview trustworthy, not a restriction for its own sake.
+      //
+      // The same shape the registration documents already use (DriveFileField):
+      // pick a file, see the file, remove it.
       return (
         <div className="rep-field rep-span2" key={f.key}>
           <span className="field-label">Manual Report{solved ? ' *' : ''}</span>
-          <input className="input" placeholder="Paste the Drive link to the signed report" value={manualLink} onChange={(e) => setManualLink(e.target.value)} />
           <div className="rep-upload">
-            <label className={`btn btn-sm ${uploading ? 'is-busy' : ''}`}>
-              {uploading ? 'Uploading…' : '⭱ Upload file'}
-              <input type="file" hidden accept=".pdf,image/*" disabled={uploading}
-                onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void uploadReport(file); }} />
-            </label>
-            {uploading ? (
-              <span className="muted rep-hint">Sending to Drive — this takes a few seconds.</span>
-            ) : manualLink ? (
-              <a className="rep-upload-file" href={manualLink} target="_blank" rel="noopener noreferrer">Open the linked report ↗</a>
+            {manualLink ? (
+              <>
+                <button type="button" className="svc-report-link" onClick={() => setShowReport(true)}
+                        title="Show the report you uploaded">📄 Show the report</button>
+                <a className="rep-upload-file" href={manualLink} target="_blank" rel="noopener noreferrer">Open in Drive ↗</a>
+                <label className={`btn btn-sm ${uploading ? 'is-busy' : ''}`}>
+                  {uploading ? 'Uploading…' : 'Replace'}
+                  <input type="file" hidden accept=".pdf,image/*" disabled={uploading}
+                    onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void uploadReport(file); }} />
+                </label>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setManualLink('')}>Remove</button>
+              </>
             ) : (
-              <span className="muted rep-hint">
-                Upload the signed report (PDF/photo, up to 10 MB) — it goes to the CallReg Drive folder and fills the link.
-                {solved ? ' Required to complete the report.' : ''}
-              </span>
+              <>
+                <label className={`btn btn-sm ${uploading ? 'is-busy' : ''}`}>
+                  {uploading ? 'Uploading…' : '⭱ Upload the signed report'}
+                  <input type="file" hidden accept=".pdf,image/*" disabled={uploading}
+                    onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ''; void uploadReport(file); }} />
+                </label>
+                <span className="muted rep-hint">
+                  {uploading
+                    ? 'Sending to Drive — this takes a few seconds.'
+                    : `PDF or photo, up to 10 MB. It goes to the CallReg Drive folder${solved ? ' — required to complete the report' : ''}.`}
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -486,7 +513,10 @@ export function CallReportDrawer({
       {priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
           🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {String(priorVisits[0].visit_at ?? '').slice(0, 10) || '—'}
-          {!!lastManualReport && <> · <a href={lastManualReport} target="_blank" rel="noopener noreferrer">📎 Manual report ↗</a></>}
+          {!!lastManualReport && (
+            <> · <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '0 4px' }}
+                         onClick={() => setShowPrior(true)}>📎 Manual report</button></>
+          )}
         </div>
       )}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
@@ -718,6 +748,18 @@ export function CallReportDrawer({
             <button className="btn btn-primary" onClick={() => void save()} disabled={busy || uploading || !status}>{busy ? 'Saving…' : uploading ? 'Uploading…' : 'Save Report'}</button>
           </div>
         </div>
+      )}
+
+      {/* Rendered inside the drawer's tree but positioned over the whole page,
+          so the document is read at document size and not at drawer width. */}
+      {showReport && manualLink && (
+        <DocPreview url={manualLink} title={`Service Report — ${ucn}`}
+                    subtitle="Uploaded on this visit" onClose={() => setShowReport(false)} />
+      )}
+      {showPrior && lastManualReport && (
+        <DocPreview url={lastManualReport} title={`Service Report — ${ucn}`}
+                    subtitle={`Previous visit${priorVisits[0]?.visit_at ? ` · ${String(priorVisits[0].visit_at).slice(0, 10)}` : ''}`}
+                    onClose={() => setShowPrior(false)} />
       )}
     </Drawer>
   );

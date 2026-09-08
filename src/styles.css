@@ -262,8 +262,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
    it projects off the surface in either theme rather than tinting it. It moved
    here from dccr.css, which only the review screen loads.
    --------------------------------------------------------------------------- */
+/* It is a BUTTON now on the screens that show the report in the app, and still
+   an anchor where the destination really is another tab. Both are styled here
+   so the two cannot drift: a button inherits none of an anchor's defaults. */
 .svc-report-link {
   display: inline-block;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.5;
   white-space: nowrap;
   font-size: 12.5px;
   font-weight: 600;

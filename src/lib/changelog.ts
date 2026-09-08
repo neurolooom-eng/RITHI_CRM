@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.148',
+    date: '2026-09-08',
+    title: 'Reports open in the app, and are uploaded rather than linked',
+    changes: [
+      'THE SERVICE REPORT NOW OPENS INSIDE THE APP \u2014 a viewer over the screen you are on, not a trip to Drive and back. Everywhere it appears: the top of a closed call, a call\u2019s visit history, the Daily Call Review, and the visit entry form (which also shows the previous visit\u2019s report).',
+      '\u201cOpen in Drive\u201d IS ALWAYS THERE beside it \u2014 for printing, downloading, or if a file will not show. It is not a fallback that appears when something fails: the viewer cannot be told when Drive refuses a file, so the way out is permanent.',
+      'THE MANUAL REPORT IS NOW UPLOADED, NEVER PASTED. The box that took a link is gone; pick the file and it goes to the CallReg Drive folder. Replace and Remove are there once one is attached.',
+      'THAT CHANGE IS WHAT MAKES THE VIEWER WORK. An upload is shared by the bridge as it is stored, so it can be shown; a pasted link usually points at a file in somebody\u2019s own Drive that nobody else can open \u2014 and it would appear as Google\u2019s \u201cyou need access\u201d page with nothing to warn you.',
+      'REPORTS ALREADY ON THE SYSTEM ARE UNTOUCHED. Anything filed before today still opens, and a link that is not a Drive file says so plainly and opens in a tab as it always did.',
+      'Service manuals and QMS documents are unchanged \u2014 a manual is often somebody else\u2019s page on the internet, so linking one is still allowed there.',
+      'No database change \u2014 nothing to run.',
+    ],
+  },
+  {
     version: '0.9.147',
     date: '2026-09-08',
     title: 'The service report, one click from a closed call',

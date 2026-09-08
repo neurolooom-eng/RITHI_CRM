@@ -96,6 +96,55 @@ data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 
 ---
 
+## Reports open in the app, and are uploaded rather than linked (2026-09-08, v0.9.148)
+
+> "is it possible to render the reports -- those saved in drive directly in app?
+> instead of going to drive?" … "most of it are uploaded.. or rather has to be
+> uploaded - pasting link shouldnt be an option"
+
+**The two halves depend on each other.** Drive has one supported embed endpoint,
+`/preview`, and whether it renders is decided by the file's SHARING, not by the
+URL. `CallReg.gs:494` sets `ANYONE_WITH_LINK / VIEW` on every file it uploads
+(and line 568 on every AppSheet-era file it resolves) — so an uploaded report can
+be shown. A link somebody pasted points at whatever they had open, usually a file
+in their own Drive; that renders Google's "you need access" page INSIDE the
+frame, and because the frame is cross-origin **JavaScript cannot tell that it
+did** — no error, no callback, nothing to react to.
+
+So removing the paste box is not tidying: it is what makes the viewer
+trustworthy. And because a failure is undetectable, **"Open in Drive" is
+permanent on every preview**, never a fallback offered when something goes wrong.
+
+* `src/lib/drive.ts` — one parser, `drivePreviewUrl()`. Handles `/file/d/<id>/`,
+  `open?id=`, `uc?id=`, and the three editors (a Doc served from
+  `drive.google.com/file/…/preview` renders nothing; each previews under its own
+  path). **An unknown link returns `''` and opens in a tab exactly as before** —
+  historical rows point at all sorts of things and none should stop working.
+* `src/components/doc/DocPreview.tsx` — one viewer, four screens (closed call,
+  visit history, Daily Call Review, visit entry — the last also shows the
+  PREVIOUS visit's report).
+* `CallReporting` — the Manual Report is a file picker, the shape
+  `DriveFileField` already uses on the registration documents.
+
+**NO `sandbox` ATTRIBUTE ON THE FRAME, deliberately.** It reads like the safer
+choice and is the opposite of one: without `allow-same-origin` the framed page
+gets an opaque origin and Drive's viewer loses the cookies it needs to
+authenticate the reader — the preview would fail for exactly the files a
+signed-in person is entitled to see. The frame is cross-origin either way, which
+is what actually stops it touching the app.
+
+**Untested from here, and it is the one thing that can only be tested live:**
+`script.google.com` is blocked from this sandbox, and a Drive embed depends on
+the viewer's own Google session in any case. Nine unit assertions pin the URL
+building; whether Drive frames a given file is Drive's answer to give.
+
+Service manuals and QMS documents keep their paste option — a manual is often a
+manufacturer's page on the internet, and the Document Library already says so on
+the row ("Linked, not stored").
+
+
+---
+
 ## The service report, one click from a closed call (2026-09-08, v0.9.147)
 
 > "in call - for closed calls add the service report ( Manual report) as a
