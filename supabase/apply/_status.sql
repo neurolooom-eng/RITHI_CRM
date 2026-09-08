@@ -570,6 +570,11 @@ with checks(sort_order, bundle, provides, present) as (
                           'spare.request','spare.dispatch','spare.drop','stock.transfer','stock.return',
                           'consumption.reconcile','pending.register','request.create','install.create',
                           'docs.manage','qms.manage','users.manage','config.manage','rbac.manage')))),
+    (112, 'Reports: Not Used as per the Request', 'unused_spare_report -- spare lines DISPATCHED or RECEIVED against a call whose part code never appears in that call''s consumption. Refused and dropped lines are EXCLUDED: nothing arrived, so nothing could be fitted, and flagging them would send somebody to look for a part that was never in the van. Matched on the part CODE, because both sides store CODE|Description and the description drifts -- matching the whole string reports a part as unused when somebody re-typed its name. A voided consumption still counts as booked (0049 keeps the row). security_invoker, so a reader sees only the calls their role allows (0147). Restore: performance.sql',
+        (to_regclass('public.unused_spare_report') is not null
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'unused_spare_report'
+                       and relnamespace = 'public'::regnamespace), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

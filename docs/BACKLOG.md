@@ -43,6 +43,12 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `performance.sql`** (2026-09-08, v0.9.153) — `unused_spare_report`,
+the "Not Used as per the Request" view (`_status.sql` row 112). Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+
 ⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
 every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
 <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·

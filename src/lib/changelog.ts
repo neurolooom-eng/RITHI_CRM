@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.153',
+    date: '2026-09-08',
+    title: 'Not Used as per the Request \u2014 the report',
+    changes: [
+      'A NEW REPORT under Reports: every spare that REACHED THE ENGINEER and was never booked against the call it was sent for. Each row is one of two stories and the report cannot tell which \u2014 the part was fitted and never recorded, or it is still in the van. Both are worth chasing.',
+      'WHAT IT LEAVES OUT IS THE POINT. A part an approver refused is not on it, and neither is one Stores dropped: nothing arrived, so nothing could be fitted. Flagging those would send somebody looking for a part that was never in the van, and after two of those nobody reads the report again.',
+      'IT MATCHES ON THE PART CODE, not the description \u2014 which drifts, because a part gets renamed and somebody re-types it. Matching the name would report a part as unused for a spelling change.',
+      'A PART BOOKED ON A DIFFERENT CALL DOES NOT CLEAR THIS ONE. The question is whether what was sent FOR the call was used ON it.',
+      'A CONSUMPTION THAT WAS VOIDED still counts as used: the part was fitted and the entry corrected, which is a different story from never being recorded.',
+      'Filter by date sent, engineer, product or part; the count is exact before you download, and the workbook carries a second sheet saying what the filter was and when it was taken.',
+      'AND A FIX ON THE CALL ITSELF: the OR number now shows. It was reading a column that does not exist \u2014 `or_number` rather than `or_no` \u2014 so it had been blank in the spare detail pane since that pane was written.',
+      'Needs supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.152',
     date: '2026-09-08',
     title: 'Reports gets its own heading, and eight things asked for in a row',

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/ui';
 import { ConsumptionReport } from './ConsumptionReport';
 import { KpiExport } from './KpiExport';
+import { UnusedSpareReport } from './UnusedSpareReport';
 import './dccr.css';
 
 // ===========================================================================
@@ -27,13 +28,15 @@ import './dccr.css';
 // asked for on a screen nobody is looking at.
 // ===========================================================================
 
-type Tab = 'consumption' | 'kpi';
+type Tab = 'consumption' | 'kpi' | 'unused';
 
 const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
   { key: 'consumption', label: 'Consumption Report', icon: '🔩',
     blurb: 'Every spare booked, with its call around it — filtered and with the columns you choose.' },
   { key: 'kpi', label: 'KPI Export', icon: '📈',
     blurb: 'The KPI workbook’s Field_INST tab, in its own columns and order.' },
+  { key: 'unused', label: 'Not Used as per the Request', icon: '🚩',
+    blurb: 'Spares that reached the engineer and were never booked against the call they were sent for.' },
 ];
 
 const isTab = (v: string | undefined): v is Tab => REPORTS.some((r) => r.key === v);
@@ -74,7 +77,9 @@ export function ReportsHub() {
           </button>
         ))}
       </div>
-      {tab === 'consumption' ? <ConsumptionReport /> : <KpiExport />}
+      {tab === 'consumption' ? <ConsumptionReport />
+        : tab === 'kpi' ? <KpiExport />
+        : <UnusedSpareReport />}
     </div>
   );
 }

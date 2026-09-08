@@ -76,7 +76,7 @@ function SpareDetail({ row, onClose }: { row: Row; onClose: () => void }) {
     return who || when ? `${val}${who ? ` · ${who}` : ''}${when ? ` · ${when}` : ''}` : val;
   };
   const fields: [string, string][] = [
-    ['OR Number', s(row.or_number)],
+    ['OR Number', s(row.or_no)],
     ['Part', s(row.part)],
     ['Quantity', s(row.qty)],
     ['Item Status', s(row.item_status)],
@@ -106,7 +106,7 @@ function SpareDetail({ row, onClose }: { row: Row; onClose: () => void }) {
         style={{ background: 'var(--surface, #fff)', color: 'var(--text, inherit)', borderRadius: 12, maxWidth: 480, width: '100%', maxHeight: '80vh', overflow: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border, #e5e7eb)' }}>
-          <b style={{ flex: 1 }}>📦 Spare Request · {s(row.or_number) || s(row.part)}</b>
+          <b style={{ flex: 1 }}>📦 Spare Request · {s(row.or_no) || s(row.part)}</b>
           <span className="badge badge-neutral">{stage}</span>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
         </div>
@@ -270,7 +270,7 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
           // THE OR NUMBER, not the request UID (the user, 2026-09-08). The uid
           // is this system's own handle; the OR is what the paperwork, Stores
           // and the customer all say, so it is the one somebody can act on.
-          { key: 'or_number', label: 'OR No' },
+          { key: 'or_no', label: 'OR No' },
           { key: 'part', label: 'Part' },
           { key: 'qty', label: 'Qty' },
           { key: 'stage', label: 'Stage', fmt: (r) => deriveStage(r) },

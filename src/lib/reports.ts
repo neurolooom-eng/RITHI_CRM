@@ -153,3 +153,34 @@ export function manualReportLink(visit: Record<string, unknown> | null | undefin
   const link = String(visit.manual_report ?? data['Manual Report'] ?? '').trim();
   return /^https?:\/\//i.test(link) ? link : '';
 }
+
+
+// ---------------------------------------------------------------------------
+// NOT USED AS PER THE REQUEST — the columns of `unused_spare_report` (0147), in
+// the order somebody chasing one of these rows needs them: what the part is,
+// where it went, and whose call it was, before the reference numbers.
+//
+// One list, not a mandatory/optional split. The consumption report has that
+// because a format was handed over and the rest is extra; this report has no
+// such format behind it, and eighteen columns is a page, not a picker.
+// ---------------------------------------------------------------------------
+export const UNUSED_SPARE_COLUMNS: string[] = [
+  'ucn', 'call_number', 'OR No', 'Part Code', 'Part name', 'Qty Sent', 'Stage',
+  'DC No', 'Dispatched On', 'Received On', 'Engineer', 'Customer', 'Product',
+  'Serial No', 'Item Status', 'Call Registered', 'Call Status', 'Allotted To',
+  'State', 'City', 'Request UID', 'Engineer Email',
+];
+
+export interface UnusedSpareFilter { from: string; to: string; engineer: string; product: string; part: string }
+export const EMPTY_UNUSED_FILTER: UnusedSpareFilter = { from: '', to: '', engineer: '', product: '', part: '' };
+
+/** The filter in words, for the sheet that travels with the file. */
+export function describeUnusedFilter(f: UnusedSpareFilter): string {
+  const bits: string[] = [];
+  if (f.from) bits.push(`Dispatched on or after ${f.from}`);
+  if (f.to) bits.push(`Dispatched on or before ${f.to}`);
+  if (f.engineer) bits.push(`Engineer contains "${f.engineer}"`);
+  if (f.product) bits.push(`Product contains "${f.product}"`);
+  if (f.part) bits.push(`Part code contains "${f.part}"`);
+  return bits.length ? bits.join(' · ') : 'every flagged line — no filter set';
+}
