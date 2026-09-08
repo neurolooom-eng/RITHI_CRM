@@ -27,6 +27,15 @@
 -- Supabase counts DATABASE disk here. File storage (the Storage buckets) is a
 -- separate allowance, and this project does not use it: uploads go to Google
 -- Drive through the Apps Script bridge, so no attachment sits in Postgres.
+--
+-- ⚠ "NEVER USED" IS ONLY TRUE SINCE STATISTICS WERE RESET, and Supabase resets
+-- them on a restart or an upgrade. Section 0 prints WHEN, because without that
+-- date the scan counts are not evidence of anything -- and an index dropped on
+-- that reading is a table scan on every search afterwards. The first run of this
+-- report showed every index at zero scans and `reports` at 8 live rows, which is
+-- what a recent reset looks like: the row counts were nonsense, so the scan
+-- counts were too. Row counts here are now EXACT (counted, not estimated) so
+-- that tell is never available to be misread again.
 -- ===========================================================================
 with
 db as (
@@ -37,7 +46,12 @@ tbl as (
          pg_total_relation_size(c.oid) as total,
          pg_table_size(c.oid)          as heap,
          pg_indexes_size(c.oid)        as idx,
-         coalesce(s.n_live_tup, 0)     as live,
+         -- EXACT, not the planner's estimate: n_live_tup is a STATISTIC and is
+         -- wiped with the rest on a reset, which is how a table with tens of
+         -- thousands of rows reports 8. query_to_xml runs the count read-only.
+         coalesce((xpath('/row/c/text()',
+                   query_to_xml(format('select count(*) as c from public.%I', c.relname),
+                                false, true, '')))[1]::text::bigint, 0) as live,
          coalesce(s.n_dead_tup, 0)     as dead
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
@@ -70,10 +84,24 @@ dead_rows as (
 )
 select section, item, size, rows, note from (
 
-  select 1 as sort_order, 0 as rn,
-         '1. TOTAL' as section, 'database on disk' as item,
-         pg_size_pretty(bytes) as size, '' as rows,
-         'this is what the 500 MB cap is measured against' as note
+  select 0 as sort_order, 0 as rn,
+         '0. READ THIS FIRST' as section,
+         'statistics last reset' as item,
+         coalesce(to_char(d.stats_reset, 'YYYY-MM-DD HH24:MI'), 'never recorded') as size,
+         coalesce(age(now(), d.stats_reset)::text, '-') as rows,
+         case when d.stats_reset is null or d.stats_reset > now() - interval '30 days'
+              then 'RECENT -- the scan counts below are NOT evidence. An index shows '
+                   || '0 scans because nothing has been counted yet, not because nothing '
+                   || 'uses it. Do not drop an index on this reading.'
+              else 'old enough that a 0-scan index is worth questioning -- but confirm '
+                   || 'against how the app is actually used before dropping one.' end as note
+    from pg_stat_database d where d.datname = current_database()
+
+  union all
+  select 1, 0,
+         '1. TOTAL', 'database on disk',
+         pg_size_pretty(bytes), '',
+         'this is what the 500 MB cap is measured against'
     from db
 
   union all
@@ -88,14 +116,20 @@ select section, item, size, rows, note from (
            || case when idx > heap and heap > 8192 then '  <-- indexes outweigh the table' else '' end
     from top_tables where rn <= 25
 
+  -- Every index over 1 MB, not just ten: on this database the indexes are the
+  -- largest single cost, and a top-ten cuts the list off in the middle of it.
   union all
   select 3, rn::int,
-         '3. BIGGEST INDEXES', index_name,
+         '3. INDEXES OVER 1 MB', index_name,
          pg_size_pretty(bytes),
          to_char(scans, 'FM9,999,999') || ' scans',
          'on ' || on_table
-           || case when scans = 0 then '  <-- NEVER used since stats were reset' else '' end
-    from top_indexes where rn <= 10
+           || case when index_name like '%\_trgm' then '  [trigram: substring search]'
+                   when index_name like '%\_uniq' or index_name like '%\_pkey'
+                        then '  [UNIQUE/PK: an upsert needs it -- never drop on a scan count]'
+                   else '' end
+           || case when scans = 0 then '  -- 0 scans SINCE THE RESET IN SECTION 0' else '' end
+    from top_indexes where bytes > 1024 * 1024
 
   -- 4 -- record_audit (0048): a full jsonb copy of every row on every insert,
   -- update and delete -- an UPDATE wrote the old row AND the new one -- across
