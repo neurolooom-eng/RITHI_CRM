@@ -23,12 +23,26 @@ that explains it.
 
 | | what | where |
 | --- | --- | --- |
-| 🗄️ | **Run `performance.sql`** — row 109, the consumption report view. (`objective.sql` was run 2026-09-08.) | *Reports* |
 | 🔢 | **The PM count is short** — 7,029 rows where two years at 10,000/yr should be ~20,000. Find out before nine years load through the same path. | *Nine years vs the 500 MB cap* |
 | 📏 | **PM rows measure ~2× field-call rows** for identical columns. Bloat, or genuinely longer text? 140 MB either way across a backfill. | *Nine years vs the 500 MB cap* |
 | 🔒 | **`handstock_period.closed_through`** — while NULL, none of the 68 MB of spare history can move without silently changing stock balances. | *Nine years vs the 500 MB cap* |
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
+
+✅ **NOTHING PENDING ON THE DATABASE (2026-09-08).**
+
+**VERIFIED, not reported** — from the user's own `_status.sql` output: **all 119
+rows read `yes`**, including row 109 (the consumption report) and, for the first
+time, the two that had been expected to stay `NO`:
+
+* **`DCCR: ...at a quarter past nine`** — **pg_cron is enabled.** Review 2 now
+  auto-answers on the 03:45 UTC schedule rather than only when somebody opens the
+  Daily Call Review. That was the last environment setting outstanding.
+* **`performance: JIT is OFF`** — the Hand Stock compile-time fix is applied.
+
+This is the entry to trust: it has the evidence behind it. Every other line in
+this file is a note, and this file has twice claimed the opposite of what was
+applied.
 
 ### Waiting on a decision
 
