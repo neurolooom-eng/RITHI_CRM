@@ -253,7 +253,9 @@ const MODULES = {
              '0134_objective_evidence_rows.sql', '0135_evidence_product_master.sql',
              '0136_objective_periods.sql', '0137_objective_solve_cutoff.sql',
              '0138_objective_cutoff_visit_date.sql',
-             '0139_objective_cutoffs_per_month.sql'],
+             '0139_objective_cutoffs_per_month.sql',
+             '0140_evidence_product_details.sql',
+             '0141_reliability_template.sql'],
   },
   validation: {
     title: 'Software Validation',

@@ -223,7 +223,12 @@ grant execute on function public.objective_value(bigint, integer) to authenticat
 -- THE EVIDENCE, closing on the same date -- and saying when it had to fall
 -- back, so a blank visit date is visible rather than quietly assumed.
 -- ---------------------------------------------------------------------------
-create or replace function public.objective_evidence(p_id bigint, p_month integer)
+-- 0140 widens the return type (a `details` jsonb on the machine rows) and
+-- `create or replace function` CANNOT change one, so this is dropped first --
+-- a file has to be runnable on a database in any state.
+drop function if exists public.objective_evidence(bigint, integer);
+
+create function public.objective_evidence(p_id bigint, p_month integer)
 returns table (
   role text, ucn text, call_number text, reg_date date, product_name text,
   serial text, party_name text, call_type text, status text, allocated_to text,
