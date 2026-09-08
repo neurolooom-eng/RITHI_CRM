@@ -5,14 +5,26 @@
 -- the current failure template.. I need to be able to fill Services and install
 -- data into this from my export.. failure usual come from DCCR".
 --
--- The workbook is a Weibull reliability study, and only TWO of its sixteen
--- sheets are typed into. The rest derive:
+-- The workbook is a Weibull reliability study, and almost every sheet derives:
 --
 --   `Installed Base`  = FILTER(Inst_PrdMaster!B:B, Inst_PrdMaster!I:I = <model>)
 --   `Services`        = FILTER('Merge WRR'!C5:K, ...)
+--   `Merge WRR`       consolidates the per-year sheets
 --
--- So filling `Inst_PrdMaster` and `Merge WRR` fills the workbook. Everything
--- downstream -- the age bands, the Pareto, the Weibull fit -- recalculates.
+-- CORRECTED 2026-09-08, the user: "it's not Merge WRR, it is WRR-2026." The
+-- sheet a person actually fills is the YEAR sheet; `Merge WRR` is downstream of
+-- it. These fourteen columns are unchanged either way -- WRR-2026's columns 1-14
+-- are Merge WRR's columns 1-14, heading for heading -- so this function is right
+-- and only its address was wrong.
+--
+-- WRR-2026 IS TWO EXPORTS SIDE BY SIDE:
+--
+--   columns  1-14   these -- the reliability fields
+--   columns 15-67   the DCCR, which the sheet currently pulls from a Google
+--                   Sheet by IMPORTRANGE. `DCCR_EXPORT_COLUMNS` in
+--                   `src/lib/dccr.ts` already produces 41 of those 51, in the
+--                   same order and under the same headings.
+--
 -- `Inst_PrdMaster` is a plain Product Master listing and the page builds it from
 -- `products` directly; this function is the other one.
 --
