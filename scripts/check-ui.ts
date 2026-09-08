@@ -1767,5 +1767,44 @@ console.log('\n-- the report, shown in the app --');
     /DRIVE_SERVE_MAX_BYTES/.test(gs) && /too large to show here/.test(gs), true);
 }
 
+console.log('\n-- Not Used as per the Request --');
+{
+  const view = readFileSync('supabase/migrations/0147_unused_spare_report.sql', 'utf8');
+  const scr  = readFileSync('src/modules/UnusedSpareReport.tsx', 'utf8');
+  const assoc = readFileSync('src/modules/CallAssociations.tsx', 'utf8');
+
+  // WHAT IT DOES NOT SAY is the whole value. A flag that fires on a refused
+  // request sends somebody to look for a part that was never in the van, and
+  // after two of those nobody reads the report again.
+  eq('only lines that actually arrived are flagged',
+    /l\.received_at is not null or coalesce\(l\.stores_status, ''\) ilike '%dispatch%'/.test(view)
+    && /not ilike '%drop%'/.test(view)
+    && /coalesce\(l\.rm_approval, ''\)\s+!~\* 'reject'/.test(view), true);
+  // Both sides store CODE|Description and the description drifts.
+  eq('...matched on the part CODE, not the description',
+    /split_part\(l\.part, '\|', 1\)/.test(view)
+    && /split_part\(c\.part, '\|', 1\)/.test(view), true);
+  // dispatched_qty defaults to 0, not null — a plain coalesce reported every
+  // line as "0 sent", which the test suite caught on its first run.
+  eq('...and the quantity sent is the real one',
+    /coalesce\(nullif\(l\.dispatched_qty, 0\), l\.qty\)/.test(view), true);
+  eq('the report reads as the reader',
+    /alter view public\.unused_spare_report set \(security_invoker = on\)/.test(view), true);
+
+  // The register pages, so a browser-side filter reports on the first page and
+  // calls it the answer — the same rule the consumption report follows.
+  eq('the filter runs in the database and the count is exact',
+    /countUnusedSpares\(filter\)/.test(scr) && /listUnusedSpares\(filter/.test(scr), true);
+  eq('...and the file carries its own scope',
+    /describeUnusedFilter\(filter\)/.test(scr) && /name: 'About'/.test(scr), true);
+
+  // The OR number is what Stores, the paperwork and the customer all say. It is
+  // `or_no`; the detail pane had asked for `or_number` since it was written, so
+  // it rendered blank.
+  eq('the call shows the OR number, by its real column name',
+    /\{ key: 'or_no', label: 'OR No' \}/.test(assoc)
+    && !/or_number/.test(assoc), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -535,6 +535,52 @@ export async function listConsumptionReport(
   }
 }
 
+// ---------------------------------------------------------------------------
+// NOT USED AS PER THE REQUEST — the same shape as the consumption report above,
+// for the same reasons: the filter runs in the DATABASE and the count is exact,
+// so the button says what it is about to export rather than what it has loaded.
+// ---------------------------------------------------------------------------
+export interface UnusedSpareQuery { from?: string; to?: string; engineer?: string; product?: string; part?: string }
+
+function unusedQuery(f: UnusedSpareQuery, opts?: { count: 'exact'; head: true }) {
+  let q = opts
+    ? must().from('unused_spare_report').select('*', opts)
+    : must().from('unused_spare_report').select('*');
+  // Dated by when the part was SENT, not when the call was raised: the question
+  // is about the part's journey, and a call opened in January can be sent a
+  // part in March.
+  if (f.from) q = q.gte('Dispatched On', f.from);
+  if (f.to) q = q.lte('Dispatched On', f.to);
+  if (f.engineer) q = q.ilike('Engineer', `%${f.engineer}%`);
+  if (f.product) q = q.ilike('Product', `%${f.product}%`);
+  if (f.part) q = q.ilike('Part Code', `%${f.part}%`);
+  return q;
+}
+
+export async function countUnusedSpares(f: UnusedSpareQuery): Promise<number> {
+  const { count, error } = await unusedQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+export async function listUnusedSpares(
+  f: UnusedSpareQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await unusedQuery(f)
+      .order('Dispatched On', { ascending: false })
+      .order('ucn', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}
+
 // THE ASSUMPTIONS AND THE HARD STOPS behind one figure, in words. A second
 // call rather than more columns on the evidence: these are derived from the
 // objective's own definition, not from the rows, so they cannot drift out of
@@ -2267,7 +2313,12 @@ export async function serviceReportForCall(ucn: string, callNumber = ''): Promis
 
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
-    .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
+    // `or_no` IS THE OR NUMBER and it was not selected, so the call's spares
+    // table and its detail pane both rendered it blank -- the detail pane had
+    // asked for `or_number`, a column that does not exist, since it was
+    // written. The OR is what Stores, the paperwork and the customer all say,
+    // so it is the one identifier on this row somebody can act on.
+    .select('*, spare_requests!inner(uid, or_no, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')
     .eq('spare_requests.call_number', callNumber).order('created_at', { ascending: false }).limit(200);
   if (error) return [];
   return (data ?? []).map((r) => {
@@ -2278,7 +2329,7 @@ export async function spareRequestsByCall(callNumber: string): Promise<Record<st
     // line, so the line's own rm/commercial/nsm/stores fields take precedence.
     return {
       ...req, ...line, part: line.part, qty: line.qty,
-      uid: req?.uid, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at,
+      uid: req?.uid, or_no: req?.or_no, req_status: req?.status, req_engineer: req?.engineer, requested_at: req?.created_at,
     };
   });
 }

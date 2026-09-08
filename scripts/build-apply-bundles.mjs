@@ -294,7 +294,7 @@ const MODULES = {
       // The consumption report. Here rather than in a spares module because it
       // reads the `calls` view and `reports` as well as `spare_consumption`, and
       // this module already runs after everything it needs exists.
-      '0142_consumption_report.sql'],
+      '0142_consumption_report.sql', '0147_unused_spare_report.sql'],
   },
   audit: {
     title: 'Audit Log',
