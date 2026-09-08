@@ -372,6 +372,74 @@ ownership or retention.)
 query returning one labelled result set, and that is why. It is now the same
 shape as `_status.sql`.
 
+### Nine years of history vs the 500 MB cap — SIZED (2026-09-07)
+
+The user has call and failure data back to **2017** and wants it in the system.
+None of it is loaded: `field_calls` starts 2026-01, `pm_calls` 2024-09.
+
+**Measured cost per row, from the live project:**
+
+| | rows in db | data/row | ALL-IN per row (with indexes) |
+| --- | --- | --- | --- |
+| `field_calls` | 3,959 | 1,124 B | **7,152 B** |
+| `pm_calls` | 7,029 | 2,088 B | **6,860 B** |
+| `installation_calls` | 459 | 1,981 B | 8,262 B |
+| `reports` | 16,168 | 531 B | 908 B |
+
+**Volume, per the user:** field ~5,900/yr, **PM ~10,000/yr minimum**,
+installation ~690/yr — about **16,600 calls a year**, so 2017-2026 is
+~**150,000 calls** and ~210,000 visits.
+
+| | rows only | with the CURRENT indexing |
+| --- | --- | --- |
+| 150,000 calls | ~170-260 MB | **~1.05 GB** |
+| ~210,000 visits | ~110 MB | ~190 MB |
+| **total** | **~280-370 MB** | **~1.25 GB** |
+
+⚠️ **THE FREE TIER CANNOT HOLD THIS, EVEN SPLIT.** Archive-indexed (btrees on
+UCN / serial / reg_date, NO trigrams) it is still ~400-520 MB — one archive
+project completely full with no room for next year. Live-indexed it needs three
+projects today and a fourth within two years.
+
+**The recommendation is Supabase Pro** (8 GB, ~$25/mo): 1.25 GB fits six times
+over, everything stays joinable, RLS keeps working, and the apply bundles and
+check scripts keep meaning something. Splitting a validated quality system
+across three databases nobody can join is far more expensive than the
+subscription — most of all the first time a figure is wrong because half the
+data was in the other project.
+
+**THE INDEX MULTIPLIER IS THE WHOLE STORY.** Rows are ~300 MB; indexes take it
+to 1.25 GB. The bulk is `pg_trgm` (substring search on party name, call number,
+complaint text). An archive nobody types into does not need them — that alone is
+the difference between 4x and ~1.4x.
+
+#### ⏳ TO CHECK — the user is doing this (2026-09-07)
+
+1. **THE PM COUNT IS SHORT.** At 10,000/yr, 2024-09 → 2026-09 should hold
+   ~20,000 rows. `pm_calls` has **7,029 — about a third.** Whatever loaded it
+   stopped early or was filtered. **Find out before nine years go through the
+   same path**, or the backfill silently loses two thirds of itself.
+
+2. **PM ROWS MEASURE NEARLY DOUBLE.** 2,088 B/row against `field_calls`' 1,124,
+   for tables with IDENTICAL columns (the 0040 split). Either PM complaint text
+   really is twice as long, or `pm_calls` is carrying bloat. Across 150,000
+   calls that is 170 MB vs 310 MB of rows — 140 MB on a 500 MB allowance. If it
+   is bloat, `VACUUM FULL` returns it; if it is real, it has to be budgeted.
+
+3. **`handstock_period.closed_through`** — still unanswered. While it is NULL,
+   `handstock_cutoff()` is `-infinity` and EVERY row of
+   `spare_issue_history` + `spare_consumption_history` (68 MB) still feeds live
+   hand stock. Nothing there is safe to move until a period is closed. Hand
+   stock is derived, never stored, so removing source rows changes balances with
+   no error and no warning.
+
+#### Also worth knowing
+
+**Visits reach back further than calls.** `reports` holds visits from 2021-08
+while the call registers start 2024/2026 — 16,168 visits against 11,447 calls.
+Those visits' calls are missing today and will re-attach when the history loads.
+Worth confirming that is "visits loaded first" and not a partial call load.
+
 ### Where the 331 MB actually is (2026-09-07, measured)
 
 From the user's own `_storage_check.sql` output. **331 MB of disk, not 450** —
