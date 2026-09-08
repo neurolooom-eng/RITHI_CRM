@@ -10,9 +10,16 @@ import { Ucn } from '../lib/callstate';
 import { ConsumptionReport } from './ConsumptionReport';
 
 // ===========================================================================
-// REPORTS — two of them now, on tabs.
+// VISIT REPORTS / SERVICE REPORTS — two of them, on tabs.
 //
-//   Visit history   one row per visit, from `reports`. Local browser cache +
+// The menu says both names because the business does (the user, 2026-09-08):
+// the engineer files a "service report" and the register holds it as a visit.
+// A bare "Reports" had also become ambiguous once a second report lived here.
+// The ROUTE is still /reports -- permissions key off `mod:<path>`, not the
+// label, so no role loses access to a screen because its name changed, and no
+// bookmark breaks.
+//
+//   Visit Reports   one row per visit, from `reports`. Local browser cache +
 //                   last-sync + 30-min auto/force sync; field filters query the
 //                   server live. Unchanged.
 //   Consumption     one row per spare booked, filtered in the DATABASE, with a
@@ -146,7 +153,7 @@ function VisitHistory() {
       <PageHeader
         onRefresh={() => void refresh()}
         refreshing={busy}
-        syncedAt={lastSync} title="Reports" subtitle="Visit history — every call report, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
+        syncedAt={lastSync} title="Visit Reports" subtitle="Every call report an engineer has filed — one row per visit, cached locally and synced from the database." icon="🗒️" count={rows.length} countMore={more} />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
@@ -189,7 +196,7 @@ function VisitHistory() {
 type Tab = 'visits' | 'consumption';
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'visits', label: 'Visit History', icon: '🗒️' },
+  { key: 'visits', label: 'Visit Reports', icon: '🗒️' },
   { key: 'consumption', label: 'Spare Consumption', icon: '🔩' },
 ];
 
