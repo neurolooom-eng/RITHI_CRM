@@ -539,6 +539,21 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select column_name = 'UC Number' from information_schema.columns
                     where table_schema = 'public' and table_name = 'consumption_report'
                       and ordinal_position = 1), false))),
+    (110, 'Tracker: the shared activity list', 'tracker_items + tracker_list -- the in-app backlog. ONE permission does everything: mod:/tracker grants the page AND the right to add and edit, because "all who have access should be able add, edit" is the whole access model and two rights would take two ticks to undo. Granted to ADMIN only on apply; anyone else is added by hand on Roles & Permissions, because "a few other" is a choice and not a default. created_by/updated_by are stamped by a TRIGGER, and an edit cannot rewrite who raised it. Nothing is auto-deleted: Done and Dropped stay on the list and the page hides them (0143). Restore: tracker.sql',
+        (to_regclass('public.tracker_items') is not null
+     and exists (select 1 from pg_policies
+                  where schemaname='public' and tablename='tracker_items' and policyname='tracker_rw')
+        -- BY NAME, not `'public.tracker_items'::regclass` -- that cast resolves
+        -- at PLAN time and takes the WHOLE report down on a project without the
+        -- table. Third time this trap has come up; it is always the same shape.
+     and exists (select 1 from pg_trigger tg
+                  join pg_class c on c.oid = tg.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname = 'public' and c.relname = 'tracker_items'
+                   and tg.tgname = 'zz_tracker_items_stamp')
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'tracker_list'
+                       and relnamespace = 'public'::regnamespace), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

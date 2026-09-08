@@ -44,6 +44,12 @@ This is the entry to trust: it has the evidence behind it. Every other line in
 this file is a note, and this file has twice claimed the opposite of what was
 applied.
 
+🧭 **THERE IS NOW AN IN-APP TRACKER** (`/tracker`, Administration, v0.9.144).
+Shared, one permission to see and edit, granted to admins on apply. It does not
+replace this file — this one carries the reasoning and the warnings, the tracker
+carries what is being worked on right now — but a short-lived item belongs there
+rather than here.
+
 ### Waiting on a decision
 
 | | what |
