@@ -1809,6 +1809,23 @@ console.log('\n-- Not Used as per the Request --');
   eq('...and the file carries its own scope',
     /describeUnusedFilter\(filter\)/.test(scr) && /name: 'About'/.test(scr), true);
 
+  // A DRAWER IS READ, NOT SCANNED. The mini-table styling clips every cell to
+  // one ellipsised line, which is right where ten visits have to fit and wrong
+  // in the detail drawer — it turned the two fields somebody opens it FOR, Job
+  // Done and the Complaint Observation, into "…calibration d…".
+  const detail = readFileSync('src/modules/ReportDetail.tsx', 'utf8');
+  const fcss = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  eq('the report drawer wraps its values instead of clipping them',
+    /assoc-table assoc-read/.test(detail)
+    && /\.assoc-table\.assoc-read td \{[^}]*white-space: pre-wrap/.test(fcss), true);
+  // …while the mini tables keep clipping, which is what makes them scannable.
+  eq('...and the mini tables still clip, because they are scanned',
+    /\.assoc-table th, \.assoc-table td \{[\s\S]{0,120}white-space: nowrap/.test(fcss), true);
+  // It was rendered as its raw Drive URL: too long to read and not clickable.
+  eq('the manual report in the drawer opens the viewer',
+    /isManualReport\(k\) && reportUrl/.test(detail)
+    && /<DocPreview/.test(detail), true);
+
   // The OR number is what Stores, the paperwork and the customer all say. It is
   // `or_no`; the detail pane had asked for `or_number` since it was written, so
   // it rendered blank.
