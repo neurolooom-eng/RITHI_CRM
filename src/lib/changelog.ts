@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.150',
+    date: '2026-09-08',
+    title: 'The bridge is redeployed — reports open for everyone now',
+    changes: [
+      'THE NEW CALLREG ADDRESS IS BUILT IN. The redeploy produced a new web-app URL, so every device is moved to it automatically \u2014 nobody has to open Settings and paste anything. A device that had the old address saved is superseded until somebody deliberately saves a different one.',
+      'WHICH TURNS ON THE REPORT VIEWER. Service reports are now fetched through the bridge, which reads them with the account that owns the Drive folder \u2014 so a report opens for an engineer with no Google account at all, and without any file being shared.',
+      'The Download button on the viewer works from the same route: under a policy that blocks link sharing, that is the only way to keep a copy without a Google login.',
+      'If a report still will not show, the viewer falls back to Drive and says why \u2014 that message is the thing to report, because it names the reason.',
+    ],
+  },
+  {
     version: '0.9.149',
     date: '2026-09-08',
     title: 'Reports come through the bridge, so they open for everyone',

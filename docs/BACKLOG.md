@@ -31,15 +31,17 @@ that explains it.
 | 🩺 | **Is any servicing subcontracted?** §7.5.4 says "the organization **or its supplier**". If any is, those records sit outside the daily analysis entirely and the gap is invisible from inside RITHI. Worth confirming either way. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-035/036* |
 | 🩺 | **Do nonconformity, CAPA, complaints and vigilance belong IN this system**, or in a separate quality system this one feeds? Governance, not engineering — and it decides whether four requirements are work here or duplication of a register that already exists. | *[ISO13485_SERVICING.md](ISO13485_SERVICING.md) SR-028/031/034* |
 
-⚠️ **PENDING: A CALLREG REDEPLOY (2026-09-08, v0.9.149).** The `drivefile`
-action is in `apps-script/CallReg.gs` but a script change is not live until the
-Web App is redeployed — Deploy → Manage deployments → ✏️ edit → Version: **New
-version** → Deploy, which keeps the same `/exec` URL. Until then reports open
-exactly as they did before (Drive's preview, for whoever has folder access).
-Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/apps-script/CallReg.gs> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/apps-script/CallReg.gs>
+✅ **THE CALLREG REDEPLOY IS DONE (2026-09-08, v0.9.150).** The user redeployed
+and sent the new `/exec` URL, which is baked into `DEFAULT_SHEETS_URL` with
+`DEFAULT_URL_VERSION` bumped to 10 — so every client supersedes its stored URL
+instead of each device editing Settings. It was a NEW deployment rather than a
+new version of the same one, which is why the URL changed; `DEPLOY.md` asks for
+the same deployment precisely to avoid that, and the version bump is what makes
+it not matter.
+
+**Reported, not verified from here** — `script.google.com` is blocked from the
+sandbox, so whether `drivefile` answers can only be seen by opening a report in
+the live app.
 
 🟡 **NOTHING KNOWN TO BE PENDING ON THE DATABASE — reported run, not verified (2026-09-08).**
 
