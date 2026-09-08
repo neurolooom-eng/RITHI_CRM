@@ -43,11 +43,20 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
-⚠️ **PENDING: `performance.sql`** (2026-09-08, v0.9.153) — `unused_spare_report`,
-the "Not Used as per the Request" view (`_status.sql` row 112). Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+🟡 **`performance.sql` RUN — reported, not verified (2026-09-08, v0.9.157).**
+The user ran it after v0.9.157 shipped. That bundle carries BOTH
+`unused_spare_report` (row 112) and `spare_insights` + the Part Master's new
+fields (row 113), so the two screens that needed it should now load.
+
+**No `_status.sql` output has been seen**, so this is a report rather than
+evidence — the distinction this file exists to keep. Rows 112 and 113 settle it;
+113 checks the property rather than the presence, refusing a `spare_insights`
+that is SECURITY DEFINER.
+
+If Spare Insights still shows an error, the message names the function, which
+means the bundle did not reach the database — PostgREST also caches the schema
+for a few seconds after a function appears, so a reload is worth trying before
+re-running anything.
 
 ⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
 every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
