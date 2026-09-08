@@ -3,7 +3,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer, Modal } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
 import { ROLES, ACTIONS, permsForRole } from '../lib/rbac';
-import { csvExport, statusBadge } from '../lib/format';
+import { csvExport, fmtLongDate, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
   listDirectory, saveDirectoryRow, deleteDirectoryRow, updateProfile, sbAdminCreateUser, sbAdminResetPassword, userActivity,
@@ -698,7 +698,8 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   }, [user.id, user.email, user.fullName]);
 
   const s = (v: unknown) => (v == null ? '' : String(v));
-  const d = (v: unknown) => s(v).slice(0, 10);
+  // Through the one formatter — see the note in CallAssociations.
+  const d = (v: unknown) => fmtLongDate(v);
   const Section = ({ title, icon, rows, cols }: { title: string; icon: string; rows: Record<string, unknown>[]; cols: { k: string; h: string; f?: (r: Record<string, unknown>) => string }[] }) => (
     <section className="rep-sec">
       <div className="rep-sec-title">{icon} {title} <span className="muted">({rows.length})</span></div>

@@ -5,14 +5,14 @@
 
 /* jump-to chips */
 .kb-jump { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-.kb-jump a {
+.kb-jump button {
   display: inline-flex; align-items: center; gap: 7px;
   font-size: 13px; font-weight: 600; text-decoration: none;
   color: var(--text); background: var(--surface-alt);
   border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px;
 }
-.kb-jump a:hover { border-color: var(--primary); color: var(--primary); }
-.kb-jump a .kb-jn {
+.kb-jump button:hover { border-color: var(--primary); color: var(--primary); }
+.kb-jump button .kb-jn {
   font-size: 11px; font-weight: 700; color: var(--primary);
   background: var(--primary-soft); border-radius: 50%;
   width: 18px; height: 18px; display: grid; place-items: center;
@@ -142,3 +142,13 @@
 .kb-att-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-bottom: 8px; }
 .kb-form-actions { display: flex; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
 @media (max-width: 620px) { .kb-form-row, .kb-att-row { grid-template-columns: 1fr; } }
+
+/* A button has to be told to look like the link it replaced (see the note in
+   KnowledgeBase.tsx: an href here would navigate the HashRouter, not scroll). */
+.kb-jump button { font: inherit; cursor: pointer; text-align: left; }
+.kb-jump button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* Where you landed, for a moment. Fifteen links and a smooth scroll otherwise
+   leave a reader checking which section they actually chose. */
+.kb-sec.kb-jumped { box-shadow: 0 0 0 2px var(--primary); border-radius: 8px; }
+.kb-sec { transition: box-shadow .3s ease; scroll-margin-top: 76px; }

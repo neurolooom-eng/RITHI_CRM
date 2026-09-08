@@ -12,6 +12,23 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.152',
+    date: '2026-09-08',
+    title: 'Reports gets its own heading, and eight things asked for in a row',
+    changes: [
+      'REPORTS IS A HEADING, not a page tucked under Quality & Analytics \u2014 and each report is its own entry under it, so the Consumption Report and the KPI Export are named in the menu instead of hidden behind a tab. Each has its own address, so a link to one opens on it.',
+      'THE REPORT VIEWER IS ROUGHLY TWICE AS FAST. It was trying a route the browser cannot use, waiting 25 seconds to find that out, and only then using the one that works. It now goes straight to the one that works.',
+      'A REPORT YOU HAVE ALREADY OPENED OPENS INSTANTLY for the rest of your session.',
+      'DAILY CALL REVIEW HAS A \u201cTO BE REVIEWED\u201d TAB \u2014 solved calls still waiting on Review 2 or Review 3, which is the one worklist neither stage tab could show. It reads and groups exactly like the others, with its own count.',
+      'THE KNOWLEDGE BASE JUMP LINKS WORK. Every one of them went to the Dashboard \u2014 the fault was mine and it was in the link itself, not in your browser. They scroll to the section now, and mark it briefly so you can see where you landed.',
+      'ON A CALL, SPARES REQUESTED SHOWS THE OR NUMBER instead of the internal request id, and rejected lines are gone \u2014 a refused request is a decision on the spare register, not a fact about the call.',
+      'AND IT FLAGS \u201cNot Used as per the Request\u201d \u2014 a part that reached the engineer and was never booked against the call. Either it was fitted and not recorded, or it is still in the van. A separate report of these is next.',
+      'THE TRACKER IS A FLAT LIST with a number on every row, so it can be scanned and pointed at. The detail box opens as you type in it and closes again after.',
+      'EVERY DATE READS DD-MMM-YYYY. A few screens were printing the raw 2026-09-03 next to 03-Sep-2026 \u2014 the same day, twice, in two languages.',
+      'Needs supabase/apply/tracker.sql for the new tracker item.',
+    ],
+  },
+  {
     version: '0.9.151',
     date: '2026-09-08',
     title: 'The report viewer says how long it has been waiting, and only fetches once',

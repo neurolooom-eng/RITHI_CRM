@@ -512,7 +512,7 @@ export function CallReportDrawer({
       <div className="detail-hint">📝 Each save is a new <b>visit</b> in the report history. Spares → <b>spare_consumption</b>, feedback → <b>feedback</b>.</div>
       {priorVisits.length > 0 && (
         <div className="detail-hint" style={{ background: 'var(--surface-2, #f4f6f8)' }}>
-          🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {String(priorVisits[0].visit_at ?? '').slice(0, 10) || '—'}
+          🕓 {priorVisits.length} previous visit{priorVisits.length === 1 ? '' : 's'} — last: {String(priorVisits[0].call_status ?? '—')} by {String(priorVisits[0].engineer ?? '—')} on {fmtLongDate(priorVisits[0].visit_at) || '—'}
           {!!lastManualReport && (
             <> · <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '0 4px' }}
                          onClick={() => setShowPrior(true)}>📎 Manual report</button></>
@@ -758,7 +758,7 @@ export function CallReportDrawer({
       )}
       {showPrior && lastManualReport && (
         <DocPreview url={lastManualReport} title={`Service Report — ${ucn}`}
-                    subtitle={`Previous visit${priorVisits[0]?.visit_at ? ` · ${String(priorVisits[0].visit_at).slice(0, 10)}` : ''}`}
+                    subtitle={`Previous visit${priorVisits[0]?.visit_at ? ` · ${fmtLongDate(priorVisits[0].visit_at)}` : ''}`}
                     onClose={() => setShowPrior(false)} />
       )}
     </Drawer>

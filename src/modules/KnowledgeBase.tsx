@@ -262,6 +262,19 @@ export function KnowledgeBase() {
   const onDb = supabaseConfigured();
   // A task's "Open …" targets the signed-in role may actually reach (admins see
   // all); `always` targets (a personal screen) are shown to everyone.
+  // Scroll to a guide section. `block: 'start'` with a little room above, so
+  // the heading is not tucked under the sticky header; `smooth` because a page
+  // that jumps leaves the reader working out where they landed.
+  const jumpTo = (id: string) => {
+    const el = document.getElementById(`kb-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // A section somebody jumped to is briefly marked, so a strip of fifteen
+    // links does not leave them scanning for which one they chose.
+    el.classList.add('kb-jumped');
+    window.setTimeout(() => el.classList.remove('kb-jumped'), 1600);
+  };
+
   const openable = (go?: GoTo[]) => (go ?? []).filter((g) => g.always || isAdmin || can(actionForPath(g.to)));
   const [articles, setArticles] = useState<KbArticle[]>([]);
   const [busy, setBusy] = useState(false);
@@ -415,8 +428,24 @@ export function KnowledgeBase() {
       {/* ---------- Static guide ---------- */}
       <h2 className="kb-h2" style={{ marginTop: 34 }}>📖 How to use RITHI CRM</h2>
       <p className="kb-intro">Everything you do day to day — each task shows the exact button to tap. Jump to a task:</p>
+      {/* NOT ANCHORS. `href="#kb-3"` looks like the obvious way to jump down a
+          long page and is the one thing that cannot work here: the app runs on
+          a HashRouter, so the fragment IS the route — clicking one rewrote the
+          route to `#kb-3`, which matches nothing, and every link on this strip
+          landed on the Dashboard (reported 2026-09-08). Scrolling to the
+          element directly is what the anchor was pretending to do anyway, and
+          it leaves the address bar alone. */}
       <div className="kb-jump">
-        {SECTIONS.map((s) => <a key={s.id} href={`#kb-${s.id}`}><span className="kb-jn">{s.n}</span>{s.title}</a>)}
+        {SECTIONS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => jumpTo(s.id)}
+            title={`Jump to “${s.title}”`}
+          >
+            <span className="kb-jn">{s.n}</span>{s.title}
+          </button>
+        ))}
       </div>
       {SECTIONS.map((s) => (
         <section className="kb-sec" id={`kb-${s.id}`} key={s.id}>

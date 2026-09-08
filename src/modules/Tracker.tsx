@@ -146,8 +146,16 @@ export function Tracker() {
           </p>
         )}
 
-        {shown.map((it) => (
+        {shown.map((it, i) => (
           <div key={it.id} className={`trk-row${it.is_closed ? ' is-closed' : ''}`}>
+            {/* A NUMBER YOU CAN POINT AT (the user, 2026-09-08). It is the row's
+                POSITION in the list you are looking at, not the database id —
+                "number 7" has to mean the seventh thing on the screen, which is
+                what somebody reads it off to say in a meeting. It follows the
+                hand ordering and the Done/Dropped filter, so it renumbers when
+                the list changes; the id is on the row's own tooltip for anyone
+                who needs the durable one. */}
+            <span className="trk-no" title={`Item #${it.id}`}>{i + 1}</span>
             <div className="trk-main">
               <input
                 className="input trk-title"

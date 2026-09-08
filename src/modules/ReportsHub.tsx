@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/ui';
 import { ConsumptionReport } from './ConsumptionReport';
 import { KpiExport } from './KpiExport';
@@ -35,9 +36,24 @@ const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
     blurb: 'The KPI workbook’s Field_INST tab, in its own columns and order.' },
 ];
 
+const isTab = (v: string | undefined): v is Tab => REPORTS.some((r) => r.key === v);
+
 export function ReportsHub() {
-  const [tab, setTab] = useState<Tab>('consumption');
+  // THE TAB IS IN THE URL, so the menu can link straight to a report and a
+  // reader can send somebody "the consumption report" rather than "Reports,
+  // then the second tab". An unknown tab falls back to the first rather than
+  // rendering nothing — a mistyped link should still land on the screen.
+  const { tab: param } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+  const tab: Tab = isTab(param) ? param : 'consumption';
   const current = REPORTS.find((r) => r.key === tab);
+  const setTab = (k: Tab) => navigate(`/exports/${k}`);
+
+  // A bare /exports names no report; put the default in the address so the
+  // menu entry lights up and the link is shareable.
+  useEffect(() => {
+    if (!param) navigate('/exports/consumption', { replace: true });
+  }, [param, navigate]);
 
   return (
     <div>

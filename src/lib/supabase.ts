@@ -1493,6 +1493,12 @@ export interface ReviewFilter {
   from?: string;          // reg_date >=  (yyyy-mm-dd)
   to?: string;            // reg_date <=
   status?: string;        // review_status — where the PAPERWORK has got to
+  // MORE THAN ONE STAGE AT ONCE. "To be Reviewed" is Review 2 Pending OR
+  // Review 3 Pending, and `status` can only ask for one. Kept separate rather
+  // than making `status` an array: every existing caller passes a single stage
+  // and a filter that quietly changed shape is how one of them starts matching
+  // nothing.
+  statuses?: string[];
   callState?: string;     // open_state — where the CALL has got to
   product?: string;
   engineer?: string;
@@ -1500,12 +1506,13 @@ export interface ReviewFilter {
   q?: string;             // free text across the scannable columns
 }
 
-function applyReviewFilter<T extends { eq: (c: string, v: never) => T; gte: (c: string, v: never) => T; lte: (c: string, v: never) => T; or: (f: string) => T }>(
+function applyReviewFilter<T extends { eq: (c: string, v: never) => T; gte: (c: string, v: never) => T; lte: (c: string, v: never) => T; in: (c: string, v: never) => T; or: (f: string) => T }>(
   q: T, f: ReviewFilter,
 ): T {
   if (f.from) q = q.gte('reg_date', f.from as never);
   if (f.to) q = q.lte('reg_date', f.to as never);
   if (f.status) q = q.eq('review_status', f.status as never);
+  if (f.statuses?.length) q = q.in('review_status', f.statuses as never);
   // The CALL's own state (Unattended / Unsolved / Report pending / Solved) —
   // a fact about the machine, where `status` above is a fact about the
   // paperwork. Both views carry `open_state`, so the rows and the counters
@@ -1546,12 +1553,13 @@ export async function callReview(ucn: string): Promise<Record<string, unknown> |
 // How many calls sit at each stage across the WHOLE filtered set (not just the
 // page on screen). Read from `field_call_review_summary`, which carries no
 // per-call report lookups, so counting a year of calls is a plain scan.
-export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ total: number; byStatus: Record<string, number>; effects: number }> {
+export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }> {
   const PAGE = 1000;
   const byStatus: Record<string, number> = {};
-  let total = 0; let effects = 0;
+  let total = 0; let effects = 0; let solvedPending = 0;
   for (let from = 0; ; from += PAGE) {
-    let q = must().from('field_call_review_summary').select('review_status,any_potential_effect').range(from, from + PAGE - 1);
+    let q = must().from('field_call_review_summary')
+      .select('review_status,any_potential_effect,open_state').range(from, from + PAGE - 1);
     q = applyReviewFilter(q as never, filter) as never;
     const { data, error } = await q;
     if (error) throw new Error(errMsg(error));
@@ -1560,11 +1568,17 @@ export async function countCallReviews(filter: ReviewFilter = {}): Promise<{ tot
       const s = String((r as Record<string, unknown>).review_status ?? '');
       byStatus[s] = (byStatus[s] ?? 0) + 1;
       if (String((r as Record<string, unknown>).any_potential_effect ?? '') === 'YES') effects += 1;
+      // SOLVED and still waiting on Review 2 or Review 3 — the "To be Reviewed"
+      // worklist. Counted here, in the scan that is already happening, because
+      // the tab's own filter cannot count itself: a counter narrowed by the
+      // thing it counts can only ever report itself.
+      if (String((r as Record<string, unknown>).open_state ?? '') === 'Solved'
+          && (s === 'Review 2 Pending' || s === 'Review 3 Pending')) solvedPending += 1;
     });
     total += rows.length;
     if (rows.length < PAGE) break;
   }
-  return { total, byStatus, effects };
+  return { total, byStatus, effects, solvedPending };
 }
 
 // The register's Product and Engineer boxes. Read from the whole register

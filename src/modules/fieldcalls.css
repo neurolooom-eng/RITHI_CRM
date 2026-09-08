@@ -446,3 +446,17 @@
   border-radius: var(--radius);
   user-select: all;
 }
+
+/* "Not Used as per the Request" — a part that reached the engineer and was
+   never booked against the call. A warning tone rather than the accent: it is
+   a discrepancy to look into, not a state the workflow reaches on purpose. */
+.assoc-flag {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #b45309;
+  color: #fff;
+}
