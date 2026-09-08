@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.141',
+    date: '2026-09-08',
+    title: 'Reports has tabs, and the first new one is Spare Consumption',
+    changes: [
+      'REPORTS IS NOW TWO TABS. Visit History is exactly what it was; SPARE CONSUMPTION is new \u2014 one row per spare booked, with its call and that call\u2019s latest visit around it.',
+      'IT IS THE FORMAT YOU ALREADY KEEP BY HAND: UC Number, Call Number, Call Type, Visit Entry Date, Visit Date & Time, Visiting Service Engineer, Spares Used, Part name, QTY, Product, Serial No, Customer, City, Complaint, Item Status, Call Date \u2014 in that order.',
+      'EVERY OTHER CONSUMPTION COLUMN IS THERE TO SWITCH ON at the end: Source, Remarks, Recorded By, Original Qty, Adjusted By/At, Adjustment Reason, GRIR, the import\u2019s own extra fields, and the call\u2019s state, warranty and contract.',
+      'FILTER BEFORE YOU DOWNLOAD \u2014 call date range, product, customer, city, engineer, part (by code OR name), call type, UCN. The filter runs IN THE DATABASE, so the count beside the button is the whole answer and not just the first page.',
+      'THE SIXTEEN REPORT COLUMNS ARE SHOWN TICKED AND LOCKED rather than hidden \u2014 a column missing from a picker looks like an oversight; one that is visibly locked reads as the rule it is.',
+      'The Excel file carries a second sheet naming the filter, the column choice, the row count and the moment it was taken \u2014 a report whose scope is not written down is one somebody later mistakes for the whole register.',
+      'The two visit dates are both there on purpose: Visit Entry Date is when the register was told, Visit Date & Time is when the engineer was there. They differ often.',
+      'A spare booked against a call with no visit yet still appears, with the dates blank \u2014 dropping it would under-report consumption without anyone seeing.',
+      'Needs supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.140',
     date: '2026-09-08',
     title: 'The DCCR export pastes straight into the reliability workbook',

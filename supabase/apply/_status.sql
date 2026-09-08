@@ -531,6 +531,14 @@ with checks(sort_order, bundle, provides, present) as (
                    limit 1), false)),
     (108, 'Reliability template: the "Merge WRR" sheet, filled from the register', 'reliability_wrr(product) returns the fourteen columns of the reliability workbook''s Merge WRR sheet -- ONE ROW PER VISIT, because a call attended three times is three services in a reliability study. Failure fields come from the DCCR, whose columns ARE the template''s headings (any_potential_effect, spare_category, root_cause_keyword). PM calls are excluded: the sheet carries its own "Date of last preventive maintenance" column, which would be meaningless if a PM were a service row. Cancelled calls never appear (0141). Restore: objective.sql',
         to_regprocedure('public.reliability_wrr(text)') is not null),
+    (109, 'Reports: the spare consumption report', 'consumption_report -- one row per spare booked, with its call and that call''s LATEST visit around it. The first sixteen columns are the user''s own sheet in its own order (mandatory on the screen); the rest of spare_consumption and the call fields follow, off by default. `part` is "CODE|Description" in the table and two columns on the sheet, so the view splits it ONCE. The two visit dates disagree on purpose -- entry is when the register was told, visit is when the engineer was there. security_invoker, so a reader sees only the calls their role allows (0142). Restore: performance.sql',
+        (to_regclass('public.consumption_report') is not null
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'consumption_report'
+                       and relnamespace = 'public'::regnamespace), false)
+     and coalesce((select column_name = 'UC Number' from information_schema.columns
+                    where table_schema = 'public' and table_name = 'consumption_report'
+                      and ordinal_position = 1), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
