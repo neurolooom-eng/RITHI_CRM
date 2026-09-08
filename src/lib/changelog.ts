@@ -21,6 +21,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'THE PART MASTER NOW CARRIES THE ITEM MASTER IN FULL: Spare / Consumable, the product family, purchase cost, and the old system\u2019s own added and modified stamps. They were already arriving in the upload but were being stored where nothing could group or filter them.',
       'AND IT IS HONEST ABOUT WHAT IT DOES NOT KNOW. 86% of the Item Master has no Spare/Consumable value, so those lines are reported as UNCLASSIFIED rather than divided up, and the screen says what share that is. Set the category on Part Master, or load the file, and the number falls.',
       'A VOIDED CONSUMPTION COUNTS AS NOTHING, because it is nothing.',
+      'NOT CONSUMED AGAINST THIS CALL NOW WAITS FOR THE CALL TO BE SOLVED. While a call is open the part is legitimately still in the van \u2014 the engineer has not finished, and consumption is booked when the work is done. The call\u2019s own flag waits too.',
       'Needs supabase/apply/performance.sql.',
     ],
   },

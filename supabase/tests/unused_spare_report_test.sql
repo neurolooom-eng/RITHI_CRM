@@ -19,6 +19,7 @@
 --   8. received, and the consumption was VOIDED     -> ON, Short (0 of 1 used)
 --   9. 2 sent, 1 consumed                           -> ON, Short by 1
 --  10. 2 sent on TWO lines, 2 consumed once         -> off (summed, not per line)
+--  11. the call is NOT SOLVED                       -> off (still in the van)
 --
 -- Run after _stub.sql + every migration.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
@@ -36,6 +37,15 @@ insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, 
                                 complaint_reported, standard_complaint, allocated_to)
 values ('USR-1', 'FIELD', 'ORION-G', '9001', current_date, 'HOSP ONE', 'x', 'y', 'ENG ONE'),
        ('USR-2', 'FIELD', 'ORION-G', '9002', current_date, 'HOSP TWO', 'x', 'y', 'ENG ONE');
+
+-- SOLVED, because the report only speaks about finished calls. `open_state` is
+-- generated from last_status (0032), so it is set the way the register sets it:
+-- by the visit that closed the call.
+insert into public.reports (ucn, call_number, call_status, engineer, visit_at)
+values ('USR-1','CL-USR-1','Solved - Report Completed','ENG ONE', now()),
+       ('USR-2','CL-USR-2','Solved - Report Completed','ENG ONE', now());
+select public.sync_call_last_visit('USR-1');
+select public.sync_call_last_visit('USR-2');
 
 insert into public.spare_requests (uid, or_no, ucn, call_number, engineer, party_name,
                                    product_name, serial, item_status)
@@ -153,6 +163,25 @@ select "Part Code", "Customer", "Product", "Serial No", "Engineer", "DC No"
 \echo 'expect: its spares through this view either.'
 select coalesce(array_to_string(reloptions, ',') like '%security_invoker=on%', false) as invoker
   from pg_class where relname = 'unused_spare_report' and relnamespace = 'public'::regnamespace;
+
+\echo '--- 7. AN OPEN CALL IS NOT A FINDING ---'
+\echo 'expect: 0 rows once USR-1 is put back to unsolved. While a call is open'
+\echo 'expect: the part is legitimately still in the van — the engineer has not'
+\echo 'expect: finished, and consumption is booked when the work is done. A'
+\echo 'expect: report that cries wolf on live work is one people learn to close.'
+update public.reports set call_status = 'Unsolved' where ucn = 'USR-1';
+select public.sync_call_last_visit('USR-1');
+select ucn, "Part Code", 'flagged while open' as problem
+  from public.unused_spare_report where ucn = 'USR-1';
+
+\echo '--- 7b. ...and it comes back when the call is solved ---'
+\echo 'expect: the same rows as section 1 for USR-1. The finding was never'
+\echo 'expect: wrong, only early.'
+update public.reports set call_status = 'Solved - Report Completed' where ucn = 'USR-1';
+select public.sync_call_last_visit('USR-1');
+select count(*) as usr1_rows from public.unused_spare_report where ucn = 'USR-1';
+
+delete from public.reports where ucn like 'USR-%';
 
 -- Leave nothing behind.
 delete from public.spare_consumption   where ucn like 'USR-%';

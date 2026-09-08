@@ -21,8 +21,11 @@
 --   * A part Stores DROPPED is not here either. Approved and then not sent is a
 --     supply failure -- worth knowing, and visible on the call -- but again
 --     nothing arrived, so nothing could be fitted.
---   * A part that WAS DISPATCHED (or acknowledged as received) and is not fully
---     accounted for in that call's consumption IS here. Two findings, not one
+--   * A part on an OPEN call is not here. Until the call is solved the part is
+--     legitimately still in the van -- the engineer has not finished, and
+--     consumption is booked when the work is done.
+--   * A part that WAS DISPATCHED (or acknowledged as received), on a SOLVED
+--     call, and is not fully accounted for in that call's consumption IS here. Two findings, not one
 --     (the user, 2026-09-08: "Flag if there is a Qty Mismatch as well - Say 2
 --     Nos are requested but only 1 Consumed"):
 --
@@ -172,7 +175,18 @@ select
   left join booked b on b.ucn = s.ucn and b.part_code = s.part_code
   left join public.calls c on c.ucn = s.ucn
  where coalesce(b.qty_used, 0) < s.qty_sent      -- none of it, or not all of it
-   and s.part_code <> '';
+   and s.part_code <> ''
+   -- ONLY ONCE THE CALL IS SOLVED (the user, 2026-09-08: "Dont Flag till a Call
+   -- is Solved. Flag only if the Call is solved."). While a call is open the
+   -- part is legitimately still in the van: the engineer has not finished, and
+   -- consumption is booked when the work is done. Flagging an open call reports
+   -- the ordinary course of business as a discrepancy, and a report that cries
+   -- wolf on live work is one people learn to close.
+   --
+   -- An INNER condition on a LEFT JOIN, deliberately: a consumption line whose
+   -- call is not in `calls` at all has no state to be solved, and is not a
+   -- finding either.
+   and c.open_state = 'Solved';
 
 alter view public.unused_spare_report set (security_invoker = on);
 grant select on public.unused_spare_report to authenticated;

@@ -175,7 +175,8 @@ function SupportingDocs({ product, complaint, reported }: { product: string; com
   );
 }
 
-export function CallAssociations({ callNumber, product = '', complaint = '', reported = '' }: { callNumber: string; product?: string; complaint?: string; reported?: string }) {
+export function CallAssociations({ callNumber, product = '', complaint = '', reported = '', solved = false }:
+  { callNumber: string; product?: string; complaint?: string; reported?: string; solved?: boolean }) {
   const [visits, setVisits] = useState<Row[]>([]);
   const [requested, setRequested] = useState<Row[]>([]);
   const [consumed, setConsumed] = useState<Row[]>([]);
@@ -246,12 +247,17 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
       sent.set(k, (sent.get(k) ?? 0) + q);
     });
     const out = new Map<string, { sent: number; used: number }>();
+    // NOT UNTIL THE CALL IS SOLVED (the user, 2026-09-08). While it is open the
+    // part is legitimately still in the van -- the engineer has not finished,
+    // and consumption is booked when the work is done. The report (0147) draws
+    // the same line, in SQL, for the same reason.
+    if (!solved) return out;
     sent.forEach((qty, k) => {
       const u = used.get(k) ?? 0;
       if (u < qty) out.set(k, { sent: qty, used: u });
     });
     return out;
-  }, [requestedLive, consumed]);
+  }, [requestedLive, consumed, solved]);
 
   if (!supabaseConfigured()) return null;
 
