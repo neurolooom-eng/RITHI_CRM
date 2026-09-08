@@ -802,7 +802,7 @@ export const UPLOADS: UploadDef[] = [
     ] },
   { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts', extraInto: 'extra',
     conflict: 'item_detail_key', conflictFrom: ['item_detail'],
-    note: 'Matched on CODE|Description — the same thing a consumption line and an engineer\u2019s hand stock reference. Not on the code alone: the register uses YR134500 for two different parts, so the code would have merged them. Re-loading a corrected sheet updates those parts, rather than adding them again. A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers.',
+    note: 'Carries the Item Master in full: the Spare / Consumable category, the product family, purchase cost, and the superseded system\u2019s own added/modified stamps (kept as source_* so they are never mistaken for this system\u2019s). A blank category stays blank \u2014 86% of that file has none, and Spare Insights reports those as Unclassified rather than guessing. Matched on CODE|Description — the same thing a consumption line and an engineer\u2019s hand stock reference. Not on the code alone: the register uses YR134500 for two different parts, so the code would have merged them. Re-loading a corrected sheet updates those parts, rather than adding them again. A part marked Inactive comes in retired — it stays on every record that already uses it but is not offered in the pickers.',
     cols: [
       { to: 'code', from: ['item code', 'code', 'part no', 'part code'], required: true },
       // `Item Details` is already the CODE|Description string the app stores;
@@ -812,6 +812,33 @@ export const UPLOADS: UploadDef[] = [
       TEXT('description', 'item name', 'description'),
       { to: 'active', from: ['active/inactive?', 'active inactive', 'active', 'status'], type: 'bool' },
       TS('created_at', 'added on'),
+      // THE ITEM MASTER'S OWN FIELDS, as fields (0148/0149). They already
+      // arrived — `extraInto: 'extra'` keeps every unmapped column — but a
+      // value in a jsonb blob cannot be grouped, filtered or shown as a
+      // column, so "Spare / Consumable" was in the database and unusable.
+      //
+      // The vocabulary is the FILE'S, not one invented here: SPARE, PRODUCT,
+      // CONSUMABLE, LABOUR, and blank on 86% of rows. Title-cased to match the
+      // check constraint; anything else is left for a person rather than
+      // guessed at, because a category is a decision and this column is read
+      // straight into a chart.
+      { to: 'category', from: ['spare / consumable', 'spare/consumable', 'spare consumable', 'category', 'type'],
+        derive: (o) => {
+          const v = String(o['spare / consumable'] ?? o['spare/consumable'] ?? o['spare consumable']
+            ?? o.category ?? o.type ?? '').trim().toLowerCase();
+          if (v === 'spare') return 'Spare';
+          if (v === 'consumable') return 'Consumable';
+          if (v === 'product') return 'Product';
+          if (v === 'labour' || v === 'labor') return 'Labour';
+          return '';
+        } },
+      TEXT('product', 'product'),
+      NUM('purchase_cost', 'purchase cost'),
+      NUM('purchase_cost_f', 'purchase cost (f)', 'purchase cost f'),
+      TEXT('source_added_by', 'added by'),
+      TS('source_added_on', 'added on'),
+      TS('source_modified_on', 'modified on'),
+      TS('source_inactive_on', 'set to inactive on'),
     ] },
 
   // ---- ownership & recovered cover

@@ -23,10 +23,20 @@ const CACHE_KEY = 'partMaster';
 const PAGE = 1000;
 type Row = Record<string, unknown> & { id: string };
 
+// THE ITEM MASTER'S OWN FIELDS (0148/0149). They were arriving in `extra` as
+// loose jsonb, which keeps a value but cannot group, filter or show it — so
+// "Spare / Consumable" was in the database and unusable, which is exactly what
+// Spare Insights needed. A blank category reads as "— not set —" rather than
+// being folded into either bucket: 86% of the file has none, and the insight
+// reports that share rather than dividing it up.
 const COLUMNS: Column<Row>[] = [
   { key: 'code', header: 'Part Code', width: 140, wrap: false },
   { key: 'description', header: 'Description', width: 380 },
   { key: 'item_detail', header: 'Item Detail', width: 380 },
+  { key: 'category', header: 'Spare / Consumable', width: 150, wrap: false,
+    render: (r) => (String(r.category ?? '').trim() || <span className="muted">— not set —</span>) },
+  { key: 'product', header: 'Product', width: 110, wrap: false },
+  { key: 'purchase_cost', header: 'Purchase Cost', width: 130, wrap: false, align: 'right' },
   { key: 'active', header: 'Active', width: 90, wrap: false, render: (r) => (r.active === false ? 'No' : 'Yes') },
 ];
 

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.157',
+    date: '2026-09-08',
+    title: 'Spare Insights',
+    changes: [
+      'A NEW DASHBOARD, right below Dashboard: what is being consumed, under which cover, into which products, and how much of it is consumable rather than spare. The window defaults to 1 Jan 2026 \u2192 today and is selectable.',
+      'THE BIGGEST CONSUMERS, the cover each part was fitted under, the products they went into, the consumable/spare split, and the shape month by month \u2014 all computed in the database in one call, so every figure agrees with the rows beneath it.',
+      'THE PART MASTER NOW CARRIES THE ITEM MASTER IN FULL: Spare / Consumable, the product family, purchase cost, and the old system\u2019s own added and modified stamps. They were already arriving in the upload but were being stored where nothing could group or filter them.',
+      'AND IT IS HONEST ABOUT WHAT IT DOES NOT KNOW. 86% of the Item Master has no Spare/Consumable value, so those lines are reported as UNCLASSIFIED rather than divided up, and the screen says what share that is. Set the category on Part Master, or load the file, and the number falls.',
+      'A VOIDED CONSUMPTION COUNTS AS NOTHING, because it is nothing.',
+      'Needs supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.156',
     date: '2026-09-08',
     title: 'Not Consumed Against this Call \u2014 renamed, and now catches short quantities',

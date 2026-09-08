@@ -581,6 +581,34 @@ export async function listUnusedSpares(
   }
 }
 
+// ---------------------------------------------------------------------------
+// SPARE INSIGHTS — five breakdowns of one date window, in one round trip.
+// The function is SECURITY INVOKER, so what comes back is scoped to the
+// reader's own consumption rights (0148).
+// ---------------------------------------------------------------------------
+export interface SpareInsight {
+  from: string; to: string;
+  total: { qty: number; lines: number; parts: number; calls: number; unclassified_lines: number; unclassified_qty: number };
+  by_part: { part_code: string; part_name: string; qty: number; calls: number; category: string }[];
+  by_cover: { cover: string; qty: number; calls: number; lines: number }[];
+  by_product: { product: string; qty: number; lines: number; calls: number; parts: number }[];
+  by_category: { category: string; qty: number; lines: number; parts: number }[];
+  by_month: { month: string; qty: number }[];
+}
+
+export async function spareInsights(from: string, to: string): Promise<SpareInsight> {
+  const { data, error } = await must().rpc('spare_insights', { p_from: from, p_to: to });
+  if (error) throw new Error(errMsg(error));
+  return data as SpareInsight;
+}
+
+/** Part Master's Consumable / Spare setting. '' means nobody has said yet, and
+ *  the insight reports those lines as Unclassified rather than guessing. */
+export async function setPartCategory(id: number, category: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('parts').update({ category }).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // THE ASSUMPTIONS AND THE HARD STOPS behind one figure, in words. A second
 // call rather than more columns on the evidence: these are derived from the
 // objective's own definition, not from the rows, so they cannot drift out of

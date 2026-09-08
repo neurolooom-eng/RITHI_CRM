@@ -37,6 +37,7 @@ import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
 import { ReportsHub } from './modules/ReportsHub';
+import { SpareInsights } from './modules/SpareInsights';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -141,6 +142,7 @@ function Shell() {
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
+        <Route path="/spare-insights" element={<SpareInsights />} />
         <Route path="/exports" element={<ReportsHub />} />
         {/* One page, one tab per report — so the menu can name each report
             instead of hiding it behind a tab strip. */}

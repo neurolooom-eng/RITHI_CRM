@@ -575,6 +575,15 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                      from pg_class where relname = 'unused_spare_report'
                        and relnamespace = 'public'::regnamespace), false))),
+    (113, 'Spare Insights, and the Part Master that feeds it', 'spare_insights(date,date) -- consumption over a window, five ways: the biggest consumers, the cover fitted under, the products, the consumable/spare split and the shape by month. SECURITY INVOKER, so a reader sees only the consumption their role allows; a definer would hand an engineer the whole company''s figures through a dashboard. Voided lines are excluded (a corrected entry is not consumption) and both ends of the window are inclusive. Plus the Item Master''s own fields on `parts` -- category (Spare/Consumable/Product/Labour, blank on 86% of that file and reported as Unclassified rather than guessed), product family, purchase cost, and the superseded system''s stamps as source_* (0148/0149). Restore: performance.sql',
+        (to_regprocedure('public.spare_insights(date,date)') is not null
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='parts' and column_name='category')
+     and exists (select 1 from information_schema.columns
+                  where table_schema='public' and table_name='parts' and column_name='purchase_cost')
+        -- NOT a definer: that is the property, not the presence of the function.
+     and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                      where n.nspname='public' and p.proname='spare_insights' and p.prosecdef))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
