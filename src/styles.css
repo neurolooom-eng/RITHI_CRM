@@ -250,3 +250,28 @@ html, body { max-width: 100%; overflow-x: hidden; }
   border-color: rgba(255, 255, 255, .55);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .35);
 }
+
+
+/* ---------------------------------------------------------------------------
+   THE SERVICE REPORT LINK — the signed report, wherever a visit is shown: the
+   Daily Call Review, a call's visit history, and the top of a closed call.
+   ONE class, because it is one thing, and a document that looks like a button
+   on one screen and a faint blue word on another reads as two different things.
+
+   HIGHLIGHT MEANS CONTRAST (the standing rule): inverted against the page, so
+   it projects off the surface in either theme rather than tinting it. It moved
+   here from dccr.css, which only the review screen loads.
+   --------------------------------------------------------------------------- */
+.svc-report-link {
+  display: inline-block;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--text);
+  color: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.svc-report-link:hover { background: var(--primary); color: #fff; }
+.svc-report-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

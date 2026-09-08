@@ -18,6 +18,7 @@ import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
 import { masterValueApplies } from './dccr';
+import { manualReportLink } from './reports';
 
 const URL_KEY = 'rithi.supabase.url';
 const KEY_KEY = 'rithi.supabase.anon';
@@ -2201,6 +2202,55 @@ export async function reportsByCall(callNumber: string): Promise<Record<string, 
   if (error) return [];
   return data ?? [];
 }
+// ---------------------------------------------------------------------------
+// THE SERVICE REPORT ON A CLOSED CALL — one row, fetched when the call is
+// opened, rather than another column on the register.
+//
+// The call tables denormalise the LAST VISIT's status and date (0014/0032) and
+// nothing else, so the link is not on the row. Widening that denormalisation
+// would mean a column on three call tables, the trigger, and a rebuild of the
+// `calls` view -- and `create or replace view` there is the change that has
+// dropped `security_invoker` three times in this project. One request when a
+// call is opened is the cheaper side of that trade by a distance.
+//
+// THE LATEST VISIT THAT HAS ONE, not simply the latest visit. The report is
+// mandatory on the visit that closes a call, but a call re-opened and closed
+// again for an operational reason has a later visit with nothing attached --
+// and showing nothing there would say "no report was ever filed", which is a
+// different and untrue statement. The visit it came from is returned with it,
+// so the screen can say WHICH visit rather than implying it was the last.
+//
+// Keyed on UCN, which is what saveReport() writes; call_number is the fallback
+// for sheet-era rows that were filed the other way round.
+// ---------------------------------------------------------------------------
+export interface CallServiceReport { url: string; visitAt: string; status: string; engineer: string }
+export async function serviceReportForCall(ucn: string, callNumber = ''): Promise<CallServiceReport | null> {
+  const c = getSupabase(); if (!c) return null;
+  const cols = 'manual_report,data,visit_at,updated_at,call_status,engineer,id';
+  const pick = async (column: 'ucn' | 'call_number', value: string): Promise<CallServiceReport | null> => {
+    if (!value) return null;
+    const { data, error } = await c.from('reports').select(cols)
+      .eq(column, value)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .order('id', { ascending: false })
+      .limit(50);
+    if (error) return null;
+    for (const row of (data ?? []) as Record<string, unknown>[]) {
+      const url = manualReportLink(row);
+      if (url) {
+        return {
+          url,
+          visitAt: String(row.visit_at ?? row.updated_at ?? ''),
+          status: String(row.call_status ?? ''),
+          engineer: String(row.engineer ?? ''),
+        };
+      }
+    }
+    return null;
+  };
+  return (await pick('ucn', ucn)) ?? (callNumber && callNumber !== ucn ? await pick('call_number', callNumber) : null);
+}
+
 export async function spareRequestsByCall(callNumber: string): Promise<Record<string, unknown>[]> {
   const { data, error } = await must().from('spare_request_lines')
     .select('*, spare_requests!inner(uid, call_number, req_type, status, engineer, item_status, rm_approval, commercial_approval, nsm_approval, stores_status, dc_number, received_at, created_at)')

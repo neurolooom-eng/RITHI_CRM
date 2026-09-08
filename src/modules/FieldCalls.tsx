@@ -24,7 +24,7 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, type CallServiceReport } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge, Ucn } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
@@ -503,6 +503,38 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const setSrch1 = (k: keyof typeof srch, v: string) => setSrch((c) => ({ ...c, [k]: v }));
   const [drawer, setDrawer] = useState<{ mode: 'create' | 'edit' | 'view'; row?: Rec } | null>(null);
   const [report, setReport] = useState<Rec | null>(null); // "Visit Entry" → a new visit row
+
+  // ---- THE SERVICE REPORT ON A CLOSED CALL -------------------------------
+  //
+  // The user, 2026-09-08: "in call - for closed calls add the service report
+  // (Manual report) as a clickable link."
+  //
+  // A closed call's signed report was two screens away: open the call, scroll
+  // past the whole form to the visit history, find the visit, open it. The
+  // document a closed call is judged on belongs at the TOP of the call.
+  //
+  // FETCHED WHEN THE CALL IS OPENED, not carried on the row. The register pages
+  // in hundreds and the link is on the visit, not the call, so putting it in the
+  // list would be a join across every page for something read one call at a
+  // time. One request per call opened, and only for a CLOSED one -- an open
+  // call has nothing to show and asking would be a request that always comes
+  // back empty.
+  const [svcReport, setSvcReport] = useState<CallServiceReport | null>(null);
+  const [svcReportBusy, setSvcReportBusy] = useState(false);
+  const drawerUcn = drawer?.mode === 'view' ? String(drawer.row?.ucn ?? '') : '';
+  const drawerClosed = !!drawer?.row && drawer.mode === 'view' && isSolved(drawer.row as Rec);
+  useEffect(() => {
+    setSvcReport(null);
+    if (!drawerUcn || !drawerClosed || !supabaseConfigured()) return;
+    let alive = true;
+    setSvcReportBusy(true);
+    serviceReportForCall(drawerUcn, String(drawer?.row?.callNumber ?? ''))
+      .then((r) => { if (alive) setSvcReport(r); })
+      .catch(() => { /* the call still opens; the link is context, not the page */ })
+      .finally(() => { if (alive) setSvcReportBusy(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerUcn, drawerClosed]);
   const navigate = useNavigate();
   // RECO — hand the call over to Spare Consumption so the reconciliation is
   // booked against this exact UCN, never a typed one. Offered wherever the call
@@ -1211,6 +1243,27 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                   </button>
                 ))}
                 {isSolved(drawer.row as Rec) && <span className="muted" style={{ alignSelf: 'center' }}>🔒 Closed — {String((drawer.row as Rec).lastStatus || 'Solved')}</span>}
+                {/* The signed report, on the call it closed. It sits with the
+                    actions because that is what somebody opening a closed call
+                    came for -- and it says WHICH visit filed it, since a call
+                    closed twice has a later visit that filed none. */}
+                {drawerClosed && svcReport && (
+                  <a
+                    className="svc-report-link"
+                    style={{ alignSelf: 'center' }}
+                    href={svcReport.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Open the signed service report${svcReport.engineer ? ` filed by ${svcReport.engineer}` : ''}`}
+                  >
+                    📄 Service Report{svcReport.visitAt ? ` · ${fmtLongDate(svcReport.visitAt)}` : ''} ↗
+                  </a>
+                )}
+                {drawerClosed && !svcReport && (
+                  <span className="muted" style={{ alignSelf: 'center', fontSize: 12.5 }}>
+                    {svcReportBusy ? 'Looking for the service report…' : '📄 No service report was filed on this call.'}
+                  </span>
+                )}
               </div>
             )}
             {drawer.mode === 'create' && configured && (

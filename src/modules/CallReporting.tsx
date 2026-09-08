@@ -9,6 +9,7 @@ import { useAuth } from '../lib/auth';
 import { useAccessScope, useTeamEngineers } from '../lib/access';
 import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
 import { visitDateProblem } from '../lib/visitdate';
+import { manualReportLink } from '../lib/reports';
 import { localIsoDate, toIsoDate } from '../lib/dates';
 import './fieldcalls.css';
 
@@ -295,11 +296,7 @@ export function CallReportDrawer({
   const removeSpare = (i: number) => { setErr(''); setSpares((rows) => rows.filter((_, n) => n !== i)); };
 
   // The manual report filed on the most recent visit, so it is one click away.
-  const lastManualReport = ((): string => {
-    const v = priorVisits[0];
-    const link = String(v?.manual_report ?? (v?.data as Record<string, unknown> | undefined)?.['Manual Report'] ?? '');
-    return /^https?:\/\//i.test(link) ? link : '';
-  })();
+  const lastManualReport = manualReportLink(priorVisits[0]);
 
   // Manual report: paste a Drive link, or upload the signed report to the same
   // CallReg Drive folder the request-form documents go to — the returned link

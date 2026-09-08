@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   reportsByCall, spareRequestsByCall, spareConsumptionByCall, feedbackByCall, supabaseConfigured,
   serviceManualsForProduct, kbForCall, type DocRow, type KbLite,
 } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { deriveStage } from '../lib/spareflow';
+import { manualReportLink } from '../lib/reports';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
 
@@ -26,8 +27,11 @@ type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? '' : String(v));
 const d = (v: unknown) => s(v).slice(0, 10);
 
+// `fmt` returns a NODE, not a string: the visit history carries the service
+// report, and a link is not text. Every existing column returns a string, which
+// is a node too, so nothing else changed.
 function MiniTable({ title, icon, cols, rows, empty, onRowClick }: {
-  title: string; icon: string; cols: { key: string; label: string; fmt?: (r: Row) => string }[]; rows: Row[]; empty: string;
+  title: string; icon: string; cols: { key: string; label: string; fmt?: (r: Row) => ReactNode }[]; rows: Row[]; empty: string;
   onRowClick?: (r: Row) => void;
 }) {
   return (
@@ -200,6 +204,21 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
           { key: 'call_status', label: 'Status' },
           { key: 'engineer', label: 'Engineer' },
           { key: 'pending_reason', label: 'Pending Reason' },
+          // THE SIGNED REPORT, ON THE VISIT THAT FILED IT. A call can be
+          // visited several times and each visit files its own; hanging one
+          // link off the call would have to pick one and could not say which.
+          // The cell swallows the row click so opening the report is not also
+          // opening the visit behind it.
+          { key: 'manual_report', label: 'Service Report', fmt: (r) => {
+            const link = manualReportLink(r);
+            return link
+              ? (
+                <a className="svc-report-link" href={link} target="_blank" rel="noreferrer"
+                   onClick={(e) => e.stopPropagation()}
+                   title="Open the signed service report">📄 Open</a>
+              )
+              : <span className="muted">—</span>;
+          } },
           { key: 'job', label: 'Job Done', fmt: (r) => s((r.data as Row)?.['Job Done']).slice(0, 80) },
         ]}
       />

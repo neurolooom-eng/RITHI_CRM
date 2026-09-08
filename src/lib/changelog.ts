@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.147',
+    date: '2026-09-08',
+    title: 'The service report, one click from a closed call',
+    changes: [
+      'OPEN A CLOSED CALL AND THE SIGNED SERVICE REPORT IS AT THE TOP OF IT \u2014 a link, beside the Closed marker, with the date of the visit that filed it. It was two screens away before: open the call, scroll past the whole form to the visit history, find the visit, open it.',
+      'EVERY VISIT NOW CARRIES ITS OWN REPORT in the call\u2019s visit history \u2014 a call visited three times files three reports, and each row links to its own. Clicking the link opens the report, not the visit behind it.',
+      'A CLOSED CALL WITH NO REPORT SAYS SO, rather than showing an empty space you cannot tell from a link that has not loaded.',
+      'IT NAMES THE VISIT IT CAME FROM. A call closed, re-opened and closed again has a later visit with nothing attached \u2014 so the link says which visit filed the report instead of implying it was the last one.',
+      'The Daily Call Review\u2019s Service Report link now reads the same field the same way: a report filed before this system existed opens too, and a row where somebody typed a note instead of a link no longer offers a link to nowhere.',
+      'No database change \u2014 nothing to run.',
+    ],
+  },
+  {
     version: '0.9.146',
     date: '2026-09-08',
     title: 'A Technical Support role \u2014 sees everything, changes nothing',
