@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
@@ -7,6 +7,8 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
 import { REPORT_FIELD_KEYS } from './CallReporting';
 import { Ucn } from '../lib/callstate';
+import { manualReportLink } from '../lib/reports';
+import { DocPreview } from '../components/doc/DocPreview';
 
 // ===========================================================================
 // VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
@@ -37,6 +39,10 @@ const COLUMNS: Column<Row>[] = [
   { key: 'pending_reason', header: 'Pending Reason', width: 180 },
   { key: '_job', header: 'Job Done', width: 320, render: (r) => j(r, 'Job Done') || j(r, 'Complaint Observation') },
 ];
+
+// Placed on the base list too, so the column behaves the same whether a reader
+// turned on `manual_report` or the report form's own `Manual Report` field.
+const REPORT_KEYS = ['manual_report', 'Manual Report'];
 
 // Flatten the report's `data` jsonb up to the row so every field the engineer
 // filled is available as a column (⚙ Columns) and searchable; `data` is kept
@@ -120,18 +126,52 @@ export function Reports() {
   };
 
   const [detail, setDetail] = useState<Row | null>(null);
+  const [docFor, setDocFor] = useState<Row | null>(null);
+
+  // THE REPORT IS A BUTTON, NOT ITS ADDRESS. The Drive link was rendering as
+  // raw text — a 90-character URL wrapping over five lines, which made every
+  // row of the register four times taller than it needed to be and still could
+  // not be clicked. The register's own rules apply: a cell is one line, and
+  // what you do with the thing in it is a control.
+  //
+  // BOTH KEYS, because the value is on the row twice: `manual_report` is the
+  // column, `Manual Report` is the report form's own field inside `data`, and
+  // which one a reader has turned on is their business. `manualReportLink`
+  // reads either and returns '' for anything that is not a URL, so a note typed
+  // into the box does not become a dead link.
+  const reportCell = (r: Row) => {
+    const url = manualReportLink(r);
+    if (!url) return <span className="muted">—</span>;
+    return (
+      <span className="row" style={{ gap: 8, flexWrap: 'nowrap' }}>
+        <button type="button" className="svc-report-link"
+                onClick={(e) => { e.stopPropagation(); setDocFor(r); }}
+                title="Show the signed service report">📄 Show</button>
+        <a className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }} href={url}
+           target="_blank" rel="noreferrer"
+           onClick={(e) => e.stopPropagation()}>Open in Drive ↗</a>
+      </span>
+    );
+  };
 
   // Every report field is offered as a toggleable column (⚙), discovered from
   // the data jsonb, on top of the default columns.
   const allFields = useMemo(() => {
-    const base = COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header }));
+    const base = COLUMNS.filter((c) => !c.key.startsWith('_'))
+      .map((c) => ({ key: c.key, header: c.header })) as { key: string; header: string; render?: (r: Row) => ReactNode }[];
     const seen = new Set(base.map((b) => b.key));
-    const extra: { key: string; header: string }[] = [];
-    const add = (k: string) => { if (k && !seen.has(k)) { seen.add(k); extra.push({ key: k, header: k }); } };
+    const extra: { key: string; header: string; render?: (r: Row) => ReactNode }[] = [];
+    const isReport = (k: string) => /manual\s*report/i.test(k);
+    const add = (k: string) => {
+      if (!k || seen.has(k)) return;
+      seen.add(k);
+      extra.push(isReport(k) ? { key: k, header: k, render: reportCell } : { key: k, header: k });
+    };
     // Start from the full report schema so EVERY report field is offered as a
     // column, even when the loaded rows didn't fill it (nothing is trimmed to
     // just what the current page happens to contain)…
     REPORT_FIELD_KEYS.forEach(add);
+    REPORT_KEYS.forEach(add);
     // …then add any further keys actually present in the data (custom / legacy).
     rows.forEach((r) => {
       const d = (r.data as Record<string, unknown>) ?? {};
@@ -181,6 +221,15 @@ export function Reports() {
         }
       />
       {detail && <ReportDetail report={detail} onClose={() => setDetail(null)} />}
+      {docFor && (
+        <DocPreview
+          url={manualReportLink(docFor)}
+          title={`Service Report — ${String(docFor.ucn ?? docFor.call_number ?? '')}`}
+          subtitle={[fmtLongDate(docFor.visit_at), String(docFor.engineer ?? ''), String(docFor.call_status ?? '')]
+            .filter(Boolean).join(' · ')}
+          onClose={() => setDocFor(null)}
+        />
+      )}
     </div>
   );
 }
