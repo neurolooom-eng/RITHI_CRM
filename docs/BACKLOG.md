@@ -372,7 +372,40 @@ ownership or retention.)
 query returning one labelled result set, and that is why. It is now the same
 shape as `_status.sql`.
 
-### The reliability template (2026-09-08)
+### The reliability template — it is WRR-2026, not Merge WRR (2026-09-08)
+
+**CORRECTED by the user: "it's not Merge WRR, it is WRR-2026."** The sheet a
+person fills is the YEAR sheet; `Merge WRR` consolidates the year sheets and is
+downstream. WRR-2026's columns 1-14 are Merge WRR's columns 1-14 heading for
+heading, so `reliability_wrr` is right and only its address was wrong.
+
+**WRR-2026 IS TWO EXPORTS SIDE BY SIDE:**
+
+| columns | what | where from |
+| --- | --- | --- |
+| 1-14 | the reliability fields | `reliability_wrr(product)` (0141) |
+| 15-67 | the DCCR | `IMPORTRANGE` from a Google Sheet today |
+
+**`DCCR_EXPORT_COLUMNS` already produces 41 of those 51**, in the same order and
+under the same headings. **Ten are missing:**
+
+| col | heading | obtainable? |
+| --- | --- | --- |
+| 15 | Updated By | ✅ `call_reviews.updated_by` |
+| 16 | Updated Date | ✅ `call_reviews.updated_at` |
+| 32 | CALL PENDING REASON | ✅ `reports.pending_reason` |
+| 67 | DUMMY COLUMN | ✅ a spacer — emit blank |
+| 35 | CALL DETAILS | ❓ |
+| 36 | VISIT REMARKS | ❓ distinct from "VISIT REMARKS (Reporting)", which IS exported |
+| 37 | CHANGE PRODUCT? | ❓ |
+| 57 | SEND EMAIL FOR DEFECTIVE SPARE | ❓ |
+| 63 | SL NO(T) | ❓ |
+| 64 | Complaint | ❓ distinct from Standard Complaint and NATURE OF COMPLAINT |
+
+⏳ **The six ❓ are with the user.** They came from the old AppSheet export, and
+guessing at them would put invented values on a quality record. The four ✅ can
+be added whenever.
+
 
 The user's `VEGA__French_Template_Reliability.xlsx` is a Weibull study, and only
 TWO of its sixteen sheets are typed into — the rest derive:
