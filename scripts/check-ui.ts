@@ -1800,6 +1800,13 @@ console.log('\n-- Not Consumed Against this Call --');
   eq('the call flags a shortfall too, and says which',
     /Short \{gap\.sent - gap\.used\} of \{gap\.sent\}/.test(assoc), true);
 
+  // NOT UNTIL THE CALL IS SOLVED. While it is open the part is legitimately
+  // still in the van, and a report that cries wolf on live work is one people
+  // learn to close. The view and the call draw the same line.
+  eq('an open call is not a finding',
+    /c\.open_state = 'Solved'/.test(view)
+    && /if \(!solved\) return out;/.test(assoc), true);
+
   eq('only lines that actually arrived are flagged',
     /l\.received_at is not null or coalesce\(l\.stores_status, ''\) ilike '%dispatch%'/.test(view)
     && /not ilike '%drop%'/.test(view)

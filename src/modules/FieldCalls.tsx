@@ -1309,6 +1309,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                 product={String(drawer.row.productName ?? '')}
                 complaint={String(drawer.row.standardComplaint ?? '')}
                 reported={String(drawer.row.complaintReported ?? '')}
+                solved={isSolved(drawer.row as Rec)}
               />
             )}
           </>

@@ -32,6 +32,7 @@ export const ROLE_KEYS = ROLES.map((r) => r.key);
 export interface ModuleDef { path: string; label: string; admin?: boolean }
 export const MODULES: ModuleDef[] = [
   { path: '/', label: 'Dashboard' },
+  { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/parties', label: 'Party Master' },
@@ -255,6 +256,7 @@ export interface PermHeader extends PermHeaderOpts { title: string; pages: PermP
 export const PERM_TREE: PermHeader[] = [
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
+    { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
   ] },

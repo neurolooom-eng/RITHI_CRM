@@ -33,6 +33,10 @@ export const NAV: NavGroup[] = [
     title: 'Overview',
     items: [
       { to: '/', label: 'Dashboard', icon: '📊' },
+      // RIGHT BELOW DASHBOARD, where it was asked for (2026-09-08). It is a
+      // dashboard in its own right rather than an export, which is why it sits
+      // here and not under Reports.
+      { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
     ],
