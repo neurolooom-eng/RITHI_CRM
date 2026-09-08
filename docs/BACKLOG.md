@@ -402,9 +402,18 @@ under the same headings. **Ten are missing:**
 | 63 | SL NO(T) | ❓ |
 | 64 | Complaint | ❓ distinct from Standard Complaint and NATURE OF COMPLAINT |
 
-⏳ **The six ❓ are with the user.** They came from the old AppSheet export, and
-guessing at them would put invented values on a quality record. The four ✅ can
-be added whenever.
+✅ **ALL TEN ADDED 2026-09-08** ("for now add those columns and leave it blank").
+`DCCR_EXPORT_COLUMNS` is now WRR-2026 columns 15-67 **exactly — 53 for 53, in
+order**, verified against the workbook itself and locked by `check:ui`.
+
+CALL PENDING REASON is FILLED (the register already carries it). The other nine
+are blank: the six ❓ because guessing would put invented values on a quality
+record, `Updated By`/`Updated Date` because they live on `call_reviews` but not on
+the view this screen reads — filling those is a migration, not a line — and
+`DUMMY COLUMN` because it is a spacer.
+
+⏳ **Still wanted: what the six ❓ held.** Two rows from the old AppSheet sheet
+would settle it.
 
 
 The user's `VEGA__French_Template_Reliability.xlsx` is a Weibull study, and only

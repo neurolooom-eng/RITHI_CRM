@@ -311,7 +311,27 @@ export function reviewStatus(r: Parameters<typeof review1Done>[0] & Parameters<t
 // the review has always been kept in.
 // ---------------------------------------------------------------------------
 export interface ExportColumn { key: string; header: string }
+//
+// THE ORDER IS WRR-2026's, columns 15-67. That is not a coincidence and it is
+// not a constraint imposed on the register either: the reliability workbook has
+// always pulled this same DCCR in by IMPORTRANGE, so the two lists were already
+// the same 43 columns in the same relative order. The ten below were the only
+// difference, and inserting them at their WRR positions makes an export drop
+// straight into that sheet as well as into the review workbook.
+//
+// NINE OF THEM ARE DELIBERATELY BLANK (the user, 2026-09-08: "for now add those
+// columns and leave it blank"). Six -- CALL DETAILS, VISIT REMARKS, CHANGE
+// PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T) and Complaint -- came from
+// the old AppSheet export and nothing here records what they held; three of
+// those are near-duplicates of columns that ARE exported, which is exactly where
+// a wrong guess would go unnoticed. `Updated By` and `Updated Date` exist on
+// `call_reviews` but not on the view this screen reads, so filling them is a
+// migration rather than a line. `DUMMY COLUMN` is a spacer and is blank by
+// design. A column present and empty still holds the sheet's shape, which is the
+// point of adding them now.
 export const DCCR_EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'updated_by', header: 'Updated By' },
+  { key: 'updated_date', header: 'Updated Date' },
   { key: 'sl_no', header: 'Sl. NO' },
   { key: 'reg_date', header: 'CALL DATE' },
   { key: 'complaint_date', header: 'COMPLAINT DATE' },
@@ -327,8 +347,12 @@ export const DCCR_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'item_status', header: 'EQUIP. STATUS' },
   { key: 'allocated_to', header: 'ENGINEER' },
   { key: 'call_status', header: 'CALL STATUS' },
+  { key: 'pending_reason', header: 'CALL PENDING REASON' },
   { key: 'warranty_number', header: 'WARRANTY NO' },
   { key: 'warranty_start', header: 'WARRANTY START DATE' },
+  { key: 'call_details', header: 'CALL DETAILS' },
+  { key: 'visit_remarks', header: 'VISIT REMARKS' },
+  { key: 'change_product', header: 'CHANGE PRODUCT?' },
   { key: 'public_health_threat', header: 'Public Health Threat?' },
   { key: 'death', header: 'Death?' },
   { key: 'serious_incident', header: 'Serious Incident?' },
@@ -348,13 +372,17 @@ export const DCCR_EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'review3_at', header: 'DATE OF REVIEW 3' },
   { key: 'review3_completed', header: 'Review3 Completed' },
   { key: 'review_status', header: 'Review Status' },
+  { key: 'send_email_defective_spare', header: 'SEND EMAIL FOR DEFECTIVE SPARE' },
   { key: 'current_call_status', header: 'CURRENT CALL STATUS' },
   { key: 'last_visit_at', header: 'Call Solved Date & Time' },
   { key: 'visit_details', header: 'VISIT REMARKS (Reporting)' },
   { key: 'spares_consumed', header: 'SPARES CONSUMED' },
   { key: 'sw_version', header: 'SW Version' },
+  { key: 'sl_no_t', header: 'SL NO(T)' },
+  { key: 'complaint', header: 'Complaint' },
   { key: 'age_days', header: 'Failure within how many days/yrs' },
   { key: 'age_group', header: 'Failure Within Grouping' },
+  { key: 'dummy_column', header: 'DUMMY COLUMN' },
 ];
 
 // The register's own banding of a product's age at failure. Mirrors
@@ -385,6 +413,17 @@ export function exportDate(v: unknown, withTime = false): string {
 // One register row as the export carries it. `index` is the row's Sl. NO.
 export function toExportRow(r: ReviewRow, index: number): Record<string, unknown> {
   return {
+    // Blank on purpose -- see the note on DCCR_EXPORT_COLUMNS. They hold the
+    // WRR-2026 shape so an export pastes into it without shifting a column.
+    updated_by: '',
+    updated_date: '',
+    call_details: '',
+    visit_remarks: '',
+    change_product: '',
+    send_email_defective_spare: '',
+    sl_no_t: '',
+    complaint: '',
+    dummy_column: '',
     sl_no: index + 1,
     reg_date: exportDate(r.reg_date),
     complaint_date: exportDate(r.complaint_date),
@@ -400,6 +439,9 @@ export function toExportRow(r: ReviewRow, index: number): Record<string, unknown
     item_status: r.item_status ?? '',
     allocated_to: r.allocated_to ?? '',
     call_status: r.last_status || r.status || '',
+    // Not blank: the register already carries this one, and a column left empty
+    // where the data is in hand is a loss, not a placeholder.
+    pending_reason: r.pending_reason ?? '',
     warranty_number: r.warranty_number ?? '',
     warranty_start: exportDate(r.warranty_start),
     public_health_threat: r.public_health_threat ?? '',

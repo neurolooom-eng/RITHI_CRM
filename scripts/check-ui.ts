@@ -1417,6 +1417,26 @@ console.log('\n-- the evidence workbook --');
   // XML-unsafe text must not break the part.
   eq('...and text is escaped', s.includes('x &amp; &lt;y&gt;'), true);
 
+  // THE DCCR EXPORT IS WRR-2026's COLUMNS 15-67, in that order -- the
+  // reliability workbook pulls this same register in by IMPORTRANGE, so an
+  // export has to paste into it without shifting a column. The ten added on
+  // 2026-09-08 are mostly blank ON PURPOSE and must stay in the list: a missing
+  // column moves every column after it.
+  const dccrSrc = readFileSync(`${process.cwd()}/src/lib/dccr.ts`, 'utf8');
+  const dccrHeaders = [...dccrSrc
+    .slice(dccrSrc.indexOf('DCCR_EXPORT_COLUMNS: ExportColumn[]'), dccrSrc.indexOf('// The register'))
+    .matchAll(/header: '([^']+)'/g)].map((m) => m[1]);
+  eq('the DCCR export still carries all 53 of WRR-2026 columns 15-67',
+    dccrHeaders.length, 53);
+  eq('...starting with Updated By / Updated Date and ending with DUMMY COLUMN',
+    dccrHeaders[0] === 'Updated By' && dccrHeaders[1] === 'Updated Date'
+    && dccrHeaders[dccrHeaders.length - 1] === 'DUMMY COLUMN', true);
+  // CALL PENDING REASON is the one of the ten the register already holds, so it
+  // is filled rather than blank -- an empty column where the data is in hand is
+  // a loss, not a placeholder.
+  eq('CALL PENDING REASON is filled, not blank',
+    /pending_reason: r\.pending_reason/.test(dccrSrc), true);
+
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   const objSb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
   // Sheet 1 is named for the register the objective actually read — the user's
