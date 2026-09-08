@@ -34,6 +34,7 @@
 --   0120_role_table_views.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
+--   0145_technical_support_role.sql
 --   0121_rbac_policy_tail.sql
 --   0009_audit_log.sql
 --   0033_audit_retention.sql
@@ -2204,6 +2205,129 @@ create policy srl_insert on public.spare_request_lines for insert
   );
 
 -- ------------------------------------------------------------------------
+-- 0145_technical_support_role.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- TECHNICAL SUPPORT — the Super Admin's reach, none of its writes.
+--
+-- The user, 2026-09-08: "Create a New Role 'Technical Support' - Map this Role
+-- to All Modules and Mimic Super Admin - But with Read Only For now."
+--
+-- So the role holds EVERY module key, including the administration ones, and
+-- exactly the actions that only READ. It is not a narrower admin: it is the
+-- same field of view with nothing that changes a row.
+--
+-- WHAT MAKES IT READ-ONLY IS WHAT IT DOES NOT HOLD, not a flag. Every write in
+-- this database is gated by an RLS policy naming the action it needs --
+-- `calls.edit`, `masters.edit`, `spare.dispatch`, `users.manage`, and the rest.
+-- A role holding none of them cannot write, whatever a screen offers it: the
+-- refusal is Postgres's, not the browser's. That is also why the list below is
+-- written out rather than filtered by a pattern -- `consumption.reconcile` and
+-- `ownership.transfer` do not say "edit" either, and a rule that went by the
+-- key's spelling would hand over both.
+--
+-- `data.view_all` is what makes the rest of it useful. Without it the role can
+-- open every page and, on the call pages, sees only rows allotted to it --
+-- which for a support login is nothing at all. can_view_all_calls() (0035)
+-- already honours the permission, so no policy changes here.
+--
+-- `admin.view` is new: it opens the administration screens read-only. They
+-- gated themselves on `users.manage` / `rbac.manage` -- the rights to CHANGE
+-- what is on them -- so until now there was no way to let somebody look.
+--
+-- MERGED, NEVER OVERWRITTEN, like every other grant in this project: an
+-- administrator may have tuned the role by the time this is replayed, and the
+-- merge cannot widen it past read-only because nothing in the list writes.
+-- ===========================================================================
+
+do $ts$
+declare
+  -- Every module in src/lib/rbac.ts MODULES, admin ones included. Kept as a
+  -- literal list because the database has no other record of what the app's
+  -- pages are; a page added later is added here too (and the union below means
+  -- anything the admin role has gained meanwhile comes along by itself).
+  all_mods text[] := array[
+    'mod:/','mod:/lookup','mod:/daily-review','mod:/parties','mod:/product-master',
+    'mod:/user-master','mod:/parts','mod:/masters','mod:/service-manuals','mod:/qms',
+    'mod:/warranties','mod:/contracts','mod:/ownership-transfer','mod:/request-registration',
+    'mod:/pending-registrations','mod:/field-calls','mod:/installations','mod:/pm-calls',
+    'mod:/pending-calls','mod:/reports','mod:/report-mapping','mod:/bulk-uploads',
+    'mod:/spare-requests','mod:/spare-rm-approval','mod:/spare-dispatch','mod:/spare-consumption',
+    'mod:/handstock','mod:/mrn','mod:/stock-transfer','mod:/feedback','mod:/failure-report',
+    'mod:/kpi','mod:/objective','mod:/exports','mod:/tracker','mod:/users','mod:/roles',
+    'mod:/audit','mod:/admin-config','mod:/settings','mod:/version-history'];
+  -- READ ONLY. Nothing here changes a row.
+  read_only text[] := array[
+    'calls.view','masters.view','consumption.view','reports.view','dashboard.view',
+    'feedback.view','audit.view','admin.view','export.data','data.view_all'];
+  granted jsonb;
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice 'app_roles is missing -- run rbac.sql first';
+    return;
+  end if;
+
+  -- The module keys the ADMIN role actually holds, so a page added to the admin
+  -- role by a later migration reaches Technical Support without this file being
+  -- edited. Union, not replacement: the literal list above is the floor.
+  select coalesce(jsonb_agg(distinct v), '[]'::jsonb) into granted
+    from (
+      select unnest(all_mods) as v
+      union
+      select unnest(read_only)
+      union
+      select m.v
+        from public.app_roles ar,
+             lateral jsonb_array_elements_text(ar.permissions) as m(v)
+       where ar.role = 'admin'
+         and m.v like 'mod:%'
+    ) u;
+
+  if exists (select 1 from public.app_roles r where r.role = 'technical_support') then
+    -- MERGE. Whatever an administrator has since ticked stays ticked, and the
+    -- merge cannot widen the role past read-only because nothing in `granted`
+    -- writes.
+    update public.app_roles r
+       set permissions = (
+             select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+               from (
+                 select e.v from jsonb_array_elements_text(r.permissions) as e(v)
+                 union
+                 select g.v from jsonb_array_elements_text(granted) as g(v)
+               ) m
+           ),
+           label      = coalesce(nullif(r.label, ''), 'Technical Support'),
+           updated_at = now()
+     where r.role = 'technical_support';
+  else
+    insert into public.app_roles (role, label, permissions)
+    values ('technical_support', 'Technical Support', granted);
+  end if;
+
+  raise notice 'Technical Support: % permission(s) -- every module, read-only actions only',
+    jsonb_array_length(granted);
+end $ts$;
+
+-- ---------------------------------------------------------------------------
+-- ADMIN GETS `admin.view` TOO, so the matrix does not show the Super Admin
+-- missing a right it obviously holds. is_admin() short-circuits has_perm(), so
+-- this changes nothing about what an admin can do -- it keeps the row honest.
+-- ---------------------------------------------------------------------------
+update public.app_roles ar
+   set permissions = (
+         select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+           from (
+             select jsonb_array_elements_text(ar.permissions) as v
+             union
+             select 'admin.view' as v
+           ) u
+       ),
+       updated_at = now()
+ where ar.role = 'admin'
+   and not (ar.permissions ? 'admin.view');
+
+-- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
 -- ------------------------------------------------------------------------
 
@@ -2841,9 +2965,16 @@ update public.app_roles ar
 -- the reasoning; the tracker keeps what is being worked on now. An item finished
 -- here does not delete its entry there.
 --
--- `owner` IS WHO IT IS WITH, not who will do it -- "You", "Decision", "Claude".
--- That is the question a shared list is actually asked ("what is waiting on
--- me?"), and it is the backlog index's own grouping.
+-- `owner` IS WHO IT IS WITH, not who will do it -- "Rithi Admin", "Decision",
+-- "Claude". That is the question a shared list is actually asked ("what is
+-- waiting on me?"), and it is the backlog index's own grouping.
+--
+-- IT SAYS "RITHI ADMIN", NOT "YOU" (the user, 2026-09-08: "Replace all 'You' to
+-- Rithi Admin in the Tracker"). On a list one person keeps, "You" is clear; on a
+-- SHARED one it is the one word that means somebody different to every reader --
+-- so the rename is what makes the owner column mean anything at all. The block
+-- below renames rows that are already out there, because the seed only inserts
+-- items it has not seen and would otherwise leave the old wording in place.
 --
 -- IDEMPOTENT BY TITLE. The bundles are replayed one at a time and re-run freely,
 -- so every insert is guarded: running this twice does not give anybody a second
@@ -2861,27 +2992,32 @@ begin
     return;
   end if;
 
+  -- The rename, for rows already on somebody's tracker. Narrow on purpose: only
+  -- the exact word, and only in the column it was wrong in.
+  update public.tracker_items set owner = 'Rithi Admin', updated_at = now()
+   where btrim(owner) = 'You';
+
   for r in
     select * from (values
       -- ---- waiting on the user ------------------------------------------
       (10, 'The PM count is short',
            '7,029 rows in pm_calls where two years at 10,000/yr should be ~20,000 — about a third. Whatever loaded it stopped early or was filtered. Find out BEFORE nine years of history load through the same path, or the backfill silently loses two thirds of itself.',
-           'You', 'Data'),
+           'Rithi Admin', 'Data'),
       (20, 'PM rows measure ~2x field-call rows',
            '2,088 bytes/row against field_calls'' 1,124, for tables with IDENTICAL columns (the 0040 split). Either PM complaint text really is twice as long, or pm_calls is carrying bloat. Across 150,000 calls that is 170 MB vs 310 MB of rows — 140 MB on a 500 MB allowance.',
-           'You', 'Storage'),
+           'Rithi Admin', 'Storage'),
       (30, 'handstock_period.closed_through — is a period closed?',
            'While it is NULL, handstock_cutoff() is -infinity and EVERY row of spare_issue_history + spare_consumption_history (68 MB) still feeds live hand stock. Nothing there is safe to move until a period is closed. Hand stock is derived, never stored, so removing source rows changes balances with no error and no warning.',
-           'You', 'Spares'),
+           'Rithi Admin', 'Spares'),
       (40, 'What six AppSheet columns held',
            'CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. They are in the DCCR export as blank columns so WRR-2026 keeps its shape. Two sample rows from the old sheet would settle it. Three are near-duplicates of columns that ARE exported, which is where a wrong guess would go unnoticed.',
-           'You', 'Reliability'),
+           'Rithi Admin', 'Reliability'),
       (50, 'Four objectives still typed, and the CPX rule',
            'FFR field failures, PM Calls, Installation call, b.Customer feedback have no formula yet. public.feedback exists but nothing says how a score is derived from it. Also the CPX failure rule, which was deferred.',
-           'You', 'Objectives'),
+           'Rithi Admin', 'Objectives'),
       (60, 'Call Update and Cancelled Calls — the legacy files',
            'Should update status, complaint details and allocated-to on EXISTING calls. Needs an update-only import mode: an upsert on ucn would INSERT a stub call for any UCN not in the register. Calls also live in three tables, so it must route by looking the UCN up rather than trusting the picker; and cancellation should go through cancel_call(), which checks the permission and insists on a reason. Waiting on: the files (or their headers), and whether a blank cell clears a field or leaves it.',
-           'You', 'Data'),
+           'Rithi Admin', 'Data'),
 
       -- ---- waiting on a decision -----------------------------------------
       (70, 'Supabase Pro, or split across projects?',
@@ -2905,7 +3041,7 @@ begin
       (130, 'A CI workflow', 'Nothing runs the check scripts or the SQL suites automatically; every round is verified by hand.', '', 'Ops'),
       (140, 'Two data uploads still outstanding',
             'The 77 missing yearly consumptions (delete + re-upload the four files per _yearly_consumption_check.sql, to 39,801 total with 12,015 in 2024), and the Ownership Transfer upload.',
-            'You', 'Data'),
+            'Rithi Admin', 'Data'),
       (150, 'engineer_stock needs security_invoker',
             'Carried in the backlog: a view over RLS-protected tables that does not apply RLS to the reader.', 'Claude', 'Security')
     ) as t(ord, title, detail, owner, area)

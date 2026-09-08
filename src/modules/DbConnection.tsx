@@ -5,7 +5,11 @@ import { getSupabaseCreds, pingSupabase, setSupabaseCreds, supabaseConfigured } 
 // Settings panel to connect the app to Supabase (Postgres) — the new data
 // backend replacing the Google Sheet. Paste the Project URL + anon (public)
 // key from Supabase → Project Settings → API, then Test.
-export function DbConnection() {
+// `readOnly` — a login that may SEE how the app is connected but not change it
+// (admin.view / Technical Support). Test is a write too: it stores the pair it
+// is testing, so it goes with Save rather than staying as a harmless-looking
+// button that quietly repoints the browser at another project.
+export function DbConnection({ readOnly = false }: { readOnly?: boolean }) {
   const creds = getSupabaseCreds();
   const [url, setUrl] = useState(creds.url);
   const [anon, setAnon] = useState(creds.anon);
@@ -36,12 +40,16 @@ export function DbConnection() {
         enforced by Row-Level Security. Setup steps: <code>docs/SUPABASE_MIGRATION.md</code>.
       </div>
       <div className="sheet-conn-row">
-        <input className="input" type="url" placeholder="https://xxxxxxxx.supabase.co" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <input className="input" type="url" placeholder="https://xxxxxxxx.supabase.co" value={url} disabled={readOnly} onChange={(e) => setUrl(e.target.value)} />
       </div>
       <div className="sheet-conn-row" style={{ marginTop: 10 }}>
-        <input className="input" placeholder="anon public key (eyJhbGciOi…)" value={anon} onChange={(e) => setAnon(e.target.value)} />
-        <button className="btn" onClick={() => void test()} disabled={testing || !url.trim() || !anon.trim()}>{testing ? 'Testing…' : 'Test'}</button>
-        <button className="btn btn-primary" onClick={save} disabled={!url.trim() || !anon.trim()}>Save</button>
+        <input className="input" placeholder="anon public key (eyJhbGciOi…)" value={anon} disabled={readOnly} onChange={(e) => setAnon(e.target.value)} />
+        {!readOnly && (
+          <>
+            <button className="btn" onClick={() => void test()} disabled={testing || !url.trim() || !anon.trim()}>{testing ? 'Testing…' : 'Test'}</button>
+            <button className="btn btn-primary" onClick={save} disabled={!url.trim() || !anon.trim()}>Save</button>
+          </>
+        )}
       </div>
       {status && <div className={`sheet-conn-status sheet-banner-${status.tone}`}>{status.text}</div>}
     </SectionCard>

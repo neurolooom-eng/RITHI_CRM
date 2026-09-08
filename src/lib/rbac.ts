@@ -9,6 +9,13 @@
 export interface RoleDef { key: string; label: string }
 export const ROLES: RoleDef[] = [
   { key: 'admin', label: 'Admin / Super Admin' },
+  // TECHNICAL SUPPORT — the Super Admin's reach, none of its writes (user,
+  // 2026-09-08: "Map this Role to All Modules and Mimic Super Admin - But with
+  // Read Only For now"). It holds EVERY module key, including the admin ones,
+  // and only the view/read actions; nothing it holds lets it change a row.
+  // "For now" is the operative phrase: widening it later is ticking boxes in
+  // Roles & Permissions, not a code change.
+  { key: 'technical_support', label: 'Technical Support' },
   { key: 'nsm', label: 'NSM (National Service Manager)' },
   { key: 'rgm', label: 'Regional Manager' },
   { key: 'rm', label: 'Reporting Manager' },
@@ -135,6 +142,12 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Admin', key: 'config.manage', label: 'Admin config' },
   { group: 'Admin', key: 'rbac.manage', label: 'Manage roles & permissions' },
   { group: 'Admin', key: 'audit.view', label: 'View audit log' },
+  // SEEING AN ADMIN PAGE IS NOT RUNNING IT. The administration screens gated
+  // themselves on `users.manage` / `rbac.manage` -- the rights to CHANGE what
+  // is on them -- so there was no way to let somebody look. This key opens
+  // them read-only: every control on them still asks for the right that
+  // changes something, and this grants none of those.
+  { group: 'Admin', key: 'admin.view', label: 'Open the administration pages, read-only' },
   // Full data visibility (see every record), regardless of allocation. Granted
   // by role for office roles; also grantable per-user (e.g. a "Permissions +
   // Data" clone). The DB honours it in can_view_all_calls / spare read policies.
@@ -161,6 +174,18 @@ export const legacyToRbac = (role: string): string =>
 // non-admin modules by default (admins remove what a role shouldn't see).
 const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   admin: FUNCTIONAL_ACTIONS.map((a) => a.key),
+  // TECHNICAL SUPPORT — READ ONLY, and the list is written out rather than
+  // filtered by a name pattern: `.view` is not what makes an action safe.
+  // `consumption.reconcile` and `ownership.transfer` do not say "edit" either,
+  // and a rule that goes by the key's spelling would hand over both the day
+  // somebody names a write action `x.view`. Everything here only READS.
+  //
+  // `data.view_all` is what makes the rest of it useful: without it the role
+  // sees every PAGE and, on the call pages, only its own rows -- which for a
+  // support login is nothing at all.
+  technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
+                      'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
+                      'export.data', 'data.view_all'],
   nsm: ['calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
@@ -178,11 +203,16 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
 (['nsm', 'rgm', 'rm', 'hotline', 'spare_coordinator', 'stores_incharge', 'tally_coordinator', 'commercial'] as const)
   .forEach((r) => { if (FUNCTIONAL_DEFAULTS[r] && !FUNCTIONAL_DEFAULTS[r].includes('export.data')) FUNCTIONAL_DEFAULTS[r].push('export.data'); });
 
+// EVERY module for the two that are meant to see everything; the non-admin ones
+// for the rest. Technical Support is on the admin side of that line by design --
+// "map this role to all modules" is the whole point of it -- and stays read-only
+// because of what it does NOT hold above, not because a page is hidden from it.
+const SEES_EVERY_MODULE = new Set(['admin', 'technical_support']);
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
     role,
-    role === 'admin'
-      ? [...FUNCTIONAL_DEFAULTS.admin, ...ALL_MODULES]
+    SEES_EVERY_MODULE.has(role)
+      ? [...(FUNCTIONAL_DEFAULTS[role] ?? []), ...ALL_MODULES]
       : [...(FUNCTIONAL_DEFAULTS[role] ?? FUNCTIONAL_DEFAULTS.engineer), ...NON_ADMIN_MODULES],
   ]),
 );
@@ -283,7 +313,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/version-history', label: 'Version History', actions: [] },
   ] },
   { title: 'Across the system', pages: [
-    { path: '', label: 'Not tied to one page', actions: ['data.view_all', 'export.data'] },
+    { path: '', label: 'Not tied to one page', actions: ['data.view_all', 'export.data', 'admin.view'] },
   ] },
 ];
 

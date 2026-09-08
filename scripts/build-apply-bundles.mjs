@@ -123,6 +123,9 @@ const MODULES = {
             // `is_admin` are 0008 above, and the helper's body is plpgsql, so it is
             // not parsed until it runs.
             '0087_spare_line_stub_rls.sql', '0088_spare_line_parent_visible.sql',
+            // The Technical Support role — a grant into app_roles, no policy and
+            // no function, so it is safe anywhere after 0008 seeds the matrix.
+            '0145_technical_support_role.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it

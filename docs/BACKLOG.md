@@ -29,7 +29,20 @@ that explains it.
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
 
-✅ **NOTHING PENDING ON THE DATABASE (2026-09-08).**
+⚠️ **PENDING ON THE DATABASE (2026-09-08, v0.9.146):**
+
+* **`rbac.sql`** — the Technical Support role (`_status.sql` row 111). Until it
+  is run, picking the role in User Master gives somebody a role the database has
+  never heard of, and `has_perm()` falls back to the **engineer** defaults — so
+  they would see less than an engineer expects, not more. Read it:
+  <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+  copy it:
+  <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+* **`tracker.sql`** — again, for the "You" → "Rithi Admin" rename. Read it:
+  <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
+  copy it:
+  <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+
 
 `tracker.sql` (row 110) run by the user later the same day — **reported, not
 verified**: no `_status.sql` output has been seen since. The Tracker is usable,
@@ -81,6 +94,52 @@ finished.
 Audit Mode rules · the security migration (D-2/D-3/D-4) · a CI workflow · two
 data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 `security_invoker`.
+
+
+---
+
+## Technical Support — the Super Admin's reach, none of its writes (2026-09-08, v0.9.146)
+
+> "Create a New Role 'Technical Support' - Map this Role to All Modules and
+> Mimic Super Admin - But with Read Only For now."
+
+`0145_technical_support_role.sql`. The role holds **every module key the admin
+role holds** — the administration pages included — plus `data.view_all` so the
+call pages are not empty, and **only actions that read**.
+
+**What makes it read-only is what it does not hold**, not a flag. Every write in
+this database is gated by a policy naming the action it needs, so the refusal is
+Postgres's: `supabase/tests/technical_support_test.sql` proves it by refusal, not
+by reading the permission list — a master, a call, a role and a profile are all
+turned down under `set role authenticated`.
+
+**Two exceptions, both by earlier design, and both tested rather than hidden:**
+
+* **`tracker_items`** — `tracker_rw` (0143) is ONE permission for view and edit,
+  which is exactly what was asked for on that page. Holding `mod:/tracker` is
+  therefore holding the right to add and edit there.
+* **`feedback`** — `fb_write` (0008) accepts `feedback.view`, which is also what
+  reads the page, so the two cannot be separated without changing that policy for
+  every role that holds it (nsm, rm, rgm, tally, commercial).
+
+Untick the module, or the action, for this role to close either. A catalog query
+in the test suite finds any THIRD table of this shape the day one appears.
+
+**`admin.view` is new** — it opens the administration screens read-only. They
+gated themselves on `users.manage` / `rbac.manage`, the rights to CHANGE what is
+on them, so until now there was no way to let somebody look. User Access,
+Settings (both connection panels) and Roles & Permissions all open with it and
+keep their own right for everything that writes. The nav's `adminOnly` test moved
+into one helper, `navItemVisible`, so the rule is in one place.
+
+**Also: the Tracker says "Rithi Admin" where it said "You"** (the user's ask the
+same day). On a shared list "You" is the one word that means somebody different
+to every reader. `0144` renames rows already out there, narrowly — the exact
+word, in the one column it was wrong in.
+
+Verified on a throwaway Postgres: every migration applied, the suite run twice,
+`check:replay` (21 bundles), `check:views`, `check:bundles`, `check:ui`,
+`npm run build`.
 
 ---
 

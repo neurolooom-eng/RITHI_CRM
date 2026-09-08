@@ -201,9 +201,16 @@ update public.app_roles ar
 -- the reasoning; the tracker keeps what is being worked on now. An item finished
 -- here does not delete its entry there.
 --
--- `owner` IS WHO IT IS WITH, not who will do it -- "You", "Decision", "Claude".
--- That is the question a shared list is actually asked ("what is waiting on
--- me?"), and it is the backlog index's own grouping.
+-- `owner` IS WHO IT IS WITH, not who will do it -- "Rithi Admin", "Decision",
+-- "Claude". That is the question a shared list is actually asked ("what is
+-- waiting on me?"), and it is the backlog index's own grouping.
+--
+-- IT SAYS "RITHI ADMIN", NOT "YOU" (the user, 2026-09-08: "Replace all 'You' to
+-- Rithi Admin in the Tracker"). On a list one person keeps, "You" is clear; on a
+-- SHARED one it is the one word that means somebody different to every reader --
+-- so the rename is what makes the owner column mean anything at all. The block
+-- below renames rows that are already out there, because the seed only inserts
+-- items it has not seen and would otherwise leave the old wording in place.
 --
 -- IDEMPOTENT BY TITLE. The bundles are replayed one at a time and re-run freely,
 -- so every insert is guarded: running this twice does not give anybody a second
@@ -221,27 +228,32 @@ begin
     return;
   end if;
 
+  -- The rename, for rows already on somebody's tracker. Narrow on purpose: only
+  -- the exact word, and only in the column it was wrong in.
+  update public.tracker_items set owner = 'Rithi Admin', updated_at = now()
+   where btrim(owner) = 'You';
+
   for r in
     select * from (values
       -- ---- waiting on the user ------------------------------------------
       (10, 'The PM count is short',
            '7,029 rows in pm_calls where two years at 10,000/yr should be ~20,000 — about a third. Whatever loaded it stopped early or was filtered. Find out BEFORE nine years of history load through the same path, or the backfill silently loses two thirds of itself.',
-           'You', 'Data'),
+           'Rithi Admin', 'Data'),
       (20, 'PM rows measure ~2x field-call rows',
            '2,088 bytes/row against field_calls'' 1,124, for tables with IDENTICAL columns (the 0040 split). Either PM complaint text really is twice as long, or pm_calls is carrying bloat. Across 150,000 calls that is 170 MB vs 310 MB of rows — 140 MB on a 500 MB allowance.',
-           'You', 'Storage'),
+           'Rithi Admin', 'Storage'),
       (30, 'handstock_period.closed_through — is a period closed?',
            'While it is NULL, handstock_cutoff() is -infinity and EVERY row of spare_issue_history + spare_consumption_history (68 MB) still feeds live hand stock. Nothing there is safe to move until a period is closed. Hand stock is derived, never stored, so removing source rows changes balances with no error and no warning.',
-           'You', 'Spares'),
+           'Rithi Admin', 'Spares'),
       (40, 'What six AppSheet columns held',
            'CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. They are in the DCCR export as blank columns so WRR-2026 keeps its shape. Two sample rows from the old sheet would settle it. Three are near-duplicates of columns that ARE exported, which is where a wrong guess would go unnoticed.',
-           'You', 'Reliability'),
+           'Rithi Admin', 'Reliability'),
       (50, 'Four objectives still typed, and the CPX rule',
            'FFR field failures, PM Calls, Installation call, b.Customer feedback have no formula yet. public.feedback exists but nothing says how a score is derived from it. Also the CPX failure rule, which was deferred.',
-           'You', 'Objectives'),
+           'Rithi Admin', 'Objectives'),
       (60, 'Call Update and Cancelled Calls — the legacy files',
            'Should update status, complaint details and allocated-to on EXISTING calls. Needs an update-only import mode: an upsert on ucn would INSERT a stub call for any UCN not in the register. Calls also live in three tables, so it must route by looking the UCN up rather than trusting the picker; and cancellation should go through cancel_call(), which checks the permission and insists on a reason. Waiting on: the files (or their headers), and whether a blank cell clears a field or leaves it.',
-           'You', 'Data'),
+           'Rithi Admin', 'Data'),
 
       -- ---- waiting on a decision -----------------------------------------
       (70, 'Supabase Pro, or split across projects?',
@@ -265,7 +277,7 @@ begin
       (130, 'A CI workflow', 'Nothing runs the check scripts or the SQL suites automatically; every round is verified by hand.', '', 'Ops'),
       (140, 'Two data uploads still outstanding',
             'The 77 missing yearly consumptions (delete + re-upload the four files per _yearly_consumption_check.sql, to 39,801 total with 12,015 in 2024), and the Ownership Transfer upload.',
-            'You', 'Data'),
+            'Rithi Admin', 'Data'),
       (150, 'engineer_stock needs security_invoker',
             'Carried in the backlog: a view over RLS-protected tables that does not apply RLS to the reader.', 'Claude', 'Security')
     ) as t(ord, title, detail, owner, area)

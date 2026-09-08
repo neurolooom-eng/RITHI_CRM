@@ -15,6 +15,10 @@ export function UsersAdmin() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // TWO RIGHTS, NOT ONE. `manage-users` runs this screen; `admin.view` only
+  // opens it (Technical Support). Every control below asks for the first.
+  const mayManage = can('manage-users');
+  const mayOpen = mayManage || can('admin.view');
 
   const sync = async () => {
     setBusy(true);
@@ -40,7 +44,7 @@ export function UsersAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!can('manage-users')) {
+  if (!mayOpen) {
     return (
       <div>
         <PageHeader title="User Access" icon="👥" />
@@ -61,10 +65,14 @@ export function UsersAdmin() {
       key: '_actions', header: 'Actions', width: 160, sortable: false, wrap: false,
       render: (r) => (
         <div className="row" onClick={(e) => e.stopPropagation()}>
-          <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: r })}>Edit</button>
-          {r.id !== user?.id && (
-            <button className="btn btn-sm btn-ghost" onClick={() => confirm(`Delete user ${r.username}?`) && removeUser(r.id)}>🗑</button>
-          )}
+          {mayManage ? (
+            <>
+              <button className="btn btn-sm" onClick={() => setDrawer({ mode: 'edit', row: r })}>Edit</button>
+              {r.id !== user?.id && (
+                <button className="btn btn-sm btn-ghost" onClick={() => confirm(`Delete user ${r.username}?`) && removeUser(r.id)}>🗑</button>
+              )}
+            </>
+          ) : <span className="muted">View only</span>}
         </div>
       ),
     },
@@ -115,14 +123,14 @@ export function UsersAdmin() {
         title="User Access"
         subtitle="Create users, assign roles & control access"
         icon="👥"
-        actions={
+        actions={mayManage ? (
           <div className="row">
             <button className="btn" onClick={() => void sync()} disabled={busy} title="Import all users from the User Master sheet">
               {busy ? 'Syncing…' : '⇪ Sync from User Master'}
             </button>
             <button className="btn btn-primary" onClick={() => { setError(''); setDrawer({ mode: 'create' }); }}>+ New User</button>
           </div>
-        }
+        ) : undefined}
       />
 
       {msg && <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 14 }}><span>{msg}</span><button className="btn btn-ghost btn-sm" onClick={() => setMsg('')}>✕</button></div>}
