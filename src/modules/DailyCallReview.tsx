@@ -25,6 +25,7 @@ import './dccr.css';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
+import { DocPreview } from '../components/doc/DocPreview';
 
 // ===========================================================================
 // DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
@@ -961,6 +962,10 @@ function ReviewDrawer({
   // scope). `savedAt` is the acknowledgement — an automatic write that says
   // nothing is indistinguishable from one that did not happen.
   const [savedAt, setSavedAt] = useState<string>('');
+  // THE REPORT, SHOWN HERE (the user, 2026-09-08). It is the document the
+  // review is judging, so leaving the screen to read it was always the wrong
+  // way round; the visit row is kept so the viewer can name which visit it is.
+  const [docFor, setDocFor] = useState<Record<string, unknown> | null>(null);
   // What was last WRITTEN, so a debounce that fires with nothing changed does
   // not write anyway — and so switching to another call does not save the new
   // call's untouched draft over itself.
@@ -1192,8 +1197,9 @@ function ReviewDrawer({
                           <span className="badge badge-neutral">{String(v.call_status ?? '—')}</span>
                           <span className="muted">{String(v.engineer ?? '')}</span>
                           {link && (
-                            <a className="svc-report-link dccr-report-link" href={link} target="_blank" rel="noreferrer"
-                               title="Open the signed service report">📄 Service Report</a>
+                            <button type="button" className="svc-report-link dccr-report-link"
+                                    onClick={() => setDocFor(v)}
+                                    title="Show the signed service report">📄 Service Report</button>
                           )}
                         </div>
                         {done && <div className="dccr-visit-body">{done}</div>}
@@ -1489,10 +1495,26 @@ function ReviewDrawer({
   }
 
   return (
-    <Drawer open onClose={onClose} title={`Daily Review — ${ucn}`} width={760}>
-      {detailsPane}
-      {reviewPane}
-    </Drawer>
+    <>
+      <Drawer open onClose={onClose} title={`Daily Review — ${ucn}`} width={760}>
+        {detailsPane}
+        {reviewPane}
+      </Drawer>
+      {/* OVER the drawer, not inside it: a document read at drawer width is a
+          document nobody reads. */}
+      {docFor && (
+        <DocPreview
+          url={manualReportLink(docFor)}
+          title={`Service Report — ${ucn}`}
+          subtitle={[
+            String(docFor.visit_at ?? docFor.updated_at ?? '').slice(0, 10),
+            String(docFor.engineer ?? ''),
+            String(docFor.call_status ?? ''),
+          ].filter(Boolean).join(' · ')}
+          onClose={() => setDocFor(null)}
+        />
+      )}
+    </>
   );
 }
 

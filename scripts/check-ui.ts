@@ -23,6 +23,7 @@ import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
 import { DEFAULT_PERMS, MODULES, moduleAction } from '../src/lib/rbac';
 import { manualReportLink } from '../src/lib/reports';
+import { drivePreviewUrl } from '../src/lib/drive';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -707,8 +708,13 @@ console.log('\n-- the DCCR review desk --');
     /<ReadOnly label="Hour Meter Reading"/.test(dccr) && !/<ReadOnly label="Call Status"/.test(dccr), true);
   eq('...read from the LATEST visit by entry',
     /visits\[0\]\.data[\s\S]{0,80}Hour Meter Reading/.test(dccr), true);
-  eq('the service report is a link',
-    /href=\{link\}[\s\S]{0,120}Service Report/.test(dccr), true);
+  // It is no longer a LINK OUT: the report opens in the app (the user,
+  // 2026-09-08 — "instead of going to drive"). What must stay true is that the
+  // review can reach the document it is judging without leaving the screen, and
+  // that the button appears only where a visit actually filed one.
+  eq('the service report opens in the app, from the visit that filed it',
+    /const link = manualReportLink\(v\);/.test(dccr)
+    && /\{link && \([\s\S]{0,200}setDocFor\(v\)/.test(dccr), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1622,6 +1628,62 @@ console.log('\n-- the service report on a closed call --');
   // Every screen reads the field through the one reader.
   eq('no screen re-implements the read',
     !/manual_report \?\?/.test(calls) && !/manual_report \?\?/.test(assoc) && !/manual_report \?\?/.test(dccr), true);
+}
+
+console.log('\n-- the report, shown in the app --');
+{
+  // WHAT IS STORED IS NOT WHAT CAN BE FRAMED. An upload comes back as the page
+  // a person opens; Drive refuses to be framed at that URL and serves /preview
+  // instead, so the id is pulled out and the embed URL built from it.
+  eq('an uploaded report becomes an embeddable preview',
+    drivePreviewUrl('https://drive.google.com/file/d/1AbC_dEfGhIjKlMnOpQr/view?usp=drivesdk'),
+    'https://drive.google.com/file/d/1AbC_dEfGhIjKlMnOpQr/preview');
+  // The older shapes the sheet era left behind.
+  eq('...and the open?id= shape', drivePreviewUrl('https://drive.google.com/open?id=1AbC_dEfGhIjKlMnOpQr'),
+    'https://drive.google.com/file/d/1AbC_dEfGhIjKlMnOpQr/preview');
+  eq('...and the uc?id= download shape',
+    drivePreviewUrl('https://drive.google.com/uc?id=1AbC_dEfGhIjKlMnOpQr&export=download'),
+    'https://drive.google.com/file/d/1AbC_dEfGhIjKlMnOpQr/preview');
+  // A Doc is not a file: served from drive.google.com/file/... it renders
+  // nothing at all, so each editor previews under its own path.
+  eq('a Google Doc previews under its own path',
+    drivePreviewUrl('https://docs.google.com/document/d/1AbC_dEfGhIjKlMnOpQr/edit'),
+    'https://docs.google.com/document/d/1AbC_dEfGhIjKlMnOpQr/preview');
+  eq('...and a Sheet', drivePreviewUrl('https://docs.google.com/spreadsheets/d/1AbC_dEfGhIjKlMnOpQr/edit#gid=0'),
+    'https://docs.google.com/spreadsheets/d/1AbC_dEfGhIjKlMnOpQr/preview');
+  // AN UNKNOWN LINK IS NOT A FAILURE — it opens in a tab as it always has.
+  eq('a folder is not a document', drivePreviewUrl('https://drive.google.com/drive/folders/1AbC_dEfGhIjKlMnOpQr'), '');
+  eq('another host is not Drive', drivePreviewUrl('https://example.com/report.pdf?id=1AbC_dEfGhIjKlMnOpQr'), '');
+  eq('a note is not a link', drivePreviewUrl('handed to the customer'), '');
+  eq('nothing is nothing', drivePreviewUrl(''), '');
+
+  const rep = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+  const prev = readFileSync('src/components/doc/DocPreview.tsx', 'utf8');
+
+  // UPLOADED, NEVER PASTED (the user, 2026-09-08). This is what makes the
+  // preview trustworthy: an upload is shared by CallReg.gs, a pasted link is
+  // whatever somebody had open.
+  eq('the Manual Report cannot be typed in',
+    !/Paste the Drive link/.test(rep)
+    && !/value=\{manualLink\} onChange=/.test(rep), true);
+  eq('...and what is mandatory no longer offers a way that is gone',
+    /upload the signed report\.'/.test(rep) && !/or paste its link/.test(rep), true);
+
+  // The frame is cross-origin: a file that is not shared renders Google's "you
+  // need access" page inside it and nothing can detect that. So the way out is
+  // permanent, never a fallback that appears when something fails.
+  eq('every preview keeps a way out to Drive',
+    /Open in Drive ↗/.test(prev), true);
+  // NOT sandboxed, and that is the considered choice: without
+  // `allow-same-origin` the framed page gets an opaque origin and Drive's
+  // viewer loses the cookies it needs to authenticate the reader -- the preview
+  // would fail for exactly the files a signed-in person may see. The frame is
+  // cross-origin either way, which is what stops it touching the app.
+  eq('the frame is not sandboxed into losing its own cookies',
+    !/sandbox=/.test(prev), true);
+  // A link it cannot frame says so rather than showing an empty grey box.
+  eq('a link that cannot be framed says so',
+    /cannot be shown here/.test(prev), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

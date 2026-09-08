@@ -6,6 +6,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { deriveStage } from '../lib/spareflow';
 import { manualReportLink } from '../lib/reports';
+import { DocPreview } from '../components/doc/DocPreview';
 import { ReportDetail } from './ReportDetail';
 import './fieldcalls.css';
 
@@ -176,6 +177,9 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
   const [loading, setLoading] = useState(false);
   const [spareDetail, setSpareDetail] = useState<Row | null>(null);
   const [visitDetail, setVisitDetail] = useState<Row | null>(null);
+  // The report of ONE visit, shown in the app. The row is kept rather than the
+  // link, so the viewer's heading can say which visit it belongs to.
+  const [docFor, setDocFor] = useState<Row | null>(null);
 
   useEffect(() => {
     if (!callNumber || !supabaseConfigured()) return;
@@ -213,9 +217,9 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
             const link = manualReportLink(r);
             return link
               ? (
-                <a className="svc-report-link" href={link} target="_blank" rel="noreferrer"
-                   onClick={(e) => e.stopPropagation()}
-                   title="Open the signed service report">📄 Open</a>
+                <button type="button" className="svc-report-link"
+                        onClick={(e) => { e.stopPropagation(); setDocFor(r); }}
+                        title="Show the signed service report">📄 Show</button>
               )
               : <span className="muted">—</span>;
           } },
@@ -262,6 +266,16 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
       )}
 
       {visitDetail && <ReportDetail report={visitDetail} onClose={() => setVisitDetail(null)} />}
+
+      {docFor && (
+        <DocPreview
+          url={manualReportLink(docFor)}
+          title={`Service Report — ${s(docFor.ucn) || callNumber}`}
+          subtitle={[d(docFor.visit_at) && `Visit ${d(docFor.visit_at)}`, s(docFor.engineer), s(docFor.call_status)]
+            .filter(Boolean).join(' · ')}
+          onClose={() => setDocFor(null)}
+        />
+      )}
     </div>
   );
 }

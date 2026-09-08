@@ -8,6 +8,7 @@ import { CallReportDrawer } from './CallReporting';
 import { useNavigate } from 'react-router-dom';
 import { SpareRequestDrawer } from './SpareRequests';
 import { CallAssociations } from './CallAssociations';
+import { DocPreview } from '../components/doc/DocPreview';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SchemaForm, type FieldDef, type FormValues } from '../components/form/Form';
 import { PageHeader, Drawer, Toolbar, FacetChips } from '../components/ui/ui';
@@ -520,6 +521,9 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // call has nothing to show and asking would be a request that always comes
   // back empty.
   const [svcReport, setSvcReport] = useState<CallServiceReport | null>(null);
+  // The report is SHOWN, not handed to another tab (the user, 2026-09-08). The
+  // viewer is mounted once for the screen rather than per row.
+  const [preview, setPreview] = useState<{ url: string; title: string; subtitle: string } | null>(null);
   const [svcReportBusy, setSvcReportBusy] = useState(false);
   const drawerUcn = drawer?.mode === 'view' ? String(drawer.row?.ucn ?? '') : '';
   const drawerClosed = !!drawer?.row && drawer.mode === 'view' && isSolved(drawer.row as Rec);
@@ -1248,16 +1252,20 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
                     came for -- and it says WHICH visit filed it, since a call
                     closed twice has a later visit that filed none. */}
                 {drawerClosed && svcReport && (
-                  <a
+                  <button
+                    type="button"
                     className="svc-report-link"
                     style={{ alignSelf: 'center' }}
-                    href={svcReport.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={`Open the signed service report${svcReport.engineer ? ` filed by ${svcReport.engineer}` : ''}`}
+                    onClick={() => setPreview({
+                      url: svcReport.url,
+                      title: `Service Report — ${String(drawer.row?.ucn ?? '')}`,
+                      subtitle: [svcReport.visitAt ? `Visit ${fmtLongDate(svcReport.visitAt)}` : '', svcReport.engineer, svcReport.status]
+                        .filter(Boolean).join(' · '),
+                    })}
+                    title={`Show the signed service report${svcReport.engineer ? ` filed by ${svcReport.engineer}` : ''}`}
                   >
-                    📄 Service Report{svcReport.visitAt ? ` · ${fmtLongDate(svcReport.visitAt)}` : ''} ↗
-                  </a>
+                    📄 Service Report{svcReport.visitAt ? ` · ${fmtLongDate(svcReport.visitAt)}` : ''}
+                  </button>
                 )}
                 {drawerClosed && !svcReport && (
                   <span className="muted" style={{ alignSelf: 'center', fontSize: 12.5 }}>
@@ -1313,6 +1321,15 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         onClose={() => setReport(null)}
         onSaved={(mode, ucn) => setBanner({ tone: 'ok', text: `Call ${ucn} report ${mode === 'appended' ? 'added to' : 'updated in'} Reporting-N.` })}
       />
+
+      {preview && (
+        <DocPreview
+          url={preview.url}
+          title={preview.title}
+          subtitle={preview.subtitle}
+          onClose={() => setPreview(null)}
+        />
+      )}
 
       <SpareRequestDrawer
         call={spareFor}
