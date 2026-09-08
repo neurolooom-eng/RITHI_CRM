@@ -520,6 +520,66 @@ export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: bool
   return { ok: false, error: 'Upload not confirmed — retry, or check the Drive folder.' };
 }
 
+// ---------------------------------------------------------------------------
+// FETCH A DOCUMENT THE APP UPLOADED, through the bridge.
+//
+// The user, 2026-09-08: "my org doesn't allow anyone with link can view". So
+// the browser cannot open these files and never could — but the bridge is
+// deployed "Execute as: Me" and can, which is how it wrote them in the first
+// place. It hands back the bytes and the app renders them itself.
+//
+// ITS OWN TIMEOUT, not getJson's. That helper aborts a fetch after 8 seconds
+// and retries over JSONP, which is right for a one-line answer and wrong for a
+// few megabytes: the transfer would be abandoned just as it got going and then
+// done twice. A document gets a minute, and JSONP stays as the fallback for the
+// case getJson exists for — a browser that will not read the CORS response.
+//
+// A FAILURE IS AN ANSWER, not an exception: the viewer falls back to Drive's own
+// preview and says why, which is the honest thing to do when the reason is
+// usually "this file was never shared".
+// ---------------------------------------------------------------------------
+export interface AppDocument { name: string; mimeType: string; size: number; dataBase64: string }
+
+export async function fetchAppDocument(fileId: string): Promise<{ ok: boolean; doc?: AppDocument; error?: string }> {
+  const base = getSheetsUrl();
+  if (!base) return { ok: false, error: 'No Google Sheet URL configured — set it in Settings.' };
+  if (!fileId) return { ok: false, error: 'No file id.' };
+  const url = `${base}?${new URLSearchParams({ action: 'drivefile', id: fileId }).toString()}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  let r: Record<string, unknown>;
+  try {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Bridge responded ${res.status}`);
+    r = await res.json();
+  } catch {
+    clearTimeout(timer);
+    try { r = await jsonp(url); } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+  }
+  if (!r.ok || !r.dataBase64) return { ok: false, error: String(r.error ?? 'The bridge could not read that file.') };
+  return {
+    ok: true,
+    doc: {
+      name: String(r.name ?? 'document'),
+      mimeType: String(r.mimeType ?? 'application/octet-stream'),
+      size: Number(r.size ?? 0),
+      dataBase64: String(r.dataBase64),
+    },
+  };
+}
+
+/** base64 → a Blob the browser can render. Chunked: a single
+ *  String.fromCharCode over a few million bytes blows the argument limit. */
+export function base64ToBlob(base64: string, mimeType: string): Blob {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
 // Resolve AppSheet file names to Drive links, for the bulk report -> call
 // mapping. Read-only and served over GET, so unlike the uploads above the
 // response IS readable cross-origin and there is no ref/poll dance.

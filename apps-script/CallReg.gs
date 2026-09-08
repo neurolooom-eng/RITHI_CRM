@@ -120,6 +120,8 @@ function _dispatchGet(e) {
   if (action === 'driveref') return _getRef(e.parameter.ref);
   // Bulk report mapping: resolve AppSheet file names to Drive links (read-only).
   if (action === 'drivefind') return _driveFind(e.parameter.names, e.parameter.folderId);
+  // Serve a document the app uploaded, so the app can SHOW it (see _driveFile).
+  if (action === 'drivefile') return _driveFile(e.parameter.id);
   if (action === 'getview') return { ok: true, view: _getView(e.parameter.key) };
   if (action === 'setview') return _setView(e.parameter.key, e.parameter.data);
   // Writes are also accepted over GET (JSONP) so they work when the browser
@@ -525,6 +527,78 @@ function _driveUpload(body) {
   var url = file.getUrl();
   if (body.ref) _putRef(String(body.ref), url);
   return { ok: true, url: url, name: name };
+}
+
+// ---------------------------------------------------------------------------
+// SERVE A DOCUMENT THE APP UPLOADED, so the app can SHOW it.
+//
+// The user, 2026-09-08: "my org doesn't allow anyone with link can view" — so
+// the setSharing() call above has been failing all along (it is wrapped in a
+// catch precisely because a domain policy can forbid it), and a report is
+// readable only by somebody who already has access to the folder. Embedding the
+// Drive preview therefore shows Google's "you need access" page to everybody
+// else, and — because the frame is cross-origin — the app cannot even tell.
+//
+// THIS SCRIPT ALREADY HAS THE ACCESS THE BROWSER LACKS. It is deployed
+// "Execute as: Me" (DEPLOY.md), which is how it writes into the folder in the
+// first place; so it can read back out of it and hand the bytes to the app.
+// Nothing about the file's sharing changes, and the engineer needs no Google
+// account at all.
+//
+// ONLY THE APP'S OWN FOLDERS. `_isAppDocument` walks the file's parents and
+// refuses anything that is not in the reports folder (or the request-documents
+// folder where one is configured). Without that check this action is a reader
+// for the whole of the deploying account's Drive — a far larger thing than the
+// service reports it exists to show. It is the one guard here that must not be
+// relaxed.
+//
+// AND IT IS STILL AN OPEN ENDPOINT. Whoever can reach the /exec URL can ask for
+// a file if they know its id — which is, in effect, the "anyone with the link"
+// the domain policy forbids, arrived at from another direction. That is a
+// decision for whoever owns this system rather than a detail: setting the
+// ACCESS_TOKEN script property (see _authOk above) puts every request behind a
+// shared secret if an open endpoint is not acceptable.
+//
+// BASE64 IN JSON, because ContentService cannot return arbitrary binary — the
+// same shape the upload uses in the other direction. The app decodes it to a
+// blob and renders that.
+// ---------------------------------------------------------------------------
+var DRIVE_SERVE_MAX_BYTES = 10 * 1024 * 1024;   // the upload cap, mirrored
+
+function _driveFile(id) {
+  if (!id) return { ok: false, error: 'file id required' };
+  var file;
+  try { file = DriveApp.getFileById(String(id)); }
+  catch (err) { return { ok: false, error: 'not found, or this account cannot open it' }; }
+  if (!_isAppDocument(file)) return { ok: false, error: 'not a document this app uploaded' };
+  // A Google-native file (Doc/Sheet) has no original bytes; getBlob() gives a
+  // PDF rendering of it, which is what a reader wants anyway.
+  var size = 0;
+  try { size = file.getSize(); } catch (err) { size = 0; }
+  if (size > DRIVE_SERVE_MAX_BYTES) {
+    return { ok: false, error: 'too large to show here (' + Math.round(size / 1024 / 1024) + ' MB) — open it in Drive' };
+  }
+  var blob = file.getBlob();
+  return {
+    ok: true,
+    name: file.getName(),
+    mimeType: blob.getContentType() || 'application/octet-stream',
+    size: size,
+    dataBase64: Utilities.base64Encode(blob.getBytes())
+  };
+}
+
+// Is this file one of ours? PARENTS, not names: a name can be anything, and the
+// folder a file sits in is the only thing that says the app put it there.
+function _isAppDocument(file) {
+  var want = {};
+  try { want[_reportFolder().getId()] = true; } catch (err) { /* folder unreachable */ }
+  if (REQUEST_DOC_FOLDER_ID) want[REQUEST_DOC_FOLDER_ID] = true;
+  try {
+    var it = file.getParents();
+    while (it.hasNext()) { if (want[it.next().getId()]) return true; }
+  } catch (err) { /* no access to the parents = not ours */ }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
