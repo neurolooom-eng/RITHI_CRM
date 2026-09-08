@@ -44,6 +44,29 @@ Re-deploy the **same** deployment (Deploy → Manage deployments → ✏️ edit
 Version: New version → Deploy) so the URL stays the same. A *new* deployment
 gives a new URL you'd have to re-paste in Settings.
 
+## Showing reports inside the app (`drivefile`)
+
+The app renders a service report in a viewer rather than sending you to Drive.
+It gets the bytes from **this script**, not from Drive — because "Execute as:
+**Me**" means the script can open the reports folder even where a domain policy
+forbids link sharing, which is exactly the case it was written for. The person
+reading a report needs **no Google account**.
+
+**It only serves the app's own folders.** `_isAppDocument()` checks the file's
+PARENTS against the reports folder (and the request-documents folder where one
+is set) and refuses anything else, so the action can never become a reader for
+the rest of the Drive account. Do not relax that check.
+
+**It is an open endpoint, like the rest of this script.** Anyone who can reach
+the `/exec` URL can ask for a file *if they know its id* — which is, in effect,
+the "anyone with the link" a domain policy forbids, arrived at from another
+direction. If that is not acceptable, set a **Script property `ACCESS_TOKEN`**
+(Project Settings → Script properties): every request then has to carry a
+matching `?token=`, and nothing reaches the files without it.
+
+Files over **10 MB** are refused with a message rather than attempted; the
+viewer offers "Open in Drive" for those.
+
 ## What CallReg does
 
 - **UCN** matches your sheet exactly: `26` + month letter (A=Jan … L=Dec) +

@@ -1684,6 +1684,40 @@ console.log('\n-- the report, shown in the app --');
   // A link it cannot frame says so rather than showing an empty grey box.
   eq('a link that cannot be framed says so',
     /cannot be shown here/.test(prev), true);
+
+  const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
+
+  // THE BYTES COME THROUGH THE BRIDGE FIRST, not from Drive. The org forbids
+  // link sharing, so Drive's own preview only works for somebody already signed
+  // in with folder access — a small set, and not the engineers.
+  eq('the report is fetched through the bridge before Drive is tried',
+    /fetchAppDocument\(fileId\)/.test(prev)
+    && /setMode\(driveSrc \? 'drive' : 'plain'\)/.test(prev), true);
+  // A blob URL is a live handle into this tab's memory.
+  eq('...and the blob is released when the viewer closes',
+    /URL\.revokeObjectURL\(made\)/.test(prev), true);
+  // Under a policy that blocks link sharing this is the only route to a copy
+  // that does not need a Google account.
+  eq('...and bytes in hand mean a download is offered',
+    /download=\{fileName \|\| 'report'\}/.test(prev), true);
+  // Falling back silently would leave "it showed something else" as the only
+  // report anybody could make.
+  eq('the fallback says why it fell back',
+    /Showing Drive’s own preview — \{why\}/.test(prev), true);
+
+  // THE ONE GUARD THAT MUST NOT BE RELAXED. Without it the action is a reader
+  // for the whole of the deploying account's Drive, not the service reports it
+  // exists to show.
+  eq('the bridge serves ONLY files in the app’s own folders',
+    /if \(!_isAppDocument\(file\)\) return \{ ok: false, error: 'not a document this app uploaded' \};/.test(gs)
+    && /function _isAppDocument\(file\)/.test(gs)
+    && /file\.getParents\(\)/.test(gs), true);
+  // A name can be anything; the folder is what says the app put it there.
+  eq('...checked by PARENT, never by name',
+    !/_isAppDocument[\s\S]{0,400}getName\(\)/.test(gs), true);
+  // The upload cap, mirrored — an unbounded read is a way to hang the bridge.
+  eq('...and a size ceiling, so a huge file is refused rather than attempted',
+    /DRIVE_SERVE_MAX_BYTES/.test(gs) && /too large to show here/.test(gs), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

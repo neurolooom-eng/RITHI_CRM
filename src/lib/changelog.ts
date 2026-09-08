@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.149',
+    date: '2026-09-08',
+    title: 'Reports come through the bridge, so they open for everyone',
+    changes: [
+      'YESTERDAY’S NOTE WAS WRONG FOR THIS ORGANISATION. It said an uploaded report is shared as it is stored, so it could be shown — but your Google policy does not allow "anyone with the link", so that sharing has been failing quietly all along. A report has only ever opened for somebody who already had access to the Drive folder.',
+      'THE REPORT NOW COMES FROM THE CALLREG BRIDGE, NOT FROM DRIVE. The bridge runs as the account that owns the folder — that is how it saved the file in the first place — so it reads the file back and the app draws it. IT NEEDS NO GOOGLE ACCOUNT AT ALL: an engineer who has never signed in to Google sees the report.',
+      'NOTHING ABOUT THE FILE’S SHARING CHANGES, and no Google setting has to be relaxed.',
+      'THERE IS A DOWNLOAD BUTTON ON THE VIEWER now — which, under a policy that blocks link sharing, is the only way to keep a copy without a Google account.',
+      'IF THE BRIDGE CANNOT READ A FILE the viewer falls back to Drive’s own preview AND SAYS WHY, instead of showing you something different without explanation.',
+      'NEEDS A CALLREG REDEPLOY (Deploy → Manage deployments → edit → New version). Until then reports open as they did before.',
+      'Two things worth knowing, both in apps-script/DEPLOY.md: the bridge serves ONLY files in the app’s own folders, never the rest of that Drive; and it is an open endpoint like the rest of the bridge, so anyone who has the /exec URL and a file id could fetch one — set a script property ACCESS_TOKEN if that is not acceptable.',
+    ],
+  },
+  {
     version: '0.9.148',
     date: '2026-09-08',
     title: 'Reports open in the app, and are uploaded rather than linked',

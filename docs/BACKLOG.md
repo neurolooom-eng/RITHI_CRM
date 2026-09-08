@@ -29,7 +29,17 @@ that explains it.
 | 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
 | 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
 
-🟡 **NOTHING KNOWN TO BE PENDING — reported run, not verified (2026-09-08).**
+⚠️ **PENDING: A CALLREG REDEPLOY (2026-09-08, v0.9.149).** The `drivefile`
+action is in `apps-script/CallReg.gs` but a script change is not live until the
+Web App is redeployed — Deploy → Manage deployments → ✏️ edit → Version: **New
+version** → Deploy, which keeps the same `/exec` URL. Until then reports open
+exactly as they did before (Drive's preview, for whoever has folder access).
+Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/apps-script/CallReg.gs> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/apps-script/CallReg.gs>
+
+🟡 **NOTHING KNOWN TO BE PENDING ON THE DATABASE — reported run, not verified (2026-09-08).**
 
 The user ran **`rbac.sql`** (the Technical Support role) and **`tracker.sql`**
 (the "You" → "Rithi Admin" rename) after v0.9.147 shipped. No `_status.sql`
@@ -93,6 +103,51 @@ Audit Mode rules · the security migration (D-2/D-3/D-4) · a CI workflow · two
 data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 `security_invoker`.
 
+
+---
+
+## Reports come through the bridge, so they open for everyone (2026-09-08, v0.9.149)
+
+> "my org doesn't allow anyone with link can view.. is it possible to parse
+> through a default user ID and password to open the file?" … "go ahead with
+> option 1"
+
+**The answer to the question as asked was no.** Google has no URL form that
+takes a password for Drive, sign-in inside an embedded frame is blocked
+precisely to stop it, and a credential shipped in a static front end is readable
+by anyone who opens the bundle — with every access then attributed to one shared
+identity, which for a validated quality system also destroys the audit trail.
+
+**And the round before was wrong on a point of fact.** v0.9.148 claimed an upload
+"is shared by the bridge as it is stored, so it can be shown". Under this
+organisation's policy `setSharing(ANYONE_WITH_LINK, …)` throws — it is wrapped in
+a `catch` for exactly that reason — so a report has only ever opened for somebody
+who already had folder access. The claim is corrected in the app's own Version
+History rather than quietly edited out.
+
+**What actually works was already deployed.** `DEPLOY.md:25` runs the bridge as
+**Execute as: Me**, which is how it writes into the reports folder; so it can
+read back out of it. `drivefile` returns the bytes base64 in JSON (ContentService
+cannot return arbitrary binary), the app builds a blob and renders that. No
+sharing changes, and the reader needs no Google account.
+
+* **`_isAppDocument()` is the guard that must not be relaxed** — it checks the
+  file's PARENTS against the app's own folders, never its name. Without it the
+  action is a reader for the whole of the deploying account's Drive.
+* **It is still an open endpoint**, like the rest of the bridge: whoever has the
+  `/exec` URL and a file id can fetch one. That is, in effect, the link-sharing
+  the domain policy forbids, reached from another direction — a decision for the
+  system's owner, and `DEPLOY.md` now says so and names the `ACCESS_TOKEN` script
+  property that closes it.
+* Its own 60-second timeout, not `getJson`'s 8: that helper aborts and retries
+  over JSONP, which is right for a one-line answer and would fetch a
+  multi-megabyte document twice.
+* The blob URL is revoked on close — it is a live handle into the tab's memory.
+* Drive's own preview stays as the FALLBACK and **says why it fell back**, so
+  "it showed me something else" is not the only report anybody can make.
+
+Untestable from here as before (`script.google.com` is blocked from the sandbox);
+seven new assertions pin the guard, the ceiling, the ordering and the cleanup.
 
 ---
 
