@@ -372,6 +372,40 @@ ownership or retention.)
 query returning one labelled result set, and that is why. It is now the same
 shape as `_status.sql`.
 
+### Where the 331 MB actually is (2026-09-07, measured)
+
+From the user's own `_storage_check.sql` output. **331 MB of disk, not 450** —
+the dashboard figure is larger because it counts more than `public` (WAL, and the
+`auth` / `storage` / `realtime` schemas).
+
+| | total | heap+toast | indexes |
+| --- | --- | --- | --- |
+| `pm_calls` | 46 MB | 14 MB | **32 MB** |
+| `spare_issue_history` | 35 MB | 26 MB | 9.7 MB |
+| `spare_consumption_history` | 33 MB | 28 MB | 5.4 MB |
+| `field_calls` | 27 MB | 4.3 MB | **23 MB** |
+| `products` | 22 MB | 16 MB | 6.5 MB |
+| `spare_request_lines` | 20 MB | 18 MB | 2.1 MB |
+| `reports` | 14 MB | 8.4 MB | 5.6 MB |
+| `parties` | 12 MB | 3.7 MB | **8.1 MB** |
+
+**INDEXES ARE THE LARGEST SINGLE COST.** `field_calls` carries 23 MB of indexes
+over 4.3 MB of data — more than five times the table. The three call tables plus
+`parties` hold ~66 MB of indexes over ~23 MB of heap, and the biggest ones are
+all `pg_trgm` (substring search on party name, call number, complaint text).
+
+**I predicted `record_audit` and I was wrong.** It is 8.8 MB — 2.6% — and of that
+only 792 kB is heap: the table is effectively empty and the 8 MB is INDEX BLOAT.
+A `reindex` reclaims it. Worth doing, not worth planning around.
+
+⚠️ **THE "NEVER USED" FLAGS IN THAT RUN WERE NOT EVIDENCE.** Every index read 0
+scans *and* `reports` reported 8 live rows — statistics had recently been reset,
+so both numbers were empty rather than small. The report now prints
+`stats_reset` in section 0 and counts rows EXACTLY (`query_to_xml`), so that
+tell cannot be misread again. **Do not drop an index on a scan count taken
+inside 30 days of a reset**, and never on a `_pkey` or `_uniq` at all — an
+upsert's `on conflict` needs it whether or not anything scans it.
+
 ⚠️ **Measure first.** `supabase/apply/_storage_check.sql` (read-only) reports the
 database total, every table by size split into heap / indexes / toast, the ten
 biggest indexes with their use counts, and dead-row bloat.
