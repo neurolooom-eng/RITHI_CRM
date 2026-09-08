@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
-  countKpiFieldInst, listKpiFieldInst, listQualityObjectives, saveObjectiveCell,
+  listQualityObjectives, saveObjectiveCell,
   recalcObjectives, objectiveEvidence, objectiveNotes, objectivePeriod,
   objectiveCutoffLocked, setObjectiveCutoffLock, listObjectiveCutoffs, setObjectiveCutoff,
   saveObjectiveDef, addObjective, deleteObjective,
   supabaseConfigured, type QualityObjective,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { KPI_FIELD_INST_COLUMNS, kpiExportColumns, toKpiExportRow } from '../lib/kpi';
-import { csvExport } from '../lib/format';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import { useAccessScope, scopeLabel } from '../lib/access';
@@ -19,20 +17,19 @@ import './fieldcalls.css';
 // ===========================================================================
 // OBJECTIVE — the service objectives, measured from the register.
 //
-// PHASE 1 (the user's scoping, 2026-09-07) is the KPI workbook's Field_INST
-// tab: columns A to AB, the same fields in the same order under the same
-// headings, so the file drops straight in. It lived on KPI & Failure Analysis
-// while it was the only thing of its kind; it has its own page now because the
-// objectives are their own subject, not a panel on the analytics screen.
+// Twelve objectives a year, each with its target, how often it is measured, who
+// is responsible, and the month-by-month actual. A figure is either TYPED or
+// worked out by a `calc_key`; Re-Calculate writes only the second kind, never
+// on a page load, and every one of them can show the rows behind it.
 //
-// PHASE 2 is AC to AG — Attended in Days, Solved in Days, TTA, TTS and Failure
-// Month — which are formulas in the workbook today. They are the objectives
-// themselves rather than the record they are computed from, so this is where
-// they will go.
+// THE KPI WORKBOOK'S Field_INST EXPORT USED TO LIVE HERE, and on KPI & Failure
+// Analysis before that. It moved to Reports on 2026-09-08, where every export
+// now collects — one that follows whichever screen prompted it is one nobody
+// can find twice.
 //
-// Everything it shows is scoped like every other screen: an engineer exports
-// their own calls, a manager their team's. `kpi_field_inst` is
-// security_invoker, so that is the database's doing and not this page's.
+// Everything this page shows is scoped like every other screen: an engineer
+// sees their own calls, a manager their team's. That is the database's doing
+// (security_invoker views), not this page's.
 // ===========================================================================
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
@@ -351,49 +348,6 @@ export function Objective() {
     if (!res.ok) { setOMsg(`Could not save: ${res.error}`); return; }
     setDefOpen(null); setOMsg(''); loadObjectives();
   };
-  const [xFrom, setXFrom] = useState('');
-  const [xTo, setXTo] = useState('');
-  const [xCount, setXCount] = useState<number | null>(null);
-  const [xErr, setXErr] = useState(false);
-  const [exporting, setExporting] = useState(false);
-  const [xMsg, setXMsg] = useState('');
-
-  // The count is the whole range, not a page — so the button can say what it is
-  // about to export, and a failed count says so rather than showing a stale
-  // number from the last range (the "99 of 76" lesson).
-  useEffect(() => {
-    if (!live) return;
-    let cancelled = false;
-    setXErr(false);
-    void countKpiFieldInst({ from: xFrom || undefined, to: xTo || undefined })
-      .then((n) => { if (!cancelled) setXCount(n); })
-      .catch(() => { if (!cancelled) { setXCount(null); setXErr(true); } });
-    return () => { cancelled = true; };
-  }, [live, xFrom, xTo]);
-
-  const exportFieldInst = async () => {
-    if (exporting) return;
-    setExporting(true);
-    setXMsg('Reading the calls…');
-    try {
-      const PAGE = 1000;
-      const range = { from: xFrom || undefined, to: xTo || undefined };
-      const all: Record<string, unknown>[] = [];
-      for (let off = 0; ; off += PAGE) {
-        const page = await listKpiFieldInst(range, off, PAGE);
-        all.push(...page);
-        if (page.length < PAGE) break;
-        setXMsg(`Read ${all.length.toLocaleString()}…`);
-      }
-      const span = xFrom || xTo ? `${xFrom || 'start'}_${xTo || 'today'}` : new Date().toISOString().slice(0, 10);
-      csvExport(`kpi-field-inst-${span}.csv`, kpiExportColumns(), all.map(toKpiExportRow));
-      setXMsg(`Exported ${all.length.toLocaleString()} call${all.length === 1 ? '' : 's'}.`);
-      logAudit({ action: 'kpi.export', target: `${all.length} calls`, meta: { rows: all.length, from: xFrom, to: xTo } });
-    } catch (e) {
-      setXMsg(`Could not export: ${e instanceof Error ? e.message : String(e)}`);
-    } finally { setExporting(false); }
-  };
-
   return (
     <div>
       <PageHeader
@@ -548,62 +502,6 @@ export function Objective() {
           from the row. As each objective is automated it will be read from the register instead,
           and this line will say which.
         </p>
-      </SectionCard>
-
-      <SectionCard title="Export — KPI workbook (Field_INST)">
-        <p className="muted" style={{ marginTop: 0 }}>
-          The workbook's own tab, computed from the register: <b>columns A to AG</b>, the same
-          fields in the same order under the same headings, so the file drops straight in — plus
-          <b>Pending Days</b>, which the workbook does not have. Field and Installation calls only
-          — PM keeps its own tab — and <b>cancelled calls are not included at all</b>.
-        </p>
-        <ul className="muted" style={{ marginTop: 0, fontSize: 12.5, lineHeight: 1.7 }}>
-          <li><b>Call Attended On</b> — the earlier of the first visit and the first spare request.
-            A spare raised before anyone visits is still somebody attending to the call.</li>
-          <li><b>Call Solved Date &amp; Time</b> — the visit date of the entry that moved the call to
-            <b> Solved - Report Completed</b>. Not the last visit, and not the day it was typed in.</li>
-          <li><b>Open/Close</b> — Close only when the call is Solved - Report Completed. Anything
-            else is Open, <b>including Solved - Report Pending</b>.</li>
-        </ul>
-        <div className="row" style={{ gap: 10, alignItems: 'flex-end', marginBottom: 12, flexWrap: 'wrap' }}>
-          <div>
-            <label className="field-label">Registered from</label>
-            <input type="date" className="input" value={xFrom} onChange={(e) => setXFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="field-label">to</label>
-            <input type="date" className="input" value={xTo} onChange={(e) => setXTo(e.target.value)} />
-          </div>
-          {(xFrom || xTo) && (
-            <button className="btn btn-ghost btn-sm" onClick={() => { setXFrom(''); setXTo(''); }}>
-              Whole register
-            </button>
-          )}
-          <button
-            className="btn btn-primary"
-            disabled={!live || exporting || xCount === 0}
-            onClick={() => void exportFieldInst()}
-          >
-            {exporting ? 'Exporting…'
-              : xErr ? '⭳ Export'
-              : `⭳ Export ${xCount == null ? '' : xCount.toLocaleString()} ${xCount === 1 ? 'call' : 'calls'}`}
-          </button>
-        </div>
-        {/* A count nobody can tell is stale is worse than an admission. */}
-        {xErr && <div className="sheet-banner sheet-banner-error"><span>Could not count the calls for that range — the export will still read them.</span></div>}
-        {xMsg && <div className="sheet-banner sheet-banner-info"><span>{xMsg}</span></div>}
-        <p className="muted" style={{ fontSize: 12.5, marginBottom: 4 }}>
-          <b>Phase 2:</b> Attended in Days, Solved in Days, TTA, TTS and Failure Month (AC–AG) are
-          formulas in the workbook and are not exported yet.
-        </p>
-        <details>
-          <summary className="muted" style={{ cursor: 'pointer', fontSize: 12.5 }}>
-            Columns ({KPI_FIELD_INST_COLUMNS.length})
-          </summary>
-          <ol className="dccr-export-cols">
-            {KPI_FIELD_INST_COLUMNS.map((c) => <li key={c}>{c}</li>)}
-          </ol>
-        </details>
       </SectionCard>
 
       {confirmRecalc && (
