@@ -98,6 +98,43 @@ data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 
 ---
 
+## The service report, one click from a closed call (2026-09-08, v0.9.147)
+
+> "in call - for closed calls add the service report ( Manual report) as a
+> clickable link"
+
+Two places, because a report belongs to a VISIT and a call can have several:
+
+* **At the top of a closed call**, beside the 🔒 Closed marker — the latest
+  visit that actually filed one, labelled with that visit's date. A call closed,
+  re-opened and closed again has a later visit with nothing attached, so taking
+  "the last visit" would show nothing and say, untruthfully, that no report was
+  ever filed.
+* **In the call's visit history**, a column per visit. The cell stops the click
+  propagating, so opening the report is not also opening the visit behind it.
+
+**Fetched when the call is opened, not carried on the row.** The call tables
+denormalise the last visit's status and date (0014/0032) and nothing else.
+Widening that would mean a column on three call tables, the trigger, and a
+rebuild of the `calls` view — and `create or replace view` there is the change
+that has dropped `security_invoker` three times in this project. One request per
+call opened, only for a closed one, is the cheaper side of that trade by a
+distance. **No SQL: nothing to run.**
+
+**One reader, `manualReportLink()`.** The field is written in two places on the
+same row — `reports.manual_report` and `data['Manual Report']` — and three
+screens each had their own coalesce. The Daily Call Review's checked neither the
+legacy key nor whether the value was a URL, so a row where somebody typed a note
+rendered as a link to nowhere. Six unit assertions in `check:ui` pin the reader.
+
+**One class, `.svc-report-link`,** moved from `dccr.css` to `styles.css` so the
+same document cannot look like a chip on one screen and faint text on another.
+It is contrast, not tint — the standing rule. `dccr.css` keeps only where it
+sits on that screen.
+
+
+---
+
 ## Technical Support — the Super Admin's reach, none of its writes (2026-09-08, v0.9.146)
 
 > "Create a New Role 'Technical Support' - Map this Role to All Modules and

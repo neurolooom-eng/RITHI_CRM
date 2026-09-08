@@ -24,6 +24,7 @@ import {
 import './dccr.css';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
+import { manualReportLink } from '../lib/reports';
 
 // ===========================================================================
 // DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
@@ -1182,7 +1183,7 @@ function ReviewDrawer({
                 <div className="dccr-visitlist">
                   {visits.map((v, i) => {
                     const d = (v.data ?? {}) as Record<string, unknown>;
-                    const link = String(v.manual_report ?? '').trim();
+                    const link = manualReportLink(v);
                     const done = String(d['Job Done'] ?? '').trim() || String(d['Complaint Observation'] ?? '').trim();
                     return (
                       <div className="dccr-visit" key={String(v.uid ?? v.id ?? i)}>
@@ -1191,8 +1192,8 @@ function ReviewDrawer({
                           <span className="badge badge-neutral">{String(v.call_status ?? '—')}</span>
                           <span className="muted">{String(v.engineer ?? '')}</span>
                           {link && (
-                            <a className="dccr-report-link" href={link} target="_blank" rel="noreferrer"
-                               title="Open the service report">📄 Service Report</a>
+                            <a className="svc-report-link dccr-report-link" href={link} target="_blank" rel="noreferrer"
+                               title="Open the signed service report">📄 Service Report</a>
                           )}
                         </div>
                         {done && <div className="dccr-visit-body">{done}</div>}

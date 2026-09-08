@@ -133,3 +133,23 @@ export function exportColumns(picked: Set<string>): string[] {
     ...CONSUMPTION_OPTIONAL.filter((c) => picked.has(c)),
   ];
 }
+
+// ---------------------------------------------------------------------------
+// THE MANUAL REPORT — the signed service report the engineer files with a visit.
+//
+// It is written in TWO places on the same row and always has been:
+// `reports.manual_report` (the column) and `data['Manual Report']` (the report
+// form's own field). Sheet-era rows carry only the second. Three screens read
+// it and each wrote its own coalesce; one of them checked neither the legacy key
+// nor whether the value was a URL at all, so a row whose field held a note
+// rendered as a link to nowhere.
+//
+// So: one reader. A link is a link only if it can be opened -- anything else
+// comes back empty and the caller shows nothing, which is the honest answer.
+// ---------------------------------------------------------------------------
+export function manualReportLink(visit: Record<string, unknown> | null | undefined): string {
+  if (!visit) return '';
+  const data = (visit.data as Record<string, unknown> | undefined) ?? {};
+  const link = String(visit.manual_report ?? data['Manual Report'] ?? '').trim();
+  return /^https?:\/\//i.test(link) ? link : '';
+}

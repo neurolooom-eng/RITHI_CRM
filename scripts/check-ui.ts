@@ -22,6 +22,7 @@ import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
 import { DEFAULT_PERMS, MODULES, moduleAction } from '../src/lib/rbac';
+import { manualReportLink } from '../src/lib/reports';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -883,10 +884,13 @@ console.log('\n-- Review 2 in bulk, except inside the first year --');
     /must be reviewed one by one/.test(dccr), true);
 
   // The Service Report is the document the review is judging; it was a faint
-  // link. Contrast, like every other highlight here.
-  const css = readFileSync(`${process.cwd()}/src/modules/dccr.css`, 'utf8');
+  // link. Contrast, like every other highlight here. The look moved to
+  // styles.css when the call's own screens started showing the same document --
+  // one class, so it cannot end up a chip on one screen and faint text on
+  // another; dccr.css keeps only where it sits on THIS one.
+  const css = readFileSync(`${process.cwd()}/src/styles.css`, 'utf8');
   eq('the Service Report link is a contrast chip, not faint text',
-    /\.dccr-report-link \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
+    /\.svc-report-link \{[^}]*background: var\(--text\);[^}]*color: var\(--surface\);/.test(css), true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1571,6 +1575,53 @@ console.log('\n-- Technical Support: the Super Admin\'s reach, none of its write
   // what the person picking a role in User Master reads.
   eq('the role is on the matrix with a name people recognise',
     /\{ key: 'technical_support', label: 'Technical Support' \}/.test(rbacSrc), true);
+}
+
+console.log('\n-- the service report on a closed call --');
+{
+  // ONE READER for a field written in two places. The column is what the app
+  // writes today; the report form's own key is what the sheet era left behind.
+  eq('the column is read', manualReportLink({ manual_report: 'https://drive.google.com/file/d/abc' }),
+    'https://drive.google.com/file/d/abc');
+  eq('...and the legacy field on the report itself',
+    manualReportLink({ data: { 'Manual Report': 'https://drive.google.com/file/d/old' } }),
+    'https://drive.google.com/file/d/old');
+  eq('the column wins where a row carries both',
+    manualReportLink({ manual_report: 'https://a/new', data: { 'Manual Report': 'https://a/old' } }),
+    'https://a/new');
+  // A LINK IS A LINK ONLY IF IT OPENS. A row whose field holds a note used to
+  // render as a link to nowhere on the review screen.
+  eq('a note is not a link', manualReportLink({ manual_report: 'given to customer' }), '');
+  eq('a blank row is not a link', manualReportLink({}), '');
+  eq('no row at all is not a link', manualReportLink(null), '');
+
+  const calls = readFileSync('src/modules/FieldCalls.tsx', 'utf8');
+  const assoc = readFileSync('src/modules/CallAssociations.tsx', 'utf8');
+  const dccr  = readFileSync('src/modules/DailyCallReview.tsx', 'utf8');
+
+  // ONLY FOR A CLOSED CALL, and only when one is open: an open call has no
+  // report to show, so asking would be a request that always comes back empty.
+  eq('the report is fetched for a closed call, not for every call',
+    /if \(!drawerUcn \|\| !drawerClosed \|\| !supabaseConfigured\(\)\) return;/.test(calls), true);
+  // Absent is a fact, not a blank space: a closed call with no report says so.
+  eq('...and a closed call with no report says so rather than showing nothing',
+    /No service report was filed on this call/.test(calls), true);
+  // The visit filed it, so the visit is named — a call closed twice has a later
+  // visit that filed none, and an unlabelled link would look like the last one.
+  eq('the link names the visit it came from',
+    /svcReport\.visitAt \? ` · \$\{fmtLongDate\(svcReport\.visitAt\)\}` : ''/.test(calls), true);
+
+  // Same document, same look, on all three screens that show it.
+  eq('one class for the report link everywhere',
+    /className="svc-report-link"/.test(calls)
+    && /className="svc-report-link"/.test(assoc)
+    && /className="svc-report-link dccr-report-link"/.test(dccr), true);
+  // Opening the report must not also open the visit behind it.
+  eq('the report cell swallows the row click',
+    /onClick=\{\(e\) => e\.stopPropagation\(\)\}/.test(assoc), true);
+  // Every screen reads the field through the one reader.
+  eq('no screen re-implements the read',
+    !/manual_report \?\?/.test(calls) && !/manual_report \?\?/.test(assoc) && !/manual_report \?\?/.test(dccr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
