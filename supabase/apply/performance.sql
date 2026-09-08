@@ -844,6 +844,18 @@ comment on view public.consumption_report is
 --     recorded, or still in the van. Both are worth chasing and neither is
 --     visible anywhere today.
 --
+-- DISPATCHED COUNTS AS REACHED, and this is the user's own rule (2026-09-08):
+-- "Dispatch is considered as reached, it is not considered as In Transit since
+-- it is not Mandatory to mark a Spare as Received."
+--
+-- It is written down here because the opposite looks more careful and is
+-- wrong. Requiring `received_at` would be the obvious tightening for somebody
+-- reading this later -- and it would empty the report, because acknowledging a
+-- delivery is optional and most lines never get one. The report would then say
+-- "nothing to chase" for the same reason it should have said "chase all of
+-- these", which is the worst failure available to it. Do not narrow this to
+-- Received without making the acknowledgement mandatory first.
+--
 -- MATCHED ON THE PART CODE, NOT THE WHOLE STRING. Both sides store
 -- "CODE|Description" and the description drifts -- case, spacing, a part
 -- renamed in the master after the request was raised. Matching the whole thing
@@ -884,7 +896,9 @@ with sent as (
     l.part                                                    as part,
     upper(btrim(split_part(l.part, '|', 1)))                  as part_code,
     btrim(coalesce(nullif(split_part(l.part, '|', 2), ''), l.part)) as part_name,
-    coalesce(l.dispatched_qty, l.qty)                         as qty_sent,
+    -- `dispatched_qty` DEFAULTS TO 0, not null, so a plain coalesce reports
+    -- every line as "0 sent" -- which the test caught on its first run.
+    coalesce(nullif(l.dispatched_qty, 0), l.qty)              as qty_sent,
     l.dc_number,
     l.dispatched_at,
     l.received_at,
@@ -944,6 +958,6 @@ alter view public.unused_spare_report set (security_invoker = on);
 grant select on public.unused_spare_report to authenticated;
 
 comment on view public.unused_spare_report is
-  'Not Used as per the Request: spare lines DISPATCHED or RECEIVED against a call whose part code never appears in that call''s consumption. Refused and dropped lines are excluded -- nothing arrived, so nothing could be fitted. Matched on the part CODE because both sides store CODE|Description and the description drifts. security_invoker, so a reader sees only the calls their role allows.';
+  'Not Used as per the Request: DISPATCHED counts as reached, because acknowledging a delivery is not mandatory and requiring it would empty the report. Spare lines dispatched or received against a call whose part code never appears in that call''s consumption. Refused and dropped lines are excluded -- nothing arrived, so nothing could be fitted. Matched on the part CODE because both sides store CODE|Description and the description drifts. security_invoker, so a reader sees only the calls their role allows.';
 
 commit;

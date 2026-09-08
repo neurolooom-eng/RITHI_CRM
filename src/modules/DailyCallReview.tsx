@@ -1514,12 +1514,34 @@ function ReviewDrawer({
     </>
   );
 
+  // THE VIEWER IS MOUNTED ON EVERY LAYOUT, and that is the whole point of it
+  // being a variable. This component returns from TWO places -- `panes` for the
+  // Review Desk and its worklist tabs, `drawer` for the register -- and the
+  // viewer went in on the drawer path only. So on the Desk, which is where the
+  // reviewing actually happens, pressing "Service Report" set the state and
+  // nothing rendered it: no popup, no error, nothing at all (reported
+  // 2026-09-08). A modal that lives on one branch of a two-return component is
+  // a bug waiting for somebody to open the other branch.
+  const reportViewer = docFor ? (
+    <DocPreview
+      url={manualReportLink(docFor)}
+      title={`Service Report — ${ucn}`}
+      subtitle={[
+        fmtLongDate(docFor.visit_at ?? docFor.updated_at),
+        String(docFor.engineer ?? ''),
+        String(docFor.call_status ?? ''),
+      ].filter(Boolean).join(' · ')}
+      onClose={() => setDocFor(null)}
+    />
+  ) : null;
+
   if (layout === 'panes') {
     return (
       <>
         <div className="dccr-pane dccr-pane-review">{reviewPane}</div>
         {separator}
         <div className="dccr-pane dccr-pane-details">{detailsPane}</div>
+        {reportViewer}
       </>
     );
   }
@@ -1532,18 +1554,7 @@ function ReviewDrawer({
       </Drawer>
       {/* OVER the drawer, not inside it: a document read at drawer width is a
           document nobody reads. */}
-      {docFor && (
-        <DocPreview
-          url={manualReportLink(docFor)}
-          title={`Service Report — ${ucn}`}
-          subtitle={[
-            fmtLongDate(docFor.visit_at ?? docFor.updated_at),
-            String(docFor.engineer ?? ''),
-            String(docFor.call_status ?? ''),
-          ].filter(Boolean).join(' · ')}
-          onClose={() => setDocFor(null)}
-        />
-      )}
+      {reportViewer}
     </>
   );
 }
