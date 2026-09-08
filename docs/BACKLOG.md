@@ -365,6 +365,13 @@ if the space is genuinely in use.
 separation, not capacity. (It would have been the answer if the reason were
 ownership or retention.)
 
+⚠️ **A CHECK FILE MUST BE ONE SQL STATEMENT.** The first cut of
+`_storage_check.sql` used `\echo` and `\pset` to label its sections — those are
+**psql's own commands**, and the Supabase SQL Editor rejects them with
+`syntax error at or near "\"`. Every other `_*_check.sql` here is a single
+query returning one labelled result set, and that is why. It is now the same
+shape as `_status.sql`.
+
 ⚠️ **Measure first.** `supabase/apply/_storage_check.sql` (read-only) reports the
 database total, every table by size split into heap / indexes / toast, the ten
 biggest indexes with their use counts, and dead-row bloat.
