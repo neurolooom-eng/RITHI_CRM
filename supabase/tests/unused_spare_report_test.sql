@@ -1,5 +1,5 @@
 -- ===========================================================================
--- NOT USED AS PER THE REQUEST (0147).
+-- NOT CONSUMED AGAINST THIS CALL (0147).
 --
 -- The value of this report is in what it does NOT say. A flag that fires on a
 -- refused request, or on a part somebody renamed, is worse than no flag: it
@@ -16,7 +16,9 @@
 --   5. still awaiting approval                      -> off (never arrived)
 --   6. booked with a RENAMED description            -> off (matched on the code)
 --   7. booked against a DIFFERENT call              -> ON (this call is the question)
---   8. received, and the consumption was VOIDED     -> off (fitted, then corrected)
+--   8. received, and the consumption was VOIDED     -> ON, Short (0 of 1 used)
+--   9. 2 sent, 1 consumed                           -> ON, Short by 1
+--  10. 2 sent on TWO lines, 2 consumed once         -> off (summed, not per line)
 --
 -- Run after _stub.sql + every migration.
 -- Every error printed is labelled `expect ERROR` -- anything else is a failure.
@@ -50,7 +52,13 @@ values
  ('USR-REQ-1', 'MP-010|OXYGEN SENSOR-Envitec',         1, 'Dropped',    null,     'Approved', 'Approved', 'Approved', null),
  ('USR-REQ-1', 'KY632200|EXPIRATORY FLOW SENSOR',      1, null,         null,     '',         '',         '',         null),
  ('USR-REQ-1', 'RY117900|GOLD CONTACT KIT',            1, 'Dispatched', null,     'Approved', 'Approved', 'Approved', 'DC-1'),
- ('USR-REQ-1', 'RKY641700|MICROPROCESSOR BOARD',       1, 'Dispatched', now(),    'Approved', 'Approved', 'Approved', 'DC-1');
+ ('USR-REQ-1', 'RKY641700|MICROPROCESSOR BOARD',       1, 'Dispatched', now(),    'Approved', 'Approved', 'Approved', 'DC-1'),
+ -- case 9: TWO sent, one used
+ ('USR-REQ-1', 'KY111111|A PART SENT TWICE OVER',      2, 'Dispatched', null,     'Approved', 'Approved', 'Approved', 'DC-1'),
+ -- case 10: the SAME part on two lines, one each — summed they are two, and
+ -- two are booked, so neither line is a finding.
+ ('USR-REQ-1', 'KY222222|SPLIT ACROSS TWO LINES',      1, 'Dispatched', null,     'Approved', 'Approved', 'Approved', 'DC-1'),
+ ('USR-REQ-1', 'KY222222|SPLIT ACROSS TWO LINES',      1, 'Dispatched', null,     'Approved', 'Approved', 'Approved', 'DC-3');
 insert into public.spare_request_lines (request_uid, part, qty, stores_status, rm_approval, commercial_approval, nsm_approval, dc_number)
 values ('USR-REQ-2', 'KY999999|A PART USED ON ANOTHER CALL', 1, 'Dispatched', 'Approved', 'Approved', 'Approved', 'DC-2');
 
@@ -62,7 +70,9 @@ insert into public.handstock_opening (engineer, part, qty, as_of, source)
 values ('ENG ONE', 'KB030100|HEPA FILTER MONNAL T75', 50, current_date - 30, 'Opening'),
        ('ENG ONE', 'RY117900|GOLD CONTACT KIT', 50, current_date - 30, 'Opening'),
        ('ENG ONE', 'RKY641700|MICROPROCESSOR BOARD', 50, current_date - 30, 'Opening'),
-       ('ENG ONE', 'KY999999|A PART USED ON ANOTHER CALL', 50, current_date - 30, 'Opening')
+       ('ENG ONE', 'KY999999|A PART USED ON ANOTHER CALL', 50, current_date - 30, 'Opening'),
+       ('ENG ONE', 'KY111111|A PART SENT TWICE OVER', 50, current_date - 30, 'Opening'),
+       ('ENG ONE', 'KY222222|SPLIT ACROSS TWO LINES', 50, current_date - 30, 'Opening')
 on conflict do nothing;
 
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer)
@@ -75,17 +85,23 @@ values
  ('USR-1', 'CL-USR-1', 'KY999999|A PART USED ON ANOTHER CALL', 1, 'ENG ONE'),
  -- case 8: booked, and voided to 0 below — a void is an UPDATE, never an
  -- insert of zero (0049 keeps the row; 0060 refuses a zero-quantity booking).
- ('USR-1', 'CL-USR-1', 'RKY641700|MICROPROCESSOR BOARD', 1, 'ENG ONE');
+ ('USR-1', 'CL-USR-1', 'RKY641700|MICROPROCESSOR BOARD', 1, 'ENG ONE'),
+ -- case 9: only ONE of the two booked
+ ('USR-1', 'CL-USR-1', 'KY111111|A PART SENT TWICE OVER', 1, 'ENG ONE'),
+ -- case 10: both booked in one entry, against two dispatch lines
+ ('USR-1', 'CL-USR-1', 'KY222222|SPLIT ACROSS TWO LINES', 2, 'ENG ONE');
 
 update public.spare_consumption
    set qty = 0, adjustment_reason = 'Voided — booked against the wrong call'
  where ucn = 'USR-1' and part like 'RKY641700%';
 
 \echo '--- 1. WHAT THE REPORT SAYS ---'
-\echo 'expect: exactly two rows —'
-\echo 'expect:   USR-1 KY650300  (dispatched, never booked)'
-\echo 'expect:   USR-2 KY999999  (booked, but against USR-1, so this call is open)'
-select ucn, "OR No", "Part Code", "Stage", "Qty Sent"
+\echo 'expect: exactly FOUR rows —'
+\echo 'expect:   USR-1 KY111111  Short     2 sent, 1 used, short 1'
+\echo 'expect:   USR-1 KY650300  Not used  1 sent, 0 used'
+\echo 'expect:   USR-1 RKY641700 Not used  1 sent, booked then VOIDED to 0'
+\echo 'expect:   USR-2 KY999999  Not used  (booked, but against USR-1)'
+select ucn, "Part Code", "Finding", "Qty Sent", "Qty Used", "Qty Short"
   from public.unused_spare_report
  where ucn like 'USR-%'
  order by ucn, "Part Code";
@@ -109,14 +125,21 @@ select "Part Code", 'matched on the string, not the code' as problem
   from public.unused_spare_report
  where ucn like 'USR-%' and "Part Code" = 'RY117900';
 
-\echo '--- 4. A VOIDED CONSUMPTION STILL COUNTS AS BOOKED ---'
-\echo 'expect: 0 rows. RKY641700 was received, booked, and the entry corrected to'
-\echo 'expect: zero. The part WAS fitted and then the record put right, which is a'
-\echo 'expect: different story from never being recorded — and 0049 keeps the row'
-\echo 'expect: so that story survives.'
-select "Part Code", 'a voided entry read as never booked' as problem
+\echo '--- 4. A VOIDED CONSUMPTION LEAVES A SHORTFALL ---'
+\echo 'expect: RKY641700, Not used, 1 sent and 0 used. The booking was voided to'
+\echo 'expect: zero, so nothing is accounted for any more — and that IS the'
+\echo 'expect: finding once quantities are compared rather than mere presence.'
+select "Part Code", "Finding", "Qty Sent", "Qty Used"
   from public.unused_spare_report
  where ucn like 'USR-%' and "Part Code" = 'RKY641700';
+
+\echo '--- 4b. A PART SENT ON TWO LINES IS SUMMED, NOT COMPARED LINE BY LINE ---'
+\echo 'expect: 0 rows. KY222222 went out as 1 + 1 and was booked as 2. Comparing'
+\echo 'expect: each LINE against the call would flag both as short — the false'
+\echo 'expect: finding that made this an aggregate rather than a per-line report.'
+select "Part Code", 'compared per line' as problem
+  from public.unused_spare_report
+ where ucn like 'USR-%' and "Part Code" = 'KY222222';
 
 \echo '--- 5. THE CALL CONTEXT COMES WITH IT ---'
 \echo 'expect: the customer, product, serial and engineer, so the report can be'
@@ -136,4 +159,4 @@ delete from public.spare_consumption   where ucn like 'USR-%';
 delete from public.spare_request_lines where request_uid like 'USR-REQ-%';
 delete from public.spare_requests      where uid like 'USR-REQ-%';
 delete from public.field_calls         where ucn like 'USR-%';
-delete from public.handstock_opening   where engineer = 'ENG ONE' and part like 'K%';
+delete from public.handstock_opening   where engineer = 'ENG ONE' and (part like 'K%' or part like 'R%');

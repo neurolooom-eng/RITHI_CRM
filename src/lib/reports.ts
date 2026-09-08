@@ -165,7 +165,8 @@ export function manualReportLink(visit: Record<string, unknown> | null | undefin
 // such format behind it, and eighteen columns is a page, not a picker.
 // ---------------------------------------------------------------------------
 export const UNUSED_SPARE_COLUMNS: string[] = [
-  'ucn', 'call_number', 'OR No', 'Part Code', 'Part name', 'Qty Sent', 'Stage',
+  'ucn', 'call_number', 'OR No', 'Part Code', 'Part name', 'Finding',
+  'Qty Sent', 'Qty Used', 'Qty Short', 'Stage',
   'DC No', 'Dispatched On', 'Received On', 'Engineer', 'Customer', 'Product',
   'Serial No', 'Item Status', 'Call Registered', 'Call Status', 'Allotted To',
   'State', 'City', 'Request UID', 'Engineer Email',

@@ -222,15 +222,33 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
     [requested],
   );
 
-  // Which parts got as far as the engineer and were never booked here.
-  const unusedParts = useMemo(() => {
-    const consumedKeys = new Set(consumed.map((c) => partKey(c.part)));
-    const out = new Set<string>();
+  // WHAT REACHED THIS CALL AND IS NOT ACCOUNTED FOR — by QUANTITY, not by mere
+  // presence (the user, 2026-09-08: "Flag if there is a Qty Mismatch as well -
+  // Say 2 Nos are requested but only 1 Consumed").
+  //
+  // Summed on both sides before comparing, for the same reason the report is
+  // (0147): a part sent twice on one call and booked once in a single entry
+  // would otherwise show as short on both lines.
+  const shortfall = useMemo(() => {
+    const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+    const used = new Map<string, number>();
+    consumed.forEach((c) => {
+      const k = partKey(c.part);
+      if (k) used.set(k, (used.get(k) ?? 0) + num(c.qty));
+    });
+    const sent = new Map<string, number>();
     requestedLive.forEach((r) => {
       const stage = deriveStage(r as SpareReq);
       if (stage !== 'Dispatched' && stage !== 'Received') return;
       const k = partKey(r.part);
-      if (k && !consumedKeys.has(k)) out.add(k);
+      if (!k) return;
+      const q = num(r.dispatched_qty) || num(r.qty);
+      sent.set(k, (sent.get(k) ?? 0) + q);
+    });
+    const out = new Map<string, { sent: number; used: number }>();
+    sent.forEach((qty, k) => {
+      const u = used.get(k) ?? 0;
+      if (u < qty) out.set(k, { sent: qty, used: u });
     });
     return out;
   }, [requestedLive, consumed]);
@@ -290,11 +308,15 @@ export function CallAssociations({ callNumber, product = '', complaint = '', rep
           // unrecorded or still in the van — both worth knowing, neither
           // visible until now. A part that never got past an approver is NOT
           // flagged: it was never supplied, so there was nothing to use.
-          { key: '_unused', label: '', fmt: (r) => (
-            unusedParts.has(partKey(r.part))
-              ? <span className="assoc-flag" title="Requested and sent, but not booked against this call">Not Used as per the Request</span>
-              : null
-          ) },
+          { key: '_unused', label: '', fmt: (r) => {
+            const gap = shortfall.get(partKey(r.part));
+            if (!gap) return null;
+            // The row says WHICH: nothing booked at all, or some of it missing.
+            // "Short 1 of 2" and "none of it" are different conversations.
+            return gap.used === 0
+              ? <span className="assoc-flag" title="Sent to the engineer, and nothing booked against this call">Not Consumed Against this Call</span>
+              : <span className="assoc-flag" title={`${gap.used} of ${gap.sent} booked against this call`}>Short {gap.sent - gap.used} of {gap.sent}</span>;
+          } },
         ]}
       />
       {spareDetail && <SpareDetail row={spareDetail} onClose={() => setSpareDetail(null)} />}

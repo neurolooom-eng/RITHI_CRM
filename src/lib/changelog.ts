@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.156',
+    date: '2026-09-08',
+    title: 'Not Consumed Against this Call \u2014 renamed, and now catches short quantities',
+    changes: [
+      'THE REPORT IS NOW CALLED \u201cNot Consumed Against this Call\u201d, on the menu, on the screen, on the call and in the downloaded file.',
+      'IT CATCHES A SHORT QUANTITY, not just a part nobody booked at all. Two sent and one used is now a finding \u2014 \u201cShort 1 of 2\u201d \u2014 and the row says which of the two it is: NOT USED where none of it was booked, SHORT where some was.',
+      'QUANTITIES ARE ADDED UP PER PART, NOT PER LINE. A part sent twice on one call and booked once in a single entry would otherwise have been reported as short twice over \u2014 a false finding, and the kind that stops people trusting a report.',
+      'The call flags the same thing, in the same words.',
+      'DROPPED SPARES ARE GONE FROM THE CALL as well as the report.',
+      'Needs supabase/apply/performance.sql (again if you have already run it \u2014 the report has changed shape).',
+    ],
+  },
+  {
     version: '0.9.155',
     date: '2026-09-08',
     title: 'The visit report reads properly, and its report opens',

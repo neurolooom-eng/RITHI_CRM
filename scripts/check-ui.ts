@@ -1778,7 +1778,7 @@ console.log('\n-- the report, shown in the app --');
     /DRIVE_SERVE_MAX_BYTES/.test(gs) && /too large to show here/.test(gs), true);
 }
 
-console.log('\n-- Not Used as per the Request --');
+console.log('\n-- Not Consumed Against this Call --');
 {
   const view = readFileSync('supabase/migrations/0147_unused_spare_report.sql', 'utf8');
   const scr  = readFileSync('src/modules/UnusedSpareReport.tsx', 'utf8');
@@ -1787,6 +1787,19 @@ console.log('\n-- Not Used as per the Request --');
   // WHAT IT DOES NOT SAY is the whole value. A flag that fires on a refused
   // request sends somebody to look for a part that was never in the van, and
   // after two of those nobody reads the report again.
+  // TWO FINDINGS, and quantities on both sides. Presence alone missed "2 sent,
+  // 1 used" entirely.
+  eq('a shortfall is a finding, not just a total absence',
+    /coalesce\(b\.qty_used, 0\) < s\.qty_sent/.test(view)
+    && /then 'Not used' else 'Short' end/.test(view), true);
+  // A part sent twice on one call and booked once would otherwise flag BOTH
+  // lines as short — the false finding that makes this an aggregate report.
+  eq('...summed per call and part, never compared line by line',
+    /sent_total as \(/.test(view)
+    && /group by ucn, part_code/.test(view), true);
+  eq('the call flags a shortfall too, and says which',
+    /Short \{gap\.sent - gap\.used\} of \{gap\.sent\}/.test(assoc), true);
+
   eq('only lines that actually arrived are flagged',
     /l\.received_at is not null or coalesce\(l\.stores_status, ''\) ilike '%dispatch%'/.test(view)
     && /not ilike '%drop%'/.test(view)

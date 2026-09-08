@@ -109,7 +109,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/exports/consumption', label: 'Consumption Report', icon: '🔩', perm: 'mod:/exports' },
       { to: '/exports/kpi', label: 'KPI Export', icon: '📈', perm: 'mod:/exports' },
-      { to: '/exports/unused', label: 'Not Used as per the Request', icon: '🚩', perm: 'mod:/exports' },
+      { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports' },
     ],
   },
   {
