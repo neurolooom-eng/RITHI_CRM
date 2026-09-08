@@ -372,6 +372,54 @@ ownership or retention.)
 query returning one labelled result set, and that is why. It is now the same
 shape as `_status.sql`.
 
+### The reliability template (2026-09-08)
+
+The user's `VEGA__French_Template_Reliability.xlsx` is a Weibull study, and only
+TWO of its sixteen sheets are typed into — the rest derive:
+
+```
+Installed Base = FILTER(Inst_PrdMaster!B:B, Inst_PrdMaster!I:I = <model>)
+Services       = FILTER('Merge WRR'!C5:K, ...)
+```
+
+So filling **`Inst_PrdMaster`** and **`Merge WRR`** fills the workbook; the age
+bands, the Pareto and the Weibull fit recalculate themselves.
+
+**`reliability_wrr(product)` (0141) is the Merge WRR half.** ONE ROW PER VISIT —
+a call attended three times is three services in a reliability study, and
+counting it once flatters the failure rate. **PM calls are excluded**: the sheet
+carries its own "Date of last preventive maintenance" column, which would be
+meaningless if a PM were a service row of its own. Installation calls ARE
+included — the user's own sample has one.
+
+**The DCCR lines up with the template almost name for name**, which is no
+coincidence: `any_potential_effect`, `spare_category` and `root_cause_keyword`
+are the template's own headings. `Symptoms` is `complaint_grouping` (the
+normalised symptom), not the caller's words — the sample reads "MACHINE NOT
+SWITCHING ON" as the reason and "DEVICE NOT GETTING ON" as the symptom, and a
+Pareto needs the second.
+
+⚠️ **`any_potential_effect` is a GENERATED column** — YES when any of the three
+Review 2 answers is. It cannot be inserted, and that is the point: the template's
+column cannot drift from the answers behind it.
+
+**Two readings that are mine**, both one line to change: "Default confirmed" has
+no column anywhere and is 'Yes' when a root cause was recorded; "FQI/FRC/FSCA n°"
+is always NIL because nothing holds one.
+
+**Nine of the sixteen `Inst_PrdMaster` columns have no column in `products`** —
+Item Details Long, Item Details, Sold Through, State, City, Address, Item Code,
+PO No., PO Date. The Product Master importer is `extraInto: 'extra'` and keeps
+them under the SPREADSHEET'S OWN HEADINGS; 0140 surfaces them as `details` jsonb
+on the evidence's machine rows. One jsonb, not nine typed columns.
+
+⏳ **STILL TO BUILD: the export itself.** `reliability_wrr` and `details` are the
+data; nothing yet writes the two-sheet workbook. `src/lib/xlsx.ts` already makes
+multi-sheet files. The template's headings differ from what the user typed —
+**Customer Name** not Party Name, **Town** not City, **Installation date** not
+Warranty Start Date, **warranty stop** not Warranty End Date — and the export
+must use the TEMPLATE's, or the paste lands in the wrong columns.
+
 ### Nine years of history vs the 500 MB cap — SIZED (2026-09-07)
 
 The user has call and failure data back to **2017** and wants it in the system.

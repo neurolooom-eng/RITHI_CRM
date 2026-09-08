@@ -524,6 +524,13 @@ with checks(sort_order, bundle, provides, present) as (
      and not exists (select 1 from pg_policies
                       where schemaname = 'public' and tablename = 'objective_cutoffs'
                         and cmd <> 'SELECT'))),
+    (107, 'Objective: the Installation Base carries the WHOLE Product Master row', 'objective_evidence returns `details` jsonb on a machine row -- everything the Product Master upload kept in products.extra under the SPREADSHEET''S OWN HEADINGS (Item Details Long, Item Details, Sold Through, State, City, Address, Item Code, PO No., PO Date). Nine of the sixteen columns Failure Analysis needs have no column anywhere; the importer is declared extraInto:extra and keeps them. ONE jsonb rather than nine typed columns, so the next field wanted is a line on the page and not another drop-and-recreate of a function four files define (0140). Restore: objective.sql',
+        coalesce((select pg_get_function_result(p.oid) like '%details%'
+                    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                   where n.nspname = 'public' and p.proname = 'objective_evidence'
+                   limit 1), false)),
+    (108, 'Reliability template: the "Merge WRR" sheet, filled from the register', 'reliability_wrr(product) returns the fourteen columns of the reliability workbook''s Merge WRR sheet -- ONE ROW PER VISIT, because a call attended three times is three services in a reliability study. Failure fields come from the DCCR, whose columns ARE the template''s headings (any_potential_effect, spare_category, root_cause_keyword). PM calls are excluded: the sheet carries its own "Date of last preventive maintenance" column, which would be meaningless if a PM were a service row. Cancelled calls never appear (0141). Restore: objective.sql',
+        to_regprocedure('public.reliability_wrr(text)') is not null),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
