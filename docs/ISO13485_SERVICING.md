@@ -53,16 +53,57 @@ Almost everything else below is a clause that §7.5.4 reaches into — parts,
 people, instruments, traceability, records, feedback, nonconformity — because a
 service visit touches all of them.
 
+## Where complaints live — the decision of 2026-09-08
+
+The user, asked the two questions this document ended on:
+*"CAPA not here.. field call are ideally the complaints as well.."*
+
+So the boundary is drawn here:
+
+* **CAPA, nonconformity and advisory notices are OUTSIDE this system**, in the
+  separate quality system. Those requirements are marked **Elsewhere** rather
+  than Absent — they are handled, just not here.
+* **The field call register IS the complaint register.** A field call is the
+  intake of a customer's allegation about a device, which is what a complaint is.
+
+Both are legitimate designs. Two things follow that are easy to miss, and neither
+is a quibble:
+
+**1. This RAISES the bar on the field call register rather than lowering it.**
+Being the complaint register means §8.2.2 now applies to it: the population must
+be complete, each complaint evaluated, and a decision not to investigate
+justified and recorded. It is the reason SR-027 moves from "cheapest gain" to
+load-bearing — without the determination, the register says either that every
+field call is a complaint (not true, and it inflates the rate) or that none is.
+
+**2. "Field call" is the right choice of word, and its edges need a rule.**
+Not a PM visit and not an installation — correct, those are planned work and
+allege nothing. But three edges have to be decided by RA/QA rather than assumed:
+
+* a **PM or installation visit that discovers a fault** — the customer alleged
+  nothing, yet a deficiency exists;
+* a field call that turns out **not to be the device** (mains supply, a
+  consumable, user technique) — still a complaint, since a complaint is about
+  what was *alleged*, not about what was found;
+* a complaint that **never becomes a call at all** — see SR-038, which is the
+  real exposure this decision creates.
+
+*CAPA remains outside the scope of this system by that decision; §7.5.4(b) is
+not thereby discharged, and SR-039 is what remains of it here.*
+
 ## How to read the table
 
 | field | meaning |
 | --- | --- |
 | **SR-nn** | servicing requirement, numbered here for reference |
 | **Clause** | ISO 13485:2016 |
-| **Status** | **Met** / **Partial** / **Absent** in RITHI CRM today, or **Process** where it belongs to an SOP rather than to software |
+| **Status** | **Met** / **Partial** / **Absent** in RITHI CRM today; **Process** where it belongs to an SOP rather than to software; **Elsewhere** where it is held in another system by a recorded decision |
 
 Status is an assessment of the *system*, not of your quality system: something
-marked Absent here may well be controlled today on paper.
+marked Absent here may well be controlled today on paper. **Elsewhere is
+narrower and stronger than that** — it means a decision has been taken and
+recorded, so nobody should build it here; but it never means the obligation
+ended, only that it moved (see SR-039).
 
 ---
 
@@ -251,16 +292,28 @@ below.
 **SR-027 — The analysis determines whether the information is to be handled as a
 COMPLAINT, and that determination is recorded — including a decision of "not a
 complaint" and its reason.** *§7.5.4(a), §8.2.2.*
-**Status: Absent as an explicit decision.** Review 2 captures the ingredients of
-the decision but no field records the decision itself. A determination that
-cannot be shown was made is, to an auditor, a determination that was not made.
-**Small to add: one controlled field plus a reason, on the review already being
-done.**
+**Status: Absent as an explicit decision — and now the load-bearing one.** Review
+2 captures the ingredients of the decision but no field records the decision
+itself. A determination that cannot be shown was made is, to an auditor, a
+determination that was not made.
+
+Under the decision of 2026-09-08 (see *Where complaints live*, above) **the field
+call register IS the complaint register**, so this field is what marks which
+calls are complaints. Without it the register is either "every field call is a
+complaint" — which is not true and inflates the complaint rate — or nothing is
+marked and the population cannot be produced at all.
+**Still small to add: one controlled field plus a reason, on the review already
+being done.**
 
 **SR-028 — Complaints are handled under a documented process: received,
 evaluated, investigated where indicated, actioned, and closed with a record; and
 a decision not to investigate is justified and recorded.** *§8.2.2.*
-**Status: Absent.** There is no complaint record distinct from the call.
+**Status: Partial, by the decision above.** The call carries the intake,
+evaluation (Review 1 / Review 2), the work done and the closure with a date and
+an engineer — which is most of the process. What is missing is the *complaint
+framing* over it: the determination (SR-027), and an investigation outcome
+distinct from "the call was solved". A call can be closed by replacing a board
+without anything recording why the board failed.
 
 **SR-029 — Where a complaint or servicing finding is reportable to the
 regulatory authority, it is reported within the required timeframe and the
@@ -278,12 +331,16 @@ The route from those into risk management is procedural and undocumented here.
 
 **SR-031 — A device found nonconforming during servicing is identified,
 segregated where applicable, and dispositioned with a record.** *§8.3.1/8.3.2.*
-**Status: Absent.**
+**Status: Elsewhere.** Held in the separate quality system by the decision of
+2026-09-08. What remains here is the handoff — SR-039.
 
 **SR-032 — Where nonconforming product is detected after delivery, action
 appropriate to the effects is taken — including, where required, an advisory
 notice, with records of each issued.** *§8.3.3.*
-**Status: Absent.** No advisory-notice or field-action record exists.
+**Status: Elsewhere.** As SR-031. Note that an advisory notice has to reach a
+list of affected devices, and **that list comes from here** — which is what makes
+SR-015 (the lot or serial of the part fitted) a dependency of an advisory notice
+rather than a nicety.
 
 **SR-033 — Data from servicing is analysed to show the suitability and
 effectiveness of the quality system, and the analysis is recorded.** *§8.4.*
@@ -293,8 +350,44 @@ assumptions and hard stops (0136–0139).
 
 **SR-034 — Corrective action is taken on causes of nonconformity, and its
 effectiveness is verified; preventive action likewise.** *§8.5.2, §8.5.3.*
-**Status: Absent.** No CAPA record. SOP-09 in the validation package governs
-CAPA for the *software*, not for servicing.
+**Status: Elsewhere** — *"CAPA not here"* (the user, 2026-09-08). CAPA is held in
+the separate quality system. **This does not discharge §7.5.4(b):** the servicing
+analysis must still demonstrably feed that process, which is SR-039. SOP-09 in
+the validation package governs CAPA for the *software* and is a different thing
+again.
+
+## I-b. What the boundary decision creates
+
+*Added 2026-09-08, when CAPA was placed outside this system and the field call
+register was made the complaint register. Neither requirement existed while both
+questions were open, which is why they are numbered after the rest.*
+
+**SR-038 — A complaint that arrives WITHOUT a field call still reaches the
+complaint population.** *§8.2.2.*
+**Status: Absent — and it is the exposure the decision creates.** If the field
+call register is the complaint register, then a complaint that never became a
+field call is not recorded anywhere: a customer who emails Commercial about
+labelling, a distributor's report on a device already replaced, a complaint about
+delivery or documentation rather than the device. Each of those is a complaint
+under §8.2.2 and none of them produces a call.
+
+Two ways to close it, and the choice is the user's: **either** every complaint is
+made to enter as a call (a call type or an origin flag, so the register really is
+complete), **or** the complaint register is elsewhere and this system feeds it —
+in which case SR-027's determination becomes an *export*, not a marker. What
+cannot stand is the middle: the register presented as the complaint population
+while a route into complaints exists that bypasses it.
+
+**SR-039 — A complaint or servicing finding identified here demonstrably REACHES
+the separate quality system that handles it.** *§7.5.4(b), §8.5.2.*
+**Status: Absent.** Nonconformity, advisory notices and CAPA are held elsewhere
+by the decision of 2026-09-08. That is a legitimate design, but §7.5.4(b) asks
+for the servicing analysis to feed the improvement process, and an obligation
+does not end at a system boundary: there must be a recorded handoff — what was
+raised, when, to what reference — or the analysis stops at the edge of this
+system and the evidence chain breaks exactly where an auditor follows it.
+The cheapest form is a reference field and a date on the call, filled when the
+finding is raised in the other system.
 
 ## J. Servicing done by others
 
@@ -325,39 +418,53 @@ turn on — not by effort.
 
 | # | Gap | SR | Why it ranks here |
 | --- | --- | --- | --- |
-| 1 | **No post-service verification against acceptance criteria** | SR-006, SR-003 | §7.5.4 asks for verification that product requirements are met. "Solved" is not that. Every other record rests on this one. |
-| 2 | **No calibrated-instrument link on a measurement** | SR-020, SR-021 | A reading not tied to a calibrated instrument does not evidence conformity — and if an instrument is later found out of calibration, the affected records cannot be found. |
-| 3 | **No recorded complaint determination** | SR-027, SR-028 | §7.5.4(a) is explicit, and the review that would carry it already runs daily. Cheapest of the top five to close. |
-| 4 | **No competence record per engineer per product** | SR-018 | Allotment cannot be checked against qualification, and §6.2 evidence has to be assembled by hand. |
-| 5 | **No lot/serial of the part fitted** | SR-015 | A supplier field action on a lot cannot be answered: which devices received it? |
-| 6 | **No nonconformity, CAPA or advisory-notice record** | SR-031/032/034 | Present on paper, presumably; absent from the system that holds the evidence feeding them. |
-| 7 | **Retention period not stated or configured** | SR-024 | A purge runs on a window whose basis is not recorded. |
-| 8 | **Reportability decision and clock not recorded** | SR-029 | Review 1 screens for the triggers and then stops. |
-| 9 | **Third-party servicing not modelled** | SR-035, SR-036 | Only matters if any servicing is subcontracted — worth confirming either way. |
+**Re-ranked 2026-09-08** after the boundary decision. The complaint determination
+moved from third to first: it was the cheapest gain while the register was only a
+service register; now that the register *is* the complaint register, it is what
+makes the population producible at all. CAPA left the list, and two entries
+arrived that the decision created.
+
+| # | Gap | SR | Why it ranks here |
+| --- | --- | --- | --- |
+| 1 | **No recorded complaint determination** | SR-027 | The register is now the complaint register, so this field is what says which calls are complaints. Without it the population is either everything or nothing. Still the cheapest on the list. |
+| 2 | **No post-service verification against acceptance criteria** | SR-006, SR-003 | §7.5.4 asks for verification that product requirements are met. "Solved" is not that. Every other record rests on this one. |
+| 3 | **A complaint that never becomes a call has nowhere to live** | SR-038 | The exposure the decision creates. A register presented as the complaint population, with a route into complaints that bypasses it, is worse than one that never claimed to be. |
+| 4 | **No calibrated-instrument link on a measurement** | SR-020, SR-021 | A reading not tied to a calibrated instrument does not evidence conformity — and if an instrument is later found out of calibration, the affected records cannot be found. |
+| 5 | **No recorded handoff to the system that holds CAPA** | SR-039 | §7.5.4(b) does not end at a system boundary. Without it the evidence chain breaks exactly where an auditor follows it. |
+| 6 | **No competence record per engineer per product** | SR-018 | Allotment cannot be checked against qualification, and §6.2 evidence has to be assembled by hand. |
+| 7 | **No lot/serial of the part fitted** | SR-015 | A supplier field action on a lot cannot be answered: which devices received it? Now a dependency of an advisory notice raised in the other system. |
+| 8 | **Retention period not stated or configured** | SR-024 | A purge runs on a window whose basis is not recorded. |
+| 9 | **Reportability decision and clock not recorded** | SR-029 | Review 1 screens for the triggers and then stops. |
+| 10 | **Third-party servicing not modelled** | SR-035, SR-036 | Only matters if any servicing is subcontracted — still unanswered. |
 
 ### What I would build first, and why
 
-**1. Post-service verification (SR-006 + SR-003).** A verification checklist per
-product family — parameter, expected value or range, measured value, pass/fail —
-completed on the visit that closes a call. It closes the largest gap, it gives
-SR-003's reference measurements somewhere to live, and it makes the service
-record say what the standard asks it to say. It is also the prerequisite for gap
-2 being worth anything.
+**1. The complaint determination, and with it the handoff (SR-027 + SR-039).**
+One controlled field and a reason on the Daily Call Review, plus a reference and
+a date recording that a finding was raised in the quality system that holds CAPA.
+Smallest change on the list; it closes an explicit sub-clause; and now that the
+register is the complaint register it is what makes the complaint population
+producible. Build the two together — the determination without the handoff stops
+at the system boundary, which is where §7.5.4(b) says it must not.
 
-**2. The complaint determination (SR-027).** One controlled field and a reason,
-on the Daily Call Review that already runs. Smallest change in the list, and it
-closes an explicit sub-clause.
+**2. Post-service verification (SR-006 + SR-003).** A verification checklist per
+product family — parameter, expected value or range, measured value, pass/fail —
+completed on the visit that closes a call. It gives SR-003's reference
+measurements somewhere to live and makes the service record say what the standard
+asks it to say. It is also the prerequisite for item 3 being worth anything.
 
 **3. The instrument register and calibration status (SR-020).** An instrument
-master with calibration due dates, and an instrument reference on a
-verification reading. Only useful once 1 exists.
+master with calibration due dates, and an instrument reference on a verification
+reading. Only useful once 2 exists.
 
-Everything else follows from a decision you have not yet been asked to make:
-whether nonconformity, CAPA, complaints and vigilance belong **in this system**
-or in a separate quality system that this one feeds. That is a governance
-question, not a technical one, and it should be answered before any of items
-6–8 is built — building them here would otherwise duplicate a register that
-exists somewhere else.
+**Before any of them, one question of scope (SR-038):** is every complaint to
+enter as a call, or is the complaint register elsewhere with this system feeding
+it? The answer changes what SR-027's field *is* — a marker on a complete
+population, or an export into somebody else's. It costs nothing to settle now and
+is expensive to change after the field exists and people have been filling it in.
+
+The remaining question from the first revision is still open: **is any servicing
+subcontracted?** (SR-035/036.)
 
 ---
 
