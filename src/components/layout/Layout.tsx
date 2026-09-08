@@ -115,6 +115,15 @@ export const NAV: NavGroup[] = [
   },
 ];
 
+// WHO SEES A NAV ITEM. An ordinary item asks for its own module key. An
+// ADMIN-ONLY one asked for `manage-users` -- the right to CHANGE users -- so
+// there was no way to let somebody merely look at the administration pages.
+// `admin.view` opens them read-only (Technical Support, 2026-09-08); every
+// control on them still asks separately for the right that changes something.
+const navItemVisible = (it: NavItem, can: (a: string) => boolean): boolean =>
+  !!it.alwaysOpen
+  || (it.adminOnly ? (can('manage-users') || can('admin.view')) : can(actionForPath(it.to)));
+
 // Global search across all modules (nav items). Jump straight to any screen.
 function ModuleSearch() {
   const navigate = useNavigate();
@@ -122,7 +131,7 @@ function ModuleSearch() {
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () => NAV.flatMap((g) => g.items.filter((it) => it.alwaysOpen || (it.adminOnly ? can('manage-users') : can(actionForPath(it.to)))).map((it) => ({ ...it, group: g.title }))),
+    () => NAV.flatMap((g) => g.items.filter((it) => navItemVisible(it, can)).map((it) => ({ ...it, group: g.title }))),
     [can],
   );
   const results = q.trim()
@@ -307,7 +316,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </button>
           )}
           {NAV.map((group) => {
-            const items = group.items.filter((i) => i.alwaysOpen || (i.adminOnly ? can('manage-users') : can(actionForPath(i.to))));
+            const items = group.items.filter((i) => navItemVisible(i, can));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
             return (

@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.146',
+    date: '2026-09-08',
+    title: 'A Technical Support role \u2014 sees everything, changes nothing',
+    changes: [
+      'A NEW ROLE, TECHNICAL SUPPORT. It opens EVERY page the Super Admin can, including the administration ones, and it sees every record \u2014 every call, every spare, every report, not just the ones allotted to it.',
+      'AND IT CANNOT CHANGE ANY OF IT. Not a call, not a master, not a spare, not a user, not a role. The refusal is the database\u2019s, not a hidden button: whatever screen it is on, the write is turned down.',
+      'THAT INCLUDES THE ONE WRITE THAT WOULD UNDO THE REST \u2014 it cannot edit Roles & Permissions, so it cannot widen itself.',
+      'TWO PAGES ARE EXCEPTIONS, and only because you asked for them that way. On the TRACKER, being able to see it IS being able to add and edit \u2014 one permission, your rule. On CUSTOMER FEEDBACK, whoever may read feedback may record it. Untick the Tracker module, or the \u201cView feedback\u201d action, for this role if you would rather it could not.',
+      'THE ADMIN SCREENS CAN NOW BE OPENED READ-ONLY. User Access, Settings and Roles & Permissions used to ask for the right to CHANGE what is on them, so there was no way to let somebody merely look \u2014 which is exactly what somebody diagnosing a problem needs. They open now, and every control on them still asks for the right that changes something.',
+      'GIVING SOMEBODY THIS ROLE is picking it in User Master. Widening it later is ticking boxes in Roles & Permissions \u2014 \u201cread only for now\u201d, not read-only forever.',
+      'THE TRACKER SAYS \u201cRITHI ADMIN\u201d WHERE IT SAID \u201cYou\u201d. On a list one person keeps, \u201cYou\u201d is clear; on a shared one it is the single word that means somebody different to every reader \u2014 so the rename is what makes the \u201cwith whom\u201d column mean anything. Items already on your Tracker are renamed in place.',
+      'Needs supabase/apply/rbac.sql, and supabase/apply/tracker.sql again for the Tracker rename.',
+    ],
+  },
+  {
     version: '0.9.145',
     date: '2026-09-08',
     title: 'The Tracker starts with the backlog already on it',

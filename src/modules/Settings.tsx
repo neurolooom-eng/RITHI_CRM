@@ -23,8 +23,17 @@ export function Settings() {
     location.reload();
   };
 
+  // TWO RIGHTS. `manage-users` runs this screen; `admin.view` opens it without
+  // being able to change anything (Technical Support) -- which is the screen a
+  // support login most needs, since what is connected is the first question
+  // asked when something is not loading. Nothing here is a secret it is being
+  // trusted with: the anon key is public by design, and the connection is this
+  // browser's own setting.
+  const mayManage = can('manage-users');
+  const mayOpen = mayManage || can('admin.view');
+
   // Connection details, keys and templates are sensitive — admins only.
-  if (!can('manage-users')) {
+  if (!mayOpen) {
     return (
       <div>
         <PageHeader title="Settings" subtitle="Administrator settings" icon="⚙️" />
@@ -41,11 +50,17 @@ export function Settings() {
     <div>
       <PageHeader title="Settings" subtitle="Connections, design-system defaults & templates" icon="⚙️" />
 
-      <DbConnection />
+      {!mayManage && (
+        <div className="sheet-banner sheet-banner-info" style={{ marginBottom: 14 }}>
+          <span>You can see how this app is set up, but not change it.</span>
+        </div>
+      )}
+
+      <DbConnection readOnly={!mayManage} />
 
       <div style={{ height: 16 }} />
 
-      <SheetConnection />
+      <SheetConnection readOnly={!mayManage} />
 
       <div style={{ height: 16 }} />
 
@@ -83,6 +98,10 @@ export function Settings() {
 
       <div style={{ height: 16 }} />
 
+      {/* Placeholders that are SAVED when they are filled, so they follow the
+          same rule as everything else on this screen: visible to a read-only
+          login, editable only by somebody who may change the setup. */}
+      {mayManage && (
       <SectionCard title="Document Templates">
         <div className="muted" style={{ marginBottom: 12 }}>
           Placeholders for your official templates. {templates.length} saved.
@@ -95,16 +114,19 @@ export function Settings() {
           <TemplatePlaceholder templateKey="pm-checklist" title="PM Checklist Template" />
         </div>
       </SectionCard>
+      )}
 
       <div style={{ height: 16 }} />
 
-      <SectionCard title="Data">
-        <div className="row">
-          <div className="muted">Reset all demo records (keeps users & theme).</div>
-          <div className="spacer" />
-          <button className="btn btn-danger" onClick={resetData}>Reset Demo Data</button>
-        </div>
-      </SectionCard>
+      {mayManage && (
+        <SectionCard title="Data">
+          <div className="row">
+            <div className="muted">Reset all demo records (keeps users & theme).</div>
+            <div className="spacer" />
+            <button className="btn btn-danger" onClick={resetData}>Reset Demo Data</button>
+          </div>
+        </SectionCard>
+      )}
     </div>
   );
 }

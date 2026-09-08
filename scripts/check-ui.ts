@@ -21,6 +21,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
+import { DEFAULT_PERMS, MODULES, moduleAction } from '../src/lib/rbac';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -1509,6 +1510,67 @@ console.log('\n-- the evidence workbook --');
   // An empty tab reads as a bug; the open rate has no install base and says so.
   eq('an objective with no install base says so on the tab',
     /it has no installed base/.test(obj), true);
+}
+
+console.log('\n-- Technical Support: the Super Admin\'s reach, none of its writes --');
+{
+  const rbacSrc = readFileSync('src/lib/rbac.ts', 'utf8');
+  const layout  = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const users   = readFileSync('src/modules/UsersAdmin.tsx', 'utf8');
+  const settings = readFileSync('src/modules/Settings.tsx', 'utf8');
+  const roles   = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
+
+  // EVERY module, admin ones included — that is the whole of "map this role to
+  // all modules", and a defaults table that quietly gave it the non-admin set
+  // would look right and hide half the app.
+  eq('Technical Support holds every module, not the non-admin set',
+    DEFAULT_PERMS.technical_support?.length === new Set([
+      ...MODULES.map((m) => moduleAction(m.path)),
+      ...(DEFAULT_PERMS.technical_support ?? []).filter((k) => !k.startsWith('mod:')),
+    ]).size
+    && MODULES.every((m) => DEFAULT_PERMS.technical_support?.includes(moduleAction(m.path))), true);
+
+  // READ ONLY, and the list is checked rather than trusted: this is the one
+  // property of the role somebody could undo by ticking a box in the defaults.
+  const WRITES = ['calls.create', 'calls.edit', 'calls.report', 'calls.cancel', 'calls.allot',
+    'masters.edit', 'cover.edit', 'ownership.transfer', 'review.edit', 'spare.request',
+    'spare.approve_rm', 'spare.approve_nsm', 'spare.approve_commercial', 'spare.dispatch',
+    'spare.drop', 'spare.receive', 'stock.transfer', 'stock.return', 'consumption.reconcile',
+    'pending.register', 'request.create', 'install.create', 'docs.manage', 'qms.manage',
+    'users.manage', 'config.manage', 'rbac.manage'];
+  eq('...and not one action that writes',
+    WRITES.filter((w) => DEFAULT_PERMS.technical_support?.includes(w)), []);
+
+  // Without this it opens every page and the call pages are empty, which reads
+  // as a broken login rather than as a scoped one.
+  eq('...but data.view_all, or every call page is empty',
+    !!DEFAULT_PERMS.technical_support?.includes('data.view_all'), true);
+
+  // The admin pages gated themselves on the right to CHANGE what is on them,
+  // so there was no way to let somebody look. One key, checked in one place.
+  eq('an admin-only nav item opens on admin.view too, not just manage-users',
+    /can\('manage-users'\) \|\| can\('admin.view'\)/.test(layout)
+    && !/adminOnly \? can\('manage-users'\) :/.test(layout), true);
+
+  // Seeing an admin screen is not running it: each one keeps its own right for
+  // everything that changes something.
+  eq('User Access opens read-only but is still managed by manage-users',
+    /const mayManage = can\('manage-users'\)/.test(users)
+    && /const mayOpen = mayManage \|\| can\('admin.view'\)/.test(users)
+    && /actions=\{mayManage \?/.test(users), true);
+  eq('Settings shows the connection but does not let a read-only login change it',
+    /const mayOpen = mayManage \|\| can\('admin.view'\)/.test(settings)
+    && /<DbConnection readOnly=\{!mayManage\} \/>/.test(settings)
+    && /<SheetConnection readOnly=\{!mayManage\} \/>/.test(settings), true);
+  eq('the permission matrix can be read without rbac.manage, and not saved',
+    /const mayEdit = can\('rbac.manage'\)/.test(roles)
+    && /disabled=\{!mayEdit \|\| r\.key === 'admin'\}/.test(roles)
+    && /You can read this matrix but not change it/.test(roles), true);
+
+  // The role is a matrix column, so it has to be in ROLES — and the label is
+  // what the person picking a role in User Master reads.
+  eq('the role is on the matrix with a name people recognise',
+    /\{ key: 'technical_support', label: 'Technical Support' \}/.test(rbacSrc), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

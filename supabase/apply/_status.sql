@@ -554,6 +554,22 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                      from pg_class where relname = 'tracker_list'
                        and relnamespace = 'public'::regnamespace), false))),
+    (111, 'RBAC: the Technical Support role', 'app_roles carries `technical_support` -- EVERY module key the admin role holds, so no page is hidden, plus `data.view_all` so the call pages are not empty, and only actions that READ. What makes it read-only is what it does NOT hold: every write in this database is gated by a policy naming the action it needs, so the refusal is Postgres''s and not a hidden button. TWO EXCEPTIONS, both by earlier design: the Tracker is one permission for view and edit (the user''s own rule), and fb_write accepts feedback.view -- so this role can add on those two pages. Untick the module or the action to close either. `admin.view` is the new key that opens the administration screens read-only (0145). Restore: rbac.sql',
+        (to_regclass('public.app_roles') is not null
+     and exists (select 1 from public.app_roles r where r.role = 'technical_support'
+                  and r.permissions ? 'data.view_all' and r.permissions ? 'admin.view'
+                  and r.permissions ? 'mod:/users')
+        -- Read-only is the CLAIM, so it is what gets checked: not one action
+        -- that any write policy asks for, bar the two known exceptions above.
+     and not exists (
+           select 1 from public.app_roles r,
+                lateral jsonb_array_elements_text(r.permissions) g(v)
+            where r.role = 'technical_support'
+              and g.v in ('calls.create','calls.edit','calls.report','calls.cancel','calls.allot',
+                          'masters.edit','cover.edit','ownership.transfer','review.edit',
+                          'spare.request','spare.dispatch','spare.drop','stock.transfer','stock.return',
+                          'consumption.reconcile','pending.register','request.create','install.create',
+                          'docs.manage','qms.manage','users.manage','config.manage','rbac.manage')))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

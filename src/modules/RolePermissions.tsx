@@ -63,7 +63,13 @@ export function RolePermissions() {
     const next = new Set(set); if (next.has(k)) next.delete(k); else next.add(k); return next;
   };
 
-  if (!can('rbac.manage')) return <div style={{ padding: 24 }} className="muted">You don't have permission to manage roles.</div>;
+  // TWO RIGHTS. `rbac.manage` edits the matrix; `admin.view` only reads it
+  // (Technical Support) -- and reading it is exactly how somebody answers "why
+  // can this person not see that page?" without being able to change the answer.
+  const mayEdit = can('rbac.manage');
+  if (!mayEdit && !can('admin.view')) {
+    return <div style={{ padding: 24 }} className="muted">You don't have permission to manage roles.</div>;
+  }
 
   const has = (role: string, action: string) => role === 'admin' || !!perms[role]?.has(action);
   const toggle = (role: string, action: string) => {
@@ -107,7 +113,7 @@ export function RolePermissions() {
   const cells = (action: string, kind: '' | 'view' = '') => ROLES.map((r) => (
     <td key={r.key} className="rbac-cell">
       <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : undefined}
-        checked={has(r.key, action)} disabled={r.key === 'admin'}
+        checked={has(r.key, action)} disabled={!mayEdit || r.key === 'admin'}
         onChange={() => toggle(r.key, action)} />
     </td>
   ));
@@ -192,7 +198,7 @@ export function RolePermissions() {
                               <td className="rbac-action rbac-indent muted">Everything on this page</td>
                               {ROLES.map((r) => (
                                 <td key={r.key} className="rbac-cell">
-                                  <button className="btn btn-ghost btn-sm" disabled={r.key === 'admin'}
+                                  <button className="btn btn-ghost btn-sm" disabled={!mayEdit || r.key === 'admin'}
                                     title={`Tick every action on ${page.label} for ${r.label}`}
                                     onClick={() => setPage(r.key, [view, ...childKeys].filter(Boolean),
                                       !childKeys.every((k) => has(r.key, k)))}>
@@ -212,7 +218,9 @@ export function RolePermissions() {
           </table>
         </div>
         <div className="rep-actions">
-          <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save permissions'}</button>
+          {mayEdit
+            ? <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>{busy ? 'Saving…' : 'Save permissions'}</button>
+            : <span className="muted">You can read this matrix but not change it.</span>}
         </div>
       </SectionCard>
     </div>

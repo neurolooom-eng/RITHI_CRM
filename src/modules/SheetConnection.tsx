@@ -4,7 +4,9 @@ import { getSheetsTab, getSheetsUrl, pingSheet, setSheetsTab, setSheetsUrl } fro
 import './fieldcalls.css';
 
 // Settings panel to connect the app to the Google Sheet Apps Script Web App.
-export function SheetConnection() {
+// `readOnly` — see the bridge's setup without being able to repoint it
+// (admin.view / Technical Support). Test saves what it tests, so it is a write.
+export function SheetConnection({ readOnly = false }: { readOnly?: boolean }) {
   const [url, setUrl] = useState(getSheetsUrl());
   const [tab, setTab] = useState(getSheetsTab());
   const [tabs, setTabs] = useState<string[]>([]);
@@ -52,18 +54,23 @@ export function SheetConnection() {
           type="url"
           placeholder="https://script.google.com/macros/s/……/exec"
           value={url}
+          disabled={readOnly}
           onChange={(e) => setUrl(e.target.value)}
         />
-        <button className="btn" onClick={() => void test()} disabled={testing || !url.trim()}>
-          {testing ? 'Testing…' : 'Test'}
-        </button>
-        <button className="btn btn-primary" onClick={save} disabled={!url.trim()}>Save</button>
+        {!readOnly && (
+          <>
+            <button className="btn" onClick={() => void test()} disabled={testing || !url.trim()}>
+              {testing ? 'Testing…' : 'Test'}
+            </button>
+            <button className="btn btn-primary" onClick={save} disabled={!url.trim()}>Save</button>
+          </>
+        )}
       </div>
 
       <div className="sheet-conn-row" style={{ marginTop: 10 }}>
         <label className="muted" style={{ alignSelf: 'center', minWidth: 120 }}>Field Calls tab:</label>
         {tabs.length > 0 ? (
-          <select className="select" value={tab} onChange={(e) => setTab(e.target.value)}>
+          <select className="select" value={tab} disabled={readOnly} onChange={(e) => setTab(e.target.value)}>
             <option value="">(auto-detect: UC Number tab)</option>
             {tabs.map((t) => (
               <option key={t} value={t}>{t}</option>
@@ -74,6 +81,7 @@ export function SheetConnection() {
             className="input"
             placeholder="e.g. Field  (leave blank to auto-detect; Test to list tabs)"
             value={tab}
+            disabled={readOnly}
             onChange={(e) => setTab(e.target.value)}
           />
         )}
