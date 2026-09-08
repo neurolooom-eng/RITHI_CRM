@@ -36,6 +36,7 @@ import { DailyCallReview } from './modules/DailyCallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
+import { ReportsHub } from './modules/ReportsHub';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
@@ -139,6 +140,7 @@ function Shell() {
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
+        <Route path="/exports" element={<ReportsHub />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />

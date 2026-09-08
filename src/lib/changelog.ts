@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.143',
+    date: '2026-09-08',
+    title: 'Reports is its own screen, and every export collects there',
+    changes: [
+      'THERE IS NOW A SCREEN CALLED REPORTS, under Quality & Analytics, holding CONSUMPTION REPORT and KPI EXPORT on tabs \u2014 with room for the ones still to come.',
+      'Until now an export lived on whichever screen prompted it: the KPI workbook was on KPI & Failure Analysis, then on Objective, and the consumption report had been put on Visit Reports. Finding one meant remembering which conversation it came out of. They collect in one place now.',
+      'VISIT REPORTS / SERVICE REPORTS IS UNCHANGED and keeps its own menu item. That screen is a REGISTER \u2014 rows to look through, search and open; this one is a place you leave with a file. Mixing the two made both worse.',
+      'A CORRECTION WHILE MOVING IT: the KPI export card still said Attended in Days, Solved in Days, TTA, TTS and Failure Month were \u201cnot exported yet\u201d. They have been since Phase 2 shipped. It now explains how each is worked out instead \u2014 telling you a column is missing when it is right there in the file is worse than saying nothing.',
+      'Objective keeps the objectives and loses the export.',
+    ],
+  },
+  {
     version: '0.9.142',
     date: '2026-09-08',
     title: 'Reports is now Visit Reports / Service Reports',

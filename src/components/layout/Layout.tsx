@@ -91,6 +91,7 @@ export const NAV: NavGroup[] = [
       { to: '/failure-report', label: 'Field Failure Report', icon: '🧪' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
+      { to: '/exports', label: 'Reports', icon: '📄' },
     ],
   },
   {

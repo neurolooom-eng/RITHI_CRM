@@ -1243,8 +1243,10 @@ console.log('\n-- the KPI export matches the workbook --');
   eq('every column is written, even when the view has no value',
     KPI_FIELD_INST_COLUMNS.every((c) => c in row), true);
 
-  // The export moved to the Objective page (0130); the rules moved with it.
-  const objPage = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
+  // The export moved to Reports (2026-09-08) -- KPI & Failure Analysis, then
+  // Objective, now its own tab. THE RULES MOVE WITH IT: a screen that hands
+  // somebody a file has to say what the file counts, wherever it now lives.
+  const objPage = readFileSync(`${process.cwd()}/src/modules/KpiExport.tsx`, 'utf8');
   eq('the screen says the three rules it was given',
     /earlier of the first visit and the first spare request/.test(objPage)
     && /Solved - Report Completed/.test(objPage)
@@ -1252,9 +1254,9 @@ console.log('\n-- the KPI export matches the workbook --');
   // The page must say how each computed column is arrived at: a number nobody
   // can account for is not evidence.
   eq('...and says how the computed columns are worked out',
-    /later<\/b> of the\s*\n?\s*Complaint Date and the Registration Date/.test(objPage)
-    && /finer<\/b> of/.test(objPage)
-    && /attended and solved the same day/.test(objPage), true);
+    /LATER of complaint and\s*\n?\s*registration/.test(objPage)
+    && /finer of its two lookup tables/.test(objPage)
+    && /attended and solved the same\s*\n?\s*day/.test(objPage), true);
 }
 
 // LOOKING UP ONE MACHINE BY SERIAL IS AN EQUALITY (0129). It was a
@@ -1301,16 +1303,24 @@ console.log('\n-- the Objective page --');
 
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   const kpi = readFileSync(`${process.cwd()}/src/modules/KpiAnalytics.tsx`, 'utf8');
-  // MOVED, not copied: two export buttons writing the same file from two
-  // screens is how they drift apart.
-  eq('Phase 1 moved here', /Export — KPI workbook \(Field_INST\)/.test(obj), true);
+  const kpiExport = readFileSync(`${process.cwd()}/src/modules/KpiExport.tsx`, 'utf8');
+  const hub = readFileSync(`${process.cwd()}/src/modules/ReportsHub.tsx`, 'utf8');
+  // MOVED, not copied -- twice now. Two export buttons writing the same file
+  // from two screens is how they drift apart, so each move must leave NOTHING
+  // behind: the check names every screen it has ever lived on.
+  eq('the KPI export lives on Reports', /KPI workbook — Field_INST/.test(kpiExport)
+    && /KpiExport/.test(hub), true);
   eq('...and is gone from KPI & Failure Analysis',
     /Export — KPI workbook/.test(kpi) || /listKpiFieldInst/.test(kpi), false);
-  // Phase 2 has landed: the page now explains each computed column instead of
-  // promising it. A number nobody can account for is not evidence.
+  eq('...and gone from Objective',
+    /Export — KPI workbook/.test(obj) || /listKpiFieldInst/.test(obj), false);
+  // Phase 2 has landed: the screen explains each computed column instead of
+  // promising it. It said "not exported yet" for a while AFTER they shipped,
+  // which is worse than saying nothing -- it told the reader a column was
+  // missing that was right there in the file.
   eq('...and the computed columns are explained, not promised',
-    /How the computed columns are worked out/.test(obj)
-    && /Phase 2 — the objectives themselves/.test(obj) === false, true);
+    /are computed\s*\n?\s*here, by the workbook/.test(kpiExport)
+    && /not exported yet/.test(kpiExport) === false, true);
 
   // A month that was not measured is NOT zero. On a rate that is the difference
   // between "we did not measure" and "it was perfect".

@@ -7,28 +7,20 @@ import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
 import { REPORT_FIELD_KEYS } from './CallReporting';
 import { Ucn } from '../lib/callstate';
-import { ConsumptionReport } from './ConsumptionReport';
 
 // ===========================================================================
-// VISIT REPORTS / SERVICE REPORTS — two of them, on tabs.
+// VISIT REPORTS / SERVICE REPORTS — the visit history, one row per visit.
 //
 // The menu says both names because the business does (the user, 2026-09-08):
 // the engineer files a "service report" and the register holds it as a visit.
-// A bare "Reports" had also become ambiguous once a second report lived here.
-// The ROUTE is still /reports -- permissions key off `mod:<path>`, not the
-// label, so no role loses access to a screen because its name changed, and no
-// bookmark breaks.
 //
-//   Visit Reports   one row per visit, from `reports`. Local browser cache +
-//                   last-sync + 30-min auto/force sync; field filters query the
-//                   server live. Unchanged.
-//   Consumption     one row per spare booked, filtered in the DATABASE, with a
-//                   column picker (the user's ask, 2026-09-08).
+// This is a REGISTER — rows to look through, search and open. The EXPORTS live
+// on Reports (/exports); the consumption report sat here briefly and moved
+// there when that screen was created, because "a place you browse" and "a place
+// you leave with a file" are different screens and mixing them made both worse.
 //
-// The two are separate COMPONENTS rather than one with a branch: the visit
-// history syncs, caches and polls on mount, and a component that returned early
-// for the other tab would be skipping hooks. `Reports` is now a thin wrapper
-// that picks one; neither knows about the other.
+// Local browser cache + last-sync + 30-min auto/force sync; field filters
+// (UCN / Call Number / Engineer / Status) query the server live.
 // ===========================================================================
 
 const CACHE_KEY = 'reports';
@@ -55,7 +47,7 @@ const toRows = (data: Record<string, unknown>[], base: number): Row[] => data.ma
   id: String(p.uid ?? p.id ?? base + i),
 } as Row));
 
-function VisitHistory() {
+export function Reports() {
   const cached = loadCache<Row>(CACHE_KEY);
   const [filter, setFilter] = useState<ReportFilter>({ ucn: '', callNumber: '', engineer: '', status: '' });
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
@@ -189,38 +181,6 @@ function VisitHistory() {
         }
       />
       {detail && <ReportDetail report={detail} onClose={() => setDetail(null)} />}
-    </div>
-  );
-}
-
-type Tab = 'visits' | 'consumption';
-
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'visits', label: 'Visit Reports', icon: '🗒️' },
-  { key: 'consumption', label: 'Spare Consumption', icon: '🔩' },
-];
-
-export function Reports() {
-  const [tab, setTab] = useState<Tab>('visits');
-  return (
-    <div>
-      <div className="dccr-tabs" role="tablist">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            className={`dccr-tab${tab === t.key ? ' is-on' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            <span aria-hidden>{t.icon}</span> {t.label}
-          </button>
-        ))}
-      </div>
-      {/* Mounted one at a time, not hidden: the visit history syncs and polls on
-          mount, and keeping the unseen tab alive would have it fetching in the
-          background for a screen nobody is looking at. */}
-      {tab === 'visits' ? <VisitHistory /> : <ConsumptionReport />}
     </div>
   );
 }
