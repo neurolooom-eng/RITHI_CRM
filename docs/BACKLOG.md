@@ -4,9 +4,51 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-06 (bundle replay safety; see the top of In progress)_
+_Last updated: 2026-09-08 (the reliability template and the DCCR export; storage
+sized against the 500 MB cap)_
 
-_Previously: 2026-09-02 (spare reconciliation shipped and applied; live project fully caught up: split confirmed applied, PM schedule fields, btree+trigram search indexes, split hardening, partial dispatch + per-shipment receipt, roles/visibility, guide screenshots)_
+_Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
+2026-09-02 (spare reconciliation shipped and applied; live project fully caught
+up)_
+
+---
+
+## 📌 OPEN ITEMS — everything waiting, in one place
+
+This file is 2,000+ lines and its open items were scattered across four
+sections. They are indexed here so nothing waits unseen; each links to the entry
+that explains it.
+
+### Waiting on the user
+
+| | what | where |
+| --- | --- | --- |
+| 🗄️ | **Run `objective.sql`** — rows 93, 95–108. The last four rounds of objective work are merged but NOT applied. | *To run on the live project* |
+| 🔢 | **The PM count is short** — 7,029 rows where two years at 10,000/yr should be ~20,000. Find out before nine years load through the same path. | *Nine years vs the 500 MB cap* |
+| 📏 | **PM rows measure ~2× field-call rows** for identical columns. Bloat, or genuinely longer text? 140 MB either way across a backfill. | *Nine years vs the 500 MB cap* |
+| 🔒 | **`handstock_period.closed_through`** — while NULL, none of the 68 MB of spare history can move without silently changing stock balances. | *Nine years vs the 500 MB cap* |
+| 📄 | **What six AppSheet columns held** — CALL DETAILS, VISIT REMARKS, CHANGE PRODUCT?, SEND EMAIL FOR DEFECTIVE SPARE, SL NO(T), Complaint. Two sample rows would settle it. | *The reliability template* |
+| 📊 | **Four objectives still typed** — FFR field failures, PM Calls, Installation call, b.Customer feedback. And the CPX failure rule. | *Objectives 8-12* |
+
+### Waiting on a decision
+
+| | what |
+| --- | --- |
+| 💰 | **Pro vs splitting projects.** Nine years of history is ~1.25 GB with this indexing; the free tier cannot hold it even split three ways. The recommendation is Pro (8 GB). |
+| 🧹 | **REINDEX the fat tables.** Index bloat is real here — `record_audit` holds 8 MB of indexes over 792 kB of rows. Likely 30–60 MB back for no behaviour change. |
+
+### Waiting on me
+
+| | what |
+| --- | --- |
+| 🛠️ | **The reliability export itself.** `reliability_wrr` (WRR-2026 cols 1–14) and the DCCR export (cols 15–67) are both ready; nothing yet writes the file. |
+| 🛡️ | **`has_perm()` returns NULL with no signed-in user**, so the bare `if not has_perm(...)` guard never fires. Fixed in the two functions I touched; **15 other migrations still use the bare pattern**. Latent, not exploitable — execute is granted to `authenticated` only. |
+
+### Long-standing
+
+Audit Mode rules · the security migration (D-2/D-3/D-4) · a CI workflow · two
+data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
+`security_invoker`.
 
 ---
 
