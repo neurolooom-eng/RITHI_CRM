@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.154',
+    date: '2026-09-08',
+    title: 'The Service Report opens on the Review Desk',
+    changes: [
+      'FIXED: on the Daily Call Review, pressing \u201cService Report\u201d did nothing at all \u2014 no window, no error. The viewer had only been mounted on one of that screen\u2019s two layouts, and the Review Desk and its worklist tabs are the other one. My mistake, and it means the button has never worked where the reviewing actually happens.',
+      'It is now defined once and shown on both, so a future layout cannot lose it again.',
+      'DISPATCHED COUNTS AS REACHED on the Not Used report, and the reason is now written into the report itself: acknowledging a delivery is not mandatory, so waiting for a receipt would leave most of these unreported.',
+    ],
+  },
+  {
     version: '0.9.153',
     date: '2026-09-08',
     title: 'Not Used as per the Request \u2014 the report',

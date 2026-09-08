@@ -646,6 +646,17 @@ console.log('\n-- the DCCR review desk --');
     && /callState: todo \? 'Solved' :/.test(dccr), true);
   // Its badge cannot come from the tab's own filter — see the counter rule
   // below — so the count carries the figure, from the same full walk.
+  // A MODAL ON ONE BRANCH OF A TWO-RETURN COMPONENT is a bug waiting for
+  // somebody to open the other branch — which is exactly what happened: the
+  // viewer went in on the `drawer` path, the Review Desk and its worklist tabs
+  // are the `panes` path, and pressing "Service Report" there did nothing at
+  // all. One variable, rendered on both.
+  eq('the report viewer is mounted on BOTH of the review component’s layouts',
+    (dccr.match(/\{reportViewer\}/g) ?? []).length === 2
+    && /const reportViewer = docFor \? \(/.test(dccr), true);
+  eq('...and it is defined before the first return that uses it',
+    dccr.indexOf('const reportViewer = docFor') < dccr.indexOf("if (layout === 'panes')"), true);
+
   eq('...and its count is not scoped by the tab that shows it',
     /solvedPending/.test(dccr)
     && /countCallReviews\(\{ \.\.\.countFilterRef\.current, status: undefined, statuses: undefined \}\)/.test(dccr), true);
