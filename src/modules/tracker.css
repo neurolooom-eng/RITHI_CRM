@@ -1,0 +1,45 @@
+/* ---------------------------------------------------------------------------
+   THE TRACKER. A shared list read at a glance, so the row is the unit: title
+   and detail on the left, the things people change on the right, and who
+   touched it last underneath.
+
+   Both themes come from the tokens; the status tones are the only colour, and
+   they are the same hue in either theme for the same reason the call-status
+   code is — a colour people learn to read is a code, and a code that means
+   something else in dark mode is not one.
+   --------------------------------------------------------------------------- */
+.trk-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, auto);
+  grid-template-areas: 'main meta' 'who who';
+  gap: 8px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.trk-row:last-child { border-bottom: 0; }
+
+/* A closed item stays on the list and reads as finished rather than current.
+   Faded, never hidden: see the note in Tracker.tsx. */
+.trk-row.is-closed { opacity: 0.55; }
+
+.trk-main { grid-area: main; display: flex; flex-direction: column; gap: 6px; }
+.trk-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
+.trk-who  { grid-area: who; font-size: 12px; }
+
+.trk-title { font-weight: 600; }
+.trk-detail { resize: vertical; min-height: 40px; font: inherit; }
+
+.trk-meta .input, .trk-meta .select { max-width: 150px; }
+.trk-status { font-weight: 600; }
+
+/* The status carries the only colour on the row. */
+.trk-open    { border-left: 4px solid #2563eb; }
+.trk-doing   { border-left: 4px solid #d97706; }
+.trk-blocked { border-left: 4px solid #dc2626; }
+.trk-done    { border-left: 4px solid #16a34a; }
+.trk-dropped { border-left: 4px solid #6b7280; }
+
+@media (max-width: 780px) {
+  .trk-row { grid-template-columns: 1fr; grid-template-areas: 'main' 'meta' 'who'; }
+  .trk-meta .input, .trk-meta .select { max-width: none; flex: 1 1 130px; }
+}

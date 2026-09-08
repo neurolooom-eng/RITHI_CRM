@@ -58,6 +58,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/kpi', label: 'KPI & Failure Analysis' },
   { path: '/objective', label: 'Objective' },
   { path: '/exports', label: 'Reports' },
+  { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
@@ -273,6 +274,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports', label: 'Reports', actions: [] },
   ] },
   { title: 'Administration', pages: [
+    { path: '/tracker', label: 'Tracker', actions: [] },
     { path: '/users', label: 'User Access', actions: [] },
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },

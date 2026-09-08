@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.144',
+    date: '2026-09-08',
+    title: 'A shared Tracker, under Administration',
+    changes: [
+      'A NEW PAGE, TRACKER \u2014 the in-app version of the backlog: what is being worked on, who it is with, where it has got to, and when it is due.',
+      'ONE PERMISSION DOES EVERYTHING. Anyone given the Tracker page can add and edit every item on it \u2014 it is a shared list, so it is shared both ways. Sharing it with somebody is ONE tick in Roles & Permissions.',
+      'IT STARTS WITH ADMINISTRATORS ONLY. A tracker that arrived visible to the whole company would be the opposite of what was asked for; the few are chosen, not defaulted.',
+      'EVERY FIELD IS EDITED IN PLACE and saves when you click away \u2014 no dialog to open, and no write per keystroke.',
+      'EVERY ROW SAYS WHO CHANGED IT LAST, and when. On a shared list that is the first thing you look for when something reads differently from yesterday. The database stamps it, so it cannot be forgotten \u2014 and an edit cannot rewrite who raised an item.',
+      'NOTHING VANISHES. Done and Dropped stay on the list and drop out of the default view; one tick brings them back. A shared list people delete from is one nobody trusts \u2014 the thing you remember agreeing is simply gone, with no way to tell whether it was finished or abandoned. Deleting is still there, and asks first.',
+      'Needs supabase/apply/tracker.sql.',
+    ],
+  },
+  {
     version: '0.9.143',
     date: '2026-09-08',
     title: 'Reports is its own screen, and every export collects there',

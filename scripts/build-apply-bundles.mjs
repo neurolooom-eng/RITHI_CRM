@@ -302,6 +302,19 @@ const MODULES = {
     files: ['0009_audit_log.sql', '0033_audit_retention.sql', '0047_audit_retention_compliance.sql',
             '0114_audit_mode.sql'],
   },
+  tracker: {
+    title: 'Tracker (the shared activity list)',
+    blurb: ['tracker_items --- the in-app backlog: what is being worked on, who it is',
+            'with, and where it has got to. ONE permission (mod:/tracker) grants both',
+            'the page and the right to add and edit, because everyone who can see it',
+            'can change it. Granted to ADMIN only here; anyone else is added by hand',
+            'on Roles & Permissions.'],
+    // `visibleEngineers` is 0004's marker, which is what creates app_user_names'
+    // ancestor table -- the tracker's view joins it for the "who touched it last"
+    // name. `rbac` is has_perm(), which the one policy asks.
+    needs: ['rbac', 'visibleEngineers'],
+    files: ['0143_tracker.sql'],
+  },
   documents: {
     title: 'Document Library (service manuals & QMS)',
     blurb: ['The service-manual shelf and the QMS shelf (`documents`). The FILES live',
@@ -587,7 +600,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

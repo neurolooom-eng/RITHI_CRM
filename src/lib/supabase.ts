@@ -405,6 +405,71 @@ export async function objectiveEvidence(id: number, month: number): Promise<Reco
 }
 
 // ---------------------------------------------------------------------------
+// THE TRACKER — the shared activity list. One permission (mod:/tracker) grants
+// the page AND the right to add and edit, so there is no separate "may I write"
+// check here: the database policy is the whole of it, and a row that comes back
+// is a row this user may change.
+// ---------------------------------------------------------------------------
+export interface TrackerItem {
+  id: number;
+  title: string;
+  detail: string;
+  status: string;
+  owner: string;
+  area: string;
+  due_date: string | null;
+  sort_order: number;
+  created_by_name: string;
+  updated_by_name: string;
+  created_at: string;
+  updated_at: string;
+  is_closed: boolean;
+}
+
+export async function listTrackerItems(): Promise<TrackerItem[]> {
+  const { data, error } = await must()
+    .from('tracker_list')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('id', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as TrackerItem[];
+}
+
+/** A new item, at the end of the list. `created_by` / `updated_by` are stamped
+ *  by the database, never sent from here — they cannot be forgotten and cannot
+ *  be set to somebody else. */
+export async function addTrackerItem(
+  patch: Partial<TrackerItem> & { sort_order?: number },
+): Promise<{ ok: boolean; id?: number; error?: string }> {
+  const { data, error } = await must()
+    .from('tracker_items')
+    .insert({ title: 'New item', ...patch })
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, id: Number(data?.id) };
+}
+
+export async function saveTrackerItem(
+  id: number, patch: Partial<TrackerItem>,
+): Promise<{ ok: boolean; error?: string }> {
+  // ALLOW-LIST, not a deny-list. The row comes from a VIEW that carries joined
+  // names and a computed `is_closed`; naming what may be written means a column
+  // added to the view later cannot silently become an update that fails.
+  const WRITABLE = ['title', 'detail', 'status', 'owner', 'area', 'due_date', 'sort_order'] as const;
+  const rest = Object.fromEntries(
+    Object.entries(patch).filter(([k]) => (WRITABLE as readonly string[]).includes(k)));
+  const { error } = await must().from('tracker_items').update(rest).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function deleteTrackerItem(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('tracker_items').delete().eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // THE CONSUMPTION REPORT. Filtered IN THE DATABASE and paged, because the
 // register is far larger than one response: a filter applied after the fetch
 // would narrow the first page and report it as the whole answer.

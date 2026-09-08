@@ -97,6 +97,7 @@ export const NAV: NavGroup[] = [
   {
     title: 'Administration',
     items: [
+      { to: '/tracker', label: 'Tracker', icon: '🧭' },
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
       { to: '/bulk-uploads', label: 'Bulk Uploads', icon: '⤵', adminOnly: true },
