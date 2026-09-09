@@ -241,6 +241,12 @@
 .picklist-hi { background: var(--text); color: var(--surface); }
 .picklist-cur { font-weight: 700; }
 .picklist-clear { color: var(--text-muted); font-style: italic; }
+/* "Use what I typed" — offered only where the form allows free text, and marked
+   as the exception it is rather than looking like another row of the list. */
+.picklist-take { font-style: italic; border-top: 1px dashed var(--border); }
+/* Shown, not offered: the row says why it is not an option rather than hiding
+   the part and leaving somebody wondering where it went. */
+.picklist-off { opacity: 0.45; cursor: not-allowed; }
 .picklist-none { padding: 8px 10px; font-size: 12.5px; color: var(--text-muted); }
 .picklist-foot {
   padding: 5px 10px; font-size: 11.5px; color: var(--text-muted);

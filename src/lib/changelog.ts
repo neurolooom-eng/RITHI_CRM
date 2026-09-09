@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.175',
+    date: '2026-09-09',
+    title: 'Dropdowns become type-to-search, everywhere',
+    changes: [
+      'EVERY DROPDOWN IS BECOMING THE SAME CONTROL \u2014 the one that lets you type to narrow a long list, and that never changes your answer just because you pressed a key.',
+      'A SHORT LIST STILL BEHAVES LIKE A SHORT LIST. "Yes / No" does not get a search box: making you type to reach two things you can already see would be worse than what was there.',
+      'WHETHER YOU MAY TYPE SOMETHING THAT IS NOT ON THE LIST IS NOW THE FORM\u2019S DECISION, not one rule for everything \u2014 a complaint written in your own words is still a fault, but a part number invented on the spot is one nothing else can match.',
+      'A spare you have none of still SHOWS in the list, greyed \u2014 so you can see it is there and why you cannot pick it, instead of hunting for a part that seems to have vanished.',
+      'Call Reporting and Request Registration are converted; the rest of the screens follow.',
+    ],
+  },
+  {
     version: '0.9.174',
     date: '2026-09-09',
     title: 'A customer is the same customer whatever its capitals',

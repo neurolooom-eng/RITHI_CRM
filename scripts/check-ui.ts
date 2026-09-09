@@ -1384,7 +1384,14 @@ console.log('\n-- typing filters, it never selects --');
   // site appears, typing can commit again.
   const pickCalls = (pl.match(/onPick\(/g) ?? []).length;
   eq('onPick is called from ONE place', pickCalls, 1);
-  eq('...and that place is `choose`', /const choose = \(v: string\) => \{ onPick\(v\); close\(\); \};/.test(pl), true);
+  // Matched on SHAPE, not on the line verbatim: pinning the exact text made
+  // this fail the first time `choose` gained a guard, which is a false alarm
+  // about a change that kept the property intact. What must hold is that the
+  // single onPick call lives inside `choose` and closes after it.
+  eq('...and that place is `choose`',
+    /const choose = \(v: string\) => \{[^}]*onPick\(v\); close\(\); \};/.test(pl), true);
+  // A row the form marked unpickable must not commit either.
+  eq('...which refuses a disabled row', /if \(v && isDisabled\?\.\(v\)\) return;/.test(pl), true);
   // Typing sets the query and the highlight, never the value.
   eq('typing only filters', /onChange=\{\(e\) => \{ setQuery\(e\.target\.value\); setHi\(0\); \}\}/.test(pl), true);
   // Walking away must leave the record alone — the whole point with auto-save.
@@ -2240,6 +2247,38 @@ console.log('\n-- Zoho Migration is a clone, and stays one --');
     writes.filter((w) => (DEFAULT_PERMS.zoho_migration ?? []).includes(w)), []);
   // ...and the one that makes it useful.
   eq('it can export, which is the job', (DEFAULT_PERMS.zoho_migration ?? []).includes('export.data'), true);
+}
+
+console.log('\n-- dropdowns are one control --');
+{
+  const sp = readFileSync('src/components/ui/SelectPicker.tsx', 'utf8');
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+
+  // A SHORT LIST GETS NO SEARCH BOX. "Yes / No" behind a type-to-search field
+  // costs a click and a decision to reach two items you could already see —
+  // the sweep must not make small dropdowns worse than the ones it replaced.
+  eq('the search box is suppressed for short lists',
+    /searchThreshold = 8/.test(pl) && /const searchable = options\.length >= /.test(pl), true);
+
+  // THE FALLBACK IS THE FORM'S DECISION, off by default (the user's own rule
+  // for spare parts: a hand-typed code is one nothing downstream can match).
+  eq('free text is opt-in, per form', /allowFreeText = false/.test(pl), true);
+  eq('...and the form can turn it on', /allowFreeText\?: boolean/.test(sp), true);
+
+  // A row that shows but cannot be chosen: a spare with nothing left in hand.
+  // Hiding it instead would leave somebody hunting for a part that is there.
+  eq('an option can be shown without being pickable',
+    /isDisabled\?: \(value: string\) => boolean/.test(pl), true);
+
+  // The value stored is never the LABEL, or every downstream match breaks.
+  eq('the label is display-only; the value is what is stored',
+    /labelFor=\{\(v\) => labels\.get\(v\) \?\? v\}/.test(sp), true);
+
+  // The two call-path forms are fully converted; the sweep continues elsewhere.
+  for (const f of ['src/modules/CallReporting.tsx', 'src/modules/RequestCallRegistration.tsx']) {
+    eq(`${f.split('/').pop()} has no native <select> left`,
+      /<select/.test(readFileSync(f, 'utf8')), false);
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

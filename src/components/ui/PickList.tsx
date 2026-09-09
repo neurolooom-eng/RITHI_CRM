@@ -42,12 +42,31 @@ export interface PickListProps {
   // for "in hand", and `onPick` still returns the value, so what is stored is
   // never the decorated string.
   labelFor?: (value: string) => React.ReactNode;
+  // Below this many options the search box is not shown — the list IS the
+  // answer. A type-to-search field over "Yes / No" is worse than the dropdown
+  // it replaced: it costs a click and a decision to reach two items you could
+  // already see. Set 0 to always search.
+  searchThreshold?: number;
+  // Rows that show but cannot be chosen. Spare Consumption is the case: a part
+  // the engineer has none of is still worth SEEING (it says why it is not an
+  // option) but picking it would only earn a refusal from the trigger that caps
+  // consumption at the balance.
+  isDisabled?: (value: string) => boolean;
+  // MAY A VALUE BE TYPED THAT IS NOT ON THE LIST? The default is no, and that
+  // is the right default: these fields come from masters, and a typed-in value
+  // is a master entry that does not exist. But it is a per-FORM decision, not a
+  // per-control one (the user, 2026-09-09: "FallBack is dependent on the Module
+  // and Form") — a Standard Complaint typed by hand still reads as a fault,
+  // while a PART typed by hand is a code that dispatch and consumption will
+  // both fail to match. The form that knows the difference passes this.
+  allowFreeText?: boolean;
   id?: string;
 }
 
 export function PickList({
   value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
-  emptyLabel = '— select —', labelFor, id,
+  emptyLabel = '— select —', labelFor, searchThreshold = 8, allowFreeText = false,
+  isDisabled, id,
 }: PickListProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -55,11 +74,16 @@ export function PickList({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const searchable = options.length >= Math.max(0, searchThreshold);
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter((o) => o.toLowerCase().includes(q));
   }, [options, query]);
+  // A typed value that is on no row, offered only where the form allows it.
+  const typed = query.trim();
+  const canTake = allowFreeText && !!typed
+    && !options.some((o) => o.toLowerCase() === typed.toLowerCase());
 
   // Clicking anywhere else abandons the search. It does NOT pick the
   // highlighted row: leaving a box alone must never change what it holds.
@@ -73,7 +97,7 @@ export function PickList({
   }, [open]);
 
   const close = () => { setOpen(false); setQuery(''); setHi(0); };
-  const choose = (v: string) => { onPick(v); close(); };
+  const choose = (v: string) => { if (v && isDisabled?.(v)) return; onPick(v); close(); };
 
   const openList = () => {
     if (disabled) return;
@@ -89,8 +113,10 @@ export function PickList({
     if (e.key === 'Enter') {
       e.preventDefault();
       // Enter picks the HIGHLIGHTED row and nothing else. With no matches it
-      // does nothing at all rather than inventing a value from the search.
+      // does nothing at all rather than inventing a value from the search --
+      // unless this form allows free text, where the typed value IS the answer.
       if (matches[hi] != null) choose(matches[hi]);
+      else if (canTake) choose(typed);
       return;
     }
     if (e.key === 'Escape') { e.preventDefault(); close(); inputRef.current?.blur(); }
@@ -98,7 +124,7 @@ export function PickList({
 
   return (
     <div className="picklist" ref={boxRef}>
-      {open ? (
+      {open && searchable ? (
         <input
           id={id}
           ref={inputRef}
@@ -122,6 +148,16 @@ export function PickList({
         </button>
       )}
 
+      {open && !searchable && (
+        // SHORT LIST: no search box, and the trigger stays put so the menu
+        // opens under the thing that was clicked rather than replacing it.
+        <button id={id} type="button" className={`input picklist-value${value ? '' : ' picklist-empty'}`}
+                disabled={disabled} onClick={() => close()}>
+          <span>{value ? (labelFor?.(value) ?? value) : emptyLabel}</span>
+          <span className="picklist-caret" aria-hidden="true">▴</span>
+        </button>
+      )}
+
       {open && (
         <div className="picklist-menu">
           <button type="button" className="picklist-opt picklist-clear" onMouseDown={(e) => e.preventDefault()} onClick={() => choose('')}>
@@ -131,7 +167,8 @@ export function PickList({
             <button
               key={o}
               type="button"
-              className={`picklist-opt${i === hi ? ' picklist-hi' : ''}${o === value ? ' picklist-cur' : ''}`}
+              className={`picklist-opt${i === hi ? ' picklist-hi' : ''}${o === value ? ' picklist-cur' : ''}${isDisabled?.(o) ? ' picklist-off' : ''}`}
+              disabled={isDisabled?.(o)}
               onMouseEnter={() => setHi(i)}
               // The list must not steal focus before the click lands.
               onMouseDown={(e) => e.preventDefault()}
@@ -140,13 +177,21 @@ export function PickList({
               {labelFor?.(o) ?? o}
             </button>
           ))}
-          {matches.length === 0 && (
+          {canTake && (
+            <button type="button" className="picklist-opt picklist-take"
+                    onMouseDown={(e) => e.preventDefault()} onClick={() => choose(typed)}>
+              Use “{typed}” — not on the list
+            </button>
+          )}
+          {matches.length === 0 && !canTake && (
             <div className="picklist-none">
               Nothing matches “{query}”.{emptyHint ? ` ${emptyHint}` : ''}
             </div>
           )}
           <div className="picklist-foot">
-            {matches.length} of {options.length} · ↑↓ to move, Enter to choose, Esc to leave it alone
+            {searchable
+              ? <>{matches.length} of {options.length} · ↑↓ to move, Enter to choose, Esc to leave it alone</>
+              : <>{options.length} option{options.length === 1 ? '' : 's'} · Esc to leave it alone</>}
           </div>
         </div>
       )}

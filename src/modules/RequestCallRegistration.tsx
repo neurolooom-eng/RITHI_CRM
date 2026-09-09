@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
@@ -381,17 +382,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
         <section className="rep-sec">
           <div className="rep-grid">
             {field('Call Type *', (
-              <select className="select" value={f.callType} onChange={(e) => set('callType', e.target.value)}>
-                {callTypeMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
+              <SelectPicker value={f.callType} onChange={(v) => set('callType', v)}
+                            options={callTypeMaster.values} />
             ))}
             {field('Submitted by', <input className="input" value={user?.email ?? ''} readOnly />)}
             {field('Engineer', team.canPick ? (
-              <select className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}
-                title="Raise this request for one of your engineers">
-                {!engineer && <option value="">— select —</option>}
-                {team.names.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <SelectPicker value={engineer} onChange={setEngineer} options={team.names}
+                            emptyHint="Only engineers on your team are listed." />
             ) : <input className="input" value={engineer} readOnly title="Taken from your login" />)}
           </div>
         </section>
@@ -429,21 +426,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
               </div>
               <div className="rep-grid">
                 {field('Product *', (
-                  <select
-                    className="select"
+                  <SelectPicker
                     value={it.product}
-                    onChange={(e) => setItems((s) => s.map((x, j) => (j === i ? { ...x, product: e.target.value, serial: '' } : x)))}
-                  >
-                    <option value="">
-                      {isInstall ? '— pick from Product Master —'
-                        : !f.partyName.trim() ? '— pick a Party first —'
-                        : productOptions.length ? '— pick a product —'
-                        : '— no products for this party —'}
-                    </option>
-                    {productOptions.map((v) => <option key={v} value={v}>{v}</option>)}
-                    {/* a value the current list cannot offer (e.g. imported) stays selectable */}
-                    {it.product && !productOptions.includes(it.product) && <option value={it.product}>{it.product}</option>}
-                  </select>
+                    onChange={(v) => setItems((s) => s.map((x, j) => (j === i ? { ...x, product: v, serial: '' } : x)))}
+                    placeholder={isInstall ? '— pick from Product Master —'
+                      : !f.partyName.trim() ? '— pick a Party first —'
+                      : productOptions.length ? '— pick a product —'
+                      : '— no products for this party —'}
+                    // a value the current list cannot offer (e.g. imported) stays selectable
+                    options={withCurrent(productOptions, it.product)} />
                 ))}
                 {field('Serial No', (
                   // An installation is a machine the party does not own yet, so
@@ -543,9 +534,8 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
           <div className="rep-sec-title">Visit</div>
           <div className="rep-grid">
             {field('Call Attended? *', (
-              <select className="select" value={f.callAttended} onChange={(e) => set('callAttended', e.target.value)}>
-                <option value="">—</option><option value="Yes">Yes</option><option value="No">No</option>
-              </select>
+              <SelectPicker value={f.callAttended} onChange={(v) => set('callAttended', v)}
+                            placeholder="—" options={['Yes', 'No']} />
             ))}
             {attended && field('Attended Date *', <input type="date" className="input" value={f.attendedDate} onChange={(e) => set('attendedDate', e.target.value)} />)}
             {!attended && field('Planned Visit Date', <input type="date" className="input" value={f.planDate || todayISO()} onChange={(e) => set('planDate', e.target.value)} />)}
