@@ -8,7 +8,8 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem,
-  deleteItem, deleteHeader, isPinned, type CoverKind, type CoverField, type Row,
+  deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod,
+  type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 import './fieldcalls.css';
 
@@ -149,6 +150,125 @@ function ItemCard({
   );
 }
 
+// ===========================================================================
+// RENEW — the next MC, raised from this one.
+//
+// The last open piece of this module (docs/BACKLOG.md). It exists because the
+// alternative is retyping a contract's machine list into a new entry, which is
+// where serials get missed.
+//
+// WHAT IT ASKS FOR is only what genuinely changes: the new MC Number, the
+// period, and which machines carry over. Everything else follows the contract
+// it came from. The MC Number is TYPED, never generated — the numbering belongs
+// to the business, and a number invented here would collide with theirs.
+//
+// The money is NOT carried over, and the panel says so rather than leaving
+// somebody to notice: a renewal is re-priced, and a rate carried forward
+// silently is a price nobody agreed that looks exactly like one they did.
+// ===========================================================================
+function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDone: (mc: string) => void }) {
+  const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const set = <K extends keyof RenewalDraft>(k: K, v: RenewalDraft[K]) => setD((x) => ({ ...x, [k]: v }));
+  // The end date follows the start and the period, so the three cannot disagree
+  // — but it stays editable for a contract that does not run a whole number of
+  // months.
+  const reperiod = (startIso: string, years: number | null, months: number | null) =>
+    setD((x) => ({ ...x, contract_start: startIso, contract_years: years, contract_months: months,
+      contract_end: addPeriod(startIso, years ?? 0, months ?? 0) || x.contract_end }));
+
+  const toggle = (sn: string) => setD((x) => ({
+    ...x,
+    serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
+  }));
+
+  const go = async () => {
+    setBusy(true); setMsg('');
+    try {
+      const r = await renewContract(header, items, d);
+      onDone(r.mc_number);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  const serials = items.map((i) => str(i.serial_number)).filter(Boolean);
+
+  return (
+    <div className="rep-sec" style={{ marginTop: 14 }}>
+      <div className="rep-sec-title">
+        Renew this contract <span className="muted">· raises the next MC from {str(header.mc_number)}</span>
+      </div>
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+        The new contract starts the day after this one ends, so cover has no gap and no overlap.
+        The machines, type, party, period and billing schedule carry over.
+        <b> Rates do not</b> — a renewal is re-priced, and a figure carried over silently is a price
+        nobody agreed.
+      </p>
+
+      <div className="rep-grid">
+        <label className="rep-field">
+          <span className="field-label">New MC Number *</span>
+          <input className="input" value={d.mc_number} placeholder="as issued"
+                 onChange={(e) => set('mc_number', e.target.value)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Contract Type</span>
+          <select className="select" value={d.contract_type} onChange={(e) => set('contract_type', e.target.value)}>
+            {['', 'CMC', 'AMC'].map((o) => <option key={o} value={o}>{o || '— none —'}</option>)}
+          </select>
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Start</span>
+          <input className="input" type="date" value={d.contract_start}
+                 onChange={(e) => reperiod(e.target.value, d.contract_years, d.contract_months)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">End</span>
+          <input className="input" type="date" value={d.contract_end}
+                 onChange={(e) => set('contract_end', e.target.value)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Period (Years)</span>
+          <input className="input" type="number" min={0} value={d.contract_years ?? ''}
+                 onChange={(e) => reperiod(d.contract_start, e.target.value === '' ? null : Number(e.target.value), d.contract_months)} />
+        </label>
+        <label className="rep-field">
+          <span className="field-label">Period (Months)</span>
+          <input className="input" type="number" min={0} value={d.contract_months ?? ''}
+                 onChange={(e) => reperiod(d.contract_start, d.contract_years, e.target.value === '' ? null : Number(e.target.value))} />
+        </label>
+      </div>
+
+      <div className="field-label" style={{ marginTop: 10 }}>
+        Machines carrying over ({d.serials.length} of {serials.length})
+      </div>
+      <div className="muted" style={{ fontSize: 12.5 }}>Untick a machine that is not being renewed.</div>
+      <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 6 }}>
+        {serials.map((sn) => {
+          const it = items.find((x) => str(x.serial_number) === sn);
+          return (
+            <label key={sn} className="row" style={{ gap: 8, alignItems: 'center', padding: '3px 0' }}>
+              <input type="checkbox" checked={d.serials.includes(sn)} onChange={() => toggle(sn)} />
+              <span><b>{sn}</b> <span className="muted">{str(it?.product_name)}</span></span>
+            </label>
+          );
+        })}
+        {!serials.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
+      </div>
+
+      {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
+      <div className="row" style={{ gap: 8, marginTop: 10 }}>
+        <button className="btn btn-primary" disabled={busy} onClick={() => void go()}>
+          {busy ? 'Creating…' : 'Create the renewal'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cfg = configFor(kind);
   const { can } = useAuth();
@@ -182,6 +302,9 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const filtered = !!q || (tab === 'machines' && !!state);
 
   const [open, setOpen] = useState<Row | null>(null);   // header being viewed
+  // Closed whenever a different entry is opened: a half-filled renewal must not
+  // follow the reader onto another contract.
+  const [renewing, setRenewing] = useState(false);
   const [items, setItems] = useState<Row[]>([]);
   const [draft, setDraft] = useState<Row>({});
   const [saving, setSaving] = useState(false);
@@ -251,6 +374,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   }, [tab, filtered]);
 
   const openEntry = async (h: Row) => {
+    setRenewing(false);
     setOpen(h); setDraft(h); setItems([]);
     try { setItems(await listItems(kind, str(h[cfg.key]))); }
     catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
@@ -439,6 +563,31 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               onClick={() => setItems((cur) => [...cur, { [cfg.key]: str(draft[cfg.key]) }])}>
               + Add machine
             </button>
+          )}
+
+          {/* CONTRACTS ONLY, and only once the entry exists. A sale is not
+              renewed — the warranty runs from the sale and that is the end of
+              it; a contract is the thing with a next one. Offered on ANY
+              contract rather than only an expiring one, because renewals are
+              raised in advance and a register that hides the button until the
+              cover has lapsed is asking people to work around it. */}
+          {canEdit && kind === 'contract' && !!open.id && (
+            renewing ? (
+              <RenewPanel
+                header={draft}
+                items={items}
+                onDone={(mc) => {
+                  setRenewing(false);
+                  setOpen(null);
+                  setMsg({ tone: 'ok', text: `Contract ${mc} created, carrying its machines over. Open it to set the rates — they are deliberately blank.` });
+                  void refresh();
+                }}
+              />
+            ) : (
+              <button className="btn" style={{ marginTop: 14 }} onClick={() => setRenewing(true)}>
+                ↻ Renew this contract
+              </button>
+            )
           )}
         </Drawer>
       )}

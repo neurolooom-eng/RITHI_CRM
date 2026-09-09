@@ -13,6 +13,7 @@
 // someone types into it.
 // ===========================================================================
 import { getSupabase } from './supabase';
+import { dayAfter, addPeriod } from './dates';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -292,3 +293,135 @@ export const effective = (item: Row, header: Row, field: string): unknown =>
 
 export const isPinned = (item: Row, field: string): boolean =>
   item[field] !== null && item[field] !== undefined && item[field] !== '';
+
+// ===========================================================================
+// RENEWING A CONTRACT — raising the next MC from an expiring one.
+//
+// The last open piece of the Warranty/Contract work (docs/BACKLOG.md: "the
+// AMC/CMC renewal flow (raising the next MC from an expiring one)"), and the
+// data model was built for it from the start: the header carries
+// `prev_mc_number` and every item carries `last_contract_number` /
+// `last_contract_end`. Nothing here needs a migration — the columns are already
+// there, unused.
+//
+// WHAT IT COPIES AND WHAT IT DELIBERATELY DOES NOT.
+//
+// Copied: the machines, the contract type, the party, the period, the PM visit
+// count and the billing schedule. Those are what makes it the SAME contract
+// continuing.
+//
+// NOT copied: the MONEY. Rate, tax and total are left blank on every machine.
+// A renewal is re-priced, and a figure carried forward silently is a price
+// nobody agreed that looks exactly like one they did — the kind of number that
+// reaches an invoice because it was already in the box. Blank asks a question;
+// a stale rate answers it wrongly.
+//
+// NOT copied either: `status`, which is the imported "as keyed" text of the old
+// contract and says nothing about the new one.
+//
+// THE DATES CONTINUE RATHER THAN RESTART: the new contract starts the day AFTER
+// the old one ends, so cover has no gap and no overlap — `machine_cover` answers
+// "what is this serial under today?" and two contracts covering one day would
+// make that ambiguous.
+// ===========================================================================
+
+const str = (v: unknown) => (v == null ? '' : String(v));
+
+export { dayAfter, addPeriod };
+
+export interface RenewalDraft {
+  mc_number: string;
+  contract_type: string;
+  contract_start: string;
+  contract_end: string;
+  contract_years: number | null;
+  contract_months: number | null;
+  serials: string[];          // which machines carry over
+}
+
+/** What a renewal of `header` would look like, before anybody edits it. */
+export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
+  const end = str(header.contract_end).slice(0, 10);
+  const start = end ? dayAfter(end) : new Date().toISOString().slice(0, 10);
+  const years = header.contract_years == null ? null : Number(header.contract_years);
+  const months = header.contract_months == null ? null : Number(header.contract_months);
+  return {
+    mc_number: '',
+    contract_type: str(header.contract_type),
+    contract_start: start,
+    contract_end: addPeriod(start, years ?? 0, months ?? 0),
+    contract_years: years,
+    contract_months: months,
+    // Every machine on the old contract, and the caller unticks what is not
+    // being renewed — dropping one is the common case, adding one is not.
+    serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+  };
+}
+
+/** Is this MC number already taken? A renewal must not silently merge into an
+ *  existing contract, which is what an insert on a duplicate key would look
+ *  like from the outside. */
+export async function contractNumberExists(mc: string): Promise<boolean> {
+  const { data, error } = await client().from('contract_entries')
+    .select('mc_number').eq('mc_number', mc).limit(1);
+  if (error) throw err(error);
+  return !!(data && data.length);
+}
+
+/**
+ * Create the next contract from an expiring one. Returns the new MC number.
+ * Header first, then the machines: if a machine fails, the header is still
+ * there to add it to by hand, which is recoverable — whereas machines with no
+ * header would be orphans.
+ */
+export async function renewContract(
+  from: Row, items: Row[], d: RenewalDraft,
+): Promise<{ mc_number: string; machines: number }> {
+  const mc = d.mc_number.trim();
+  if (!mc) throw new Error('Give the new MC Number — it comes from the contract, not from here.');
+  if (await contractNumberExists(mc)) {
+    throw new Error(`MC Number ${mc} already exists. Renewing into it would merge two contracts.`);
+  }
+  if (!d.contract_start) throw new Error('The new contract needs a start date.');
+  if (!d.serials.length) throw new Error('Tick at least one machine to carry over.');
+
+  await saveHeader('contract', {
+    mc_number: mc,
+    entry_at: new Date().toISOString().slice(0, 10),
+    party_name: from.party_name ?? null,
+    contract_type: d.contract_type || null,
+    // THE LINK BACK. Without it a renewal is just another contract that happens
+    // to follow, and "what did this machine used to be on?" has no answer.
+    prev_mc_number: str(from.mc_number) || null,
+    contract_start: d.contract_start,
+    contract_end: d.contract_end || null,
+    contract_years: d.contract_years,
+    contract_months: d.contract_months,
+    pm_visits_total: from.pm_visits_total ?? null,
+    payment_schedule: from.payment_schedule ?? null,
+    bill_generate_at: from.bill_generate_at ?? null,
+  });
+
+  const keep = new Set(d.serials);
+  const carried = items.filter((i) => keep.has(str(i.serial_number)));
+  let machines = 0;
+  for (const it of carried) {
+    await saveItem('contract', mc, {
+      product_code: it.product_code ?? null,
+      product_name: it.product_name ?? null,
+      serial_number: it.serial_number ?? null,
+      priority: it.priority ?? null,
+      present_item_status: it.present_item_status ?? null,
+      // The item's own history of where it came from.
+      last_contract_number: str(from.mc_number) || null,
+      last_contract_end: from.contract_end ?? null,
+      sa_number: it.sa_number ?? null,
+      sa_end_date: it.sa_end_date ?? null,
+      // Dates, type and period are left EMPTY so each machine follows the new
+      // header — the whole point of the header/item inheritance. Money is left
+      // empty because a renewal is re-priced.
+    });
+    machines += 1;
+  }
+  return { mc_number: mc, machines };
+}

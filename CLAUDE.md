@@ -65,7 +65,12 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   words, not the code's. `main` has often claimed your version already from
   another branch: take the next one **above** it rather than renumbering
   theirs, and keep `package-lock.json`'s two version fields in step.
-- **Migrations auto-apply once `SUPABASE_DB_URL` is set** (2026-09-09).
+- **Migrations auto-apply once `SUPABASE_DB_URL` is set** (2026-09-09) — BUILT
+  BUT NOT YET PROVEN AGAINST THE LIVE PROJECT, and **parked** at the user's
+  request. The first attempt failed on an unencoded `@` in the password, before
+  reaching the database. Until it has run green once, treat the manual step
+  below as the live path and do not tell the user their SQL is automatic.
+  `docs/BACKLOG.md` has the diagnosis.
   `.github/workflows/db-migrate.yml` runs `scripts/apply-migrations.mjs` on a
   push to `main` that touches `supabase/migrations/`, applying only what its
   ledger (`public.schema_migrations`) says has not run — each in ONE

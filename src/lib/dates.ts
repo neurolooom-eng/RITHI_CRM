@@ -114,3 +114,48 @@ export function localIsoDate(v: unknown): string | null {
   }
   return toIsoDate(s);
 }
+
+
+// ---------------------------------------------------------------------------
+// CONTRACT PERIODS — the arithmetic a renewal turns on.
+//
+// Here rather than in cover.ts for the reason at the top of this file: date
+// logic lives in one place. It is also the only way to TEST it — cover.ts
+// reaches the Supabase client, which cannot be imported into a node check.
+//
+// NO GAP AND NO OVERLAP is the property both of these exist to keep.
+// `machine_cover` answers "what is this serial under today?", and two contracts
+// covering the same day makes that ambiguous — so a renewal starts the day
+// AFTER the old one ends, and a period ends the day BEFORE its anniversary.
+// A one-year contract from 01-Apr-2026 ends 31-Mar-2027, and its renewal
+// starts 01-Apr-2027.
+// ---------------------------------------------------------------------------
+
+/** The day after `iso`, as yyyy-mm-dd. Empty for anything unparseable — a
+ *  renewal should propose nothing rather than a date built out of a guess. */
+export function dayAfter(iso: string): string {
+  const d = new Date(`${String(iso ?? '').slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + 1);
+  return ymd(d);
+}
+
+/** `start` plus a period, minus one day. No period gives '' — an unknown end
+ *  date, which is not the same as a zero-day contract. */
+export function addPeriod(startIso: string, years: number, months: number): string {
+  const d = new Date(`${String(startIso ?? '').slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  const y = Math.max(0, Math.floor(years || 0));
+  const m = Math.max(0, Math.floor(months || 0));
+  if (!y && !m) return '';
+  d.setFullYear(d.getFullYear() + y);
+  d.setMonth(d.getMonth() + m);
+  d.setDate(d.getDate() - 1);
+  return ymd(d);
+}
+
+/** Local yyyy-mm-dd. toISOString() would shift a date across midnight in any
+ *  timezone east of UTC, which is every one this system runs in. */
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

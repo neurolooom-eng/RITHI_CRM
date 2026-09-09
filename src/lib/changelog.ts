@@ -12,6 +12,26 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.170',
+    date: '2026-09-09',
+    title: 'Renew a contract instead of retyping it',
+    changes: [
+      'A CONTRACT CAN NOW RAISE ITS OWN RENEWAL. Open the contract, press Renew, give the new MC Number and the period \u2014 the machines, type, party and billing schedule come across with it. Retyping a machine list into a fresh entry is where serials get missed.',
+      'THE DATES CONTINUE RATHER THAN RESTART. The new contract begins the day after the old one ends, so a machine is never uncovered for a day and never on two contracts at once.',
+      'UNTICK ANY MACHINE THAT IS NOT BEING RENEWED \u2014 it starts with all of them, because dropping one is the common case.',
+      'RATES ARE DELIBERATELY LEFT BLANK. A renewal is re-priced, and a price carried over quietly is one nobody agreed that looks exactly like one they did. The new contract records which contract it came from, and each machine remembers what it was on before.',
+    ],
+  },
+  {
+    version: '0.9.169',
+    date: '2026-09-09',
+    title: 'A password could show up in a build log',
+    changes: [
+      'WHEN THE DATABASE CONNECTION FAILED, PART OF THE PASSWORD WAS PRINTED. The tool that connects reports back the piece of the address it could not read \u2014 and where a password contains an "@", that piece is the end of the password. It is now hidden in its own right, not just as part of the whole address.',
+      'The automatic SQL step is parked for now: the first attempt failed on a password that needed its special characters escaped, before it reached the database. Nothing was changed by it.',
+    ],
+  },
+  {
     version: '0.9.168',
     date: '2026-09-09',
     title: 'The one-off setup step can no longer skip a change',

@@ -101,7 +101,30 @@ const psqlFile = (file) => execFileSync(
 
 // Anything psql prints can carry the connection string in an error line, so it
 // is scrubbed before it reaches a log.
-const scrub = (s) => String(s ?? '').split(url).join('***');
+// SCRUBBING THE WHOLE URL IS NOT ENOUGH, and a real run proved it. psql does
+// not echo the URL back; it echoes the PIECE it choked on. With an unencoded
+// `@` in the password it printed
+//     could not translate host name "110@aws-0-...pooler.supabase.com"
+// -- the tail of the password, in a public Actions log, while GitHub's own
+// masking showed SUPABASE_DB_URL as `***` and looked like it had covered it.
+// So the password is masked in its own right, and so is anything that looks
+// like a URI with credentials in it.
+const secrets = [url];
+try {
+  const u = new URL(url);
+  if (u.password) secrets.push(decodeURIComponent(u.password), u.password);
+  if (u.username) secrets.push(u.username);
+} catch { /* not a parseable URL: the whole-string mask below still applies */ }
+
+const scrub = (s) => {
+  let out = String(s ?? '');
+  // Longest first, so a password that contains the username is masked whole.
+  for (const v of [...new Set(secrets)].filter(Boolean).sort((a, b) => b.length - a.length)) {
+    out = out.split(v).join('***');
+  }
+  // Belt and braces: any credential-bearing URI shape that survived the above.
+  return out.replace(/(postgres(?:ql)?:\/\/)[^\s"']*/gi, '$1***');
+};
 
 const files = readdirSync(DIR).filter((f) => f.endsWith('.sql')).sort();
 if (!files.length) { console.error(`No migrations in ${DIR}.`); process.exit(2); }
