@@ -2281,6 +2281,7 @@ console.log('\n-- dropdowns are one control --');
   }
 }
 
+<<<<<<< HEAD
 console.log('\n-- the drawer can be widened, and remembers --');
 {
   const ui = readFileSync('src/components/ui/ui.tsx', 'utf8');
@@ -2319,5 +2320,7 @@ console.log('\n-- the drawer can be widened, and remembers --');
   eq('the arrow keys resize it too', /e\.key === 'ArrowLeft'/.test(ui), true);
 }
 
+=======
+>>>>>>> origin/main
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
