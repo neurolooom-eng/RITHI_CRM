@@ -241,10 +241,18 @@ it, which is why their write right is separate. `check:ui` fails Service Manuals
 appearing in BOTH groups, which would be worse than the wrong group — two
 entries for one page.
 
-**Field Solutions is a third topic, and that is a judgement, not the ask.** The
-user named one topic and then added Service Manuals; the team's articles are a
-third thing, and dropping the entry would leave them written but unreachable
-except through a call. **It is one line in `Layout.tsx` to remove.**
+✅ **Field Solutions is a third topic — CONFIRMED, not a judgement any more.**
+It was shipped as a judgement call (the ask named one topic and then added
+Service Manuals) and flagged as one line to remove. The user, same day:
+*"users should be able to add Field solutions.. No change to that requirement"* —
+so it stays, and the ＋ Add article button stays with it, for any signed-in user.
+
+**One thing the split could have cost somebody, now closed.** An article filed
+under `How-To` is READ on the How to Use page — so publishing one from Field
+Solutions and watching the list not change reads as the save having failed, and
+the natural response to that is to write it again. The category picker now says
+where the article will be read BEFORE it is saved, and the confirmation after it
+names the page and offers to open it (v0.9.184).
 
 **Supporting documents now reach a call REQUEST** — the request view and the
 registration form. The component is the CALL's own (`SupportingDocs`, exported
@@ -260,7 +268,23 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
-⚠️ **PENDING: `indoor.sql`** (2026-09-09, v0.9.182) — **INDOOR SERVICE PHASE 1
+🟡 **`indoor.sql` WAS RUN — reported, not verified (2026-09-09).** The user said
+"indoor sql ran". **No `_status.sql` output has been seen**, so this stays a
+report: this file has twice claimed the opposite of what was really in the
+database, and it is a record rather than evidence.
+
+**Row 120 settles it, and it tests the PROPERTY rather than the presence** — it
+reads NO if `indoor_job_list` has lost `security_invoker` (a workshop register
+reading as its owner hands every signed-in user every job), if either guard
+trigger is missing (the separated rights would become hidden buttons rather than
+rights), or if the decontamination gate is gone. A register with the tables and
+neither guard looks identical on screen, which is exactly why the row does not
+just check that the tables exist.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+
+<details><summary>What it applied</summary>
+
+**INDOOR SERVICE PHASE 1
 IS BUILT.** 0158 creates the workshop register: `indoor_jobs` carrying both axes
 and all six activities' field sets, `indoor_job_accessories`,
 `indoor_job_parts`, `indoor_job_checks`, the `IND<YY>-<NNNN>` series, five
@@ -326,6 +350,8 @@ parameter, expected, measured, verdict, instrument, calibration due — so Phase
 fills a column rather than reshaping a table. SR-040, SR-041 and SR-042 move to
 **Present**; SR-043 to **Partial**, closed in form and not in substance, which
 is the whole of SR-006; SR-044 stays Absent and is Phase 2.
+
+</details>
 
 ⚠️ **PENDING: `tracker.sql`** (2026-09-09, v0.9.181) — 0157 puts the points open
 at the end of the day onto the Tracker: assign the Zoho Migration role, un-park

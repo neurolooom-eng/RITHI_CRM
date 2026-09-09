@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.184',
+    date: '2026-09-09',
+    title: 'Adding a how-to article now says where it will appear',
+    changes: [
+      'ANYONE SIGNED IN CAN STILL ADD A FIELD SOLUTION \u2014 unchanged, and Field Solutions keeps its own place in the menu.',
+      'BUT AN ARTICLE FILED AS \u201CHow-To\u201D IS READ ON THE HOW TO USE PAGE, not among the field solutions. Publishing one and watching the list not change looked like the save had failed, and the natural response to that is to write the whole thing again.',
+      'So the category box now tells you where the article will be read BEFORE you save it, and the message afterwards names the page and offers to open it.',
+    ],
+  },
+  {
     version: '0.9.183',
     date: '2026-09-09',
     title: 'Knowledge Base is its own section, and a call request offers the manual',

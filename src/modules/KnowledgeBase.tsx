@@ -98,7 +98,17 @@ export function KnowledgeBase() {
     const res = edit.id == null ? await kbAdd(payload) : await kbUpdate(edit.id, payload);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Save failed.' }); return; }
-    setEdit(null); setMsg({ tone: 'ok', text: edit.id == null ? 'Article published.' : 'Article updated.' });
+    setEdit(null);
+    // SAY WHERE IT WENT when it is not going to appear here. An article filed
+    // as How-To is read on the How to Use page, so publishing one from this
+    // screen and watching the list not change reads as the save having failed
+    // — the one way this split can cost somebody their work, because the
+    // natural response is to write it again. The message names the page and
+    // offers to open it.
+    const wentElsewhere = f.category === HOWTO_CATEGORY;
+    setMsg(wentElsewhere
+      ? { tone: 'info', text: `${edit.id == null ? 'Published' : 'Updated'} — filed under ${HOWTO_CATEGORY}, so it is listed on How to Use RITHI CRM rather than here.` }
+      : { tone: 'ok', text: edit.id == null ? 'Article published.' : 'Article updated.' });
     void load();
   };
 
@@ -127,6 +137,11 @@ export function KnowledgeBase() {
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
+          {/* A message that says where something went should be able to take
+              you there — otherwise it is a riddle. */}
+          {msg.tone === 'info' && (
+            <button className="btn btn-sm" onClick={() => navigate('/knowledge-base/how-to')}>Open How to Use →</button>
+          )}
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
         </div>
       )}
@@ -207,7 +222,10 @@ export function KnowledgeBase() {
             <div className="kb-form-row">
               <div className="field"><label className="field-label">Category</label>
                 <SelectPicker value={edit.form.category} onChange={(v) => setF('category', v)}
-                  options={[...CATEGORIES]} /></div>
+                  options={[...CATEGORIES]} />
+                {edit.form.category === HOWTO_CATEGORY && (
+                  <span className="kb-hint">Read on <b>How to Use RITHI CRM</b>, not here — this category is for instructions.</span>
+                )}</div>
               <div className="field"><label className="field-label">Product / model (optional)</label>
                 <input className="input" value={edit.form.product} onChange={(e) => setF('product', e.target.value)} placeholder="Ventilator XT" /></div>
             </div>
