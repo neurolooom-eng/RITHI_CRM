@@ -8,6 +8,7 @@ import { callFamily } from '../src/lib/calltype';
 import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
+import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest } from '../src/lib/fieldcall';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
@@ -2164,6 +2165,40 @@ console.log('\n-- spare_pending_rm: one definition, in two places, never dropped
   // And the copies must stay copies, or a replay silently narrows the view.
   eq('0116 and 0154 define it identically', body(a) === body(b), true);
   eq('...and that definition carries the complaint', /as complaint/.test(body(a)), true);
+}
+
+console.log('\n-- renewing a contract: the dates continue, they do not overlap --');
+{
+  // NO GAP AND NO OVERLAP. `machine_cover` answers "what is this serial under
+  // today?", and two contracts covering one day makes that ambiguous — so a
+  // renewal starts the day AFTER the old one ends, and a period ends the day
+  // BEFORE the anniversary.
+  eq('the renewal starts the day after the old contract ends',
+    dayAfter('2027-03-31'), '2027-04-01');
+  eq('...across a year boundary', dayAfter('2026-12-31'), '2027-01-01');
+  eq('...and a leap day is a real day', dayAfter('2028-02-28'), '2028-02-29');
+  eq('a bad date proposes nothing rather than guessing', dayAfter(''), '');
+
+  eq('a one-year contract ends the day before its anniversary',
+    addPeriod('2026-04-01', 1, 0), '2027-03-31');
+  eq('...so renewing it lands exactly on the next day',
+    dayAfter(addPeriod('2026-04-01', 1, 0)), '2027-04-01');
+  eq('months work the same way', addPeriod('2026-04-01', 0, 6), '2026-09-30');
+  eq('years and months combine', addPeriod('2026-04-01', 1, 6), '2027-09-30');
+  // No period is not a zero-day contract; it is an unknown end date.
+  eq('no period gives no end date, not the start date', addPeriod('2026-04-01', 0, 0), '');
+
+  // The money must NOT be carried: a rate copied forward is a price nobody
+  // agreed that looks exactly like one they did.
+  const cov = readFileSync('src/lib/cover.ts', 'utf8');
+  const renew = cov.slice(cov.indexOf('export async function renewContract'));
+  for (const money of ['rate', 'item_tax_amount', 'total_after_tax']) {
+    eq(`a renewal does not carry ${money} over`, new RegExp(`\\b${money}:`).test(renew), false);
+  }
+  // ...and the link back must be written, or "what was this machine on before?"
+  // has no answer.
+  eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
+  eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

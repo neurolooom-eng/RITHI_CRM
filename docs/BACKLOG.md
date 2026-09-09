@@ -2279,8 +2279,15 @@ predates the spare module's `0009`/`0011`/`0012` (no `or_no`, no
   form reads — in step. All four exports import as exported in Bulk Data Import,
   in any order. **To run:** `supabase/apply/_status.sql`, then
   `supabase/apply/sales_contracts.sql`, then import the four CSVs.
-  **Still open:** Ownership Transfer (no table yet), and the AMC/CMC renewal
-  flow (raising the next MC from an expiring one).
+  **Now closed.** Ownership Transfer HAS a table (`0072_ownership_transfer.sql`,
+  extended by `0080`) — this line was stale, and is the reason to check the code
+  rather than this file. The AMC/CMC renewal flow shipped 2026-09-09 (v0.9.170):
+  a contract raises its own next MC, carrying its machines, type, party, period
+  and billing schedule, starting the day after the old one ends so cover has no
+  gap and no overlap. **No migration** — `prev_mc_number`,
+  `last_contract_number` and `last_contract_end` were built for it in `0036` and
+  had simply never been written to. Rates are deliberately NOT carried: a
+  renewal is re-priced.
 - **Pending Calls noise** *(watch)* — a call with no visit reported counts as
   Unattended, with no age cut-off, so an old import can crowd the list; add a
   date filter if it does. "Report pending" counts as open (visited, not closed)
