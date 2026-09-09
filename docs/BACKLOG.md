@@ -217,14 +217,37 @@ exactly.
 
 </details>
 
-⚠️ **PENDING: `tracker.sql`** (2026-09-09, v0.9.181) — 0157 puts the points
-open at the end of the day onto the Tracker: the two one-minute verifications
-(confirm the super-admin revocation actually took; assign the Zoho Migration
-role), un-parking the auto-apply pipeline, Indoor Service Phase 1 now the
-activities are settled, the condemn/salvage decision, the optional party
-tidy-up, and the pre-existing unlabelled error in the `spare_bulk_approval`
-suite. Additive and idempotent by title; closes nothing.
+⚠️ **PENDING: `tracker.sql`** (2026-09-09, v0.9.181) — 0157 puts the points open
+at the end of the day onto the Tracker: assign the Zoho Migration role, un-park
+the auto-apply pipeline, Indoor Service Phase 1 now the activities are settled,
+the condemn/salvage decision, the optional party tidy-up, and the pre-existing
+unlabelled error in the `spare_bulk_approval` suite. Additive and idempotent by
+title; closes nothing.
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+
+**A seventh item was removed before the file ever ran.** It was "confirm the
+super-admin revocation actually took", and the `_status.sql` output answered it
+the same evening. Seeding an answered question as Open puts a job on somebody's
+list that is already done; closing it here in SQL would break 0157's own rule
+that Done is the reader's judgement and not the database's. So it is simply not
+seeded.
+
+**`_status.sql` row 119 now covers this seed**, and it is the first row in that
+report that checks ROWS rather than an object. Every other row asks whether a
+table, policy, function or view exists — a seed leaves none of those behind, so
+until now a bundle that had never been run was indistinguishable from one that
+had. 119 counts the six titles, which is also how 0157 decides whether to add
+one. It reads `yes` at any status: an item somebody has since marked Done or
+Dropped is still on the list, since closing it is the point.
+
+It is written through `query_to_xml` for the same reason row 85 reads `cron.job`
+that way — a plain reference to `public.tracker_items` is resolved when the
+report is PLANNED, so on a project that has never run `tracker.sql` the whole
+129-row report would fail with "relation does not exist" instead of reporting
+this one row as NO. That is precisely the project the row is for. Both cases were
+run before shipping: a database built without the tracker module reports 129 rows
+with the two tracker lines NO, and a fully migrated one reports it `yes` — and
+deleting a single seeded title flips it back to NO, so it discriminates.
 
 📌 **The database schema is now DOCUMENTED, and generated** (2026-09-09,
 v0.9.181) — `docs/DATABASE_SCHEMA.md`, 2,300 lines: every table and view, each
@@ -243,27 +266,24 @@ policies where there are 117**, the extras being fragments of real ones. Both
 were caught by comparing the document's own counts against the database rather
 than reading it and nodding.
 
-🟡 **`rbac.sql` WAS RUN — reported, not verified (2026-09-09).** The user said
-"Ran RBAC" after being handed it for the revocation. **No `_status.sql` output
-has been seen since**, so this says reported: the file has twice claimed the
-opposite of what was really in the database, and it is a record rather than
-evidence.
+✅ **THE SUPER-ADMIN REVOCATION TOOK — VERIFIED (2026-09-09).** The user pasted
+the full `_status.sql` output that evening and **every row reads `yes`**,
+including the one that mattered:
 
-**This one matters more than the usual bookkeeping, because one of the three is
-a REVOCATION.** Until row 118 is read back, `mmdev74@gmail.com` may still be a
-super admin in the database — and the app already stopped showing them as one at
-v0.9.178, so the screens would agree with the intention while Postgres did not.
-That is precisely the state where nobody notices.
+* **118 — `mmdev74@gmail.com` is revoked.** It tests BOTH conditions, so a `yes`
+  means neither the `app_super_admins` row nor an admin `profiles.role` survived.
+  Had `rbac.sql` not reached the database, the app would have gone on hiding the
+  super-admin screens from that account while Postgres kept allowing everything
+  behind them — agreement between the intention and the interface, disagreement
+  with the only layer that enforces it. That is the state nobody notices, and it
+  is why this one was not left at "the user said they ran it".
+* **117 — Zoho Migration is a read-only clone.** Tests the PROPERTY, not the
+  presence of a row: it fails if the role drifted from `technical_support` or
+  picked up anything a write policy names. `yes`.
+* **114** (0151, the stored role rows) still `yes`.
 
-**Read rows 117 and 118** —
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
-
-* **118 — mmdev74@gmail.com is revoked.** Tests BOTH conditions, so it reads NO
-  if either the `app_super_admins` row or an admin `profiles.role` survived.
-* **117 — Zoho Migration is a read-only clone.** Tests the PROPERTY: it fails if
-  the role drifted from `technical_support` or picked up anything a write policy
-  names, not merely if the row is missing.
-* 114 covers 0151 and should still read `yes`.
+The distinction this file exists to hold is now closed on this round: it went
+from a report to evidence, and the evidence is the database's own answer.
 
 <details><summary>The PENDING notes this replaces</summary>
 
@@ -359,32 +379,24 @@ gone and queries fail outright. `0116` and `0154` now carry the identical full
 column list and nothing is dropped — `check:ui` compares them word for word and
 fails on either growing a `drop view`.
 
-🟡 **`performance.sql` RUN — reported, not verified (2026-09-08, v0.9.157).**
-The user ran it after v0.9.157 shipped. That bundle carries BOTH
-`unused_spare_report` (row 112) and `spare_insights` + the Part Master's new
-fields (row 113), so the two screens that needed it should now load.
+✅ **`performance.sql` IS APPLIED — VERIFIED (2026-09-09).** Settled by the same
+`_status.sql` output as the revocation above. **112** (`unused_spare_report`) and
+**113** (`spare_insights` + the Part Master's new fields) both read `yes`, and 113
+checks the property rather than the presence — a `spare_insights` that were
+SECURITY DEFINER would fail it, because a definer view hands an engineer the whole
+company's consumption figures through a dashboard.
 
-**No `_status.sql` output has been seen**, so this is a report rather than
-evidence — the distinction this file exists to keep. Rows 112 and 113 settle it;
-113 checks the property rather than the presence, refusing a `spare_insights`
-that is SECURITY DEFINER.
+✅ **THE TECHNICAL SUPPORT ROLE IS APPLIED — VERIFIED (2026-09-09).**
 
-If Spare Insights still shows an error, the message names the function, which
-means the bundle did not reach the database — PostgREST also caches the schema
-for a few seconds after a function appears, so a reload is worth trying before
-re-running anything.
+**Row 111** reads `yes` in the 2026-09-09 output, and it checks the CLAIM rather
+than the presence of a row: every module key the admin role holds,
+`data.view_all`, `admin.view`, and not one action any write policy asks for. So
+the role is genuinely read-only in Postgres, not merely short of buttons.
 
-🟡 **NOTHING KNOWN TO BE PENDING ON THE DATABASE — reported run, not verified (2026-09-08).**
-
-The user ran **`rbac.sql`** (the Technical Support role) and **`tracker.sql`**
-(the "You" → "Rithi Admin" rename) after v0.9.147 shipped. No `_status.sql`
-output has been seen since, so this is a REPORT, not evidence — the distinction
-this file exists to keep, having twice claimed the opposite of what was applied.
-
-**Row 111** settles the first one, and it checks the CLAIM rather than the
-presence of a row: every module key the admin role holds, `data.view_all`,
-`admin.view`, and not one action any write policy asks for. For the second,
-`select owner, count(*) from tracker_items group by 1` should show no "You".
+The `tracker.sql` half of that round (the "You" → "Rithi Admin" rename) has no
+row and so is still only reported; `select owner, count(*) from tracker_items
+group by 1` shows no "You" if it took. **Row 119 now exists for exactly this
+gap** — see the tracker note above.
 
 Nothing further is needed to USE the role: the picker on User Master reads the
 same list the matrix does, so **Technical Support** is already in the dropdown.

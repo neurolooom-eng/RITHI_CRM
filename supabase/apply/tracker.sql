@@ -449,6 +449,15 @@ end $seed$;
 -- WHAT IS NOT HERE: everything already seeded by 0144 and 0150 (the parked
 -- decisions, the 13485 findings). This adds only what became open since, or
 -- what was open all along and had never been written down.
+--
+-- ONE ITEM WAS REMOVED BEFORE THIS FILE EVER RAN (2026-09-09): "Confirm the
+-- super-admin revocation actually took". The user pasted the _status.sql output
+-- the same evening and row 118 read `yes`, so the question was answered before
+-- the seed could ask it. Seeding an answered item as Open would put a job on
+-- somebody's list that is already done -- and closing it here in SQL would break
+-- this file's own rule that Done is the reader's judgement. So it is simply not
+-- seeded. (If an earlier copy of 0157 had already run somewhere, the row exists
+-- and is Open; tick it.)
 -- ===========================================================================
 
 do $seed$
@@ -465,9 +474,6 @@ begin
   for r in
     select * from (values
       -- ---- verification the user can close in a minute ---------------------
-      (300, 'Confirm the super-admin revocation actually took',
-            'rbac.sql was run on 2026-09-09 but no _status.sql output has been read back, so the revocation of mmdev74@gmail.com is REPORTED, not verified. It matters more than the usual bookkeeping: the app stopped showing that account as a super admin at v0.9.178, so if the SQL did not take, the screens agree with the intention while Postgres does not -- the state nobody notices. Read rows 117 (Zoho Migration is a read-only clone) and 118 (revoked; it tests BOTH the app_super_admins row and an admin profiles.role).',
-            'Rithi Admin', 'Access'),
       (310, 'Assign the Zoho Migration role to a login',
             'The role exists and is a read-only clone of Technical Support, but nobody holds it. It is in the User Master role dropdown. Kept separate from Technical Support on purpose: it ends when the migration does, so revoking it is one tick and leaves the support login alone.',
             'Rithi Admin', 'Access'),
