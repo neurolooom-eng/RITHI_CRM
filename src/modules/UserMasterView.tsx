@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer, Modal } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
@@ -301,11 +302,9 @@ export function UserMasterView() {
       render: (r) => {
         if (editing) {
           return (
-            <select className="select" style={{ width: '100%' }} value={draftOf(r).role ?? ''} onKeyDown={keys}
-              onChange={(e) => setField(r, 'role', e.target.value)}>
-              <option value="">— no role —</option>
-              {ROLES.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}
-            </select>
+            <SelectPicker value={String(draftOf(r).role ?? '')} placeholder="— no role —"
+              onChange={(v) => setField(r, 'role', v)}
+              options={ROLES.map((x) => ({ value: x.key, label: x.label }))} />
           );
         }
         const signedIn = profileByEmail.get(r.email.toLowerCase()) ?? profileByEmail.get(r.gmail.toLowerCase());
@@ -330,11 +329,9 @@ export function UserMasterView() {
       key: 'validity', header: 'Active', width: 90, wrap: false,
       render: (r) => (editing
         ? (
-          <select className="select" style={{ width: '100%' }} value={draftOf(r).validity ? 'TRUE' : 'FALSE'} onKeyDown={keys}
-            onChange={(e) => setField(r, 'validity', e.target.value === 'TRUE')}>
-            <option value="TRUE">Yes</option>
-            <option value="FALSE">No</option>
-          </select>
+          <SelectPicker value={draftOf(r).validity ? 'TRUE' : 'FALSE'}
+            onChange={(v) => setField(r, 'validity', v === 'TRUE')}
+            options={[{ value: 'TRUE', label: 'Yes' }, { value: 'FALSE', label: 'No' }]} />
         )
         : statusBadge(r.validity ? 'TRUE' : 'FALSE', VALIDITY_TONES)),
     },
@@ -491,10 +488,10 @@ export function UserMasterView() {
                     <input className="input" value={pwd} onChange={(e) => setPwd(e.target.value)} /></label>
                   {cloneSrc && (
                     <label className="rep-field"><span className="field-label">Clone from {cloneSrc.fullName || cloneSrc.email}</span>
-                      <select className="select" value={dataAccess ? 'data' : 'perms'} onChange={(e) => setDataAccess(e.target.value === 'data')}>
-                        <option value="perms">Permissions only — sees their own data</option>
-                        <option value="data">Permissions + Data — can see all records</option>
-                      </select></label>
+                      <SelectPicker value={dataAccess ? 'data' : 'perms'}
+                        onChange={(v) => setDataAccess(v === 'data')}
+                        options={[{ value: 'perms', label: 'Permissions only — sees their own data' },
+                                  { value: 'data', label: 'Permissions + Data — can see all records' }]} /></label>
                   )}
                 </div>
               )}
@@ -648,9 +645,8 @@ function AccessDrawer({ user, onClose, onSaved, onError }: {
       <div className="rep-form">
         <label className="rep-field" style={{ maxWidth: 320 }}>
           <span className="field-label">Role</span>
-          <select className="select" value={role} onChange={(e) => setRole(e.target.value)}>
-            {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
+          <SelectPicker value={role} onChange={setRole}
+            options={ROLES.map((r) => ({ value: r.key, label: r.label }))} />
         </label>
         <div className="muted rep-hint">The role sets the base access. Tick anything extra this person needs on top.</div>
         <div className="assoc-scroll" style={{ marginTop: 8 }}>
@@ -788,17 +784,14 @@ function UserForm({ row, busy, signedInRole, names, regions, onChange, onCancel,
 
         <label className="rep-field">
           <span className="field-label">Role</span>
-          <select className="select" value={row.role} onChange={(e) => set('role', e.target.value)}>
-            <option value="">— no role —</option>
-            {ROLES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-          </select>
+          <SelectPicker value={row.role} onChange={(v) => set('role', v)} placeholder="— no role —"
+            options={ROLES.map((r) => ({ value: r.key, label: r.label }))} />
         </label>
         <label className="rep-field">
           <span className="field-label">Active</span>
-          <select className="select" value={row.validity ? 'TRUE' : 'FALSE'} onChange={(e) => set('validity', e.target.value === 'TRUE')}>
-            <option value="TRUE">Yes — may sign in</option>
-            <option value="FALSE">No</option>
-          </select>
+          <SelectPicker value={row.validity ? 'TRUE' : 'FALSE'}
+            onChange={(v) => set('validity', v === 'TRUE')}
+            options={[{ value: 'TRUE', label: 'Yes — may sign in' }, { value: 'FALSE', label: 'No' }]} />
         </label>
 
         {field('Reporting Manager (name)', 'reporting_manager', 'RM as named in this directory', 'text', names)}

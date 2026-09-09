@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useLocation } from 'react-router-dom';
 import { db, genId, type BaseRecord } from '../lib/db';
 import { useCollection } from '../lib/hooks';
@@ -317,30 +318,21 @@ export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>)
 
         <label className="cascade-field">
           <span>Product {busy === 'products' && <span className="muted">loading…</span>}</span>
-          <select className="select" value={product} disabled={products.length === 0} onChange={(e) => void onProduct(e.target.value)}>
-            <option value="">{products.length ? '— Select product —' : '(pick a party first)'}</option>
-            {products.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
+          <SelectPicker value={product} disabled={products.length === 0} onChange={(v) => void onProduct(v)}
+            placeholder={products.length ? '— Select product —' : '(pick a party first)'} options={products} />
         </label>
 
         <label className="cascade-field">
           <span>Serial {busy === 'items' && <span className="muted">loading…</span>}</span>
-          <select
-            className="select"
+          <SelectPicker
             value={serial}
             disabled={items.length === 0}
-            onChange={(e) => {
-              const row = items.find((r) => String(r['Item Serial Number']) === e.target.value);
-              if (row) pick(row);
-            }}
-          >
-            <option value="">{items.length ? '— Select serial —' : '(pick a product first)'}</option>
-            {items.map((r, i) => (
-              <option key={i} value={String(r['Item Serial Number'] ?? '')}>
-                {String(r['Item Serial Number'] ?? '')}{r['Item Status'] ? ` · ${String(r['Item Status'])}` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => { const row = items.find((r) => String(r['Item Serial Number']) === v); if (row) pick(row); }}
+            placeholder={items.length ? '— Select serial —' : '(pick a product first)'}
+            options={items.map((r) => ({
+              value: String(r['Item Serial Number'] ?? ''),
+              label: `${String(r['Item Serial Number'] ?? '')}${r['Item Status'] ? ` · ${String(r['Item Status'])}` : ''}`,
+            }))} />
         </label>
       </div>
 
@@ -1166,10 +1158,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
           <>
             <b>{ids.length} selected</b>
             <span className="muted">Allot to</span>
-            <select className="select" value={allotTo} onChange={(e) => setAllotTo(e.target.value)} disabled={allotBusy}>
-              <option value="">— choose an engineer —</option>
-              {allotTeam.names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <SelectPicker value={allotTo} onChange={setAllotTo} disabled={allotBusy}
+              placeholder="— choose an engineer —" options={allotTeam.names} />
             <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
               {allotBusy ? 'Saving…' : `Save ${ids.length}`}
             </button>

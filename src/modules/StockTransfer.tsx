@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
@@ -162,10 +163,10 @@ function TransferDrawer({
             const options = stock.filter((s) => !taken.has(s.part.trim().toLowerCase()));
             return (
               <div className="spare-row" key={i}>
-                <select className="input spare-part" value={p.part} onChange={(e) => setPick(i, 'part', e.target.value)}>
-                  <option value="">— Select a part in hand —</option>
-                  {options.map((s) => <option key={s.part} value={s.part}>{s.part} · {s.qty} in hand</option>)}
-                </select>
+                <SelectPicker className="spare-part" value={p.part} onChange={(v) => setPick(i, 'part', v)}
+                  placeholder="— Select a part in hand —"
+                  emptyHint="Only what this engineer holds can be transferred."
+                  options={options.map((s) => ({ value: s.part, label: `${s.part} · ${s.qty} in hand` }))} />
                 <input
                   className="input spare-qty" type="number" min={1} max={have || 1} step={1}
                   value={p.qty} disabled={!p.part}

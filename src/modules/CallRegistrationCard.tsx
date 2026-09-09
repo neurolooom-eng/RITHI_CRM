@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import {
@@ -72,16 +73,13 @@ export function CallRegistrationCard() {
       )}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label style={{ fontSize: 13 }}>Calls are filed to</label>
-        <select
-          className="input"
-          style={{ minWidth: 260 }}
+        <SelectPicker
+          className="crc-desk"
           value={pinned}
           disabled={!onDb || !isAdmin || busy}
-          onChange={(e) => void save(e.target.value)}
-        >
-          <option value="">Whichever profile has the Hotline role (if there is exactly one)</option>
-          {desks.map((d) => <option key={d.id} value={d.email}>{d.name} — {d.email}</option>)}
-        </select>
+          onChange={(v) => void save(v)}
+          placeholder="Whichever profile has the Hotline role (if there is exactly one)"
+          options={desks.map((d) => ({ value: d.email, label: `${d.name} — ${d.email}` }))} />
         <button className="btn btn-ghost btn-sm" onClick={() => void load()} disabled={busy}>Refresh</button>
       </div>
       <p className="muted" style={{ fontSize: 12, marginBottom: 0, marginTop: 10 }}>

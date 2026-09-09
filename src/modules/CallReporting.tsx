@@ -330,6 +330,11 @@ export function CallReportDrawer({
     // typed or pasted value, and this is a quality record.
     const whenProblem = visitDateProblem(visitDate, complaintISO, todayISO());
     if (whenProblem) return whenProblem;
+    // MANDATORY (the user, 2026-09-09). A visit with no engineer on it is a
+    // service record that cannot say WHO performed the service — §7.5.4 asks
+    // for the person, and every per-engineer figure in the system (hand stock,
+    // consumption, the objectives) reads this field.
+    if (!engineer.trim()) return 'Visiting Service Engineer is required — say who attended.';
     if (!status) return 'Choose a Call Status.';
     if (unsolved && !pendingReason.trim()) return 'Call Pending Reason is mandatory for an unsolved call.';
     if (workOpen) {
@@ -580,7 +585,7 @@ export function CallReportDrawer({
                 </span>
               </label>
               <label className="rep-field">
-                <span className="field-label">Visiting Service Engineer</span>
+                <span className="field-label">Visiting Service Engineer *</span>
                 <SelectPicker value={engineer} onChange={setEngineer} options={engineerOptions}
                               emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">

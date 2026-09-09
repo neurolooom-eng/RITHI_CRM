@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PickList } from '../components/ui/PickList';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -213,20 +214,13 @@ export function SpareRequestDrawer({
             </label>
             <label className="rep-field">
               <span className="field-label">Request Type</span>
-              <select className="select" value={reqType} onChange={(e) => setReqType(e.target.value)}>
-                {REQ_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <SelectPicker value={reqType} onChange={setReqType} options={[...REQ_TYPES]} />
             </label>
             <label className="rep-field">
               <span className="field-label">Engineer Name *</span>
               {canPickEngineer ? (
-                <select
-                  className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}
-                  title="Raise this request for one of your engineers"
-                >
-                  {!engineer && <option value="">— select —</option>}
-                  {team.names.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <SelectPicker value={engineer} onChange={setEngineer} options={team.names}
+                              emptyHint="Only engineers on your team are listed." />
               ) : (
                 <input className="input" value={engineer} readOnly title="Taken from your login" />
               )}
@@ -1178,10 +1172,9 @@ function EngineerOnOrder({ row, lines, onDone }: { row: Row; lines: Row[]; onDon
         <div className="rep-grid" style={{ marginTop: 8 }}>
           <label className="rep-field">
             <span className="field-label">Move to</span>
-            <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
-              <option value="">— choose an engineer —</option>
-              {team.names.filter((n) => n !== current).map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <SelectPicker value={to} onChange={setTo} placeholder="— choose an engineer —"
+                          options={team.names.filter((n) => n !== current)}
+                          emptyHint="Only engineers on your team are listed." />
           </label>
           <label className="rep-field">
             <span className="field-label">Why</span>
@@ -1368,21 +1361,17 @@ function DecisionModal({
           <>
             <label className="rep-field">
               <span className="field-label">Admin Status *</span>
-              <select className="select" value={com.status}
-                onChange={(e) => setCom({ status: e.target.value as CommercialAnswer['status'] })}>
-                <option value="">— Choose —</option>
-                {COMMERCIAL_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <SelectPicker value={com.status} placeholder="— Choose —"
+                onChange={(v) => setCom({ status: v as CommercialAnswer['status'] })}
+                options={[...COMMERCIAL_STATUSES]} />
             </label>
 
             {com.status === 'Cleared for Stores Processing' && (
               <label className="rep-field">
                 <span className="field-label">Reason for Clearing? *</span>
-                <select className="select" value={com.clearing_reason ?? ''}
-                  onChange={(e) => setCom({ ...com, clearing_reason: e.target.value, mc_sa_number: '', direct_po: {} })}>
-                  <option value="">— Choose —</option>
-                  {CLEARING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <SelectPicker value={com.clearing_reason ?? ''} placeholder="— Choose —"
+                  onChange={(v) => setCom({ ...com, clearing_reason: v, mc_sa_number: '', direct_po: {} })}
+                  options={[...CLEARING_REASONS]} />
               </label>
             )}
 
@@ -1416,11 +1405,9 @@ function DecisionModal({
             {com.status === 'Admin Process in Progress' && (
               <label className="rep-field">
                 <span className="field-label">Pending Reason *</span>
-                <select className="select" value={com.pending_reason ?? ''}
-                  onChange={(e) => setCom({ ...com, pending_reason: e.target.value })}>
-                  <option value="">— Choose —</option>
-                  {PENDING_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                <SelectPicker value={com.pending_reason ?? ''} placeholder="— Choose —"
+                  onChange={(v) => setCom({ ...com, pending_reason: v })}
+                  options={[...PENDING_REASONS]} />
               </label>
             )}
 
@@ -1436,11 +1423,9 @@ function DecisionModal({
           <>
             <label className="rep-field">
               <span className="field-label">Status *</span>
-              <select className="select" value={nsm.status}
-                onChange={(e) => setNsm({ ...nsm, status: e.target.value as NsmAnswer['status'] })}>
-                <option value="">— Choose —</option>
-                {NSM_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+              <SelectPicker value={nsm.status} placeholder="— Choose —"
+                onChange={(v) => setNsm({ ...nsm, status: v as NsmAnswer['status'] })}
+                options={[...NSM_STATUSES]} />
             </label>
 
             <section className="rep-sec">

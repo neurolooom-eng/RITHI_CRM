@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { SelectPicker } from '../ui/SelectPicker';
 import { groupTree, NO_GROUP, type GroupNode } from './group';
 import { useAuth } from '../../lib/auth';
 import { formatSmartDate } from '../../lib/format';
@@ -629,24 +630,17 @@ export function DataTable<T>({
       {Array.from({ length: Math.min(MAX_LEVELS, groupable.length) }, (_, i) => i)
         .filter((i) => i === 0 || groupKeys[i - 1])
         .map((i) => (
-          <select
+          <SelectPicker
             key={i}
-            className="select"
             value={groupKeys[i] ?? ''}
-            onChange={(e) => {
-              // Clearing a level clears the ones under it: "by engineer, then
-              // by nothing, then by status" is not a thing.
-              const next = e.target.value
-                ? [...groupKeys.slice(0, i), e.target.value]
-                : groupKeys.slice(0, i);
-              saveGroupKeys(next);
-            }}
-          >
-            <option value="">{i === 0 ? 'None' : '＋ then…'}</option>
-            {groupable
+            // Clearing a level clears the ones under it: "by engineer, then by
+            // nothing, then by status" is not a thing.
+            onChange={(v) => saveGroupKeys(v ? [...groupKeys.slice(0, i), v] : groupKeys.slice(0, i))}
+            placeholder={i === 0 ? 'None' : '＋ then…'}
+            options={groupable
               .filter((g) => g.key === groupKeys[i] || !groupKeys.includes(g.key))
-              .map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-          </select>
+              .map((g) => ({ value: g.key, label: g.label }))}
+          />
         ))}
       {/* GROUPS OPEN CLOSED, so opening them one at a time is the common case
           and worth a button — the shape Pending Dispatch already uses. Expand
@@ -681,17 +675,16 @@ export function DataTable<T>({
                 const meta = fieldMeta[f.key];
                 return (
                   <div className="dt-filter-row" key={i}>
-                    <select className="select" value={f.key} onChange={(e) => { const key = e.target.value; const ops = opsFor(key); saveFilters(filters.map((x, j) => j === i ? { ...x, key, op: ops[0][0] } : x)); }}>
-                      {orderedCols.filter((c) => !c.key.startsWith('_')).map((c) => <option key={c.key} value={c.key}>{c.header || c.key}</option>)}
-                    </select>
-                    <select className="select" value={f.op} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, op: e.target.value } : x))}>
-                      {opsFor(f.key).map(([op, lbl]) => <option key={op} value={op}>{lbl}</option>)}
-                    </select>
+                    <SelectPicker value={f.key}
+                      onChange={(key) => { const ops = opsFor(key); saveFilters(filters.map((x, j) => j === i ? { ...x, key, op: ops[0][0] } : x)); }}
+                      options={orderedCols.filter((c) => !c.key.startsWith('_')).map((c) => ({ value: c.key, label: c.header || c.key }))} />
+                    <SelectPicker value={f.op}
+                      onChange={(op) => saveFilters(filters.map((x, j) => j === i ? { ...x, op } : x))}
+                      options={opsFor(f.key).map(([op, lbl]) => ({ value: op, label: lbl }))} />
                     {meta?.type === 'enum' ? (
-                      <select className="select" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))}>
-                        <option value="">—</option>
-                        {meta.values?.map((v) => <option key={v} value={v}>{v}</option>)}
-                      </select>
+                      <SelectPicker value={f.value} placeholder="—"
+                        onChange={(v) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: v } : x))}
+                        options={meta.values ?? []} />
                     ) : f.op === 'between' ? (
                       <span className="dt-filter-between">
                         <input className="input" value={f.value} onChange={(e) => saveFilters(filters.map((x, j) => j === i ? { ...x, value: e.target.value } : x))} />
@@ -979,10 +972,8 @@ export function DataTable<T>({
                     <div className="dt-cols-role">
                       <label className="field-label" style={{ marginBottom: 4 }}>…or apply it to one role</label>
                       <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                        <select className="select" value={roleTarget} onChange={(e) => setRoleTarget(e.target.value)}>
-                          <option value="">— pick a role —</option>
-                          {ROLE_KEYS.map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                        <SelectPicker value={roleTarget} onChange={setRoleTarget}
+                          placeholder="— pick a role —" options={[...ROLE_KEYS]} />
                         <button className="btn btn-sm" disabled={!roleTarget} onClick={() => void applyToRole(roleTarget)}>
                           Apply to {roleTarget || 'role'}
                         </button>

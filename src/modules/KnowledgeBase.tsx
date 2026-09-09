@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { RichEditor } from '../components/ui/RichEditor';
@@ -503,9 +504,8 @@ export function KnowledgeBase() {
               <input className="input" value={edit.form.title} onChange={(e) => setF('title', e.target.value)} placeholder="e.g. Ventilator won’t power on after a spike" autoFocus /></div>
             <div className="kb-form-row">
               <div className="field"><label className="field-label">Category</label>
-                <select className="select" value={edit.form.category} onChange={(e) => setF('category', e.target.value)}>
-                  {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select></div>
+                <SelectPicker value={edit.form.category} onChange={(v) => setF('category', v)}
+                  options={[...CATEGORIES]} /></div>
               <div className="field"><label className="field-label">Product / model (optional)</label>
                 <input className="input" value={edit.form.product} onChange={(e) => setF('product', e.target.value)} placeholder="Ventilator XT" /></div>
             </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
@@ -341,9 +342,9 @@ export function SoftwareValidation() {
                     <div className="sv-exp"><b>Expected result:</b> {t.expected}</div>
                     {canRecord && supabaseConfigured() ? (
                       <div className="sv-exec">
-                        <select className="select" value={r?.result ?? ''} onChange={(e) => void record(t.id, { result: e.target.value })}>
-                          <option value="">— result —</option><option>Pass</option><option>Fail</option><option>N/A</option>
-                        </select>
+                        <SelectPicker value={r?.result ?? ''} placeholder="— result —"
+                          onChange={(v) => void record(t.id, { result: v })}
+                          options={['Pass', 'Fail', 'N/A']} />
                         <input className="input" placeholder="Actual result / observation" defaultValue={r?.actual ?? ''} onBlur={(e) => { if (e.target.value !== (r?.actual ?? '')) void record(t.id, { actual: e.target.value }); }} />
                         <input className="input sv-exec-tester" placeholder="Tester" defaultValue={r?.tester ?? ''} onBlur={(e) => { if (e.target.value !== (r?.tester ?? '')) void record(t.id, { tester: e.target.value }); }} />
                         {r?.executed_at && <span className="sv-ref">{new Date(r.executed_at).toLocaleDateString()}</span>}

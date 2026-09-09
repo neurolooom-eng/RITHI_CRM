@@ -108,7 +108,10 @@ next one; `check:ui` fails a NEW `<select>` in a module and holds a shrinking
 list of the ones still to convert.
 **Standard Complaint takes no fallback anywhere** — the register (callFields),
 the Visit Report and the Call Registration request all lost their free-text
-branch. ~53 `<select>`s remain across the other modules; the sweep continues.
+branch. **The sweep is FINISHED** (2026-09-09, v0.9.180): all ~50 converted, and the
+guard is now absolute — `check:ui` fails on **any** native `<select>` in `src/`,
+not against a shrinking list of exceptions. A list of "still to convert" was
+right while the conversion was in flight and a loophole once it was done.
 
 📌 **Indoor Service — the ACTIVITY TYPES are settled, the plan is extended**
 (2026-09-09). Vignesh gave four (recycling/rework, pre-delivery checking, demo,

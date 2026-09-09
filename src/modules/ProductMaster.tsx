@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
@@ -137,10 +138,9 @@ export function ProductMaster() {
         <input className="input" placeholder="Party" value={f.party} onChange={(e) => set('party', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
         <input className="input" placeholder="Product" value={f.product} onChange={(e) => set('product', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
         <input className="input" placeholder="Serial Number" value={f.serial} onChange={(e) => set('serial', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
-        <select className="select" value={f.status} onChange={(e) => { const v = e.target.value; set('status', v); void run({ ...f, status: v }); }}>
-          <option value="">Any status</option>
-          {ITEM_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <SelectPicker value={f.status ?? ''} placeholder="Any status"
+          onChange={(v) => { set('status', v); void run({ ...f, status: v }); }}
+          options={[...ITEM_STATUS]} />
         <input className="input prod-global" placeholder="🔎 Global search…" value={f.q} onChange={(e) => set('q', e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void run()} />
         <button className="btn btn-primary" onClick={() => void run()} disabled={busy}>{busy ? '…' : 'Search'}</button>
         <button className="btn" onClick={clear} disabled={busy}>Clear</button>

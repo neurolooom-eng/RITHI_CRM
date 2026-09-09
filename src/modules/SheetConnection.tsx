@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { SectionCard } from '../components/ui/ui';
 import { getSheetsTab, getSheetsUrl, pingSheet, setSheetsTab, setSheetsUrl } from '../lib/sheets';
 import './fieldcalls.css';
@@ -70,12 +71,8 @@ export function SheetConnection({ readOnly = false }: { readOnly?: boolean }) {
       <div className="sheet-conn-row" style={{ marginTop: 10 }}>
         <label className="muted" style={{ alignSelf: 'center', minWidth: 120 }}>Field Calls tab:</label>
         {tabs.length > 0 ? (
-          <select className="select" value={tab} disabled={readOnly} onChange={(e) => setTab(e.target.value)}>
-            <option value="">(auto-detect: UC Number tab)</option>
-            {tabs.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
+          <SelectPicker value={tab} disabled={readOnly} onChange={setTab}
+            placeholder="(auto-detect: UC Number tab)" options={tabs} />
         ) : (
           <input
             className="input"
