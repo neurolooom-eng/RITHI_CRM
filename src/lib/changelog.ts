@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.173',
+    date: '2026-09-09',
+    title: 'The admin check now answers the question it was asked',
+    changes: [
+      'THE CHECK FOR "WHY CAN\u2019T I MAKE SOMEONE AN ADMIN?" WAS USELESS WHERE YOU RUN IT. It asked about whoever was signed in \u2014 and in the SQL editor nobody is, so every line came back "not signed in". My mistake.',
+      'It now takes an EMAIL ADDRESS and answers about that person from the records, needing no login at all. It says in one line whether they can grant Admin, and which of the two checks is stopping them.',
+      'AND IT LISTS WHO CAN, so if the answer is no you know who to ask rather than guessing.',
+    ],
+  },
+  {
     version: '0.9.172',
     date: '2026-09-09',
     title: 'A Zoho Migration role',
