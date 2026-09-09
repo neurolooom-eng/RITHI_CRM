@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.174',
+    date: '2026-09-09',
+    title: 'A customer is the same customer whatever its capitals',
+    changes: [
+      'A PARTY SPELLED IN CAPITALS AND THE SAME PARTY IN TITLE CASE NOW SHOW THE SAME MACHINES. Picking the party found its details either way, but its products only appeared if the capitals matched exactly \u2014 so a customer that plainly owns machines looked as though it owned none.',
+      'THE PARTY LIST ITSELF WAS NEVER THE PROBLEM: it cannot hold the same name twice. The two spellings were on the PRODUCTS, left there by an import.',
+      'Nothing needs running for this \u2014 the register is right as soon as the app updates. There is a tidy-up script that brings the stored spellings into line as well, and it shows you what it would change before it changes anything.',
+    ],
+  },
+  {
     version: '0.9.173',
     date: '2026-09-09',
     title: 'The admin check now answers the question it was asked',
