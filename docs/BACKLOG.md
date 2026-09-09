@@ -309,14 +309,32 @@ having gone and looked, and a nudge a stray click switches off has not done its
 job. `check:ui` refuses an `infinite` animation and a version that never marks
 itself seen.
 
-**It INVERTS rather than tints**, per this project's standing rule — a pale wash
-of the accent is what was reached for first elsewhere and did not read on screen
-at all. Inverting also works in both themes by construction.
+⚠️ **THE FIRST VERSION INVERTED AGAINST THE PAGE, AND THAT WAS WRONG — fixed in
+v0.9.187 after the user: "flashing has to be a contrast colour".** Not a matter
+of taste. "Highlight by inverting" uses `--text` on `--surface`, which are the
+PAGE's tokens — and this heading is not on the page, it is in the **SIDEBAR**,
+which carries its own palette. `--text` is a near-black and the sidebar ground is
+a deep blue (#1f3559 in ALMS). A near-black box on a deep-blue ground is barely a
+change: **the standing rule was applied with the wrong pair of tokens**, so the
+flash hardly showed. Worth remembering as its own trap — the invert rule assumes
+the page's ground, and the sidebar is the one place in this app that has another.
+
+**It is now a fixed, saturated colour** — the OTHER half of the same rule, and
+the half that fits here. Amber, because all eight sidebar themes are DARK grounds
+(deep blue, teal, clinical blue, emerald, violet, sunset brown and two
+near-blacks), so one warm bright colour contrasts with every one of them. A
+literal rather than a token on purpose: a token would have to be defined eight
+times to say the same thing, and the day somebody adds a LIGHT sidebar theme is
+the day this needs revisiting — which a literal makes obvious and a token would
+hide. Deliberately **none of the four call-status hues**, which are a code people
+have learned to read; `check:ui` refuses those and refuses the page-token invert
+coming back.
 
 **And `prefers-reduced-motion` gets a steady marker rather than nothing.**
 Repeated luminance change is exactly what some people cannot have; dropping the
 signal for those readers would be the lazy reading of that setting, so it becomes
-an inset bar that says the same thing without moving.
+an inset bar in the SAME colour that says the same thing without moving — a
+fallback in a different colour would be a second thing to learn for no reason.
 
 **4 (as first reported). "Where is the blinking feature for knowledge base?" — it
 had never existed in this repository.** `git log -S"blink"` across all of `src/` returns nothing,

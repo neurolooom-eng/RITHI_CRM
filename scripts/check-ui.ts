@@ -2461,13 +2461,24 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
     && !/infinite/.test(flashRule), true);
   eq('...and opening a page in the group ends it for good',
     /markSeen\(group\.title\)/.test(nav) && /localStorage\.setItem\('rithi\.nav\.seen'/.test(nav), true);
-  // It must INVERT rather than tint — the project's standing rule, and what
-  // makes it read in both themes without a hand-picked highlight colour.
-  eq('...and it inverts against the page rather than washing it',
-    /background: var\(--text\); color: var\(--surface\)/.test(navCss), true);
+  // A CONTRAST COLOUR, and specifically NOT the page's invert pair. The heading
+  // lives in the SIDEBAR, whose ground is dark in all eight themes; `--text` is
+  // a near-black, so inverting with the page's tokens put a dark box on a dark
+  // ground and the flash barely showed. This asserts the peak frame is a solid
+  // literal, and that the page tokens have not crept back in.
+  const flashFrames = /@keyframes nav-group-flash \{[\s\S]*?\n\}/.exec(navCss)?.[0] ?? '';
+  eq('the flash peaks on a solid contrast colour, not the page invert',
+    /50%\s*\{ background: #[0-9a-f]{6}; color: #[0-9a-f]{3,6}; \}/i.test(flashFrames)
+    && !/var\(--text\)|var\(--surface\)/.test(flashFrames), true);
+  // ...and it must not borrow a call-status hue: those are a code people have
+  // learned to read, and a nav heading is not a call state.
+  eq('...and it is none of the call-status colours',
+    !/#dc2626|#ef4444|#2563eb|#3b82f6|#ec4899|#db2777|#16a34a|#22c55e/i.test(flashFrames), true);
   // A repeated luminance change is exactly what some readers cannot have.
-  eq('...and reduced motion gets a steady marker, not nothing',
-    /prefers-reduced-motion: reduce\)\s*\{[\s\S]{0,200}\.nav-group-flash[\s\S]{0,160}box-shadow/.test(navCss), true);
+  // The steady marker carries the SAME colour — a fallback in a different
+  // colour is a second thing to learn for no reason.
+  eq('...and reduced motion gets a steady marker in that same colour',
+    /prefers-reduced-motion: reduce\)\s*\{[\s\S]{0,300}\.nav-group-flash[\s\S]{0,200}box-shadow[^;]*#fbbf24/.test(navCss), true);
   // THE PANEL MUST NOT BE ABLE TO VANISH. It used to return null whenever
   // nothing matched, which on screen is indistinguishable from the feature
   // having been removed — and that is exactly how it was reported. It now
