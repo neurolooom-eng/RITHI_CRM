@@ -203,6 +203,18 @@ export function RequestCallRegistration() {
                   <div className="reg-detail-v">{String(v)}</div>
                 </div>
               ))}
+            {/* THE SUBMITTED REQUEST, not just the form. This drawer was missed
+                when supporting documents were added to the request (reported
+                2026-09-09): they reached the NEW-request form and the Pending
+                Registrations pane, but not the view of a request already sent —
+                which is the one somebody opens days later to ask what happened.
+                Same component, same matching rule, everywhere the three fields
+                exist. */}
+            <SupportingDocs
+              product={String(detail.product ?? '')}
+              complaint={String(detail.standardComplaint ?? '')}
+              reported={String(detail.reportedProblem ?? '')}
+            />
           </div>
         )}
       </Drawer>

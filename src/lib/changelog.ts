@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.185',
+    date: '2026-09-09',
+    title: 'Supporting documents say when there are none, and Knowledge Base moves up the menu',
+    changes: [
+      'SUPPORTING DOCUMENTS NEVER SILENTLY DISAPPEAR NOW. The panel used to vanish from a call whenever no manual or article matched the machine \u2014 which looks exactly like the feature having been taken away. It now stays, and says whether nothing is filed for that product yet and where manuals are added.',
+      'THE SUBMITTED REQUEST SHOWS THEM TOO. They reached the new-request form and Pending Registrations but not the view of a request already sent \u2014 which is the one you open days later to ask what happened to it.',
+      'KNOWLEDGE BASE HAS MOVED UP THE MENU, above Service Calls. It was left at the bottom where Help used to be, which is where you put something people are assumed to already know.',
+    ],
+  },
+  {
     version: '0.9.184',
     date: '2026-09-09',
     title: 'Adding a how-to article now says where it will appear',

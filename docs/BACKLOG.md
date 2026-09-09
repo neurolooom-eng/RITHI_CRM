@@ -268,6 +268,45 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **FOUR THINGS REPORTED AFTER v0.9.184, and what each turned out to be**
+(2026-09-09, v0.9.185).
+
+**1. "Why was supporting document removed from CALLS?" — it was NOT removed, and
+that is the bug.** The component is still rendered on the call view and the only
+change it took was a debounce. What it did was `return null` whenever no manual
+and no article matched — and a panel that is *sometimes absent* cannot be told
+from one that is broken. The silence was a deliberate choice ("an empty panel on
+every call would be noise") and it was the wrong one: nobody can learn from an
+absence that the answer is "no manual is filed for this machine yet". It now
+renders either way and says which of the two it is, disappearing only where the
+call names no product, complaint or reported problem at all — then there is
+genuinely no question to answer. **`check:ui` now refuses a version that can
+vanish.**
+
+**2. "Where is it in Registration request view? for the submitted calls?" — a
+real miss.** Supporting documents reached the NEW-request form and the Pending
+Registrations pane, but not the drawer that shows a request already SUBMITTED —
+which is the one somebody opens days later to ask what happened to it. Added,
+and `check:ui` counts the usages so a third place cannot be forgotten the same
+way.
+
+**3. "Why did the knowledge base not move up (before Service calls)?"** — it was
+left where "Help" had been, at the bottom, which is where you put something
+people are assumed to already know. It is now above Service Calls: it is read
+BEFORE the work, not after it. Asserted by POSITION in `Layout.tsx`, which is the
+order the menu renders.
+
+**4. "Where is the blinking feature for knowledge base?" — it has never existed
+in this repository.** `git log -S"blink"` across all of `src/` returns nothing,
+and no changelog entry mentions one. The nearest thing that does exist is the
+**jump-strip highlight** on the guide: clicking a task in the strip scrolls to it
+and rings that section for 1.6 seconds (`.kb-jumped`, a 2px outline). That
+survived the split and now lives on **How to Use RITHI CRM** — it went with the
+guide, so it is no longer on the Field Solutions page, which may be where it was
+looked for. **Not invented as a fix**: if a blinking or attention marker on the
+nav entry is wanted, it needs saying what should make it blink and when it should
+stop.
+
 ✅ **INDOOR SERVICE PHASE 1 IS LIVE — VERIFIED (2026-09-09).** The user ran
 `indoor.sql` and pasted the `_status.sql` output: **row 120 reads `yes`**.
 

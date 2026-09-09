@@ -2420,6 +2420,11 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
   const docGroup = /title: 'Documents',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
   eq('...and is no longer under Documents as well',
     docGroup !== '' && !/to: '\/service-manuals'/.test(docGroup), true);
+  // ABOVE Service Calls, because it is read BEFORE the work rather than after
+  // it. Compared by POSITION in the file, which is the order the menu renders.
+  eq('...and the whole group sits above Service Calls',
+    nav.indexOf("title: 'Knowledge Base'") < nav.indexOf("title: 'Service Calls'"), true);
+
 
   // The guide is a real route, or the nav entry is a dead link.
   eq('How to Use has a route of its own',
@@ -2442,6 +2447,20 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
   const pend = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
   const req = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
   eq('SupportingDocs is exported once', /export function SupportingDocs/.test(assoc), true);
+  // THE PANEL MUST NOT BE ABLE TO VANISH. It used to return null whenever
+  // nothing matched, which on screen is indistinguishable from the feature
+  // having been removed — and that is exactly how it was reported. It now
+  // renders a note instead, and only disappears when the call names nothing to
+  // match on at all.
+  eq('supporting documents say why they are empty rather than disappearing',
+    /const empty = !manuals\.length && !articles\.length/.test(assoc)
+    && /No service manual or article is filed/.test(assoc), true);
+
+  // EVERY place a request is looked at, not just two of them. The submitted
+  // request drawer was missed the first time.
+  eq('the SUBMITTED request drawer offers them too',
+    /detail\.standardComplaint[\s\S]{0,200}\/>/.test(req)
+    && (req.match(/<SupportingDocs/g) ?? []).length >= 2, true);
   eq('the request VIEW offers them',
     /import \{ SupportingDocs \} from '\.\/CallAssociations'/.test(pend)
     && /<SupportingDocs/.test(pend), true);

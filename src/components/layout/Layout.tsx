@@ -72,6 +72,33 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // ABOVE SERVICE CALLS (the user, 2026-09-09: "why did the knowledge base
+    // not move up (before Service calls) -- rearrange it"). It was left at the
+    // bottom where "Help" had been, which is where you put a thing people are
+    // assumed to already know. It is read BEFORE the work, not after it, so it
+    // sits above the registers.
+    //
+    // KNOWLEDGE BASE IS THE HEADING NOW (the user, 2026-09-09: "Promote
+    // Knowledge Base to a heading with 1 topic - how to use"), where it used to
+    // be a single item under "Help". Everything somebody READS to do the job
+    // sits under it.
+    //
+    // HOW TO USE IS FIRST because it is what a new starter needs first — it
+    // used to be the bottom half of the Knowledge Base page, below a wall of
+    // team articles.
+    //
+    // FIELD SOLUTIONS IS HERE RATHER THAN GONE. The ask named one topic and
+    // then added Service Manuals; the team's articles are a third thing and
+    // dropping the entry would leave them written but unreachable except
+    // through a call. It is one line to remove if it is not wanted.
+    title: 'Knowledge Base',
+    items: [
+      { to: '/knowledge-base/how-to', label: 'How to Use RITHI CRM', icon: '📖', alwaysOpen: true },
+      { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
+      { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
+    ],
+  },
+  {
     title: 'Service Calls',
     items: [
       { to: '/request-registration', label: 'Request Registration', icon: '📝' },
@@ -146,27 +173,6 @@ export const NAV: NavGroup[] = [
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },
       { to: '/version-history', label: 'Version History', icon: '🗂️' },
-    ],
-  },
-  {
-    // KNOWLEDGE BASE IS THE HEADING NOW (the user, 2026-09-09: "Promote
-    // Knowledge Base to a heading with 1 topic - how to use"), where it used to
-    // be a single item under "Help". Everything somebody READS to do the job
-    // sits under it.
-    //
-    // HOW TO USE IS FIRST because it is what a new starter needs first — it
-    // used to be the bottom half of the Knowledge Base page, below a wall of
-    // team articles.
-    //
-    // FIELD SOLUTIONS IS HERE RATHER THAN GONE. The ask named one topic and
-    // then added Service Manuals; the team's articles are a third thing and
-    // dropping the entry would leave them written but unreachable except
-    // through a call. It is one line to remove if it is not wanted.
-    title: 'Knowledge Base',
-    items: [
-      { to: '/knowledge-base/how-to', label: 'How to Use RITHI CRM', icon: '📖', alwaysOpen: true },
-      { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
-      { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
     ],
   },
 ];
