@@ -1928,5 +1928,33 @@ console.log('\n-- call aging, and where the clock stops --');
     /out\.agingDays = age\.days;/.test(sb), true);
 }
 
+console.log('\n-- every page in the menu has a permission --');
+{
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const paths = new Set(MODULES.map((m) => m.path));
+
+  // A PAGE WITH NO KEY CANNOT BE GRANTED, WITHHELD OR SEEN on Roles &
+  // Permissions. Two shipped that way — PM Bulk Upload and Software Validation
+  // — and neither was noticeable, because an admin-only item is gated on
+  // `manage-users` and appears for an administrator regardless. Found by
+  // comparing the two lists rather than by reading either, which is what this
+  // does on every run.
+  const navItems = [...lay.matchAll(/\{ to: '([^']+)'[^}]*\}/g)].map((m) => m[0]);
+  const unkeyed = navItems
+    .filter((s) => !/alwaysOpen/.test(s))          // help pages are deliberately open to all
+    .map((s) => ({
+      to: (/to: '([^']+)'/.exec(s) ?? [])[1] ?? '',
+      perm: (/perm: '([^']+)'/.exec(s) ?? [])[1] ?? '',
+    }))
+    .filter((x) => !paths.has(x.perm ? x.perm.replace('mod:', '') : x.to))
+    .map((x) => x.to);
+  eq('every RBAC-gated menu item is a module', unkeyed, []);
+
+  // The matrix is read next to the menu, so its headers follow the menu's.
+  const rb = readFileSync('src/lib/rbac.ts', 'utf8');
+  eq('Reports is a header in the matrix, as it is in the menu',
+    /\{ title: 'Reports', pages: \[/.test(rb), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -584,6 +584,17 @@ with checks(sort_order, bundle, provides, present) as (
         -- NOT a definer: that is the property, not the presence of the function.
      and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                       where n.nspname='public' and p.proname='spare_insights' and p.prosecdef))),
+    (114, 'RBAC: the stored roles carry every page', 'A new page is INVISIBLE until a role holds its key: DEFAULT_PERMS in the app is only a fallback for a role whose app_roles row is EMPTY, and every role here has a populated row. So adding a module in code grants it to nobody -- the nav asks can(''mod:/x''), the stored list lacks it, and the page never appears, with no error. 0151 catches the stored rows up: Spare Insights to every role that already holds consumption.view (derived, so an administrator''s own tuning decides it), and PM Bulk Upload + Software Validation to admin and technical_support -- the latter because "every module key the admin holds" is what that role IS, and a new admin page skipping it would break that silently. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+      or (exists (select 1 from public.app_roles where role = 'admin'
+                   and permissions ?& array['mod:/spare-insights','mod:/pm-bulk-upload','mod:/software-validation'])
+         -- The property, not the presence: Technical Support must still hold
+         -- every module key the admin does.
+     and not exists (
+           select 1 from public.app_roles a, lateral jsonb_array_elements_text(a.permissions) m(v)
+            where a.role = 'admin' and m.v like 'mod:%'
+              and not exists (select 1 from public.app_roles ts
+                               where ts.role = 'technical_support' and ts.permissions ? m.v))))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

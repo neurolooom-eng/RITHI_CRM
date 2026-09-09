@@ -43,6 +43,13 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
+rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
+is invisible to everyone but an administrator**. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
 ⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
 with this file: eight items added (0150), the three parked decisions and the
 13485 findings. Additive and idempotent by title; nothing already on the list is
