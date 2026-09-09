@@ -1972,6 +1972,27 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   // The row's own value survives a master that no longer lists it.
   eq('a complaint off the master is still offered',
     /withCurrent\(complaintMaster\.values, it\.standardComplaint\)/.test(rq), true);
+
+  // SERIAL TOO (2026-09-09). A hospital can own dozens of the same machine
+  // whose serials differ by a digit in the middle.
+  eq('the serial is picked with a PickList',
+    /<PickList[\s\S]{0,400}onPick=\{\(v\) => setItem\(i, 'serial', v\)\}/.test(rq), true);
+  eq('...and no native <option> list is left over the serials',
+    /\{serials\.map\(\(v\) => <option/.test(rq), false);
+  eq('a serial the list no longer offers is still shown',
+    /withCurrent\(serials, it\.serial\)/.test(rq), true);
+
+  // THE EMPTY BOX IS DOING WORK. Four sentences, each naming what to do next;
+  // "every serial is already on this request" stops somebody hunting for a
+  // machine that is on the form two rows up. A generic "— select —" would say
+  // none of it, which is why PickList takes `emptyLabel` at all.
+  for (const phrase of ['pick a product first', 'pick a serial',
+                        'every serial is already on this request', 'no serial on record']) {
+    eq(`the serial box still says "${phrase}"`, rq.includes(phrase), true);
+  }
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  eq('...and PickList shows it rather than a generic label',
+    /\{value \|\| emptyLabel\}/.test(pl), true);
 }
 
 console.log('\n-- Reports: access one report at a time --');

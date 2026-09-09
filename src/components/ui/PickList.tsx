@@ -29,11 +29,18 @@ export interface PickListProps {
   // Shown under the list when a search matches nothing — the place to say
   // where new values come from.
   emptyHint?: string;
+  // What the CLOSED box reads when nothing is chosen. Defaults to "— select —",
+  // but an empty list often means something specific and worth saying: the
+  // request form's serial box has four of these ("pick a product first", "every
+  // serial is already on this request"), and losing them to a generic label
+  // would make the screen quieter and less useful at the same time.
+  emptyLabel?: string;
   id?: string;
 }
 
 export function PickList({
-  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint, id,
+  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
+  emptyLabel = '— select —', id,
 }: PickListProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -103,7 +110,7 @@ export function PickList({
           disabled={disabled}
           onClick={openList}
         >
-          <span>{value || '— select —'}</span>
+          <span>{value || emptyLabel}</span>
           <span className="picklist-caret" aria-hidden="true">▾</span>
         </button>
       )}

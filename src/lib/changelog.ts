@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.164',
+    date: '2026-09-09',
+    title: 'Type to find the Serial No too',
+    changes: [
+      'THE SERIAL NUMBER IS SEARCHED NOW, NOT SCROLLED, the same way the Standard Complaint is. Type any part of it \u2014 the middle, the end \u2014 and the list narrows. A hospital with a dozen of the same machine has a dozen serials that differ by one digit somewhere in the middle, which is exactly what a scrolling list is worst at.',
+      'TYPING STILL ONLY FILTERS. The serial changes when you click one or press Enter on it, and at no other moment.',
+      'And the box still tells you what is going on when it is empty \u2014 including \u201Cevery serial is already on this request\u201D, which saves hunting for a machine that is already on the form two rows up.',
+    ],
+  },
+  {
     version: '0.9.163',
     date: '2026-09-09',
     title: 'Frequent Failure now asks what the procedure asks',
