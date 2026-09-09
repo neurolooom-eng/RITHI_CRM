@@ -15,7 +15,7 @@ import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
@@ -2117,6 +2117,30 @@ console.log('\n-- Spare Request and Consumption pick the part the same way --');
   // string, or every downstream match on the CODE breaks.
   eq('the search still matches the value, not the label',
     /options\.filter\(\(o\) => o\.toLowerCase\(\)\.includes\(q\)\)/.test(pl), true);
+}
+
+console.log('\n-- every SQL bundle named in the docs actually exists there --');
+{
+  // THE LINK IS THE DELIVERABLE. Applying SQL is the user's step and the
+  // standing rule is to hand over the link, not the file name — so a link to a
+  // path that does not exist wastes the one action being asked for. It has
+  // happened once: `Spare_1.sql` and `HandStock_X.sql` are written to the
+  // REPOSITORY ROOT, not `supabase/apply/`, being the two numbered consolidated
+  // files handed round, and both were linked under supabase/apply/ and 404'd.
+  const texts: [string, string][] = [
+    ['docs/BACKLOG.md', readFileSync('docs/BACKLOG.md', 'utf8')],
+    ['src/lib/changelog.ts', readFileSync('src/lib/changelog.ts', 'utf8')],
+  ];
+  const missing: string[] = [];
+  for (const [where, text] of texts) {
+    // Paths as they appear in a raw/blob URL after the branch, and bare
+    // `supabase/apply/x.sql` mentions in prose.
+    const paths = new Set<string>();
+    for (const m of text.matchAll(/(?:RITHI_CRM\/(?:blob|main)\/main\/|RITHI_CRM\/main\/)([A-Za-z0-9_./-]+\.sql)/g)) paths.add(m[1]);
+    for (const m of text.matchAll(/(?<![\w/])(supabase\/apply\/[A-Za-z0-9_.-]+\.sql)/g)) paths.add(m[1]);
+    for (const p of paths) if (!existsSync(p)) missing.push(`${where} → ${p}`);
+  }
+  eq('no doc links to a bundle that is not there', missing, []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

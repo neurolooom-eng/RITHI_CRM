@@ -43,15 +43,18 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
-⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — 0154 adds `complaint` to
+⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — at the REPOSITORY ROOT,
+not under `supabase/apply/`: it and `HandStock_X.sql` are the two numbered
+consolidated files handed round, where the number is a revision. (A link to the
+`supabase/apply/` path was given first and 404'd.) 0154 adds `complaint` to
 `spare_pending_rm` so RM Approval can show what the spare is being asked for
 (`_status.sql` row 116). Everything else the screen gained was already in the
 view. The view is **dropped and rebuilt**, not replaced — `create or replace`
 can only append, and 0116's narrower definition has to stay replayable after
 this; `security_invoker` is re-asserted, and `check:views` passes. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/Spare_1.sql> ·
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/Spare_1.sql> ·
 copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/Spare_1.sql>
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql>
 
 ⚠️ **PENDING: `daily_review.sql`** (2026-09-09, v0.9.163) — 0153 replaces the
 frequent-failure test with the procedure's own rule (`_status.sql` row 77).

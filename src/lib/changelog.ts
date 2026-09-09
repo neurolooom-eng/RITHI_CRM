@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.166',
+    date: '2026-09-09',
+    title: 'Correction: where Spare_1.sql actually lives',
+    changes: [
+      'THE LINK GIVEN FOR Spare_1.sql WAS WRONG and did not open. The file is at the top of the repository, not in the supabase/apply folder \u2014 it and HandStock_X.sql are the two numbered files handed round, so they sit apart from the rest. The file itself was always correct; only the link was not.',
+      'The app now refuses to ship a link to a SQL file that is not where it says it is.',
+    ],
+  },
+  {
     version: '0.9.165',
     date: '2026-09-09',
     title: 'Type to find a spare, and RM Approval shows the whole request',
@@ -20,7 +29,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'ON A SPARE REQUEST THE PART MUST BE ONE THAT EXISTS. The old box let you type anything, and anything typed by hand is a code that dispatch, hand stock and the not-consumed report will all fail to match. It also only ever offered the first 2,000 parts; the whole master is searchable now.',
       'CONSUMPTION STILL SHOWS WHAT IS IN HAND on every row \u2014 it is the number that decides whether the line can be booked at all.',
       'RM APPROVAL CARRIES THE REQUEST, NOT JUST THE PART: serial number, call number, complaint, request type and date, remarks and the HandStock reason, alongside the customer and product it already had. Approving a spare means judging it against a machine and a fault, and neither was on the screen.',
-      'The search box on that queue finds a serial or a call number too. Needs supabase/apply/Spare_1.sql for the complaint column \u2014 everything else appears as soon as the app updates.',
+      'The search box on that queue finds a serial or a call number too. Needs Spare_1.sql (at the repository root) for the complaint column \u2014 everything else appears as soon as the app updates.',
     ],
   },
   {
