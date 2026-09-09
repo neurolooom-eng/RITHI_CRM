@@ -99,6 +99,19 @@ Read-only diagnosis:
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
 
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.178) — 0156 revokes
+**mmdev74@gmail.com** (`_status.sql` row 118). SUPER ADMIN IS THREE PLACES and
+all three change together: `app_super_admins` (what Postgres allows),
+`SUPER_ADMINS` in `src/lib/auth.tsx` (what the browser offers — shipped in the
+same change, and `check:ui` now compares the two lists), and `profiles.role`,
+because `is_admin()` is `role = 'admin'` **OR** the super-admin row, so dropping
+only the row can leave an ordinary Admin standing. Downgraded to `engineer` —
+the least this codebase can express; there is no "no access" ROLE, and locking
+the account out entirely means deactivating the User Master row, which was NOT
+assumed. 0156 sits AFTER 0008 in the module, so replaying the bundle re-seeds
+and then revokes rather than restoring a super admin.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
 ✅ **THE FOUR BUNDLES ARE APPLIED — VERIFIED (2026-09-09).** `rbac.sql`,
 `performance.sql`, `daily_review.sql` and `Spare_1.sql` were run, and the
 `_status.sql` output was read back: **every row `yes`**, rows 113–117 included.

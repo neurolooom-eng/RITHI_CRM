@@ -130,6 +130,10 @@ const MODULES = {
             // AFTER 0145: it clones the technical_support row, so that row has
             // to exist by the time this runs.
             '0155_zoho_migration_role.sql',
+            // AFTER 0008, which seeds app_super_admins: replaying this bundle
+            // runs that insert and then this delete, so the revocation holds.
+            // The other order would restore a super admin on every replay.
+            '0156_remove_super_admin_mmdev74.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it

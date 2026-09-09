@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.178',
+    date: '2026-09-09',
+    title: 'A super admin account is revoked',
+    changes: [
+      'mmdev74@gmail.com IS NO LONGER A SUPER ADMIN OR AN ADMIN. Super Admin was three separate things \u2014 what the app offers, what the database allows, and the role on the account \u2014 and all three are withdrawn together. Leaving any one of them would have kept real access, or left a screen full of buttons that quietly do nothing.',
+      'The account is now an ordinary Engineer. If the intention is that this person should not sign in at all, that is a different step \u2014 mark the User Master row inactive \u2014 and it has deliberately not been assumed.',
+      'The app now refuses to ship a super-admin list that disagrees with the database\u2019s own.',
+      'Needs supabase/apply/rbac.sql.',
+    ],
+  },
+  {
     version: '0.9.177',
     date: '2026-09-09',
     title: 'The four database updates are in, and checked',
