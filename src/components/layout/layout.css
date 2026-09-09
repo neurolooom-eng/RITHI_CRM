@@ -561,3 +561,43 @@
 }
 .app-newbuild .btn { background: #fff; color: var(--primary, #3b6fd4); border-color: #fff; }
 .app-newbuild .btn-ghost { background: transparent; color: #fff; border-color: transparent; }
+
+/* ---------------------------------------------------------------------------
+   A HEADING THAT FLASHES UNTIL SOMEBODY HAS BEEN THERE.
+
+   The user, 2026-09-09: "can u make a heading flash??" — for Knowledge Base,
+   which people have to know exists before they will go looking for it.
+
+   IT INVERTS, IT DOES NOT TINT. "Highlight means CONTRAST" is this project's
+   standing rule: a pale wash of the accent did not read on screen at all, so
+   the flash swaps the heading's ink and ground against the page. That also
+   makes it work in both themes by construction, which a hand-picked highlight
+   colour does not.
+
+   AND IT STOPS. Six flashes over about five seconds, then it rests as a plain
+   heading; opening any page in the group ends it for good on that device. A
+   heading that flashes for ever is not a signal, it is wallpaper — people stop
+   seeing it within a day, and it has cost them attention for nothing.
+   --------------------------------------------------------------------------- */
+@keyframes nav-group-flash {
+  0%, 100% { background: transparent; color: inherit; }
+  50%      { background: var(--text); color: var(--surface); }
+}
+.nav-group-flash {
+  border-radius: 5px;
+  /* `both` so the last iteration lands back on the 100% frame — without it the
+     heading snaps out of the final flash mid-colour. */
+  animation: nav-group-flash 0.85s ease-in-out 6 both;
+}
+
+/* A FLASH IS EXACTLY WHAT SOME PEOPLE CANNOT HAVE. Vestibular disorders and
+   photosensitivity make repeated luminance changes genuinely unpleasant, and
+   they are the reason this media query exists. The signal is NOT dropped for
+   those readers — it becomes a steady marker, which says the same thing without
+   moving. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-group-flash {
+    animation: none;
+    box-shadow: inset 2px 0 0 0 var(--text);
+  }
+}

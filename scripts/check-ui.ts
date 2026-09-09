@@ -2404,7 +2404,11 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
   // The heading exists and carries the topics. Checked as a GROUP TITLE, not
   // merely as text somewhere in the file — a comment mentioning it would pass
   // a looser test.
-  const kbGroup = /title: 'Knowledge Base',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
+  // Tolerant of other properties between the title and the items — `flash: true`
+  // sits there now, and pinning the two as adjacent broke three assertions the
+  // moment it was added. Match up to `items:` rather than assuming what follows
+  // the title.
+  const kbGroup = /title: 'Knowledge Base',[\s\S]*?items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
   eq('Knowledge Base is a nav heading, not an item under Help',
     kbGroup !== '' && !/title: 'Help'/.test(nav), true);
   // FIRST, not merely present: it is what a new starter needs first, and the
@@ -2417,7 +2421,7 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
     /to: '\/service-manuals'/.test(kbGroup), true);
   // ...and OUT of Documents, or it is in the menu twice, which is worse than
   // being in the wrong place: two entries that go to one page.
-  const docGroup = /title: 'Documents',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
+  const docGroup = /title: 'Documents',[\s\S]*?items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
   eq('...and is no longer under Documents as well',
     docGroup !== '' && !/to: '\/service-manuals'/.test(docGroup), true);
   // ABOVE Service Calls, because it is read BEFORE the work rather than after
@@ -2447,6 +2451,23 @@ console.log('\n-- Knowledge Base is a heading, and supporting docs reach a reque
   const pend = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
   const req = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
   eq('SupportingDocs is exported once', /export function SupportingDocs/.test(assoc), true);
+  // THE FLASHING HEADING must be able to STOP. A heading that flashes for ever
+  // is wallpaper: people stop seeing it within a day, and it has cost them
+  // attention for nothing. Two independent stops, and both are asserted.
+  const navCss = readFileSync('src/components/layout/layout.css', 'utf8');
+  const flashRule = /\.nav-group-flash \{[\s\S]*?\}/.exec(navCss)?.[0] ?? '';
+  eq('the flash runs a fixed number of times, never infinite',
+    flashRule !== '' && /animation: nav-group-flash [^;]*\s\d+\s/.test(flashRule)
+    && !/infinite/.test(flashRule), true);
+  eq('...and opening a page in the group ends it for good',
+    /markSeen\(group\.title\)/.test(nav) && /localStorage\.setItem\('rithi\.nav\.seen'/.test(nav), true);
+  // It must INVERT rather than tint — the project's standing rule, and what
+  // makes it read in both themes without a hand-picked highlight colour.
+  eq('...and it inverts against the page rather than washing it',
+    /background: var\(--text\); color: var\(--surface\)/.test(navCss), true);
+  // A repeated luminance change is exactly what some readers cannot have.
+  eq('...and reduced motion gets a steady marker, not nothing',
+    /prefers-reduced-motion: reduce\)\s*\{[\s\S]{0,200}\.nav-group-flash[\s\S]{0,160}box-shadow/.test(navCss), true);
   // THE PANEL MUST NOT BE ABLE TO VANISH. It used to return null whenever
   // nothing matched, which on screen is indistinguishable from the feature
   // having been removed — and that is exactly how it was reported. It now

@@ -26,6 +26,16 @@ interface NavItem {
 interface NavGroup {
   title: string;
   items: NavItem[];
+  // FLASH THIS HEADING UNTIL SOMEBODY HAS BEEN THERE (the user, 2026-09-09:
+  // "can u make a heading flash??"). Set on Knowledge Base, which people have
+  // to know exists before they will look for it.
+  //
+  // IT STOPS, AND THAT IS THE WHOLE DESIGN. A heading that flashes for ever is
+  // not a signal, it is wallpaper: people stop seeing it within a day and it
+  // has then cost them attention for nothing. This one runs a handful of
+  // flashes and rests, and the moment anybody OPENS a page in the group it is
+  // finished for good on that device.
+  flash?: boolean;
 }
 
 export const NAV: NavGroup[] = [
@@ -92,6 +102,7 @@ export const NAV: NavGroup[] = [
     // dropping the entry would leave them written but unreachable except
     // through a call. It is one line to remove if it is not wanted.
     title: 'Knowledge Base',
+    flash: true,
     items: [
       { to: '/knowledge-base/how-to', label: 'How to Use RITHI CRM', icon: '📖', alwaysOpen: true },
       { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
@@ -260,6 +271,23 @@ export function Layout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('rithi.sidebarCollapsed') === '1'; } catch { return false; }
   });
+  // SEEN, PER DEVICE. localStorage rather than the database: this is a nudge
+  // about the MENU, not a fact about the person — somebody who has found the
+  // Knowledge Base on their laptop has not found it on the ward tablet they
+  // pick up once a week. Every access is guarded, because a private window or
+  // a browser set to block site data throws on the accessor itself.
+  const [seenGroups, setSeenGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('rithi.nav.seen') ?? '{}') as Record<string, boolean>; }
+    catch { return {}; }
+  });
+  const markSeen = (title: string) => {
+    setSeenGroups((cur) => {
+      if (cur[title]) return cur;
+      const next = { ...cur, [title]: true };
+      try { localStorage.setItem('rithi.nav.seen', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Persist the desktop collapse so it sticks across sessions.
@@ -381,11 +409,12 @@ export function Layout({ children }: { children: ReactNode }) {
             const items = group.items.filter((i) => navItemVisible(i, can));
             if (items.length === 0) return null;
             const open = openGroups[group.title] !== false; // default open
+            const flashing = !!group.flash && !seenGroups[group.title];
             return (
               <div className="nav-group" key={group.title}>
                 {!collapsed && (
                   <button
-                    className="nav-group-title nav-group-toggle"
+                    className={`nav-group-title nav-group-toggle${flashing ? ' nav-group-flash' : ''}`}
                     onClick={() => toggleGroup(group.title)}
                     title={open ? 'Collapse' : 'Expand'}
                   >
@@ -401,7 +430,12 @@ export function Layout({ children }: { children: ReactNode }) {
                       end={item.to === '/'}
                       className={({ isActive }) => `nav-item ${isActive ? 'nav-item-active' : ''}`}
                       title={item.label}
-                      onClick={closeMobile}
+                      // OPENING A PAGE IN THE GROUP ENDS THE FLASH, permanently
+                      // on this device. Not the heading's own click: expanding
+                      // and collapsing a group is not the same as having gone
+                      // and looked, and a nudge that a stray click switches off
+                      // has not done its job.
+                      onClick={() => { markSeen(group.title); closeMobile(); }}
                     >
                       <span className="nav-icon">{item.icon}</span>
                       {!collapsed && <span className="nav-label">{item.label}</span>}

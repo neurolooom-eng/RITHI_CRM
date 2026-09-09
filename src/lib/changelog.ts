@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.186',
+    date: '2026-09-09',
+    title: 'The Knowledge Base heading flashes until you have been there',
+    changes: [
+      'THE KNOWLEDGE BASE HEADING IN THE MENU NOW FLASHES, so people find out it is there rather than having to be told.',
+      'IT STOPS. Six flashes and it rests, and the moment you open anything under it, it never flashes again on that device. A heading that flashed for ever would just become part of the furniture within a day.',
+      'It flashes by swapping its colours against the page rather than washing it with a tint, so it reads the same in the light and dark themes.',
+      'And for anyone whose device is set to reduce motion \u2014 which is a real setting people use because flashing makes them unwell \u2014 it shows a steady marker instead of flashing. The signal is still there; it just does not move.',
+    ],
+  },
+  {
     version: '0.9.185',
     date: '2026-09-09',
     title: 'Supporting documents say when there are none, and Knowledge Base moves up the menu',
