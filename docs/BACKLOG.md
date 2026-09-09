@@ -43,6 +43,15 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `performance.sql`** (2026-09-09, v0.9.162) — 0152 drops the
+`parts_category_check` constraint, which aborted the Item Master upload 173 rows
+in and left the table half-written (`_status.sql` row 115). The importer fix
+ships with the app and needs no SQL; this one stops the whole CLASS of failure,
+so an unexpected category word can never refuse a row again. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+
 ⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
 rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
 is invisible to everyone but an administrator**. Read it:

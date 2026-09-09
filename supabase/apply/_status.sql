@@ -595,6 +595,9 @@ with checks(sort_order, bundle, provides, present) as (
             where a.role = 'admin' and m.v like 'mod:%'
               and not exists (select 1 from public.app_roles ts
                                where ts.role = 'technical_support' and ts.permissions ? m.v))))),
+    (115, 'Part category: free text, so a bulk upload cannot be refused over it', 'A CHECK on parts.category can ABORT AN IMPORT PART-WRITTEN -- it did, on the Item Master: 173 rows written, then "violates check constraint parts_category_check" and a half-updated table. 0148 named the right four words but put them in the wrong place. 0152 drops the constraint and replaces it with nothing: a word the vocabulary does not know now lands in the data and shows in Spare Insights as its own bar, which is how somebody notices it, rather than the row never arriving. Blank still means "nobody has said" and still reads as Unclassified. NO means the constraint is still there and a non-standard category will stop the next Part Master upload. Restore: performance.sql',
+        (to_regclass('public.parts') is null
+      or not exists (select 1 from pg_constraint where conname = 'parts_category_check'))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

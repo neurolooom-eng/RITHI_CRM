@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.162',
+    date: '2026-09-09',
+    title: 'A report at a time, and the Part Master file loads again',
+    changes: [
+      'REPORTS CAN BE GIVEN ONE AT A TIME. Consumption Report, KPI Export and Not Consumed Against this Call each have their own tick on Roles \u0026 Permissions, so somebody can be given the one they need instead of all three.',
+      'NOBODY LOSES ANYTHING BY THIS. A role that already had Reports still opens all three \u2014 the individual rights fall back to it \u2014 so there is nothing to re-grant. To narrow a role, untick Reports and tick the reports it should have.',
+      'And the tab strip shows only what you may open, including when the link is pasted in directly: a hidden tab that opens anyway is not a permission.',
+      'THE PART MASTER UPLOAD NO LONGER STOPS PART-WAY. It was failing 173 rows into the Item Master with a complaint about the category column. The importer was meant to tidy SPARE into Spare and never ran on the rows that needed it \u2014 only on the blank ones.',
+      'A CATEGORY THE LIST DOES NOT KNOW IS NOW KEPT, not refused. It shows in Spare Insights as its own bar, which is how you notice it and decide what it should be. Needs supabase/apply/performance.sql.',
+    ],
+  },
+  {
     version: '0.9.161',
     date: '2026-09-09',
     title: 'Type to find the Standard Complaint on a call request',

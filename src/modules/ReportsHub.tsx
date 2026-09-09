@@ -4,6 +4,7 @@ import { PageHeader } from '../components/ui/ui';
 import { ConsumptionReport } from './ConsumptionReport';
 import { KpiExport } from './KpiExport';
 import { UnusedSpareReport } from './UnusedSpareReport';
+import { useAuth } from '../lib/auth';
 import './dccr.css';
 
 // ===========================================================================
@@ -26,6 +27,13 @@ import './dccr.css';
 // ONE TAB IS MOUNTED AT A TIME, not hidden with CSS. Each of these counts rows
 // against the database as it loads, and a hidden tab doing that is work nobody
 // asked for on a screen nobody is looking at.
+//
+// A REPORT AT A TIME, FOR ACCESS TOO (the user, 2026-09-09: "in Reports also i
+// need to be able to give Access at a Sub Page level"). Each report has its own
+// `mod:/exports/<key>`, inheriting from `mod:/exports`, so the tab strip shows
+// only what this role may open. The URL is checked as well as the strip: a
+// hidden tab that still opens when somebody pastes the link is not a
+// permission, it is a suggestion.
 // ===========================================================================
 
 type Tab = 'consumption' | 'kpi' | 'unused';
@@ -48,15 +56,38 @@ export function ReportsHub() {
   // rendering nothing — a mistyped link should still land on the screen.
   const { tab: param } = useParams<{ tab: string }>();
   const navigate = useNavigate();
-  const tab: Tab = isTab(param) ? param : 'consumption';
+  const { can } = useAuth();
+
+  // The reports THIS role may open. `can` falls back to the parent, so a role
+  // holding `mod:/exports` still gets all of them.
+  const allowed = REPORTS.filter((r) => can(`mod:/exports/${r.key}`));
+  const first = allowed[0]?.key;
+
+  const asked: Tab | undefined = isTab(param) ? param : undefined;
+  const permitted = asked && allowed.some((r) => r.key === asked);
+  const tab = permitted ? asked : first;
   const current = REPORTS.find((r) => r.key === tab);
   const setTab = (k: Tab) => navigate(`/exports/${k}`);
 
-  // A bare /exports names no report; put the default in the address so the
-  // menu entry lights up and the link is shareable.
+  // A bare /exports names no report, and so does a link to one this role may
+  // not open: both land on the first report it CAN open, so the menu entry
+  // lights up and the address is shareable. When it may open none, the address
+  // is left alone and the notice below is what the screen says.
   useEffect(() => {
-    if (!param) navigate('/exports/consumption', { replace: true });
-  }, [param, navigate]);
+    if (!first) return;
+    if (!asked || !permitted) navigate(`/exports/${first}`, { replace: true });
+  }, [asked, permitted, first, navigate]);
+
+  if (!first) {
+    return (
+      <div>
+        <PageHeader title="Reports" icon="📄" subtitle="Every export, in one place." />
+        <div className="sheet-banner sheet-banner-error">
+          <span>No report is open to your role. An administrator grants these one by one under Roles &amp; Permissions → Reports.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -65,7 +96,7 @@ export function ReportsHub() {
         subtitle={current?.blurb ?? 'Every export, in one place.'}
       />
       <div className="dccr-tabs" role="tablist">
-        {REPORTS.map((r) => (
+        {allowed.map((r) => (
           <button
             key={r.key}
             role="tab"

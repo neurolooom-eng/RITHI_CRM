@@ -72,6 +72,16 @@ export const MODULES: ModuleDef[] = [
   { path: '/kpi', label: 'KPI & Failure Analysis' },
   { path: '/objective', label: 'Objective' },
   { path: '/exports', label: 'Reports' },
+  // ONE REPORT AT A TIME. The user, 2026-09-09: "in Reports also i need to be
+  // able to give Access at a Sub Page level." Each report is its own key, and
+  // each INHERITS from `mod:/exports` (parentAction below) -- so every role
+  // that could open Reports still opens all three, and an administrator
+  // restricts by turning the parent off and ticking the reports they want.
+  // Exactly how a master value list works, deliberately: two mechanisms for
+  // one idea is how a screen stops being predictable.
+  { path: '/exports/consumption', label: 'Reports — Consumption Report' },
+  { path: '/exports/kpi', label: 'Reports — KPI Export' },
+  { path: '/exports/unused', label: 'Reports — Not Consumed Against this Call' },
   { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
@@ -317,7 +327,12 @@ export const PERM_TREE: PermHeader[] = [
   // in front of you — so a header here that no longer exists there makes the
   // page harder to trust than to use.
   { title: 'Reports', pages: [
-    { path: '/exports', label: 'Reports — consumption, KPI, not consumed', actions: [] },
+    // The parent GRANTS ALL THREE below it, so a role that only needs one is
+    // given that one and not this.
+    { path: '/exports', label: 'Reports (all of them)', actions: [] },
+    { path: '/exports/consumption', label: '↳ Consumption Report', actions: [] },
+    { path: '/exports/kpi', label: '↳ KPI Export', actions: [] },
+    { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: [] },
   ] },
   { title: 'Administration', pages: [
     { path: '/tracker', label: 'Tracker', actions: [] },
@@ -356,6 +371,8 @@ export const dynamicActionLabel = (key: string): string | undefined => {
 // Does this key inherit from a broader one the role may already hold?
 export const parentAction = (key: string): string | undefined => {
   if (key.startsWith('mod:/masters/')) return 'mod:/masters';
+  // A single report is covered by Reports as a whole, the same way.
+  if (key.startsWith('mod:/exports/')) return 'mod:/exports';
   if (/^master\..+\.(edit|delete)$/.test(key)) return 'masters.edit';
   // A section of a call is covered by the whole-call right, the same way.
   // Whoever may edit everything may edit any part of it, so a role that had

@@ -21,7 +21,8 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
-import { DEFAULT_PERMS, MODULES, moduleAction } from '../src/lib/rbac';
+import { DEFAULT_PERMS, MODULES, moduleAction, parentAction } from '../src/lib/rbac';
+import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone } from '../src/lib/aging';
@@ -1971,6 +1972,57 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   // The row's own value survives a master that no longer lists it.
   eq('a complaint off the master is still offered',
     /withCurrent\(complaintMaster\.values, it\.standardComplaint\)/.test(rq), true);
+}
+
+console.log('\n-- Reports: access one report at a time --');
+{
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const hub = readFileSync('src/modules/ReportsHub.tsx', 'utf8');
+  const paths = new Set(MODULES.map((m) => m.path));
+
+  for (const k of ['consumption', 'kpi', 'unused']) {
+    eq(`/exports/${k} is a module of its own`, paths.has(`/exports/${k}`), true);
+    eq(`...and the menu asks for that key, not the parent`,
+      new RegExp(`to: '/exports/${k}'[^}]*perm: 'mod:/exports/${k}'`).test(lay), true);
+    // It must INHERIT, or every role that could open Reports loses it the day
+    // this ships and a migration is needed to give back what nobody removed.
+    eq(`...and it falls back to mod:/exports`, parentAction(`mod:/exports/${k}`), 'mod:/exports');
+  }
+
+  // A hidden tab that still opens when somebody pastes the link is not a
+  // permission, it is a suggestion. The strip and the URL are both checked.
+  eq('the tab strip renders only the permitted reports', /\{allowed\.map\(\(r\) => \(/.test(hub), true);
+  eq('...and a link to a report the role may not open is redirected',
+    /if \(!asked \|\| !permitted\) navigate/.test(hub), true);
+}
+
+console.log('\n-- Part Master upload: the category is normalised, not rejected --');
+{
+  const parts = UPLOADS.find((u) => u.key === 'parts')!;
+  const shape = (v: string) => {
+    const out = shapeUpload(parts, [{
+      'Item Code': 'X1', 'Item Details': 'X1|Widget', 'Item Name': 'Widget', 'Spare / Consumable': v,
+    }]);
+    if (!out.rows.length) return '<row skipped>';
+    // A key that is ABSENT is not the same as one written empty: the upsert
+    // leaves the column alone, so re-loading a file whose category column is
+    // blank cannot wipe a category somebody set by hand on Part Master.
+    return 'category' in out.rows[0] ? String(out.rows[0].category) : '<not written>';
+  };
+
+  // THE FILE WRITES IN CAPITALS. Every non-blank row went in raw and the check
+  // constraint refused it 173 rows into a 1,324-row load. The normaliser was
+  // there; it ran only where the cell was EMPTY, so it never saw one of these.
+  eq('SPARE', shape('SPARE'), 'Spare');
+  eq('CONSUMABLE', shape('CONSUMABLE'), 'Consumable');
+  eq('PRODUCT', shape('PRODUCT'), 'Product');
+  eq('LABOUR', shape('LABOUR'), 'Labour');
+  eq('a plural still lands on the vocabulary', shape('Consumables'), 'Consumable');
+  eq('blank writes nothing, so a hand-set category survives a re-upload', shape(''), '<not written>');
+  // A word the vocabulary does not know is KEPT, not dropped: it shows up in
+  // Spare Insights as its own bar, which is how somebody notices it. Safe
+  // because 0152 took the check constraint off.
+  eq('an unknown word survives, title-cased', shape('ACCESSORY'), 'Accessory');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
