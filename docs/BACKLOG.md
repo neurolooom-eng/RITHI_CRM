@@ -296,8 +296,30 @@ people are assumed to already know. It is now above Service Calls: it is read
 BEFORE the work, not after it. Asserted by POSITION in `Layout.tsx`, which is the
 order the menu renders.
 
-**4. "Where is the blinking feature for knowledge base?" — it has never existed
-in this repository.** `git log -S"blink"` across all of `src/` returns nothing,
+✅ **4. THE FLASHING HEADING NOW EXISTS** (v0.9.186). The user, after the finding
+below: *"can u make a heading flash??"* — so the Knowledge Base heading flashes.
+
+**The design is the STOPPING, not the flashing.** A heading that flashes for ever
+is not a signal, it is wallpaper: people stop seeing it within a day and it has
+cost them attention for nothing. So there are two independent stops — six flashes
+over about five seconds and it rests, and opening ANY page in the group ends it
+for good on that device (`rithi.nav.seen` in localStorage, every access guarded).
+Clicking the heading itself does NOT count: expanding a group is not the same as
+having gone and looked, and a nudge a stray click switches off has not done its
+job. `check:ui` refuses an `infinite` animation and a version that never marks
+itself seen.
+
+**It INVERTS rather than tints**, per this project's standing rule — a pale wash
+of the accent is what was reached for first elsewhere and did not read on screen
+at all. Inverting also works in both themes by construction.
+
+**And `prefers-reduced-motion` gets a steady marker rather than nothing.**
+Repeated luminance change is exactly what some people cannot have; dropping the
+signal for those readers would be the lazy reading of that setting, so it becomes
+an inset bar that says the same thing without moving.
+
+**4 (as first reported). "Where is the blinking feature for knowledge base?" — it
+had never existed in this repository.** `git log -S"blink"` across all of `src/` returns nothing,
 and no changelog entry mentions one. The nearest thing that does exist is the
 **jump-strip highlight** on the guide: clicking a task in the strip scrolls to it
 and rings that section for 1.6 seconds (`.kb-jumped`, a 2px outline). That
