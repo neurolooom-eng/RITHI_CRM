@@ -217,6 +217,32 @@ exactly.
 
 </details>
 
+⚠️ **PENDING: `tracker.sql`** (2026-09-09, v0.9.181) — 0157 puts the points
+open at the end of the day onto the Tracker: the two one-minute verifications
+(confirm the super-admin revocation actually took; assign the Zoho Migration
+role), un-parking the auto-apply pipeline, Indoor Service Phase 1 now the
+activities are settled, the condemn/salvage decision, the optional party
+tidy-up, and the pre-existing unlabelled error in the `spare_bulk_approval`
+suite. Additive and idempotent by title; closes nothing.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+
+📌 **The database schema is now DOCUMENTED, and generated** (2026-09-09,
+v0.9.181) — `docs/DATABASE_SCHEMA.md`, 2,300 lines: every table and view, each
+column's type, default and nullability, keys and relationships both ways,
+allowed values with their SOURCE (a CHECK the database enforces, a master list a
+person maintains, or a foreign key), and the RLS policies verbatim per table.
+Produced by `npm run schema:doc` from a database built out of the migrations —
+**re-run it after any migration; never hand-edit it.**
+
+Writing the generator earned its keep before it shipped. Two bugs it found in
+its own first draft, both of which would have made the document confidently
+wrong: `relrowsecurity::text` renders `true`/`false` rather than the `t`/`f`
+psql shows for a raw boolean, so every one of the 61 tables read as **RLS off**;
+and 25 policies carry a multi-line `qual`, so line-based parsing reported **170
+policies where there are 117**, the extras being fragments of real ones. Both
+were caught by comparing the document's own counts against the database rather
+than reading it and nodding.
+
 🟡 **`rbac.sql` WAS RUN — reported, not verified (2026-09-09).** The user said
 "Ran RBAC" after being handed it for the revocation. **No `_status.sql` output
 has been seen since**, so this says reported: the file has twice claimed the

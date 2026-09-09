@@ -15,6 +15,7 @@
 --   0144_tracker_seed_backlog.sql
 --   0146_tracker_air_liquide_id.sql
 --   0150_tracker_sync_backlog.sql
+--   0157_tracker_sync_0909.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -425,6 +426,83 @@ begin
 
   raise notice 'Tracker: % item(s) added from the backlog (% already there)',
     seeded, 8 - seeded;
+end $seed$;
+
+-- ------------------------------------------------------------------------
+-- 0157_tracker_sync_0909.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE TRACKER CATCHES UP — the points open at the end of 2026-09-09.
+--
+-- The user: "then list the Pending points and update the tracker."
+--
+-- ADDITIVE AND IDEMPOTENT BY TITLE, like 0144 and 0150. Nothing is closed,
+-- renamed or deleted: an item somebody has edited, re-owned or marked Done is
+-- left exactly as they left it, and running the bundle twice adds nothing.
+--
+-- "Done" stays a judgement the people using the list make. A row closed by SQL
+-- is a row somebody has to re-open to argue with -- and the two lists are
+-- deliberately different: the backlog records what shipped and why, the Tracker
+-- records what is being worked on.
+--
+-- WHAT IS NOT HERE: everything already seeded by 0144 and 0150 (the parked
+-- decisions, the 13485 findings). This adds only what became open since, or
+-- what was open all along and had never been written down.
+-- ===========================================================================
+
+do $seed$
+declare
+  seeded int := 0;
+  total  int := 0;
+  r      record;
+begin
+  if to_regclass('public.tracker_items') is null then
+    raise notice 'tracker_items is missing -- run tracker.sql first';
+    return;
+  end if;
+
+  for r in
+    select * from (values
+      -- ---- verification the user can close in a minute ---------------------
+      (300, 'Confirm the super-admin revocation actually took',
+            'rbac.sql was run on 2026-09-09 but no _status.sql output has been read back, so the revocation of mmdev74@gmail.com is REPORTED, not verified. It matters more than the usual bookkeeping: the app stopped showing that account as a super admin at v0.9.178, so if the SQL did not take, the screens agree with the intention while Postgres does not -- the state nobody notices. Read rows 117 (Zoho Migration is a read-only clone) and 118 (revoked; it tests BOTH the app_super_admins row and an admin profiles.role).',
+            'Rithi Admin', 'Access'),
+      (310, 'Assign the Zoho Migration role to a login',
+            'The role exists and is a read-only clone of Technical Support, but nobody holds it. It is in the User Master role dropdown. Kept separate from Technical Support on purpose: it ends when the migration does, so revoking it is one tick and leaves the support login alone.',
+            'Rithi Admin', 'Access'),
+
+      -- ---- parked, with the reason it is parked ---------------------------
+      (320, 'Un-park the auto-apply pipeline (one character)',
+            'CI/CD to apply migrations is BUILT and merged but parked. It failed on an unencoded "@" in the database password -- psql read the tail of the password as part of the hostname, so it never reached the database. Percent-encode it (@ -> %40) in the SUPABASE_DB_URL secret, then Actions -> Apply database migrations -> mode baseline with baseline_through set to the last migration really applied, then mode apply. WARNING: a fragment of the password reached a PUBLIC Actions log before the scrubber was fixed -- reset the database password and delete those runs when picking this up.',
+            'Rithi Admin', 'Infrastructure'),
+
+      -- ---- design settled, not built --------------------------------------
+      (330, 'Indoor Service: build Phase 1, now the activities are settled',
+            'Vignesh supplied the activity types on 2026-09-09 and the plan now carries six with their fields (docs/INDOOR_SERVICE_PLAN.md). Phase 1 is the register, the page, the nav group and the permissions -- it stands alone, since DEMO units alone justify it and it needs nothing from the call side. Four new questions are open at the end of that file, the sharpest being whether a salvaged part re-enters stock under its own code; if it does not, its condition grade is decoration.',
+            'Claude', 'Indoor Service'),
+      (340, 'DECISION: who may condemn a unit, and where a salvaged part goes',
+            'From the Indoor activity work. Scrapping CUSTOMER property in particular cannot be an engineer''s own decision. And a harvested part entering stock under its normal code is indistinguishable from new -- the register already holds a refurbished part under its own code (URS-027), and salvage should do the same or the condition grade means nothing.',
+            'Decision', 'Indoor Service'),
+
+      -- ---- open data questions --------------------------------------------
+      (350, 'Party spellings: run the tidy-up, or leave it',
+            'A party spelled two ways showed no products, because products carried CAPITALS while the party row was Title Case. The register is CORRECT without any SQL -- the lookups match case-insensitively as of v0.9.174. _party_name_normalise.sql is an optional tidy-up (dry run by default) that aligns the stored spellings so exports and groupings agree too, and separately lists products whose party has no row at all.',
+            'Rithi Admin', 'Data'),
+      (360, 'The spare_bulk_approval suite emits an unlabelled error',
+            'Pre-existing, and reproduces identically against main''s own migrations, so it is not from any recent change -- but by this project''s convention every error a suite prints should be one labelled "expect ERROR", and this one is not. "Nothing selected" at line 135, where the fixture''s BA-R2 lines appear not to exist.',
+            'Claude', 'Testing')
+    ) as t(ord, title, detail, owner, area)
+  loop
+    total := total + 1;
+    if not exists (select 1 from public.tracker_items i where i.title = r.title) then
+      insert into public.tracker_items (title, detail, owner, area, status, sort_order)
+           values (r.title, r.detail, r.owner, r.area, 'Open', r.ord);
+      seeded := seeded + 1;
+    end if;
+  end loop;
+
+  raise notice 'Tracker: % of % item(s) added (% already there)', seeded, total, total - seeded;
 end $seed$;
 
 commit;
