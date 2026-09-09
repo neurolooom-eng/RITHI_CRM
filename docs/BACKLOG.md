@@ -99,6 +99,17 @@ Read-only diagnosis:
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
 
+📌 **The dropdown design default is written down** (2026-09-09, v0.9.179) —
+"Type Search and select, fallback or no fallback depends on the field". It lives
+in `CLAUDE.md` under Gotchas, and it is enforced rather than remembered:
+`Form.tsx` renders `type: 'select'` as a `SelectPicker`, so every FieldDef form
+(Field Call, Installation, PM, Pending Registrations) inherits it and so does the
+next one; `check:ui` fails a NEW `<select>` in a module and holds a shrinking
+list of the ones still to convert.
+**Standard Complaint takes no fallback anywhere** — the register (callFields),
+the Visit Report and the Call Registration request all lost their free-text
+branch. ~53 `<select>`s remain across the other modules; the sweep continues.
+
 📌 **Indoor Service — the ACTIVITY TYPES are settled, the plan is extended**
 (2026-09-09). Vignesh gave four (recycling/rework, pre-delivery checking, demo,
 other); the proposal makes them **six** and says why: **Repair** was missing (it

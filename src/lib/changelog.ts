@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.179',
+    date: '2026-09-09',
+    title: 'Standard Complaint is chosen, never typed',
+    changes: [
+      'THE STANDARD COMPLAINT IS TYPE-AND-SEARCH ON EVERY SCREEN THAT ASKS FOR IT \u2014 Field Call, Installation, PM, the Visit Report and the Call Registration request.',
+      'AND IT CAN NO LONGER BE TYPED FREEHAND. Two of those screens accepted anything you wrote; a complaint written by hand is one that no count, no filter and no repeat-failure check will ever recognise. If the list is empty the box says so rather than quietly taking whatever is typed \u2014 an empty list is something to fix under Masters.',
+      'EVERY DROPDOWN IN THE APP NOW WORKS THIS WAY BY DEFAULT, because the change is in the form itself rather than screen by screen. Short lists like Yes/No stay as they were: no search box for two options.',
+      'Whether a field lets you enter something off the list is now decided per field, and is OFF unless it says otherwise.',
+    ],
+  },
+  {
     version: '0.9.178',
     date: '2026-09-09',
     title: 'A super admin account is revoked',

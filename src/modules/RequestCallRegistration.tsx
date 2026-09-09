@@ -416,7 +416,6 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
           <div className="rep-sec-title">
             Calls <span className="muted">(up to {MAX_ITEMS} — Product + Serial + Complaint + Reported Problem; each becomes its own UniqueID)</span>
           </div>
-          <datalist id="dl-complaint">{complaintMaster.values.slice(0, 5000).map((v) => <option key={v} value={v} />)}</datalist>
 
           {items.map((it, i) => (
             <div className="req-item" key={i}>
@@ -480,22 +479,28 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     scrollbar (user's ask, 2026-09-09). The same PickList the
                     Daily Call Review uses: typing FILTERS and never selects, so
                     a keystroke over the box cannot quietly change the complaint.
-                    The row's own value is kept when it is not on the list, and
-                    free text is offered only while the list has nothing. */}
+                    The row's own value is kept when it is not on the list.
+
+                    NO FREE-TEXT FALLBACK (the user, 2026-09-09). An empty
+                    master is a MASTER problem: the box says so and stays a
+                    picker, rather than quietly accepting a complaint that
+                    every later count, filter and frequent-failure match will
+                    fail to recognise. */}
                 {field('Standard Complaint', (
                   isInstall
                     ? <input className="input" value={it.standardComplaint} readOnly />
-                    : complaintMaster.values.length
-                      ? (
-                        <PickList
-                          value={it.standardComplaint}
-                          options={withCurrent(complaintMaster.values, it.standardComplaint)}
-                          onPick={(v) => setItem(i, 'standardComplaint', v)}
-                          placeholder="Type to search the complaints…"
-                          emptyHint="If it is not here, add it under Masters."
-                        />
-                      )
-                      : <input className="input" list="dl-complaint" value={it.standardComplaint} onChange={(e) => setItem(i, 'standardComplaint', e.target.value)} />
+                    : (
+                      <PickList
+                        value={it.standardComplaint}
+                        options={withCurrent(complaintMaster.values, it.standardComplaint)}
+                        onPick={(v) => setItem(i, 'standardComplaint', v)}
+                        disabled={!complaintMaster.values.length && !it.standardComplaint}
+                        placeholder={complaintMaster.values.length ? '— pick the standard complaint —'
+                          : complaintMaster.ready ? '— the Standard Complaint master is empty —'
+                          : '— loading the complaints… —'}
+                        emptyHint="If it is not here, it needs adding under Masters."
+                      />
+                    )
                 ))}
                 {field('Reported Problem *', (
                   isInstall

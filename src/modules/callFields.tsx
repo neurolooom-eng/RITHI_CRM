@@ -110,21 +110,28 @@ export function useCallFieldMasters(): {
   // fix is the list, and the form should point at it. (The go-live reset
   // TRUNCATES `masters`, so every value list comes back empty until it is
   // re-loaded — that is what this note is usually telling you.)
-  const complaintField = (f: FieldDef): FieldDef =>
-    complaintMaster.values.length
-      ? {
-        ...f,
-        type: 'select' as const,
-        options: complaintMaster.values.map((v) => ({ value: v, label: v })),
-        below: complaintSuggestions,
-      }
-      : {
-        ...f,
-        below: complaintSuggestions,
-        help: complaintMaster.ready
-          ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists. The suggestions below still work: they come from past calls.'
-          : 'Loading the Standard Complaint master…',
-      };
+  // ALWAYS THE PICKER, NEVER FREE TEXT (the user, 2026-09-09: "No fall back to
+  // Free text"). It used to fall back to a plain box when the master had no
+  // values, which was the wrong shape of help: a Standard Complaint typed by
+  // hand is a master entry that does not exist, and every count, filter and
+  // frequent-failure match downstream is done on that value. An empty master is
+  // a MASTER problem, so the field says so and stays a picker rather than
+  // quietly accepting anything.
+  const complaintField = (f: FieldDef): FieldDef => ({
+    ...f,
+    type: 'select' as const,
+    allowFreeText: false,
+    options: complaintMaster.values.map((v) => ({ value: v, label: v })),
+    below: complaintSuggestions,
+    // The go-live reset TRUNCATES `masters`, so every value list comes back
+    // empty until it is re-loaded — that is what this note is usually telling
+    // you. The suggestions below still work either way: they come from past
+    // CALLS, not from the master, so they are valid values even when it is bare.
+    help: complaintMaster.values.length ? undefined
+      : complaintMaster.ready
+        ? 'The Standard Complaint master has no values — add them under Masters, or Admin → Bulk Uploads → Master Value Lists. The suggestions below still work: they come from past calls.'
+        : 'Loading the Standard Complaint master…',
+  });
 
   // The wording ITSELF, one field earlier: the alarm number in this product's
   // spelling, and how the fault has been written here before (0107).

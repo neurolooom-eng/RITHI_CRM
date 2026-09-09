@@ -2274,11 +2274,35 @@ console.log('\n-- dropdowns are one control --');
   eq('the label is display-only; the value is what is stored',
     /labelFor=\{\(v\) => labels\.get\(v\) \?\? v\}/.test(sp), true);
 
-  // The two call-path forms are fully converted; the sweep continues elsewhere.
-  for (const f of ['src/modules/CallReporting.tsx', 'src/modules/RequestCallRegistration.tsx']) {
+  // The converted screens, and the ENGINE — which is what makes the rule true
+  // in every FieldDef form (Field Call, Installation, PM, Pending
+  // Registrations) without touching them one by one.
+  for (const f of ['src/modules/CallReporting.tsx', 'src/modules/RequestCallRegistration.tsx',
+                   'src/components/form/Form.tsx']) {
     eq(`${f.split('/').pop()} has no native <select> left`,
       /<select/.test(readFileSync(f, 'utf8')), false);
   }
+
+  // A NEW <select> IN A MODULE FAILS. The ones still there are listed, and the
+  // list only ever shrinks — that is what stops the sweep quietly reversing
+  // while the rest of it is being finished.
+  const CONVERTING = new Set([
+    'SpareRequests.tsx', 'UserMasterView.tsx', 'DailyCallReview.tsx', 'Lookup.tsx',
+    'FieldCalls.tsx', 'CoverRegister.tsx', 'PendingCalls.tsx', 'MaterialReturns.tsx',
+    'HandStock.tsx', 'UnusedSpareReport.tsx', 'Tracker.tsx', 'StockTransfer.tsx',
+    'SoftwareValidation.tsx', 'SheetConnection.tsx', 'ProductMaster.tsx', 'PartMaster.tsx',
+    'Objective.tsx', 'KnowledgeBase.tsx', 'ConsumptionReport.tsx', 'CallRegistrationCard.tsx',
+    'SpareRmApproval.tsx', 'SpareDispatch.tsx', 'SpareConsumption.tsx', 'Settings.tsx',
+    'RolePermissions.tsx', 'Reports.tsx', 'PendingRegistrations.tsx', 'PartyMaster.tsx',
+    'Objectives.tsx', 'KpiAnalytics.tsx', 'DataImport.tsx', 'BulkUploads.tsx',
+    'AuditLog.tsx', 'SlaRulesCard.tsx', 'Dashboard.tsx', 'SpareInsights.tsx',
+    'CustomerFeedback.tsx', 'FieldFailureReport.tsx', 'ReportMapping.tsx',
+    'OwnershipTransfer.tsx', 'MasterListPage.tsx', 'AllMasters.tsx', 'Tracker.tsx',
+  ]);
+  const stray = readdirSync('src/modules')
+    .filter((f) => f.endsWith('.tsx') && !CONVERTING.has(f))
+    .filter((f) => /<select/.test(readFileSync(`src/modules/${f}`, 'utf8')));
+  eq('no NEW module reaches for a native <select>', stray, []);
 }
 
 console.log('\n-- the drawer can be widened, and remembers --');
@@ -2354,6 +2378,38 @@ console.log('\n-- super admins: the two lists agree --');
   for (const e of revoked) {
     eq(`${e} is not a super admin in code`, inCode.has(e), false);
     eq(`...nor seeded back without a revocation`, seeded.has(e) && !revoked.has(e), false);
+  }
+}
+
+console.log('\n-- the Standard Complaint is picked, never typed --');
+{
+  // "standard complaint drop-down has to be type search and select in all
+  // modules ( Field Call , PM , Installation, Visit report , Call Registration
+  // request) No fall back to Free text" (2026-09-09).
+  //
+  // Field Call, Installation and PM are ONE component built from FieldDefs, so
+  // the engine covers all three; the other two are their own screens.
+  const cf = readFileSync('src/modules/callFields.tsx', 'utf8');
+  eq('the register complaint is a picker with free text OFF',
+    /type: 'select' as const,\s*\n\s*allowFreeText: false,/.test(cf), true);
+  // It used to fall back to a plain box when the master was empty. An empty
+  // master is a MASTER problem: the field says so and stays a picker.
+  eq('...and it no longer falls back to a text box when the master is empty',
+    /below: complaintSuggestions,\s*\n\s*help:/.test(cf), false);
+
+  const cr = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+  eq('the visit report complaint is a picker',
+    /f\.kind === 'complaint' \? \([\s\S]{0,900}<SelectPicker/.test(cr), true);
+
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('the call request complaint has no free-text branch',
+    /list="dl-complaint"/.test(rq), false);
+
+  // Nowhere at all: the datalists that made it typeable are gone.
+  for (const f of ['src/modules/CallReporting.tsx', 'src/modules/RequestCallRegistration.tsx',
+                   'src/modules/callFields.tsx']) {
+    eq(`${f.split('/').pop()} has no complaint datalist`,
+      /dl-(standard)?complaint/.test(readFileSync(f, 'utf8')), false);
   }
 }
 
