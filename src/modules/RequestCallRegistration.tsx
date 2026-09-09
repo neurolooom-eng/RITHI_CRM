@@ -8,6 +8,7 @@ import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
+import { PickList } from '../components/ui/PickList';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
@@ -358,6 +359,11 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     } finally { setBusy(false); }
   };
 
+  // A complaint the row already carries but the master no longer lists still has
+  // to be offered, or opening a saved request would silently blank it.
+  const withCurrent = (list: string[], current: string) =>
+    current && !list.includes(current) ? [current, ...list] : list;
+
   const field = (label: string, node: React.ReactNode, span2 = false) => (
     <label className={`rep-field ${span2 ? 'rep-span2' : ''}`}><span className="field-label">{label}</span>{node}</label>
   );
@@ -463,21 +469,25 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                       );
                     })()
                 ))}
-                {/* Chosen from the master, exactly as the call register does it —
-                    with the row's own value kept when it is not on the list, and
-                    free text only while the list has nothing to offer. */}
+                {/* TYPE TO SEARCH, because the master is five hundred entries
+                    long and a native dropdown offers no way through it but the
+                    scrollbar (user's ask, 2026-09-09). The same PickList the
+                    Daily Call Review uses: typing FILTERS and never selects, so
+                    a keystroke over the box cannot quietly change the complaint.
+                    The row's own value is kept when it is not on the list, and
+                    free text is offered only while the list has nothing. */}
                 {field('Standard Complaint', (
                   isInstall
                     ? <input className="input" value={it.standardComplaint} readOnly />
                     : complaintMaster.values.length
                       ? (
-                        <select className="select" value={it.standardComplaint}
-                          onChange={(e) => setItem(i, 'standardComplaint', e.target.value)}>
-                          <option value="">— Select —</option>
-                          {it.standardComplaint && !complaintMaster.values.includes(it.standardComplaint)
-                            && <option value={it.standardComplaint}>{it.standardComplaint}</option>}
-                          {complaintMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
-                        </select>
+                        <PickList
+                          value={it.standardComplaint}
+                          options={withCurrent(complaintMaster.values, it.standardComplaint)}
+                          onPick={(v) => setItem(i, 'standardComplaint', v)}
+                          placeholder="Type to search the complaints…"
+                          emptyHint="If it is not here, add it under Masters."
+                        />
                       )
                       : <input className="input" list="dl-complaint" value={it.standardComplaint} onChange={(e) => setItem(i, 'standardComplaint', e.target.value)} />
                 ))}

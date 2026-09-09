@@ -818,19 +818,34 @@ export const UPLOADS: UploadDef[] = [
       // column, so "Spare / Consumable" was in the database and unusable.
       //
       // The vocabulary is the FILE'S, not one invented here: SPARE, PRODUCT,
-      // CONSUMABLE, LABOUR, and blank on 86% of rows. Title-cased to match the
-      // check constraint; anything else is left for a person rather than
-      // guessed at, because a category is a decision and this column is read
-      // straight into a chart.
+      // CONSUMABLE, LABOUR, and blank on 86% of rows.
+      //
+      // `always`, AND THAT IS THE WHOLE BUG (reported 2026-09-09: "new row for
+      // relation \"parts\" violates check constraint \"parts_category_check\"
+      // (row ~174)"). Without it a derive runs only where the file left the
+      // cell EMPTY — so the one job this one has, normalising what the file
+      // wrote, was skipped on exactly the rows that had something to normalise.
+      // Every non-blank row went in as the file's own SPARE / PRODUCT /
+      // CONSUMABLE / LABOUR, the check wanted title case, and the upload died
+      // part-written. A normaliser that only sees blanks is not a normaliser.
+      //
+      // TITLE-CASED, NEVER DISCARDED. A word outside the four is kept as it
+      // reads rather than blanked: losing a category silently is how a chart
+      // ends up wrong with nobody able to see why. The check constraint that
+      // used to refuse it is gone (0152) — a value here is source data, and
+      // enforcing a vocabulary in a place that can abort a 1,300-row import is
+      // enforcing it in the wrong place.
       { to: 'category', from: ['spare / consumable', 'spare/consumable', 'spare consumable', 'category', 'type'],
+        always: true,
         derive: (o) => {
-          const v = String(o['spare / consumable'] ?? o['spare/consumable'] ?? o['spare consumable']
-            ?? o.category ?? o.type ?? '').trim().toLowerCase();
+          const raw = String(o['spare / consumable'] ?? o['spare/consumable'] ?? o['spare consumable']
+            ?? o.category ?? o.type ?? '').trim();
+          const v = raw.toLowerCase().replace(/s$/, '');
           if (v === 'spare') return 'Spare';
           if (v === 'consumable') return 'Consumable';
           if (v === 'product') return 'Product';
           if (v === 'labour' || v === 'labor') return 'Labour';
-          return '';
+          return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : '';
         } },
       TEXT('product', 'product'),
       NUM('purchase_cost', 'purchase cost'),

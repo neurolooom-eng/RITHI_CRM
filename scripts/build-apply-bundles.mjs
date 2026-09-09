@@ -295,7 +295,11 @@ const MODULES = {
       // The consumption report. Here rather than in a spares module because it
       // reads the `calls` view and `reports` as well as `spare_consumption`, and
       // this module already runs after everything it needs exists.
-      '0142_consumption_report.sql', '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql'],
+      '0142_consumption_report.sql', '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql',
+      // AFTER 0148 and it must stay there: 0148 adds the category check and
+      // this drops it, so a bundle replayed on its own has to see them in that
+      // order or the constraint comes back.
+      '0152_part_category_free_text.sql'],
   },
   audit: {
     title: 'Audit Log',

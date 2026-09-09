@@ -107,13 +107,17 @@ export const NAV: NavGroup[] = [
     // Every export is taken from here and the list grows — "and more to come"
     // was the brief when the screen was created — so each report is its own
     // entry rather than a tab somebody has to know is there. They are one
-    // module (`mod:/exports`), named by `perm` above, because the path is no
-    // longer the permission.
+    // named by `perm` above, because the path is no longer the permission —
+    // and since 2026-09-09 each report has its OWN key, inheriting from
+    // `mod:/exports`, so access can be given report by report.
     title: 'Reports',
     items: [
-      { to: '/exports/consumption', label: 'Consumption Report', icon: '🔩', perm: 'mod:/exports' },
-      { to: '/exports/kpi', label: 'KPI Export', icon: '📈', perm: 'mod:/exports' },
-      { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports' },
+      // EACH REPORT IS ITS OWN KEY now (the user, 2026-09-09), and each falls
+      // back to `mod:/exports` — so a role given Reports still sees all three
+      // and one given a single report sees only that entry.
+      { to: '/exports/consumption', label: 'Consumption Report', icon: '🔩', perm: 'mod:/exports/consumption' },
+      { to: '/exports/kpi', label: 'KPI Export', icon: '📈', perm: 'mod:/exports/kpi' },
+      { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports/unused' },
     ],
   },
   {
