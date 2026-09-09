@@ -120,7 +120,7 @@ export function RolePermissions() {
 
   return (
     <div>
-      <PageHeader title="Roles & Permissions" subtitle="What each role can see and do, page by page. Admin / Super Admin always has full access." icon="🔐" />
+      <PageHeader title="Roles & Permissions" subtitle="What each role can see and do, page by page. Admin always has full access, and so does a Super Admin — which is not a role and cannot be granted here." icon="🔐" />
       {msg && (
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>

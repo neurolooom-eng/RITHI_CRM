@@ -8,7 +8,13 @@
 
 export interface RoleDef { key: string; label: string }
 export const ROLES: RoleDef[] = [
-  { key: 'admin', label: 'Admin / Super Admin' },
+  // "Admin", NOT "Admin / Super Admin" (2026-09-09). The old label promised
+  // something this dropdown cannot do: SUPER ADMIN IS NOT A ROLE. It is a row
+  // in `app_super_admins` matched against a hardcoded list in auth.tsx, and
+  // adding one is a migration plus a code change -- on purpose, since it is the
+  // account that overrides every other check. Picking this grants Admin and
+  // never Super Admin, and the label now says only what it does.
+  { key: 'admin', label: 'Admin' },
   // TECHNICAL SUPPORT — the Super Admin's reach, none of its writes (user,
   // 2026-09-08: "Map this Role to All Modules and Mimic Super Admin - But with
   // Read Only For now"). It holds EVERY module key, including the admin ones,
