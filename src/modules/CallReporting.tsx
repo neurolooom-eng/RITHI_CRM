@@ -484,12 +484,22 @@ export function CallReportDrawer({
         ) : f.kind === 'warranty' ? (
           <input type="date" className="input" value={val} onChange={(e) => setField(f.key, e.target.value)} />
         ) : f.kind === 'complaint' ? (
-          <>
-            <input className="input" list="dl-standardcomplaint" value={val} onChange={(e) => setField(f.key, e.target.value)} />
-            <datalist id="dl-standardcomplaint">
-              {complaints.values.slice(0, 2000).map((c) => <option key={c} value={c} />)}
-            </datalist>
-          </>
+          // TYPE, SEARCH, SELECT — and NO free text (the user, 2026-09-09).
+          // This was a datalist, which only SUGGESTS: it accepted anything
+          // typed, and it was capped at 2,000 entries so a master past that had
+          // values nobody could pick. Every count, filter and frequent-failure
+          // match downstream is done on this value, so a hand-typed one is a
+          // complaint that matches nothing.
+          <SelectPicker
+            value={val}
+            onChange={(v) => setField(f.key, v)}
+            options={val && !complaints.values.includes(val) ? [val, ...complaints.values] : complaints.values}
+            placeholder={complaints.values.length ? '— pick the standard complaint —'
+              : complaints.ready ? '— the Standard Complaint master is empty —'
+              : '— loading the complaints… —'}
+            disabled={!complaints.values.length && !val}
+            emptyHint="If it is not here, it needs adding under Masters."
+          />
         ) : f.kind === 'accessory' ? (
           <>
             <input className="input" list="dl-accessory" placeholder={accessories.length ? 'Pick a CPX / ASU serial on this party…' : 'No CPX / ASU product found for this party'}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SelectPicker } from '../ui/SelectPicker';
 import './form.css';
 
 // ===========================================================================
@@ -44,6 +45,12 @@ export interface FieldDef {
   readOnly?: boolean;
   // Free-text field with autocomplete suggestions (e.g. from a Master sheet).
   datalist?: string[];
+  // MAY A VALUE BE COMMITTED THAT IS NOT ON THE LIST? Off by default, and the
+  // default is the point: these options come from masters, so a typed-in value
+  // is a master entry that does not exist. It is a per-FIELD decision (the
+  // user's rule, 2026-09-09: "fallback or no fallback depends on the field") --
+  // a free-text note can take anything, a Standard Complaint cannot.
+  allowFreeText?: boolean;
   // Something INTERACTIVE under the field — a suggestion the person can accept,
   // which `help` cannot be because it is only a string. Given the form's current
   // values and its setter, so a field can offer to fill itself from what has
@@ -315,26 +322,35 @@ function FieldControl({
         />
       );
     case 'select': {
+      // TYPE, SEARCH, SELECT — THE DEFAULT FOR EVERY DROPDOWN IN THE APP
+      // (the user's rule, 2026-09-09). This one case covers the Field Call,
+      // Installation and PM registers and Pending Registrations, because every
+      // one of those forms is built from FieldDefs and rendered here. Changing
+      // the engine is what makes "in all modules" true and keeps it true for
+      // the next form somebody adds.
+      //
+      // SelectPicker drops the search box under eight options, so a Yes/No is
+      // still two things you click. And free text is OFF unless the field asks
+      // for it: an option list comes from a master, and a typed value is a
+      // master entry that does not exist.
       const opts = resolveOptions(field);
       const cur = String(value ?? '');
-      // Show a prefilled value (e.g. mapped from Product Master) even if it is
-      // not one of the configured options.
+      // A prefilled value (e.g. mapped from Product Master) stays selectable
+      // even when it is not one of the configured options, or opening a record
+      // would silently blank it.
       const hasCur = cur === '' || opts.some((o) => String(o.value) === cur);
       return (
-        <select
-          className={`select ${error ? 'input-error' : ''}`}
+        <SelectPicker
           value={cur}
-          onChange={(e) => onChange(e.target.value)}
-          {...common}
-        >
-          <option value="">— Select —</option>
-          {!hasCur && <option value={cur}>{cur} (from sheet)</option>}
-          {opts.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={onChange}
+          disabled={common.disabled}
+          className={error ? 'input-error' : undefined}
+          allowFreeText={field.allowFreeText === true}
+          options={[
+            ...(hasCur ? [] : [{ value: cur, label: `${cur} (from sheet)` }]),
+            ...opts.map((o) => ({ value: String(o.value), label: o.label })),
+          ]}
+        />
       );
     }
     case 'checkbox':

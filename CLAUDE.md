@@ -236,6 +236,26 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   request; a UCN whose state is unknown renders PLAIN, because a wrong colour on
   a code is worse than no colour.
 
+- **EVERY DROPDOWN IS TYPE-SEARCH-AND-SELECT. That is the design default**
+  (user's rule, 2026-09-09), and it is a default rather than a preference: a
+  native `<select>` picks on the FIRST KEYSTROKE, so with Auto Save on the Daily
+  Call Review a stray key wrote a Root Cause nobody chose. `PickList` (and
+  `SelectPicker`, its `<select>`-shaped wrapper) filter on typing and commit
+  only on a click or Enter. **The form engine renders `type: 'select'` this
+  way**, so every FieldDef form — Field Call, Installation, PM, Pending
+  Registrations — gets it without being touched, and so does the next one.
+  - **A short list gets no search box.** Under eight options `PickList` shows
+    just the list: making somebody type to reach *Yes / No* is worse than the
+    dropdown it replaced.
+  - **FALLBACK IS PER FIELD, and OFF by default.** `allowFreeText` is what lets
+    a value that is not on the list be committed. Off is right for anything
+    fed by a master — a typed value is a master entry that does not exist. The
+    **Standard Complaint takes no fallback in any module** (the user's rule):
+    every count, filter and frequent-failure match downstream runs on that
+    value, so a hand-typed one matches nothing. An empty master is a MASTER
+    problem — the field says so and stays a picker.
+  - `npm run check:ui` fails a NEW `<select>` in a module; the few that remain
+    are listed in that script and are being converted.
 - **"Highlight" means CONTRAST, not a tint** (user's standing preference,
   2026-09-06). A pale wash of the accent colour is what this project reached
   for first and it did not read at all on screen. Highlighting is done by
