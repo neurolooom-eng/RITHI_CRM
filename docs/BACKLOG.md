@@ -43,6 +43,26 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+📌 **A party spelled two ways showed no products** (2026-09-09, v0.9.174) —
+"CAPTAIN SAURABH KALIA MEMORIAL KAYDEE HOSPITAL — This party has Products, but
+this Party Doesnt". **Not where it looked.** `parties` CANNOT hold two spellings
+(0076 puts a unique index on `lower(btrim(party_name))`); `products.party_name`
+is unconstrained text, so an import filed machines under CAPITALS while the
+party row spelled it Title Case. `sbPartyInfo` matched with `ilike`, the product
+lookups with `eq` — the two halves of the app disagreed about whether case
+mattered, and only one of them was right.
+
+Fixed in code: the product lookups now narrow with `ilike` (the trigram index in
+0052 serves it) and compare exactly on `lower(trim())` in the browser — because
+in an `ilike` pattern `_` matches ANY character, so pattern-matching alone would
+quietly pull in neighbours. **No SQL needed.**
+
+OPTIONAL tidy-up, dry-run by default:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_party_name_normalise.sql>
+— re-spells product rows to their party row's spelling, and separately lists
+products whose party has no row at all (nothing to normalise TO; somebody has to
+add the party).
+
 ⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
 Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
 that role's STORED row rather than restated, so the two cannot drift; plus the

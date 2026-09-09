@@ -745,10 +745,42 @@ export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000
   if (error) throw new Error(errMsg(error));
   return data ?? [];
 }
+// ---------------------------------------------------------------------------
+// A PARTY NAME IS THE SAME PARTY WHATEVER ITS CASE.
+//
+// Reported 2026-09-09: "CAPTAIN SAURABH KALIA MEMORIAL KAYDEE HOSPITAL — This
+// party has Products, but this Party Doesnt — Captain Saurabh Kalia Memorial
+// Kaydee Hospital."
+//
+// The two halves of the app disagreed, which is the whole bug. `sbPartyInfo`
+// finds the party with `ilike` (case-insensitive), while the product lookups
+// used `eq` (case-sensitive) — so picking the party spelled one way and reading
+// products stored the other way returned nothing, on a party that plainly has
+// machines. There is no unique constraint on `parties.party_name`, so both
+// spellings exist as rows and either can be the one you land on.
+//
+// MATCHED IN TWO STEPS, deliberately. `ilike` does the narrowing in the
+// database (the trigram index in 0052 serves it), and the exact comparison is
+// then done here on `lower(trim())`. That second step is not belt-and-braces:
+// in an ilike pattern `_` matches ANY character and `%` matches anything at
+// all, so a party whose name contains either would quietly pull in its
+// neighbours. Escaping them through PostgREST is fiddly; comparing the strings
+// once they are here is exact and costs nothing at this size.
+// ---------------------------------------------------------------------------
+const partyKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
+/** The ilike pattern for "this exact name, any case". Wildcards in the name are
+ *  neutralised to `_`, which over-matches rather than under-matching — the JS
+ *  comparison below then throws the extras away. */
+const partyLike = (party: string) => party.trim().replace(/[%_]/g, '_');
+
 export async function sbListPartyProducts(party: string): Promise<string[]> {
-  const { data, error } = await must().from('products').select('item_name').eq('party_name', party).limit(5000);
+  const { data, error } = await must().from('products')
+    .select('item_name,party_name').ilike('party_name', partyLike(party)).limit(5000);
   if (error) throw new Error(errMsg(error));
-  return [...new Set((data ?? []).map((r) => String(r.item_name)).filter(Boolean))];
+  const want = partyKey(party);
+  return [...new Set((data ?? [])
+    .filter((r) => partyKey(r.party_name) === want)
+    .map((r) => String(r.item_name)).filter(Boolean))];
 }
 // ---- Suggesting the Standard Complaint -------------------------------------
 //
@@ -960,11 +992,12 @@ export async function sbListProductSerials(product: string): Promise<string[]> {
 }
 
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').eq('party_name', party).limit(2000);
+  let q = must().from('products').select('*').ilike('party_name', partyLike(party)).limit(2000);
   if (product) q = q.eq('item_name', product);
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
-  return (data ?? []).map(productRowToSheet);
+  const want = partyKey(party);
+  return (data ?? []).filter((r) => partyKey(r.party_name) === want).map(productRowToSheet);
 }
 // ONE MACHINE, BY ITS SERIAL. An EQUALITY on the stored `serial_key` (0129),
 // which is indexed — not `ILIKE '%serial%'`, which is a leading-wildcard scan
