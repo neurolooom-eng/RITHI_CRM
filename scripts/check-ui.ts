@@ -1956,5 +1956,22 @@ console.log('\n-- every page in the menu has a permission --');
     /\{ title: 'Reports', pages: \[/.test(rb), true);
 }
 
+console.log('\n-- the Standard Complaint is searched, not scrolled --');
+{
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+
+  // FIVE HUNDRED ENTRIES BEHIND A NATIVE DROPDOWN is a scrollbar and nothing
+  // else. The PickList is also the control that cannot select by keystroke, so
+  // going back to a <select> would return both faults at once.
+  eq('the request form picks the complaint with a PickList',
+    /<PickList[\s\S]{0,400}standardComplaint/.test(rq), true);
+  eq('...and no native <option> list is left over the master',
+    /complaintMaster\.values\.map\(\(v\) => <option/.test(rq), false);
+
+  // The row's own value survives a master that no longer lists it.
+  eq('a complaint off the master is still offered',
+    /withCurrent\(complaintMaster\.values, it\.standardComplaint\)/.test(rq), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

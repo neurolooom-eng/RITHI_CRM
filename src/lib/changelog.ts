@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.161',
+    date: '2026-09-09',
+    title: 'Type to find the Standard Complaint on a call request',
+    changes: [
+      'THE STANDARD COMPLAINT IS SEARCHED NOW, NOT SCROLLED. Start typing and the list narrows to what matches; there are five hundred of them, and a plain dropdown gave you the scrollbar and nothing else.',
+      'TYPING ONLY FILTERS \u2014 IT NEVER CHOOSES. The complaint changes when you click one or press Enter on it, and at no other moment, so a stray key over the box cannot quietly swap the fault you had picked.',
+      'A complaint already on the request that is no longer in the master is still offered, so an older request is never blanked by opening it.',
+    ],
+  },
+  {
     version: '0.9.160',
     date: '2026-09-09',
     title: 'Roles & Permissions carries every page again',
