@@ -2281,5 +2281,43 @@ console.log('\n-- dropdowns are one control --');
   }
 }
 
+console.log('\n-- the drawer can be widened, and remembers --');
+{
+  const ui = readFileSync('src/components/ui/ui.tsx', 'utf8');
+  const css = readFileSync('src/components/ui/ui.css', 'utf8');
+
+  eq('there is a grip to drag', /className="drawer-grip"/.test(ui), true);
+  // MEASURED FROM THE RIGHT EDGE, because the drawer is pinned there. Anything
+  // else and the panel drifts away from the cursor as you drag.
+  eq('the width follows the cursor exactly',
+    /window\.innerWidth - e\.clientX/.test(ui), true);
+
+  // A REMEMBERED WIDTH MUST NOT OPEN OFF-SCREEN. 1400px saved on a monitor,
+  // then opened on a laptop, has to come back inside the window.
+  eq('the width is clamped on open and on resize',
+    (ui.match(/Math\.min\(Math\.max\(/g) ?? []).length >= 3, true);
+  eq('...and never narrower than the head needs', /DRAWER_MIN = 360/.test(ui), true);
+
+  // localStorage throws in a private window and during thumbnail capture, and
+  // a drawer that cannot remember its width must still open.
+  // Counted on the CALLS, not on the word: the first version of this counted
+  // the comments explaining the guard as unguarded uses of it.
+  const calls = ui.match(/window\.localStorage\.\w+\(/g) ?? [];
+  const guarded = ui.match(/try \{ [^}]*window\.localStorage\.\w+\([^}]*\} catch/g) ?? [];
+  eq('every localStorage call is guarded', guarded.length, calls.length);
+  eq('...and there is at least one', calls.length > 0, true);
+
+  // Written on RELEASE: a write per mousemove makes localStorage the slow part
+  // of the drag.
+  eq('the width is saved on release, not on every move',
+    /const up = \(\) => \{[\s\S]*?localStorage\.setItem/.test(ui), true);
+
+  // A 2px line nobody can hit is not a handle.
+  eq('the hit area is wider than the line it draws',
+    /\.drawer-grip \{[\s\S]*?width: 10px;/.test(css) && /\.drawer-grip::after \{[\s\S]*?width: 2px;/.test(css), true);
+  // Reachable without a mouse.
+  eq('the arrow keys resize it too', /e\.key === 'ArrowLeft'/.test(ui), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -90,12 +90,45 @@
 .drawer {
   background: var(--surface);
   height: 100%;
-  max-width: 92vw;
+  max-width: 96vw;
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   animation: drawer-in 0.18s ease;
+  /* The grip is positioned against this. */
+  position: relative;
 }
+
+/* ---- the resize grip -----------------------------------------------------
+   A THIN TARGET IS A MISSED TARGET, so the grip is 10px wide and sits half
+   outside the panel, while the LINE people see is 2px. Hit area and visual
+   weight are different problems and this solves them separately. */
+.drawer-grip {
+  position: absolute;
+  left: -5px; top: 0; bottom: 0; width: 10px;
+  cursor: col-resize;
+  z-index: 2;
+  background: transparent;
+}
+.drawer-grip::after {
+  content: '';
+  position: absolute;
+  left: 4px; top: 0; bottom: 0; width: 2px;
+  background: var(--border);
+  transition: background 0.12s;
+}
+.drawer-grip:hover::after,
+.drawer-grip:focus-visible::after,
+body.drawer-resizing .drawer-grip::after {
+  /* INVERTED against the page, per the standing rule that a highlight is
+     contrast and not a tint. */
+  background: var(--text);
+}
+.drawer-grip:focus-visible { outline: none; }
+/* While dragging: no text selection anywhere, and the cursor does not flicker
+   as the pointer crosses whatever is under it. */
+body.drawer-resizing { cursor: col-resize; user-select: none; }
+body.drawer-resizing * { cursor: col-resize !important; }
 @keyframes drawer-in {
   from { transform: translateX(24px); opacity: 0.4; }
   to { transform: translateX(0); opacity: 1; }
@@ -180,6 +213,9 @@
 @media (max-width: 760px) {
   /* Full-screen drawer on phones (overrides the inline width prop). */
   .drawer { width: 100vw !important; max-width: 100vw; }
+  /* Full width already — nothing to drag, and a grip at the screen edge would
+     only get in the way of a scroll. */
+  .drawer-grip { display: none; }
   .drawer-head { padding: 12px 14px; }
   .drawer-body { padding: 14px; }
   .modal { width: 94vw !important; max-width: 94vw; }
