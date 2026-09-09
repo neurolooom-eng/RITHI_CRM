@@ -630,6 +630,23 @@ with checks(sort_order, bundle, provides, present) as (
       or (not exists (select 1 from public.app_super_admins where lower(email) = 'mmdev74@gmail.com')
      and not exists (select 1 from public.profiles
                       where lower(email) = 'mmdev74@gmail.com' and lower(coalesce(role,'')) = 'admin')))),
+    (119, 'Tracker: the points open at the end of 2026-09-09 are on the list', 'The six items 0157 seeds -- assign the Zoho Migration role, un-park the auto-apply pipeline, Indoor Service Phase 1, the condemn/salvage decision, the optional party tidy-up, and the unlabelled error in the spare_bulk_approval suite. Checked by TITLE, which is also how the seed decides whether to add: the file is additive and idempotent, so it never re-adds one and never closes one. This row exists because a SEED had no way of being told apart from a bundle that was never run -- every other row here tests an object, and rows are not objects. It reads yes once ANY status: an item somebody has since marked Done or Dropped still counts as on the list, since closing it is the point. NO means tracker.sql has not been run since v0.9.181. Restore: tracker.sql',
+        -- tracker_items is READ THROUGH query_to_xml for the same reason
+        -- cron.job is on row 85: a plain reference is resolved when this
+        -- statement is PLANNED, so a project that has never run tracker.sql
+        -- would fail the WHOLE report rather than report this one row as NO --
+        -- and that is precisely the project the row is for.
+        (case when to_regclass('public.tracker_items') is null then false
+              else coalesce((xpath('/row/c/text()', query_to_xml(
+                     $q$select count(*) as c from public.tracker_items where title in (
+                          'Assign the Zoho Migration role to a login',
+                          'Un-park the auto-apply pipeline (one character)',
+                          'Indoor Service: build Phase 1, now the activities are settled',
+                          'DECISION: who may condemn a unit, and where a salvaged part goes',
+                          'Party spellings: run the tidy-up, or leave it',
+                          'The spare_bulk_approval suite emits an unlabelled error')$q$,
+                     false, true, '')))[1]::text::int = 6, false)
+         end)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),
