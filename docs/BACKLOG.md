@@ -99,25 +99,31 @@ Read-only diagnosis:
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
 
-🟡 **THE FOUR BUNDLES WERE RUN — reported, not verified (2026-09-09).** The user
-said "all done" after being given `rbac.sql`, `performance.sql`,
-`daily_review.sql` and `Spare_1.sql` in that order. **No `_status.sql` output has
-been seen since**, so this says reported rather than applied, which is the whole
-value of the distinction here: this file has twice claimed the opposite of what
-was really in the database, once nearly causing a needless rebuild of the live
-`calls` tables. It is a record, not evidence.
+✅ **THE FOUR BUNDLES ARE APPLIED — VERIFIED (2026-09-09).** `rbac.sql`,
+`performance.sql`, `daily_review.sql` and `Spare_1.sql` were run, and the
+`_status.sql` output was read back: **every row `yes`**, rows 113–117 included.
 
-**To turn this into evidence**, run `_status.sql` and read rows **113–117**:
-113 Spare Insights · 114 stored roles carry every page · 115 part category free
-text · 116 RM Approval sees the request · 117 Zoho Migration is a read-only
-clone. All five `yes` means every one of the four landed.
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+That is the distinction this file exists to hold, so it is worth being exact
+about what the evidence covers. These rows test the PROPERTY, not merely that an
+object exists:
 
-What each carried: `rbac.sql` — 0151 (module keys, Spare Insights beyond
-admins) and 0155 (Zoho Migration role). `performance.sql` — 0152, dropping the
-`parts_category_check` that killed the Item Master upload. `daily_review.sql` —
-0153, the frequent-failure rule the procedure states. `Spare_1.sql` (repo ROOT)
-— 0154, the complaint on RM Approval.
+* **115** — the `parts_category_check` constraint is GONE, so a Part Master
+  upload can no longer be refused part-written over a category word.
+* **116** — `spare_pending_rm` carries `complaint` **and** `security_invoker` is
+  still on it. A rebuilt view that lost that setting would read as its owner and
+  hand every signed-in user every engineer's requests, with no error; the row
+  would have said `no`.
+* **117** — `zoho_migration` still holds everything `technical_support` holds
+  AND none of the actions a write policy names. A drifted or writable clone
+  fails this row rather than passing it.
+* **114** — `technical_support` still carries every module key the admin role
+  does, so a page added later has not silently skipped it.
+* **113** — `spare_insights` exists and is NOT `security definer`.
+
+Also confirmed by the same output: the frequent-failure row reads the PROCEDURE's
+rule (0153) — one month, counting the call under review, with the same-part path
+— and asserts `frequent_failure_history()` is gone, so no stale caller can get
+the old six-month answer.
 
 <details><summary>The PENDING notes these replace</summary>
 

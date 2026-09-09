@@ -14,10 +14,13 @@ export const CHANGELOG: ChangeEntry[] = [
   {
     version: '0.9.177',
     date: '2026-09-09',
-    title: 'The four database updates were run',
+    title: 'The four database updates are in, and checked',
     changes: [
-      'THE FOUR OUTSTANDING DATABASE UPDATES HAVE BEEN APPLIED \u2014 the new Zoho Migration role and the page permissions, the Part Master upload fix, the frequent-failure rule, and the complaint on RM Approval.',
-      'RECORDED AS REPORTED RATHER THAN CONFIRMED until the status check is read back. This file has twice claimed the opposite of what was really in the database, so \u201Csomebody said they ran it\u201D and \u201Cthe database says so\u201D are kept apart on purpose.',
+      'ALL FOUR OUTSTANDING DATABASE UPDATES ARE APPLIED, and the status check confirms it rather than somebody remembering: the Zoho Migration role and the page permissions, the Part Master upload fix, the frequent-failure rule, and the complaint on RM Approval.',
+      'THE PART MASTER FILE WILL LOAD NOW \u2014 the rule that stopped it 173 rows in is gone.',
+      'FREQUENT FAILURE ASKS WHAT THE PROCEDURE ASKS: within a month, counting the call in front of you, and catching the same part fitted twice in one machine.',
+      'RM APPROVAL SHOWS THE COMPLAINT, so a spare can be judged against the fault it is for.',
+      'SPARE INSIGHTS IS VISIBLE TO EVERYONE WHO CAN SEE CONSUMPTION, not administrators alone, and the Zoho Migration role can now be given to a login.',
     ],
   },
   {
