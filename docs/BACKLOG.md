@@ -63,16 +63,6 @@ OPTIONAL tidy-up, dry-run by default:
 products whose party has no row at all (nothing to normalise TO; somebody has to
 add the party).
 
-⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
-Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
-that role's STORED row rather than restated, so the two cannot drift; plus the
-report and master-list sub-pages spelled out, because Roles & Permissions shows
-a row per sub-page. Read-only by what it does not hold. Until it runs the role
-exists in the app's dropdown but no login can be given it usefully. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
-
 📌 **"I am not able to add users to Admin / Super User"** (2026-09-09) —
 answered, and two things were wrong, one of them ours.
 
@@ -108,6 +98,108 @@ Read-only diagnosis:
 <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_admin_grant_check.sql> ·
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
+
+🟡 **THE FOUR BUNDLES WERE RUN — reported, not verified (2026-09-09).** The user
+said "all done" after being given `rbac.sql`, `performance.sql`,
+`daily_review.sql` and `Spare_1.sql` in that order. **No `_status.sql` output has
+been seen since**, so this says reported rather than applied, which is the whole
+value of the distinction here: this file has twice claimed the opposite of what
+was really in the database, once nearly causing a needless rebuild of the live
+`calls` tables. It is a record, not evidence.
+
+**To turn this into evidence**, run `_status.sql` and read rows **113–117**:
+113 Spare Insights · 114 stored roles carry every page · 115 part category free
+text · 116 RM Approval sees the request · 117 Zoho Migration is a read-only
+clone. All five `yes` means every one of the four landed.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+
+What each carried: `rbac.sql` — 0151 (module keys, Spare Insights beyond
+admins) and 0155 (Zoho Migration role). `performance.sql` — 0152, dropping the
+`parts_category_check` that killed the Item Master upload. `daily_review.sql` —
+0153, the frequent-failure rule the procedure states. `Spare_1.sql` (repo ROOT)
+— 0154, the complaint on RM Approval.
+
+<details><summary>The PENDING notes these replace</summary>
+
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
+Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
+that role's STORED row rather than restated, so the two cannot drift; plus the
+report and master-list sub-pages spelled out, because Roles & Permissions shows
+a row per sub-page. Read-only by what it does not hold. Until it runs the role
+exists in the app's dropdown but no login can be given it usefully. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
+⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — at the REPOSITORY ROOT,
+not under `supabase/apply/`: it and `HandStock_X.sql` are the two numbered
+consolidated files handed round, where the number is a revision. (A link to the
+`supabase/apply/` path was given first and 404'd.) 0154 adds `complaint` to
+`spare_pending_rm` so RM Approval can show what the spare is being asked for
+(`_status.sql` row 116). Everything else the screen gained was already in the
+view. The view is **dropped and rebuilt**, not replaced — `create or replace`
+can only append, and 0116's narrower definition has to stay replayable after
+this; `security_invoker` is re-asserted, and `check:views` passes. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/Spare_1.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql>
+
+⚠️ **PENDING: `daily_review.sql`** (2026-09-09, v0.9.163) — 0153 replaces the
+frequent-failure test with the procedure's own rule (`_status.sql` row 77).
+Until it runs, Review 2 still applies a **six-month** window, still reads the
+count **one short** of the rule, and still has **no same-part path** at all.
+Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/daily_review.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql>
+
+⚠️ **PENDING: `performance.sql`** (2026-09-09, v0.9.162) — 0152 drops the
+`parts_category_check` constraint, which aborted the Item Master upload 173 rows
+in and left the table half-written (`_status.sql` row 115). The importer fix
+ships with the app and needs no SQL; this one stops the whole CLASS of failure,
+so an unexpected category word can never refuse a row again. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
+rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
+is invisible to everyone but an administrator**. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
+⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
+with this file: eight items added (0150), the three parked decisions and the
+13485 findings. Additive and idempotent by title; nothing already on the list is
+closed, renamed or touched. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+(It also carries the Air Liquide ID item from 0146, if that has not been run.)
+
+⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
+every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+It is a row somebody could equally add on the page in twenty seconds; the
+migration exists so it also travels with the bundle.
+
+🔎 **WHY THE HOTLINE DESK SAID "RITHI ADMIN", found while writing the fix
+(2026-09-08).** `default_registrant()` (0114) resolves the desk from the
+`calls.default_registrant_email` setting, or from the single hotline profile
+where there is exactly one. Where neither holds it returns NULL, and the stamp
+falls back to `coalesce(default_registrant(), auth.uid())` — **whoever
+registered the call**. So every call registered from the admin login was filed
+to the admin desk, which is what the screenshot showed.
+
+`supabase/apply/_hotline_desk_fix.sql` corrects the calls already filed that
+way. **Setting the default registrant on Admin Config is what stops it
+recurring** — otherwise the next person to use the admin login reproduces it
+exactly.
+
+</details>
 
 🅿️ **PARKED: the auto-apply pipeline** (2026-09-09, user's call: "not working --
 Park it to backlog"). It is BUILT and merged; what stopped it is one character
@@ -169,53 +261,6 @@ gone and queries fail outright. `0116` and `0154` now carry the identical full
 column list and nothing is dropped — `check:ui` compares them word for word and
 fails on either growing a `drop view`.
 
-⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — at the REPOSITORY ROOT,
-not under `supabase/apply/`: it and `HandStock_X.sql` are the two numbered
-consolidated files handed round, where the number is a revision. (A link to the
-`supabase/apply/` path was given first and 404'd.) 0154 adds `complaint` to
-`spare_pending_rm` so RM Approval can show what the spare is being asked for
-(`_status.sql` row 116). Everything else the screen gained was already in the
-view. The view is **dropped and rebuilt**, not replaced — `create or replace`
-can only append, and 0116's narrower definition has to stay replayable after
-this; `security_invoker` is re-asserted, and `check:views` passes. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/Spare_1.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/Spare_1.sql>
-
-⚠️ **PENDING: `daily_review.sql`** (2026-09-09, v0.9.163) — 0153 replaces the
-frequent-failure test with the procedure's own rule (`_status.sql` row 77).
-Until it runs, Review 2 still applies a **six-month** window, still reads the
-count **one short** of the rule, and still has **no same-part path** at all.
-Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/daily_review.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql>
-
-⚠️ **PENDING: `performance.sql`** (2026-09-09, v0.9.162) — 0152 drops the
-`parts_category_check` constraint, which aborted the Item Master upload 173 rows
-in and left the table half-written (`_status.sql` row 115). The importer fix
-ships with the app and needs no SQL; this one stops the whole CLASS of failure,
-so an unexpected category word can never refuse a row again. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/performance.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
-
-⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
-rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
-is invisible to everyone but an administrator**. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
-
-⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
-with this file: eight items added (0150), the three parked decisions and the
-13485 findings. Additive and idempotent by title; nothing already on the list is
-closed, renamed or touched. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
-(It also carries the Air Liquide ID item from 0146, if that has not been run.)
-
 🟡 **`performance.sql` RUN — reported, not verified (2026-09-08, v0.9.157).**
 The user ran it after v0.9.157 shipped. That bundle carries BOTH
 `unused_spare_report` (row 112) and `spare_insights` + the Part Master's new
@@ -230,27 +275,6 @@ If Spare Insights still shows an error, the message names the function, which
 means the bundle did not reach the database — PostgREST also caches the schema
 for a few seconds after a function appears, so a reload is worth trying before
 re-running anything.
-
-⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.152) — one seeded item, *"Collect
-every engineer's Air Liquide ID"*, owned by **Devika** (0146). Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/tracker.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
-It is a row somebody could equally add on the page in twenty seconds; the
-migration exists so it also travels with the bundle.
-
-🔎 **WHY THE HOTLINE DESK SAID "RITHI ADMIN", found while writing the fix
-(2026-09-08).** `default_registrant()` (0114) resolves the desk from the
-`calls.default_registrant_email` setting, or from the single hotline profile
-where there is exactly one. Where neither holds it returns NULL, and the stamp
-falls back to `coalesce(default_registrant(), auth.uid())` — **whoever
-registered the call**. So every call registered from the admin login was filed
-to the admin desk, which is what the screenshot showed.
-
-`supabase/apply/_hotline_desk_fix.sql` corrects the calls already filed that
-way. **Setting the default registrant on Admin Config is what stops it
-recurring** — otherwise the next person to use the admin login reproduces it
-exactly.
 
 🟡 **NOTHING KNOWN TO BE PENDING ON THE DATABASE — reported run, not verified (2026-09-08).**
 

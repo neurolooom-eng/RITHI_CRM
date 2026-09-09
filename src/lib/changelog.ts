@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.177',
+    date: '2026-09-09',
+    title: 'The four database updates were run',
+    changes: [
+      'THE FOUR OUTSTANDING DATABASE UPDATES HAVE BEEN APPLIED \u2014 the new Zoho Migration role and the page permissions, the Part Master upload fix, the frequent-failure rule, and the complaint on RM Approval.',
+      'RECORDED AS REPORTED RATHER THAN CONFIRMED until the status check is read back. This file has twice claimed the opposite of what was really in the database, so \u201Csomebody said they ran it\u201D and \u201Cthe database says so\u201D are kept apart on purpose.',
+    ],
+  },
+  {
     version: '0.9.176',
     date: '2026-09-09',
     title: 'Drag the side panel wider',
