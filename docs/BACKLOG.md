@@ -78,6 +78,12 @@ cannot re-grant themselves. Bootstrapping the first one therefore needs the
 trigger lifted for a single statement — the snippet is in
 `_admin_grant_check.sql`, re-enabling inside the same transaction.
 
+**The first version of that check was useless where it would be run**: it asked
+`auth.uid()`, and the SQL editor has no signed-in app user, so every line came
+back `(not signed in)`. Rewritten 2026-09-09 to take an EMAIL and answer from
+the tables — it says in one line whether that person can grant Admin, which gate
+stops them, and **who can**, so "ask one of these people" replaces guessing.
+
 Read-only diagnosis:
 <https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_admin_grant_check.sql> ·
 copy it:
