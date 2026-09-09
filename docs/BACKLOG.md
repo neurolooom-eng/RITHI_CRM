@@ -123,19 +123,6 @@ Fields per activity are in `docs/INDOOR_SERVICE_PLAN.md` and the artifact
 of that file, the sharpest being whether a salvaged part re-enters stock under
 its own code; if it does not, its condition grade is decoration.
 
-⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.178) — 0156 revokes
-**mmdev74@gmail.com** (`_status.sql` row 118). SUPER ADMIN IS THREE PLACES and
-all three change together: `app_super_admins` (what Postgres allows),
-`SUPER_ADMINS` in `src/lib/auth.tsx` (what the browser offers — shipped in the
-same change, and `check:ui` now compares the two lists), and `profiles.role`,
-because `is_admin()` is `role = 'admin'` **OR** the super-admin row, so dropping
-only the row can leave an ordinary Admin standing. Downgraded to `engineer` —
-the least this codebase can express; there is no "no access" ROLE, and locking
-the account out entirely means deactivating the User Master row, which was NOT
-assumed. 0156 sits AFTER 0008 in the module, so replaying the bundle re-seeds
-and then revokes rather than restoring a super admin.
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
-
 ✅ **THE FOUR BUNDLES ARE APPLIED — VERIFIED (2026-09-09).** `rbac.sql`,
 `performance.sql`, `daily_review.sql` and `Spare_1.sql` were run, and the
 `_status.sql` output was read back: **every row `yes`**, rows 113–117 included.
@@ -163,16 +150,6 @@ rule (0153) — one month, counting the call under review, with the same-part pa
 the old six-month answer.
 
 <details><summary>The PENDING notes these replace</summary>
-
-⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
-Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
-that role's STORED row rather than restated, so the two cannot drift; plus the
-report and master-list sub-pages spelled out, because Roles & Permissions shows
-a row per sub-page. Read-only by what it does not hold. Until it runs the role
-exists in the app's dropdown but no login can be given it usefully. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
 
 ⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — at the REPOSITORY ROOT,
 not under `supabase/apply/`: it and `HandStock_X.sql` are the two numbered
@@ -205,13 +182,6 @@ so an unexpected category word can never refuse a row again. Read it:
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
 
-⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
-rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
-is invisible to everyone but an administrator**. Read it:
-<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
-copy it:
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
-
 ⚠️ **PENDING: `tracker.sql`** (2026-09-08, v0.9.158) — the Tracker catches up
 with this file: eight items added (0150), the three parked decisions and the
 13485 findings. Additive and idempotent by title; nothing already on the list is
@@ -241,6 +211,62 @@ to the admin desk, which is what the screenshot showed.
 way. **Setting the default registrant on Admin Config is what stops it
 recurring** — otherwise the next person to use the admin login reproduces it
 exactly.
+
+</details>
+
+🟡 **`rbac.sql` WAS RUN — reported, not verified (2026-09-09).** The user said
+"Ran RBAC" after being handed it for the revocation. **No `_status.sql` output
+has been seen since**, so this says reported: the file has twice claimed the
+opposite of what was really in the database, and it is a record rather than
+evidence.
+
+**This one matters more than the usual bookkeeping, because one of the three is
+a REVOCATION.** Until row 118 is read back, `mmdev74@gmail.com` may still be a
+super admin in the database — and the app already stopped showing them as one at
+v0.9.178, so the screens would agree with the intention while Postgres did not.
+That is precisely the state where nobody notices.
+
+**Read rows 117 and 118** —
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+
+* **118 — mmdev74@gmail.com is revoked.** Tests BOTH conditions, so it reads NO
+  if either the `app_super_admins` row or an admin `profiles.role` survived.
+* **117 — Zoho Migration is a read-only clone.** Tests the PROPERTY: it fails if
+  the role drifted from `technical_support` or picked up anything a write policy
+  names, not merely if the row is missing.
+* 114 covers 0151 and should still read `yes`.
+
+<details><summary>The PENDING notes this replaces</summary>
+
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.178) — 0156 revokes
+**mmdev74@gmail.com** (`_status.sql` row 118). SUPER ADMIN IS THREE PLACES and
+all three change together: `app_super_admins` (what Postgres allows),
+`SUPER_ADMINS` in `src/lib/auth.tsx` (what the browser offers — shipped in the
+same change, and `check:ui` now compares the two lists), and `profiles.role`,
+because `is_admin()` is `role = 'admin'` **OR** the super-admin row, so dropping
+only the row can leave an ordinary Admin standing. Downgraded to `engineer` —
+the least this codebase can express; there is no "no access" ROLE, and locking
+the account out entirely means deactivating the User Master row, which was NOT
+assumed. 0156 sits AFTER 0008 in the module, so replaying the bundle re-seeds
+and then revokes rather than restoring a super admin.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
+Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
+that role's STORED row rather than restated, so the two cannot drift; plus the
+report and master-list sub-pages spelled out, because Roles & Permissions shows
+a row per sub-page. Read-only by what it does not hold. Until it runs the role
+exists in the app's dropdown but no login can be given it usefully. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.160) — 0151 catches the stored role
+rows up with the pages (`_status.sql` row 114). Until it runs, **Spare Insights
+is invisible to everyone but an administrator**. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
 
 </details>
 
