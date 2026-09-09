@@ -1,0 +1,164 @@
+/* ---------------------------------------------------------------------------
+   INDOOR SERVICE — the workshop register (§4.5).
+
+   Both themes come from the tokens. The status tones are the only colour, and
+   each is the SAME HUE in either theme, for the same reason the call-status
+   code is: a colour people learn to read is a code, and a code that means
+   something else in dark mode is not one. The theme changes the box around the
+   chip, never the hue.
+
+   The DEMO / Customer mark is the one piece of deliberate contrast on the row.
+   It is not decoration — it is whose property the machine is, which decides
+   whether the custody duties of §7.5.10 apply, and it needs to be legible
+   without reading the column heading.
+   --------------------------------------------------------------------------- */
+
+.ind-msg {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2, var(--surface));
+  font-size: 13px;
+}
+
+/* THE OVERDUE BANNER. "Highlight means CONTRAST, not a tint" — so this inverts
+   against the page rather than washing it with an accent, which is what makes
+   it read in both themes by construction. */
+.ind-overdue {
+  margin: 8px 0;
+  padding: 9px 13px;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--surface);
+  font-size: 13px;
+}
+.ind-overdue b { font-variant-numeric: tabular-nums; }
+
+.ind-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.ind-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+/* Whose property it is. Solid, not a tint — see the note at the top. */
+.ind-demo, .ind-cust {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.ind-demo { background: #6d28d9; color: #fff; }
+.ind-cust { background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-weight: 600; }
+
+.ind-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+/* One hue per state, fixed across both themes. Received is where everything
+   starts and Condemned is where a machine stops existing, so those two carry
+   the strongest signal and the working states sit quietly between them. */
+.ind-received  { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.ind-cleaned   { background: #e0f2fe; color: #075985; border-color: #7dd3fc; }
+.ind-working   { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.ind-waiting   { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.ind-qc        { background: #fce7f3; color: #9d174d; border-color: #f9a8d4; }
+.ind-ready     { background: #dcfce7; color: #166534; border-color: #86efac; }
+.ind-out       { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
+.ind-closed    { background: transparent; color: var(--text-muted); }
+.ind-condemned { background: #1f2937; color: #f9fafb; border-color: #111827; }
+
+.ind-late {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+}
+
+.ind-empty {
+  padding: 14px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---- the drawer -------------------------------------------------------- */
+.ind-drawer { display: flex; flex-direction: column; gap: 12px; }
+
+/* Two columns where there is room, one where there is not. `auto-fit` rather
+   than a fixed count, so a narrowed drawer reflows instead of scrolling
+   sideways — the drawer is resizable and people do narrow it. */
+.ind-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px 14px;
+}
+
+.ind-field { display: flex; flex-direction: column; gap: 3px; }
+.ind-label { font-size: 12px; font-weight: 600; color: var(--text); }
+.ind-hint  { font-size: 11.5px; color: var(--text-muted); line-height: 1.35; }
+.ind-field input, .ind-field textarea { width: 100%; }
+.ind-field textarea { resize: vertical; }
+
+.ind-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* A warning that is not a refusal — the QC segregation note and the accessories
+   still out. Contrast, not a wash: it inverts the same way the overdue banner
+   does, at a smaller weight because it does not stop anybody. */
+.ind-warn {
+  margin: 8px 0 0;
+  padding: 7px 11px;
+  border-left: 3px solid var(--text);
+  background: var(--surface-2, var(--surface));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ind-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 9px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ind-check input { margin-top: 2px; }
+
+.ind-sub {
+  margin: 14px 0 4px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* The child tables are dense: they are lists of small facts, not registers. */
+.ind-child { font-size: 12.5px; }
+.ind-child input { width: 100%; padding: 3px 5px; font-size: 12.5px; }
+
+.ind-foot {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}

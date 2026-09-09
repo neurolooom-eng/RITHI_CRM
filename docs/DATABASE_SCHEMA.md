@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**61 tables · 24 views · 1423 columns · 117 policies · 39 foreign keys.**
+**66 tables · 25 views · 1606 columns · 126 policies · 42 foreign keys.**
 
 ## How to read this
 
@@ -51,6 +51,11 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [handstock_period](#handstock-period)
 - [harness](#harness)
 - [help_screenshots](#help-screenshots)
+- [indoor_job_accessories](#indoor-job-accessories)
+- [indoor_job_checks](#indoor-job-checks)
+- [indoor_job_counters](#indoor-job-counters)
+- [indoor_job_parts](#indoor-job-parts)
+- [indoor_jobs](#indoor-jobs)
 - [installation_calls](#installation-calls)
 - [kb_articles](#kb-articles)
 - [master_lists](#master-lists)
@@ -735,6 +740,215 @@ _No policies, RLS off — reachable by anything with table privileges._
 | INSERT | `help_shot_insert` | — | `is_admin()` |
 | SELECT | `help_shot_read` | `(auth.role() = 'authenticated'::text)` | — |
 | UPDATE | `help_shot_update` | `is_admin()` | `is_admin()` |
+
+---
+
+## indoor_job_accessories
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
+| 3 | `name` | text | **no** | `''::text` |  |
+| 4 | `serial` | text | **no** | `''::text` |  |
+| 5 | `tag_no` | text | **no** | `''::text` |  |
+| 6 | `returned` | boolean | **no** | `false` |  |
+| 7 | `note` | text | **no** | `''::text` |  |
+
+**References:**
+
+- `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_accessories_job_id_fkey)_
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `indoor_job_accessories_write` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` |
+| SELECT | `indoor_job_accessories_read` | `has_perm('mod:/indoor'::text)` | — |
+
+---
+
+## indoor_job_checks
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
+| 3 | `seq` | integer | **no** | `0` |  |
+| 4 | `parameter` | text | **no** | `''::text` |  |
+| 5 | `expected` | text | **no** | `''::text` |  |
+| 6 | `measured` | text | **no** | `''::text` |  |
+| 7 | `verdict` | text | **no** | `''::text` | (empty) · Pass · Fail · N/A |
+| 8 | `instrument` | text | **no** | `''::text` |  |
+| 9 | `instrument_serial` | text | **no** | `''::text` |  |
+| 10 | `calibration_due` | date | yes |  |  |
+
+**References:**
+
+- `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_checks_job_id_fkey)_
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `indoor_job_checks_write` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` |
+| SELECT | `indoor_job_checks_read` | `has_perm('mod:/indoor'::text)` | — |
+
+---
+
+## indoor_job_counters
+
+**Primary key:** `yr` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `yr` | smallint | **no** |  |  |
+| 2 | `last_no` | integer | **no** | `0` |  |
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## indoor_job_parts
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `job_id` | bigint | **no** |  | → indoor_jobs(id) |
+| 3 | `part_code` | text | **no** | `''::text` |  |
+| 4 | `description` | text | **no** | `''::text` |  |
+| 5 | `qty` | numeric | **no** | `0` |  |
+| 6 | `condition_grade` | text | **no** | `''::text` | (empty) · Serviceable · Repairable · Scrap |
+| 7 | `destination` | text | **no** | `''::text` |  |
+| 8 | `note` | text | **no** | `''::text` |  |
+
+**References:**
+
+- `job_id` → **indoor_jobs**(`id`) · on delete cascade _(indoor_job_parts_job_id_fkey)_
+
+**Constraints:**
+
+- `indoor_job_parts_qty_check` — `CHECK ((qty >= (0)::numeric))`
+
+**Triggers:** `zz_indoor_job_parts_guard` → `indoor_job_parts_guard()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `indoor_job_parts_write` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` | `(has_perm('indoor.work'::text) OR has_perm('indoor.receive'::text))` |
+| SELECT | `indoor_job_parts_read` | `has_perm('mod:/indoor'::text)` | — |
+
+---
+
+## indoor_jobs
+
+> The Indoor Service Register (procedure §4.5). TWO AXES: kind says whose property the unit is, which turns the custody duties of §7.5.10 on or off; activity says what is being done to it. The call (ucn) is OPTIONAL, because a DEMO unit has no call -- which is why this is a register in its own right and not a stage a call can be in.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `job_no` | text | **no** |  |  |
+| 3 | `ucn` | text | yes |  |  |
+| 4 | `kind` | text | **no** | `'Customer property'::text` | Customer property · DEMO unit |
+| 5 | `activity` | text | **no** | `'Repair'::text` | Repair · Rework · Salvage · Pre-delivery inspection · Demo · Other |
+| 6 | `product_name` | text | **no** | `''::text` |  |
+| 7 | `serial` | text | **no** | `''::text` |  |
+| 8 | `party_name` | text | yes |  |  |
+| 9 | `received_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `received_by` | uuid | yes |  |  |
+| 11 | `condition_on_arrival` | text | **no** | `''::text` |  |
+| 12 | `tag_no` | text | **no** | `''::text` |  |
+| 13 | `status` | text | **no** | `'Received'::text` | Received · Cleaned · Under repair · Awaiting spares · QC · Ready · Dispatched · Closed · Condemned |
+| 14 | `cleaned_at` | timestamp with time zone | yes |  |  |
+| 15 | `cleaned_by` | uuid | yes |  |  |
+| 16 | `cleaning_wi` | text | **no** | `'WI/SER/01'::text` |  |
+| 17 | `cleaning_wi_rev` | text | **no** | `''::text` |  |
+| 18 | `work_done` | text | **no** | `''::text` |  |
+| 19 | `findings` | text | **no** | `''::text` |  |
+| 20 | `qc_result` | text | yes |  | Pass · Fail |
+| 21 | `qc_by` | uuid | yes |  |  |
+| 22 | `qc_at` | timestamp with time zone | yes |  |  |
+| 23 | `qc_notes` | text | **no** | `''::text` |  |
+| 24 | `dispatched_at` | timestamp with time zone | yes |  |  |
+| 25 | `dispatched_by` | uuid | yes |  |  |
+| 26 | `dispatch_ref` | text | **no** | `''::text` |  |
+| 27 | `damage_note` | text | **no** | `''::text` |  |
+| 28 | `reported_to_customer_at` | timestamp with time zone | yes |  |  |
+| 29 | `reported_to_customer_by` | uuid | yes |  |  |
+| 30 | `nc_reference` | text | **no** | `''::text` |  |
+| 31 | `rework_instruction` | text | **no** | `''::text` |  |
+| 32 | `rework_instruction_rev` | text | **no** | `''::text` |  |
+| 33 | `rework_authorised_by` | text | **no** | `''::text` |  |
+| 34 | `rework_authorised_at` | timestamp with time zone | yes |  |  |
+| 35 | `adverse_effect_assessed` | boolean | yes |  |  |
+| 36 | `adverse_effect_note` | text | **no** | `''::text` |  |
+| 37 | `reverified_by` | text | **no** | `''::text` |  |
+| 38 | `reverified_at` | timestamp with time zone | yes |  |  |
+| 39 | `reverification_result` | text | yes |  | Pass · Fail |
+| 40 | `disposition` | text | yes |  | Released · Scrapped |
+| 41 | `condemned_reason` | text | **no** | `''::text` |  |
+| 42 | `condemned_by` | uuid | yes |  |  |
+| 43 | `condemned_at` | timestamp with time zone | yes |  |  |
+| 44 | `decontaminated` | boolean | **no** | `false` |  |
+| 45 | `disposal_method` | text | **no** | `''::text` |  |
+| 46 | `disposal_ref` | text | **no** | `''::text` |  |
+| 47 | `customer_informed` | boolean | **no** | `false` |  |
+| 48 | `source_ref` | text | **no** | `''::text` |  |
+| 49 | `checklist_ref` | text | **no** | `''::text` |  |
+| 50 | `checklist_rev` | text | **no** | `''::text` |  |
+| 51 | `firmware_version` | text | **no** | `''::text` |  |
+| 52 | `accessories_per_packing_list` | boolean | yes |  |  |
+| 53 | `pdi_result` | text | yes |  | Pass · Pass with observation · Fail |
+| 54 | `released_by` | uuid | yes |  |  |
+| 55 | `released_at` | timestamp with time zone | yes |  |  |
+| 56 | `held_reason` | text | **no** | `''::text` |  |
+| 57 | `demo_for_party` | text | **no** | `''::text` |  |
+| 58 | `requested_by` | text | **no** | `''::text` |  |
+| 59 | `expected_out` | date | yes |  |  |
+| 60 | `expected_return` | date | yes |  |  |
+| 61 | `actual_out` | date | yes |  |  |
+| 62 | `actual_return` | date | yes |  |  |
+| 63 | `custody_holder` | text | **no** | `''::text` |  |
+| 64 | `condition_out` | text | **no** | `''::text` |  |
+| 65 | `condition_back` | text | **no** | `''::text` |  |
+| 66 | `consumables_used` | text | **no** | `''::text` |  |
+| 67 | `demo_outcome` | text | yes |  | Converted · Returned · Damaged · Lost |
+| 68 | `sale_ref` | text | **no** | `''::text` |  |
+| 69 | `activity_note` | text | **no** | `''::text` |  |
+| 70 | `created_by` | uuid | yes |  |  |
+| 71 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 72 | `updated_by` | uuid | yes |  |  |
+| 73 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+
+**Unique:** `job_no` _(indoor_jobs_job_no_key)_ · `job_no` _(indoor_jobs_job_no_key)_
+
+**Referenced by:** `indoor_job_accessories.job_id` · `indoor_job_checks.job_id` · `indoor_job_parts.job_id`
+
+**Constraints:**
+
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
+- `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+
+**Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `indoor_insert` | — | `has_perm('indoor.receive'::text)` |
+| SELECT | `indoor_read` | `has_perm('mod:/indoor'::text)` | — |
+| UPDATE | `indoor_update` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` | `(has_perm('indoor.receive'::text) OR has_perm('indoor.work'::text) OR has_perm('indoor.qc'::text) OR has_perm('indoor.dispatch'::text) OR has_perm('indoor.condemn'::text))` |
 
 ---
 
@@ -2297,6 +2511,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `field_call_review_summary` | **on** | 11 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
+| `indoor_job_list` | **on** | 83 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 49 |

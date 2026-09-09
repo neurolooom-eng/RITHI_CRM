@@ -115,7 +115,12 @@ eq('the challan itself is untouched', dcLines.length, 4);
 
   // The Reporting Managers' asks, and the correction that followed, are in it.
   ['URS-031', 'URS-032', 'URS-033', 'URS-034', 'URS-035', 'URS-036',
-   'URS-037', 'URS-038', 'URS-039', 'URS-040', 'URS-041', 'URS-042'].forEach((id) => {
+   'URS-037', 'URS-038', 'URS-039', 'URS-040', 'URS-041', 'URS-042',
+   // The Indoor Service requirements (Rev 2.0). Named rather than left to the
+   // sweep above because these four are the ones a customer's property and a
+   // worker's safety rest on, and a requirement that quietly loses its test
+   // still reads as covered in the matrix.
+   'URS-049', 'URS-050', 'URS-051', 'URS-052'].forEach((id) => {
     eq(`${id} traces to a test`, testFor(id).length > 0 ? 'yes' : 'no', 'yes');
   });
   // Every risk and every failure mode has to point at a requirement that exists,
@@ -2387,6 +2392,82 @@ console.log('\n-- super admins: the two lists agree --');
     eq(`${e} is not a super admin in code`, inCode.has(e), false);
     eq(`...nor seeded back without a revocation`, seeded.has(e) && !revoked.has(e), false);
   }
+}
+
+console.log('\n-- Indoor Service: the two axes, and the rights the database keeps --');
+{
+  // The register is the workshop side of procedure §4.5. What is tested here is
+  // what could silently regress into something that still LOOKS right.
+  const sql = readFileSync('supabase/migrations/0158_indoor_service.sql', 'utf8');
+
+  // TWO AXES. `kind` says whose property it is (which turns the custody duties
+  // of §7.5.10 on or off) and `activity` says what is being done to it. Collapse
+  // them into one column and a DEMO unit in for repair stops being a DEMO unit.
+  eq('kind and activity are separate columns, each with its own vocabulary',
+    /kind\s+text not null default 'Customer property'[\s\S]{0,200}check \(kind in/.test(sql)
+    && /activity\s+text not null default 'Repair'[\s\S]{0,300}check \(activity in/.test(sql), true);
+
+  // The call is OPTIONAL. If `ucn` ever gains `not null`, DEMO units need a fake
+  // call raised for them and the register stops standing on its own.
+  eq('the call is optional — a DEMO unit has none', /\n  ucn\s+text,\n/.test(sql), true);
+
+  // THE RIGHTS ARE THE DATABASE'S. Each of these three is refused by the guard
+  // trigger, not by hiding a button; a right only the browser tests is a hidden
+  // button, which this project has shipped twice (0126, 0127).
+  for (const right of ['indoor.qc', 'indoor.dispatch', 'indoor.condemn']) {
+    eq(`${right} is refused by the trigger, not just by the screen`,
+      new RegExp(`has_perm\\('${right.replace('.', '\\.')}'\\)[\\s\\S]{0,200}raise exception`).test(sql), true);
+  }
+
+  // The one HARD GATE: nothing is harvested from a unit that has not been
+  // decontaminated. Everything else in the module records; this one blocks.
+  eq('nothing is harvested before the unit is decontaminated',
+    /indoor_job_parts_guard[\s\S]{0,600}not coalesce\(v_ok, false\)[\s\S]{0,200}raise exception/.test(sql), true);
+
+  // A machine does not leave with a failed check (4.5.6).
+  eq('a failed quality check stops the unit leaving',
+    /status in \('Ready', 'Dispatched', 'Closed'\)[\s\S]{0,120}qc_result = 'Fail'[\s\S]{0,200}raise exception/.test(sql), true);
+
+  // security_invoker on the list view. Without it the view reads as its OWNER
+  // and every signed-in user sees every job — the fault that has hit this
+  // project three times (0040, 0050, 0057) and never announces itself.
+  eq('indoor_job_list applies RLS to the reader',
+    /create view public\.indoor_job_list[\s\S]*?alter view public\.indoor_job_list set \(security_invoker = on\)/.test(sql), true);
+
+  // The job number is ISSUED, not accepted. The trigger must assign
+  // unconditionally: "fill it in when blank" lets a client mint its own.
+  eq('the job number is issued by the database, never taken from the client',
+    /new\.job_no := public\.next_indoor_job_no\(\);/.test(sql)
+    && /if new\.job_no is null or btrim\(new\.job_no\) = ''/.test(sql) === false, true);
+
+  // CONDEMN IS GRANTED TO NOBODY BUT ADMIN on apply. Scrapping a machine is a
+  // decision an administrator makes deliberately, not one that arrives with the
+  // page — so it must not appear in any other role's grant list.
+  const grantBlock = sql.slice(sql.indexOf('$indoor_perms$'));
+  const condemnLines = grantBlock.split('\n').filter((l) => l.includes('indoor.condemn'));
+  eq('indoor.condemn is granted to admin alone',
+    condemnLines.length === 1 && /r\.role = 'admin'/.test(
+      grantBlock.split('\n')[grantBlock.split('\n').findIndex((l) => l.includes('indoor.condemn')) - 1]), true);
+
+  // The page is reachable and grantable. A module in the nav but not in MODULES
+  // cannot be given to anybody; one in MODULES but not the nav cannot be found.
+  const nav = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  eq('the register has a route, a nav entry and a permission key',
+    /path="\/indoor"/.test(app) && /to: '\/indoor'/.test(nav) && /path: '\/indoor'/.test(rbac), true);
+  eq('...and its five rights are on the role matrix',
+    /'indoor\.receive', 'indoor\.work', 'indoor\.qc', 'indoor\.dispatch', 'indoor\.condemn'/.test(rbac), true);
+
+  // The screen must not invent a third axis by folding kind into activity.
+  const page = readFileSync('src/modules/IndoorService.tsx', 'utf8');
+  eq('the screen edits both axes as separate fields',
+    /onChange=\{\(v\) => set\(\{ kind: v \}\)\}/.test(page)
+    && /onChange=\{\(v\) => set\(\{ activity: v \}\)\}/.test(page), true);
+  // The QC segregation is a WARNING. If this ever becomes a block it is a
+  // decision somebody made, and it should not happen by drift.
+  eq('QC by the same person warns rather than refuses',
+    /selfChecked/.test(page) && /ind-warn/.test(page), true);
 }
 
 console.log('\n-- the Standard Complaint is picked, never typed --');

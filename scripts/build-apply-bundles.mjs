@@ -335,6 +335,24 @@ const MODULES = {
     needs: ['rbac', 'visibleEngineers'],
     files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql'],
   },
+  indoor: {
+    title: 'Indoor Service (the workshop register, §4.5)',
+    blurb: ['indoor_jobs --- the Indoor Service Register: one row per piece of equipment',
+            'taken into the workshop. TWO AXES rather than one: `kind` says whose',
+            'property it is (customer property or a DEMO unit), which is what turns the',
+            'custody duties of 7.5.10 on or off; `activity` says what is being done to',
+            'it (Repair, Rework, Salvage, Pre-delivery inspection, Demo, Other). The',
+            'call is OPTIONAL --- a DEMO unit has no call --- which is why this is a',
+            'register in its own right and not a stage a call can be in.',
+            'indoor.qc, indoor.dispatch and indoor.condemn are enforced by a TRIGGER,',
+            'not by hiding buttons; condemn is granted to admin alone.'],
+    // `rbac` for has_perm()/is_admin(), which every policy and the guard ask;
+    // `visibleEngineers` is 0004's marker, which creates app_user_names'
+    // ancestor table --- the list view joins it five times for the who-did-what
+    // names.
+    needs: ['rbac', 'visibleEngineers'],
+    files: ['0158_indoor_service.sql'],
+  },
   documents: {
     title: 'Document Library (service manuals & QMS)',
     blurb: ['The service-manual shelf and the QMS shelf (`documents`). The FILES live',
@@ -624,7 +642,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

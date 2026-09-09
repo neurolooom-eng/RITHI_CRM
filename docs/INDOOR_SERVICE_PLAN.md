@@ -1,8 +1,22 @@
 # Indoor Service — a plan
 
-**Status: PLAN for review. Nothing built.** Written 2026-09-08 from procedure
-§4.5 and ANNEXURE A as supplied; extended 2026-09-09 with the ACTIVITY TYPES
-Vignesh supplied. Requirements it closes are SR-040…SR-044 in
+**Status: PHASE 1 IS BUILT AND SHIPPED (2026-09-09, v0.9.182).** Phases 2 and 3
+remain a plan. Written 2026-09-08 from procedure §4.5 and ANNEXURE A as
+supplied; extended 2026-09-09 with the ACTIVITY TYPES Vignesh supplied, and
+built the same day.
+
+**What Phase 1 shipped:** `0158_indoor_service.sql` — `indoor_jobs` with both
+axes and all six activities' field sets, `indoor_job_accessories`,
+`indoor_job_parts` and `indoor_job_checks`; the `IND<YY>-<NNNN>` series issued by
+the database; five permissions of which three are enforced by a TRIGGER rather
+than by hiding buttons; the `/indoor` page with the seven-step drawer; and
+`supabase/tests/indoor_service_test.sql`, whose fourteen sections are the
+evidence for the requirement statuses above. `_status.sql` row 120 says whether
+it reached the live project. **The SQL still has to be run: `indoor.sql`.**
+
+**The five questions that were open have been settled the reversible way, and
+each is marked below.** Where a decision could be made softly it was: a warning
+is undone by anybody, a hard block needs a migration and an argument. Requirements it closes are SR-040…SR-044 in
 `ISO13485_SERVICING.md`; the activities also reach SR-003, SR-006, SR-017 and
 SR-020.
 
@@ -201,17 +215,38 @@ recorded Pass in Phase 1 as planned.
 
 ## Still to settle on the activities
 
+*Answered where Phase 1 had to have an answer; the rest stand.*
+
 6. **Rework vs Repair — who decides which one a job is?** A unit that arrives
    broken is Repair; a unit that failed OUR OWN check is Rework. The distinction
    is about where the nonconformity came from, and somebody has to make the call
    at intake.
+   **Phase 1: whoever receives it, and it can be changed afterwards.** The field
+   is a picker on the intake step with no enforcement, because the distinction
+   is a judgement about provenance that no rule available to the database can
+   make. Getting it wrong costs a corrected field, not a lost record.
 7. **Does a salvaged part re-enter hand stock, and under what code?** See the
    note above — this is the one with a real risk attached.
+   **Phase 1 RECORDS the harvest and credits NOTHING.** `indoor_job_parts`
+   carries the code, quantity, condition grade and a `destination` in words. The
+   half that cannot go wrong is recording it; the half that can is a part
+   entering stock under its normal code, indistinguishable from new, which is
+   exactly what makes the grade decoration. **Still open**, and until it is
+   answered no balance moves.
 8. **Who may condemn a unit?** Scrapping customer property in particular cannot
    be an engineer's own decision.
+   **Phase 1: `indoor.condemn`, its own permission, granted to ADMIN alone on
+   apply** — and enforced by the guard trigger, not by hiding the field. Nobody
+   else has it until an administrator gives it out on Roles & Permissions. That
+   is the safe shape of "not settled yet": the decision is somebody's to make
+   deliberately rather than one that arrives with the page. **Still open** as a
+   policy question — who *should* hold it.
 9. **Is a DEMO unit's `kind` still "DEMO unit" when it is in for repair?** It
    should be: custody does not change because the workshop is doing something
    different to it. This is why the two axes stay separate.
+   **SETTLED, and built that way.** `kind` and `activity` are two columns with
+   two vocabularies, neither reachable from the other, and `check:ui` fails a
+   change that folds one into the other.
 
 ## The data model
 
@@ -308,6 +343,21 @@ the phase that closes the largest gap in the requirements document, and it is
 last because it needs the reference measurements, which do not exist as data yet.
 
 ## To settle before building
+
+*Phase 1 needed answers to 2 and 4 and got them; 1, 3 and 5 belong to phases
+that have not been built, and are untouched.*
+
+**2 — Must QC be done by somebody other than the person who did the work?**
+**A WARNING, not a block.** The procedure does not say. Both names are recorded,
+`indoor.qc` is a permission separate from `indoor.work` so the segregation is
+*arrangeable*, and the screen says plainly when the two are the same person.
+Turning it into a refusal is one line in the trigger the day it is decided;
+unblocking a workshop that turns out to have one qualified person is not.
+
+**4 — Job numbering `IND26-0001` per year?** **Yes, as proposed** — and issued
+by the DATABASE, with a client-supplied number discarded rather than accepted. A
+number the client may set is a number two people can mint, and the first thing
+that happens then is two machines answering to one job number.
 
 1. **Does Central Service hold its own spare stock?** Hand stock is per engineer
    here. A workshop drawing parts is either an engineer's balance or a location's

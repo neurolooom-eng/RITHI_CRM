@@ -217,6 +217,73 @@ exactly.
 
 </details>
 
+⚠️ **PENDING: `indoor.sql`** (2026-09-09, v0.9.182) — **INDOOR SERVICE PHASE 1
+IS BUILT.** 0158 creates the workshop register: `indoor_jobs` carrying both axes
+and all six activities' field sets, `indoor_job_accessories`,
+`indoor_job_parts`, `indoor_job_checks`, the `IND<YY>-<NNNN>` series, five
+permissions and two guard triggers. Until it runs, the page is in the menu for
+nobody and `_status.sql` row 120 reads NO. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/indoor.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/indoor.sql>
+
+**Two axes, and keeping them apart is the decision the whole shape rests on.**
+`kind` says WHOSE PROPERTY the unit is — which is what turns the custody duties
+of §7.5.10 on or off, and is why the procedure gives DEMO units a different tag
+(4.5.5). `activity` says WHAT IS BEING DONE to it. A DEMO unit in for repair is
+still a DEMO unit. One field could not carry both without losing an answer, and
+`check:ui` now fails a change that folds one into the other.
+
+**The register stands alone; the call is an optional link.** `ucn` is nullable
+because 4.5.5 puts DEMO units in here and a DEMO unit has no customer, no
+complaint and no call. Had it gone the other way, DEMO units would need a fake
+call raised for them.
+
+**Six activities, not Vignesh's four.** Repair is added back because it is what
+§4.5 is actually about, and "recycling or rework" is split — he invited it
+("choose or creat ur own") — into **Rework** (§8.3.4: a documented instruction,
+an adverse-effect assessment, re-verification) and **Salvage** (SR-017:
+harvesting from a condemned unit). Calling both by one word would put a
+scrapping decision and a repair decision in the same bucket.
+
+**THREE RIGHTS ARE ENFORCED BY A TRIGGER, not by hiding buttons.** `indoor.qc`,
+`indoor.dispatch` and `indoor.condemn` are each refused in the database, because
+this project has twice shipped a right only the browser tested (0126, 0127). The
+test suite proves each one by holding every OTHER right and still being refused.
+
+**`indoor.condemn` is granted to ADMIN alone on apply.** Scrapping a machine —
+customer property above all — is a decision somebody makes deliberately, not one
+that arrives with the page. That is the safe shape of an unsettled question.
+
+**One hard gate, and it is the only one:** nothing is harvested from a unit that
+has not been decontaminated. Everything else in the module records; that one is
+a person putting their hands inside a device that has been in a hospital.
+
+**What it deliberately does NOT do.** No column was added to the three call
+tables and the `calls` view was NOT rebuilt — `create or replace view` drops
+`security_invoker`, which has silently exposed every call to every user three
+times here (0040, 0050, 0057). A call is "at Indoor Service" iff it has an open
+job, derived. And **a salvaged part is recorded, never credited to hand stock**:
+a part entering stock under its normal code is indistinguishable from new, which
+would make its condition grade decoration. Open question 7 stays open, and until
+it is answered no balance moves.
+
+**Five open questions were settled the REVERSIBLE way** and each is marked in
+`docs/INDOOR_SERVICE_PLAN.md`. The one worth restating: QC signed by the person
+who did the work is a **warning, not a block** — the procedure does not say it
+must be somebody else, both names are recorded, and the screen says so out loud.
+Making it a refusal is one line in the trigger; unblocking a workshop that turns
+out to have one qualified person is not.
+
+**Phases 2 and 3 are untouched.** Phase 2 is the loop with the call (the
+transfer of 4.5.1, the chip on the call, the completion report of 4.5.7); Phase
+3 is QC with acceptance criteria, which needs per-product reference measurements
+that do not exist as data yet. `indoor_job_checks` already holds the structure —
+parameter, expected, measured, verdict, instrument, calibration due — so Phase 3
+fills a column rather than reshaping a table. SR-040, SR-041 and SR-042 move to
+**Present**; SR-043 to **Partial**, closed in form and not in substance, which
+is the whole of SR-006; SR-044 stays Absent and is Phase 2.
+
 ⚠️ **PENDING: `tracker.sql`** (2026-09-09, v0.9.181) — 0157 puts the points open
 at the end of the day onto the Tracker: assign the Zoho Migration role, un-park
 the auto-apply pipeline, Indoor Service Phase 1 now the activities are settled,
