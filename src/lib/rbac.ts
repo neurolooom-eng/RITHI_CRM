@@ -97,6 +97,10 @@ export const MODULES: ModuleDef[] = [
   { path: '/exports/consumption', label: 'Reports — Consumption Report' },
   { path: '/exports/kpi', label: 'Reports — KPI Export' },
   { path: '/exports/unused', label: 'Reports — Not Consumed Against this Call' },
+  // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
+  // because a DEMO unit has no call to hang off: the register stands alone and
+  // the call is an optional link, not the other way round.
+  { path: '/indoor', label: 'Indoor Service Register' },
   { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
@@ -158,6 +162,20 @@ const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Spares', key: 'spare.drop', label: 'Drop a spare (any stage)' },
   { group: 'Spares', key: 'spare.receive', label: 'Acknowledge spare receipt' },
   { group: 'Spares', key: 'stock.return', label: 'Return spares to Stores (MRN)' },
+  // INDOOR SERVICE — five rights, because the procedure separates the roles.
+  // `indoor.qc` being its own right is the one that matters: it is what allows
+  // the quality check of 4.5.6 to be somebody other than the person who did the
+  // work. All five are enforced by a database trigger (0158), not by hiding
+  // buttons — a right the database does not test is a hidden button, and this
+  // project has found hidden buttons twice (0126, 0127).
+  { group: 'Indoor Service', key: 'indoor.receive', label: 'Receive equipment into the workshop' },
+  { group: 'Indoor Service', key: 'indoor.work', label: 'Record cleaning, findings and work done' },
+  { group: 'Indoor Service', key: 'indoor.qc', label: 'Sign the quality check (4.5.6)' },
+  { group: 'Indoor Service', key: 'indoor.dispatch', label: 'Dispatch a unit back' },
+  // GRANTED TO NOBODY BY DEFAULT, admin aside. Scrapping a machine — customer
+  // property above all — is a decision somebody makes deliberately, not one
+  // that arrives with the page.
+  { group: 'Indoor Service', key: 'indoor.condemn', label: 'Condemn a unit (scrap it)' },
   { group: 'Spares', key: 'consumption.view', label: 'View consumption' },
   { group: 'Spares', key: 'consumption.reconcile', label: 'Add consumption against a call (reconciliation)' },
   { group: 'Spares', key: 'stock.transfer', label: 'Transfer hand-stock between engineers' },
@@ -219,15 +237,15 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
-  nsm: ['calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit'],
+  nsm: ['calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
   hotline: ['calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
-  spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view'],
-  stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
+  spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
+  stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
 };
@@ -356,6 +374,10 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/consumption', label: '↳ Consumption Report', actions: [] },
     { path: '/exports/kpi', label: '↳ KPI Export', actions: [] },
     { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: [] },
+  ] },
+  { title: 'Indoor Service', pages: [
+    { path: '/indoor', label: 'Indoor Service Register',
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
   ] },
   { title: 'Administration', pages: [
     { path: '/tracker', label: 'Tracker', actions: [] },

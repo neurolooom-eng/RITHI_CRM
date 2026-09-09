@@ -12,6 +12,24 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.182',
+    date: '2026-09-09',
+    title: 'Indoor Service \u2014 a register for equipment in the workshop',
+    changes: [
+      'THERE IS NOW AN INDOOR SERVICE REGISTER, for every piece of equipment that comes into the workshop \u2014 the machine an engineer could not fix on site, a unit being reworked, one being stripped for usable parts, a new unit checked before it ships, and a demo unit going out to a customer.',
+      'IT RECORDS TWO DIFFERENT THINGS SEPARATELY, and they are separate on purpose: WHOSE the equipment is (a customer\u2019s machine, which the company has a duty of care over, or the company\u2019s own demo stock) and WHAT IS BEING DONE to it. A demo unit that comes in for repair is still a demo unit.',
+      'A DEMO UNIT NEEDS NO CALL. The register stands on its own rather than being a stage a service call passes through, because a demo unit has no customer, no complaint and no call to attach it to.',
+      'EACH KIND OF JOB ASKS FOR WHAT THAT JOB ACTUALLY OWES: a rework asks whether the correction could have harmed the unit in some other way and whether it was re-checked afterwards; stripping a unit for parts asks who condemned it, what was harvested and in what condition, and where the rest went; a pre-delivery check asks for the expected reading beside the measured one, and which instrument took it.',
+      'THE STEPS OF THE PROCEDURE ARE THE FORM: received, cleaned and disinfected against the work instruction, findings and work done, the quality check, and dispatch \u2014 each stamped with who did it and when.',
+      'SIGNING THE QUALITY CHECK IS A SEPARATE PERMISSION from doing the work, so the check can be done by somebody else. Where the same person does both, the record says so rather than hiding it.',
+      'SCRAPPING A UNIT IS ITS OWN PERMISSION TOO, and nobody has it until an administrator gives it out. Condemning a customer\u2019s machine is not a decision that should arrive with the page.',
+      'NOTHING IS TAKEN OUT OF A UNIT UNTIL IT HAS BEEN DECONTAMINATED. That one is refused outright rather than warned about.',
+      'A MACHINE WITH A FAILED QUALITY CHECK CANNOT LEAVE, and a repair cannot be dispatched with no check recorded at all.',
+      'ACCESSORIES ARE A LIST, not a sentence \u2014 so what came in with the customer\u2019s machine can be ticked off as it goes back, and the screen says how many are still outstanding.',
+      'AND IT COUNTS THE DEMO UNITS THAT ARE OVERDUE \u2014 out at a customer past the date they were due back, with who is holding them. Nothing else in the system tracked that.',
+    ],
+  },
+  {
     version: '0.9.181',
     date: '2026-09-09',
     title: 'A full description of the database, and the validation package brought up to date',

@@ -94,6 +94,17 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // INDOOR SERVICE — its own group, sitting after Spares because that is the
+    // order the work happens in: the machine leaves the field, passes through
+    // the workshop, and goes back. A group with no items renders as nothing
+    // (see below), which is why this heading could not be added before the
+    // register existed.
+    title: 'Indoor Service',
+    items: [
+      { to: '/indoor', label: 'Indoor Service Register', icon: '🏭' },
+    ],
+  },
+  {
     title: 'Quality & Analytics',
     items: [
       { to: '/feedback', label: 'Customer Feedback', icon: '⭐' },

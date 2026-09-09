@@ -641,12 +641,30 @@ with checks(sort_order, bundle, provides, present) as (
                      $q$select count(*) as c from public.tracker_items where title in (
                           'Assign the Zoho Migration role to a login',
                           'Un-park the auto-apply pipeline (one character)',
-                          'Indoor Service: build Phase 1, now the activities are settled',
+                          'Indoor Service: Phase 2 (the call loop) and Phase 3 (QC criteria)',
                           'DECISION: who may condemn a unit, and where a salvaged part goes',
                           'Party spellings: run the tidy-up, or leave it',
                           'The spare_bulk_approval suite emits an unlabelled error')$q$,
                      false, true, '')))[1]::text::int = 6, false)
          end)),
+    (120, 'Indoor Service: the workshop register', 'indoor_jobs + indoor_job_accessories + indoor_job_parts + indoor_job_checks, and the guard that makes the rights real (0158, procedure 4.5). TWO AXES: `kind` says whose property the unit is, which turns the custody duties of 7.5.10 on or off; `activity` says what is being done to it. The call is OPTIONAL -- a DEMO unit has no call -- which is why this is a register in its own right rather than a stage a call can be in. This row tests the PROPERTY, not the presence: it fails if indoor_job_list has lost security_invoker (a workshop register reading as its owner hands every signed-in user every job), if the guard trigger is missing (indoor.qc, indoor.dispatch and indoor.condemn would become hidden buttons rather than rights), or if the decontamination gate on harvested parts is gone. NO means the page will be empty or absent. Restore: indoor.sql',
+        (to_regclass('public.indoor_jobs') is not null
+     and to_regprocedure('public.next_indoor_job_no()') is not null
+     and exists (select 1 from pg_policies
+                  where schemaname='public' and tablename='indoor_jobs' and policyname='indoor_read')
+        -- The two triggers are what turn the separated rights into rights. A
+        -- register with the tables and neither guard looks identical on screen.
+     and exists (select 1 from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname='public' and c.relname='indoor_jobs'
+                   and tg.tgname='zz_indoor_jobs_guard')
+     and exists (select 1 from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname='public' and c.relname='indoor_job_parts'
+                   and tg.tgname='zz_indoor_job_parts_guard')
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'indoor_job_list'
+                       and relnamespace = 'public'::regnamespace), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

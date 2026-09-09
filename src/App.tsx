@@ -38,6 +38,7 @@ import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
+import { IndoorService } from './modules/IndoorService';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
 import { Settings } from './modules/Settings';
@@ -147,6 +148,7 @@ function Shell() {
         {/* One page, one tab per report — so the menu can name each report
             instead of hiding it behind a tab strip. */}
         <Route path="/exports/:tab" element={<ReportsHub />} />
+        <Route path="/indoor" element={<IndoorService />} />
         <Route path="/tracker" element={<Tracker />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />

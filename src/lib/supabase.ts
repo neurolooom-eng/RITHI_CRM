@@ -3472,3 +3472,268 @@ export async function saveValidationResult(testId: string, patch: { result?: str
   const { error } = await must().from('validation_results').upsert({ test_id: testId, ...patch }, { onConflict: 'test_id' });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// ===========================================================================
+// INDOOR SERVICE — the workshop register (0158, procedure §4.5).
+//
+// TWO AXES, and keeping them apart is the point: `kind` says whose property the
+// unit is, which turns the custody duties of §7.5.10 on or off; `activity` says
+// what is being done to it. A DEMO unit in for repair is still a DEMO unit.
+// ===========================================================================
+export const INDOOR_KINDS = ['Customer property', 'DEMO unit'] as const;
+export const INDOOR_ACTIVITIES = [
+  'Repair', 'Rework', 'Salvage', 'Pre-delivery inspection', 'Demo', 'Other',
+] as const;
+export const INDOOR_STATUSES = [
+  'Received', 'Cleaned', 'Under repair', 'Awaiting spares', 'QC',
+  'Ready', 'Dispatched', 'Closed', 'Condemned',
+] as const;
+
+export interface IndoorJob {
+  id: number;
+  job_no: string;
+  ucn: string | null;
+  kind: string;
+  activity: string;
+  product_name: string;
+  serial: string;
+  party_name: string | null;
+  received_at: string;
+  received_by: string | null;
+  condition_on_arrival: string;
+  tag_no: string;
+  status: string;
+  cleaned_at: string | null;
+  cleaned_by: string | null;
+  cleaning_wi: string;
+  cleaning_wi_rev: string;
+  work_done: string;
+  findings: string;
+  qc_result: string | null;
+  qc_by: string | null;
+  qc_at: string | null;
+  qc_notes: string;
+  dispatched_at: string | null;
+  dispatch_ref: string;
+  damage_note: string;
+  reported_to_customer_at: string | null;
+  // Rework (§8.3.4)
+  nc_reference: string;
+  rework_instruction: string;
+  rework_instruction_rev: string;
+  rework_authorised_by: string;
+  rework_authorised_at: string | null;
+  adverse_effect_assessed: boolean | null;
+  adverse_effect_note: string;
+  reverified_by: string;
+  reverified_at: string | null;
+  reverification_result: string | null;
+  disposition: string | null;
+  // Salvage (SR-017)
+  condemned_reason: string;
+  condemned_at: string | null;
+  decontaminated: boolean;
+  disposal_method: string;
+  disposal_ref: string;
+  customer_informed: boolean;
+  // Pre-delivery inspection (SR-003 / SR-006 / SR-020)
+  source_ref: string;
+  checklist_ref: string;
+  checklist_rev: string;
+  firmware_version: string;
+  accessories_per_packing_list: boolean | null;
+  pdi_result: string | null;
+  released_at: string | null;
+  held_reason: string;
+  // Demo
+  demo_for_party: string;
+  requested_by: string;
+  expected_out: string | null;
+  expected_return: string | null;
+  actual_out: string | null;
+  actual_return: string | null;
+  custody_holder: string;
+  condition_out: string;
+  condition_back: string;
+  consumables_used: string;
+  demo_outcome: string | null;
+  sale_ref: string;
+  activity_note: string;
+  updated_at: string;
+  // From the view
+  received_by_name: string;
+  cleaned_by_name: string;
+  qc_by_name: string;
+  dispatched_by_name: string;
+  condemned_by_name: string;
+  updated_by_name: string;
+  is_closed: boolean;
+  /** NULL where there is no due date — "not overdue" and "nobody said when"
+   *  are different facts and must not render the same. */
+  demo_overdue: boolean | null;
+  accessory_count: number;
+  accessories_outstanding: number;
+}
+
+export interface IndoorAccessory {
+  id: number; job_id: number; name: string; serial: string;
+  tag_no: string; returned: boolean; note: string;
+}
+export interface IndoorPart {
+  id: number; job_id: number; part_code: string; description: string;
+  qty: number; condition_grade: string; destination: string; note: string;
+}
+export interface IndoorCheck {
+  id: number; job_id: number; seq: number; parameter: string;
+  expected: string; measured: string; verdict: string;
+  instrument: string; instrument_serial: string; calibration_due: string | null;
+}
+
+export async function listIndoorJobs(limit = 500): Promise<IndoorJob[]> {
+  const { data, error } = await must()
+    .from('indoor_job_list')
+    .select('*')
+    .order('id', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as IndoorJob[];
+}
+
+/** A new intake. `job_no` is NOT sent: the database issues it (0158), because a
+ *  number the client may set is a number two people can mint. */
+export async function addIndoorJob(
+  patch: Partial<IndoorJob>,
+): Promise<{ ok: boolean; id?: number; job_no?: string; error?: string }> {
+  const { job_no: _ignored, ...rest } = patch as Record<string, unknown>;
+  const { data, error } = await must()
+    .from('indoor_jobs')
+    .insert({ job_no: 'auto', ...rest })
+    .select('id, job_no')
+    .single();
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, id: Number(data?.id), job_no: String(data?.job_no ?? '') };
+}
+
+export async function saveIndoorJob(
+  id: number, patch: Partial<IndoorJob>,
+): Promise<{ ok: boolean; error?: string }> {
+  // ALLOW-LIST, not a deny-list. The row comes from a VIEW carrying joined
+  // names, `is_closed` and `demo_overdue`; naming what may be written means a
+  // column added to the view later cannot silently become an update that fails.
+  // `job_no`, the stamps and every *_by id are absent deliberately — those are
+  // the database's to set and the trigger discards them anyway.
+  const WRITABLE = [
+    'ucn', 'kind', 'activity', 'product_name', 'serial', 'party_name',
+    'condition_on_arrival', 'tag_no', 'status',
+    'cleaning_wi', 'cleaning_wi_rev', 'work_done', 'findings',
+    'qc_result', 'qc_notes', 'dispatch_ref', 'damage_note',
+    'nc_reference', 'rework_instruction', 'rework_instruction_rev',
+    'rework_authorised_by', 'rework_authorised_at', 'adverse_effect_assessed',
+    'adverse_effect_note', 'reverified_by', 'reverified_at',
+    'reverification_result', 'disposition',
+    'condemned_reason', 'decontaminated', 'disposal_method', 'disposal_ref',
+    'customer_informed',
+    'source_ref', 'checklist_ref', 'checklist_rev', 'firmware_version',
+    'accessories_per_packing_list', 'pdi_result', 'held_reason',
+    'demo_for_party', 'requested_by', 'expected_out', 'expected_return',
+    'actual_out', 'actual_return', 'custody_holder', 'condition_out',
+    'condition_back', 'consumables_used', 'demo_outcome', 'sale_ref',
+    'activity_note',
+  ] as const;
+  const rest = Object.fromEntries(
+    Object.entries(patch).filter(([k]) => (WRITABLE as readonly string[]).includes(k)));
+  if (Object.keys(rest).length === 0) return { ok: true };
+  const { error } = await must().from('indoor_jobs').update(rest).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+/** Marking the unit cleaned (4.5.3). `cleaned_by` is sent because the trigger
+ *  only stamps a time once somebody is named — the WI and its revision are what
+ *  make the record mean anything. */
+export async function markIndoorCleaned(
+  id: number, wi: string, rev: string, uid: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_jobs')
+    .update({ cleaned_by: uid, cleaned_at: new Date().toISOString(),
+              cleaning_wi: wi, cleaning_wi_rev: rev, status: 'Cleaned' })
+    .eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+export async function listIndoorAccessories(jobId: number): Promise<IndoorAccessory[]> {
+  const { data, error } = await must()
+    .from('indoor_job_accessories').select('*').eq('job_id', jobId).order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as IndoorAccessory[];
+}
+export async function addIndoorAccessory(
+  jobId: number, patch: Partial<IndoorAccessory>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_accessories')
+    .insert({ job_id: jobId, ...patch });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+export async function saveIndoorAccessory(
+  id: number, patch: Partial<IndoorAccessory>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { id: _drop, job_id: _drop2, ...rest } = patch as Record<string, unknown>;
+  const { error } = await must().from('indoor_job_accessories').update(rest).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+export async function deleteIndoorAccessory(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_accessories').delete().eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+export async function listIndoorParts(jobId: number): Promise<IndoorPart[]> {
+  const { data, error } = await must()
+    .from('indoor_job_parts').select('*').eq('job_id', jobId).order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as IndoorPart[];
+}
+/** A harvested part. The database REFUSES this until the unit is decontaminated
+ *  — the one hard gate in the module, and the error it raises says so. */
+export async function addIndoorPart(
+  jobId: number, patch: Partial<IndoorPart>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_parts').insert({ job_id: jobId, ...patch });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+export async function deleteIndoorPart(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_parts').delete().eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+
+export async function listIndoorChecks(jobId: number): Promise<IndoorCheck[]> {
+  const { data, error } = await must()
+    .from('indoor_job_checks').select('*').eq('job_id', jobId).order('seq').order('id');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as IndoorCheck[];
+}
+export async function addIndoorCheck(
+  jobId: number, patch: Partial<IndoorCheck>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_checks').insert({ job_id: jobId, ...patch });
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+export async function saveIndoorCheck(
+  id: number, patch: Partial<IndoorCheck>,
+): Promise<{ ok: boolean; error?: string }> {
+  const { id: _drop, job_id: _drop2, ...rest } = patch as Record<string, unknown>;
+  const { error } = await must().from('indoor_job_checks').update(rest).eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}
+export async function deleteIndoorCheck(id: number): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('indoor_job_checks').delete().eq('id', id);
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true };
+}

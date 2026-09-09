@@ -50,11 +50,14 @@ begin
             'Rithi Admin', 'Infrastructure'),
 
       -- ---- design settled, not built --------------------------------------
-      (330, 'Indoor Service: build Phase 1, now the activities are settled',
-            'Vignesh supplied the activity types on 2026-09-09 and the plan now carries six with their fields (docs/INDOOR_SERVICE_PLAN.md). Phase 1 is the register, the page, the nav group and the permissions -- it stands alone, since DEMO units alone justify it and it needs nothing from the call side. Four new questions are open at the end of that file, the sharpest being whether a salvaged part re-enters stock under its own code; if it does not, its condition grade is decoration.',
+      -- PHASE 1 SHIPPED THE SAME DAY THIS FILE WAS WRITTEN (v0.9.182), so the
+      -- item is what is LEFT rather than what was asked for. Rewritten rather
+      -- than closed: the work did not finish, it moved on a phase.
+      (330, 'Indoor Service: Phase 2 (the call loop) and Phase 3 (QC criteria)',
+            'Phase 1 shipped on 2026-09-09 (v0.9.182): the register, both axes, all six activities, the page and the permissions -- run indoor.sql. PHASE 2 is the loop with the call: the transfer of 4.5.1 keeping ONE call and ONE UCN, a chip on the call saying it is at Indoor Service, and the completion report of 4.5.7 closing it. This is SR-044, the one requirement in section L still Absent. PHASE 3 is QC that means something: indoor_job_checks already holds parameter / expected / measured / verdict / instrument / calibration due, so it needs the per-product REFERENCE MEASUREMENTS, which do not exist as data. Until then SR-043 is closed in form and not in substance, and that difference is the whole of SR-006.',
             'Claude', 'Indoor Service'),
       (340, 'DECISION: who may condemn a unit, and where a salvaged part goes',
-            'From the Indoor activity work. Scrapping CUSTOMER property in particular cannot be an engineer''s own decision. And a harvested part entering stock under its normal code is indistinguishable from new -- the register already holds a refurbished part under its own code (URS-027), and salvage should do the same or the condition grade means nothing.',
+            'From the Indoor activity work, and STILL OPEN after Phase 1 -- which settled only the reversible half of each. Condemning is now its own permission (indoor.condemn), enforced by a trigger and granted to ADMIN ALONE, so nobody can scrap a machine by accident; but WHO SHOULD hold it is the question, and scrapping CUSTOMER property in particular cannot be an engineer''s own decision. A salvaged part is RECORDED with its condition grade and destination and credited to NO stock balance, because a harvested part entering stock under its normal code is indistinguishable from new -- the register already holds a refurbished part under its own code (URS-027), and salvage should do the same or the grade means nothing. No balance moves until this is answered.',
             'Decision', 'Indoor Service'),
 
       -- ---- open data questions --------------------------------------------

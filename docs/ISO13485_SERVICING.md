@@ -456,53 +456,91 @@ reading of the servicing provision does not see it.*
 **SR-040 — Customer property in the organisation's possession is identified,
 verified, protected and safeguarded; and where it is lost, damaged or found
 unfit for use, that is REPORTED TO THE CUSTOMER and recorded.** *§7.5.10.*
-**Status: Absent.** Procedure §4.5.2 receives the equipment as *"Customer
-Property"* and records it in the Indoor Service Register — so the process exists
-and the obligation is recognised. The register is not in this system, and there
-is no custody record: nothing says which customer devices are held, since when,
-or in what condition they arrived. The reporting duty on damage has no record at
-all. **A device on the workshop bench is the organisation's responsibility in a
-way a device in the field is not**, which is what makes this the requirement the
-Indoor process adds rather than one it inherits.
+**Status: PRESENT (2026-09-09, v0.9.182).** `indoor_jobs` is the Indoor Service
+Register. Every intake records who received it, when, and `condition_on_arrival`
+— which is the baseline any later damage claim is judged against, and the reason
+it is asked for even when nothing is wrong. `kind` distinguishes customer
+property from a DEMO unit, so the custody duty attaches to the right rows and
+not to the company's own stock. The reporting duty has its own fields:
+`damage_note` with `reported_to_customer_at` / `_by`, which previously had
+nowhere to live at all.
+**A device on the workshop bench is the organisation's responsibility in a way a
+device in the field is not**, which is what made this the requirement the Indoor
+process adds rather than one it inherits.
 
 **SR-041 — Equipment is cleaned and decontaminated before it is worked on, to
 the work instruction, and that is recorded.** *§7.5.2, §6.4.*
-**Status: Absent.** Procedure §4.5.3 requires it against **WI/SER/01**. The step
-protects the person doing the work as much as the product, so "it was done" is a
-record somebody may need to rely on later; nothing holds it.
+**Status: PRESENT (2026-09-09, v0.9.182).** `cleaned_at` / `cleaned_by`, with
+`cleaning_wi` defaulting to **WI/SER/01** and `cleaning_wi_rev` recording WHICH
+REVISION it was cleaned against — the WI changes, and a record that does not say
+which one applied cannot be relied on later.
+It is also the module's ONE HARD GATE rather than a warning: `indoor_job_parts`
+refuses a harvested part while the parent job's `decontaminated` is false. The
+step protects the person doing the work as much as the product, and that is the
+one place in this register where a missing record blocks the work instead of
+being noted after it.
 
 **SR-042 — The equipment carries an identified STATUS throughout, and its
 accessories are identified to the equipment they came with.** *§7.5.8.*
-**Status: Absent — and this is SR-007 made concrete.** Procedure §4.5.4 puts a
-physical **identification tag** on the device to show its status, and tags the
-accessories with the details of the parent equipment. §4.5.5 adds a separate
-**process tag** for DEMO units. The system holds none of the three, and the
-distinction in the last one matters beyond housekeeping: **a DEMO unit is the
-organisation's own stock, not customer property**, so SR-040 does not apply to it
-— and telling them apart is exactly what the separate tag exists to do.
+**Status: PRESENT (2026-09-09, v0.9.182) — and this is SR-007 made concrete.**
+All three are held. `tag_no` is the physical identification tag of §4.5.4 and
+`status` is what it shows, through the nine states of the register.
+`indoor_job_accessories` carries a row per accessory with its own `tag_no`
+against the parent job, so §4.5.4's "tagged with the parent equipment's details"
+is a list that can be ticked off at dispatch rather than a sentence in a text
+box — and the screen says how many are still outstanding.
+The DEMO distinction of §4.5.5 is `kind`, and it matters beyond housekeeping:
+**a DEMO unit is the organisation's own stock, not customer property**, so
+SR-040 does not apply to it. Telling them apart is exactly what the separate tag
+exists to do, which is why `kind` is a column of its own and not a word inside
+`activity`.
 
 **SR-043 — A quality check is performed on completion, before the equipment goes
 back, and the record is kept.** *§7.5.4.*
-**Status: Absent in the system; REQUIRED BY THE PROCEDURE.** §4.5.6: *"After the
+**Status: PARTIAL (2026-09-09, v0.9.182) — closed in FORM, not yet in
+SUBSTANCE, and the difference is the whole of SR-006.** §4.5.6: *"After the
 Service completion a quality check is performed and Records are maintained."*
 
-This is **SR-006** — the largest gap in this document — and the Indoor procedure
-settles a question the first revision left open. The gap is *not* that the
-organisation fails to verify a serviced device: its own procedure says it does.
-The gap is that **the record of that check lives outside this system**, so the
-service record here cannot show it happened. That is a much better problem to
-have, and a smaller one to close.
+What exists now: `qc_result` / `qc_by` / `qc_at` / `qc_notes` as their own
+record rather than a line in the work text, `indoor.qc` as a permission separate
+from `indoor.work` so the check CAN be somebody other than the person who did
+the repair, and a trigger that refuses to let a unit reach Ready, Dispatched or
+Closed with a failed check — or a repair reach Dispatched with no check at all.
+So the record of the check now lives in this system, which is what the gap
+actually was.
+
+**What is still missing is the CRITERIA.** A recorded Pass is not a verification
+against acceptance criteria: `indoor_job_checks` holds parameter, expected,
+measured, verdict, instrument and calibration due — the structure SR-006 and
+SR-020 ask for — but the expected values are typed from a checklist, because
+per-product reference measurements do not exist as data yet. Until they do, this
+requirement is met in form.
+
+**Not enforced, and deliberately: whether the check must be signed by somebody
+OTHER than the person who did the work.** The procedure does not say. Both names
+are recorded and the screen says plainly when they are the same, so it is
+auditable either way; making it a refusal is one line in the trigger the day it
+is decided, and unblocking a workshop that turns out to have one qualified
+person is not.
 
 **SR-044 — A call that moves between departments keeps its identity and its
 history.** *§4.2.5, §7.5.9.*
-**Status: Absent.** Procedure §4.5.1 has the Field Engineer consult the manager,
-send the equipment in, and ask the Hotline Engineer to **transfer the call to the
-Indoor Service department** — the same call, changing hands. Nothing models a
-transfer, so today it would be done by closing one call and raising another,
-which breaks the chain from the customer's original complaint to what was
-eventually found: two records where the standard expects one traceable history.
-§4.5.7 closes the loop — the field engineer reinstalls, checks, and files the
-completion report — so the call ends where it began.
+**Status: Absent — PHASE 2, and the register is built so it stays closable.**
+Procedure §4.5.1 has the Field Engineer consult the manager, send the equipment
+in, and ask the Hotline Engineer to **transfer the call to the Indoor Service
+department** — the same call, changing hands. Nothing models a transfer yet, so
+today it would be done by closing one call and raising another, which breaks the
+chain from the customer's original complaint to what was eventually found: two
+records where the standard expects one traceable history.
+
+**What v0.9.182 does for it is refuse to make it harder.** `indoor_jobs.ucn` is
+a nullable link to the ORIGINAL call, so the eventual transfer keeps one call,
+one UCN and one history rather than replacing it; and NO column was added to the
+three call tables and the `calls` view was not rebuilt, because
+`create or replace view` drops `security_invoker` and has silently exposed every
+call to every user three times in this project (0040, 0050, 0057). Phase 2 adds
+the transfer log, the chip on the call and the completion report of §4.5.7 — so
+the call ends where it began.
 
 ## The gap, in order of consequence
 
