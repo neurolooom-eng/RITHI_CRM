@@ -44,6 +44,7 @@ import { Tracker } from './modules/Tracker';
 import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
+import { HowToUse } from './modules/HowToUse';
 import { KnowledgeBase } from './modules/KnowledgeBase';
 import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
 import { ReportMapping } from './modules/ReportMapping';
@@ -154,6 +155,7 @@ function Shell() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/version-history" element={<VersionHistory />} />
+        <Route path="/knowledge-base/how-to" element={<HowToUse />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
         <Route path="/software-validation" element={<SoftwareValidation />} />

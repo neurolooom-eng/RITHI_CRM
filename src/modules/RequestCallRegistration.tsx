@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
+import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
@@ -508,6 +509,19 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     : <textarea className="input" rows={2} value={it.reportedProblem} onChange={(e) => setItem(i, 'reportedProblem', e.target.value)} />
                 ), true)}
               </div>
+              {/* THE MANUAL WHILE THE FAULT IS BEING DESCRIBED, not after
+                  somebody registers it (the user, 2026-09-09). Per MACHINE,
+                  because a request may carry several and they are not the same
+                  machine — one panel under the whole form would offer the
+                  wrong product's manual for every row but the first.
+                  It is the call's own component, so the matching rule is the
+                  same one; it renders nothing until there is a product, and
+                  nothing when nothing matches. */}
+              <SupportingDocs
+                product={it.product}
+                complaint={it.standardComplaint}
+                reported={it.reportedProblem}
+              />
             </div>
           ))}
           {items.length < MAX_ITEMS && <button className="btn btn-sm" onClick={addItem}>＋ Add call</button>}

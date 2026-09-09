@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.183',
+    date: '2026-09-09',
+    title: 'Knowledge Base is its own section, and a call request offers the manual',
+    changes: [
+      'KNOWLEDGE BASE IS NOW A HEADING IN THE MENU rather than a single entry tucked under Help, with its topics listed beneath it.',
+      'HOW TO USE RITHI CRM IS ITS OWN PAGE. It used to be the bottom half of the Knowledge Base page \u2014 the thing a new starter needs first sat below a wall of team articles, and you had to scroll past all of them to reach it.',
+      'ALL THE HOW-TO CONTENT IS IN ONE PLACE. An article somebody wrote and filed as How-To used to sit among the field solutions, where nobody looking for instructions would think to search. Those articles are now read on the How to Use page, alongside the written guide. Writing one still happens where the editor is \u2014 what the category decides is where it is read.',
+      'FIELD SOLUTIONS IS ITS OWN TOPIC under the same heading, so the team\u2019s answers and fixes are still one click away.',
+      'SERVICE MANUALS HAS MOVED under Knowledge Base, with the things people read to do the job. QMS Documents stays under Documents \u2014 those govern the work rather than explain it.',
+      'A CALL REQUEST NOW OFFERS THE SAME SUPPORTING DOCUMENTS A CALL DOES \u2014 the service manual for that machine and any article written about it, on the request itself and on the form while the fault is being described. Waiting for a call number before handing somebody the manual was waiting for the wrong moment: the person deciding whether this is even a fault is the one who needs it.',
+      'On a request with several machines the documents are shown per machine, since they are not the same machine.',
+    ],
+  },
+  {
     version: '0.9.182',
     date: '2026-09-09',
     title: 'Indoor Service \u2014 a register for equipment in the workshop',

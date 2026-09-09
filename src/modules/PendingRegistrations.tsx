@@ -10,6 +10,7 @@ import { useCallFieldMasters } from './callFields';
 import { useTeamEngineers } from '../lib/access';
 import { StateBadge } from '../lib/callstate';
 import { productToCallPrefill, callDateFromRequest } from '../lib/fieldcall';
+import { SupportingDocs } from './CallAssociations';
 import { todayISO, fmtLongDate } from '../lib/format';
 import { buildCreateFields, buildPayload, ProductLookup, FIELD_CONFIG, INST_CONFIG, type CallSheetConfig } from './FieldCalls';
 import { db } from '../lib/db';
@@ -480,6 +481,21 @@ function RequestActions({
               </div>
             ))}
           </div>
+          {/* THE SAME SUPPORTING DOCUMENTS A CALL OFFERS (the user, 2026-09-09).
+              A request already names the product, the standard complaint and
+              what the customer reported — everything the match needs — so the
+              manual and the articles for that machine can be read HERE, before
+              it becomes a call. Waiting for a UCN to hand somebody the manual
+              is waiting for the wrong event: the person deciding whether this
+              is even a fault is the one who needs it.
+              The component is the call's own, imported rather than copied, so
+              the matching rule cannot drift between the two screens. It renders
+              nothing when there is nothing to show. */}
+          <SupportingDocs
+            product={g(row, 'PRODUCT', 'Product')}
+            complaint={g(row, 'Standard Complaint')}
+            reported={g(row, 'Reported Problem')}
+          />
         </aside>
 
         <div className="reg-gutter" onMouseDown={onDragStart(0)} title="Drag to resize" />
