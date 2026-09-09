@@ -1,0 +1,104 @@
+name: Apply database migrations
+
+# ===========================================================================
+# THE SQL STOPS BEING A MANUAL STEP.
+#
+# Asked for on 2026-09-09, straight after a hand-run bundle deadlocked against
+# the live app ("deadlock detected ... waits for AccessExclusiveLock"). Pasting
+# a 2,000-line rebuild bundle into the SQL editor to apply two new statements is
+# what made that likely; this applies the two.
+#
+# WHAT IT RUNS is supabase/migrations/, not supabase/apply/. The bundles are for
+# REBUILDING a module from nothing and re-run everything they contain by design.
+# scripts/apply-migrations.mjs keeps a ledger and runs only what is new, each in
+# its own transaction with a short lock_timeout.
+#
+# BEFORE THE FIRST RUN the existing database has to be baselined, or the script
+# refuses (correctly) rather than guessing what has already been applied:
+#   Actions -> Apply database migrations -> Run workflow -> mode: baseline
+# That records the current migrations as applied and executes no SQL.
+#
+# THE SECRET: SUPABASE_DB_URL, the project's Postgres URI (Supabase -> Project
+# Settings -> Database -> Connection string -> URI), set under
+# Settings -> Secrets and variables -> Actions. Use the session POOLER URI if
+# direct connections are refused. Nothing here echoes it, and the script scrubs
+# it out of any psql error before printing.
+#
+# It is a DIFFERENT credential from the anon key in src/lib/supabase.ts: that one
+# is public by design and guarded by RLS; this one bypasses RLS entirely and must
+# never be committed, printed, or put in a client bundle.
+# ===========================================================================
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/apply-migrations.mjs'
+      - '.github/workflows/db-migrate.yml'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to do'
+        required: true
+        default: dry-run
+        type: choice
+        options: [dry-run, apply, baseline]
+
+permissions:
+  contents: read
+
+# ONE AT A TIME, AND NEVER CANCELLED MID-FLIGHT. Two runs applying migrations
+# concurrently would race on the ledger; cancelling one part-way is worse still,
+# so `cancel-in-progress` stays false — a queued run simply waits.
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install psql
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          fi
+          psql --version
+
+      - name: Decide the mode
+        id: mode
+        env:
+          # A pull request only ever REPORTS. Applying schema changes from an
+          # unmerged branch would put the database ahead of main.
+          EVENT: ${{ github.event_name }}
+          INPUT: ${{ github.event.inputs.mode }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then MODE="$INPUT";
+          elif [ "$EVENT" = "pull_request" ]; then MODE="dry-run";
+          else MODE="apply"; fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Mode: $MODE"
+
+      - name: Apply
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::warning::SUPABASE_DB_URL is not set — skipping. Add it under Settings → Secrets and variables → Actions."
+            exit 0
+          fi
+          case "${{ steps.mode.outputs.mode }}" in
+            dry-run)  node scripts/apply-migrations.mjs --dry-run ;;
+            baseline) node scripts/apply-migrations.mjs --baseline ;;
+            apply)    node scripts/apply-migrations.mjs ;;
+            *) echo "Unknown mode"; exit 1 ;;
+          esac

@@ -43,6 +43,27 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **ACTION: add the `SUPABASE_DB_URL` secret** (2026-09-09, v0.9.167) — then
+migrations apply themselves on merge and none of the PENDING notes below need a
+human with a SQL editor. Supabase → Project Settings → Database → Connection
+string → **URI** (the session *pooler* URI if direct connections are refused),
+saved at GitHub → Settings → Secrets and variables → Actions as
+`SUPABASE_DB_URL`. **Then run the baseline once**: Actions → *Apply database
+migrations* → Run workflow → mode `baseline`. That records the 155 existing
+migrations as applied and executes no SQL; without it the tool refuses to run,
+which is the correct behaviour rather than a fault.
+This credential BYPASSES RLS — it is not the anon key in `src/lib/supabase.ts`,
+which is public by design. It must never be committed or printed; the workflow
+scrubs it from psql errors.
+
+⚠️ **RESOLVED, and it was mine: the deadlock on `Spare_1.sql`** (2026-09-09) —
+`0154` first rebuilt `spare_pending_rm` by DROPPING it, which needs an
+`AccessExclusiveLock` and has to wait out every reader, so it deadlocked against
+the live app; outside a transaction it also leaves a window where the view is
+gone and queries fail outright. `0116` and `0154` now carry the identical full
+column list and nothing is dropped — `check:ui` compares them word for word and
+fails on either growing a `drop view`.
+
 ⚠️ **PENDING: `Spare_1.sql`** (2026-09-09, v0.9.165) — at the REPOSITORY ROOT,
 not under `supabase/apply/`: it and `HandStock_X.sql` are the two numbered
 consolidated files handed round, where the number is a revision. (A link to the

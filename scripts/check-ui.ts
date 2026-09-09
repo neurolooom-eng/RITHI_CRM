@@ -2143,5 +2143,28 @@ console.log('\n-- every SQL bundle named in the docs actually exists there --');
   eq('no doc links to a bundle that is not there', missing, []);
 }
 
+console.log('\n-- spare_pending_rm: one definition, in two places, never dropped --');
+{
+  const a = readFileSync('supabase/migrations/0116_spare_bulk_approval.sql', 'utf8');
+  const b = readFileSync('supabase/migrations/0154_rm_queue_request_fields.sql', 'utf8');
+  const body = (src: string) => {
+    const i = src.indexOf('create or replace view public.spare_pending_rm as');
+    const j = src.indexOf(';', i);
+    return src.slice(i, j).replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  // NEVER DROPPED, on either. `drop view` takes an AccessExclusiveLock and has
+  // to wait out every reader, which deadlocked against the running app the day
+  // it shipped; outside a transaction it also leaves a window where the view is
+  // gone and app queries fail outright. Both carry the full column list
+  // instead, so `create or replace` only ever appends.
+  for (const [name, src] of [['0116', a], ['0154', b]] as const) {
+    eq(`${name} does not drop the view`, /drop view[^\n]*spare_pending_rm/i.test(src), false);
+  }
+  // And the copies must stay copies, or a replay silently narrows the view.
+  eq('0116 and 0154 define it identically', body(a) === body(b), true);
+  eq('...and that definition carries the complaint', /as complaint/.test(body(a)), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

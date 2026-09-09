@@ -2284,15 +2284,20 @@ end $mod$;
 -- reader — an RM sees their team's, and never their own request. The screen
 -- shows the rest greyed rather than hiding them, so "why is my spare not here"
 -- has an answer on the screen instead of in somebody's head.
--- DROPPED FIRST, and that is not tidiness (added 2026-09-09 with 0154).
--- `create or replace view` can only APPEND columns, so once a later migration
--- has added one -- 0154 adds `complaint` -- replaying THIS bundle on its own
--- runs this statement against the wider view and fails outright with "cannot
--- drop columns from view". The bundles are replayed one at a time, so that is
--- a real path, and `npm run check:replay` is what found it. Nothing depends on
--- this view, so the drop is free.
-drop view if exists public.spare_pending_rm;
-create view public.spare_pending_rm as
+-- THIS DEFINITION IS DUPLICATED IN 0154 AND MUST STAY IDENTICAL TO IT.
+-- `check:ui` compares them word for word.
+--
+-- The duplication is deliberate and it replaced something worse. `create or
+-- replace view` can only APPEND columns, so once 0154 added `complaint`,
+-- replaying THIS bundle alone ran the older, narrower definition against the
+-- wider view and failed with "cannot drop columns from view" (found by
+-- `npm run check:replay`). The first fix was to `drop view` in both -- and that
+-- was a bad fix on a LIVE database: DROP takes an AccessExclusiveLock and has
+-- to wait out every reader, which deadlocked against the running app, and
+-- outside a transaction it leaves a window where the view does not exist and
+-- app queries fail outright. Carrying the same column list in both statements
+-- costs a copy and needs no exclusive wait beyond the replace itself.
+create or replace view public.spare_pending_rm as
   select
     l.id                                        as line_id,
     l.line_uid,
@@ -2316,7 +2321,8 @@ create view public.spare_pending_rm as
     coalesce(r.handstock_reason, '')            as handstock_reason,
     coalesce(r.remarks, '')                     as remarks,
     coalesce(l.created_at, r.created_at)        as raised_at,
-    public.spare_rm_may_approve(r.engineer)     as may_approve
+    public.spare_rm_may_approve(r.engineer)     as may_approve,
+    coalesce(r.complaint, '')                   as complaint
   from public.spare_request_lines l
   join public.spare_requests r on r.uid = l.request_uid
   where public.spare_line_stage(
@@ -2645,14 +2651,18 @@ comment on function public.decide_spare_lines(bigint[], text, text, text) is
 -- being asked for, which is most of what an approver is deciding on -- "is this
 -- part plausible for this fault?" is a question the queue could not answer.
 --
--- THE VIEW IS DROPPED AND REBUILT, not replaced. `create or replace view` can
--- only APPEND columns, and it cuts both ways: replacing works here, but then
--- replaying 0116's own narrower definition afterwards fails with "cannot drop
--- columns from view" -- and the bundles are replayed ONE AT A TIME, so that is
--- a real path, not a hypothetical. `npm run check:replay` found exactly that.
--- Both statements drop first now, so neither depends on which shape is already
--- there. Nothing is built on this view, so the drop costs nothing; if that ever
--- changes, the drop will fail loudly rather than cascade.
+-- APPENDED, AND 0116 CARRIES THE SAME LIST. `create or replace view` can only
+-- APPEND columns, which cuts both ways: appending here works, but replaying
+-- 0116's older narrower definition afterwards then fails with "cannot drop
+-- columns from view", and the bundles replay ONE AT A TIME, so that is a real
+-- path. `npm run check:replay` found it.
+--
+-- The first fix was `drop view` in both, and it was WRONG on a live database:
+-- reported the same day as "deadlock detected ... waits for AccessExclusiveLock
+-- on relation". DROP has to wait out every reader, so it deadlocks against the
+-- running app; and outside a transaction it leaves a window where the view is
+-- simply gone and app queries fail. So both statements now carry the identical
+-- full column list instead, and nothing is ever dropped.
 --
 -- AND `security_invoker` IS RE-ASSERTED BELOW, which is the whole risk of
 -- touching this file. `create or replace view` silently drops that setting, and
@@ -2663,10 +2673,10 @@ comment on function public.decide_spare_lines(bigint[], text, text, text) is
 -- lacks it, and it passes on this one.
 -- ---------------------------------------------------------------------------
 
--- DROPPED FIRST for the same reason 0116 now does: a replay must not depend on
--- which shape of the view happens to be there. Nothing depends on it.
-drop view if exists public.spare_pending_rm;
-create view public.spare_pending_rm as
+-- IDENTICAL TO 0116'S DEFINITION, word for word, and `check:ui` enforces it.
+-- See the note there for why they are duplicated rather than one narrowing the
+-- other. NO DROP: this runs against a live database.
+create or replace view public.spare_pending_rm as
   select
     l.id                                        as line_id,
     l.line_uid,

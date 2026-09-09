@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.167',
+    date: '2026-09-09',
+    title: 'The SQL applies itself, and the RM view no longer fights the app',
+    changes: [
+      'THE DEADLOCK WAS MINE AND IT IS FIXED. Yesterday\u2019s change rebuilt the RM Approval view by DROPPING it first, which has to wait for every reader \u2014 so it deadlocked against the running app, and for a moment the view was not there at all. Nothing is dropped now.',
+      'MIGRATIONS RUN THEMSELVES once the database connection is saved as a repository secret. Merging a change applies the new SQL and nothing else \u2014 the old way pasted a two-thousand-line rebuild file to apply two statements, which is what took the locks in the first place.',
+      'EACH ONE RUNS IN A SINGLE TRANSACTION with a short lock timeout: if it cannot get its lock because people are using the app, it gives up in seconds and leaves nothing behind, rather than waiting and deadlocking. Re-running is always safe.',
+      'AN EXISTING DATABASE IS RECORDED AS UP TO DATE FIRST \u2014 a one-off "baseline" \u2014 and until that is done the tool refuses to run rather than guessing what has already been applied.',
+      'A pull request only ever reports what would run. It never changes the database.',
+    ],
+  },
+  {
     version: '0.9.166',
     date: '2026-09-09',
     title: 'Correction: where Spare_1.sql actually lives',
