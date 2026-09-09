@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.163',
+    date: '2026-09-09',
+    title: 'Frequent Failure now asks what the procedure asks',
+    changes: [
+      'THE WINDOW IS A MONTH, not six. Review 2 was looking back six times as far as the procedure says, so it flagged repeats the procedure would not \u2014 and that number feeds the objectives.',
+      'THE COUNT INCLUDES THE CALL YOU ARE REVIEWING. The rule is "two or more including the call in question", and the screen was showing only the earlier ones \u2014 so it read 1 where the rule counts 2. It now shows the number the rule uses.',
+      'IT FINDS THE SAME PART IN THE SAME MACHINE. That path did not exist: a machine that has had the same board replaced twice for two differently worded complaints was invisible. Each earlier call now says which rule caught it.',
+      'A CALL WITH NO SERIAL SAYS SO. It used to read "no earlier failure", which is a clean bill of health built out of missing data \u2014 on the question that decides whether an FFR is raised.',
+      'AND THE RULE IS YOURS TO SET \u2014 window, how many failures, and whether the same-equipment match also needs the same complaint, in Admin Config. The defaults are the procedure\u2019s.',
+      'Reviews already answered are NOT re-opened or re-answered \u2014 they are quality records. Needs supabase/apply/daily_review.sql.',
+    ],
+  },
+  {
     version: '0.9.162',
     date: '2026-09-09',
     title: 'A report at a time, and the Part Master file loads again',
