@@ -43,6 +43,35 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+🅿️ **PARKED: the auto-apply pipeline** (2026-09-09, user's call: "not working --
+Park it to backlog"). It is BUILT and merged; what stopped it is one character
+in the connection string, recorded here so nobody re-debugs it from scratch.
+
+**What actually failed** — not the script, and it never reached the database:
+
+```
+psql: error: could not translate host name "110@aws-0-ap-south-1.pooler.supabase.com"
+```
+
+The database password contains an **`@`**, so psql split the URI at the wrong
+place and read `110@aws-0-…` as the hostname. Supabase's own Connect dialog warns
+about this: percent-encode special characters (`@` → `%40`, `#` → `%23`,
+`/` → `%2F`, `:` → `%3A`). Failing at DNS means **nothing was applied and nothing
+half-applied** — the three runs at 10:13–10:21 on 2026-09-09 all died before
+connecting.
+
+**To un-park it:** re-encode the password in the secret, then Actions → *Apply
+database migrations* → mode `baseline`, `baseline_through`
+`0151_module_keys_catch_up.sql`, then mode `apply`. Nothing in the repo needs
+changing.
+
+**⚠️ A PASSWORD FRAGMENT REACHED A PUBLIC LOG.** psql echoed the piece it choked
+on — the tail of the password — while GitHub's masking showed `SUPABASE_DB_URL`
+as `***` and looked like it had covered it. The scrubber now masks the password
+in its own right (fixed same day). **The old run logs still contain that
+fragment**, and this repository is public: consider resetting the database
+password when picking this up, and delete those three workflow runs.
+
 ⚠️ **ACTION: add the `SUPABASE_DB_URL` secret** (2026-09-09, v0.9.167) — then
 migrations apply themselves on merge and none of the PENDING notes below need a
 human with a SQL editor. Supabase → Project Settings → Database → Connection

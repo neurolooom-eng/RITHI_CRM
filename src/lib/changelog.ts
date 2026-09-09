@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.169',
+    date: '2026-09-09',
+    title: 'A password could show up in a build log',
+    changes: [
+      'WHEN THE DATABASE CONNECTION FAILED, PART OF THE PASSWORD WAS PRINTED. The tool that connects reports back the piece of the address it could not read \u2014 and where a password contains an "@", that piece is the end of the password. It is now hidden in its own right, not just as part of the whole address.',
+      'The automatic SQL step is parked for now: the first attempt failed on a password that needed its special characters escaped, before it reached the database. Nothing was changed by it.',
+    ],
+  },
+  {
     version: '0.9.168',
     date: '2026-09-09',
     title: 'The one-off setup step can no longer skip a change',
