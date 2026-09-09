@@ -602,6 +602,15 @@ with checks(sort_order, bundle, provides, present) as (
     (115, 'Part category: free text, so a bulk upload cannot be refused over it', 'A CHECK on parts.category can ABORT AN IMPORT PART-WRITTEN -- it did, on the Item Master: 173 rows written, then "violates check constraint parts_category_check" and a half-updated table. 0148 named the right four words but put them in the wrong place. 0152 drops the constraint and replaces it with nothing: a word the vocabulary does not know now lands in the data and shows in Spare Insights as its own bar, which is how somebody notices it, rather than the row never arriving. Blank still means "nobody has said" and still reads as Unclassified. NO means the constraint is still there and a non-standard category will stop the next Part Master upload. Restore: performance.sql',
         (to_regclass('public.parts') is null
       or not exists (select 1 from pg_constraint where conname = 'parts_category_check'))),
+    (116, 'RM Approval sees the REQUEST, not just the part', 'spare_pending_rm carries the complaint as well as the call, customer, product, SERIAL, cover, request type and date (0154). "Is this part plausible for this fault?" is most of what an approver decides, and the queue could not answer it. NO means the complaint column reads blank on that screen; everything else on it was already in the view and needed no SQL. The view is DROPPED and rebuilt rather than replaced, because create-or-replace can only append columns and 0116''s narrower definition has to stay replayable after this -- and security_invoker is re-asserted, or every signed-in user reads every engineer''s requests. Restore: Spare_1.sql',
+        (to_regclass('public.spare_pending_rm') is null
+      or (exists (select 1 from information_schema.columns
+                   where table_schema='public' and table_name='spare_pending_rm' and column_name='complaint')
+          -- The property, not the presence: a view over RLS tables without this
+          -- reads as its OWNER, silently.
+     and coalesce((select 'security_invoker=on' = any(reloptions) from pg_class
+                    where relname = 'spare_pending_rm'
+                      and relnamespace = 'public'::regnamespace), false)))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

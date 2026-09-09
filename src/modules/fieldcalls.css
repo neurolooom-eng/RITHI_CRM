@@ -395,6 +395,18 @@
 .reco-line { display: grid; grid-template-columns: 1fr 110px 34px; gap: 8px; align-items: center; margin-bottom: 8px; }
 .reco-line .select { width: 100%; min-width: 0; }
 
+/* THE SAME RULE FOR THE PICKER THAT REPLACED THE SELECT (2026-09-09). A flex
+   item will not shrink below its content by default, so a long part code would
+   push the closed box past its column instead of wrapping inside it — and
+   trimming it is not the alternative here, because the code IS the part's
+   identity. So: allowed to shrink, and allowed to wrap. */
+.reco-line .picklist,
+.spare-row .spare-part { min-width: 0; }
+.reco-line .picklist-value,
+.spare-row .picklist-value { align-items: flex-start; }
+.reco-line .picklist-value > span:first-child,
+.spare-row .picklist-value > span:first-child { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+
 /* ---- Roles & Permissions: the module tree ------------------------------- */
 /* The matrix is long, so the header must stay put while scrolling; the wrapper
    has to be the scroll container for `position: sticky` to have anything to

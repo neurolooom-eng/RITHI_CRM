@@ -70,7 +70,15 @@ end $mod$;
 -- reader — an RM sees their team's, and never their own request. The screen
 -- shows the rest greyed rather than hiding them, so "why is my spare not here"
 -- has an answer on the screen instead of in somebody's head.
-create or replace view public.spare_pending_rm as
+-- DROPPED FIRST, and that is not tidiness (added 2026-09-09 with 0154).
+-- `create or replace view` can only APPEND columns, so once a later migration
+-- has added one -- 0154 adds `complaint` -- replaying THIS bundle on its own
+-- runs this statement against the wider view and fails outright with "cannot
+-- drop columns from view". The bundles are replayed one at a time, so that is
+-- a real path, and `npm run check:replay` is what found it. Nothing depends on
+-- this view, so the drop is free.
+drop view if exists public.spare_pending_rm;
+create view public.spare_pending_rm as
   select
     l.id                                        as line_id,
     l.line_uid,

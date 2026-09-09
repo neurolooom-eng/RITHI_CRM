@@ -477,6 +477,10 @@ const MODULES = {
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
       '0118_spare_bulk_decisions.sql',
+      // AFTER 0116 and it must stay there: it re-creates spare_pending_rm to
+      // append `complaint`, and a bundle replayed alone has to see 0116's
+      // definition first or the column disappears again.
+      '0154_rm_queue_request_fields.sql',
       // LAST, and it must stay last: it re-asserts `dispatch_spare_lines()` and
       // `sd_read`, which handstock owns, so a replay of Spare_1.sql alone stops
       // reverting them. Guarded, so a fresh apply skips it.

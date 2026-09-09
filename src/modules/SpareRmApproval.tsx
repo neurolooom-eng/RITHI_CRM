@@ -50,6 +50,11 @@ interface RmLine {
   item_status: string;
   req_type: string;
   remarks: string;
+  serial: string;
+  call_number: string;
+  complaint: string;
+  or_req_date: string;
+  handstock_reason: string;
   raised_at: string;
   may_approve: boolean;
   _desc: string;
@@ -100,6 +105,13 @@ export function SpareRmApproval() {
           item_status: String(r.item_status ?? ''),
           req_type: String(r.req_type ?? ''),
           remarks: String(r.remarks ?? ''),
+          serial: String(r.serial ?? ''),
+          call_number: String(r.call_number ?? ''),
+          // Blank until 0154 is applied; the column simply reads empty rather
+          // than the screen failing, so an un-migrated project still works.
+          complaint: String(r.complaint ?? ''),
+          or_req_date: String(r.or_req_date ?? ''),
+          handstock_reason: String(r.handstock_reason ?? ''),
           raised_at: String(r.raised_at ?? ''),
           may_approve: r.may_approve === true,
           _desc: partDescription(part),
@@ -118,7 +130,11 @@ export function SpareRmApproval() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return lines;
-    return lines.filter((l) => [l.or_no, l.part, l._desc, l.engineer, l.ucn, l.party_name, l.product_name]
+    // The SERIAL and the call number are searched too (2026-09-09): an
+    // approver chasing "what has been asked for on this machine?" has the
+    // serial in front of them, not the OR number.
+    return lines.filter((l) => [l.or_no, l.part, l._desc, l.engineer, l.ucn, l.party_name,
+                                l.product_name, l.serial, l.call_number, l.complaint]
       .some((v) => String(v).toLowerCase().includes(q)));
   }, [lines, search]);
 
@@ -172,9 +188,22 @@ export function SpareRmApproval() {
     { key: '_desc', header: 'Description', width: 230 },
     { key: 'qty', header: 'Qty', width: 60, align: 'right' },
     { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
+    { key: 'call_number', header: 'Call Number', width: 120, wrap: false },
     { key: 'party_name', header: 'Customer', width: 200 },
     { key: 'product_name', header: 'Product', width: 130 },
+    // THE MACHINE, not just its model (the user, 2026-09-09: "Like I need
+    // product serial no"). An approver deciding whether a part is justified is
+    // deciding it about ONE machine, and two of the same model in one hospital
+    // are a different question.
+    { key: 'serial', header: 'Serial No', width: 130, wrap: false },
+    { key: 'complaint', header: 'Complaint', width: 220 },
     { key: 'item_status', header: 'Cover', width: 90 },
+    { key: 'req_type', header: 'Request Type', width: 110, wrap: false },
+    { key: 'or_req_date', header: 'Req Date', width: 120, render: (r) => fmtLongDate(r.or_req_date) },
+    // Why the engineer says they need it. On a HandStock request there is no
+    // call to explain it, so this is the ONLY thing that does.
+    { key: 'remarks', header: 'Remarks', width: 220 },
+    { key: 'handstock_reason', header: 'HandStock Reason', width: 200 },
     {
       key: '_waiting', header: 'Waiting', width: 100, align: 'right',
       render: (r) => <span className={r._waiting >= 7 ? 'badge badge-danger' : r._waiting >= 3 ? 'badge badge-warning' : 'badge badge-neutral'}>{r._waiting}d</span>,
@@ -277,7 +306,7 @@ export function SpareRmApproval() {
           emptyText="Nothing waiting for an RM."
           toolbar={
             <Toolbar>
-              <SearchBox value={search} onChange={setSearch} placeholder="OR, part, engineer, UCN, customer…" />
+              <SearchBox value={search} onChange={setSearch} placeholder="OR, part, engineer, UCN, customer, serial…" />
               <div className="spacer" />
               {mayApprove && mine.length > 0 && (
                 <button
