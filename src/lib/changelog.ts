@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.160',
+    date: '2026-09-09',
+    title: 'Roles & Permissions carries every page again',
+    changes: [
+      'TWO PAGES WERE IN THE MENU AND NOT ON THIS SCREEN AT ALL \u2014 PM Bulk Upload and Software Validation. Neither could be granted, withheld, or even seen in the matrix. They are there now, under the same headings the menu uses.',
+      'SPARE INSIGHTS WAS VISIBLE TO NOBODY BUT AN ADMINISTRATOR. That was my omission when it shipped: a new page needs its key added to the stored roles, not just to the code. It now goes to every role that can already see consumption \u2014 ten of them.',
+      'REPORTS IS ITS OWN HEADING IN THE MATRIX, as it already is in the menu. The matrix is read next to the menu, so a heading in one and not the other makes the screen harder to trust than to use.',
+      'AND THE APP NOW REFUSES TO SHIP A MENU ITEM WITH NO PERMISSION. That is what let two pages sit unlisted: an admin-only item appears for an administrator whether or not it has a key, so nobody notices.',
+      'Needs supabase/apply/rbac.sql.',
+    ],
+  },
+  {
     version: '0.9.159',
     date: '2026-09-08',
     title: 'Aging on every call, and the clock stops when it is solved',

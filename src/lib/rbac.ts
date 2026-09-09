@@ -53,6 +53,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/pending-calls', label: 'Pending Calls' },
   { path: '/reports', label: 'Visit Reports / Service Reports' },
   { path: '/report-mapping', label: 'Bulk Report Mapping', admin: true },
+  // IN THE MENU AND NOT IN THE MATRIX until now: both are real pages an
+  // administrator can open, and neither had a permission key — so neither could
+  // be granted, withheld or even seen on this screen. Found by comparing the
+  // nav to MODULES rather than by reading either (check:ui now does that
+  // comparison on every run).
+  { path: '/pm-bulk-upload', label: 'PM Bulk Upload', admin: true },
   { path: '/bulk-uploads', label: 'Bulk Uploads', admin: true },
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-rm-approval', label: 'RM Approval' },
@@ -71,6 +77,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/roles', label: 'Roles & Permissions', admin: true },
   { path: '/audit', label: 'Audit Log', admin: true },
   { path: '/admin-config', label: 'Admin Config', admin: true },
+  { path: '/software-validation', label: 'Software Validation', admin: true },
   { path: '/settings', label: 'Settings' },
   { path: '/version-history', label: 'Version History' },
 ];
@@ -288,6 +295,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/reports', label: 'Visit Reports / Service Reports', actions: ['reports.view'] },
     { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
     { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
+    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
   ] },
   { title: 'Spares', pages: [
     { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },
@@ -303,7 +311,13 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/failure-report', label: 'Field Failure Report', actions: [] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
     { path: '/objective', label: 'Objective', actions: [] },
-    { path: '/exports', label: 'Reports', actions: [] },
+  ] },
+  // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
+  // read next to the menu — "what can this role open?" is asked with the menu
+  // in front of you — so a header here that no longer exists there makes the
+  // page harder to trust than to use.
+  { title: 'Reports', pages: [
+    { path: '/exports', label: 'Reports — consumption, KPI, not consumed', actions: [] },
   ] },
   { title: 'Administration', pages: [
     { path: '/tracker', label: 'Tracker', actions: [] },
@@ -311,6 +325,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
+    { path: '/software-validation', label: 'Software Validation', actions: ['config.manage'] },
     { path: '/settings', label: 'Settings', actions: [] },
     { path: '/version-history', label: 'Version History', actions: [] },
   ] },

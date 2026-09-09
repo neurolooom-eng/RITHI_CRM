@@ -126,6 +126,7 @@ const MODULES = {
             // The Technical Support role — a grant into app_roles, no policy and
             // no function, so it is safe anywhere after 0008 seeds the matrix.
             '0145_technical_support_role.sql',
+            '0151_module_keys_catch_up.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
