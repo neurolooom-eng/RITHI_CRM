@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.172',
+    date: '2026-09-09',
+    title: 'A Zoho Migration role',
+    changes: [
+      'A NEW ROLE, "ZOHO MIGRATION", WITH THE SAME REACH AS TECHNICAL SUPPORT \u2014 every page, every sub-page, and the right to export, with nothing that changes a record.',
+      'IT IS TAKEN FROM TECHNICAL SUPPORT RATHER THAN WRITTEN OUT AGAIN, so the two cannot drift apart: a page granted to one is granted to both.',
+      'KEPT SEPARATE FROM TECHNICAL SUPPORT ON PURPOSE. This one ends when the migration does \u2014 revoking it is a single tick and leaves the support login untouched, and the audit trail says which of the two did a thing.',
+      'Needs supabase/apply/rbac.sql.',
+    ],
+  },
+  {
     version: '0.9.171',
     date: '2026-09-09',
     title: 'Why a user could not be made an Admin',

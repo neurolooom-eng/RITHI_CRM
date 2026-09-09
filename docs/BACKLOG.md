@@ -43,6 +43,16 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.172) — 0155 adds the **Zoho
+Migration** role (`_status.sql` row 117): Technical Support's reach, taken from
+that role's STORED row rather than restated, so the two cannot drift; plus the
+report and master-list sub-pages spelled out, because Roles & Permissions shows
+a row per sub-page. Read-only by what it does not hold. Until it runs the role
+exists in the app's dropdown but no login can be given it usefully. Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/rbac.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql>
+
 📌 **"I am not able to add users to Admin / Super User"** (2026-09-09) —
 answered, and two things were wrong, one of them ours.
 

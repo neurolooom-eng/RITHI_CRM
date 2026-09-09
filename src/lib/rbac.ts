@@ -22,6 +22,15 @@ export const ROLES: RoleDef[] = [
   // "For now" is the operative phrase: widening it later is ticking boxes in
   // Roles & Permissions, not a code change.
   { key: 'technical_support', label: 'Technical Support' },
+  // ZOHO MIGRATION — Technical Support's twin, and a SEPARATE role on purpose
+  // (user, 2026-09-09: "Add one more Role called ZohoMigration, Use Technical
+  // Support as the Cloning Role, Add this to all the Modules, Pages, Sub Pages,
+  // Actions"). Reusing Technical Support would do the same job today and tangle
+  // two unrelated lives tomorrow: this one ends when the migration does and can
+  // be revoked in a tick, without touching the support login. Its permissions
+  // are DERIVED from technical_support below rather than copied, so the two
+  // cannot drift.
+  { key: 'zoho_migration', label: 'Zoho Migration' },
   { key: 'nsm', label: 'NSM (National Service Manager)' },
   { key: 'rgm', label: 'Regional Manager' },
   { key: 'rm', label: 'Reporting Manager' },
@@ -222,6 +231,14 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
   commercial: ['calls.view', 'ownership.transfer', 'install.create', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view', 'masters.view', 'spare.approve_commercial', 'cover.edit', 'review.edit'],
 };
+
+// CLONED FROM TECHNICAL SUPPORT, by reference rather than by a second copy of
+// the same list. A migration READS everything and writes nothing here — what it
+// writes goes into Zoho — so that list is already exactly right, and deriving it
+// means a change to one is a change to both. `export.data` is the permission
+// doing the actual work.
+FUNCTIONAL_DEFAULTS.zoho_migration = [...FUNCTIONAL_DEFAULTS.technical_support];
+
 // Everyone but a plain engineer can export / download data by default.
 // (admin already has every functional action, so it is covered.)
 (['nsm', 'rgm', 'rm', 'hotline', 'spare_coordinator', 'stores_incharge', 'tally_coordinator', 'commercial'] as const)
@@ -231,7 +248,7 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
 // for the rest. Technical Support is on the admin side of that line by design --
 // "map this role to all modules" is the whole point of it -- and stays read-only
 // because of what it does NOT hold above, not because a page is hidden from it.
-const SEES_EVERY_MODULE = new Set(['admin', 'technical_support']);
+const SEES_EVERY_MODULE = new Set(['admin', 'technical_support', 'zoho_migration']);
 export const DEFAULT_PERMS: Record<string, string[]> = Object.fromEntries(
   ROLE_KEYS.map((role) => [
     role,

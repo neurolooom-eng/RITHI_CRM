@@ -611,6 +611,20 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select 'security_invoker=on' = any(reloptions) from pg_class
                     where relname = 'spare_pending_rm'
                       and relnamespace = 'public'::regnamespace), false)))),
+    (117, 'Zoho Migration: a read-only clone of Technical Support', 'zoho_migration holds everything technical_support holds -- taken from the STORED row, so a page added to one reaches the other without this file being edited -- plus the report and master-list sub-pages spelled out, because Roles & Permissions shows a row per sub-page and empty boxes beside working access is a screen nobody can read. Read-only by what it does NOT hold: none of the actions a write policy names, so a refusal is Postgres''s and not the browser''s. A SEPARATE role from Technical Support on purpose -- it ends when the migration does, and revoking it leaves the support login alone. NO means the role is absent or has drifted from its source. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+      or (exists (select 1 from public.app_roles where role = 'zoho_migration')
+          -- The property, not the presence: still a clone, and still read-only.
+     and not exists (
+           select 1 from public.app_roles ts, lateral jsonb_array_elements_text(ts.permissions) m(v)
+            where ts.role = 'technical_support'
+              and not exists (select 1 from public.app_roles zm
+                               where zm.role = 'zoho_migration' and zm.permissions ? m.v))
+     and not exists (
+           select 1 from public.app_roles zm, lateral jsonb_array_elements_text(zm.permissions) m(v)
+            where zm.role = 'zoho_migration'
+              and m.v in ('calls.edit','masters.edit','users.manage','rbac.manage','spare.dispatch',
+                          'review.edit','cover.edit','consumption.reconcile'))))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

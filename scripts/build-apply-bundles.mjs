@@ -127,6 +127,9 @@ const MODULES = {
             // no function, so it is safe anywhere after 0008 seeds the matrix.
             '0145_technical_support_role.sql',
             '0151_module_keys_catch_up.sql',
+            // AFTER 0145: it clones the technical_support row, so that row has
+            // to exist by the time this runs.
+            '0155_zoho_migration_role.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it

@@ -2214,5 +2214,33 @@ console.log('\n-- the role list does not promise Super Admin --');
   eq('...because the super admins are a fixed list in code', /const SUPER_ADMINS = new Set\(\[/.test(auth), true);
 }
 
+console.log('\n-- Zoho Migration is a clone, and stays one --');
+{
+  const rb = readFileSync('src/lib/rbac.ts', 'utf8');
+  eq('the role exists', /\{ key: 'zoho_migration', label: 'Zoho Migration' \}/.test(rb), true);
+
+  // DERIVED, NOT COPIED. A second literal list is a second thing to keep in
+  // step, and the two would differ the first time somebody edited one.
+  eq('its actions are taken from technical_support, not restated',
+    /FUNCTIONAL_DEFAULTS\.zoho_migration = \[\.\.\.FUNCTIONAL_DEFAULTS\.technical_support\]/.test(rb), true);
+  eq('...and it sees every module, as asked',
+    /SEES_EVERY_MODULE = new Set\(\['admin', 'technical_support', 'zoho_migration'\]\)/.test(rb), true);
+
+  // The clone is only worth anything while it matches. DEFAULT_PERMS is the
+  // app-side fallback; this compares the two lists it builds.
+  const a = [...(DEFAULT_PERMS.technical_support ?? [])].sort();
+  const b = [...(DEFAULT_PERMS.zoho_migration ?? [])].sort();
+  eq('the two roles default to exactly the same rights', b, a);
+
+  // READ ONLY, by what it does not hold. Nothing here is hidden from it; the
+  // refusal on a write is Postgres's.
+  const writes = ['calls.edit', 'calls.create', 'masters.edit', 'users.manage', 'rbac.manage',
+                  'spare.dispatch', 'review.edit', 'cover.edit', 'consumption.reconcile'];
+  eq('it holds nothing that writes',
+    writes.filter((w) => (DEFAULT_PERMS.zoho_migration ?? []).includes(w)), []);
+  // ...and the one that makes it useful.
+  eq('it can export, which is the job', (DEFAULT_PERMS.zoho_migration ?? []).includes('export.data'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
