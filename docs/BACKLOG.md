@@ -43,6 +43,36 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+📌 **"I am not able to add users to Admin / Super User"** (2026-09-09) —
+answered, and two things were wrong, one of them ours.
+
+**Super Admin is not a role and no screen can grant it.** It is a row in
+`public.app_super_admins` matched against a hardcoded `SUPER_ADMINS` set in
+`src/lib/auth.tsx` — a migration *plus* a code change, deliberately, since it is
+the account that overrides every other check. The dropdown said **"Admin /
+Super Admin"**, which promised what it could not do; it now says **"Admin"**.
+
+**Granting Admin needs `is_admin()`, which is not the same as holding
+`users.manage`.** Two gates, and they differ:
+`profiles_admin_write` (RLS) asks `has_perm('users.manage')` — that lets you
+edit users at all; `profiles_role_guard` (TRIGGER) asks `is_admin()` —
+`profiles.role = 'admin'` OR your login in `app_super_admins`. So a role with
+`users.manage` edits users all day and is refused on that one value with
+*"RBAC: granting admin requires an administrator"*.
+
+**The trap, verified against a database:** it is a TRIGGER, not a policy, so the
+SQL editor does **not** get round it — there `auth.uid()` is NULL, `is_admin()`
+is false, and the same refusal comes back. And **nobody promotes themselves**,
+administrators included (only a super admin may), so the last administrator
+cannot re-grant themselves. Bootstrapping the first one therefore needs the
+trigger lifted for a single statement — the snippet is in
+`_admin_grant_check.sql`, re-enabling inside the same transaction.
+
+Read-only diagnosis:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/_admin_grant_check.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
+
 🅿️ **PARKED: the auto-apply pipeline** (2026-09-09, user's call: "not working --
 Park it to backlog"). It is BUILT and merged; what stopped it is one character
 in the connection string, recorded here so nobody re-debugs it from scratch.

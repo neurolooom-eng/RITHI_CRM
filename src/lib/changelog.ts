@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.171',
+    date: '2026-09-09',
+    title: 'Why a user could not be made an Admin',
+    changes: [
+      'THE ROLE IS NOW CALLED "ADMIN", NOT "ADMIN / SUPER ADMIN". Picking it never made anyone a Super Admin \u2014 the label promised something the list could not do. Super Admin is not a role at all: it is a fixed list of logins, and adding one is a change to the system rather than a tick on this screen.',
+      'GRANTING ADMIN NEEDS YOU TO BE ONE ALREADY, in the database\u2019s own reckoning \u2014 not merely to hold every permission. That is why editing a user can work while setting them to Admin is refused.',
+      'AND NOBODY CAN PROMOTE THEMSELVES, by design. Somebody else has to do it.',
+      'There is a read-only check that says which of these is stopping you: supabase/apply/_admin_grant_check.sql.',
+    ],
+  },
+  {
     version: '0.9.170',
     date: '2026-09-09',
     title: 'Renew a contract instead of retyping it',

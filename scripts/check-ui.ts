@@ -2201,5 +2201,18 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 
+console.log('\n-- the role list does not promise Super Admin --');
+{
+  const rb = readFileSync('src/lib/rbac.ts', 'utf8');
+  // SUPER ADMIN IS NOT A ROLE. It is a row in `app_super_admins` matched
+  // against a hardcoded list in auth.tsx; a migration plus a code change, on
+  // purpose. A dropdown labelled "Admin / Super Admin" promised something it
+  // could not do, and somebody trying to make a Super Admin found no way to.
+  eq('the admin role is labelled Admin, not Admin / Super Admin',
+    /\{ key: 'admin', label: 'Admin' \}/.test(rb), true);
+  const auth = readFileSync('src/lib/auth.tsx', 'utf8');
+  eq('...because the super admins are a fixed list in code', /const SUPER_ADMINS = new Set\(\[/.test(auth), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
