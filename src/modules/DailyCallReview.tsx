@@ -1,4 +1,5 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
@@ -747,33 +748,25 @@ export function DailyCallReview() {
             </div>
             <div>
               <label className="field-label">Review Status</label>
-              <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                <option value="">All stages</option>
-                {REVIEW_STATUSES.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              <SelectPicker value={status} onChange={setStatus} placeholder="All stages"
+                            options={[...REVIEW_STATUSES]} />
             </div>
             <div>
               {/* Two different questions about the same call: Review Status is
                   where the PAPERWORK has got to, this is where the CALL has. */}
               <label className="field-label">Call Status</label>
-              <select className="select" value={callState} onChange={(e) => setCallState(e.target.value)}>
-                <option value="">All call statuses</option>
-                {CALL_STATES.map((s) => <option key={s}>{s}</option>)}
-              </select>
+              <SelectPicker value={callState} onChange={setCallState} placeholder="All call statuses"
+                            options={[...CALL_STATES]} />
             </div>
             <div>
               <label className="field-label">Product</label>
-              <select className="select" value={product} onChange={(e) => setProduct(e.target.value)}>
-                <option value="">All products</option>
-                {products.map((p) => <option key={p}>{p}</option>)}
-              </select>
+              <SelectPicker value={product} onChange={setProduct} placeholder="All products"
+                            options={products} />
             </div>
             <div>
               <label className="field-label">Engineer</label>
-              <select className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}>
-                <option value="">All engineers</option>
-                {engineers.map((e) => <option key={e}>{e}</option>)}
-              </select>
+              <SelectPicker value={engineer} onChange={setEngineer} placeholder="All engineers"
+                            options={engineers} />
             </div>
             <div>
               <label className="field-label">&nbsp;</label>
@@ -1614,9 +1607,8 @@ function Choice({
   return (
     <div>
       <label className="field-label">{label}</label>
-      <select className="select" value={value ?? ''} onChange={onChange} disabled={disabled}>
-        {OPT(YES_NO).map((v) => <option key={v} value={v}>{v || '— select —'}</option>)}
-      </select>
+      <SelectPicker value={value ?? ''} onChange={(v) => onChange({ target: { value: v } } as React.ChangeEvent<HTMLSelectElement>)}
+                    disabled={disabled} options={[...YES_NO]} />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { supabaseConfigured, countConsumptionReport, listConsumptionReport } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -160,13 +161,10 @@ export function ConsumptionReport() {
           {F('UCN', 'ucn', 'text', 'contains')}
           <div>
             <label className="field-label">Call type</label>
-            <select className="select" value={filter.callType}
-                    onChange={(e) => set('callType')(e.target.value)}>
-              <option value="">All</option>
-              <option value="FIELD">Field</option>
-              <option value="INSTALL">Installation</option>
-              <option value="P M">PM</option>
-            </select>
+            <SelectPicker value={filter.callType} onChange={(v) => set('callType')(v)}
+              placeholder="All"
+              options={[{ value: 'FIELD', label: 'Field' }, { value: 'INSTALL', label: 'Installation' },
+                        { value: 'P M', label: 'PM' }]} />
           </div>
         </div>
         <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>

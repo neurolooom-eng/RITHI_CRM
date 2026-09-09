@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, fmtLongDateTime, timeAgo } from '../lib/format';
@@ -125,9 +126,8 @@ export function AuditLog() {
             <div className="call-search">
               <input className="input" placeholder="Action (login, call.create…)" value={filter.action} onChange={(e) => set('action', e.target.value)} />
               <input className="input" placeholder="Email" value={filter.email} onChange={(e) => set('email', e.target.value)} />
-              <select className="select" value={filter.status} onChange={(e) => set('status', e.target.value)}>
-                <option value="">Any status</option><option value="ok">ok</option><option value="error">error</option>
-              </select>
+              <SelectPicker value={filter.status ?? ''} onChange={(v) => set('status', v)}
+                placeholder="Any status" options={['ok', 'error']} />
             </div>
             <div className="spacer" />
             {rows.length > 0 && (

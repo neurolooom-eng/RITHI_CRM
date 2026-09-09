@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
@@ -179,10 +180,8 @@ export function MaterialReturns() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="MRN no, engineer, spare, customer, remarks…" />
-            <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
-              <option value="">All engineers</option>
-              {engineers.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
+            <SelectPicker className="mrn-eng-filter" value={engineerFilter} onChange={setEngineerFilter}
+              placeholder="All engineers" options={engineers} />
             <div className="spacer" />
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('material-returns.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
@@ -419,14 +418,13 @@ function MrnDrawer({
             const taken = new Set(picks.filter((_, j) => j !== i).map((x) => x.part).filter(Boolean));
             return (
               <div key={i} className="mrn-row">
-                <select
-                  className="select mrn-part" value={p.part}
-                  onChange={(e) => setPick(i, { part: e.target.value, good_qty: 1, defective_qty: 0 })}
-                >
-                  <option value="">— Pick a spare in hand —</option>
-                  {stock.filter((s) => !taken.has(s.part) || s.part === p.part)
-                    .map((s) => <option key={s.part_code} value={s.part}>{stockOptionLabel(s)}</option>)}
-                </select>
+                <SelectPicker
+                  className="mrn-part" value={p.part}
+                  onChange={(v) => setPick(i, { part: v, good_qty: 1, defective_qty: 0 })}
+                  placeholder="— Pick a spare in hand —"
+                  emptyHint="Only what this engineer holds can be returned."
+                  options={stock.filter((s) => !taken.has(s.part) || s.part === p.part)
+                    .map((s) => ({ value: s.part, label: stockOptionLabel(s) }))} />
                 <label className="mrn-qty">
                   <span className="field-label">Good</span>
                   <input

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
@@ -184,25 +185,18 @@ export function Lookup() {
       <div className="lk-search">
         {mode === 'machine' ? (
           <>
-            <select className="select" value={product} onChange={(e) => { setProduct(e.target.value); setSerial(''); }}>
-              <option value="">— any of the {products.length} products —</option>
-              {products.map((p) => (
-                <option key={p.name} value={p.name}>{p.machines ? `${p.name} (${p.machines})` : p.name}</option>
-              ))}
-            </select>
+            <SelectPicker value={product} onChange={(v) => { setProduct(v); setSerial(''); }}
+              placeholder={`— any of the ${products.length} products —`}
+              options={products.map((p) => ({ value: p.name, label: p.machines ? `${p.name} (${p.machines})` : p.name }))} />
             {/* The serials of the product chosen — a dependent dropdown. Free
                 text only while no product is chosen, since a serial on its own
                 is still a perfectly good thing to search for. */}
             {product ? (
-              <select className="select" value={serial} disabled={serialBusy}
-                onChange={(e) => setSerial(e.target.value)}>
-                <option value="">
-                  {serialBusy ? 'Loading serials…'
-                    : serialOpts.length ? `— any of the ${serialOpts.length} serials —`
-                    : '— no serial recorded for this product —'}
-                </option>
-                {serialOpts.map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
+              <SelectPicker value={serial} disabled={serialBusy} onChange={setSerial}
+                placeholder={serialBusy ? 'Loading serials…'
+                  : serialOpts.length ? `— any of the ${serialOpts.length} serials —`
+                  : '— no serial recorded for this product —'}
+                options={serialOpts} />
             ) : (
               <input className="input" placeholder="Serial number" value={serial}
                 onChange={(e) => setSerial(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchMachines(); }} />
@@ -215,11 +209,9 @@ export function Lookup() {
                 the first match, which beats remembering how a hospital is
                 spelled in the master. The box beside it still takes any part of
                 a name, for when you only know a word of it. */}
-            <select className="select lk-wide" value={partyMaster.values.includes(partyQ) ? partyQ : ''}
-              onChange={(e) => { setPartyQ(e.target.value); if (e.target.value) void openParty(e.target.value); }}>
-              <option value="">— choose a party —</option>
-              {partyMaster.values.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <SelectPicker className="lk-wide" value={partyMaster.values.includes(partyQ) ? partyQ : ''}
+              onChange={(v) => { setPartyQ(v); if (v) void openParty(v); }}
+              placeholder="— choose a party —" options={partyMaster.values} />
             <input className="input" placeholder="…or type any part of a name" value={partyQ}
               onChange={(e) => setPartyQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchParties(); }} />
             <button className="btn btn-primary" disabled={!!busy} onClick={() => void searchParties()}>Search</button>

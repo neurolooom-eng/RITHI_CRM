@@ -1438,9 +1438,14 @@ console.log('\n-- Re-Calc, evidence, and nothing hardcoded --');
     /o\.calc_key && v != null && \(/.test(obj) && /downloadEvidence\(o, MONTH_KEYS\.indexOf\(k\)\)/.test(obj), true);
   // Nothing about an objective is baked in: the definition, the formula and its
   // parameters are all editable by an administrator.
+  // Matched on the FIELD being set, not on the expression that sets it: pinning
+  // `e.target.value` made this fail the day the formula picker became a
+  // SelectPicker (which hands over the value directly) — a false alarm about a
+  // change that kept the property intact. What must hold is that both the
+  // formula and its parameters are still writable from the definition screen.
   eq('every part of an objective is editable, formula included',
-    /saveObjectiveDef/.test(obj) && /calc_key: e\.target\.value/.test(obj)
-    && /calc_params: e\.target\.value/.test(obj), true);
+    /saveObjectiveDef/.test(obj) && /calc_key: [^,}]+/.test(obj)
+    && /calc_params: [^,}]+/.test(obj), true);
   eq('...and objectives can be added and removed',
     /addObjective\(YEAR/.test(obj) && /deleteObjective\(defOpen\.id\)/.test(obj), true);
   // A row that computes itself is marked, or nobody can tell which figures are
@@ -2283,26 +2288,29 @@ console.log('\n-- dropdowns are one control --');
       /<select/.test(readFileSync(f, 'utf8')), false);
   }
 
-  // A NEW <select> IN A MODULE FAILS. The ones still there are listed, and the
-  // list only ever shrinks — that is what stops the sweep quietly reversing
-  // while the rest of it is being finished.
-  const CONVERTING = new Set([
-    'SpareRequests.tsx', 'UserMasterView.tsx', 'DailyCallReview.tsx', 'Lookup.tsx',
-    'FieldCalls.tsx', 'CoverRegister.tsx', 'PendingCalls.tsx', 'MaterialReturns.tsx',
-    'HandStock.tsx', 'UnusedSpareReport.tsx', 'Tracker.tsx', 'StockTransfer.tsx',
-    'SoftwareValidation.tsx', 'SheetConnection.tsx', 'ProductMaster.tsx', 'PartMaster.tsx',
-    'Objective.tsx', 'KnowledgeBase.tsx', 'ConsumptionReport.tsx', 'CallRegistrationCard.tsx',
-    'SpareRmApproval.tsx', 'SpareDispatch.tsx', 'SpareConsumption.tsx', 'Settings.tsx',
-    'RolePermissions.tsx', 'Reports.tsx', 'PendingRegistrations.tsx', 'PartyMaster.tsx',
-    'Objectives.tsx', 'KpiAnalytics.tsx', 'DataImport.tsx', 'BulkUploads.tsx',
-    'AuditLog.tsx', 'SlaRulesCard.tsx', 'Dashboard.tsx', 'SpareInsights.tsx',
-    'CustomerFeedback.tsx', 'FieldFailureReport.tsx', 'ReportMapping.tsx',
-    'OwnershipTransfer.tsx', 'MasterListPage.tsx', 'AllMasters.tsx', 'Tracker.tsx',
-  ]);
-  const stray = readdirSync('src/modules')
-    .filter((f) => f.endsWith('.tsx') && !CONVERTING.has(f))
-    .filter((f) => /<select/.test(readFileSync(`src/modules/${f}`, 'utf8')));
-  eq('no NEW module reaches for a native <select>', stray, []);
+  // THE SWEEP IS FINISHED, so the rule is now absolute rather than a shrinking
+  // list of exceptions: NOT ONE native <select> anywhere in src/. A list of
+  // "still to convert" was right while the conversion was in flight and is a
+  // loophole once it is done.
+  //
+  // The two component files are allowed to mention it in PROSE — they exist to
+  // explain what they replace — so the test looks for the JSX tag, not the word.
+  const withSelect: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!e.name.endsWith('.tsx')) continue;
+      const src = readFileSync(full, 'utf8');
+      // `<select` followed by whitespace, > or a prop — a JSX tag, not the word
+      // inside a comment.
+      if (/<select[\s>]/.test(src.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, ''))) {
+        withSelect.push(full.replace('src/', ''));
+      }
+    }
+  };
+  walk('src');
+  eq('not one native <select> is left in the app', withSelect, []);
 }
 
 console.log('\n-- the drawer can be widened, and remembers --');

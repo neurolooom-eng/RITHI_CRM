@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard, Modal } from '../components/ui/ui';
 import {
   listQualityObjectives, saveObjectiveCell,
@@ -591,16 +592,15 @@ export function Objective() {
             ))}
             <div>
               <label className="field-label">Computed by</label>
-              <select
-                className="select"
+              <SelectPicker
                 value={String(defDraft.calc_key ?? '')}
-                onChange={(e) => setDefDraft((d) => ({ ...d, calc_key: e.target.value }))}
-              >
-                <option value="">— typed, not computed —</option>
-                <option value="failure_rate_12m">failure_rate_12m — failures in 12 months ÷ machines</option>
-                <option value="open_rate_monthly">open_rate_monthly — still open at the cut-off ÷ that period's calls</option>
-                <option value="attended_within_days">attended_within_days — attended inside the limit ÷ that period's calls</option>
-              </select>
+                onChange={(v) => setDefDraft((d) => ({ ...d, calc_key: v }))}
+                placeholder="— typed, not computed —"
+                options={[
+                  { value: 'failure_rate_12m', label: 'failure_rate_12m — failures in 12 months ÷ machines' },
+                  { value: 'open_rate_monthly', label: "open_rate_monthly — still open at the cut-off ÷ that period's calls" },
+                  { value: 'attended_within_days', label: "attended_within_days — attended inside the limit ÷ that period's calls" },
+                ]} />
             </div>
             {String(defDraft.calc_key ?? '') === 'open_rate_monthly' && (
               <>

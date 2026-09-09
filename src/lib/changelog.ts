@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.180',
+    date: '2026-09-09',
+    title: 'Every dropdown in the app now works the same way',
+    changes: [
+      'THE LAST OF THE OLD DROPDOWNS ARE GONE \u2014 spare requests, hand stock, material returns, stock transfer, the user list, the review filters, part and product master, the tracker, the registers\u2019 own grouping and filtering. There is not one left anywhere.',
+      'ALL OF THEM NOW BEHAVE THE SAME: type to narrow a long list, click or press Enter to choose, and a keystroke never changes your answer on its own. Short lists still show as plain lists \u2014 no search box for two options.',
+      'VISITING SERVICE ENGINEER IS NOW REQUIRED on a visit report. A service record that cannot say who attended is not much of a record, and every per-engineer figure in the system reads that field.',
+    ],
+  },
+  {
     version: '0.9.179',
     date: '2026-09-09',
     title: 'Standard Complaint is chosen, never typed',

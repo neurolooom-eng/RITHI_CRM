@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
@@ -236,11 +237,9 @@ export function PartMaster() {
               <input className="input" placeholder="Part code" value={filter.code} onChange={(e) => set('code', e.target.value)} />
               <input className="input" placeholder="Description" value={filter.description} onChange={(e) => set('description', e.target.value)} />
               {live && (
-                <select className="input" value={filter.active} onChange={(e) => set('active', e.target.value)}>
-                  <option value="">Active & inactive</option>
-                  <option value="yes">Active only</option>
-                  <option value="no">Inactive only</option>
-                </select>
+                <SelectPicker value={filter.active ?? ''} onChange={(v) => set('active', v)}
+                  placeholder="Active & inactive"
+                  options={[{ value: 'yes', label: 'Active only' }, { value: 'no', label: 'Inactive only' }]} />
               )}
             </div>
             <div className="spacer" />

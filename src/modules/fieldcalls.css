@@ -507,3 +507,8 @@
 .age-ok   { color: var(--text-muted); }
 .age-warn { background: #b45309; color: #fff; }
 .age-late { background: #b3261e; color: #fff; }
+
+/* The engineer/part filters kept their width as an inline style on the old
+   <select>; the picker is a wrapper div, so the width belongs to a class. */
+.mrn-eng-filter { max-width: 220px; }
+.hs-eng-filter { max-width: 240px; }

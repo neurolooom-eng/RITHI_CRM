@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
@@ -60,10 +61,14 @@ function FieldInput({
   field, value, onChange, placeholder, disabled,
 }: { field: CoverField; value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean }) {
   const common = { className: 'input', value, disabled, onChange: (e: { target: { value: string } }) => onChange(e.target.value) };
-  if (field.type === 'bool') return <select {...common} className="select"><option value="">—</option><option>Yes</option><option>No</option></select>;
-  if (field.type === 'select') return (
-    <select {...common} className="select">{(field.options ?? []).map((o) => <option key={o} value={o}>{o || '—'}</option>)}</select>
-  );
+  if (field.type === 'bool') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
+                         options={['Yes', 'No']} />;
+  }
+  if (field.type === 'select') {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
+                         options={(field.options ?? []).filter(Boolean)} />;
+  }
   if (field.type === 'textarea') return <textarea {...common} rows={2} />;
   return <input {...common} type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'} placeholder={placeholder} />;
 }
@@ -216,9 +221,8 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
         </label>
         <label className="rep-field">
           <span className="field-label">Contract Type</span>
-          <select className="select" value={d.contract_type} onChange={(e) => set('contract_type', e.target.value)}>
-            {['', 'CMC', 'AMC'].map((o) => <option key={o} value={o}>{o || '— none —'}</option>)}
-          </select>
+          <SelectPicker value={d.contract_type} onChange={(v) => set('contract_type', v)}
+            placeholder="— none —" options={['CMC', 'AMC']} />
         </label>
         <label className="rep-field">
           <span className="field-label">Start</span>

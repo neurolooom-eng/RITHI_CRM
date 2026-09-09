@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
@@ -241,10 +242,8 @@ export function PendingCalls() {
           <>
             <b>{ids.length} selected</b>
             <span className="muted">Allot to</span>
-            <select className="select" value={allotTo} onChange={(e) => setAllotTo(e.target.value)} disabled={allotBusy}>
-              <option value="">— choose an engineer —</option>
-              {allotTeam.names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <SelectPicker value={allotTo} onChange={setAllotTo} disabled={allotBusy}
+              placeholder="— choose an engineer —" options={allotTeam.names} />
             <button className="btn btn-primary btn-sm" disabled={!allotTo || allotBusy} onClick={() => void saveAllotment()}>
               {allotBusy ? 'Saving…' : `Save ${ids.length}`}
             </button>
@@ -271,9 +270,8 @@ export function PendingCalls() {
                 <button key={t.key || 'all'} className={`chip ${type === t.key ? 'chip-on' : ''}`} onClick={() => setType(t.key)}>{t.label}</button>
               ))}
             </div>
-            <select className="select" value={state} onChange={(e) => setState(e.target.value as CallState | '')}>
-              {STATES.map((s) => <option key={s || 'any'} value={s}>{s || 'Any status'}</option>)}
-            </select>
+            <SelectPicker value={state} onChange={(v) => setState(v as CallState | '')}
+              placeholder="Any status" options={STATES.filter(Boolean).map((s) => String(s))} />
             <button
               className="btn btn-sm"
               onClick={() => csvExport('pending-calls.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}

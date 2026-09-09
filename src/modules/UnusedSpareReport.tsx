@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { SectionCard } from '../components/ui/ui';
 import { supabaseConfigured, countUnusedSpares, listUnusedSpares, unusedSpareEngineers } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -136,10 +137,8 @@ export function UnusedSpareReport() {
           </label>
           <label className="field-label" style={{ display: 'grid', gap: 4 }}>Engineer
             {engineers.length ? (
-              <select className="select" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)}>
-                <option value="">Any engineer</option>
-                {engineers.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <SelectPicker value={filter.engineer} onChange={(v) => set('engineer', v)}
+                placeholder="Any engineer" options={engineers} />
             ) : (
               <input className="input" placeholder="any" value={filter.engineer} onChange={(e) => set('engineer', e.target.value)} />
             )}

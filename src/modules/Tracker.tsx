@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import {
   supabaseConfigured, listTrackerItems, addTrackerItem, saveTrackerItem, deleteTrackerItem,
@@ -177,14 +178,12 @@ export function Tracker() {
             </div>
 
             <div className="trk-meta">
-              <select
-                className={`select trk-status ${TONE[it.status] ?? ''}`}
+              <SelectPicker
+                className={`trk-status ${TONE[it.status] ?? ''}`}
                 value={it.status}
                 disabled={!mayEdit}
-                onChange={(e) => patch(it.id, { status: e.target.value })}
-              >
-                {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+                onChange={(v) => patch(it.id, { status: v })}
+                options={[...STATUSES]} />
               <input
                 className="input" placeholder="With whom" value={it.owner} disabled={!mayEdit}
                 onChange={(e) => setItems((rows) => rows.map((r) => (r.id === it.id ? { ...r, owner: e.target.value } : r)))}

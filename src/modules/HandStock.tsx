@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
@@ -402,14 +403,12 @@ export function HandStock() {
             toolbar={
               <Toolbar>
                 <SearchBox value={search} onChange={setSearch} placeholder="Engineer, part code, description — searches every line" />
-                <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 240 }}>
-                  <option value="">All engineers ({engineers.length})</option>
-                  {engineers.map((e) => (
-                    <option key={e.engineer_key} value={e.engineer_key}>
-                      {e.engineer}{e.onHand === undefined ? '' : ` (${e.onHand})`}
-                    </option>
-                  ))}
-                </select>
+                <SelectPicker className="hs-eng-filter" value={engineerFilter} onChange={setEngineerFilter}
+                  placeholder={`All engineers (${engineers.length})`}
+                  options={engineers.map((e) => ({
+                    value: e.engineer_key,
+                    label: `${e.engineer}${e.onHand === undefined ? '' : ` (${e.onHand})`}`,
+                  }))} />
                 <div className="spacer" />
                 {rows.length > 0 && (
                   <button className="btn btn-sm" onClick={() => csvExport('hand-stock.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
@@ -549,10 +548,9 @@ function Movements({
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Engineer, spare, DC, call, remarks…" />
-            <select className="select" value={engineerFilter} onChange={(e) => setEngineerFilter(e.target.value)} style={{ maxWidth: 220 }}>
-              <option value="">All engineers</option>
-              {engineers.map((e) => <option key={e.engineer_key} value={e.engineer_key}>{e.engineer}</option>)}
-            </select>
+            <SelectPicker className="hs-eng-filter" value={engineerFilter} onChange={setEngineerFilter}
+              placeholder="All engineers"
+              options={engineers.map((e) => ({ value: e.engineer_key, label: e.engineer }))} />
             <div className="spacer" />
             {moves.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('hand-stock-movements.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
