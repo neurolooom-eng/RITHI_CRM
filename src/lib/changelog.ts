@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.168',
+    date: '2026-09-09',
+    title: 'The one-off setup step can no longer skip a change',
+    changes: [
+      'MARKING THE DATABASE "UP TO DATE" NOW STOPS WHERE YOU SAY IT DOES. The one-off setup step recorded every migration as already applied \u2014 but three of them had been merged and not yet run, so it would have marked those as done and they would never have been applied. The record would have said otherwise, permanently.',
+      'You now give the last change that really is on the database, and everything after it is applied properly on the next run.',
+    ],
+  },
+  {
     version: '0.9.167',
     date: '2026-09-09',
     title: 'The SQL applies itself, and the RM view no longer fights the app',

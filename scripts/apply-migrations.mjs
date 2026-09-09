@@ -35,7 +35,10 @@
 //
 // Usage:
 //   node scripts/apply-migrations.mjs --dry-run     what would run, no writes
-//   node scripts/apply-migrations.mjs --baseline    record all as applied
+//   node scripts/apply-migrations.mjs --baseline    record ALL as applied
+//   node scripts/apply-migrations.mjs --baseline-through 0151_x.sql
+//                                                   record up to there only; the
+//                                                   rest stay pending and apply
 //   node scripts/apply-migrations.mjs               apply what is pending
 //
 // Reads SUPABASE_DB_URL. It is NEVER printed, logged, or passed on a command
@@ -51,9 +54,28 @@ const DIR = 'supabase/migrations';
 const LOCK_TIMEOUT = process.env.MIGRATE_LOCK_TIMEOUT || '10s';
 const STATEMENT_TIMEOUT = process.env.MIGRATE_STATEMENT_TIMEOUT || '15min';
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
 const dryRun = args.has('--dry-run');
-const baseline = args.has('--baseline');
+const baseline = args.has('--baseline') || argv.some((a) => a.startsWith('--baseline-through'));
+
+// BASELINE THROUGH A POINT, not blindly to the end.
+//
+// A plain --baseline asserts "this database matches supabase/migrations/". That
+// is often FALSE at the moment somebody adopts this. On the day it was written,
+// 0152, 0153 and 0154 were merged but NOT yet applied to production -- so
+// --baseline would have recorded three migrations as applied that were not, and
+// the ledger would then hide them forever. A ledger that lies is worse than no
+// ledger, and this project has twice been bitten by a record claiming the
+// opposite of what was applied.
+//
+// So: --baseline-through 0151_module_keys_catch_up.sql records everything up to
+// and including that file, and leaves the rest PENDING for the pipeline to
+// apply properly.
+const throughArg = argv.find((a) => a.startsWith('--baseline-through'));
+const through = !throughArg ? ''
+  : throughArg.includes('=') ? throughArg.split('=').slice(1).join('=')
+  : (argv[argv.indexOf(throughArg) + 1] || '');
 
 const url = process.env.SUPABASE_DB_URL;
 if (!url) {
@@ -136,12 +158,26 @@ try {
   }
 
   if (baseline) {
-    for (const f of files) {
+    let upTo = files;
+    if (through) {
+      const i = files.indexOf(through);
+      if (i < 0) {
+        console.error(`--baseline-through: no such migration "${through}".\n` +
+          `Give a file name exactly as it appears in ${DIR}, e.g. 0151_module_keys_catch_up.sql`);
+        process.exit(2);
+      }
+      upTo = files.slice(0, i + 1);
+    }
+    const rest = files.filter((f) => !upTo.includes(f));
+    for (const f of upTo) {
       psql(`insert into public.schema_migrations (filename, checksum, applied_by)
             values ($m$${f}$m$, $m$${sum(f)}$m$, 'baseline')
             on conflict (filename) do nothing;`);
     }
-    console.log(`Baseline recorded: ${files.length} migration(s) marked applied. No SQL was executed.`);
+    console.log(`Baseline recorded: ${upTo.length} migration(s) marked applied. No SQL was executed.`);
+    if (rest.length) {
+      console.log(`\n${rest.length} left PENDING — these will be APPLIED on the next run:\n  ${rest.join('\n  ')}`);
+    }
     process.exit(0);
   }
 
