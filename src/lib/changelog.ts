@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.176',
+    date: '2026-09-09',
+    title: 'Drag the side panel wider',
+    changes: [
+      'THE PANEL THAT SLIDES IN FROM THE RIGHT CAN BE WIDENED \u2014 take hold of its left edge and pull. A call\u2019s visit history, spares requested and spares consumed all had to be scrolled sideways inside it, which meant scrolling a strip inside a panel inside a page to read a DC number.',
+      'IT REMEMBERS THE WIDTH YOU CHOSE, per screen, so you set it once rather than every time a call opens. Double-click the edge to put it back.',
+      'A width set on a big monitor will not open off the side of a laptop \u2014 it comes back inside the window.',
+      'The edge can also be nudged with the left and right arrow keys, for anyone not using a mouse.',
+    ],
+  },
+  {
     version: '0.9.175',
     date: '2026-09-09',
     title: 'Dropdowns become type-to-search, everywhere',

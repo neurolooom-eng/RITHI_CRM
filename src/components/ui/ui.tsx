@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { setModuleCount } from '../../lib/counts';
 import './ui.css';
@@ -97,29 +97,138 @@ export function PageHeader({
   );
 }
 
+// ===========================================================================
+// A DRAWER YOU CAN WIDEN — drag its left edge (user's ask, 2026-09-09).
+//
+// A call drawer holds tables it cannot fit: Visit history, Spares requested and
+// Spares consumed each scroll sideways at 640px, so reading a DC number means
+// scrolling a strip inside a panel inside a page. The screens differ in what
+// they hold, and so does the reader's monitor, so the right width is not one
+// number somebody picks here.
+//
+// THE WIDTH IS REMEMBERED, per drawer rather than globally: `storeKey` names it
+// (defaulting to the title, which is stable per screen), so widening the Field
+// Call drawer does not also widen a small confirmation elsewhere. It survives a
+// reload because re-dragging it on every call is the thing that would make the
+// feature not worth having.
+//
+// localStorage CAN THROW — a private window, a browser set to block site data,
+// a thumbnail capture — so every read and write is wrapped and the drawer
+// simply opens at its default width when it cannot remember. It is a
+// convenience, not state anything depends on.
+//
+// BOUNDS ARE THE SCREEN'S, not a constant: never wider than 96% of the window
+// (a drawer that covers the page is a page), never below 360px (narrower than
+// that and the head's title and close button collide). Both are re-checked on
+// resize, so a remembered 1400px does not open off-screen on a laptop.
+// ===========================================================================
+const DRAWER_MIN = 360;
+const drawerMax = () => Math.max(DRAWER_MIN, Math.round(window.innerWidth * 0.96));
+const drawerKey = (k: string) => `drawer.width.${k}`;
+
 export function Drawer({
   open,
   onClose,
   title,
   children,
   width = 640,
+  storeKey,
+  resizable = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   width?: number;
+  /** Which remembered width this drawer uses. Defaults to the title. */
+  storeKey?: string;
+  resizable?: boolean;
 }) {
+  const key = drawerKey(storeKey ?? title);
+  const [w, setW] = useState<number>(width);
+  const dragging = useRef(false);
+
+  // Read the remembered width when this drawer opens, not on every render.
+  useEffect(() => {
+    if (!open) return;
+    let saved = 0;
+    try { saved = Number(window.localStorage.getItem(key) ?? 0); } catch { saved = 0; }
+    const want = Number.isFinite(saved) && saved > 0 ? saved : width;
+    setW(Math.min(Math.max(want, DRAWER_MIN), drawerMax()));
+  }, [open, key, width]);
+
+  // A remembered width must not open off-screen on a smaller window.
+  useEffect(() => {
+    if (!open) return;
+    const fit = () => setW((cur) => Math.min(Math.max(cur, DRAWER_MIN), drawerMax()));
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [open]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     if (open) window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // THE DRAG. Measured from the RIGHT edge of the window, because the drawer is
+  // pinned there — so the width is simply how far the pointer is from it, and
+  // the panel tracks the cursor exactly rather than drifting.
+  useEffect(() => {
+    if (!open || !resizable) return;
+    const move = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      e.preventDefault();
+      setW(Math.min(Math.max(window.innerWidth - e.clientX, DRAWER_MIN), drawerMax()));
+    };
+    const up = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.classList.remove('drawer-resizing');
+      // Written on RELEASE, not on every mousemove: a hundred writes a second
+      // is how localStorage becomes the slow part of a drag.
+      setW((cur) => { try { window.localStorage.setItem(key, String(cur)); } catch { /* fine */ } return cur; });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+  }, [open, resizable, key]);
+
   if (!open) return null;
   return (
     <div className="drawer-overlay" onMouseDown={onClose}>
-      <div className="drawer" style={{ width }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="drawer" style={{ width: w }} onMouseDown={(e) => e.stopPropagation()}>
+        {resizable && (
+          <div
+            className="drawer-grip"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Drag to resize, or use the arrow keys"
+            tabIndex={0}
+            title="Drag to resize · double-click to reset"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              dragging.current = true;
+              document.body.classList.add('drawer-resizing');
+            }}
+            // Reachable without a mouse, and a reset for a width dragged somewhere silly.
+            onDoubleClick={() => {
+              setW(width);
+              try { window.localStorage.removeItem(key); } catch { /* fine */ }
+            }}
+            onKeyDown={(e) => {
+              const step = e.shiftKey ? 100 : 20;
+              const d = e.key === 'ArrowLeft' ? step : e.key === 'ArrowRight' ? -step : 0;
+              if (!d) return;
+              e.preventDefault();
+              setW((cur) => {
+                const next = Math.min(Math.max(cur + d, DRAWER_MIN), drawerMax());
+                try { window.localStorage.setItem(key, String(next)); } catch { /* fine */ }
+                return next;
+              });
+            }}
+          />
+        )}
         <div className="drawer-head">
           <h2 className="drawer-title">{title}</h2>
           <button className="btn btn-ghost btn-sm" onClick={onClose}>
