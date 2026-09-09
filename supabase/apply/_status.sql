@@ -625,6 +625,11 @@ with checks(sort_order, bundle, provides, present) as (
             where zm.role = 'zoho_migration'
               and m.v in ('calls.edit','masters.edit','users.manage','rbac.manage','spare.dispatch',
                           'review.edit','cover.edit','consumption.reconcile'))))),
+    (118, 'Super admin: mmdev74@gmail.com is revoked', 'Asked for 2026-09-09. SUPER ADMIN IS THREE PLACES and all three had to change, or the account keeps real access: `app_super_admins` (what is_super_admin() reads, so what POSTGRES allows), SUPER_ADMINS in src/lib/auth.tsx (what the BROWSER offers -- leave it and the screens hand them every button while the database refuses each one, which reads as the app being broken rather than as access withdrawn), and profiles.role, since is_admin() is role=''admin'' OR the super-admin row -- dropping only the row can leave an ordinary Admin standing. 0156 does the first and third; the second shipped in the same change and `npm run check:ui` compares the two lists. Downgraded to `engineer`, the least this codebase can express -- there is no "no access" ROLE; locking the account out entirely is deactivating the User Master row, deliberately NOT assumed. NO means they are still a super admin or still an Admin. Restore: rbac.sql',
+        (to_regclass('public.app_super_admins') is null
+      or (not exists (select 1 from public.app_super_admins where lower(email) = 'mmdev74@gmail.com')
+     and not exists (select 1 from public.profiles
+                      where lower(email) = 'mmdev74@gmail.com' and lower(coalesce(role,'')) = 'admin')))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

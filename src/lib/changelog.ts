@@ -12,6 +12,29 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.178',
+    date: '2026-09-09',
+    title: 'A super admin account is revoked',
+    changes: [
+      'mmdev74@gmail.com IS NO LONGER A SUPER ADMIN OR AN ADMIN. Super Admin was three separate things \u2014 what the app offers, what the database allows, and the role on the account \u2014 and all three are withdrawn together. Leaving any one of them would have kept real access, or left a screen full of buttons that quietly do nothing.',
+      'The account is now an ordinary Engineer. If the intention is that this person should not sign in at all, that is a different step \u2014 mark the User Master row inactive \u2014 and it has deliberately not been assumed.',
+      'The app now refuses to ship a super-admin list that disagrees with the database\u2019s own.',
+      'Needs supabase/apply/rbac.sql.',
+    ],
+  },
+  {
+    version: '0.9.177',
+    date: '2026-09-09',
+    title: 'The four database updates are in, and checked',
+    changes: [
+      'ALL FOUR OUTSTANDING DATABASE UPDATES ARE APPLIED, and the status check confirms it rather than somebody remembering: the Zoho Migration role and the page permissions, the Part Master upload fix, the frequent-failure rule, and the complaint on RM Approval.',
+      'THE PART MASTER FILE WILL LOAD NOW \u2014 the rule that stopped it 173 rows in is gone.',
+      'FREQUENT FAILURE ASKS WHAT THE PROCEDURE ASKS: within a month, counting the call in front of you, and catching the same part fitted twice in one machine.',
+      'RM APPROVAL SHOWS THE COMPLAINT, so a spare can be judged against the fault it is for.',
+      'SPARE INSIGHTS IS VISIBLE TO EVERYONE WHO CAN SEE CONSUMPTION, not administrators alone, and the Zoho Migration role can now be given to a login.',
+    ],
+  },
+  {
     version: '0.9.176',
     date: '2026-09-09',
     title: 'Drag the side panel wider',

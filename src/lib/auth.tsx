@@ -37,11 +37,18 @@ function profileToUser(p: Profile): User {
 }
 
 // Super admins (dev access — all rights), matched by any of their login ids.
+//
+// THIS LIST IS HALF OF THE ANSWER. The other half is `public.app_super_admins`
+// in the database, and the two are checked independently: this one decides what
+// the BROWSER offers, that one decides what Postgres allows. Removing an
+// address from one and not the other leaves the account with real access and a
+// screen that lies about it — so both change together, always (0156).
+//
+// mmdev74@gmail.com removed 2026-09-09 at the user's instruction.
 const SUPER_ADMINS = new Set([
   'service.almsind@gmail.com',
   'devika.m@airliquide.com',
   'devikamunusamy@gmail.com',
-  'mmdev74@gmail.com',
 ]);
 const isSuper = (...ids: (string | undefined)[]) =>
   ids.some((id) => id && SUPER_ADMINS.has(String(id).trim().toLowerCase()));

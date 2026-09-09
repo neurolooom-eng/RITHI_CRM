@@ -2319,5 +2319,43 @@ console.log('\n-- the drawer can be widened, and remembers --');
   eq('the arrow keys resize it too', /e\.key === 'ArrowLeft'/.test(ui), true);
 }
 
+console.log('\n-- super admins: the two lists agree --');
+{
+  // SUPER ADMIN IS TWO THINGS IN TWO PLACES: `SUPER_ADMINS` in auth.tsx decides
+  // what the BROWSER offers, `app_super_admins` decides what POSTGRES allows.
+  // Remove an address from one and not the other and you get either an account
+  // with real access behind a screen that hides it, or a screen full of buttons
+  // the database refuses one by one — which reads as the app being broken
+  // rather than as access having been withdrawn. So they are compared.
+  const auth = readFileSync('src/lib/auth.tsx', 'utf8');
+  const inCode = new Set(
+    (/const SUPER_ADMINS = new Set\(\[([\s\S]*?)\]\)/.exec(auth)?.[1] ?? '')
+      .split('\n').map((l) => /'([^']+)'/.exec(l)?.[1] ?? '').filter(Boolean).map((e) => e.toLowerCase()),
+  );
+
+  const seed = readFileSync('supabase/migrations/0008_rbac_enforcement.sql', 'utf8');
+  const seeded = new Set(
+    (/insert into public\.app_super_admins \(email\) values([\s\S]*?);/.exec(seed)?.[1] ?? '')
+      .split('\n').map((l) => /'([^']+)'/.exec(l)?.[1] ?? '').filter(Boolean).map((e) => e.toLowerCase()),
+  );
+
+  // Anything a later migration revokes.
+  const revoked = new Set<string>();
+  for (const f of readdirSync('supabase/migrations').filter((n) => /remove_super_admin/.test(n))) {
+    const sql = readFileSync(`supabase/migrations/${f}`, 'utf8');
+    const m = /v_email\s+text\s*:=\s*'([^']+)'/.exec(sql);
+    if (m) revoked.add(m[1].toLowerCase());
+  }
+
+  const effective = [...seeded].filter((e) => !revoked.has(e)).sort();
+  eq('the code list matches the database list, minus revocations',
+    [...inCode].sort(), effective);
+  // And the revoked address is in NEITHER, which is the thing just asked for.
+  for (const e of revoked) {
+    eq(`${e} is not a super admin in code`, inCode.has(e), false);
+    eq(`...nor seeded back without a revocation`, seeded.has(e) && !revoked.has(e), false);
+  }
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
