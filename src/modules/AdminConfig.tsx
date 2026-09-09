@@ -2,6 +2,7 @@ import { PageHeader } from '../components/ui/ui';
 import { SlaRulesCard } from './SlaRulesCard';
 import { CallRegistrationCard } from './CallRegistrationCard';
 import { AuditModeCard } from './AuditModeCard';
+import { FrequentFailureCard } from './FrequentFailureCard';
 import { DataImport } from './DataImport';
 
 // ===========================================================================
@@ -23,7 +24,7 @@ export function AdminConfig() {
     <div>
       <PageHeader
         title="Admin Config"
-        subtitle="Bulk data loads, the service-level targets, and the two switches only an administrator throws."
+        subtitle="Bulk data loads, the service-level targets, the frequent-failure rule, and the two switches only an administrator throws."
         icon="🛠️"
       />
 
@@ -32,6 +33,8 @@ export function AdminConfig() {
       <SlaRulesCard />
       <div style={{ height: 16 }} />
       <CallRegistrationCard />
+      <div style={{ height: 16 }} />
+      <FrequentFailureCard />
       <div style={{ height: 16 }} />
       <AuditModeCard />
     </div>

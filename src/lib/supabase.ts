@@ -2206,24 +2206,71 @@ export async function listPendingRmApproval(limit = 2000): Promise<Record<string
 }
 
 // ---------------------------------------------------------------------------
-// IS THIS A FREQUENT FAILURE? (0117)
+// IS THIS A FREQUENT FAILURE? (0117, and the procedure's own rule in 0153)
 //
 // Review 2 asks it, and until now it was answered from memory. The register
-// knows: earlier calls on the SAME product + serial with the SAME complaint,
-// within six months BEFORE this call's own date — measured from the call so
-// that reopening an old review does not change its answer.
+// knows: earlier calls on the same machine within the window, matched on the
+// same complaint OR the SAME PART fitted, counted INCLUDING the call under
+// review against the threshold.
 //
-// It returns the CALLS, not just a count. The reviewer is recording a
-// judgement they may have to defend, and "which ones?" is the next question.
+// THE VERDICT COMES FROM THE DATABASE, not from arithmetic here. The old shape
+// returned rows and left the screen to apply the rule — which is how the count
+// came to be read one short of what the procedure counts. One rule, one place.
+//
+// It returns the CALLS as well as the number. The reviewer is recording a
+// judgement they may have to defend, and "which ones?" is the next question;
+// `match_on` answers the one after that.
 // ---------------------------------------------------------------------------
 export interface FailureHistoryRow {
   ucn: string; call_number: string; reg_date: string;
   complaint: string; engineer: string; party_name: string; days_before: number;
+  match_on: string;
 }
-export async function frequentFailureHistory(ucn: string, months = 6): Promise<FailureHistoryRow[]> {
-  const { data, error } = await must().rpc('frequent_failure_history', { p_ucn: ucn, p_months: months });
+export interface FrequentFailure {
+  window_months: number;
+  threshold: number;
+  equipment_needs_complaint: boolean;
+  /** false when the machine cannot be identified — a blank serial. "Cannot
+   *  tell" and "no history" are different things to record a judgement on. */
+  known: boolean;
+  earlier: number;
+  /** earlier + the call under review, which is what the threshold is against. */
+  total: number;
+  is_frequent: boolean;
+  rows: FailureHistoryRow[];
+}
+export async function frequentFailure(ucn: string): Promise<FrequentFailure> {
+  const { data, error } = await must().rpc('frequent_failure', { p_ucn: ucn });
   if (error) throw new Error(errMsg(error));
-  return (data ?? []) as FailureHistoryRow[];
+  return data as FrequentFailure;
+}
+
+// The rule itself, for Admin Config. Read by anybody who may review; only an
+// administrator can write, and that gate is the database's (app_settings, 0047).
+export const FFR_KEYS = {
+  months: 'ffr.window_months',
+  threshold: 'ffr.threshold',
+  needsComplaint: 'ffr.equipment_needs_complaint',
+} as const;
+
+export async function getFrequentFailureRule(): Promise<{
+  window_months: number; threshold: number; equipment_needs_complaint: boolean;
+}> {
+  const { data, error } = await must().rpc('frequent_failure_rule');
+  if (error) throw new Error(errMsg(error));
+  return data as { window_months: number; threshold: number; equipment_needs_complaint: boolean };
+}
+
+export async function setFrequentFailureRule(
+  r: { window_months: number; threshold: number; equipment_needs_complaint: boolean },
+): Promise<{ ok: boolean; error?: string }> {
+  const now = new Date().toISOString();
+  const { error } = await must().from('app_settings').upsert([
+    { key: FFR_KEYS.months, value: String(Math.max(1, Math.round(r.window_months))), updated_at: now },
+    { key: FFR_KEYS.threshold, value: String(Math.max(1, Math.round(r.threshold))), updated_at: now },
+    { key: FFR_KEYS.needsComplaint, value: r.equipment_needs_complaint ? 'on' : 'off', updated_at: now },
+  ], { onConflict: 'key' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
 // The engineer acknowledges every outstanding SHIPMENT on these lines. A line

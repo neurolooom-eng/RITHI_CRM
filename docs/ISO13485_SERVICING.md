@@ -317,7 +317,11 @@ walks the register call by call and records Review 1 (public health threat,
 death, serious incident) and Review 2 (risk to patient, warranty failure,
 frequent failure → potential effect), with an auto-answer rule and a reviewer.
 That *is* an analysis with a record. What is missing is the explicit output
-below.
+below. **Since 0153 the frequent-failure test is the DCCR procedure's own** —
+two or more failures including the call under review, within a month, on the
+same equipment or the same part in the same machine — where it had been a
+six-month window with no same-part path. That corrects an *input* to the
+analysis; it does not close this requirement.
 
 **SR-027 — The analysis determines whether the information is to be handled as a
 COMPLAINT, and that determination is recorded — including a decision of "not a

@@ -43,6 +43,15 @@ it not matter.
 sandbox, so whether `drivefile` answers can only be seen by opening a report in
 the live app.
 
+⚠️ **PENDING: `daily_review.sql`** (2026-09-09, v0.9.163) — 0153 replaces the
+frequent-failure test with the procedure's own rule (`_status.sql` row 77).
+Until it runs, Review 2 still applies a **six-month** window, still reads the
+count **one short** of the rule, and still has **no same-part path** at all.
+Read it:
+<https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/daily_review.sql> ·
+copy it:
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql>
+
 ⚠️ **PENDING: `performance.sql`** (2026-09-09, v0.9.162) — 0152 drops the
 `parts_category_check` constraint, which aborted the Item Master upload 173 rows
 in and left the table half-written (`_status.sql` row 115). The importer fix
@@ -168,6 +177,24 @@ SR-038 and SR-039, both above.*
 ready to build. **They are not questions to re-ask** — they sit here until
 somebody picks one up.
 
+**1 · Frequent Failure — SHIPPED in 0153 (2026-09-09, v0.9.163).** The rule is
+the procedure's: two or more failures **including the call under review**, within
+**a month**, same equipment **or the same part in the same machine**; window,
+threshold and the judgement call below are editable in **Admin Config**. Of the
+two questions that had blocked it:
+
+* *Does the same-equipment path still need a matching complaint?* — made a
+  **setting**, defaulting to **on**, which is what this system has done since
+  0117. Neither reading is quietly imposed.
+* *What happens to Review 2 answers already recorded?* — **STILL OPEN, and
+  deliberately not decided by the migration.** 0153 does not touch
+  `daily_call_review`: nothing is re-opened or re-answered. Calls decided under
+  the six-month window keep their answers, so the register now holds judgements
+  made under two different rules. Re-reviewing them is an RA/QA decision, not a
+  side effect of a migration. **Needs `daily_review.sql` to be run.**
+
+<details><summary>The original entry, for the record</summary>
+
 **1 · Frequent Failure — the rule is settled, the migration is not written.**
 The spec is recorded in full in this file (*"Review 2's frequent-failure rule —
 SETTLED, not yet built"*): two or more failures **including the call under
@@ -183,6 +210,8 @@ being built:
   made — including automatic ones stamped `Auto (9:15 am)`. Leave them as
   answered, or re-open them? That is a quality record being restated either way,
   and it needs a decision before a line of SQL.
+
+</details>
 
 **2 · ANNEXURE A — the SLA cannot express the procedure.** `sla_rules` holds ONE
 `target_hours` per key; the procedure sets a **cover × criticality × spare

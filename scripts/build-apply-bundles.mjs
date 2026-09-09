@@ -222,6 +222,11 @@ const MODULES = {
     needs: ['profiles', 'rbac', 'fieldCalls', 'masterLists'],
     files: ['0044_daily_call_review.sql', '0046_dccr_master_values.sql', '0094_masters_upsert_target.sql', '0047_daily_review_report_context.sql', '0111_dccr_call_status.sql',
             '0117_frequent_failure.sql',
+            // AFTER 0117 and it must stay there: 0117 creates
+            // frequent_failure_history() and this drops it for the rule the
+            // procedure actually states. A bundle replayed alone has to see
+            // them in that order.
+            '0153_frequent_failure_rule.sql',
             '0119_bulk_review2.sql', '0124_auto_review2.sql',
             '0048_daily_review_map_by_call_number.sql'],
   },

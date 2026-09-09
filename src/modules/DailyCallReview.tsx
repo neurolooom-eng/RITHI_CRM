@@ -8,8 +8,8 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
-  frequentFailureHistory, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
-  getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FailureHistoryRow,
+  frequentFailure, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
+  getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FrequentFailure,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
 } from '../lib/supabase';
 import { fallbackList } from './masterLists';
@@ -76,6 +76,12 @@ const PAGE = 500;
 // (see 0111), so offering it would filter the counters and not the rows.
 const CALL_STATES = ['Unattended', 'Unsolved', 'Report pending', 'Solved'];
 
+
+// "1 month" reads better than "1 months", and the window is an administrator's
+// setting rather than a constant, so it cannot be written into the sentence.
+function windowLabel(months: number): string {
+  return months === 1 ? 'month' : `${months} months`;
+}
 
 export function DailyCallReview() {
   const { user, can, isAdmin } = useAuth();
@@ -1007,7 +1013,7 @@ function ReviewDrawer({
   // frequent failure; the register knows, so it answers instead of the
   // reviewer's memory. Loaded per call, and a failure to load leaves the
   // question unanswered rather than showing a confident zero.
-  const [history, setHistory] = useState<FailureHistoryRow[] | null>(null);
+  const [history, setHistory] = useState<FrequentFailure | null>(null);
   // The visits and the spares as ROWS rather than the view's pre-joined text,
   // so the report can be a link and the spares can be a table.
   const [visits, setVisits] = useState<Record<string, unknown>[] | null>(null);
@@ -1049,10 +1055,10 @@ function ReviewDrawer({
     let cancelled = false;
     setHistory(null); setVisits(null); setSpares(null);
     const cn = String(row?.call_number ?? '') || ucn;
-    void frequentFailureHistory(ucn)
+    void frequentFailure(ucn)
       .then((h) => { if (!cancelled) setHistory(h); })
-      // NULL, not []. An empty list says "no earlier failures"; a failed read
-      // must not be allowed to say that.
+      // NULL, not an empty answer. "No earlier failures" is a finding; a failed
+      // read must never be allowed to say it.
       .catch(() => { /* stays null — the panel says it could not be read */ });
     void reportsByCall(cn).then((v) => { if (!cancelled) setVisits(v); }).catch(() => { if (!cancelled) setVisits([]); });
     void spareConsumptionByCall(cn).then((v) => { if (!cancelled) setSpares(v); }).catch(() => { if (!cancelled) setSpares([]); });
@@ -1373,30 +1379,59 @@ function ReviewDrawer({
           </div>
           <div>
             <Choice label="Frequent Failure" value={draft.frequent_failure} onChange={set('frequent_failure')} disabled={!editable} />
-            {/* THE REGISTER ANSWERS, the reviewer decides. Same product AND
-                serial, same complaint, six months before THIS call's date. The
-                UCNs are listed because the next question after a number is
+            {/* THE REGISTER ANSWERS, the reviewer decides — and the answer is
+                the PROCEDURE'S (0153), not the approximation 0117 shipped:
+                the same machine within the window, matched on the same
+                complaint OR the same part fitted, counted INCLUDING this call.
+                That last word is why the old screen read one short.
+
+                THE COUNT SHOWN IS THE ONE THE RULE USES. A reviewer reading
+                "1 earlier failure" beside a rule that says "2 or more" reaches
+                the wrong answer without ever making a mistake, so the number
+                on screen is `total`, with the earlier ones listed under it.
+
+                The UCNs are listed because the next question after a number is
                 always "which ones?", and this judgement may have to be
-                defended. */}
+                defended. `match_on` answers the one after that: a call caught
+                by the SAME PART path is not one a reviewer would find by
+                looking for the same complaint. */}
             <div className="field-help" style={{ marginTop: 6 }}>
               {history === null
                 ? 'Earlier failures on this machine: could not be read.'
-                : history.length === 0
-                  ? 'No earlier failure on this machine with this complaint in the last 6 months.'
-                  : <>
-                      <b>{history.length}</b> earlier failure{history.length === 1 ? '' : 's'} on this machine
-                      with this complaint in the last 6 months:
-                    </>}
+                : !history.known
+                  // NOT "no earlier failure". Without a serial there is no
+                  // machine to ask about, and a confident "no" here talks
+                  // somebody out of raising an FFR.
+                  ? 'No serial number on this call, so its machine cannot be identified — this one has to be answered from the file.'
+                  : history.earlier === 0
+                    ? `No earlier failure on this machine in the ${windowLabel(history.window_months)} before this call.`
+                    : <>
+                        <b>{history.total}</b> failure{history.total === 1 ? '' : 's'} on this machine
+                        in the {windowLabel(history.window_months)} — this call and {history.earlier} earlier:
+                      </>}
             </div>
-            {history !== null && history.length > 0 && (
+            {history !== null && history.known && history.rows.length > 0 && (
               <ul className="dccr-history">
-                {history.map((h) => (
+                {history.rows.map((h) => (
                   <li key={h.ucn}>
                     <b>{h.ucn}</b> · {fmtLongDate(h.reg_date)} · {h.days_before}d before
-                    {h.engineer ? ` · ${h.engineer}` : ''}
+                    {h.engineer ? ` · ${h.engineer}` : ''} · <i>{h.match_on}</i>
                   </li>
                 ))}
               </ul>
+            )}
+            {history !== null && history.known && (
+              // THE RULE IN FORCE, on the screen. An administrator can change
+              // the window and the threshold, so a reviewer reading a verdict
+              // months later needs to see which rule produced it.
+              <div className={history.is_frequent ? 'dccr-warn' : 'field-help'} style={{ marginTop: 6 }}>
+                {history.is_frequent && <span aria-hidden="true">⚠️</span>}
+                <span>
+                  {history.is_frequent
+                    ? <>Meets the rule: <b>{history.total}</b> in the {windowLabel(history.window_months)}, threshold is {history.threshold}.</>
+                    : <>Below the rule: {history.total} in the {windowLabel(history.window_months)}, threshold is {history.threshold}.</>}
+                </span>
+              </div>
             )}
           </div>
         </div>

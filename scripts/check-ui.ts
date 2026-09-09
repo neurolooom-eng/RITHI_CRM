@@ -2025,5 +2025,39 @@ console.log('\n-- Part Master upload: the category is normalised, not rejected -
   eq('an unknown word survives, title-cased', shape('ACCESSORY'), 'Accessory');
 }
 
+console.log('\n-- Frequent Failure: the rule the procedure states --');
+{
+  const dccr = readFileSync('src/modules/DailyCallReview.tsx', 'utf8');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  // THE VERDICT IS THE DATABASE'S. The old shape returned rows and left the
+  // screen to apply the threshold, which is how the count came to be read one
+  // short of what the procedure counts.
+  eq('the screen asks for the verdict, not just the rows',
+    /rpc\('frequent_failure', \{ p_ucn: ucn \}\)/.test(sb), true);
+  eq('...and the old rows-only call is gone', /frequent_failure_history/.test(sb), false);
+
+  // The number on screen must be the one the rule uses. "1 earlier failure"
+  // beside a rule that says "2 or more" produces a wrong answer from a reader
+  // who has made no mistake.
+  eq('the count shown includes the call under review',
+    /<b>\{history\.total\}<\/b>/.test(dccr), true);
+
+  // "Cannot tell" and "no history" are different things to record a judgement
+  // on, and only one of them should ever read as a clean bill of health.
+  eq('a machine with no serial says so instead of "no earlier failure"',
+    /!history\.known/.test(dccr), true);
+  eq('...and the no-serial wording does not claim there was no failure',
+    /cannot be identified/.test(dccr), true);
+
+  // A call caught by the same-part path is not one a reviewer would find by
+  // looking for the same complaint, so the row says which rule caught it.
+  eq('each earlier call says why it matched', /\{h\.match_on\}/.test(dccr), true);
+  // An administrator can move the window, so a verdict read months later has
+  // to carry the rule that produced it.
+  eq('the rule in force is on the screen with the verdict',
+    /threshold is \{history\.threshold\}/.test(dccr), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
