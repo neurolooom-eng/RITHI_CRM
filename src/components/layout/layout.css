@@ -566,13 +566,28 @@
    A HEADING THAT FLASHES UNTIL SOMEBODY HAS BEEN THERE.
 
    The user, 2026-09-09: "can u make a heading flash??" — for Knowledge Base,
-   which people have to know exists before they will go looking for it.
+   which people have to know exists before they will go looking for it. Then:
+   "flashing has to be a contrast colour".
 
-   IT INVERTS, IT DOES NOT TINT. "Highlight means CONTRAST" is this project's
-   standing rule: a pale wash of the accent did not read on screen at all, so
-   the flash swaps the heading's ink and ground against the page. That also
-   makes it work in both themes by construction, which a hand-picked highlight
-   colour does not.
+   THE FIRST ATTEMPT INVERTED AGAINST THE PAGE and that was wrong here, not as a
+   matter of taste but of fact. "Highlight by inverting" uses `--text` on
+   `--surface`, which are the PAGE's tokens — and this heading is not on the
+   page, it is in the SIDEBAR, which carries its own palette. `--text` is a
+   near-black, and the sidebar ground is a deep blue (#1f3559 in ALMS). A
+   near-black box on a deep-blue ground is barely a change at all: the rule was
+   applied with the wrong pair of tokens, so the flash hardly showed.
+
+   SO IT IS A FIXED, SATURATED COLOUR — the other half of this project's own
+   highlight rule, and the half that fits. Amber against every sidebar this app
+   has: ALMS deep blue, teal, clinical blue, emerald, violet, sunset brown and
+   the two near-black darks are ALL dark grounds, so one warm, bright colour
+   contrasts with every one of them. That is why it is a literal and not a
+   token: a token would have to be defined eight times to say the same thing,
+   and the day somebody adds a LIGHT sidebar theme is the day this needs
+   revisiting — which a literal makes obvious and a token would hide.
+
+   Not one of the call-status hues (red, blue, pink, green): those are a code
+   people have learned to read, and a nav heading is not a call state.
 
    AND IT STOPS. Six flashes over about five seconds, then it rests as a plain
    heading; opening any page in the group ends it for good on that device. A
@@ -581,7 +596,7 @@
    --------------------------------------------------------------------------- */
 @keyframes nav-group-flash {
   0%, 100% { background: transparent; color: inherit; }
-  50%      { background: var(--text); color: var(--surface); }
+  50%      { background: #fbbf24; color: #1a1a1a; }
 }
 .nav-group-flash {
   border-radius: 5px;
@@ -593,11 +608,11 @@
 /* A FLASH IS EXACTLY WHAT SOME PEOPLE CANNOT HAVE. Vestibular disorders and
    photosensitivity make repeated luminance changes genuinely unpleasant, and
    they are the reason this media query exists. The signal is NOT dropped for
-   those readers — it becomes a steady marker, which says the same thing without
-   moving. */
+   those readers — it becomes a steady marker in the SAME contrast colour, which
+   says the same thing without moving. */
 @media (prefers-reduced-motion: reduce) {
   .nav-group-flash {
     animation: none;
-    box-shadow: inset 2px 0 0 0 var(--text);
+    box-shadow: inset 3px 0 0 0 #fbbf24;
   }
 }

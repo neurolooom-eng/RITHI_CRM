@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.187',
+    date: '2026-09-09',
+    title: 'The flashing heading is now an actual contrast colour',
+    changes: [
+      'THE KNOWLEDGE BASE HEADING FLASHES IN AMBER, which stands out against the menu instead of nearly disappearing into it.',
+      'It was flashing in near-black, which is the right idea applied to the wrong thing: that works against a white page, and the menu is dark in every one of the eight colour themes \u2014 so a dark flash on a dark menu was barely a change at all.',
+      'Amber contrasts against all eight, and it is deliberately none of the four call-status colours, which mean something specific and should not turn up on a menu heading.',
+      'Where a device is set to reduce motion it shows a steady amber bar instead of flashing \u2014 the same colour, so there is nothing extra to learn.',
+    ],
+  },
+  {
     version: '0.9.186',
     date: '2026-09-09',
     title: 'The Knowledge Base heading flashes until you have been there',
