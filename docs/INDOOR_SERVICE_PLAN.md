@@ -11,8 +11,12 @@ axes and all six activities' field sets, `indoor_job_accessories`,
 the database; five permissions of which three are enforced by a TRIGGER rather
 than by hiding buttons; the `/indoor` page with the seven-step drawer; and
 `supabase/tests/indoor_service_test.sql`, whose fourteen sections are the
-evidence for the requirement statuses above. `_status.sql` row 120 says whether
-it reached the live project. **The SQL still has to be run: `indoor.sql`.**
+evidence for the requirement statuses above. **`indoor.sql` HAS BEEN RUN AND VERIFIED
+(2026-09-09): `_status.sql` row 120 reads `yes`** — and that row tests the
+PROPERTY, so what passed is that `indoor_job_list` still applies row-level
+security to the reader, that both guard triggers are in place (without which the
+separated rights would be hidden buttons rather than rights), and that the
+decontamination gate is live. The register is in use.
 
 **The five questions that were open have been settled the reversible way, and
 each is marked below.** Where a decision could be made softly it was: a warning

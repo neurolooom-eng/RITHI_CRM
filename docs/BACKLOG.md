@@ -268,19 +268,37 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
-🟡 **`indoor.sql` WAS RUN — reported, not verified (2026-09-09).** The user said
-"indoor sql ran". **No `_status.sql` output has been seen**, so this stays a
-report: this file has twice claimed the opposite of what was really in the
-database, and it is a record rather than evidence.
+✅ **INDOOR SERVICE PHASE 1 IS LIVE — VERIFIED (2026-09-09).** The user ran
+`indoor.sql` and pasted the `_status.sql` output: **row 120 reads `yes`**.
 
-**Row 120 settles it, and it tests the PROPERTY rather than the presence** — it
-reads NO if `indoor_job_list` has lost `security_invoker` (a workshop register
-reading as its owner hands every signed-in user every job), if either guard
-trigger is missing (the separated rights would become hidden buttons rather than
-rights), or if the decontamination gate is gone. A register with the tables and
-neither guard looks identical on screen, which is exactly why the row does not
-just check that the tables exist.
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+**And it is the PROPERTY that passed, not the presence.** That row reads NO if
+`indoor_job_list` has lost `security_invoker` (a workshop register reading as its
+owner hands every signed-in user every job), if either guard trigger is missing
+(so `indoor.qc`, `indoor.dispatch` and `indoor.condemn` would be hidden buttons
+rather than rights), or if the decontamination gate on harvested parts is gone.
+A register with the tables and neither guard looks identical on screen — which is
+why the row was written to test the guards and not the tables. All of it is
+there.
+
+So the workshop register works as designed: the separated rights are refused by
+the database, nothing is harvested from a unit that has not been decontaminated,
+and a machine cannot leave with a failed check.
+
+⚠️ **STILL PENDING: `tracker.sql`** — **row 119 reads NO**, and it is the only NO
+in the whole 129-row report.
+
+**That row earned itself on its first outing.** It was added the day before
+precisely because a SEED leaves no table, policy, function or view behind, so a
+bundle that had never been run was indistinguishable from one that had — every
+other row in the report tests an object, and rows are not objects. Without it
+this bundle would have gone on reading as applied, and the six open points would
+simply never have appeared on the Tracker with nothing to say why.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
+
+**Everything else in the report reads `yes`**, including two that had been
+expected to stay NO and are now settled: **pg_cron is enabled** (Review 2
+auto-answers on the 03:45 UTC schedule rather than only when somebody opens the
+Daily Call Review), and the opening-stock check is clean.
 
 <details><summary>What it applied</summary>
 
