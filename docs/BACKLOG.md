@@ -99,6 +99,19 @@ Read-only diagnosis:
 copy it:
 <https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_admin_grant_check.sql>
 
+📌 **Indoor Service — the ACTIVITY TYPES are settled, the plan is extended**
+(2026-09-09). Vignesh gave four (recycling/rework, pre-delivery checking, demo,
+other); the proposal makes them **six** and says why: **Repair** was missing (it
+is what §4.5 is actually about), and **rework and salvage are two activities**,
+not two words — §8.3.4 governs one and SR-017 the other. `activity` is a SECOND
+AXIS beside `kind`: kind says whose property it is (custody, §7.5.10), activity
+says what is being done to it, and one field cannot carry both.
+Fields per activity are in `docs/INDOOR_SERVICE_PLAN.md` and the artifact
+<https://claude.ai/code/artifact/2f1a1fd7-71b4-4972-bdc9-4bd7d38f686d>.
+**Still a PLAN — nothing is built.** Four new questions (6–9) are open at the end
+of that file, the sharpest being whether a salvaged part re-enters stock under
+its own code; if it does not, its condition grade is decoration.
+
 ⚠️ **PENDING: `rbac.sql`** (2026-09-09, v0.9.178) — 0156 revokes
 **mmdev74@gmail.com** (`_status.sql` row 118). SUPER ADMIN IS THREE PLACES and
 all three change together: `app_super_admins` (what Postgres allows),

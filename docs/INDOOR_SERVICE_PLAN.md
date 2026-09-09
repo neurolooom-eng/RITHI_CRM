@@ -1,8 +1,15 @@
 # Indoor Service — a plan
 
 **Status: PLAN for review. Nothing built.** Written 2026-09-08 from procedure
-§4.5 and ANNEXURE A as supplied. Requirements it closes are SR-040…SR-044 in
-`ISO13485_SERVICING.md`.
+§4.5 and ANNEXURE A as supplied; extended 2026-09-09 with the ACTIVITY TYPES
+Vignesh supplied. Requirements it closes are SR-040…SR-044 in
+`ISO13485_SERVICING.md`; the activities also reach SR-003, SR-006, SR-017 and
+SR-020.
+
+Shareable copies:
+the plan <https://claude.ai/code/artifact/571e5a56-6a85-41dc-a2fa-b55935b4d044> ·
+**the activities and their fields**
+<https://claude.ai/code/artifact/2f1a1fd7-71b4-4972-bdc9-4bd7d38f686d>
 
 ---
 
@@ -48,6 +55,163 @@ It also decides §7.5.10: **customer property is a duty of care; a DEMO unit is
 the company's own stock.** The kind field is not a label, it is what says whether
 the custody obligations apply — which is precisely why the procedure gives DEMO
 units a different tag.
+
+## What KIND of work — the second axis (added 2026-09-09)
+
+Vignesh, on the Indoor activity types:
+
+> 1) Recycling or rework or which is adapted please choose or creat ur own
+> 2) Pre delivery checking process
+> 3) Demo activity
+> 4) Other Activity
+
+**These are a DIFFERENT AXIS from `kind`, and the difference decides the data
+model.** `kind` answers *whose property is this* — which is what turns the
+custody duties of §7.5.10 on or off. The list above answers *what is being done
+to it*. They are not interchangeable: a pre-delivery check and a demo are both on
+the company's own stock, while a rework may be on either. One field cannot carry
+both without losing one of the answers.
+
+So: **`activity`**, alongside `kind`, not instead of it.
+
+### Six, not four, and here is why
+
+**Repair is missing from the list and has to be there.** It is what §4.5 is
+actually about — the machine the field engineer could not fix, sent in under
+4.5.1. Vignesh's four read as *the other things the workshop does*, which is the
+useful half nobody had written down; adding Repair back makes the set complete
+rather than contradicting him.
+
+**"Recycling or rework" is two activities, and he invited the split** ("choose or
+creat ur own"). They are different obligations, not different words:
+
+* **Rework** is bringing a NONCONFORMING unit back to specification. §8.3.4 asks
+  for a documented rework instruction carrying the same approval as the original
+  process, a determination of any **adverse effect** the rework has, and
+  **re-verification** afterwards. It is the most heavily specified thing in this
+  whole list.
+* **Salvage** — harvesting usable parts from a unit that is being scrapped. The
+  unit is condemned; the parts enter stock. This is SR-017 (control of
+  nonconforming material), currently **Absent**, and it is the activity most
+  likely to put an unverified part back into circulation if it is not recorded.
+
+Calling both "recycling" would put a scrapping decision and a repair decision in
+the same bucket.
+
+## The fields, by activity
+
+### Common to every activity — the register core
+
+Already in the model above: `job_no`, `kind`, `activity`, `product_name`,
+`serial`, `party_name` (nullable), `received_at/by`, `condition_on_arrival`,
+`tag_no`, `status`, the cleaning trio (4.5.3), `work_done`, `findings`, the QC
+quartet (4.5.6), the dispatch trio (4.5.7), and the stamps.
+
+**Cleaning applies to all six.** A unit that has been in a hospital is
+decontaminated before anyone opens it, whether it is going to be repaired,
+stripped for parts or sent out on demo — WI/SER/01 does not care why it came in.
+
+### 1 · Repair — from a field call (§4.5.1–4.5.7)
+
+| field | why |
+| --- | --- |
+| `ucn` | the call it came from. The call is TRANSFERRED, not replaced |
+| `transfer_reason`, `manager_consulted` | 4.5.1 — the FE consults before sending |
+| `accessories[]` | tagged to the parent (4.5.4), and checked off at dispatch |
+| spares against the UCN | so consumption stays in ONE place, not a workshop ledger |
+
+### 2 · Rework — a nonconforming unit corrected (§8.3.4)
+
+| field | why |
+| --- | --- |
+| `nc_reference` | the nonconformity this is correcting — what was wrong |
+| `rework_instruction`, `rework_instruction_rev` | §8.3.4: rework runs to a DOCUMENTED instruction, not from memory |
+| `rework_authorised_by`, `rework_authorised_at` | the same authority that approved the original process |
+| `adverse_effect_assessed` (Yes/No) + `adverse_effect_note` | **§8.3.4 asks for this explicitly** and it is the field most likely to be left out: does reworking this unit harm it in some other way? |
+| `reverified_by/at`, `reverification_result` | rework without re-verification proves nothing |
+| `disposition` | Released / Scrapped — a failed rework has to end somewhere |
+
+### 3 · Salvage — parts harvested from a condemned unit (SR-017)
+
+| field | why |
+| --- | --- |
+| `condemned_reason`, `condemned_by`, `condemned_at` | scrapping a machine is a decision with an author |
+| `decontaminated` (hard gate) | nobody opens a used medical device before it is cleaned — this one blocks rather than warns |
+| `parts_harvested[]` — code, description, qty, **condition grade**, destination | the grade is the point: a harvested part is not a new part, and it must not silently become one in hand stock |
+| `disposal_method`, `disposal_ref` | what was NOT harvested still has to go somewhere — e-waste, and biohazard where the unit was in patient contact |
+| `customer_informed` | only where the unit was customer property: scrapping somebody's machine is theirs to know |
+
+> **The open question this raises:** a harvested part entering stock under its
+> normal code makes it indistinguishable from new. The register already holds a
+> refurbished part under its own code (URS-027) — salvage should do the same, or
+> the grade is decoration.
+
+### 4 · Pre-delivery inspection — a new unit before it ships
+
+| field | why |
+| --- | --- |
+| `source_ref` | the SA number / PO / stock receipt it arrived on |
+| `checklist_ref`, `checklist_rev` | which PDI checklist, at which revision |
+| `checks[]` — parameter, expected, measured, verdict | **this is SR-006 and SR-003**: expected-vs-measured against a limit, not a reading |
+| `instruments[]` — instrument, serial, **calibration due** | **SR-020**, the pair SR-006 needs to mean anything. A measurement from an uncalibrated meter is not evidence |
+| `firmware_version`, `accessories_per_packing_list` | what actually shipped |
+| `result` — Pass / Pass with observation / Fail | "Pass with observation" is what stops a real finding being rounded up to Pass |
+| `released_by/at` or `held_reason` | a Fail does not leave the workshop |
+
+**This activity is where Phase 3 of this plan actually lands.** The parameter
+checklist SR-006 asks for is the same structure whether it runs after a repair or
+before a delivery — so building it here builds it for both.
+
+### 5 · Demo — a unit out to a prospect
+
+| field | why |
+| --- | --- |
+| `demo_for_party`, `requested_by` | who it is going to, and who in the company asked |
+| `expected_out`, `expected_return` | a demo unit is an asset on loan and it needs a due date |
+| `actual_out`, `actual_return`, `custody_holder` | who has it right now |
+| `condition_out` / `condition_back`, `accessories` both ways | the same list checked twice, or accessories quietly stop coming back |
+| `consumables_used` | a demo burns stock, and that stock is real |
+| `outcome` — Converted / Returned / Damaged / Lost, + `sale_ref` | what the demo was FOR |
+
+**Overdue is the number this activity exists to produce:** demo units out past
+their expected return, with who holds them. Nothing else in the system tracks
+company assets sitting at a customer site.
+
+### 6 · Other — with a rule attached
+
+| field | why |
+| --- | --- |
+| `activity_note` (**required**) | "Other" with no description is a hole in the record |
+
+> **And a review rule, because this is the field that rots.** If Other passes
+> ~10% of jobs in a quarter, the workshop is doing something regularly that the
+> list does not name, and the fix is a new activity type — not a bigger free-text
+> box. Worth putting on the Tracker as a standing quarterly check rather than
+> hoping somebody notices.
+
+## What this changes about the phasing
+
+**Phase 1 gains `activity` and the per-activity field sets**, which is a bigger
+Phase 1 than the one above — but the alternative is a register that models one of
+six activities and has to be reshaped five times.
+
+**Phase 3 moves earlier for Pre-delivery**, because a PDI without expected-vs-
+measured is not a PDI at all; it is a signature. For repair, QC can stay a
+recorded Pass in Phase 1 as planned.
+
+## Still to settle on the activities
+
+6. **Rework vs Repair — who decides which one a job is?** A unit that arrives
+   broken is Repair; a unit that failed OUR OWN check is Rework. The distinction
+   is about where the nonconformity came from, and somebody has to make the call
+   at intake.
+7. **Does a salvaged part re-enter hand stock, and under what code?** See the
+   note above — this is the one with a real risk attached.
+8. **Who may condemn a unit?** Scrapping customer property in particular cannot
+   be an engineer's own decision.
+9. **Is a DEMO unit's `kind` still "DEMO unit" when it is in for repair?** It
+   should be: custody does not change because the workshop is doing something
+   different to it. This is why the two axes stay separate.
 
 ## The data model
 
