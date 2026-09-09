@@ -455,17 +455,32 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                       const serials = serialsFor(it.product, i);
                       const allTaken = !serials.length && !it.serial && !!it.product
                         && items.some((o, j) => j !== i && o.product === it.product && o.serial);
+                      // TYPE TO SEARCH HERE TOO (user's ask, 2026-09-09). A
+                      // hospital can own dozens of the same machine and their
+                      // serials differ by a digit in the middle, which is the
+                      // worst case for a scrolling dropdown and the best one
+                      // for a substring match.
+                      //
+                      // WHAT THE BOX SAYS WHEN IT IS EMPTY IS NOT DECORATION —
+                      // four different sentences, each naming what to do next.
+                      // "Every serial is already on this request" in particular
+                      // stops somebody hunting for a machine that is on the
+                      // form two rows up. They are kept, which is why PickList
+                      // gained `emptyLabel` rather than this settling for a
+                      // generic "— select —".
                       return (
-                        <select className="select" value={it.serial} onChange={(e) => setItem(i, 'serial', e.target.value)} disabled={!it.product}>
-                          <option value="">
-                            {!it.product ? '— pick a product first —'
-                              : serials.length ? '— pick a serial —'
-                              : allTaken ? '— every serial is already on this request —'
-                              : '— no serial on record —'}
-                          </option>
-                          {serials.map((v) => <option key={v} value={v}>{v}</option>)}
-                          {it.serial && !serials.includes(it.serial) && <option value={it.serial}>{it.serial}</option>}
-                        </select>
+                        <PickList
+                          value={it.serial}
+                          options={withCurrent(serials, it.serial)}
+                          onPick={(v) => setItem(i, 'serial', v)}
+                          disabled={!it.product}
+                          placeholder="Type any part of the serial…"
+                          emptyLabel={!it.product ? '— pick a product first —'
+                            : serials.length ? '— pick a serial —'
+                            : allTaken ? '— every serial is already on this request —'
+                            : '— no serial on record —'}
+                          emptyHint="Only the machines this party owns of this product are listed."
+                        />
                       );
                     })()
                 ))}
