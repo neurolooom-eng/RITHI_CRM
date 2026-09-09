@@ -157,13 +157,34 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
     return () => { alive = false; window.clearTimeout(t); };
   }, [product, complaint, reported]);
 
-  if (!manuals.length && !articles.length) return null;
+  // IT USED TO VANISH WHEN NOTHING MATCHED, and that was the wrong call.
+  // "Quiet when there is nothing to show" reads on screen as the feature having
+  // been REMOVED — which is exactly how it was reported (2026-09-09). A panel
+  // that is sometimes absent cannot be told from one that is broken, and the
+  // person looking at it has no way to learn that the answer is "no manual is
+  // filed for this machine yet".
+  //
+  // So it always renders once there is something to match ON, and says which of
+  // the two it is: nothing filed, or nothing matching. It still disappears
+  // entirely where the call names no product and no complaint, because then
+  // there is genuinely no question to answer.
+  const nothingToMatchOn = !product.trim() && !complaint.trim() && !reported.trim();
+  if (nothingToMatchOn) return null;
+  const empty = !manuals.length && !articles.length;
 
   return (
     <section className="rep-sec">
       <div className="rep-sec-title">
         📄 Supporting documents <span className="muted">({manuals.length + articles.length})</span>
       </div>
+      {empty && (
+        <div className="detail-hint">
+          No service manual or article is filed for {product.trim() ? <b>{product}</b> : 'this machine'} yet.
+          Manuals are added under <b>Knowledge Base → Service Manuals</b>; a manual with no
+          product set is offered on every call.
+        </div>
+      )}
+      {!empty && (
       <div className="assoc-scroll">
         <table className="assoc-table">
           <thead><tr><th>Type</th><th>Title</th><th>Covers</th><th>Tags</th></tr></thead>
@@ -188,6 +209,7 @@ export function SupportingDocs({ product, complaint, reported }: { product: stri
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
