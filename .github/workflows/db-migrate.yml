@@ -16,7 +16,14 @@ name: Apply database migrations
 # BEFORE THE FIRST RUN the existing database has to be baselined, or the script
 # refuses (correctly) rather than guessing what has already been applied:
 #   Actions -> Apply database migrations -> Run workflow -> mode: baseline
-# That records the current migrations as applied and executes no SQL.
+# That records migrations as applied and executes no SQL.
+#
+# AND BASELINE ONLY THROUGH WHAT IS REALLY THERE. A plain baseline asserts the
+# database matches supabase/migrations/, which is usually FALSE on the day this
+# is adopted -- there are normally a few merged-but-not-yet-run migrations. Put
+# the last one that HAS been applied in `baseline_through`; the rest stay pending
+# and get applied properly on the next run. Marking an unapplied migration as
+# applied hides it forever, and a ledger that lies is worse than no ledger.
 #
 # THE SECRET: SUPABASE_DB_URL, the project's Postgres URI (Supabase -> Project
 # Settings -> Database -> Connection string -> URI), set under
@@ -47,6 +54,10 @@ on:
         default: dry-run
         type: choice
         options: [dry-run, apply, baseline]
+      baseline_through:
+        description: 'baseline only: last migration ALREADY applied (e.g. 0151_module_keys_catch_up.sql). Blank = all of them.'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -91,6 +102,7 @@ jobs:
       - name: Apply
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BASELINE_THROUGH: ${{ github.event.inputs.baseline_through }}
         run: |
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "::warning::SUPABASE_DB_URL is not set — skipping. Add it under Settings → Secrets and variables → Actions."
@@ -98,7 +110,12 @@ jobs:
           fi
           case "${{ steps.mode.outputs.mode }}" in
             dry-run)  node scripts/apply-migrations.mjs --dry-run ;;
-            baseline) node scripts/apply-migrations.mjs --baseline ;;
+            baseline)
+              if [ -n "${BASELINE_THROUGH:-}" ]; then
+                node scripts/apply-migrations.mjs --baseline-through "$BASELINE_THROUGH"
+              else
+                node scripts/apply-migrations.mjs --baseline
+              fi ;;
             apply)    node scripts/apply-migrations.mjs ;;
             *) echo "Unknown mode"; exit 1 ;;
           esac

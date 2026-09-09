@@ -49,9 +49,19 @@ human with a SQL editor. Supabase → Project Settings → Database → Connecti
 string → **URI** (the session *pooler* URI if direct connections are refused),
 saved at GitHub → Settings → Secrets and variables → Actions as
 `SUPABASE_DB_URL`. **Then run the baseline once**: Actions → *Apply database
-migrations* → Run workflow → mode `baseline`. That records the 155 existing
-migrations as applied and executes no SQL; without it the tool refuses to run,
-which is the correct behaviour rather than a fault.
+migrations* → Run workflow → mode `baseline`, with **`baseline_through` set to
+`0151_module_keys_catch_up.sql`**. Without it the tool refuses to run, which is
+correct rather than a fault.
+
+**The through-point matters and is not optional here.** A plain baseline asserts
+the database matches `supabase/migrations/`, and today it does NOT: `0152`,
+`0153` and `0154` are merged but not applied. Baselining all of them would
+record three changes as done that are not, and they would never be applied —
+the ledger claiming the opposite of the truth, which is the failure this file
+has twice been bitten by. Through `0151`, those three stay pending and the very
+first real run applies them. Verified against a database built to exactly that
+state: the constraint dropped, `frequent_failure()` created, the old function
+gone, `security_invoker` intact, and a second run a clean no-op.
 This credential BYPASSES RLS — it is not the anon key in `src/lib/supabase.ts`,
 which is public by design. It must never be committed or printed; the workflow
 scrubs it from psql errors.
