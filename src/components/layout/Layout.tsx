@@ -53,9 +53,13 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // SERVICE MANUALS LEFT THIS GROUP (the user, 2026-09-09: "Move Service
+    // Manuals Under Knowledge Base"). It belongs with the other things somebody
+    // READS to do the job; what stays here is the controlled QMS shelf, which
+    // is a different act — those documents govern the work rather than explain
+    // it, and their write right (`qms.manage`) is separate for that reason.
     title: 'Documents',
     items: [
-      { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
       { to: '/qms', label: 'QMS Documents', icon: '📗' },
     ],
   },
@@ -145,9 +149,24 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    title: 'Help',
+    // KNOWLEDGE BASE IS THE HEADING NOW (the user, 2026-09-09: "Promote
+    // Knowledge Base to a heading with 1 topic - how to use"), where it used to
+    // be a single item under "Help". Everything somebody READS to do the job
+    // sits under it.
+    //
+    // HOW TO USE IS FIRST because it is what a new starter needs first — it
+    // used to be the bottom half of the Knowledge Base page, below a wall of
+    // team articles.
+    //
+    // FIELD SOLUTIONS IS HERE RATHER THAN GONE. The ask named one topic and
+    // then added Service Manuals; the team's articles are a third thing and
+    // dropping the entry would leave them written but unreachable except
+    // through a call. It is one line to remove if it is not wanted.
+    title: 'Knowledge Base',
     items: [
-      { to: '/knowledge-base', label: 'Knowledge Base', icon: '📚', alwaysOpen: true },
+      { to: '/knowledge-base/how-to', label: 'How to Use RITHI CRM', icon: '📖', alwaysOpen: true },
+      { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
+      { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
     ],
   },
 ];

@@ -125,7 +125,16 @@ function SpareDetail({ row, onClose }: { row: Row; onClose: () => void }) {
 // Keyed by CALL NUMBER — every visit/spare/feedback tied to this call.
 // The manuals + articles that speak to this machine. Read-only, and quiet when
 // there is nothing to show — an empty panel on every call would be noise.
-function SupportingDocs({ product, complaint, reported }: { product: string; complaint: string; reported: string }) {
+//
+// EXPORTED, because a call REQUEST needs exactly this and nothing about it is
+// specific to a registered call (the user, 2026-09-09: "Add Supporting Docs
+// logic to Call Request list / Page / View"). It takes a product, a standard
+// complaint and what was reported — a request has all three before it has a
+// UCN, which is the whole point: the engineer raising it can read the manual
+// while describing the fault, rather than after somebody registers it.
+// One component, so the matching rule cannot start differing between the two
+// screens — which is what a second copy of this would guarantee.
+export function SupportingDocs({ product, complaint, reported }: { product: string; complaint: string; reported: string }) {
   const navigate = useNavigate();
   const [manuals, setManuals] = useState<DocRow[]>([]);
   const [articles, setArticles] = useState<KbLite[]>([]);
@@ -133,11 +142,19 @@ function SupportingDocs({ product, complaint, reported }: { product: string; com
   useEffect(() => {
     if (!supabaseConfigured()) return;
     let alive = true;
-    // Either side may be missing (no library applied yet, no articles written);
-    // each resolves to [] on its own rather than taking the panel down.
-    void serviceManualsForProduct(product, complaint, reported).then((m) => { if (alive) setManuals(m); }).catch(() => {});
-    void kbForCall(product, complaint).then((a) => { if (alive) setArticles(a); }).catch(() => {});
-    return () => { alive = false; };
+    // DEBOUNCED, because `reported` is a LIVE TEXTAREA on the call-request form:
+    // the panel there sits under a Reported Problem box somebody is typing into,
+    // and this effect depends on its value. Without the delay every keystroke
+    // fetched the whole service-manual table — the match is done in JS, so
+    // there is no narrowing query to lean on. On a call, where all three props
+    // are fixed, the timer simply fires once and nothing is different.
+    const t = window.setTimeout(() => {
+      // Either side may be missing (no library applied yet, no articles written);
+      // each resolves to [] on its own rather than taking the panel down.
+      void serviceManualsForProduct(product, complaint, reported).then((m) => { if (alive) setManuals(m); }).catch(() => {});
+      void kbForCall(product, complaint).then((a) => { if (alive) setArticles(a); }).catch(() => {});
+    }, 350);
+    return () => { alive = false; window.clearTimeout(t); };
   }, [product, complaint, reported]);
 
   if (!manuals.length && !articles.length) return null;

@@ -217,6 +217,49 @@ exactly.
 
 </details>
 
+📌 **KNOWLEDGE BASE IS A SECTION, AND A CALL REQUEST OFFERS ITS DOCUMENTS**
+(2026-09-09, v0.9.183) — four asks, no SQL.
+
+**The guide was the bottom half of another page.** "How to use RITHI CRM" sat
+below Field Solutions on `/knowledge-base`, so the thing a new starter needs
+first was the thing they had to scroll past a wall of team articles to reach.
+It is now `/knowledge-base/how-to`, its own topic: a page somebody is *sent* to
+should be a place, not a position.
+
+**And all the how-to content is on it.** An article filed under the `How-To`
+category was sitting among the field solutions, where nobody looking for
+instructions would search. Both lists now split on ONE exported constant
+(`HOWTO_CATEGORY`), so an article cannot land on both pages or on neither — and
+the filter runs BEFORE the search, or a How-To article would surface among the
+solutions the moment anybody typed. Writing one still happens on Field
+Solutions, where the editor is: the category decides where it is READ.
+
+**Knowledge Base is the nav heading** (it was one item under "Help"), and
+**Service Manuals moved under it** — with the things people read to do the job.
+QMS Documents stays under Documents: those govern the work rather than explain
+it, which is why their write right is separate. `check:ui` fails Service Manuals
+appearing in BOTH groups, which would be worse than the wrong group — two
+entries for one page.
+
+**Field Solutions is a third topic, and that is a judgement, not the ask.** The
+user named one topic and then added Service Manuals; the team's articles are a
+third thing, and dropping the entry would leave them written but unreachable
+except through a call. **It is one line in `Layout.tsx` to remove.**
+
+**Supporting documents now reach a call REQUEST** — the request view and the
+registration form. The component is the CALL's own (`SupportingDocs`, exported
+from `CallAssociations.tsx`), imported rather than copied, so the matching rule
+cannot drift between the two screens; `check:ui` fails either screen growing its
+own `serviceManualsForProduct` call. On the form it renders **per machine**,
+because a request may carry several and one panel under the whole form would
+offer the first product's manual for every row.
+
+**The lookup is now DEBOUNCED, and that is not a nicety.** `serviceManualsForProduct`
+fetches the whole table and matches in JS — there is no narrowing query — and on
+the form the panel sits under a *live* Reported Problem textarea that the effect
+depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
+three inputs are fixed, the timer fires once and nothing is different.
+
 ⚠️ **PENDING: `indoor.sql`** (2026-09-09, v0.9.182) — **INDOOR SERVICE PHASE 1
 IS BUILT.** 0158 creates the workshop register: `indoor_jobs` carrying both axes
 and all six activities' field sets, `indoor_job_accessories`,

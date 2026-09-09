@@ -2394,6 +2394,71 @@ console.log('\n-- super admins: the two lists agree --');
   }
 }
 
+console.log('\n-- Knowledge Base is a heading, and supporting docs reach a request --');
+{
+  const nav = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  const howto = readFileSync('src/modules/HowToUse.tsx', 'utf8');
+  const kb = readFileSync('src/modules/KnowledgeBase.tsx', 'utf8');
+
+  // The heading exists and carries the topics. Checked as a GROUP TITLE, not
+  // merely as text somewhere in the file — a comment mentioning it would pass
+  // a looser test.
+  const kbGroup = /title: 'Knowledge Base',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
+  eq('Knowledge Base is a nav heading, not an item under Help',
+    kbGroup !== '' && !/title: 'Help'/.test(nav), true);
+  // FIRST, not merely present: it is what a new starter needs first, and the
+  // order of the entries is the claim. Read the first line that is actually an
+  // entry — the captured block opens with a newline and carries comments.
+  const firstTopic = kbGroup.split('\n').map((l) => l.trim()).find((l) => l.startsWith('{ to:')) ?? '';
+  eq('...with How to Use as its first topic',
+    firstTopic.startsWith("{ to: '/knowledge-base/how-to'"), true);
+  eq('...and Service Manuals moved under it',
+    /to: '\/service-manuals'/.test(kbGroup), true);
+  // ...and OUT of Documents, or it is in the menu twice, which is worse than
+  // being in the wrong place: two entries that go to one page.
+  const docGroup = /title: 'Documents',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/.exec(nav)?.[1] ?? '';
+  eq('...and is no longer under Documents as well',
+    docGroup !== '' && !/to: '\/service-manuals'/.test(docGroup), true);
+
+  // The guide is a real route, or the nav entry is a dead link.
+  eq('How to Use has a route of its own',
+    /path="\/knowledge-base\/how-to" element=\{<HowToUse \/>\}/.test(app), true);
+
+  // ALL the how-to content is on it: the written sections AND the articles
+  // filed as How-To, which used to sit among the field solutions.
+  eq('the written guide moved to the How to Use page',
+    /const SECTIONS: Sec\[\] = \[/.test(howto) && !/const SECTIONS/.test(kb), true);
+  eq('How-To articles are read there, not among the field solutions',
+    /a\.category === HOWTO_CATEGORY/.test(howto) && /a\.category !== HOWTO_CATEGORY/.test(kb), true);
+  // ONE constant, so the two lists cannot disagree about which is which and an
+  // article cannot land on both pages or on neither.
+  eq('both lists split on the same constant',
+    /export const HOWTO_CATEGORY/.test(howto) && /import \{ HOWTO_CATEGORY \} from '\.\/HowToUse'/.test(kb), true);
+
+  // SUPPORTING DOCS ON A CALL REQUEST — the call's own component, imported and
+  // not copied, so the matching rule cannot drift between the two screens.
+  const assoc = readFileSync('src/modules/CallAssociations.tsx', 'utf8');
+  const pend = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
+  const req = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('SupportingDocs is exported once', /export function SupportingDocs/.test(assoc), true);
+  eq('the request VIEW offers them',
+    /import \{ SupportingDocs \} from '\.\/CallAssociations'/.test(pend)
+    && /<SupportingDocs/.test(pend), true);
+  eq('the request FORM offers them too',
+    /import \{ SupportingDocs \} from '\.\/CallAssociations'/.test(req)
+    && /<SupportingDocs/.test(req), true);
+  // Neither screen may grow its own copy of the lookup: two implementations of
+  // "which manual applies" is how they start answering differently.
+  eq('...and neither screen matches documents itself',
+    /serviceManualsForProduct/.test(pend) || /serviceManualsForProduct/.test(req), false);
+  // The panel sits under a LIVE textarea on the form, so the fetch is debounced.
+  // Without this, every keystroke in Reported Problem pulled the whole
+  // service-manual table — the match is done in JS, so no query narrows it.
+  eq('the lookup is debounced, because it sits under a textarea',
+    /setTimeout\([\s\S]{0,600}serviceManualsForProduct/.test(assoc), true);
+}
+
 console.log('\n-- Indoor Service: the two axes, and the rights the database keeps --');
 {
   // The register is the workshop side of procedure §4.5. What is tested here is
