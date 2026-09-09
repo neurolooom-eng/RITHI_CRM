@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbListPartyItems, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
@@ -479,10 +480,7 @@ export function CallReportDrawer({
         {f.kind === 'long' ? (
           <textarea className="input" rows={2} value={val} onChange={(e) => setField(f.key, e.target.value)} />
         ) : f.kind === 'yesno' ? (
-          <select className="select" value={val} onChange={(e) => setField(f.key, e.target.value)}>
-            <option value="">— select —</option>
-            {YESNO.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <SelectPicker value={val} onChange={(v) => setField(f.key, v)} options={[...YESNO]} />
         ) : f.kind === 'warranty' ? (
           <input type="date" className="input" value={val} onChange={(e) => setField(f.key, e.target.value)} />
         ) : f.kind === 'complaint' ? (
@@ -573,10 +571,8 @@ export function CallReportDrawer({
               </label>
               <label className="rep-field">
                 <span className="field-label">Visiting Service Engineer</span>
-                <select className="select" value={engineer} onChange={(e) => setEngineer(e.target.value)}>
-                  {!engineer && <option value="">— select —</option>}
-                  {engineerOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <SelectPicker value={engineer} onChange={setEngineer} options={engineerOptions}
+                              emptyHint="Only engineers on your team are listed." />
                 <span className="muted rep-hint">
                   {isAdmin || scope.isManager ? 'Defaults to you; you can report for an engineer.' : 'You — the user filing this report.'}
                 </span>
@@ -590,17 +586,13 @@ export function CallReportDrawer({
             <div className="rep-grid">
               <label className="rep-field">
                 <span className="field-label">Call Status *</span>
-                <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                  <option value="">— Select status —</option>
-                  {STATUS_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                  {status && !STATUS_OPTIONS.includes(status) && <option value={status}>{status}</option>}
-                </select>
+                <SelectPicker value={status} onChange={setStatus} placeholder="— Select status —"
+                              options={status && !STATUS_OPTIONS.includes(status)
+                                ? [status, ...STATUS_OPTIONS] : [...STATUS_OPTIONS]} />
               </label>
               <label className="rep-field">
                 <span className="field-label">Update Visit Work Details? *</span>
-                <select className="select" value={updateWork} disabled={solved} onChange={(e) => setUpdateWork(e.target.value)}>
-                  {YESNO.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
+                <SelectPicker value={updateWork} onChange={setUpdateWork} disabled={solved} options={[...YESNO]} />
                 {solved && <span className="muted rep-hint">Always Yes on a completed report.</span>}
               </label>
               {(unsolved || reportPending) && (
@@ -609,11 +601,12 @@ export function CallReportDrawer({
                   {reportPending ? (
                     <input className="input" value={pendingReason} readOnly />
                   ) : (
-                    <select className="select" value={pendingReason} onChange={(e) => setPendingReason(e.target.value)}>
-                      <option value="">— select a reason —</option>
-                      {pendingReasons.values.slice(0, 1000).map((v) => <option key={v} value={v}>{v}</option>)}
-                      {pendingReason && !pendingReasons.values.includes(pendingReason) && <option value={pendingReason}>{pendingReason}</option>}
-                    </select>
+                    <SelectPicker value={pendingReason} onChange={setPendingReason}
+                                  placeholder="— select a reason —"
+                                  emptyHint="If it is not here, add it under Masters."
+                                  options={pendingReason && !pendingReasons.values.includes(pendingReason)
+                                    ? [pendingReason, ...pendingReasons.values.slice(0, 1000)]
+                                    : pendingReasons.values.slice(0, 1000)} />
                   )}
                   {reportPending && <span className="muted rep-hint">Set automatically for a pending report.</span>}
                 </label>
@@ -640,12 +633,20 @@ export function CallReportDrawer({
                 <ul className="rep-spare-list">
                   {spares.map((s, i) => (
                     <li key={i} className="rep-spare-row">
-                      <select className="select spare-part" value={s.part} onChange={(e) => editSpare(i, { part: e.target.value })}>
-                        {!stock.some((r) => r.part === s.part) && <option value={s.part}>{s.part}</option>}
-                        {stock.map((r) => (
-                          <option key={r.part_code} value={r.part} disabled={r.part !== s.part && remainingOf(r.part) <= 0}>{stockOptionLabel(r)}</option>
-                        ))}
-                      </select>
+                      <SelectPicker
+                        className="spare-part" value={s.part}
+                        onChange={(v) => editSpare(i, { part: v })}
+                        emptyHint="Only what this engineer holds can be consumed."
+                        options={[
+                          ...(!stock.some((r) => r.part === s.part) ? [{ value: s.part, label: s.part }] : []),
+                          ...stock.map((r) => ({
+                            value: r.part, label: stockOptionLabel(r),
+                            // Its own row stays pickable even at zero: it is
+                            // already booked here, and disabling it would make
+                            // the line unchangeable.
+                            disabled: r.part !== s.part && remainingOf(r.part) <= 0,
+                          })),
+                        ]} />
                       <input
                         className="input spare-qty" type="number" min={1} max={Math.max(1, remainingOf(s.part, i))}
                         value={s.qty} onChange={(e) => editSpare(i, { qty: e.target.value })}
@@ -660,18 +661,15 @@ export function CallReportDrawer({
                 </ul>
               )}
               <div className="spare-row">
-                <select
-                  className="select spare-part" value={spareDraft.part}
-                  onChange={(e) => setSpareDraft((d) => ({ ...d, part: e.target.value, qty: '1' }))}
+                <SelectPicker
+                  className="spare-part" value={spareDraft.part}
+                  onChange={(v) => setSpareDraft((d) => ({ ...d, part: v, qty: '1' }))}
                   disabled={stockBusy || stock.length === 0}
-                >
-                  <option value="">
-                    {stockBusy ? 'Loading hand stock…' : stock.length ? 'Pick a spare in hand…' : 'Nothing in hand stock'}
-                  </option>
-                  {stock.map((r) => (
-                    <option key={r.part_code} value={r.part} disabled={remainingOf(r.part) <= 0}>{stockOptionLabel(r)}</option>
-                  ))}
-                </select>
+                  placeholder={stockBusy ? 'Loading hand stock…' : stock.length ? 'Pick a spare in hand…' : 'Nothing in hand stock'}
+                  emptyHint="Only what this engineer holds can be consumed."
+                  options={stock.map((r) => ({
+                    value: r.part, label: stockOptionLabel(r), disabled: remainingOf(r.part) <= 0,
+                  }))} />
                 <input
                   className="input spare-qty" type="number" min={1}
                   max={spareDraft.part ? Math.max(1, remainingOf(spareDraft.part)) : 1}
@@ -722,15 +720,10 @@ export function CallReportDrawer({
                     <label className={`rep-field ${q.answer === 'text' ? 'rep-span2' : ''}`} key={q.col}>
                       <span className="field-label">{q.col}{req ? ' *' : ''}</span>
                       {q.answer === 'rating' ? (
-                        <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
-                          <option value="">— rate —</option>
-                          {ratings.values.map((v) => <option key={v} value={v}>{v}</option>)}
-                        </select>
+                        <SelectPicker value={String(feedback[q.col] ?? '')} onChange={onCh}
+                                      placeholder="— rate —" options={ratings.values} />
                       ) : q.answer === 'yesno' ? (
-                        <select className="select" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)}>
-                          <option value="">— select —</option>
-                          {YESNO.map((o) => <option key={o} value={o}>{o}</option>)}
-                        </select>
+                        <SelectPicker value={String(feedback[q.col] ?? '')} onChange={onCh} options={[...YESNO]} />
                       ) : q.answer === 'date' ? (
                         <input type="date" className="input" value={feedback[q.col] ?? ''} onChange={(e) => onCh(e.target.value)} />
                       ) : (
