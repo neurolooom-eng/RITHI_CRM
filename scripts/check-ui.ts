@@ -1992,7 +1992,7 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   }
   const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
   eq('...and PickList shows it rather than a generic label',
-    /\{value \|\| emptyLabel\}/.test(pl), true);
+    /: emptyLabel\}/.test(pl), true);
 }
 
 console.log('\n-- Reports: access one report at a time --');
@@ -2078,6 +2078,45 @@ console.log('\n-- Frequent Failure: the rule the procedure states --');
   // to carry the rule that produced it.
   eq('the rule in force is on the screen with the verdict',
     /threshold is \{history\.threshold\}/.test(dccr), true);
+}
+
+console.log('\n-- Spare Request and Consumption pick the part the same way --');
+{
+  const sr = readFileSync('src/modules/SpareRequests.tsx', 'utf8');
+  const sc = readFileSync('src/modules/SpareConsumption.tsx', 'utf8');
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+
+  eq('the request picks its part with a PickList',
+    /<PickList[\s\S]{0,400}setSpare\(i, 'spare', v\)/.test(sr), true);
+  eq('...and the 2,000-entry datalist is gone', /dl-spares/.test(sr), false);
+  eq('a part off the master is still offered',
+    /withCurrent\(spareMaster\.values, s\.spare\)/.test(sr), true);
+  // NO FREE-TEXT FALLBACK HERE (the user, 2026-09-09), unlike the call
+  // request's complaint field: a complaint typed by hand still reads as a
+  // fault, but a PART typed by hand is a code that dispatch, hand stock and
+  // consumption will all fail to match. An empty master disables the box and
+  // says which — loading, or genuinely empty.
+  eq('there is no free-text box for the part',
+    /className="input spare-part"/.test(sr), false);
+  eq('an empty master disables the picker instead',
+    /disabled=\{!spareMaster\.values\.length\}/.test(sr), true);
+  eq('...and says whether it is loading or empty',
+    /no parts in the master/.test(sr) && /loading parts/.test(sr), true);
+
+  eq('consumption picks its part with a PickList',
+    /<PickList[\s\S]{0,600}setLine\(i, 'part', v\)/.test(sc), true);
+  eq('...and no native <option> list is left over the stock',
+    /\{stock\.map\(\(r\) => \(\s*<option/.test(sc), false);
+  // THE NUMBER THAT DECIDES WHETHER THE LINE CAN BE BOOKED AT ALL. A trigger
+  // caps consumption at the balance, so a picker that dropped "in hand" would
+  // send people to a refusal they could have seen coming.
+  eq('every row still shows what is in hand', /in hand/.test(sc), true);
+  eq('...and the picker can render a label without storing it',
+    /labelFor\?\.\(o\) \?\? o/.test(pl), true);
+  // Display only: what is stored must stay the part, never the decorated
+  // string, or every downstream match on the CODE breaks.
+  eq('the search still matches the value, not the label',
+    /options\.filter\(\(o\) => o\.toLowerCase\(\)\.includes\(q\)\)/.test(pl), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

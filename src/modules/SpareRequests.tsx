@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { PickList } from '../components/ui/PickList';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
@@ -144,6 +145,11 @@ export function SpareRequestDrawer({
   // list the report screen and the call request offer — it used to be every
   // name in the company, which is not what "raise it for one of mine" means.
 
+  // A part already on the row that the master no longer lists still has to be
+  // offered, or reopening a draft would silently drop it.
+  const withCurrent = (list: string[], current: string) =>
+    current && !list.includes(current) ? [current, ...list] : list;
+
   const setSpare = (i: number, field: 'spare' | 'qty', v: string) =>
     setSpares((s) => s.map((x, j) => (j === i ? { ...x, [field]: v } : x)));
   const addSpareRow = () => setSpares((s) => (s.length < MAX_SPARES ? [...s, { spare: '', qty: '1' }] : s));
@@ -268,13 +274,43 @@ export function SpareRequestDrawer({
           <div className="rep-sec-title">
             Spares <span className="muted">{spareMaster.ready ? `(${spareMaster.values.length} parts)` : '(loading parts…)'} · {spares.length}/{MAX_SPARES}</span>
           </div>
-          <datalist id="dl-spares">
-            {spareMaster.values.slice(0, 2000).map((v) => <option key={v} value={v} />)}
-          </datalist>
+          {/* TYPE TO SEARCH (user's ask, 2026-09-09), the same control the call
+              request uses for the Standard Complaint and the Serial No.
+
+              IT REPLACES A DATALIST, and that is worth spelling out because it
+              trades one thing away and wins two. A datalist SUGGESTS: it also
+              accepts anything typed, so a part that is not in the master could
+              be requested — and it was capped at 2,000 entries, so a master
+              past that had parts nobody could pick at all, only guess at. The
+              PickList searches the WHOLE master and returns a part that
+              exists. Everything downstream — dispatch, consumption, hand
+              stock, the not-consumed report — matches on the CODE, so a
+              hand-typed part is a code nothing else can match.
+
+              AND THERE IS NO FREE-TEXT FALLBACK (the user, 2026-09-09), which
+              is where this deliberately parts company with the call request's
+              complaint field. A complaint typed by hand is still a readable
+              description of a fault; a PART typed by hand is a code that
+              dispatch, hand stock and consumption will all fail to match, and
+              the request is the point where that enters the system. An empty
+              master therefore DISABLES the box and says which — loading, or
+              genuinely empty — rather than quietly accepting anything. */}
           {spares.map((s, i) => (
             <div className="spare-row" key={i}>
               <span className="spare-no muted">{i + 1}</span>
-              <input className="input spare-part" list="dl-spares" placeholder="Search part (CODE|Description)…" value={s.spare} onChange={(e) => setSpare(i, 'spare', e.target.value)} />
+              <div className="spare-part">
+                <PickList
+                  value={s.spare}
+                  options={withCurrent(spareMaster.values, s.spare)}
+                  onPick={(v) => setSpare(i, 'spare', v)}
+                  disabled={!spareMaster.values.length}
+                  placeholder="Type any part of the code or description…"
+                  emptyLabel={spareMaster.values.length ? '— pick a part —'
+                    : spareMaster.ready ? '— no parts in the master —'
+                    : '— loading parts… —'}
+                  emptyHint="If the part is not here, it needs adding to the Part Master."
+                />
+              </div>
               <input className="input spare-qty" type="number" min={MIN_QTY} step={1} value={s.qty} onChange={(e) => setSpare(i, 'qty', e.target.value)} />
               <button className="btn btn-ghost btn-sm" title="Remove" onClick={() => removeSpareRow(i)} disabled={spares.length === 1}>✕</button>
             </div>

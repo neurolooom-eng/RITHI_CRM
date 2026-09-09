@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PickList } from '../components/ui/PickList';
 import { useSearchParams } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox } from '../components/ui/ui';
@@ -442,13 +443,30 @@ export function SpareConsumption() {
               <label className="field-label">Parts used <span style={{ color: 'var(--danger, #c00)' }}>*</span></label>
               {form.lines.map((l, i) => (
                 <div className="reco-line" key={i}>
-                  <select className="select" value={l.part} disabled={!stock.length}
-                    onChange={(e) => setLine(i, 'part', e.target.value)}>
-                    <option value="">{stock.length ? '— pick a part —' : 'Enter the UCN first'}</option>
-                    {stock.map((r) => (
-                      <option key={r.part} value={r.part}>{r.part} — {r.qty} in hand</option>
-                    ))}
-                  </select>
+                  {/* TYPE TO SEARCH (user's ask, 2026-09-09). An engineer's
+                      hand stock is a list of part codes that differ in the
+                      middle, and the code is what identifies a spare — so
+                      scrolling for it is the slowest way to find it.
+
+                      THE "in hand" FIGURE STAYS ON EVERY ROW. It is the number
+                      that decides whether this line can be booked at all (a
+                      trigger caps consumption at the balance), so a picker
+                      that dropped it would send people to a refusal they could
+                      have seen coming. `labelFor` renders it; the search still
+                      matches the PART, and what is stored is still the part. */}
+                  <PickList
+                    value={l.part}
+                    options={stock.map((r) => r.part)}
+                    onPick={(v) => setLine(i, 'part', v)}
+                    disabled={!stock.length}
+                    placeholder="Type any part of the code…"
+                    emptyLabel={stock.length ? '— pick a part —' : 'Enter the UCN first'}
+                    emptyHint="Only what this engineer holds can be consumed."
+                    labelFor={(v) => {
+                      const r = stock.find((x) => x.part === v);
+                      return r ? `${r.part} — ${r.qty} in hand` : v;
+                    }}
+                  />
                   <input className="input" type="number" min={1} step={1} style={{ width: 110 }}
                     max={l.part ? remainingFor(i, l.part) : undefined}
                     value={l.qty} onChange={(e) => setLine(i, 'qty', e.target.value)}

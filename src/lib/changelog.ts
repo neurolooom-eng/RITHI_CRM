@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.165',
+    date: '2026-09-09',
+    title: 'Type to find a spare, and RM Approval shows the whole request',
+    changes: [
+      'SPARE REQUEST AND CONSUMPTION PICK PARTS BY TYPING NOW, like the call request does. Type any part of a code or description and the list narrows.',
+      'ON A SPARE REQUEST THE PART MUST BE ONE THAT EXISTS. The old box let you type anything, and anything typed by hand is a code that dispatch, hand stock and the not-consumed report will all fail to match. It also only ever offered the first 2,000 parts; the whole master is searchable now.',
+      'CONSUMPTION STILL SHOWS WHAT IS IN HAND on every row \u2014 it is the number that decides whether the line can be booked at all.',
+      'RM APPROVAL CARRIES THE REQUEST, NOT JUST THE PART: serial number, call number, complaint, request type and date, remarks and the HandStock reason, alongside the customer and product it already had. Approving a spare means judging it against a machine and a fault, and neither was on the screen.',
+      'The search box on that queue finds a serial or a call number too. Needs supabase/apply/Spare_1.sql for the complaint column \u2014 everything else appears as soon as the app updates.',
+    ],
+  },
+  {
     version: '0.9.164',
     date: '2026-09-09',
     title: 'Type to find the Serial No too',

@@ -35,12 +35,19 @@ export interface PickListProps {
   // serial is already on this request"), and losing them to a generic label
   // would make the screen quieter and less useful at the same time.
   emptyLabel?: string;
+  // What each row READS, where the value alone does not say enough. Spare
+  // Consumption is the case: the value is the part, but the engineer choosing
+  // it needs "— 3 in hand" beside it to know whether the part is even there.
+  // DISPLAY ONLY — the search still matches the VALUE, because nobody searches
+  // for "in hand", and `onPick` still returns the value, so what is stored is
+  // never the decorated string.
+  labelFor?: (value: string) => React.ReactNode;
   id?: string;
 }
 
 export function PickList({
   value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
-  emptyLabel = '— select —', id,
+  emptyLabel = '— select —', labelFor, id,
 }: PickListProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -110,7 +117,7 @@ export function PickList({
           disabled={disabled}
           onClick={openList}
         >
-          <span>{value || emptyLabel}</span>
+          <span>{value ? (labelFor?.(value) ?? value) : emptyLabel}</span>
           <span className="picklist-caret" aria-hidden="true">▾</span>
         </button>
       )}
@@ -130,7 +137,7 @@ export function PickList({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(o)}
             >
-              {o}
+              {labelFor?.(o) ?? o}
             </button>
           ))}
           {matches.length === 0 && (
