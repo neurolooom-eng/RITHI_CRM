@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.181',
+    date: '2026-09-09',
+    title: 'A full description of the database, and the validation package brought up to date',
+    changes: [
+      'THERE IS NOW A COMPLETE DESCRIPTION OF THE DATABASE \u2014 every table and view, every field with its type and default, what values each one allows and where that restriction comes from, how the tables relate to each other, and who is permitted to read or change each one.',
+      'IT IS PRODUCED BY READING THE DATABASE ITSELF, not written by hand, so it can be re-made after any change rather than slowly drifting out of date. A description of the data that is wrong is worse than none.',
+      'THE VALIDATION PACKAGE COVERS THE RECENT WORK: choosing values from controlled lists rather than typing them, repeat-failure detection to the written rule, spares sent to a call being accounted for against it, and contract renewal with continuous cover \u2014 each with its system requirement and its test.',
+      'And the Tracker has the outstanding points on it, including the two verification steps that take a minute each.',
+    ],
+  },
+  {
     version: '0.9.180',
     date: '2026-09-09',
     title: 'Every dropdown in the app now works the same way',

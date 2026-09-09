@@ -96,6 +96,19 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   `https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/<path>` to
   copy it. Same for a snippet pasted into chat — say which file it came from
   and link that file.
+- **`docs/DATABASE_SCHEMA.md` is GENERATED — never hand-edit it.** 61 tables,
+  24 views, 1,400+ columns, 117 policies. `npm run schema:doc -- "<psql args>"`
+  introspects a database built from the migrations and writes the whole thing:
+  types, defaults, keys, relationships, **allowed values** (a CHECK, a master
+  list or a foreign key — it says which, because they are enforced very
+  differently) and the **RLS policies verbatim** per table. Re-run it after any
+  migration. Generated rather than written for the project's own reason: a
+  schema description that is WRONG is worse than none, and reading 156 files to
+  describe a default is the method that has produced wrong answers here.
+  Writing the generator proved the point twice — `relrowsecurity::text` renders
+  `true`/`false` (not `t`/`f`), so the first draft told the reader RLS was OFF on
+  all 61 tables; and 25 policies have multi-line `qual`, so line-based parsing
+  reported 170 policies where there are 117.
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
 - **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
