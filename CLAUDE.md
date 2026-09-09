@@ -65,9 +65,27 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   words, not the code's. `main` has often claimed your version already from
   another branch: take the next one **above** it rather than renumbering
   theirs, and keep `package-lock.json`'s two version fields in step.
-- **Applying SQL to the live Supabase project stays the user's step.** Name the
+- **Migrations auto-apply once `SUPABASE_DB_URL` is set** (2026-09-09).
+  `.github/workflows/db-migrate.yml` runs `scripts/apply-migrations.mjs` on a
+  push to `main` that touches `supabase/migrations/`, applying only what its
+  ledger (`public.schema_migrations`) says has not run — each in ONE
+  transaction with a short `lock_timeout`, so a migration that cannot get its
+  lock rolls back whole instead of deadlocking against the live app (which is
+  what a hand-run bundle did). A pull request only dry-runs.
+  **An existing database must be baselined first** (Actions → Apply database
+  migrations → mode: `baseline`) or the script refuses rather than re-running
+  155 migrations. Until the secret is added, everything below still applies.
+  The bundles remain the REBUILD path, not the update path — running one to
+  apply two new statements re-executes the other 150, which is what took the
+  locks.
+- **Applying SQL to the live Supabase project stays the user's step** while
+  that secret is unset. Name the
   bundle to run (`_status.sql` first, then what it flags) — never assume a
   migration is live because it is merged.
+  **`Spare_1.sql` and `HandStock_X.sql` are at the REPOSITORY ROOT**, not in
+  `supabase/apply/` — they are the two numbered consolidated files handed round.
+  A link to the wrong path 404'd once; `check:ui` now resolves every SQL path in
+  the docs.
   **Always give the LINK, not just the file name** (user's ask, 2026-09-03):
   `https://github.com/neurolooom-eng/RITHI_CRM/blob/main/<path>` to read it,
   `https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/<path>` to

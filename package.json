@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.166",
+  "version": "0.9.167",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -17,7 +17,10 @@
     "check:ui": "esbuild scripts/check-ui.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-ui.mjs --log-level=error && node node_modules/.cache/check-ui.mjs",
     "check:bundles": "node scripts/check-bundles.mjs",
     "check:views": "node scripts/check-views.mjs",
-    "check:replay": "node scripts/check-replay.mjs"
+    "check:replay": "node scripts/check-replay.mjs",
+    "db:migrate": "node scripts/apply-migrations.mjs",
+    "db:migrate:dry": "node scripts/apply-migrations.mjs --dry-run",
+    "db:baseline": "node scripts/apply-migrations.mjs --baseline"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
