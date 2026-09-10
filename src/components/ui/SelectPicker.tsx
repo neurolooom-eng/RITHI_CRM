@@ -38,6 +38,8 @@ export interface SelectPickerProps {
   disabled?: boolean;
   /** May the reader commit something that is not on the list? Off by default. */
   allowFreeText?: boolean;
+  /** Search the server instead of filtering a downloaded list. See PickList. */
+  onSearch?: (query: string) => Promise<string[]>;
   /** Shown under the list when a search finds nothing — say where values come from. */
   emptyHint?: string;
   /** Type-to-search appears at or above this many options (default 8). */
@@ -48,7 +50,7 @@ export interface SelectPickerProps {
 
 export function SelectPicker({
   value, onChange, options, placeholder = '— select —', disabled,
-  allowFreeText = false, emptyHint, searchThreshold, id, className,
+  allowFreeText = false, emptyHint, searchThreshold, onSearch, id, className,
 }: SelectPickerProps) {
   const norm = options
     .map((o) => (typeof o === 'string'
@@ -72,6 +74,7 @@ export function SelectPicker({
         emptyLabel={placeholder}
         emptyHint={emptyHint}
         allowFreeText={allowFreeText}
+        onSearch={onSearch}
         searchThreshold={searchThreshold}
         // The row reads its LABEL; what is stored is always the value, so a
         // dropdown whose text differs from its value keeps working.

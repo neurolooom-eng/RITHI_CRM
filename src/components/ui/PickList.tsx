@@ -60,26 +60,77 @@ export interface PickListProps {
   // while a PART typed by hand is a code that dispatch and consumption will
   // both fail to match. The form that knows the difference passes this.
   allowFreeText?: boolean;
+  // ASK THE SERVER INSTEAD OF DOWNLOADING THE LIST.
+  //
+  // For a list of a few thousand — the customers, above all — shipping the whole
+  // thing to the browser is the wrong shape however well it is cached: it is
+  // three paged requests and a few hundred KB before the field is usable, and
+  // it gets worse as the register grows. Reported three times over two days
+  // (2026-09-10: "party name and Product - both are taking about 8 & 4 sec").
+  //
+  // With this set, the box opens INSTANTLY on a short first page and every
+  // keystroke asks the database for matches instead of filtering an array that
+  // had to be downloaded first. One small request per search, debounced, and it
+  // costs the same whether the register holds two thousand customers or fifty.
+  //
+  // `options` is still honoured when it is given: it seeds the first frame and
+  // keeps the CURRENT value selectable, so opening a saved record never blanks
+  // a field while the search is in flight.
+  onSearch?: (query: string) => Promise<string[]>;
   id?: string;
 }
 
 export function PickList({
   value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
   emptyLabel = '— select —', labelFor, searchThreshold = 8, allowFreeText = false,
-  isDisabled, id,
+  isDisabled, onSearch, id,
 }: PickListProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [hi, setHi] = useState(0);
+  // Server-side results, when the form asked for them.
+  const [remote, setRemote] = useState<string[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const searchable = options.length >= Math.max(0, searchThreshold);
+  // A server-searched list ALWAYS gets the search box: the row count on screen
+  // is a page of results, not the size of the list, so the "short list needs no
+  // search" rule would hide the only way to reach the rest.
+  const searchable = !!onSearch || options.length >= Math.max(0, searchThreshold);
+  // THE SEARCH RUNS ON THE SERVER when the form asked for it, and DEBOUNCED —
+  // a request per keystroke would be worse than the download it replaces. Only
+  // while the box is open: a closed picker must cost nothing.
+  useEffect(() => {
+    if (!onSearch || !open) return;
+    let alive = true;
+    setSearching(true);
+    const t = window.setTimeout(() => {
+      onSearch(query.trim())
+        .then((rows) => { if (alive) { setRemote(rows); setHi(0); } })
+        // A failed search leaves whatever was already listed rather than
+        // emptying the box: "nothing matches" and "the request failed" must not
+        // look the same, and the second is not the reader's problem to solve.
+        .catch(() => {})
+        .finally(() => { if (alive) setSearching(false); });
+    }, 220);
+    return () => { alive = false; window.clearTimeout(t); setSearching(false); };
+  }, [onSearch, open, query]);
+
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
+    // SERVER-SIDE: the database already did the matching, so do not filter
+    // again here — a second filter would drop rows it matched on something this
+    // side cannot see, and would hide everything until the first result lands.
+    if (onSearch) {
+      const rows = remote ?? options;
+      // The CURRENT value stays selectable even when it is not in the page of
+      // results, or opening a saved record and pressing Enter would blank it.
+      return value && !rows.includes(value) && !q ? [value, ...rows] : rows;
+    }
     if (!q) return options;
     return options.filter((o) => o.toLowerCase().includes(q));
-  }, [options, query]);
+  }, [options, query, onSearch, remote, value]);
 
   // ONLY THIS MANY ROWS ARE PUT ON SCREEN, however many match.
   //
@@ -200,13 +251,22 @@ export function PickList({
               Use “{typed}” — not on the list
             </button>
           )}
-          {matches.length === 0 && !canTake && (
+          {matches.length === 0 && !canTake && !searching && (
             <div className="picklist-none">
               Nothing matches “{query}”.{emptyHint ? ` ${emptyHint}` : ''}
             </div>
           )}
           <div className="picklist-foot">
-            {searchable
+            {/* A SERVER-SEARCHED LIST DOES NOT KNOW THE TOTAL, and must not
+                pretend to: "12 of 40" where 40 is whatever happened to be
+                seeded would be a number somebody acts on. It says what it is
+                showing and that more may exist — the project's own rule that a
+                count over partly-loaded data is a LOWER BOUND. */}
+            {onSearch
+              ? (searching
+                  ? <>searching…</>
+                  : <>{matches.length} shown{matches.length ? '+' : ''} · keep typing to narrow · Enter to choose, Esc to leave it alone</>)
+              : searchable
               ? <>
                   {matches.length} of {options.length}
                   {/* SAY WHEN THE LIST IS TRUNCATED. A reader who cannot see
