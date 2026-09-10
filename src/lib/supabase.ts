@@ -750,11 +750,34 @@ export async function sbListParties(): Promise<string[]> {
 // answers the question a reader has when two similar names are on screen.
 // ---------------------------------------------------------------------------
 export interface ProductParty { party_name: string; machines: number }
+// PAGED, and it has to be. PostgREST caps a single response at ~1000 rows and
+// says nothing about it — so the first version of this returned the first 1,000
+// parties ALPHABETICALLY and silently dropped the rest. Reported 2026-09-10:
+// "KARUNALAYA TRUST, PUNE is very much available, but it is not coming up in
+// Call request" — K is past the cut, so every customer from roughly K onwards
+// had vanished from the picker while the footer read "0 of 1000".
+//
+// A truncated list is the worst shape this can fail in: it looks like a working
+// list, so the reader concludes the customer is not on the system rather than
+// that the screen is broken. This file already carries the warning at
+// `listCalls` — "Supabase caps a single response at ~1000 rows, so page through
+// with range()" — and this walked straight into it.
 export async function sbListProductParties(): Promise<ProductParty[]> {
   const c = getSupabase(); if (!c) return [];
-  const { data, error } = await c.from('product_party_names').select('*').order('party_name');
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as ProductParty[];
+  const PAGE = 1000;
+  const out: ProductParty[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await c.from('product_party_names')
+      .select('*').order('party_name').range(from, from + PAGE - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as ProductParty[];
+    out.push(...rows);
+    // A short page is the last page. Stopping on `< PAGE` rather than on an
+    // empty one saves a round trip on the common case and, more importantly,
+    // terminates even if the server ever returns fewer than asked for.
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
 // Party Master view — field-specific server-side filters + paging (Load more).
 export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }

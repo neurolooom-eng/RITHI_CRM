@@ -2447,6 +2447,17 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // not been applied yet.
   eq('...and it falls back to the master if the view is not applied',
     /if \(name === 'productParty'\)[\s\S]{0,400}return sbListParties\(\);/.test(lib), true);
+
+  // PAGED. PostgREST caps a single response at ~1000 rows and says nothing
+  // about it, so the first version returned the first 1,000 parties
+  // ALPHABETICALLY and dropped the rest — "KARUNALAYA TRUST, PUNE is very much
+  // available, but it is not coming up in Call request" (2026-09-10). A
+  // truncated list is the worst shape this can fail in: it looks like a working
+  // list, so the reader concludes the customer is not on the system.
+  const fn = /export async function sbListProductParties[\s\S]*?\n\}/.exec(lib)?.[0] ?? '';
+  eq('the party list is PAGED, not capped at PostgREST\'s 1000',
+    fn !== '' && /\.range\(from, from \+ PAGE - 1\)/.test(fn)
+    && /rows\.length < PAGE/.test(fn), true);
 }
 
 console.log('\n-- the KPI export narrows the calls before it reads the visits --');

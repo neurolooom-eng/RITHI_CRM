@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.191',
+    date: '2026-09-10',
+    title: 'Every customer shows in the Call Request list again',
+    changes: [
+      'CUSTOMERS FROM ABOUT K ONWARDS WERE MISSING from the Party Name box on a Call Request \u2014 KARUNALAYA TRUST, PUNE among them, even though the machines were plainly there in Product Master.',
+      'The list was being cut off at the first thousand customers in alphabetical order, and nothing said so. Worse, it still looked like a working list: you typed a real customer, got \u201Cnothing matches\u201D, and would reasonably conclude they were not on the system.',
+      'It now loads the whole list however long it is.',
+      'This came in with yesterday\u2019s change that made the customer list come from the Product Register. Apologies \u2014 it was a day old.',
+    ],
+  },
+  {
     version: '0.9.190',
     date: '2026-09-10',
     title: 'The customer list now comes from the machines, not the Party Master',
