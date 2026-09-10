@@ -268,6 +268,60 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **"IT IS TAKING A VERY LONG TIME TO ACCEPT THE PARTY" — two faults, one
+cause** (2026-09-10, v0.9.188).
+
+**FIRST, WHAT IT WAS NOT.** The obvious suspect was the case-insensitive party
+match added on 2026-09-09 (`ilike` where it had been `eq`, to fix the
+CAPTAIN SAURABH KALIA spelling), because 0052's own comment warns that a trigram
+index does not serve `=`. Measured against a database seeded to the live shape
+(21,000 products, ~1,400 parties): `ilike` **1.20 ms** on
+`products_party_name_trgm`, `eq` **0.048 ms** on `products_party_name_eq`. Slower,
+yes — and nowhere near a stall. **The comment claiming the trigram index serves
+the ilike was correct.** Worth recording, because it is exactly the plausible
+answer that would have been shipped as a fix and changed nothing.
+
+**WHAT IT ACTUALLY WAS, both in the same field:**
+
+1. **A datalist of up to EIGHT THOUSAND options, re-rendered on every
+   keystroke.** The Party box was `<input list="dl-party">` with
+   `partyMaster.values.slice(0, 8000)` behind it, and `value` is state — so each
+   character rebuilt eight thousand `<option>` nodes.
+2. **The products cascade fired PER CHARACTER.** The effect keys on
+   `f.partyName`, and the old `onChange` set it on every keystroke. Typing a
+   party name therefore sent one products query per letter — each an `ilike`
+   over the whole products table with `select('*')` — and the list you ended up
+   with was whichever response happened to land last. That is the "impacting on
+   listing the products" half, and it is a correctness bug as much as a speed
+   one.
+
+**Both are cured by the same control.** The field is now a `PickList`, which
+commits ONCE on a click or Enter — so the cascade runs once, with the finished
+name. It is also the app's own design default for a dropdown, which this field
+had been missed out of. Free text is allowed only for an INSTALLATION, where the
+customer may genuinely be new; on other call types the machines are looked up BY
+the party, so a typed name matches nothing.
+
+**And a third thing found on the way: `PickList` rendered one button per match.**
+Opening the party list built thousands of DOM nodes before the menu appeared.
+It now renders 200 and the footer says how many matched and that there are more —
+the count stays the TRUE total, only the rendering is capped, and a reader who
+cannot see their party learns the answer is "keep typing" rather than "they are
+not on the master". Every dropdown in the app opens faster for it.
+
+**Not touched, and worth knowing:** the Field Call / PM / Installation forms use
+the form engine's own `datalist` for the party, capped at 1,000 — the same shape
+of fault, an eighth of the size. Left alone because the report named the call
+request and turning those into pickers changes whether a party can be typed on
+three more screens, which is a decision rather than a fix.
+
+**One assertion had to be rewritten rather than satisfied.** `check:ui` pinned
+`matches[hi]` verbatim; capping the rendered list moved the highlight to
+`shown[hi]` — identical behaviour, failing assertion. It now tests the property
+(Enter commits a row from the visible list, and reaches the free-text fallback
+only after) instead of the variable's name. Second time this session an
+assertion has failed for pinning an implementation detail.
+
 🐞 **FOUR THINGS REPORTED AFTER v0.9.184, and what each turned out to be**
 (2026-09-09, v0.9.185).
 
