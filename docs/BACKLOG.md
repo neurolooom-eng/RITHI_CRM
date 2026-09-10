@@ -268,25 +268,30 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
-🟡 **`performance.sql` AND `tracker.sql` WERE RUN — reported, not verified
-(2026-09-10).** The user: *"ran all sql"*. **No `_status.sql` output has been
-seen**, so this stays a report. That is not doubt about the person: this file
-has twice claimed the opposite of what was really in the database, once nearly
-causing a needless rebuild of the live `calls` tables, and it is a record rather
-than evidence.
+✅ **`performance.sql` IS APPLIED — VERIFIED (2026-09-10).** The user ran it and
+pasted the `_status.sql` output: **rows 121 and 122 both read `yes`**.
 
-**Three rows close it**, and each tests the PROPERTY rather than the presence:
-* **121** — the KPI export. Reads NO if `kpi_field_inst` lost its LATERAL shape
-  (the pre-aggregation would be back and the export would time out again for
-  everyone who is not an administrator), if `security_invoker` was dropped by the
-  create-or-replace, or if the `spare_requests` index is missing.
-* **122** — the party cascade. Reads NO if `product_party_names` is absent or
-  reads as its owner. The pickers still WORK if this is NO — they fall back to
-  the Party Master — they just offer parties that cannot cascade, which is
-  exactly the silent half-failure worth catching.
-* **119** — the tracker seed, outstanding since 2026-09-09.
+* **121 — the KPI export.** It tests the PROPERTY: `kpi_field_inst` still has its
+  LATERAL shape and still carries `security_invoker`, and the `spare_requests`
+  index is there. So the export is fast for people who are not administrators —
+  which is the entire point, since as superuser it was never slow.
+* **122 — the party cascade.** `product_party_names` exists and reads as the
+  READER, not its owner.
 
-<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+⚠️ **BUT `tracker.sql` HAS STILL NOT BEEN RUN — row 119 reads `NO`, for the
+second time.** "ran all sql" (2026-09-10) evidently reached `performance.sql`
+and not this one; it has been outstanding since v0.9.181 on 2026-09-09.
+
+**This is the second time row 119 has earned itself.** It was added precisely
+because a SEED leaves no table, policy, function or view behind — every other row
+in that report tests an OBJECT, and rows are not objects. Without it this bundle
+would read as applied twice over, and the six open points would simply never
+appear on the Tracker with nothing anywhere to say why.
+
+**It is one file and nothing depends on it**, which is probably why it keeps
+slipping: no screen is broken while it is unrun, the Tracker simply does not
+carry the six items.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/tracker.sql>
 
 <details><summary>What was applied</summary>
 
@@ -554,9 +559,9 @@ So the workshop register works as designed: the separated rights are refused by
 the database, nothing is harvested from a unit that has not been decontaminated,
 and a machine cannot leave with a failed check.
 
-🟡 **`tracker.sql` REPORTED RUN (2026-09-10)** — see the note above; **row 119**
-settles it. What follows is why that row exists, which is worth keeping whatever
-the answer turns out to be.
+⚠️ **`tracker.sql` IS STILL NOT RUN — row 119 read `NO` again on 2026-09-10.**
+See the note above. What follows is why that row exists, and it has now proved
+itself twice.
 
 **As at 2026-09-09 it read NO**, and it was the only NO
 in the whole 129-row report.
