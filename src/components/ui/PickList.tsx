@@ -80,6 +80,18 @@ export function PickList({
     if (!q) return options;
     return options.filter((o) => o.toLowerCase().includes(q));
   }, [options, query]);
+
+  // ONLY THIS MANY ROWS ARE PUT ON SCREEN, however many match.
+  //
+  // The Party Master has thousands of rows, and opening a list that renders one
+  // button per party built thousands of DOM nodes before the menu appeared —
+  // which is the slowness reported on the call request (2026-09-09). Nobody
+  // scrolls three thousand parties to find one; they type. So the list shows a
+  // screenful and the footer says how many matched, which is the honest form:
+  // the number is the TRUE total and only the rendering is capped.
+  const RENDER_CAP = 200;
+  const shown = useMemo(() => matches.slice(0, RENDER_CAP), [matches]);
+  const hidden = matches.length - shown.length;
   // A typed value that is on no row, offered only where the form allows it.
   const typed = query.trim();
   const canTake = allowFreeText && !!typed
@@ -104,18 +116,23 @@ export function PickList({
     setOpen(true);
     setQuery('');
     // Start on the row that is already chosen, so ↓ moves from where you are.
-    setHi(Math.max(0, options.indexOf(value)));
+    // Clamped into the rendered window: with thousands of options the chosen
+    // one may sit past the cap, and starting the highlight off-screen would
+    // make the first ↓ appear to do nothing.
+    setHi(Math.min(Math.max(0, options.indexOf(value)), RENDER_CAP - 1));
   };
 
   const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, matches.length - 1)); return; }
+    // Bounded by what is RENDERED, not by what matched: arrowing past the last
+    // visible row would highlight a button that is not on screen.
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, shown.length - 1)); return; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); return; }
     if (e.key === 'Enter') {
       e.preventDefault();
       // Enter picks the HIGHLIGHTED row and nothing else. With no matches it
       // does nothing at all rather than inventing a value from the search --
       // unless this form allows free text, where the typed value IS the answer.
-      if (matches[hi] != null) choose(matches[hi]);
+      if (shown[hi] != null) choose(shown[hi]);
       else if (canTake) choose(typed);
       return;
     }
@@ -163,7 +180,7 @@ export function PickList({
           <button type="button" className="picklist-opt picklist-clear" onMouseDown={(e) => e.preventDefault()} onClick={() => choose('')}>
             — none —
           </button>
-          {matches.map((o, i) => (
+          {shown.map((o, i) => (
             <button
               key={o}
               type="button"
@@ -190,7 +207,15 @@ export function PickList({
           )}
           <div className="picklist-foot">
             {searchable
-              ? <>{matches.length} of {options.length} · ↑↓ to move, Enter to choose, Esc to leave it alone</>
+              ? <>
+                  {matches.length} of {options.length}
+                  {/* SAY WHEN THE LIST IS TRUNCATED. A reader who cannot see
+                      their party must know the answer is "keep typing" and not
+                      "it is not here" — an unexplained cut-off is how somebody
+                      concludes a customer is missing from the master. */}
+                  {hidden > 0 ? <> · showing {shown.length}, keep typing to narrow</> : null}
+                  {' '}· ↑↓ to move, Enter to choose, Esc to leave it alone
+                </>
               : <>{options.length} option{options.length === 1 ? '' : 's'} · Esc to leave it alone</>}
           </div>
         </div>

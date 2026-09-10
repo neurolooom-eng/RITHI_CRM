@@ -1403,7 +1403,14 @@ console.log('\n-- typing filters, it never selects --');
   eq('clicking away abandons, it does not pick', /if \(boxRef\.current && !boxRef\.current\.contains\(e\.target as Node\)\) close\(\);/.test(pl), true);
   eq('Escape leaves it alone too', /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); close\(\);/.test(pl), true);
   // Enter with nothing matching must not invent a value from the search box.
-  eq('Enter with no match does nothing', /if \(matches\[hi\] != null\) choose\(matches\[hi\]\);/.test(pl), true);
+  //
+  // TESTS THE PROPERTY, not the variable name. This pinned `matches[hi]`
+  // verbatim and broke the day the rendered list was capped and the highlight
+  // moved to `shown[hi]` — identical behaviour, failing assertion. What matters
+  // is that Enter commits an element of the visible list and reaches `canTake`
+  // only as a fallback; which array holds it is an implementation detail.
+  eq('Enter with no match does nothing',
+    /if \((?:matches|shown)\[hi\] != null\) choose\((?:matches|shown)\[hi\]\);\s*\n\s*else if \(canTake\) choose\(typed\);/.test(pl), true);
 
   const dccr = readFileSync(`${process.cwd()}/src/modules/DailyCallReview.tsx`, 'utf8');
   // All THREE Review 3 answers, not just the two that were reported: same
@@ -2392,6 +2399,46 @@ console.log('\n-- super admins: the two lists agree --');
     eq(`${e} is not a super admin in code`, inCode.has(e), false);
     eq(`...nor seeded back without a revocation`, seeded.has(e) && !revoked.has(e), false);
   }
+}
+
+console.log('\n-- the call request accepts a party without a stall --');
+{
+  // "It is taking a very long time to accept the party -- which is impacting on
+  // listing the products" (2026-09-09). Two faults, one cause.
+  const req = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const pick = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+
+  // 1. The party field was an <input list> over a datalist of up to EIGHT
+  //    THOUSAND options, re-rendered on every keystroke — and because the
+  //    products effect depends on f.partyName, which that onChange set per
+  //    CHARACTER, typing a party name fired one products query per letter.
+  //    A PickList commits once, so the cascade runs once.
+  eq('the party is picked, not typed into a datalist',
+    /<datalist id="dl-party"/.test(req) === false
+    && /options=\{partyMaster\.values\}/.test(req), true);
+  // The products effect still keys off the committed name — if it ever went
+  // back to a per-keystroke value the storm returns with no visible symptom
+  // until somebody times it.
+  eq('...and the products cascade keys off the committed party',
+    /\}, \[isInstall, f\.partyName\]\);/.test(req), true);
+  // Free text belongs to installations alone: for every other call type the
+  // machines are looked up BY the party, so a typed name matches nothing.
+  eq('...with free text only where the customer may genuinely be new',
+    /allowFreeText=\{isInstall\}/.test(req), true);
+
+  // 2. PickList rendered one button per match. Opening the party list built
+  //    thousands of DOM nodes before the menu appeared.
+  eq('PickList renders a bounded number of rows',
+    /const RENDER_CAP = \d+;/.test(pick) && /matches\.slice\(0, RENDER_CAP\)/.test(pick), true);
+  // The keyboard has to move within what is RENDERED, or the highlight walks
+  // off the visible list and Enter picks something nobody can see.
+  eq('...and the keyboard moves within the rendered rows',
+    /Math\.min\(h \+ 1, shown\.length - 1\)/.test(pick)
+    && /if \(shown\[hi\] != null\) choose\(shown\[hi\]\);/.test(pick), true);
+  // A truncated list must SAY it is truncated: a reader who cannot see their
+  // party has to know the answer is "keep typing", not "they are not here".
+  eq('...and it says when the list is cut short',
+    /hidden > 0 \?/.test(pick) && /keep typing to narrow/.test(pick), true);
 }
 
 console.log('\n-- Knowledge Base is a heading, and supporting docs reach a request --');

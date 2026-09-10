@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.188',
+    date: '2026-09-10',
+    title: 'Choosing a customer on a call request is fast again',
+    changes: [
+      'PICKING THE PARTY ON A CALL REQUEST NO LONGER STALLS, and the products for that customer appear as soon as it is chosen.',
+      'Two things were wrong and both came from the same place. The Party box held a hidden list of up to EIGHT THOUSAND customers that the browser rebuilt on every single key you pressed. And the products lookup was triggered by whatever was in the box at that moment \u2014 so typing a customer name sent one search of the whole machine list PER LETTER, and the products you finally saw were whichever answer happened to come back last.',
+      'The Party box is now the same type-search-and-select control as the rest of the app: you type to narrow, and it commits once when you choose. The products are then looked up once, for the name you actually picked.',
+      'A new customer can still be typed in on an INSTALLATION, where the customer may genuinely be new. On other call types the customer must exist, because their machines are found by that name.',
+      'AND EVERY DROPDOWN IN THE APP IS QUICKER TO OPEN: a long list now puts a screenful on screen instead of every row, and says so, so you know to keep typing rather than assuming the entry is missing.',
+    ],
+  },
+  {
     version: '0.9.187',
     date: '2026-09-09',
     title: 'The flashing heading is now an actual contrast colour',

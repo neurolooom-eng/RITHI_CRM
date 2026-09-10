@@ -409,13 +409,40 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
         <section className="rep-sec">
           <div className="rep-sec-title">Customer</div>
           <div className="rep-grid">
+            {/* THE PARTY IS PICKED, NOT TYPED — and this is the fix for "it is
+                taking a very long time to accept the party" (2026-09-09).
+                Two faults, one cause, both cured by the same control:
+
+                1. It was an `<input list>` backed by a datalist of up to EIGHT
+                   THOUSAND options. `value` is state, so every keystroke
+                   re-rendered all eight thousand `<option>` nodes.
+                2. The products effect below depends on `f.partyName`, which the
+                   old onChange set PER CHARACTER — so typing a party name fired
+                   one products query per letter, each of them an ilike over the
+                   whole products table. That is what was "impacting on listing
+                   the products": the cascade was being run forty times and the
+                   last answer won whenever it happened to arrive.
+
+                A PickList commits ONCE, on a click or Enter, so the cascade runs
+                once with the finished name. It is also the app's design default
+                for a dropdown, which this field had been missed out of.
+
+                FREE TEXT ONLY FOR AN INSTALLATION, where the customer may be
+                new and is therefore legitimately not in the master. For every
+                other call type the party must exist, because the products are
+                looked up BY it — a typed name matches no machine. */}
             {field('Party Name *', (
-              <>
-                <input className="input" list="dl-party" value={f.partyName}
-                  onChange={(e) => set('partyName', e.target.value)} onBlur={() => void fillParty(f.partyName)}
-                  placeholder={isInstall ? 'Existing customer or type a new one' : 'Pick from Party Master'} />
-                <datalist id="dl-party">{partyMaster.values.slice(0, 8000).map((v) => <option key={v} value={v} />)}</datalist>
-              </>
+              <PickList
+                value={f.partyName}
+                options={partyMaster.values}
+                onPick={(v) => { set('partyName', v); void fillParty(v); }}
+                allowFreeText={isInstall}
+                placeholder={isInstall ? 'Existing customer, or type a new one' : 'Pick from Party Master'}
+                emptyLabel={partyMaster.ready ? '— pick the customer —' : '— loading customers… —'}
+                emptyHint={isInstall
+                  ? 'A new customer can be typed in — installations reach people who are not on the master yet.'
+                  : 'If the customer is not here, they need adding under Masters — the machines are looked up by this name.'}
+              />
             ), true)}
             {field('State', <input className="input" value={f.state} onChange={(e) => set('state', e.target.value)} />)}
             {field('City', <input className="input" value={f.city} onChange={(e) => set('city', e.target.value)} />)}
