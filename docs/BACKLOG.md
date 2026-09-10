@@ -268,6 +268,28 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🟡 **`performance.sql` AND `tracker.sql` WERE RUN — reported, not verified
+(2026-09-10).** The user: *"ran all sql"*. **No `_status.sql` output has been
+seen**, so this stays a report. That is not doubt about the person: this file
+has twice claimed the opposite of what was really in the database, once nearly
+causing a needless rebuild of the live `calls` tables, and it is a record rather
+than evidence.
+
+**Three rows close it**, and each tests the PROPERTY rather than the presence:
+* **121** — the KPI export. Reads NO if `kpi_field_inst` lost its LATERAL shape
+  (the pre-aggregation would be back and the export would time out again for
+  everyone who is not an administrator), if `security_invoker` was dropped by the
+  create-or-replace, or if the `spare_requests` index is missing.
+* **122** — the party cascade. Reads NO if `product_party_names` is absent or
+  reads as its owner. The pickers still WORK if this is NO — they fall back to
+  the Party Master — they just offer parties that cannot cascade, which is
+  exactly the silent half-failure worth catching.
+* **119** — the tracker seed, outstanding since 2026-09-09.
+
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_status.sql>
+
+<details><summary>What was applied</summary>
+
 ⚠️ **PENDING: `performance.sql`** (2026-09-10, v0.9.190) — **EVERY
 PARTY→PRODUCT→SERIAL CASCADE READS THE PARTY LIST FROM THE PRODUCT REGISTER.**
 The user: *"loop the Product Master instead of Party Master + Product Master.
@@ -380,6 +402,8 @@ over a UNION so no index can order it. That is not a regression — the old shap
 was 17.4 s on the same data. Exporting by date range is the answer; making whole
 -register fast needs keyset paging or a materialised table, which is a decision
 rather than a fix.
+
+</details>
 
 🐞 **"IT IS TAKING A VERY LONG TIME TO ACCEPT THE PARTY" — two faults, one
 cause** (2026-09-10, v0.9.188).
@@ -530,7 +554,11 @@ So the workshop register works as designed: the separated rights are refused by
 the database, nothing is harvested from a unit that has not been decontaminated,
 and a machine cannot leave with a failed check.
 
-⚠️ **STILL PENDING: `tracker.sql`** — **row 119 reads NO**, and it is the only NO
+🟡 **`tracker.sql` REPORTED RUN (2026-09-10)** — see the note above; **row 119**
+settles it. What follows is why that row exists, which is worth keeping whatever
+the answer turns out to be.
+
+**As at 2026-09-09 it read NO**, and it was the only NO
 in the whole 129-row report.
 
 **That row earned itself on its first outing.** It was added the day before
