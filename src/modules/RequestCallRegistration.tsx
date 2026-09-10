@@ -242,7 +242,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   const [engineer, setEngineer] = useState('');
   useEffect(() => { if (!engineer && user?.fullName) setEngineer(user.fullName); }, [user?.fullName, engineer]);
   const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
-  const partyMaster = useMaster('party');
+  // THE PARTIES THAT OWN A MACHINE (the user, 2026-09-10). The cascade below
+  // looks the products up BY this name, so a party with no machines is a dead
+  // end: pick one and the product list comes back empty with nothing on screen
+  // to explain it.
+  const partyMaster = useMaster('productParty');
+  // The maintained master, used ONLY for an installation — which reaches a
+  // customer who may have no machine yet, and therefore cannot be found in the
+  // product register at all.
+  const partyFallback = useMaster('party');
   const complaintMaster = useMaster('complaint');
   const productMaster = useMaster('product');
 
@@ -434,7 +442,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
             {field('Party Name *', (
               <PickList
                 value={f.partyName}
-                options={partyMaster.values}
+                // Owners first, the master's extras behind them, and only on an
+                // installation — so on every other call type the first thing
+                // under the cursor is always a name that will cascade.
+                options={isInstall
+                  ? [...partyMaster.values,
+                     ...partyFallback.values.filter((v) => !partyMaster.values.includes(v))]
+                  : partyMaster.values}
                 onPick={(v) => { set('partyName', v); void fillParty(v); }}
                 allowFreeText={isInstall}
                 placeholder={isInstall ? 'Existing customer, or type a new one' : 'Pick from Party Master'}

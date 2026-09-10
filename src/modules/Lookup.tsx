@@ -71,7 +71,11 @@ export function Lookup() {
   // enough that the browser's own type-ahead inside an open dropdown is what
   // makes it usable, so that one still reads its master.
   const productMaster = useMaster('product');
-  const partyMaster = useMaster('party');
+  // The parties that own a machine, not the maintained master — the same
+  // reasoning the product names above already follow, and now said for parties
+  // too (the user, 2026-09-10). Searching for a party with no machines here
+  // returns a party page with an empty machine list, which looks like a fault.
+  const partyMaster = useMaster('productParty');
 
   useEffect(() => {
     if (!onDb) { setProductOpts([]); return; }

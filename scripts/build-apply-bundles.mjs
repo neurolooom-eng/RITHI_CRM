@@ -316,7 +316,11 @@ const MODULES = {
       // 0131 defines kpi_field_inst and this replaces its body, so a bundle
       // replayed on its own has to see them in that order or the whole-register
       // pre-aggregation comes back and the export times out again.
-      '0159_kpi_export_lateral.sql'],
+      '0159_kpi_export_lateral.sql',
+      // The party list for every Party->Product->Serial cascade, distinct from
+      // the PRODUCT register. Sits beside 0098, which does the same for product
+      // names and for the same reason.
+      '0160_product_party_names.sql'],
   },
   audit: {
     title: 'Audit Log',

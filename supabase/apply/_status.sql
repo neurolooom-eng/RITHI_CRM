@@ -673,6 +673,11 @@ with checks(sort_order, bundle, provides, present) as (
                      from pg_class where relname = 'kpi_field_inst'
                        and relnamespace = 'public'::regnamespace), false)
      and to_regclass('public.spare_requests_ucn_idx') is not null)),
+    (122, 'Cascades read the party list from the PRODUCT register', 'product_party_names -- distinct party_name from `products`, with the machine count, in ONE request (0160). Every Party->Product->Serial picker reads it: the Party Master is a list somebody maintains, the product register is the record of what EXISTS, and a party with no machines cannot answer "whose machine is this?" -- picking one returned an empty product list with nothing on screen to say why. It also closes the case-mismatch class, since the name you pick now comes from the same column the machines are looked up by. Installation calls are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet. Tests security_invoker as well: without it the view reads as its owner. NO means the pickers fall back to the Party Master -- they still work, they just offer parties that cannot cascade. Restore: performance.sql',
+        (to_regclass('public.product_party_names') is not null
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'product_party_names'
+                       and relnamespace = 'public'::regnamespace), false))),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import type { FieldDef, FieldOption } from '../components/form/Form';
 import { setEngineerNamesCache } from '../lib/format';
-import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, type ComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, sbListProductParties, type ComplaintSuggestion } from '../lib/supabase';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 
@@ -30,12 +30,25 @@ import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 // stop repeating — the schema is shared already, so the lists have to be too.
 // ===========================================================================
 
-export function useCallFieldMasters(): {
+export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
   inject: (fs: FieldDef[]) => FieldDef[];
   offered: MutableRefObject<ComplaintSuggestion[]>;
 } {
   const { user, users } = useAuth();
-  const partyMaster = useMaster('party');
+  // THE PARTIES THAT OWN A MACHINE, from the product register (the user,
+  // 2026-09-10). A Party→Product→Serial cascade starts by asking whose machine
+  // this is, and a party with no machines cannot answer — picking one used to
+  // return an empty product list with nothing on screen to say why.
+  const partyMaster = useMaster('productParty');
+  // The maintained master is still read, but ONLY where a new customer is
+  // legitimate: an INSTALLATION reaches somebody who has no machine yet, so
+  // there is nothing in the product register to find them by. Everywhere else
+  // the machines are looked up BY this name, so a party that owns none is not
+  // an answer.
+  // Loaded unconditionally because `useMaster` caches by name for the session,
+  // so this is one shared request rather than one per form — and it is USED
+  // only where a new customer is legitimate.
+  const partyFallback = useMaster('party');
   const complaintMaster = useMaster('complaint');
 
   // "Call Allocated To" comes from the User Master, not the demo users: the
@@ -143,9 +156,53 @@ export function useCallFieldMasters(): {
     />
   );
 
+  // THE PARTY FIELD. A picker over the parties that own a machine — and where a
+  // new customer is legitimate, the maintained master is appended behind them
+  // and free text is allowed on top.
+  //
+  // The order matters: parties WITH machines come first, because on every call
+  // but an installation they are the only ones that can be the answer. The
+  // master's extras follow rather than being mixed in, so a name that will not
+  // cascade is never the first thing under the cursor.
+  // The machine counts behind the names, for the labels below.
+  const [partyCounts, setPartyCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let live = true;
+    sbListProductParties()
+      .then((rows) => { if (live) setPartyCounts(Object.fromEntries(rows.map((r) => [r.party_name, r.machines]))); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const partyOptions = opts.newPartyAllowed
+    ? [...partyMaster.values,
+       ...partyFallback.values.filter((v) => !partyMaster.values.includes(v))]
+    : partyMaster.values;
+
+  const partyField = (f: FieldDef): FieldDef => ({
+    ...f,
+    // A PICKER, not a datalist. The datalist rendered every party as an
+    // <option> on each keystroke, which is half of what made the call request
+    // slow to accept a party (v0.9.188); `type: 'select'` goes through the form
+    // engine's SelectPicker, which is the app's design default anyway.
+    type: 'select' as const,
+    // The machine COUNT is on the label, never on the value: it answers "which
+    // of these two similar names is the one with the machines" without ever
+    // being what gets stored.
+    options: partyOptions.map((v) => ({
+      value: v,
+      label: partyCounts[v] ? `${v} — ${partyCounts[v]} machine${partyCounts[v] === 1 ? '' : 's'}` : v,
+    })),
+    allowFreeText: !!opts.newPartyAllowed,
+    datalist: undefined,
+    help: opts.newPartyAllowed
+      ? 'Customers who already own a machine come first; the Party Master follows. A new customer can be typed in.'
+      : 'Customers who own a machine. The products and serials below are looked up by this name.',
+  });
+
   const inject = (fs: FieldDef[]) =>
     fs.map((f) =>
-      f.name === 'partyName' ? { ...f, datalist: partyMaster.values }
+      f.name === 'partyName' ? partyField(f)
         : f.name === 'standardComplaint' ? complaintField(f)
           : f.name === 'complaintReported' ? { ...f, below: reportedHelp }
             : f.name === 'allocatedTo' ? { ...f, options: engineerNames }

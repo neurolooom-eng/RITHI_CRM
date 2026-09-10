@@ -733,6 +733,29 @@ async function distinctColumn(table: string, column: string, opts?: { eq?: [stri
 export async function sbListParties(): Promise<string[]> {
   return distinctColumn('parties', 'party_name');
 }
+
+// ---------------------------------------------------------------------------
+// THE PARTY LIST FOR A CASCADE COMES FROM THE PRODUCT REGISTER, not the Party
+// Master (the user, 2026-09-10). Same reasoning as product names on Product &
+// Party Search: the master is a list somebody maintains, the register is the
+// record of what actually exists — and a Party→Product→Serial picker starts by
+// asking "whose machine is this?", which a party with no machines cannot
+// answer. Offering one is offering a dead end.
+//
+// ONE request, not twenty-one: `distinctColumn` pages the whole table 1,000
+// rows at a time, so on 21,000 machines it made 21 round trips every time a
+// form opened. `product_party_names` (0160) does the DISTINCT in Postgres.
+//
+// The machine COUNT comes back with it, because the picker shows it — it
+// answers the question a reader has when two similar names are on screen.
+// ---------------------------------------------------------------------------
+export interface ProductParty { party_name: string; machines: number }
+export async function sbListProductParties(): Promise<ProductParty[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('product_party_names').select('*').order('party_name');
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as ProductParty[];
+}
 // Party Master view — field-specific server-side filters + paging (Load more).
 export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
@@ -1884,6 +1907,16 @@ export async function clearRoleTableView(storageKey: string, role: string): Prom
 export async function listMaster(name: string, limit = 3000): Promise<string[]> {
   const c = must();
   if (name === 'party') return sbListParties();
+  // The parties that OWN something, for the Party→Product→Serial cascades.
+  // Falls back to the Party Master where the view is not applied yet, so a form
+  // is never left with an empty picker because one migration has not run.
+  if (name === 'productParty') {
+    try {
+      const rows = await sbListProductParties();
+      if (rows.length) return rows.map((r) => r.party_name).filter(Boolean);
+    } catch { /* fall through to the master */ }
+    return sbListParties();
+  }
   if (name === 'product') return distinctColumn('products', 'item_name');
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
