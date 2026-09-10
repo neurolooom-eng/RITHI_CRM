@@ -2401,6 +2401,41 @@ console.log('\n-- super admins: the two lists agree --');
   }
 }
 
+console.log('\n-- the KPI export narrows the calls before it reads the visits --');
+{
+  // "Sivarani is unable to download KPI Report" — statement timeout on a range
+  // of 455 calls (2026-09-10). The view pre-aggregated the WHOLE of `reports`
+  // and `spare_requests`, so the caller's date range could not reach them.
+  const kpi = readFileSync('supabase/migrations/0159_kpi_export_lateral.sql', 'utf8');
+
+  // LATERAL, keyed on the call in hand — the property that makes the date range
+  // matter at all. Four of them: latest entry, solved entry, first visit, first
+  // spare.
+  eq('the per-call lookups are lateral, not pre-aggregated',
+    (kpi.match(/left join lateral \(/g) ?? []).length === 4
+    && /from public\.reports rl\s*\n\s*where rl\.ucn = c\.ucn/.test(kpi), true);
+
+  // create-or-replace DROPS security_invoker. Without re-asserting it the export
+  // reads as the view's OWNER and hands every signed-in user every call — the
+  // fault that has hit this project three times and never announces itself.
+  eq('...and security_invoker is re-asserted after the replace',
+    /create or replace view public\.kpi_field_inst[\s\S]*alter view public\.kpi_field_inst set \(security_invoker = on\)/.test(kpi), true);
+
+  // NOT dropped and recreated: an AccessExclusiveLock on this view is what made
+  // 0154 deadlock against the live app.
+  eq('...and the view is replaced, never dropped',
+    /drop view[^\n]*kpi_field_inst/i.test(kpi) === false, true);
+
+  // THE INDEX MUST NOT BE PARTIAL. The first attempt guarded it with the same
+  // predicate as the lateral — but that predicate is about the OUTER row, so
+  // Postgres could not prove it applied and ignored the index, leaving a
+  // sequential scan per call. A partial index is usable only when its predicate
+  // follows from the query's own restriction on that table.
+  const spareIdx = /create index if not exists spare_requests_ucn_idx[\s\S]*?;/.exec(kpi)?.[0] ?? '';
+  eq('...and the spare_requests index is plain, so the planner can use it',
+    spareIdx !== '' && !/where/i.test(spareIdx), true);
+}
+
 console.log('\n-- the call request accepts a party without a stall --');
 {
   // "It is taking a very long time to accept the party -- which is impacting on

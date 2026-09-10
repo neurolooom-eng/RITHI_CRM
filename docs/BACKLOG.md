@@ -268,6 +268,63 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+⚠️ **PENDING: `performance.sql`** (2026-09-10, v0.9.189) — **THE KPI EXPORT WAS
+TIMING OUT FOR ANYONE WHO IS NOT AN ADMINISTRATOR.** Reported: *"Sivarani is
+unable to download KPI Report"*, `canceling statement due to statement timeout`
+on a range holding 455 calls. `_status.sql` row 121.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+
+**The measurement is the point, and it is why nothing caught this.** On a
+database seeded to the live shape — 24,000 calls, 55,000 visits, 12,000 spare
+requests — one month of the export:
+
+| | |
+| --- | --- |
+| as **superuser** (RLS bypassed) | **160 ms** |
+| as a signed-in **Hotline engineer** | **27,273 ms** |
+| after the fix, same Hotline engineer | **618 ms** |
+
+**A 170× gap between the owner and a user.** Every check ever run against this
+view ran as the owner, so it looked fine from here and failed for everyone who
+actually uses it. Worth treating as a standing lesson: a performance check that
+does not `set role authenticated` is not a performance check.
+
+**Why it was slow.** The view pre-aggregated the WHOLE of `reports` and
+`spare_requests` into four CTEs, then joined them to the calls. Those CTEs do
+not depend on which calls were asked for, so the date range **could not be
+pushed into them** — 455 calls still scanned 55,000 visits, three times.
+
+Under RLS that is not merely 55,000 rows. `reports_read` carries
+`exists (select 1 from calls c where c.ucn = reports.ucn …)`, and `calls` is
+itself a VIEW over three RLS-protected tables — so the entire call-visibility
+stack was re-evaluated **per report row**. The plan came back with over a hundred
+nested SubPlans.
+
+**The fix is to correlate.** The four aggregates became LATERAL lookups keyed on
+the call in hand, so the range narrows the calls first and only those calls touch
+`reports` at all. Semantics preserved line by line — including that `latest` is
+the latest ENTRY and not the latest visit (0032), and that an empty ucn matches
+no spare request.
+
+**Proved identical, not assumed:** every column of every row, old view against
+new, across all 24,000 calls — **zero differences**. A KPI figure that quietly
+changed would be worse than a slow one.
+
+**A mistake worth keeping written down.** The first index was
+`spare_requests (ucn) where coalesce(btrim(ucn),'') <> ''`, mirroring the guard
+in the lateral. But that guard is about the OUTER row, so Postgres could not
+prove the partial index applied and ignored it — a sequential scan per call,
+1.2 ms × 920 calls, more than half of what was left. **A partial index is usable
+only when its predicate follows from the query's own restriction on that table.**
+Plain index: 2,034 ms → 618 ms. `check:ui` now refuses a partial one here.
+
+**Still slow, and honestly so: "Whole register".** 15.8 s at 24,000 calls,
+because it genuinely must compute every call, and the sort is on an expression
+over a UNION so no index can order it. That is not a regression — the old shape
+was 17.4 s on the same data. Exporting by date range is the answer; making whole
+-register fast needs keyset paging or a materialised table, which is a decision
+rather than a fix.
+
 🐞 **"IT IS TAKING A VERY LONG TIME TO ACCEPT THE PARTY" — two faults, one
 cause** (2026-09-10, v0.9.188).
 

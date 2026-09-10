@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.189',
+    date: '2026-09-10',
+    title: 'The KPI export downloads instead of timing out',
+    changes: [
+      'THE KPI EXPORT NOW COMPLETES. Asking for a month of calls was taking so long the database gave up on it \u2014 \u201Ccanceling statement due to statement timeout\u201D \u2014 and nothing downloaded.',
+      'It was reading EVERY visit ever recorded, three times over, no matter how small a date range you asked for. Exporting 455 calls meant working through tens of thousands of visit records first.',
+      'It now looks up only the calls you asked for. Measured on a register the size of yours: the same month went from over 27 seconds to under one.',
+      'THE NUMBERS ARE UNCHANGED \u2014 checked column by column across every call in the register, with no difference in any of them.',
+      'One caveat: \u201CWhole register\u201D is still slow, because it genuinely has to work through every call. Export by date range if you can.',
+    ],
+  },
+  {
     version: '0.9.188',
     date: '2026-09-10',
     title: 'Choosing a customer on a call request is fast again',
