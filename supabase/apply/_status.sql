@@ -665,6 +665,14 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                      from pg_class where relname = 'indoor_job_list'
                        and relnamespace = 'public'::regnamespace), false))),
+    (121, 'KPI export: the date range narrows the calls FIRST', 'kpi_field_inst looks up reports and spare_requests through LATERAL joins keyed on the call in hand, instead of pre-aggregating the WHOLE of both tables into CTEs the caller''s date range could not reach (0159). It matters far more than it sounds: under RLS, reading `reports` re-runs the call-visibility stack -- reports_read carries an EXISTS over the `calls` VIEW, which is itself three RLS-protected tables -- so scanning every visit row ran that nest per row. Measured on a register of 24,000 calls / 55,000 visits, one month of the export: 27,273 ms as a signed-in Hotline engineer, 618 ms after. As SUPERUSER it was 160 ms either way, which is why nothing caught it -- every check runs as the owner unless somebody signs in. This row tests for the lateral shape AND re-asserts security_invoker, which create-or-replace drops. NO means the export still times out for anyone who is not an administrator. Restore: performance.sql',
+        (to_regclass('public.kpi_field_inst') is not null
+     and coalesce((select definition ilike '%lateral%' from pg_views
+                    where schemaname='public' and viewname='kpi_field_inst'), false)
+     and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
+                     from pg_class where relname = 'kpi_field_inst'
+                       and relnamespace = 'public'::regnamespace), false)
+     and to_regclass('public.spare_requests_ucn_idx') is not null)),
     (74, 'masters: write rights are PER LIST', '0067 replaced the blanket masters_write with per-list insert/update/delete. 0008 recreates it through execute format(), so replaying rbac.sql used to bring it back -- and policies are OR''d, so masters.edit wrote every list again. 0121 drops it at the end of rbac.sql now. Restore: masters.sql',
         not exists (select 1 from pg_policies
                      where schemaname='public' and tablename='masters' and policyname='masters_write')),

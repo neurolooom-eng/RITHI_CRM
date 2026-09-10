@@ -311,7 +311,12 @@ const MODULES = {
       // AFTER 0148 and it must stay there: 0148 adds the category check and
       // this drops it, so a bundle replayed on its own has to see them in that
       // order or the constraint comes back.
-      '0152_part_category_free_text.sql'],
+      '0152_part_category_free_text.sql',
+      // The KPI export's lateral rewrite. AFTER 0131 and it must stay there:
+      // 0131 defines kpi_field_inst and this replaces its body, so a bundle
+      // replayed on its own has to see them in that order or the whole-register
+      // pre-aggregation comes back and the export times out again.
+      '0159_kpi_export_lateral.sql'],
   },
   audit: {
     title: 'Audit Log',
