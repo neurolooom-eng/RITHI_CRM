@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.192',
+    date: '2026-09-10',
+    title: 'The New Call Request form opens quickly, and stays quick',
+    changes: [
+      'THE FORM WAS DOING FAR MORE WORK THAN IT NEEDED TO, which is why it was slow to open on a phone and could stop responding altogether.',
+      'The product list was being built by reading EVERY machine in the register \u2014 twenty-one requests, twenty-one thousand rows \u2014 to arrive at about forty product names. There has been a ready-made list on the server all along; it now uses that. One request.',
+      'The customer list was being fetched TWICE on the same page: once for the box you pick from, once for the machine counts beside each name. Now once.',
+      'And the Party Master was being downloaded on every call type, when only an Installation can use it. It is now fetched only when it can actually be the answer.',
+      'THE LISTS ARE NOW KEPT ON YOUR DEVICE. Open the form again and it fills in straight away from the saved copy, while a fresh copy is fetched quietly in the background and swapped in \u2014 so it is fast without ever showing you a stale list for long.',
+      'A newly added customer shows up on the next load rather than instantly. \u201CClear Cache and Update\u201D forces it immediately, and anything saved is thrown away after a week regardless.',
+    ],
+  },
+  {
     version: '0.9.191',
     date: '2026-09-10',
     title: 'Every customer shows in the Call Request list again',

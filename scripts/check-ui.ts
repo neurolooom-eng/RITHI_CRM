@@ -2454,10 +2454,49 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // available, but it is not coming up in Call request" (2026-09-10). A
   // truncated list is the worst shape this can fail in: it looks like a working
   // list, so the reader concludes the customer is not on the system.
-  const fn = /export async function sbListProductParties[\s\S]*?\n\}/.exec(lib)?.[0] ?? '';
+  // Follows the READ of product_party_names wherever it lives — the paging moved
+  // into a helper when the shared-fetch wrapper was added, and pinning the
+  // function name would have flagged that as a regression when nothing changed.
+  const at = lib.indexOf("from('product_party_names')");
+  const partyFetch = at < 0 ? '' : lib.slice(at, at + 700);
   eq('the party list is PAGED, not capped at PostgREST\'s 1000',
-    fn !== '' && /\.range\(from, from \+ PAGE - 1\)/.test(fn)
-    && /rows\.length < PAGE/.test(fn), true);
+    partyFetch !== '' && /\.range\(/.test(partyFetch)
+    && /rows\.length < PAGE/.test(partyFetch), true);
+
+  // ONE fetch shared by the picker and the machine counts, not two walks of the
+  // same paged view on a single page load.
+  eq('...and every caller shares one fetch of it',
+    /let partiesOnce: Promise<ProductParty\[\]> \| null = null;/.test(lib)
+    && /if \(!partiesOnce\)/.test(lib), true);
+
+  // THE PRODUCT LIST IS ONE REQUEST, not a walk of the whole products table.
+  // distinctColumn pages 1,000 rows at a time, so on 21,000 machines it was 21
+  // sequential round trips to arrive at about forty names — most of why the
+  // form was slow to open on a phone.
+  eq('the product list reads the register view, not every product row',
+    /if \(name === 'product'\)[\s\S]{0,400}sbListProductNames\(\)/.test(lib), true);
+
+  // THE LISTS SURVIVE A RELOAD. Stale-while-revalidate: the stored copy goes on
+  // screen first and the fetch still runs, or it is just a slow fetch with
+  // extra steps.
+  const mst = readFileSync('src/lib/masters.ts', 'utf8');
+  eq('master lists are cached in the browser and revalidated',
+    /const stored = readStored\(name\);/.test(mst)
+    && /if \(stored\) \{ setValues\(/.test(mst)
+    && /void load\(name\)\.then/.test(mst), true);
+  // Every localStorage access guarded: a private window throws on the accessor
+  // itself, and a form that will not open because a cache is unavailable is
+  // worse than one that is slow.
+  eq('...and every stored access is guarded',
+    (mst.match(/try \{/g) ?? []).length >= 4 && /catch \{ return null; \}/.test(mst), true);
+  // "Clear Cache and Update" must clear this too, or it leaves behind the very
+  // thing somebody pressed it to get rid of.
+  eq('...and clearing the cache clears the stored copy',
+    /export function clearMasterCache[\s\S]{0,500}localStorage\.removeItem\(STORE_PREFIX/.test(mst), true);
+  // An empty answer is usually a failed request or a missing permission —
+  // storing it would serve that emptiness back for a week.
+  eq('...and an empty list is never stored',
+    /if \(v\.length\) writeStored\(name, v\);/.test(mst), true);
 }
 
 console.log('\n-- the KPI export narrows the calls before it reads the visits --');

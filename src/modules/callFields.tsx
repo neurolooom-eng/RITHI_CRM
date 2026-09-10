@@ -45,10 +45,11 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
   // there is nothing in the product register to find them by. Everywhere else
   // the machines are looked up BY this name, so a party that owns none is not
   // an answer.
-  // Loaded unconditionally because `useMaster` caches by name for the session,
-  // so this is one shared request rather than one per form — and it is USED
-  // only where a new customer is legitimate.
-  const partyFallback = useMaster('party');
+  // NOT FETCHED unless a new customer is legitimate. It was loaded
+  // unconditionally on the reasoning that the cache makes it one request per
+  // session — true, but that one request is thousands of names paged a thousand
+  // at a time, and on a field call or a PM not one of them can be the answer.
+  const partyFallback = useMaster('party', [], !!opts.newPartyAllowed);
   const complaintMaster = useMaster('complaint');
 
   // "Call Allocated To" comes from the User Master, not the demo users: the
