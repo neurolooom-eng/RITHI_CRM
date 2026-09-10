@@ -762,7 +762,20 @@ export interface ProductParty { party_name: string; machines: number }
 // that the screen is broken. This file already carries the warning at
 // `listCalls` — "Supabase caps a single response at ~1000 rows, so page through
 // with range()" — and this walked straight into it.
-export async function sbListProductParties(): Promise<ProductParty[]> {
+// ONE FETCH SHARED BY EVERY CALLER. The picker asks for the names and the form
+// asks again for the machine COUNTS, and those were two full walks of the same
+// paged view — the whole list pulled twice on one page load. The promise is
+// held rather than the rows, so two callers racing on first render join the
+// same request instead of starting a second.
+let partiesOnce: Promise<ProductParty[]> | null = null;
+export function clearProductPartyCache() { partiesOnce = null; }
+export function sbListProductParties(): Promise<ProductParty[]> {
+  if (!partiesOnce) {
+    partiesOnce = fetchProductParties().catch((e) => { partiesOnce = null; throw e; });
+  }
+  return partiesOnce;
+}
+async function fetchProductParties(): Promise<ProductParty[]> {
   const c = getSupabase(); if (!c) return [];
   const PAGE = 1000;
   const out: ProductParty[] = [];
@@ -1940,7 +1953,19 @@ export async function listMaster(name: string, limit = 3000): Promise<string[]> 
     } catch { /* fall through to the master */ }
     return sbListParties();
   }
-  if (name === 'product') return distinctColumn('products', 'item_name');
+  // ONE REQUEST, NOT TWENTY-ONE. This paged the WHOLE products table a thousand
+  // rows at a time — 21 sequential round trips pulling 21,000 rows — to arrive
+  // at about forty distinct names. `product_register_names` (0098) has done the
+  // DISTINCT in Postgres since it was written; this call simply never used it.
+  // On a phone those 21 round trips are most of why the New Call Request form
+  // was slow to open, and could stop responding altogether.
+  if (name === 'product') {
+    try {
+      const rows = await sbListProductNames();
+      if (rows.length) return rows.map((r) => r.name).filter(Boolean);
+    } catch { /* the view may not be applied yet — fall through */ }
+    return distinctColumn('products', 'item_name');
+  }
   if (name === 'spare') return distinctColumn('parts', 'item_detail', { eq: ['active', true] });
   const names = name === 'complaint' || name === 'standardComplaint' ? ['complaint', 'standardComplaint'] : [name];
   // Pickers only ever offer LIVE values; a deactivated one stays on the records

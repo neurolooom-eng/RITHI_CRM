@@ -268,6 +268,59 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **THE NEW CALL REQUEST FORM WAS SLOW TO OPEN, AND COULD HANG** (2026-09-10,
+v0.9.192). *"it is still taking quite some time.. Even became non responsive
+during 1 try.. cache it to the browser so that it loads quickly. or whatever is
+the best practice."*
+
+**FOUR THINGS, and the biggest was not the party list at all.**
+
+1. **`listMaster('product')` read EVERY MACHINE IN THE REGISTER.** It called
+   `distinctColumn('products', 'item_name')`, which pages a thousand rows at a
+   time — **21 sequential round trips pulling 21,000 rows** — to arrive at about
+   forty distinct names. `product_register_names` (0098) has done that DISTINCT
+   in Postgres since it was written and this call simply never used it. On a
+   phone, 21 sequential fetches is the "non responsive". **One request now.**
+2. **The party list was fetched TWICE per page load** — once by the picker, once
+   for the machine counts beside each name, each a full walk of the paged view.
+   `sbListProductParties` now holds the PROMISE rather than the rows, so two
+   callers racing on first render join one request instead of starting a second.
+3. **The Party Master was downloaded on every call type**, on the reasoning that
+   the session cache makes it one request. True — but that one request is
+   thousands of names paged a thousand at a time, and on a field call or a PM
+   **not one of them can be the answer**. `useMaster` gained an `enabled` flag;
+   it is fetched only for an installation.
+4. **Nothing survived a reload.** The master cache was a `Map` in memory, so
+   every page load re-fetched every list.
+
+**THE CACHE IS STALE-WHILE-REVALIDATE, which is the shape that helps.** The
+stored copy goes on screen IMMEDIATELY and the fetch still runs, swapping in
+when it lands — a cache that blocks until it has revalidated is a slow fetch
+with extra steps. Consequence, stated plainly because somebody will notice: a
+customer added a minute ago appears on the NEXT load, not this one. "Clear Cache
+and Update" forces it, and anything stored is abandoned after a week regardless.
+
+Stored as one newline-joined string rather than JSON — a few thousand names is a
+few hundred KB and `JSON.stringify` on an array of strings spends a third of that
+on quotes and commas. A `STORE_VERSION` constant abandons every stored list at
+once, because a change in what a list MEANS must not be served from a copy of
+the old one. **An EMPTY answer is never stored**: it is usually a failed request
+or a permission the reader has not got, and storing it would serve that
+emptiness back for a week. Every access guarded — a private window throws on the
+accessor itself, and a form that will not open because a cache is unavailable is
+worse than one that is slow.
+
+**One assertion had to be rewritten, and this time for a good reason.** It pinned
+`export async function sbListProductParties` and the paging moved into a helper
+when the shared-fetch wrapper was added — the property held, the shape changed.
+It now follows the READ of `product_party_names` wherever it lives. **Fourth
+time this session**; the rule in this file has earned its place.
+
+**And the mutation test was done properly this time.** Every one of the five
+mutations printed a confirmation that it landed where it was aimed before
+`check:ui` was run — after the near-miss on v0.9.191, where a count-of-1 replace
+hit a different function and the check passed on unchanged code.
+
 🐞 **THE PARTY LIST WAS TRUNCATED AT 1,000 — my regression, one day old**
 (2026-09-10, v0.9.191). *"KARUNALAYA TRUST, PUNE is very much available, but it
 is not coming up in Call request"*, with Product Master showing its machines on

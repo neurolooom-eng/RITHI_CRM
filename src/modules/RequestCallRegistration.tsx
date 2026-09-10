@@ -247,10 +247,6 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   // end: pick one and the product list comes back empty with nothing on screen
   // to explain it.
   const partyMaster = useMaster('productParty');
-  // The maintained master, used ONLY for an installation — which reaches a
-  // customer who may have no machine yet, and therefore cannot be found in the
-  // product register at all.
-  const partyFallback = useMaster('party');
   const complaintMaster = useMaster('complaint');
   const productMaster = useMaster('product');
 
@@ -266,6 +262,12 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   );
   const set = (k: keyof Form, v: string) => setF((c) => ({ ...c, [k]: v }));
   const isInstall = /install/i.test(f.callType);
+  // The maintained master, used ONLY for an installation — which reaches a
+  // customer who may have no machine yet, and therefore cannot be found in the
+  // product register at all. NOT FETCHED on any other call type: it is
+  // thousands of names, paged a thousand at a time, and on a field call not one
+  // of them can be the answer.
+  const partyFallback = useMaster('party', [], isInstall);
   const attended = /^yes$/i.test(f.callAttended);
 
   // Installation calls carry a fixed complaint on every item.
