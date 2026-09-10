@@ -268,6 +268,62 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+⚠️ **PENDING: `performance.sql`** (2026-09-10, v0.9.190) — **EVERY
+PARTY→PRODUCT→SERIAL CASCADE READS THE PARTY LIST FROM THE PRODUCT REGISTER.**
+The user: *"loop the Product Master instead of Party Master + Product Master.
+Party Name = Unique of Party Name from Product Master."* `_status.sql` row 122.
+
+**The reasoning is one the project had already applied to PRODUCT names and not
+to parties.** 0098 took product names from the register rather than the master,
+because *"the master is maintained by hand and was short, while the register is
+the record of what actually exists"*. A cascade starts by asking **whose machine
+is this** — and a party with no machines cannot answer it. Offering one is
+offering a dead end: pick it, the product list comes back empty, and nothing on
+screen says why.
+
+**It also closes the case-mismatch class for good** — the fault behind
+"CAPTAIN SAURABH KALIA MEMORIAL KAYDEE HOSPITAL has products, this party
+doesn't" (2026-09-09). The name you pick now comes from the SAME COLUMN the
+machines are looked up by, so it matches by construction rather than by the
+`ilike` that was papering over it.
+
+**`product_party_names` (0160)** does the DISTINCT in Postgres — one request
+against 1,400 parties in **9.8 ms**, where the client helper paged the whole
+table 1,000 rows at a time: **21 round trips every time a form opened**. It
+carries the machine COUNT, which the picker shows on the label and never in the
+value — it answers the only question a reader has when two similar names are on
+screen.
+
+**INSTALLATION IS THE EXCEPTION, and it has to be**: an installation reaches a
+customer who has no machine yet, so the product register cannot find them at
+all. There, owners are listed FIRST, the Party Master follows behind them, and
+free text is allowed. Driven by `config.callType` rather than hard-coded per
+screen, so the three registers share one rule. On every other call type the
+party must own a machine, because that name is what the products and serials are
+found by.
+
+**Owners first, extras behind — not merged.** On every call type but an
+installation the owners are the only names that can be the answer, so a name
+that will not cascade is never the first thing under the cursor.
+
+**And the call forms' party field stopped being a datalist.** It was the form
+engine's `datalist`, capped at 1,000 and re-rendered per keystroke — the same
+fault fixed on the call request at v0.9.188 and explicitly left alone then as
+"a decision rather than a fix". Changing the source made the decision: with the
+list now meaning *parties that own a machine*, free-typing one on a field call
+is not an answer, so the field became a picker and the perf fault went with it.
+
+**A form is never left with an empty picker**: `listMaster('productParty')`
+falls back to the Party Master if the view is not applied yet, so this is safe to
+merge before the SQL is run.
+
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql>
+
+**THIRD assertion this session to fail for pinning an implementation detail** —
+`options={partyMaster.values}` broke the moment the installation fallback made it
+a ternary. Rewritten to test the property. Worth treating as a rule now: assert
+what the code MUST DO, never the shape it currently does it in.
+
 ⚠️ **PENDING: `performance.sql`** (2026-09-10, v0.9.189) — **THE KPI EXPORT WAS
 TIMING OUT FOR ANYONE WHO IS NOT AN ADMINISTRATOR.** Reported: *"Sivarani is
 unable to download KPI Report"*, `canceling statement due to statement timeout`

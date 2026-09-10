@@ -445,7 +445,12 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   // Party datalist, the Standard Complaint master + its suggestions, and the
   // engineer list — shared with the Register panel and the pre-mapping editor
   // in Pending Registrations, which are the same form (see callFields.tsx).
-  const { inject: injectMasters, offered: offeredComplaints } = useCallFieldMasters();
+  // A NEW CUSTOMER IS ONLY LEGITIMATE ON AN INSTALLATION: it reaches somebody
+  // who has no machine yet, so there is nothing in the product register to find
+  // them by. On a field call or a PM the machine already exists, so the party
+  // must be one that owns one — the products and serials are looked up by it.
+  const { inject: injectMasters, offered: offeredComplaints } =
+    useCallFieldMasters({ newPartyAllowed: /install/i.test(config.callType) });
   // WHAT OF A CALL MAY THIS PERSON CHANGE? "Edit calls" used to be all of it,
   // which suited the Hotline desk and nobody else (0127). Each section now has
   // its own right, with `calls.edit` as the parent — so a role that had the

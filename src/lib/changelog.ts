@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.190',
+    date: '2026-09-10',
+    title: 'The customer list now comes from the machines, not the Party Master',
+    changes: [
+      'EVERYWHERE YOU PICK A CUSTOMER AND THEN A PRODUCT AND SERIAL, the customer list is now the customers who actually OWN a machine \u2014 taken from the Product Register rather than the Party Master.',
+      'The Party Master is a list somebody keeps up to date; the Product Register is the record of what exists. Picking a customer with no machines used to leave the product list empty with nothing on screen to explain it.',
+      'It also puts an end to the same customer spelled two ways: the name you pick now comes from the same place the machines are looked up, so it always matches.',
+      'Each customer shows how many machines they have, which settles it when two names look alike.',
+      'INSTALLATION CALLS ARE THE EXCEPTION, as they must be: an installation goes to somebody who has no machine yet. There, customers with machines are listed first, the Party Master follows, and a brand-new customer can still be typed in.',
+      'On every other call type the customer must be one who owns a machine \u2014 that is the name the products and serials are found by.',
+      'And the customer box on the Field Call, PM and Installation forms is now the same type-search-and-select control as everywhere else, instead of a long hidden list the browser rebuilt on every keypress.',
+    ],
+  },
+  {
     version: '0.9.189',
     date: '2026-09-10',
     title: 'The KPI export downloads instead of timing out',

@@ -2401,6 +2401,54 @@ console.log('\n-- super admins: the two lists agree --');
   }
 }
 
+console.log('\n-- every Party->Product->Serial cascade reads the product register --');
+{
+  // "loop the Product Master instead of Party Master + Product Master. Party
+  // Name = Unique of Party Name from Product Master" (2026-09-10).
+  const sql = readFileSync('supabase/migrations/0160_product_party_names.sql', 'utf8');
+  const cf = readFileSync('src/modules/callFields.tsx', 'utf8');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const lk = readFileSync('src/modules/Lookup.tsx', 'utf8');
+  const lib = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  // The list is distinct party_name FROM PRODUCTS, done in Postgres — the
+  // client helper pages 1,000 rows at a time, which was 21 round trips per form.
+  eq('the party list is distinct from the product register',
+    /from public\.products/.test(sql) && /group by party_name/.test(sql), true);
+  eq('...and the view applies RLS to the reader',
+    /alter view public\.product_party_names set \(security_invoker = on\)/.test(sql), true);
+
+  // ALL THREE cascade screens, not one: the call registers, the call request
+  // and Product & Party Search.
+  for (const [name, src] of [['the call registers', cf], ['the call request', rq], ['Product & Party Search', lk]] as const) {
+    eq(`${name} reads productParty`, /useMaster\('productParty'\)/.test(src), true);
+  }
+
+  // INSTALLATION IS THE ONE EXCEPTION, and it is driven by the call type rather
+  // than hard-coded per screen — an installation reaches a customer who has no
+  // machine yet, so the product register cannot find them at all.
+  eq('only an installation may name a new customer',
+    /newPartyAllowed: \/install\/i\.test\(config\.callType\)/.test(readFileSync('src/modules/FieldCalls.tsx', 'utf8'))
+    && /allowFreeText: !!opts\.newPartyAllowed/.test(cf), true);
+  eq('...and it falls back to the Party Master behind the owners',
+    /partyFallback\.values\.filter\(\(v\) => !partyMaster\.values\.includes\(v\)\)/.test(cf)
+    && /partyFallback\.values\.filter\(\(v\) => !partyMaster\.values\.includes\(v\)\)/.test(rq), true);
+  // Owners FIRST: on every other call type they are the only ones that can be
+  // the answer, so a name that will not cascade is never under the cursor.
+  eq('...with the owners listed first',
+    /\[\.\.\.partyMaster\.values,\s*\n\s*\.\.\.partyFallback\.values/.test(cf), true);
+
+  // The party field is a PICKER now, not a datalist rendered per keystroke.
+  eq('the call forms pick the party rather than typing into a datalist',
+    /f\.name === 'partyName' \? partyField\(f\)/.test(cf)
+    && /datalist: undefined/.test(cf), true);
+
+  // A form must never be left with an empty picker because one migration has
+  // not been applied yet.
+  eq('...and it falls back to the master if the view is not applied',
+    /if \(name === 'productParty'\)[\s\S]{0,400}return sbListParties\(\);/.test(lib), true);
+}
+
 console.log('\n-- the KPI export narrows the calls before it reads the visits --');
 {
   // "Sivarani is unable to download KPI Report" — statement timeout on a range
@@ -2448,9 +2496,15 @@ console.log('\n-- the call request accepts a party without a stall --');
   //    products effect depends on f.partyName, which that onChange set per
   //    CHARACTER, typing a party name fired one products query per letter.
   //    A PickList commits once, so the cascade runs once.
+  // TESTS THE PROPERTY, not the expression. This pinned
+  // `options={partyMaster.values}` verbatim and broke the day the installation
+  // fallback made it a ternary — same behaviour, failing assertion. THIRD time
+  // this session an assertion has cost a cycle for pinning a detail; what
+  // matters is that the party is a PickList fed from the party list, and that
+  // the eight-thousand-option datalist is gone.
   eq('the party is picked, not typed into a datalist',
     /<datalist id="dl-party"/.test(req) === false
-    && /options=\{partyMaster\.values\}/.test(req), true);
+    && /<PickList[\s\S]{0,400}partyMaster\.values/.test(req), true);
   // The products effect still keys off the committed name — if it ever went
   // back to a per-keystroke value the storm returns with no visible symptom
   // until somebody times it.
