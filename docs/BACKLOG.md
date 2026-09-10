@@ -268,6 +268,48 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **THE PARTY LIST WAS TRUNCATED AT 1,000 — my regression, one day old**
+(2026-09-10, v0.9.191). *"KARUNALAYA TRUST, PUNE is very much available, but it
+is not coming up in Call request"*, with Product Master showing its machines on
+the next screen.
+
+**The screenshot named the bug: the picker's footer read `0 of 1000`.**
+`sbListProductParties` (v0.9.190) fetched the view in ONE request with no
+`range()`, and **PostgREST caps a single response at ~1000 rows and says nothing
+about it**. Ordered by name, that returned A through roughly J and dropped
+everything after — which is why the visible matches in the other screenshot were
+ADHIKARI, ADI SHANKAR, ADKAR, AMBEDKAR, AMBEKAR, Amit, APPLE. All A.
+
+**Reproduced before fixing**: 2,601 parties seeded with a realistic
+alphabetical spread put KARUNALAYA at position 1,201. One capped request — NOT
+found. Paged — found on page 2.
+
+**This file already carried the warning**, at `listCalls`: *"Supabase caps a
+single response at ~1000 rows, so page through with `range()`"*. The idiom
+appears seven times in `supabase.ts`. I wrote the eighth without it.
+
+**A TRUNCATED LIST IS THE WORST SHAPE THIS CAN FAIL IN**, and that is the part
+worth remembering. It does not look broken: it looks like a working list that
+does not contain your customer. So the reader concludes the customer is not on
+the system — and on a call desk the next step is raising them again as a
+duplicate, or giving up. An empty list would have been safer, because an empty
+list is obviously wrong.
+
+**And a near-miss on the check.** The first attempt to prove the new assertion
+discriminates replaced `.range(from, from + PAGE - 1)` with a count of 1 — but
+that idiom appears seven times, so it mutated a DIFFERENT function and the
+assertion still passed. It read as "the check discriminates" when nothing under
+test had changed. **Verify the mutation landed where you aimed it**, not just
+that you ran one; this is the same vacuous-assertion trap in a new costume.
+
+**The audit that followed was crude and is worth not over-claiming.** Splitting
+`supabase.ts` on `;` flagged the `let q = …` line of functions that DO page
+(`listHandstockBalance`, `listAllHandstockMovements`), so most hits were false.
+Checked properly, those are bounded correctly and **this was the only genuinely
+unbounded fetch**. What remains unbounded and is fine TODAY, but would truncate
+silently if it grew past a thousand: `profiles`, `app_user_names`, `documents`.
+Not changed — flagged.
+
 ✅ **`performance.sql` IS APPLIED — VERIFIED (2026-09-10).** The user ran it and
 pasted the `_status.sql` output: **rows 121 and 122 both read `yes`**.
 
