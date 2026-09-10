@@ -268,6 +268,51 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **"party name and Product - both are taking about 8 & 4 sec -- is that
+expected?"** (2026-09-10, v0.9.193). **No — and the honest answer was that
+caching the wrong thing does not make it right.**
+
+**What the measurements said.** The database was never the cost: the whole party
+aggregate over 22,000 machines runs in **10.7 ms**, and `product_party_names`
+plans a `Bitmap Heap Scan` on the trigram index. The 8 seconds was the SHAPE —
+downloading 2,600+ names in three paged requests and a few hundred KB before the
+field would work at all. v0.9.192 cached that, which helped the SECOND open and
+did nothing for the first, and was going to get worse as the register grew.
+
+**So the list is no longer downloaded. It is searched.** `PickList` gained an
+`onSearch` prop: the box opens on a short first page and each keystroke asks the
+database, debounced at 220 ms. Warm, on the seeded register: **0.4 ms** for
+"karu", **1.5 ms** for "hosp", **25 ms** for the empty first page. It costs the
+same at fifty thousand customers as at two thousand.
+
+Applied to every customer field — the call registers, the call request and
+Product & Party Search. **An INSTALLATION searches both** and puts the owners
+first, because it reaches a customer who may have no machine yet; every other
+call type searches owners only, since that name is what finds the products.
+
+**THE DOWNLOAD IS DELETED, not left unused** — `sbListProductParties`, the
+`productParty` master and the `ProductParty` type are gone. Dead code that still
+looks alive is how somebody reintroduces the problem by calling the
+convenient-looking helper.
+
+**Two details the picker owes the reader.** A server-searched list does not know
+the total, so it says *"N shown+"* rather than *"N of 40"* — the project's own
+rule that a count over partly-loaded data is a lower bound, and 40 would have
+been whatever happened to be seeded. And it no longer flashes "nothing matches"
+while a search is in flight: an empty result and an unfinished request must not
+look the same.
+
+**Six assertions failed on this change and that was them working.** They pinned
+the download — `useMaster('productParty')`, the paging, the shared fetch — which
+is exactly the design being replaced. Two were retired outright (there is no
+list to page any more) and the rest rewritten to the new property. A check that
+survives its own subject being deleted was never checking the subject.
+
+**And the earlier fixes still stand and mattered**: the product list is one
+request rather than 21 (it was reading every machine in the register to find
+forty names), the browser cache remains for the small lists, and the Party Master
+is not fetched where it cannot be the answer.
+
 🐞 **THE NEW CALL REQUEST FORM WAS SLOW TO OPEN, AND COULD HANG** (2026-09-10,
 v0.9.192). *"it is still taking quite some time.. Even became non responsive
 during 1 try.. cache it to the browser so that it loads quickly. or whatever is

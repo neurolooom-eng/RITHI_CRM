@@ -2274,8 +2274,12 @@ console.log('\n-- dropdowns are one control --');
   // A SHORT LIST GETS NO SEARCH BOX. "Yes / No" behind a type-to-search field
   // costs a click and a decision to reach two items you could already see —
   // the sweep must not make small dropdowns worse than the ones it replaced.
+  // Still true for a DOWNLOADED list; a server-searched one always gets the box,
+  // because the rows on screen are a page of results and not the size of the
+  // list — suppressing it would hide the only way to reach the rest.
   eq('the search box is suppressed for short lists',
-    /searchThreshold = 8/.test(pl) && /const searchable = options\.length >= /.test(pl), true);
+    /searchThreshold = 8/.test(pl)
+    && /const searchable = !!onSearch \|\| options\.length >= /.test(pl), true);
 
   // THE FALLBACK IS THE FORM'S DECISION, off by default (the user's own rule
   // for spare parts: a hand-typed code is one nothing downstream can match).
@@ -2418,56 +2422,54 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   eq('...and the view applies RLS to the reader',
     /alter view public\.product_party_names set \(security_invoker = on\)/.test(sql), true);
 
-  // ALL THREE cascade screens, not one: the call registers, the call request
-  // and Product & Party Search.
+  // ALL THREE cascade screens SEARCH THE SERVER — the call registers, the call
+  // request and Product & Party Search. Downloading the list was the wrong
+  // shape however well it was cached: three paged requests and a few hundred KB
+  // before the field worked at all, reported as eight seconds on a phone.
   for (const [name, src] of [['the call registers', cf], ['the call request', rq], ['Product & Party Search', lk]] as const) {
-    eq(`${name} reads productParty`, /useMaster\('productParty'\)/.test(src), true);
+    eq(`${name} searches the server for a customer`,
+      /onSearch=\{|onSearch: /.test(src) && /sbSearchProductParties/.test(src), true);
   }
+  // AND THE DOWNLOAD IS GONE, not merely unused. Dead code that still looks
+  // alive is how somebody reintroduces the problem by calling the
+  // convenient-looking helper.
+  eq('...and the whole-list download no longer exists',
+    /sbListProductParties/.test(lib) === false
+    && /name === 'productParty'/.test(lib) === false, true);
 
-  // INSTALLATION IS THE ONE EXCEPTION, and it is driven by the call type rather
-  // than hard-coded per screen — an installation reaches a customer who has no
-  // machine yet, so the product register cannot find them at all.
-  eq('only an installation may name a new customer',
-    /newPartyAllowed: \/install\/i\.test\(config\.callType\)/.test(readFileSync('src/modules/FieldCalls.tsx', 'utf8'))
-    && /allowFreeText: !!opts\.newPartyAllowed/.test(cf), true);
-  eq('...and it falls back to the Party Master behind the owners',
-    /partyFallback\.values\.filter\(\(v\) => !partyMaster\.values\.includes\(v\)\)/.test(cf)
-    && /partyFallback\.values\.filter\(\(v\) => !partyMaster\.values\.includes\(v\)\)/.test(rq), true);
-  // Owners FIRST: on every other call type they are the only ones that can be
-  // the answer, so a name that will not cascade is never under the cursor.
-  eq('...with the owners listed first',
-    /\[\.\.\.partyMaster\.values,\s*\n\s*\.\.\.partyFallback\.values/.test(cf), true);
+  // INSTALLATION searches BOTH and puts the owners first — it reaches a
+  // customer who may have no machine yet, so the product register alone cannot
+  // find them.
+  eq('an installation searches the Party Master too, owners first',
+    /sbSearchPartiesForInstall/.test(lib)
+    && /\[\.\.\.owners, \.\.\.master\.filter/.test(lib), true);
+  eq('...and only an installation gets it',
+    /opts\.newPartyAllowed \? sbSearchPartiesForInstall : sbSearchProductParties/.test(cf)
+    && /isInstall \? sbSearchPartiesForInstall : sbSearchProductParties/.test(rq), true);
 
-  // The party field is a PICKER now, not a datalist rendered per keystroke.
-  eq('the call forms pick the party rather than typing into a datalist',
-    /f\.name === 'partyName' \? partyField\(f\)/.test(cf)
-    && /datalist: undefined/.test(cf), true);
+  // The search is DEBOUNCED — a request per keystroke would be worse than the
+  // download it replaces — and only runs while the box is open.
+  const pl2 = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  eq('the search is debounced and only runs while open',
+    /if \(!onSearch \|\| !open\) return;/.test(pl2)
+    && /setTimeout\([\s\S]{0,400}onSearch\(query\.trim\(\)\)/.test(pl2), true);
+  // A server-searched list does not know the total and must not claim one: the
+  // project's rule that a count over partly-loaded data is a LOWER BOUND.
+  eq('...and it does not claim a total it cannot know',
+    /\{matches\.length\} shown\{matches\.length \? '\+' : ''\}/.test(pl2), true);
+  // "Nothing matches" must not appear while a search is still in flight.
+  eq('...and it does not say "nothing matches" mid-search',
+    /matches\.length === 0 && !canTake && !searching &&/.test(pl2), true);
 
-  // A form must never be left with an empty picker because one migration has
-  // not been applied yet.
-  eq('...and it falls back to the master if the view is not applied',
-    /if \(name === 'productParty'\)[\s\S]{0,400}return sbListParties\(\);/.test(lib), true);
-
-  // PAGED. PostgREST caps a single response at ~1000 rows and says nothing
-  // about it, so the first version returned the first 1,000 parties
-  // ALPHABETICALLY and dropped the rest — "KARUNALAYA TRUST, PUNE is very much
-  // available, but it is not coming up in Call request" (2026-09-10). A
-  // truncated list is the worst shape this can fail in: it looks like a working
-  // list, so the reader concludes the customer is not on the system.
-  // Follows the READ of product_party_names wherever it lives — the paging moved
-  // into a helper when the shared-fetch wrapper was added, and pinning the
-  // function name would have flagged that as a regression when nothing changed.
-  const at = lib.indexOf("from('product_party_names')");
-  const partyFetch = at < 0 ? '' : lib.slice(at, at + 700);
-  eq('the party list is PAGED, not capped at PostgREST\'s 1000',
-    partyFetch !== '' && /\.range\(/.test(partyFetch)
-    && /rows\.length < PAGE/.test(partyFetch), true);
-
-  // ONE fetch shared by the picker and the machine counts, not two walks of the
-  // same paged view on a single page load.
-  eq('...and every caller shares one fetch of it',
-    /let partiesOnce: Promise<ProductParty\[\]> \| null = null;/.test(lib)
-    && /if \(!partiesOnce\)/.test(lib), true);
+  // THE 1000-ROW CAP NO LONGER APPLIES HERE, because nothing downloads the
+  // customer list any more — the assertions that guarded the paging went with
+  // it. The lesson is kept in docs/BACKLOG.md rather than in a check with
+  // nothing left to check: PostgREST caps a single response at ~1000 rows and
+  // says nothing about it, and a TRUNCATED list is the worst shape a list can
+  // fail in, because it looks like a working list that lacks your row.
+  // What replaces it: the search never asks for more than it renders.
+  eq('the customer search asks for a bounded page',
+    /sbSearchProductParties\(query: string, limit = 50\)/.test(lib), true);
 
   // THE PRODUCT LIST IS ONE REQUEST, not a walk of the whole products table.
   // distinctColumn pages 1,000 rows at a time, so on 21,000 machines it was 21
@@ -2554,7 +2556,7 @@ console.log('\n-- the call request accepts a party without a stall --');
   // the eight-thousand-option datalist is gone.
   eq('the party is picked, not typed into a datalist',
     /<datalist id="dl-party"/.test(req) === false
-    && /<PickList[\s\S]{0,400}partyMaster\.values/.test(req), true);
+    && /<PickList[\s\S]{0,900}onSearch=\{/.test(req), true);
   // The products effect still keys off the committed name — if it ever went
   // back to a per-keystroke value the storm returns with no visible symptom
   // until somebody times it.

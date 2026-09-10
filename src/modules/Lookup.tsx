@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader } from '../components/ui/ui';
 import { searchProducts, dataConfigured } from '../lib/sheets';
-import { queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, supabaseConfigured, type ProductName } from '../lib/supabase';
+import { queryParties, sbListPartyItems, sbListProductNames, sbListProductSerials, sbSearchProductParties, supabaseConfigured, type ProductName } from '../lib/supabase';
 import { productToCallPrefill } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
@@ -71,11 +71,13 @@ export function Lookup() {
   // enough that the browser's own type-ahead inside an open dropdown is what
   // makes it usable, so that one still reads its master.
   const productMaster = useMaster('product');
-  // The parties that own a machine, not the maintained master — the same
-  // reasoning the product names above already follow, and now said for parties
-  // too (the user, 2026-09-10). Searching for a party with no machines here
-  // returns a party page with an empty machine list, which looks like a fault.
-  const partyMaster = useMaster('productParty');
+  // SEARCHED ON THE SERVER, like every other party field (2026-09-10). This
+  // screen used to download the whole list on the reasoning that "the browser's
+  // own type-ahead inside an open dropdown is what makes it usable" — true of
+  // the dropdown, but it cost three paged requests before the page was usable.
+  // The parties that own a machine, not the maintained master: searching here
+  // for one with no machines returns a party page with an empty machine list,
+  // which looks like a fault.
 
   useEffect(() => {
     if (!onDb) { setProductOpts([]); return; }
@@ -213,9 +215,10 @@ export function Lookup() {
                 the first match, which beats remembering how a hospital is
                 spelled in the master. The box beside it still takes any part of
                 a name, for when you only know a word of it. */}
-            <SelectPicker className="lk-wide" value={partyMaster.values.includes(partyQ) ? partyQ : ''}
+            <SelectPicker className="lk-wide" value={partyQ}
               onChange={(v) => { setPartyQ(v); if (v) void openParty(v); }}
-              placeholder="— choose a party —" options={partyMaster.values} />
+              placeholder="— type to search a party —"
+              options={partyQ ? [partyQ] : []} onSearch={sbSearchProductParties} />
             <input className="input" placeholder="…or type any part of a name" value={partyQ}
               onChange={(e) => setPartyQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void searchParties(); }} />
             <button className="btn btn-primary" disabled={!!busy} onClick={() => void searchParties()}>Search</button>

@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
+import { sbSearchProductParties, sbSearchPartiesForInstall } from '../lib/supabase';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
@@ -242,11 +243,6 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   const [engineer, setEngineer] = useState('');
   useEffect(() => { if (!engineer && user?.fullName) setEngineer(user.fullName); }, [user?.fullName, engineer]);
   const callTypeMaster = useMaster('calltype', ['FIELD', 'INSTALLATION CALL']);
-  // THE PARTIES THAT OWN A MACHINE (the user, 2026-09-10). The cascade below
-  // looks the products up BY this name, so a party with no machines is a dead
-  // end: pick one and the product list comes back empty with nothing on screen
-  // to explain it.
-  const partyMaster = useMaster('productParty');
   const complaintMaster = useMaster('complaint');
   const productMaster = useMaster('product');
 
@@ -262,12 +258,6 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   );
   const set = (k: keyof Form, v: string) => setF((c) => ({ ...c, [k]: v }));
   const isInstall = /install/i.test(f.callType);
-  // The maintained master, used ONLY for an installation — which reaches a
-  // customer who may have no machine yet, and therefore cannot be found in the
-  // product register at all. NOT FETCHED on any other call type: it is
-  // thousands of names, paged a thousand at a time, and on a field call not one
-  // of them can be the answer.
-  const partyFallback = useMaster('party', [], isInstall);
   const attended = /^yes$/i.test(f.callAttended);
 
   // Installation calls carry a fixed complaint on every item.
@@ -444,20 +434,23 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
             {field('Party Name *', (
               <PickList
                 value={f.partyName}
-                // Owners first, the master's extras behind them, and only on an
-                // installation — so on every other call type the first thing
-                // under the cursor is always a name that will cascade.
-                options={isInstall
-                  ? [...partyMaster.values,
-                     ...partyFallback.values.filter((v) => !partyMaster.values.includes(v))]
-                  : partyMaster.values}
+                // SEARCHED ON THE SERVER, not downloaded. Thousands of customers
+                // was three paged requests and a few hundred KB before this
+                // field worked at all — reported as 8 seconds on a phone. Now
+                // one small request per search, debounced, and the same cost
+                // whatever the register grows to.
+                //
+                // Only the CURRENT value is seeded, so a re-opened draft keeps
+                // its customer while a search is in flight.
+                options={f.partyName ? [f.partyName] : []}
+                onSearch={isInstall ? sbSearchPartiesForInstall : sbSearchProductParties}
                 onPick={(v) => { set('partyName', v); void fillParty(v); }}
                 allowFreeText={isInstall}
-                placeholder={isInstall ? 'Existing customer, or type a new one' : 'Pick from Party Master'}
-                emptyLabel={partyMaster.ready ? '— pick the customer —' : '— loading customers… —'}
+                placeholder={isInstall ? 'Type to search, or enter a new customer' : 'Type to search customers'}
+                emptyLabel="— pick the customer —"
                 emptyHint={isInstall
                   ? 'A new customer can be typed in — installations reach people who are not on the master yet.'
-                  : 'If the customer is not here, they need adding under Masters — the machines are looked up by this name.'}
+                  : 'Only customers who own a machine are listed: the products and serials are looked up by this name.'}
               />
             ), true)}
             {field('State', <input className="input" value={f.state} onChange={(e) => set('state', e.target.value)} />)}

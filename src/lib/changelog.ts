@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.193',
+    date: '2026-09-10',
+    title: 'The customer box opens instantly — it searches instead of downloading',
+    changes: [
+      'PICKING A CUSTOMER IS NOW INSTANT. The box opens straight away and you type to search; each search asks the database and comes back in well under a second.',
+      'Before, the app downloaded EVERY customer before the field would work at all \u2014 thousands of names, in three goes, a few hundred kilobytes. That was the eight seconds. Caching it helped the second time and did nothing for the first, and it was only going to get worse as the register grows.',
+      'Searching costs the same whether there are two thousand customers or fifty thousand.',
+      'It applies everywhere you choose a customer: the Call Request, the Field Call, PM and Installation registers, and Product & Party Search.',
+      'ON AN INSTALLATION it still searches both \u2014 customers who own a machine first, then the Party Master \u2014 and a brand-new customer can still be typed in. On other call types only customers who own a machine are offered, because that name is what finds the products.',
+      'The box says what it is showing rather than a total it cannot know, and it no longer flashes \u201Cnothing matches\u201D while a search is still running.',
+    ],
+  },
+  {
     version: '0.9.192',
     date: '2026-09-10',
     title: 'The New Call Request form opens quickly, and stays quick',

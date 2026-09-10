@@ -735,63 +735,68 @@ export async function sbListParties(): Promise<string[]> {
 }
 
 // ---------------------------------------------------------------------------
-// THE PARTY LIST FOR A CASCADE COMES FROM THE PRODUCT REGISTER, not the Party
-// Master (the user, 2026-09-10). Same reasoning as product names on Product &
-// Party Search: the master is a list somebody maintains, the register is the
-// record of what actually exists — and a Party→Product→Serial picker starts by
-// asking "whose machine is this?", which a party with no machines cannot
-// answer. Offering one is offering a dead end.
+// THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED.
 //
-// ONE request, not twenty-one: `distinctColumn` pages the whole table 1,000
-// rows at a time, so on 21,000 machines it made 21 round trips every time a
-// form opened. `product_party_names` (0160) does the DISTINCT in Postgres.
+// It used to be downloaded whole — `product_party_names` paged a thousand rows
+// at a time — and cached in the browser. That was still the wrong shape: three
+// requests and a few hundred KB before the field worked at all, reported as
+// EIGHT SECONDS on a phone (2026-09-10), and getting worse as the register grew.
 //
-// The machine COUNT comes back with it, because the picker shows it — it
-// answers the question a reader has when two similar names are on screen.
+// Searching costs one small request per keystroke instead, debounced, and it
+// costs the same at fifty thousand customers as at two thousand. Measured on the
+// seeded register (22,000 machines, 2,600 parties): a search is 0.4-1.5 ms and
+// the empty first page 25 ms, against a full download that had to happen before
+// anything could be typed.
+//
+// The download and the `productParty` master it fed are GONE rather than left
+// unused: dead code that still looks alive is how somebody reintroduces the
+// problem by calling the convenient-looking helper.
 // ---------------------------------------------------------------------------
-export interface ProductParty { party_name: string; machines: number }
-// PAGED, and it has to be. PostgREST caps a single response at ~1000 rows and
-// says nothing about it — so the first version of this returned the first 1,000
-// parties ALPHABETICALLY and silently dropped the rest. Reported 2026-09-10:
-// "KARUNALAYA TRUST, PUNE is very much available, but it is not coming up in
-// Call request" — K is past the cut, so every customer from roughly K onwards
-// had vanished from the picker while the footer read "0 of 1000".
+// SEARCH THE CUSTOMERS ON THE SERVER, rather than downloading them all.
 //
-// A truncated list is the worst shape this can fail in: it looks like a working
-// list, so the reader concludes the customer is not on the system rather than
-// that the screen is broken. This file already carries the warning at
-// `listCalls` — "Supabase caps a single response at ~1000 rows, so page through
-// with range()" — and this walked straight into it.
-// ONE FETCH SHARED BY EVERY CALLER. The picker asks for the names and the form
-// asks again for the machine COUNTS, and those were two full walks of the same
-// paged view — the whole list pulled twice on one page load. The promise is
-// held rather than the rows, so two callers racing on first render join the
-// same request instead of starting a second.
-let partiesOnce: Promise<ProductParty[]> | null = null;
-export function clearProductPartyCache() { partiesOnce = null; }
-export function sbListProductParties(): Promise<ProductParty[]> {
-  if (!partiesOnce) {
-    partiesOnce = fetchProductParties().catch((e) => { partiesOnce = null; throw e; });
-  }
-  return partiesOnce;
-}
-async function fetchProductParties(): Promise<ProductParty[]> {
+// One small request per search instead of three paged ones before the field is
+// usable at all — and it costs the same whether the register holds two thousand
+// customers or fifty thousand. `products_party_name_group_idx` (0160) and the
+// trigram index (0052) between them serve both the grouping and the `ilike`.
+//
+// An EMPTY query returns the first page rather than nothing, so the box opens
+// with something in it and a reader who does not know what to type can still
+// scroll. Wildcards in the term are neutralised: `%` typed by a person means the
+// character, not "match anything".
+export async function sbSearchProductParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
-  const PAGE = 1000;
-  const out: ProductParty[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await c.from('product_party_names')
-      .select('*').order('party_name').range(from, from + PAGE - 1);
-    if (error) throw new Error(errMsg(error));
-    const rows = (data ?? []) as ProductParty[];
-    out.push(...rows);
-    // A short page is the last page. Stopping on `< PAGE` rather than on an
-    // empty one saves a round trip on the common case and, more importantly,
-    // terminates even if the server ever returns fewer than asked for.
-    if (rows.length < PAGE) break;
-  }
-  return out;
+  let q = c.from('product_party_names').select('party_name').order('party_name').limit(limit);
+  const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
+  if (term) q = q.ilike('party_name', `%${term}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
 }
+
+// The maintained Party Master, searched the same way — for an INSTALLATION,
+// where the customer may have no machine yet and so cannot be in the register.
+export async function sbSearchParties(query: string, limit = 50): Promise<string[]> {
+  const c = getSupabase(); if (!c) return [];
+  let q = c.from('parties').select('party_name').order('party_name').limit(limit);
+  const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
+  if (term) q = q.ilike('party_name', `%${term}%`);
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
+}
+
+// The two together, owners FIRST — the installation case. A customer who owns a
+// machine is still the likelier answer, so they lead; the master's extras follow
+// rather than being interleaved, and a name in both appears once.
+export async function sbSearchPartiesForInstall(query: string, limit = 50): Promise<string[]> {
+  const [owners, master] = await Promise.all([
+    sbSearchProductParties(query, limit).catch(() => [] as string[]),
+    sbSearchParties(query, limit).catch(() => [] as string[]),
+  ]);
+  const seen = new Set(owners.map((v) => v.toLowerCase()));
+  return [...owners, ...master.filter((v) => !seen.has(v.toLowerCase()))].slice(0, limit);
+}
+
 // Party Master view — field-specific server-side filters + paging (Load more).
 export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
@@ -1943,16 +1948,6 @@ export async function clearRoleTableView(storageKey: string, role: string): Prom
 export async function listMaster(name: string, limit = 3000): Promise<string[]> {
   const c = must();
   if (name === 'party') return sbListParties();
-  // The parties that OWN something, for the Party→Product→Serial cascades.
-  // Falls back to the Party Master where the view is not applied yet, so a form
-  // is never left with an empty picker because one migration has not run.
-  if (name === 'productParty') {
-    try {
-      const rows = await sbListProductParties();
-      if (rows.length) return rows.map((r) => r.party_name).filter(Boolean);
-    } catch { /* fall through to the master */ }
-    return sbListParties();
-  }
   // ONE REQUEST, NOT TWENTY-ONE. This paged the WHOLE products table a thousand
   // rows at a time — 21 sequential round trips pulling 21,000 rows — to arrive
   // at about forty distinct names. `product_register_names` (0098) has done the

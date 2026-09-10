@@ -51,6 +51,10 @@ export interface FieldDef {
   // user's rule, 2026-09-09: "fallback or no fallback depends on the field") --
   // a free-text note can take anything, a Standard Complaint cannot.
   allowFreeText?: boolean;
+  /** A `select` field may search the SERVER rather than carry its whole list.
+   *  For the customer field that is the difference between three paged requests
+   *  before the form is usable and one small one per search. */
+  onSearch?: (query: string) => Promise<string[]>;
   // Something INTERACTIVE under the field — a suggestion the person can accept,
   // which `help` cannot be because it is only a string. Given the form's current
   // values and its setter, so a field can offer to fill itself from what has
@@ -346,6 +350,7 @@ function FieldControl({
           disabled={common.disabled}
           className={error ? 'input-error' : undefined}
           allowFreeText={field.allowFreeText === true}
+          onSearch={field.onSearch}
           options={[
             ...(hasCur ? [] : [{ value: cur, label: `${cur} (from sheet)` }]),
             ...opts.map((o) => ({ value: String(o.value), label: o.label })),

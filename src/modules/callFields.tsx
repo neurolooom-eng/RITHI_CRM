@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import type { FieldDef, FieldOption } from '../components/form/Form';
 import { setEngineerNamesCache } from '../lib/format';
-import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, sbListProductParties, type ComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, sbSearchProductParties, sbSearchPartiesForInstall, type ComplaintSuggestion } from '../lib/supabase';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 
@@ -35,21 +35,11 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
   offered: MutableRefObject<ComplaintSuggestion[]>;
 } {
   const { user, users } = useAuth();
-  // THE PARTIES THAT OWN A MACHINE, from the product register (the user,
-  // 2026-09-10). A Party→Product→Serial cascade starts by asking whose machine
-  // this is, and a party with no machines cannot answer — picking one used to
-  // return an empty product list with nothing on screen to say why.
-  const partyMaster = useMaster('productParty');
   // The maintained master is still read, but ONLY where a new customer is
   // legitimate: an INSTALLATION reaches somebody who has no machine yet, so
   // there is nothing in the product register to find them by. Everywhere else
   // the machines are looked up BY this name, so a party that owns none is not
   // an answer.
-  // NOT FETCHED unless a new customer is legitimate. It was loaded
-  // unconditionally on the reasoning that the cache makes it one request per
-  // session — true, but that one request is thousands of names paged a thousand
-  // at a time, and on a field call or a PM not one of them can be the answer.
-  const partyFallback = useMaster('party', [], !!opts.newPartyAllowed);
   const complaintMaster = useMaster('complaint');
 
   // "Call Allocated To" comes from the User Master, not the demo users: the
@@ -165,40 +155,28 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
   // but an installation they are the only ones that can be the answer. The
   // master's extras follow rather than being mixed in, so a name that will not
   // cascade is never the first thing under the cursor.
-  // The machine counts behind the names, for the labels below.
-  const [partyCounts, setPartyCounts] = useState<Record<string, number>>({});
-  useEffect(() => {
-    let live = true;
-    sbListProductParties()
-      .then((rows) => { if (live) setPartyCounts(Object.fromEntries(rows.map((r) => [r.party_name, r.machines]))); })
-      .catch(() => {});
-    return () => { live = false; };
-  }, []);
 
-  const partyOptions = opts.newPartyAllowed
-    ? [...partyMaster.values,
-       ...partyFallback.values.filter((v) => !partyMaster.values.includes(v))]
-    : partyMaster.values;
-
+  // THE CUSTOMER IS SEARCHED ON THE SERVER, not downloaded (2026-09-10: "party
+  // name and Product - both are taking about 8 & 4 sec"). Thousands of names is
+  // three paged requests and a few hundred KB before the field works at all,
+  // and it gets worse as the register grows. One small request per search
+  // instead, debounced — and it costs the same at fifty thousand customers.
+  //
+  // OWNERS ONLY on a field call or a PM, because the machines are looked up BY
+  // this name. An INSTALLATION searches both and puts the owners first, since
+  // it reaches a customer who may have no machine yet.
   const partyField = (f: FieldDef): FieldDef => ({
     ...f,
-    // A PICKER, not a datalist. The datalist rendered every party as an
-    // <option> on each keystroke, which is half of what made the call request
-    // slow to accept a party (v0.9.188); `type: 'select'` goes through the form
-    // engine's SelectPicker, which is the app's design default anyway.
     type: 'select' as const,
-    // The machine COUNT is on the label, never on the value: it answers "which
-    // of these two similar names is the one with the machines" without ever
-    // being what gets stored.
-    options: partyOptions.map((v) => ({
-      value: v,
-      label: partyCounts[v] ? `${v} — ${partyCounts[v]} machine${partyCounts[v] === 1 ? '' : 's'}` : v,
-    })),
+    // The CURRENT value only — enough to keep a saved record's customer
+    // selectable while a search is in flight. The rest comes from the server.
+    options: [],
+    onSearch: opts.newPartyAllowed ? sbSearchPartiesForInstall : sbSearchProductParties,
     allowFreeText: !!opts.newPartyAllowed,
     datalist: undefined,
     help: opts.newPartyAllowed
-      ? 'Customers who already own a machine come first; the Party Master follows. A new customer can be typed in.'
-      : 'Customers who own a machine. The products and serials below are looked up by this name.',
+      ? 'Type to search. Customers who already own a machine come first; a new customer can be typed in.'
+      : 'Type to search customers who own a machine. The products and serials below are looked up by this name.',
   });
 
   const inject = (fs: FieldDef[]) =>
