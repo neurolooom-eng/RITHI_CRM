@@ -16,6 +16,7 @@ import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
+import { isReviewable, REVIEW_DONE } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
@@ -3144,6 +3145,70 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('None Consumed hides the spare section',
     /wantsConsumption = \(work\['Add Consumption\?'\] \?\? ''\) === 'Yes'/.test(cr)
       && /\{status && workOpen && wantsConsumption && \(/.test(cr), true);
+}
+
+// ---------------------------------------------------------------------------
+// CALL REVIEW — a second review, on the REPORT rather than the failure.
+// What it lists is the whole basis of the screen, so the rule is a function
+// and gets run, not a regex over the component.
+{
+  console.log('\n-- Call Review lists solved calls only --');
+  eq('a solved call is listed', isReviewable('Solved', 'Solved - Report Completed'), true);
+  // "Solved - Report Pending" is NOT solved for this purpose: there is no
+  // report to review, and listing it sends a reviewer to an empty pane.
+  eq('report-pending is not reviewable', isReviewable('Solved', 'Solved - Report Pending'), false);
+  eq('an unsolved call is not listed', isReviewable('Unsolved', ''), false);
+  eq('an unattended call is not listed', isReviewable('Unattended', ''), false);
+  // A re-opened or cancelled call renders a state that is not "Solved", so
+  // these hold — but they are NOT what excludes a call whose open_state still
+  // reads Solved with reopened_at set. That is listSolvedCalls(), below.
+  eq('a re-opened call drops out', isReviewable('Reopened', 'Solved - Report Completed'), false);
+  eq('a cancelled call is not listed', isReviewable('Cancelled', 'Solved - Report Completed'), false);
+  eq('and REVIEW_DONE is the state that gets recorded', REVIEW_DONE, 'Report Reviewed');
+  eq('the state test is not case-sensitive', isReviewable('solved', 'Solved - Report Completed'), true);
+
+  const cr = readFileSync('src/modules/CallReview.tsx', 'utf8');
+  // It must not pull the whole register to keep the solved third of it: that is
+  // the screen that stops responding, and it caps out silently besides.
+  eq('the solved filter runs in the database', /listSolvedCalls\(\)/.test(cr), true);
+  eq('and it does not load every call', /listCalls\(/.test(cr), false);
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const reader = /export async function listSolvedCalls[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  eq('the reader filters on the state', /ilike\('open_state', 'solved%'\)/.test(reader), true);
+  eq('and excludes cancelled and re-opened at the database',
+    /is\('cancelled_at', null\)/.test(reader) && /is\('reopened_at', null\)/.test(reader), true);
+  eq('and it pages rather than trusting one response', /range\(from,/.test(reader), true);
+
+  // A count over partly-loaded data is a LOWER BOUND and must say so.
+  eq('the title count carries the + when the read was capped', /countMore=\{capped\}/.test(cr), true);
+  eq('and so do the pane and tab counts',
+    (cr.match(/capped \? '\+' : ''/g) ?? []).length >= 2, true);
+
+  // Marking is a right, and the screen must not offer what the database will
+  // refuse — nor hide the screen from someone who may read it.
+  eq('the write is gated on the permission', /can\('callreview\.mark'\)/.test(cr), true);
+  eq('and a reader without it is told why, not shown dead buttons',
+    /\{!mayMark && \(/.test(cr) && /\{mayMark && \(/.test(cr), true);
+
+  // The three panes the user asked for, in their order.
+  eq('three panes: calls, the call, what happened on it',
+    /dccr-pane-list[\s\S]*dccr-pane-review[\s\S]*dccr-pane-details/.test(cr), true);
+  eq('the right pane carries the visit work AND the spares',
+    /Visit work details/.test(cr) && /Spares consumed/.test(cr), true);
+  eq('and the three actions are on it', /Report Reviewed/.test(cr) && /Reco/.test(cr) && /Re-open/.test(cr), true);
+}
+
+// ---------------------------------------------------------------------------
+// Consumption on a call is matched by UCN **or** call number. They are written
+// together, but a call registered before its number was issued carries only the
+// UCN — and a review screen that silently missed those lines would report the
+// opposite of the truth about what went into a machine.
+{
+  console.log('\n-- the review sees every consumption line --');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const fn = /export async function consumptionForCall[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  eq('matched on both keys', /ucn\.eq\.\$\{k\},call_number\.eq\.\$\{k\}/.test(fn), true);
+  eq('and a row matching both is not shown twice', /seen\.has\(r\.id\)/.test(fn), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

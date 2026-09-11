@@ -3852,3 +3852,84 @@ export async function deleteIndoorCheck(id: number): Promise<{ ok: boolean; erro
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true };
 }
+
+// ---- Call Review (/call-review) --------------------------------------------
+// SOLVED CALLS ONLY, filtered BY THE DATABASE. The register is 24,000 calls and
+// climbing; pulling all of them to keep the ~30% that are solved is what makes
+// a screen stop responding, and it caps out silently besides. `cancelled_at is
+// null` and `reopened_at is null` are the same two exclusions the list itself
+// makes, applied where the rows are.
+//
+// Returns the rows AND whether the cap was reached, because a count over
+// partly-loaded data is a LOWER BOUND and the screen has to say so.
+export async function listSolvedCalls(limit = 20000): Promise<{ rows: Record<string, unknown>[]; more: boolean }> {
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  let more = false;
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await must().from('calls').select('*')
+      .ilike('open_state', 'solved%')
+      .is('cancelled_at', null)
+      .is('reopened_at', null)
+      .order('id', { ascending: false })
+      .range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows.map(dbToCall));
+    if (rows.length < PAGE) break;
+    if (from + PAGE >= limit) more = true;
+  }
+  return { rows: out, more };
+}
+
+
+// Has this solved call's report been reviewed. One row per UCN (0163).
+export async function listCallReportReviews(): Promise<Record<string, { status: string; remarks: string; by: string; at: string }>> {
+  const c = getSupabase(); if (!c) return {};
+  const out: Record<string, { status: string; remarks: string; by: string; at: string }> = {};
+  const PAGE = 1000;
+  // Paged like every other register: a single response is capped at ~1000 rows,
+  // and a reviewer whose call sat at position 1001 would see it as un-reviewed
+  // and review it twice.
+  for (let from = 0; from < 60000; from += PAGE) {
+    const { data, error } = await c.from('call_report_reviews')
+      .select('ucn,status,remarks,reviewed_by_name,reviewed_at').range(from, from + PAGE - 1);
+    if (error) break;
+    const rows = data ?? [];
+    rows.forEach((r) => {
+      out[String(r.ucn)] = {
+        status: String(r.status ?? ''), remarks: String(r.remarks ?? ''),
+        by: String(r.reviewed_by_name ?? ''), at: String(r.reviewed_at ?? ''),
+      };
+    });
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+export async function markCallReportReviewed(
+  ucn: string, status: string, remarks: string, byName: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  // reviewed_by and reviewed_at are stamped by the database (0163) — a review
+  // naming somebody who did not do it is worse than one naming nobody.
+  const { error } = await c.from('call_report_reviews')
+    .upsert({ ucn: ucn.trim(), status, remarks: remarks.trim(), reviewed_by_name: byName.trim() }, { onConflict: 'ucn' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+// What was consumed on a call. Matched on the UCN **or** the call number: the
+// two are written together, but a call registered before the call number was
+// issued carries only the UCN, and a review screen that silently missed those
+// lines would report the opposite of the truth about what went into a machine.
+export async function consumptionForCall(ucn: string, callNumber: string): Promise<Record<string, unknown>[]> {
+  const c = getSupabase(); if (!c) return [];
+  const keys = [ucn, callNumber].map((v) => (v ?? '').trim()).filter(Boolean);
+  if (!keys.length) return [];
+  const or = keys.map((k) => `ucn.eq.${k},call_number.eq.${k}`).join(',');
+  const { data, error } = await c.from('spare_consumption').select('*').or(or)
+    .order('created_at', { ascending: false }).limit(200);
+  if (error) return [];
+  const seen = new Set<unknown>();
+  return (data ?? []).filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+}

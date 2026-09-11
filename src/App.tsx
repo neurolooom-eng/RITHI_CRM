@@ -33,6 +33,7 @@ import { MaterialReturns } from './modules/MaterialReturns';
 import { StockTransfer } from './modules/StockTransfer';
 import { Dashboard } from './modules/Dashboard';
 import { DailyCallReview } from './modules/DailyCallReview';
+import { CallReview } from './modules/CallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
@@ -107,6 +108,7 @@ function Shell() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/daily-review" element={<DailyCallReview />} />
+        <Route path="/call-review" element={<CallReview />} />
         <Route path="/parties" element={<PartyMaster />} />
         <Route path="/parts" element={<PartMaster />} />
         <Route path="/masters" element={<AllMasters />} />
