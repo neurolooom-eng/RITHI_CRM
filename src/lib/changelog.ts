@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.197',
+    date: '2026-09-11',
+    title: 'A customer with no machine on record is shown, with the reason',
+    changes: [
+      'TYPING A CUSTOMER WHO EXISTS BUT HAS NO MACHINE AGAINST THEM NO LONGER READS AS \u201Cnothing matches\u201D. The name now appears, greyed, saying \u201Cno machine on record\u201D.',
+      'There are about a thousand of these \u2014 5,873 customers on the Party Master, 4,851 with a machine. Seeing the name and the reason tells you the real problem: that customer\u2019s machine has not been registered yet. \u201CNothing matches\u201D told you the opposite.',
+      'They still cannot be picked for a field call or a PM, because the products and serials are found by that name. An INSTALLATION can still use them, and can still take a brand-new customer.',
+    ],
+  },
+  {
     version: '0.9.195',
     date: '2026-09-11',
     title: 'A search that fails now says so, instead of \u201Cnothing matches\u201D',

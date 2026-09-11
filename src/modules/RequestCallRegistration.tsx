@@ -10,7 +10,7 @@ import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
-import { sbSearchProductParties, sbSearchPartiesForInstall } from '../lib/supabase';
+import { sbSearchPartiesForCall, sbSearchPartiesForInstall, partyOwnsNoMachine } from '../lib/supabase';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
 import './fieldcalls.css';
@@ -443,7 +443,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 // Only the CURRENT value is seeded, so a re-opened draft keeps
                 // its customer while a search is in flight.
                 options={f.partyName ? [f.partyName] : []}
-                onSearch={isInstall ? sbSearchPartiesForInstall : sbSearchProductParties}
+                onSearch={isInstall ? sbSearchPartiesForInstall : sbSearchPartiesForCall}
+                // A customer on the Party Master with no machine against them is
+                // SHOWN and unpickable, with the reason — about a thousand of
+                // them exist. "Nothing matches" on a customer somebody is
+                // looking straight at is a lie by omission.
+                isDisabled={isInstall ? undefined : partyOwnsNoMachine}
+                labelFor={isInstall ? undefined : (v) => (partyOwnsNoMachine(v)
+                  ? <>{v} <span className="muted">— no machine on record</span></>
+                  : v)}
                 onPick={(v) => { set('partyName', v); void fillParty(v); }}
                 allowFreeText={isInstall}
                 placeholder={isInstall ? 'Type to search, or enter a new customer' : 'Type to search customers'}

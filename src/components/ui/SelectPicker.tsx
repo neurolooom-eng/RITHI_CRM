@@ -40,6 +40,12 @@ export interface SelectPickerProps {
   allowFreeText?: boolean;
   /** Search the server instead of filtering a downloaded list. See PickList. */
   onSearch?: (query: string) => Promise<string[]>;
+  /** Rows that show but cannot be chosen. COMPOSED with any option marked
+   *  disabled in `options` — a field that adds its own rule must not silently
+   *  drop the list's. */
+  isDisabled?: (value: string) => boolean;
+  /** Overrides the row's text — used to put the REASON on a disabled row. */
+  labelForOption?: (value: string) => React.ReactNode;
   /** Shown under the list when a search finds nothing — say where values come from. */
   emptyHint?: string;
   /** Type-to-search appears at or above this many options (default 8). */
@@ -50,7 +56,7 @@ export interface SelectPickerProps {
 
 export function SelectPicker({
   value, onChange, options, placeholder = '— select —', disabled,
-  allowFreeText = false, emptyHint, searchThreshold, onSearch, id, className,
+  allowFreeText = false, emptyHint, searchThreshold, onSearch, isDisabled, labelForOption, id, className,
 }: SelectPickerProps) {
   const norm = options
     .map((o) => (typeof o === 'string'
@@ -78,8 +84,12 @@ export function SelectPicker({
         searchThreshold={searchThreshold}
         // The row reads its LABEL; what is stored is always the value, so a
         // dropdown whose text differs from its value keeps working.
-        labelFor={(v) => labels.get(v) ?? v}
-        isDisabled={off.size ? (v) => off.has(v) : undefined}
+        labelFor={(v) => labelForOption?.(v) ?? labels.get(v) ?? v}
+        // EITHER rule disables a row. Replacing one with the other is how a
+        // spare with no stock would quietly become pickable again.
+        isDisabled={off.size || isDisabled
+          ? (v) => off.has(v) || (isDisabled?.(v) ?? false)
+          : undefined}
       />
     </div>
   );

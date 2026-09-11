@@ -785,6 +785,38 @@ export async function sbSearchParties(query: string, limit = 50): Promise<string
   return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
 }
 
+// A CUSTOMER WHO EXISTS BUT OWNS NO MACHINE IS SHOWN, AND SAID SO.
+//
+// Their register: 5,873 parties, of which 4,851 own a machine — about a
+// THOUSAND customers are on the Party Master with nothing against them. On a
+// field call those cannot be the answer, because the products and serials are
+// looked up by the name. But answering "Nothing matches" is a lie by omission:
+// the customer plainly exists, somebody is looking straight at them, and the
+// screen says they do not. Reported 2026-09-11 as exactly that —
+// "Nagapattinam Medical College", "HKSD".
+//
+// So they are LISTED and UNPICKABLE, with the reason on the row. PickList
+// already has that shape (`isDisabled`), used where a spare with no stock is
+// shown so the engineer can see WHY it is not an option. Seeing the name and
+// the reason is what tells somebody the machine has not been registered yet —
+// which is the real problem, and one they can act on.
+const nonOwners = new Set<string>();
+/** Was this name offered only because the Party Master has it? */
+export function partyOwnsNoMachine(name: string): boolean {
+  return nonOwners.has(name.trim().toLowerCase());
+}
+export async function sbSearchPartiesForCall(query: string, limit = 50): Promise<string[]> {
+  const owners = await sbSearchProductParties(query, limit);
+  // Only reach for the master when the owners have not answered it. A full page
+  // of real answers does not need padding, and the extra request is not free.
+  if (!query.trim() || owners.length >= 10) return owners;
+  const master = await sbSearchParties(query, limit).catch(() => [] as string[]);
+  const have = new Set(owners.map((v) => v.trim().toLowerCase()));
+  const extras = master.filter((v) => !have.has(v.trim().toLowerCase()));
+  extras.forEach((v) => nonOwners.add(v.trim().toLowerCase()));
+  return [...owners, ...extras].slice(0, limit);
+}
+
 // The two together, owners FIRST — the installation case. A customer who owns a
 // machine is still the likelier answer, so they lead; the master's extras follow
 // rather than being interleaved, and a name in both appears once.
