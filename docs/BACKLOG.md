@@ -19,6 +19,36 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The product serial is mandatory — 2026-09-11 (v0.9.199, SQL to run)
+
+A call request went in as `R18627-MONNAL T75-NA` — no serial, so the UniqueID
+named no machine. Every downstream lookup then matched the wrong unit or none,
+and the call's party, city, state, item status, warranty and contract all had to
+be corrected by hand against the Product Master.
+
+Shipped: `serial` is `required` on `FIELD_CALL_FIELDS` (which serves Field Call,
+Installation, PM **and** Pending Registrations, so one change covers the four),
+and `RequestCallRegistration`'s hand-written `validate()` refuses an item without
+one. On an installation it is typed; everywhere else the message names the real
+cause — *the machine is missing from Product Master*. `npm run check:ui` pins
+both, and each assertion was mutation-tested.
+
+Also: `Form.tsx`'s `required` check now trims, so a field can no longer be
+satisfied by the space bar. That gap applied to every required field on every
+form, not just this one.
+
+**To run:** `supabase/apply/tracker.sql` — it carries `0162_tracker_nl_team.sql`,
+which renames the tracker's *With whom* from `Claude` to **NL Team** (the user's
+rule, 2026-09-11: the assignee is a team somebody can chase, not a tool). Eight
+rows. Idempotent, and it must stay LAST in the `tracker` module or the seeds
+replay `Claude` straight back — `check:ui` asserts that position.
+
+⚠️ **Corrected by hand, still open:** the Product Master row for serial 10915
+(MONNAL T75, Advanced Neurology And Multispeciality Hospital, Jaipur) was never
+checked. The call was fixed; if the master is what is wrong, the next call on
+that machine repeats it.
+
+
 ### Waiting on the user
 
 | | what | where |

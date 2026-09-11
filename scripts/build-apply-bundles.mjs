@@ -344,7 +344,7 @@ const MODULES = {
     // ancestor table -- the tracker's view joins it for the "who touched it last"
     // name. `rbac` is has_perm(), which the one policy asks.
     needs: ['rbac', 'visibleEngineers'],
-    files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql'],
+    files: ['0143_tracker.sql', '0144_tracker_seed_backlog.sql', '0146_tracker_air_liquide_id.sql', '0150_tracker_sync_backlog.sql', '0157_tracker_sync_0909.sql', '0162_tracker_nl_team.sql'],
   },
   indoor: {
     title: 'Indoor Service (the workshop register, §4.5)',

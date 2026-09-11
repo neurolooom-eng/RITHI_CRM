@@ -331,6 +331,17 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     if (!filled.some((it) => it.product.trim())) return 'Add at least one call (Product is required).';
     const bad = filled.findIndex((it) => !it.product.trim());
     if (bad >= 0) return `Call ${bad + 1}: Product is required (or clear the other fields).`;
+    // The serial is what ties the call to ONE machine. Without it the request's
+    // UniqueID reads REQID-Product-NA, every downstream lookup matches the
+    // wrong unit or none, and the call has to be corrected by hand afterwards.
+    // On an installation it is typed (the machine is new); everywhere else it
+    // comes from the Product Master, so an empty one is a MASTER to fix, not a
+    // field to skip.
+    const noSerial = filled.findIndex((it) => !it.serial.trim());
+    if (noSerial >= 0)
+      return isInstall
+        ? `Call ${noSerial + 1}: Serial No is required — type the serial of the machine being installed.`
+        : `Call ${noSerial + 1}: Serial No is required. If the serial is not on the list, the machine is missing from Product Master — have it added there.`;
     const noProblem = filled.findIndex((it) => !it.reportedProblem.trim());
     if (noProblem >= 0) return `Call ${noProblem + 1}: Reported Problem is required.`;
     // One row per Product + Serial within a request (its UniqueID), so the same
@@ -492,7 +503,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     // a value the current list cannot offer (e.g. imported) stays selectable
                     options={withCurrent(productOptions, it.product)} />
                 ))}
-                {field('Serial No', (
+                {field('Serial No *', (
                   // An installation is a machine the party does not own yet, so
                   // its serial is typed. Otherwise it is picked from what this
                   // party owns of this product.

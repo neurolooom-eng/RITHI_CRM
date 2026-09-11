@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.199',
+    date: '2026-09-11',
+    title: 'A call can no longer be raised without the machine\u2019s serial number',
+    changes: [
+      'THE PRODUCT SERIAL NUMBER IS NOW A REQUIRED FIELD \u2014 on a call request, and on a Field Call, Installation or PM call however it is registered.',
+      'Without it a request is filed as REQID-Product-NA, which points at no particular machine: its warranty, contract and item status all have to be corrected by hand afterwards, and until they are, the call shows the wrong cover.',
+      'On an installation the serial is typed in, because the machine is new. Everywhere else it is picked from Product Master \u2014 and if the serial is not on the list, the message says so: the machine is missing from Product Master and belongs there, rather than being skipped on the call.',
+      'A required field can also no longer be satisfied by pressing the space bar.',
+      'In the Tracker, work in hand with us now reads \u201CNL Team\u201D in the With whom column.',
+    ],
+  },
+  {
     version: '0.9.198',
     date: '2026-09-11',
     title: 'A role given on the User Master now reaches the person\u2019s sign-in',

@@ -193,7 +193,11 @@ export function SchemaForm({
     const f = fields.find((x) => x.name === name);
     if (!f) return null;
     if (f.required) {
-      const empty = value === '' || value == null || (f.type === 'checkbox' && value === false);
+      // A string of spaces is not an answer. Without the trim a required field
+      // is satisfied by pressing the space bar, which is how blank serials and
+      // blank party names reach the register looking filled in.
+      const blankText = typeof value === 'string' && value.trim() === '';
+      const empty = value === '' || value == null || blankText || (f.type === 'checkbox' && value === false);
       if (empty) return `${f.label} is required`;
     }
     if (f.validate) return f.validate(value, values);
