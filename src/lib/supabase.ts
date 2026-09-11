@@ -752,25 +752,70 @@ export async function sbListParties(): Promise<string[]> {
 // unused: dead code that still looks alive is how somebody reintroduces the
 // problem by calling the convenient-looking helper.
 // ---------------------------------------------------------------------------
-// SEARCH THE CUSTOMERS ON THE SERVER, rather than downloading them all.
+// SEARCH THE CUSTOMERS WHO OWN A MACHINE — and do it WITHOUT AGGREGATING.
 //
-// One small request per search instead of three paged ones before the field is
-// usable at all — and it costs the same whether the register holds two thousand
-// customers or fifty thousand. `products_party_name_group_idx` (0160) and the
-// trigram index (0052) between them serve both the grouping and the `ilike`.
+// This used to read `product_party_names`, which is `GROUP BY party_name` over
+// the whole products register. An aggregate cannot stop early: to return fifty
+// names it had to visit EVERY product row the term matched, and a short term
+// matches most of them. That is what timed out on a phone
+// ("Vada", 2026-09-11) while the PRODUCT picker beside it stayed instant — and
+// the difference was never the network. The product list is about forty names,
+// so it is fetched ONCE and filtered in the browser; there is no product search.
+// The customers are five thousand names over nineteen thousand machines, so
+// every keystroke went to the server, and went the expensive way.
+//
+// Reading the rows with a LIMIT lets the scan STOP as soon as it has enough,
+// and the duplicates are collapsed here, where it costs nothing. Measured on
+// 19,253 machines over 4,851 customers, as a signed-in engineer:
+//
+//     "HOSP"              25.6 ms  ->  2.4 ms
+//     "CRITICARE TRAUMA"   6.2 ms  ->  1.9 ms
+//     Party Master, in parallel:  0.1 - 4.4 ms
+//
+// SCAN_CAP is what bounds the work, and capping is the whole saving: ORDERING
+// the filtered read does not stop early -- it must find every match before it
+// can sort (16.8 ms for "HOSP", 47 ms for "a"), which is the same cost the
+// aggregate was paying. So this read is capped and UNORDERED, and the names are
+// sorted here.
+//
+// WHAT THE CAP COULD COST, AND WHY IT DOES NOT. A capped read can miss a
+// customer whose machines sit past the cap -- exactly the fault that hid
+// KARUNALAYA TRUST in September. It does not here, because COMPLETENESS COMES
+// FROM THE OTHER SIDE: sbSearchPartiesForCall runs the Party Master alongside
+// this, and that read is one row per customer, ordered, complete and indexed.
+// This one supplies WHO OWNS A MACHINE, so the owners can lead; the master
+// supplies the guarantee that a name on file can be found. Neither alone is
+// both fast and complete; together they are.
+//
+// 1,000 machine rows is around 250 distinct customers on their data (roughly
+// four machines each) -- five times what the list shows.
 //
 // An EMPTY query returns the first page rather than nothing, so the box opens
-// with something in it and a reader who does not know what to type can still
-// scroll. Wildcards in the term are neutralised: `%` typed by a person means the
-// character, not "match anything".
+// with something in it. Wildcards in the term are neutralised: `%` typed by a
+// person means the character, not "match anything".
+const PARTY_SCAN_CAP = 1000;
 export async function sbSearchProductParties(query: string, limit = 50): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
-  let q = c.from('product_party_names').select('party_name').order('party_name').limit(limit);
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
-  if (term) q = q.ilike('party_name', `%${term}%`);
+  let q = c.from('products').select('party_name').limit(PARTY_SCAN_CAP);
+  // Ordering an unfiltered read walks the btree in order and stops at the cap;
+  // ordering a FILTERED one would have to find every match before it could sort,
+  // which is the very cost this is removing. So the filtered case is sorted here.
+  q = term ? q.ilike('party_name', `%${term}%`) : q.order('party_name');
   const { data, error } = await q;
   if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => String(r.party_name ?? '')).filter(Boolean);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const r of data ?? []) {
+    const v = String(r.party_name ?? '').trim();
+    if (!v) continue;
+    const k = v.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(v);
+  }
+  if (term) out.sort((a, b) => a.localeCompare(b));
+  return out.slice(0, limit);
 }
 
 // The maintained Party Master, searched the same way — for an INSTALLATION,
@@ -805,12 +850,27 @@ const nonOwners = new Set<string>();
 export function partyOwnsNoMachine(name: string): boolean {
   return nonOwners.has(name.trim().toLowerCase());
 }
+// BOTH AT ONCE, NOT ONE THEN THE OTHER.
+//
+// The master was a fallback, reached only when the owners had not answered —
+// which made the SLOWER query the one every keystroke waited on. The Party
+// Master is one row per customer with a trigram index (5,873 rows: 0.1-6 ms);
+// the owners come from the machines (19,253 rows). Now they go together and the
+// pair costs the slower of the two rather than their sum.
+//
+// OWNERS STILL LEAD. A customer who owns a machine is the one whose products
+// and serials will cascade, so they are the likelier answer and belong at the
+// top; the master's extras follow, listed and unpickable with the reason on the
+// row. Neither query can take the other down: if one fails the other still
+// answers, and only a failure of BOTH is reported as a failed search.
 export async function sbSearchPartiesForCall(query: string, limit = 50): Promise<string[]> {
-  const owners = await sbSearchProductParties(query, limit);
-  // Only reach for the master when the owners have not answered it. A full page
-  // of real answers does not need padding, and the extra request is not free.
-  if (!query.trim() || owners.length >= 10) return owners;
-  const master = await sbSearchParties(query, limit).catch(() => [] as string[]);
+  const [ownersR, masterR] = await Promise.allSettled([
+    sbSearchProductParties(query, limit),
+    sbSearchParties(query, limit),
+  ]);
+  if (ownersR.status === 'rejected' && masterR.status === 'rejected') throw ownersR.reason;
+  const owners = ownersR.status === 'fulfilled' ? ownersR.value : [];
+  const master = masterR.status === 'fulfilled' ? masterR.value : [];
   const have = new Set(owners.map((v) => v.trim().toLowerCase()));
   const extras = master.filter((v) => !have.has(v.trim().toLowerCase()));
   extras.forEach((v) => nonOwners.add(v.trim().toLowerCase()));

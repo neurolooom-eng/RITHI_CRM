@@ -3314,5 +3314,42 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     list.includes('0053_call_requests_view_all.sql'), true);
 }
 
+// ---------------------------------------------------------------------------
+// THE CUSTOMER SEARCH DOES NOT AGGREGATE.
+// Reported 2026-09-11: the Party picker timed out on a phone ("Vada") while the
+// PRODUCT picker beside it stayed instant. The difference is structural, not
+// network: the product list is ~40 names, fetched ONCE and filtered in the
+// browser, so there is no product search at all; the customers are ~4,851 names
+// over 19,253 machines, so every keystroke went to the server -- through a
+// GROUP BY over the whole register, which cannot stop early.
+{
+  console.log('\n-- the customer search is bounded, and complete --');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const fn = /export async function sbSearchProductParties[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+
+  eq('it no longer reads the aggregate view', /product_party_names/.test(fn), false);
+  eq('it reads the rows and caps them', /\.limit\(PARTY_SCAN_CAP\)/.test(fn), true);
+  eq('and collapses the duplicates itself', /seen\.has\(k\)/.test(fn), true);
+  // Ordering a FILTERED read defeats the cap: it must find every match to sort.
+  eq('the filtered read is not ordered by the database',
+    /term \? q\.ilike\([^)]*\) : q\.order\('party_name'\)/.test(fn), true);
+  eq('so the names are sorted here instead', /out\.sort\(/.test(fn), true);
+
+  // THE CAP IS ONLY SAFE BECAUSE THE OTHER SIDE IS COMPLETE. A capped read can
+  // miss a customer past the cap — the fault that hid KARUNALAYA TRUST. The
+  // Party Master read is one ordered row per customer, so it carries the
+  // guarantee; this one carries owner-priority. Both must therefore RUN.
+  const call = /export async function sbSearchPartiesForCall[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  eq('both sources are queried', /sbSearchProductParties\(/.test(call) && /sbSearchParties\(/.test(call), true);
+  eq('and together, not one waiting on the other', /Promise\.allSettled/.test(call), true);
+  eq('owners still lead, so the product cascade works',
+    call.indexOf('sbSearchProductParties(') < call.indexOf('sbSearchParties('), true);
+  // One failing source must not blank the list; only both failing is a failure.
+  eq('a single failure still answers',
+    /ownersR\.status === 'rejected' && masterR\.status === 'rejected'/.test(call), true);
+  eq('and the master-only names stay flagged as owning no machine',
+    /extras\.forEach\(\(v\) => nonOwners\.add/.test(call), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

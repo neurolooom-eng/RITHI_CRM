@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.205',
+    date: '2026-09-11',
+    title: 'The customer search stops counting the whole register on every keystroke',
+    changes: [
+      'WHY THE CUSTOMER BOX FAILED WHILE THE PRODUCT BOX BESIDE IT WAS INSTANT \u2014 and it was never the phone or the signal. There are about FORTY product names, so that list is fetched once and filtered on the device; there is no product search at all. There are nearly FIVE THOUSAND customers across nineteen thousand machines, so every keystroke went to the server \u2014 and went the expensive way, counting the machines of every customer the letters touched before it could answer.',
+      'It now reads a bounded page of machines and collapses the duplicates on the device. Measured: a common search went from 25.6 ms to 2.4 ms, and it no longer grows with the register.',
+      'THE PARTY MASTER IS SEARCHED AT THE SAME TIME rather than only when the first search came up short, so the pair now costs the slower of the two instead of both added together. Customers who own a machine still come first, because theirs are the products and serials that will fill in below.',
+      'If one of the two searches fails the other still answers; only both failing is reported as a failed search.',
+    ],
+  },
+  {
     version: '0.9.204',
     date: '2026-09-11',
     title: 'The Party drop-down no longer times out for engineers',
