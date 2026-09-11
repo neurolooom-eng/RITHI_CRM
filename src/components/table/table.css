@@ -185,14 +185,38 @@
 /* Panel opening downward (used for the top Filters control) */
 .dt-panel-down { top: 34px; bottom: auto; }
 
-/* Filters panel */
-.dt-filter-panel { width: 340px; max-width: calc(100vw - 24px); }
+/* Filters panel.
+   OVERFLOW IS VISIBLE HERE, and that is the whole fix: .dt-cols-panel scrolls
+   (max-height + overflow-y), and a picker's menu is position:absolute, so
+   inside a scrolling box it was CLIPPED to a couple of rows with a scrollbar of
+   its own -- the filter was unusable in every register, since one DataTable
+   draws them all. A panel that holds dropdowns cannot be the thing that
+   scrolls. The rows are few by nature (one per filter), so the panel simply
+   grows; the page scrolls if it must. */
+.dt-filter-panel {
+  width: 560px;
+  max-width: calc(100vw - 24px);
+  max-height: none;
+  overflow: visible;
+}
 .dt-filter-list { display: flex; flex-direction: column; gap: 6px; }
-.dt-filter-row { display: flex; align-items: center; gap: 4px; }
-.dt-filter-row .select { flex: 0 0 auto; max-width: 110px; font-size: 12px; padding: 3px 4px; }
-.dt-filter-row .input { flex: 1; min-width: 50px; font-size: 12px; padding: 3px 6px; }
-.dt-filter-between { display: flex; gap: 4px; flex: 1; }
+/* A grid, not a flex row: the three controls line up down the column instead of
+   each row sizing itself, and the field name gets room to be READ. It wraps to
+   its own line on a narrow screen rather than squeezing to an ellipsis. */
+.dt-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+.dt-filter-row .select { min-width: 0; font-size: 12px; padding: 3px 4px; }
+.dt-filter-row .input { min-width: 0; font-size: 12px; padding: 3px 6px; }
+.dt-filter-between { display: flex; gap: 4px; min-width: 0; }
 .dt-filter-between .input { width: 50%; }
+@media (max-width: 560px) {
+  .dt-filter-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .dt-filter-row > :nth-child(3) { grid-column: 1 / -1; }
+}
 
 .dt-loadmore { margin-left: 10px; }
 

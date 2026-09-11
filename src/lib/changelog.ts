@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.201',
+    date: '2026-09-11',
+    title: 'The Filters panel is usable again, and Add Consumption is answered rather than skipped',
+    changes: [
+      'FILTERS WAS UNUSABLE IN EVERY REGISTER. The panel scrolled, and a dropdown inside a scrolling panel was clipped to two or three rows with a scrollbar of its own \u2014 you could not see or reach the column you wanted. The panel no longer scrolls, and it is wider.',
+      'NO MORE TRUNCATED OPTIONS, anywhere in the app. A dropdown list used to be exactly as wide as the box that opened it, so in a narrow field every choice read as a few cut-off characters. A list is now as wide as its longest entry, and a long one WRAPS rather than being cut \u2014 two values that differ past the cut used to look identical.',
+      'ADD CONSUMPTION? NOW READS "Yes" OR "None Consumed" instead of Yes/No. "None Consumed" is an answer \u2014 the engineer says no part went in \u2014 where "No" read as "not filling this in now".',
+      'Answering Yes now REQUIRES the spare that was used. The report will not save with Yes and an empty list; it asks for the part or for None Consumed. None Consumed hides the spare section entirely, as before.',
+    ],
+  },
+  {
     version: '0.9.200',
     date: '2026-09-11',
     title: 'The spare still in the picker is now recorded with the rest',

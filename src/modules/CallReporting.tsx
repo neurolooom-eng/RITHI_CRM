@@ -6,6 +6,7 @@ import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
 import { useMaster } from '../lib/masters';
 import { logAudit } from '../lib/audit';
+import { consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../lib/fieldcall';
 import { useAuth } from '../lib/auth';
 import { useAccessScope, useTeamEngineers } from '../lib/access';
 import { todayISO, fmtLongDateTime, fmtLongDate } from '../lib/format';
@@ -38,7 +39,14 @@ const YESNO = ['Yes', 'No'];
 // The Service Report section, in spec order. `req` fields are mandatory
 // whenever the section is shown (i.e. Update Visit Work Details? = Yes).
 type FieldKind = 'long' | 'text' | 'yesno' | 'complaint' | 'accessory' | 'manual' | 'warranty';
-interface WorkField { key: string; kind: FieldKind; req?: boolean; span?: boolean }
+interface WorkField { key: string; kind: FieldKind; req?: boolean; span?: boolean; opts?: string[] }
+// Add Consumption? is NOT a yes/no question, and calling it one cost a line of
+// consumption on every report that left it alone. "None Consumed" is a stated
+// answer -- the engineer says no part went in -- where "No" reads as "not
+// filling this in now". Yes then MAKES the spare list mandatory (the user's
+// rule, 2026-09-11), so the two answers are the only two outcomes and neither
+// is a skip.
+const CONSUMPTION_OPTS = [CONSUMPTION_YES, CONSUMPTION_NONE];
 const WORK_FIELDS: WorkField[] = [
   { key: 'Standard Complaint', kind: 'complaint', span: true },
   { key: 'Complaint Observation', kind: 'long', req: true, span: true },
@@ -46,7 +54,7 @@ const WORK_FIELDS: WorkField[] = [
   { key: 'Hour Meter Reading', kind: 'text', req: true },
   { key: 'Software Version', kind: 'text', req: true },
   { key: 'Manual Report', kind: 'manual', span: true },
-  { key: 'Add Consumption?', kind: 'yesno', req: true },
+  { key: 'Add Consumption?', kind: 'yesno', req: true, opts: CONSUMPTION_OPTS },
   { key: WARRANTY_Q, kind: 'warranty', req: true },
   { key: 'Accessory Serial No (CPX/ASU)', kind: 'accessory', span: true },
   { key: 'Maintenance Done?', kind: 'yesno' },
@@ -354,6 +362,8 @@ export function CallReportDrawer({
         .filter((f) => f.req && f.kind !== 'manual' && !String(work[f.key] ?? '').trim())
         .map((f) => f.key);
       if (miss.length) return `Fill the Service Report: ${miss.join(', ')}.`;
+      const consProblem = consumptionProblem(String(work['Add Consumption?'] ?? ''), spares.length, spareDraft.part);
+      if (consProblem) return consProblem;
     }
     if (solved) {
       if (!manualLink.trim()) return 'Manual Report is mandatory when the call is Solved - Report Completed — upload the signed report.';
@@ -507,7 +517,7 @@ export function CallReportDrawer({
         {f.kind === 'long' ? (
           <textarea className="input" rows={2} value={val} onChange={(e) => setField(f.key, e.target.value)} />
         ) : f.kind === 'yesno' ? (
-          <SelectPicker value={val} onChange={(v) => setField(f.key, v)} options={[...YESNO]} />
+          <SelectPicker value={val} onChange={(v) => setField(f.key, v)} options={[...(f.opts ?? YESNO)]} />
         ) : f.kind === 'warranty' ? (
           <input type="date" className="input" value={val} onChange={(e) => setField(f.key, e.target.value)} />
         ) : f.kind === 'complaint' ? (

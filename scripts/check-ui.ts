@@ -9,7 +9,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
-import { callDateFromRequest } from '../src/lib/fieldcall';
+import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
@@ -3066,6 +3066,84 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // The first page always did; both paths must, or the bug is half-fixed.
   const load = /const load = async \(\) => \{[\s\S]*?\n  \};/.exec(sc)?.[0] ?? '';
   eq('and so does the first page', /_dbId: x\.id/.test(load), true);
+}
+
+// ---------------------------------------------------------------------------
+// A PANEL THAT HOLDS DROPDOWNS MUST NOT BE THE THING THAT SCROLLS.
+// Reported 2026-09-11: the Filters panel was unusable in every register. It
+// inherits .dt-cols-panel's max-height + overflow-y, and a picker menu is
+// position:absolute, so the option list was clipped to a couple of rows inside
+// the panel's scroll box. One DataTable draws every register, so it was every
+// module at once.
+{
+  console.log('\n-- the filter panel does not clip its own dropdowns --');
+  const css = readFileSync('src/components/table/table.css', 'utf8');
+  const panel = /\.dt-filter-panel \{[^}]*\}/.exec(css)?.[0] ?? '';
+  eq('the filter panel does not scroll', /overflow:\s*visible/.test(panel), true);
+  eq('and it is not height-capped into one', /max-height:\s*none/.test(panel), true);
+  // The columns panel SHOULD still scroll — it is a long list of checkboxes
+  // with no dropdowns in it, so the two must not be conflated.
+  const cols = /\.dt-cols-panel \{[^}]*\}/.exec(css)?.[0] ?? '';
+  eq('the columns panel still scrolls', /overflow-y:\s*auto/.test(cols), true);
+}
+
+// ---------------------------------------------------------------------------
+// A MENU IS AS WIDE AS ITS LONGEST OPTION, NOT AS WIDE AS ITS BOX.
+// Pinned left:0/right:0 it could only be the trigger's width, so in a narrow
+// control every option read as a few truncated characters.
+{
+  console.log('\n-- dropdown options are not truncated --');
+  const ui = readFileSync('src/components/ui/ui.css', 'utf8');
+  const menu = /\.picklist-menu \{[^}]*\}/.exec(ui)?.[0] ?? '';
+  eq('the menu is not pinned to the trigger width', /right:\s*0/.test(menu), false);
+  eq('it is at least as wide as the box', /min-width:\s*100%/.test(menu), true);
+  eq('and grows to its content', /width:\s*max-content/.test(menu), true);
+  eq('but is capped so it cannot run off screen', /max-width:\s*min\(/.test(menu), true);
+  const opt = /\.picklist-opt \{[^}]*\}/.exec(ui)?.[0] ?? '';
+  eq('a long option wraps rather than clipping', /overflow-wrap:\s*anywhere/.test(opt), true);
+  eq('and is never ellipsised', /text-overflow/.test(opt), false);
+}
+
+// ---------------------------------------------------------------------------
+// "Add Consumption?" IS NOT A YES/NO QUESTION (the user's rule, 2026-09-11).
+// "None Consumed" is a stated answer; "No" reads as "not filling this in".
+// And Yes MAKES the spare list mandatory, so neither answer is a skip.
+{
+  console.log('\n-- Add Consumption is answered, not skipped --');
+  const cr = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+  // The answers themselves, from the module that defines them — so a rename
+  // reaches this check instead of leaving it matching a string nobody uses.
+  eq('the two answers are Yes and None Consumed', [CONSUMPTION_YES, CONSUMPTION_NONE], ['Yes', 'None Consumed']);
+  eq('and the field offers exactly those two',
+    /const CONSUMPTION_OPTS = \[CONSUMPTION_YES, CONSUMPTION_NONE\]/.test(cr), true);
+  eq('and the field uses them rather than the yes/no list',
+    /key: 'Add Consumption\?'[^}]*opts: CONSUMPTION_OPTS/.test(cr), true);
+
+  // The RULE, run with real inputs. A regex over the form's source proves only
+  // that a line of code is present: the first version of this check passed
+  // happily against `if (false && ...)`.
+  eq('Yes with no spare at all is refused',
+    consumptionProblem(CONSUMPTION_YES, 0, '') !== null, true);
+  eq('Yes with an added line is fine',
+    consumptionProblem(CONSUMPTION_YES, 1, ''), null);
+  eq('Yes with the spare still in the picker is fine — it is an answer',
+    consumptionProblem(CONSUMPTION_YES, 0, 'FILTER-X'), null);
+  eq('a picker holding only spaces is not an answer',
+    consumptionProblem(CONSUMPTION_YES, 0, '   ') !== null, true);
+  eq('None Consumed never demands a spare',
+    consumptionProblem(CONSUMPTION_NONE, 0, ''), null);
+  eq('and an unanswered field is left to the required-field check',
+    consumptionProblem('', 0, ''), null);
+  eq('the message names both ways out',
+    /add the spare/.test(consumptionProblem(CONSUMPTION_YES, 0, '') ?? '')
+      && (consumptionProblem(CONSUMPTION_YES, 0, '') ?? '').includes(CONSUMPTION_NONE), true);
+  eq('and the form asks the rule rather than restating it',
+    /consumptionProblem\(String\(work\['Add Consumption\?'\]/.test(cr), true);
+
+  // None Consumed must hide the section, not merely grey it.
+  eq('None Consumed hides the spare section',
+    /wantsConsumption = \(work\['Add Consumption\?'\] \?\? ''\) === 'Yes'/.test(cr)
+      && /\{status && workOpen && wantsConsumption && \(/.test(cr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
