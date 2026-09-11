@@ -5,86 +5,107 @@
 -- timeout" on Product Master, and real customers coming back as "nothing
 -- matches" in the call request.
 --
--- The same search shape runs in 7 ms against a rehearsal database of 22,000
--- machines, so the answer is in THIS database and not in the query. This file
--- asks it the four questions that separate the possibilities, and prints them.
+-- The same search runs in 7 ms against a rehearsal database of 22,000 machines,
+-- so the answer is in THIS database and not in the query. This asks the four
+-- questions that separate the possibilities and returns them as ONE table.
 --
--- IT CHANGES NOTHING. Every statement is a SELECT or an EXPLAIN.
+-- PASTE THE WHOLE THING INTO THE SUPABASE SQL EDITOR AND RUN IT. One result,
+-- one screenshot. (The first version of this file used psql's \echo and \pset,
+-- which the SQL editor does not have — it is not psql. Hence the rewrite.)
+--
+-- IT CHANGES NOTHING. The only thing it creates is a function in `pg_temp`,
+-- the throwaway schema that exists for the length of one connection and cannot
+-- outlive it — needed because EXPLAIN cannot otherwise be put in a UNION.
 -- ===========================================================================
-\pset pager off
-\timing on
 
-\echo '=============================================================='
-\echo '1. HOW BIG IS IT REALLY? (the rehearsal used 22,000 machines)'
-\echo '=============================================================='
-select 'products' as table_name, count(*) as rows from public.products
-union all select 'parties',  count(*) from public.parties
-union all select 'parts',    count(*) from public.parts
-union all select 'distinct party names in products',
-       count(*) from (select distinct party_name from public.products) d;
+create or replace function pg_temp.explain_lines(q text)
+returns setof text language plpgsql as $$
+begin
+  return query execute 'explain (analyze, buffers) ' || q;
+end $$;
 
-\echo ''
-\echo '=============================================================='
-\echo '2. ARE THE SEARCH INDEXES ACTUALLY THERE?'
-\echo '   A trigram index is what makes `%term%` possible at all. If'
-\echo '   any of these is missing, every search is a full table scan —'
-\echo '   which is exactly what a statement timeout looks like.'
-\echo '=============================================================='
-select indexname,
-       case when indexdef ilike '%gin%' or indexdef ilike '%trgm%' then 'trigram (substring search)'
-            when indexdef ilike '%unique%' then 'unique'
-            else 'btree (exact match)' end as kind,
-       pg_size_pretty(pg_relation_size(indexname::regclass)) as size
-  from pg_indexes
- where schemaname = 'public' and tablename = 'products'
- order by 2, 1;
+with
+-- 1. HOW BIG IS IT REALLY? The rehearsal used 22,000 machines.
+sizes as (
+  select 1 as ord, 1 as seq, 'SIZE' as section, 'products' as item, count(*)::text as detail from public.products
+  union all select 1, 2, 'SIZE', 'parties', count(*)::text from public.parties
+  union all select 1, 3, 'SIZE', 'parts',   count(*)::text from public.parts
+  union all select 1, 4, 'SIZE', 'distinct party names in products',
+                 count(*)::text from (select distinct party_name from public.products) d
+),
+-- 2. ARE THE SEARCH INDEXES THERE? A trigram index is what makes `%term%`
+--    possible at all. If one is missing, that search is a full table scan,
+--    which is exactly what a statement timeout looks like.
+idx as (
+  select 2, row_number() over (order by indexname)::int, 'INDEX',
+         indexname,
+         (case when indexdef ilike '%gin%' or indexdef ilike '%trgm%'
+                    then 'TRIGRAM (substring search)'
+               when indexdef ilike '%unique%' then 'unique'
+               else 'btree (exact match)' end)
+         || ' · ' || pg_size_pretty(pg_relation_size(indexname::regclass))
+    from pg_indexes
+   where schemaname = 'public' and tablename = 'products'
+),
+-- Expected at minimum: a TRIGRAM index on serial_number, item_name and
+-- party_name (0052), plus products_serial_key_idx (0037). Anything absent
+-- from the list above is very likely the answer.
+missing as (
+  select 2, 900, 'INDEX', '>>> MISSING: ' || n,
+         'this search can only be a full table scan'
+    from (values ('products_serial_number_trgm'), ('products_item_name_trgm'),
+                 ('products_party_name_trgm'), ('products_serial_key_idx')) v(n)
+   where not exists (select 1 from pg_indexes
+                      where schemaname='public' and tablename='products' and indexname = v.n)
+),
+-- 3. HOW LONG IS A STATEMENT ALLOWED TO RUN, for the role the app uses?
+timeouts as (
+  select 3, 1, 'TIMEOUT', coalesce(r.rolname, 'this session'),
+         coalesce(array_to_string(s.setconfig, ' · '), current_setting('statement_timeout', true))
+    from pg_roles r
+    left join pg_db_role_setting s on s.setrole = r.oid
+   where r.rolname in ('authenticated', 'anon', 'authenticator')
+),
+-- 4. WHAT DOES THE FAILING SEARCH ACTUALLY DO? Read the plan: "Seq Scan on
+--    products" means no index was usable.
+plan_three as (
+  select 4, n::int, 'PLAN 1 · the three filters reported', l, ''
+    from pg_temp.explain_lines($q$
+      select * from public.products
+       where serial_number ilike '%7680%'
+         and party_name    ilike '%vivek%'
+         and item_name     ilike '%monnal t75%'
+       limit 200 $q$) with ordinality t(l, n)
+),
+plan_party as (
+  select 5, n::int, 'PLAN 2 · the customer picker', l, ''
+    from pg_temp.explain_lines($q$
+      select party_name from public.product_party_names
+       where party_name ilike '%medical college%'
+       order by party_name limit 50 $q$) with ordinality t(l, n)
+),
+-- A SHORT SERIAL ON ITS OWN is the known trap (0129): four characters give a
+-- trigram index almost no selectivity, so the planner reads the whole table.
+plan_serial as (
+  select 6, n::int, 'PLAN 3 · a short serial alone (the 0129 trap)', l, ''
+    from pg_temp.explain_lines($q$
+      select * from public.products
+       where serial_number ilike '%7680%' limit 200 $q$) with ordinality t(l, n)
+)
+-- ORDERED BY THE SECTION AND THEN BY THE LINE'S OWN POSITION. An EXPLAIN sorted
+-- alphabetically is not a plan, it is a word list — the first draft of this file
+-- did exactly that.
+select section, item, detail from (
+  select * from sizes
+  union all select * from idx
+  union all select * from missing
+  union all select * from timeouts
+  union all select * from plan_three
+  union all select * from plan_party
+  union all select * from plan_serial
+) all_of_it(ord, seq, section, item, detail)
+order by ord, seq;
 
-\echo ''
-\echo 'Expected, at minimum: a trigram index on serial_number, item_name and'
-\echo 'party_name (0052), products_serial_key_idx (0037) and'
-\echo 'products_party_name_group_idx (0160). Anything absent is the answer.'
-
-\echo ''
-\echo '=============================================================='
-\echo '3. HOW LONG IS A STATEMENT ALLOWED TO RUN?'
-\echo '=============================================================='
-select rolname, setconfig
-  from pg_roles r left join pg_db_role_setting s on s.setrole = r.oid
- where rolname in ('authenticated', 'anon', 'authenticator')
-    or rolname = current_user;
-select current_setting('statement_timeout', true) as statement_timeout_here;
-
-\echo ''
-\echo '=============================================================='
-\echo '4. WHAT DOES THE FAILING SEARCH ACTUALLY DO?'
-\echo '   The three filters from the report: party "vivek", product'
-\echo '   "monnal t75", serial "7680". Read the top line: a Seq Scan on'
-\echo '   products means no index was usable.'
-\echo '=============================================================='
-explain (analyze, buffers)
-select * from public.products
- where serial_number ilike '%7680%'
-   and party_name    ilike '%vivek%'
-   and item_name     ilike '%monnal t75%'
- limit 200;
-
-\echo ''
-\echo '--- and the one behind the customer picker on a call request ---'
-explain (analyze, buffers)
-select party_name from public.product_party_names
- where party_name ilike '%medical college%'
- order by party_name limit 50;
-
-\echo ''
-\echo '--- and a SHORT serial on its own, which is the known trap (0129):'
-\echo '--- four characters give a trigram index almost no selectivity.'
-explain (analyze, buffers)
-select * from public.products where serial_number ilike '%7680%' limit 200;
-
-\echo ''
-\echo '=============================================================='
-\echo 'WHAT TO SEND BACK: all of it. The row counts, the index list and'
-\echo 'the three plans together say which of these it is — a missing'
-\echo 'index, a table far larger than the rehearsal, or a timeout set'
-\echo 'shorter than the work.'
-\echo '=============================================================='
+-- SEND BACK ALL OF IT. The row counts, the index list and the three plans
+-- together say which of these it is: an index that is not there, a table far
+-- larger than the rehearsal, or a time limit set shorter than the work.
