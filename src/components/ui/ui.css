@@ -262,8 +262,16 @@ body.drawer-resizing * { cursor: col-resize !important; }
 .picklist-empty { color: var(--text-muted); }
 .picklist-caret { opacity: 0.55; font-size: 11px; }
 .picklist-input { width: 100%; }
+/* THE MENU IS AT LEAST AS WIDE AS THE BOX, AND AS WIDE AS ITS LONGEST OPTION.
+   Pinned left:0/right:0 it could only ever be the trigger's width, so in a
+   narrow control -- a filter row, a column of a form grid -- every option read
+   as a few truncated characters and the list could not be used for what it is
+   for (the user, 2026-09-11: "no truncation, same issue in all modules").
+   Capped so one long value cannot run off the screen, and the options wrap
+   rather than clip once it does. */
 .picklist-menu {
-  position: absolute; z-index: 40; left: 0; right: 0; top: calc(100% + 3px);
+  position: absolute; z-index: 40; left: 0; right: auto; top: calc(100% + 3px);
+  min-width: 100%; width: max-content; max-width: min(460px, calc(100vw - 32px));
   max-height: 280px; overflow-y: auto;
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
@@ -271,6 +279,9 @@ body.drawer-resizing * { cursor: col-resize !important; }
 .picklist-opt {
   display: block; width: 100%; text-align: left; border: 0; background: none;
   padding: 6px 10px; font: inherit; font-size: 12.5px; color: var(--text); cursor: pointer;
+  /* Wrap a long value onto a second line. Never an ellipsis: two options that
+     differ past the cut render identically, which is worse than a tall row. */
+  white-space: normal; overflow-wrap: anywhere;
 }
 /* The highlighted row INVERTS against the page rather than tinting: the
    standing rule, and the only thing that reads at a glance in both themes. */

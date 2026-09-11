@@ -194,3 +194,19 @@ export function callDateFromRequest(r: {
   if (logged) return { iso: logged, source: 'logged' };
   return { iso: '', source: 'none' };
 }
+
+// ---------------------------------------------------------------------------
+// ADD CONSUMPTION? — the rule, as a function rather than a line inside a form.
+// "Yes" means a part went into the machine, so the spare list cannot be empty
+// (the user's rule, 2026-09-11). A spare still sitting in the picker COUNTS:
+// it is the answer typed and not yet added, and refusing a report the engineer
+// has actually filled in is how the box gets set back to None Consumed.
+// Exported so the rule can be exercised with real inputs; a regex over the
+// form's source proves only that a line of code is present, not that it fires.
+export const CONSUMPTION_YES = 'Yes';
+export const CONSUMPTION_NONE = 'None Consumed';
+export function consumptionProblem(answer: string, lines: number, draftPart: string): string | null {
+  if (String(answer ?? '').trim() !== CONSUMPTION_YES) return null;
+  if (lines > 0 || String(draftPart ?? '').trim() !== '') return null;
+  return `Add Consumption? is ${CONSUMPTION_YES} — add the spare that was used, or set it to ${CONSUMPTION_NONE}.`;
+}
