@@ -2540,9 +2540,22 @@ console.log('\n-- a failed search never reads as "no such customer" --');
   // The diagnostic is read-only: it is handed to somebody to run against the
   // live project, so it must not be able to change it.
   const diag = readFileSync('supabase/apply/_search_diagnose.sql', 'utf8');
+  const diagSql = diag.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+  // The ONE thing it may create is a function in `pg_temp` — the throwaway
+  // schema that lives for one connection and cannot outlive it. EXPLAIN cannot
+  // otherwise be put in a UNION, and a single result is one screenshot rather
+  // than four. Anything else that writes is refused.
   eq('the search diagnostic only reads',
-    /\b(insert|update|delete|drop|alter|create)\b/i.test(
-      diag.split('\n').filter((l) => !l.trim().startsWith('--') && !l.trim().startsWith('\\echo')).join('\n')) === false, true);
+    /\b(insert|update|delete|drop|alter|truncate|grant)\b/i.test(diagSql) === false
+    && /\bcreate\b/i.test(diagSql.replace(/create or replace function pg_temp\.[\s\S]*?end \$\$;/i, '')) === false, true);
+  // AND IT MUST RUN WHERE IT IS ACTUALLY RUN. The first version used psql's
+  // \\echo and \\pset, which the Supabase SQL editor does not have — it is not
+  // psql, and every other file in supabase/apply/ is pure SQL for that reason.
+  eq('...and is pure SQL, not psql meta-commands',
+    /^\s*\\/m.test(diag) === false, true);
+  // A plan sorted alphabetically is a word list, not a plan.
+  eq('...and keeps each plan in its own line order',
+    /with ordinality/.test(diag) && /order by ord, seq;/.test(diag), true);
 }
 
 console.log('\n-- a person can see what their own access actually is --');

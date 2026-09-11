@@ -298,6 +298,22 @@ against a rehearsal database of 22,000 machines, planning a bitmap scan on
 `products_item_name_trgm`. So the answer is in THEIR database, not in the query,
 and guessing at it from here is how the last two rounds were spent.
 
+⚠️ **AND THE FIRST VERSION OF IT WOULD NOT RUN** — `ERROR: 42601: syntax error
+at or near "\"` on line 14. It was written for **psql**, using `\echo`, `\pset`
+and `\timing`; the Supabase SQL editor is not psql and has none of them. **Every
+other file in `supabase/apply/` is pure SQL for exactly that reason** — it is
+written to be pasted into that editor — and this one broke the convention
+without noticing. Rewritten as ONE query returning one table, so it is one paste
+and one screenshot.
+
+The rewrite creates exactly one thing: a function in **`pg_temp`**, the
+throwaway schema that lives for a single connection and cannot outlive it —
+needed because EXPLAIN cannot otherwise be put in a UNION. `check:ui` now
+refuses any other write, refuses a psql meta-command anywhere in the file, and
+refuses the ordering being changed back: the first rewrite ordered by name, which
+sorted each EXPLAIN alphabetically. **A plan sorted alphabetically is a word
+list, not a plan.**
+
 **`supabase/apply/_search_diagnose.sql`** asks the four questions that separate
 the possibilities and prints them: the real row counts, every index on
 `products` with its kind and size, the `statement_timeout` actually in force,
