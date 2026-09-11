@@ -268,6 +268,57 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+✅ **THE DIAGNOSTIC CAME BACK AND THE DATABASE IS HEALTHY** (2026-09-11,
+v0.9.197). Their numbers, against a rehearsal that had guessed 22,000:
+
+| | |
+| --- | --- |
+| products | **19,253** — SMALLER than the rehearsal |
+| parties | 5,873 |
+| parts | 1,324 |
+| distinct party names in products | **4,851** |
+| `statement_timeout` for `authenticated` | **20 s** |
+| the three-filter search that "timed out" | **4.3 ms** |
+| the customer picker | **37.7 ms** |
+| a short serial alone (the 0129 trap) | **0.06 ms** |
+
+**All four critical indexes are present.** Nothing measured comes within three
+orders of magnitude of the 20-second limit. **The timeout was not the query**,
+and the most likely explanation is that it was transient — `performance.sql`
+creates indexes on `products`, and a CREATE INDEX competing for I/O is exactly
+when a one-off cancellation appears. Recorded rather than chased further: there
+is nothing left in the evidence to chase.
+
+**AND THE REAL ANSWER TO "NOTHING MATCHES" WAS IN THE NUMBERS, not the
+timeout.** 5,873 parties, 4,851 of which own a machine — **about a THOUSAND
+customers are on the Party Master with nothing against them.** On a field call
+those are not offered, by the design settled on 2026-09-10 (the cascade looks
+the products up BY the name). "Nagapattinam Medical College" and "HKSD" are very
+likely among them, and the picker was telling the truth — just unhelpfully.
+
+**So they are now LISTED AND UNPICKABLE, with the reason on the row** —
+"— no machine on record". PickList already had that shape (`isDisabled`), used
+where a spare with no stock is shown so the engineer can see WHY it is not an
+option. **Answering "Nothing matches" about a customer somebody is looking
+straight at is a lie by omission**, and it hides the actual problem: that
+customer's machine has not been registered yet.
+
+`Form`/`SelectPicker` gained `isDisabled` and `labelForOption` to carry it, and
+the two rules COMPOSE — a field adding its own must not replace the list's, or a
+spare with no stock would quietly become pickable. That composition broke under
+a mutation and nothing caught it, so it has an assertion now.
+
+**Part Master reading 0 is not a fault either**: `parts` holds 1,324 rows and
+`parts_read` admits any signed-in user. The nav badge is what that screen has
+LOADED, and it had not been opened.
+
+**One gap in the diagnostic itself, worth remembering**: it runs as the SQL
+editor's role, which BYPASSES RLS — the exact mistake the KPI export fix wrote
+down ("a performance check that does not `set role authenticated` is not a
+performance check"). It did not matter here, because `products_read` and
+`parts_read` are `auth.role() = 'authenticated'` with no subquery, unlike
+`reports_read`. But the file should compare both, and does not yet.
+
 🐞 **"all issues related to Product Database. .. Something is awfully wrong"**
 (2026-09-11, v0.9.195).
 

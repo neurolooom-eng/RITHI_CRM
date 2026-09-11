@@ -2292,8 +2292,12 @@ console.log('\n-- dropdowns are one control --');
     /isDisabled\?: \(value: string\) => boolean/.test(pl), true);
 
   // The value stored is never the LABEL, or every downstream match breaks.
+  // The PROPERTY: whatever a row reads, `onPick` still returns the VALUE — the
+  // label is never what gets stored. Written to tolerate an override in front
+  // of the map, which is how a disabled row carries its reason.
   eq('the label is display-only; the value is what is stored',
-    /labelFor=\{\(v\) => labels\.get\(v\) \?\? v\}/.test(sp), true);
+    /labelFor=\{\(v\) => (?:labelForOption\?\.\(v\) \?\? )?labels\.get\(v\) \?\? v\}/.test(sp)
+    && /onPick=\{onChange\}/.test(sp), true);
 
   // The converted screens, and the ENGINE — which is what makes the rule true
   // in every FieldDef form (Field Call, Installation, PM, Pending
@@ -2428,7 +2432,8 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // before the field worked at all, reported as eight seconds on a phone.
   for (const [name, src] of [['the call registers', cf], ['the call request', rq], ['Product & Party Search', lk]] as const) {
     eq(`${name} searches the server for a customer`,
-      /onSearch=\{|onSearch: /.test(src) && /sbSearchProductParties/.test(src), true);
+      /onSearch=\{|onSearch: /.test(src)
+      && /sbSearchPartiesForCall|sbSearchProductParties/.test(src), true);
   }
   // AND THE DOWNLOAD IS GONE, not merely unused. Dead code that still looks
   // alive is how somebody reintroduces the problem by calling the
@@ -2444,8 +2449,27 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
     /sbSearchPartiesForInstall/.test(lib)
     && /\[\.\.\.owners, \.\.\.master\.filter/.test(lib), true);
   eq('...and only an installation gets it',
-    /opts\.newPartyAllowed \? sbSearchPartiesForInstall : sbSearchProductParties/.test(cf)
-    && /isInstall \? sbSearchPartiesForInstall : sbSearchProductParties/.test(rq), true);
+    /opts\.newPartyAllowed \? sbSearchPartiesForInstall : sbSearchPartiesForCall/.test(cf)
+    && /isInstall \? sbSearchPartiesForInstall : sbSearchPartiesForCall/.test(rq), true);
+
+  // A CUSTOMER WHO EXISTS BUT OWNS NO MACHINE IS SHOWN AND SAID SO. Their
+  // register has ~1,000 of them (5,873 parties, 4,851 owning a machine), and
+  // answering "Nothing matches" on a customer somebody is looking straight at
+  // is a lie by omission.
+  eq('a customer with no machine is listed, not hidden',
+    /export async function sbSearchPartiesForCall/.test(lib)
+    && /nonOwners\.add/.test(lib), true);
+  eq('...and cannot be picked on a call that needs a machine',
+    /isDisabled=\{isInstall \? undefined : partyOwnsNoMachine\}/.test(rq)
+    && /isDisabled: opts\.newPartyAllowed \? undefined : partyOwnsNoMachine/.test(cf), true);
+  eq('...and the row says why',
+    /no machine on record/.test(rq) && /no machine on record/.test(cf), true);
+  // EITHER rule disables a row. A field adding its own must not replace the
+  // list's — that is how a spare with no stock would quietly become pickable.
+  // Added because a mutation that broke exactly this went unnoticed.
+  const selPick = readFileSync('src/components/ui/SelectPicker.tsx', 'utf8');
+  eq('...and a field rule ADDS to the list\'s own disabled rows',
+    /off\.has\(v\) \|\| \(isDisabled\?\.\(v\) \?\? false\)/.test(selPick), true);
 
   // The search is DEBOUNCED — a request per keystroke would be worse than the
   // download it replaces — and only runs while the box is open.

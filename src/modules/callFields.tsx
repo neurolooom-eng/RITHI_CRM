@@ -3,7 +3,7 @@ import { useAuth } from '../lib/auth';
 import { useMaster } from '../lib/masters';
 import type { FieldDef, FieldOption } from '../components/form/Form';
 import { setEngineerNamesCache } from '../lib/format';
-import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, sbSearchProductParties, sbSearchPartiesForInstall, type ComplaintSuggestion } from '../lib/supabase';
+import { supabaseConfigured, sbDirectoryNames, listRegistrantDesks, sbSearchPartiesForCall, sbSearchPartiesForInstall, partyOwnsNoMachine, type ComplaintSuggestion } from '../lib/supabase';
 import { ComplaintSuggest } from '../components/form/ComplaintSuggest';
 import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 
@@ -171,7 +171,12 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
     // The CURRENT value only — enough to keep a saved record's customer
     // selectable while a search is in flight. The rest comes from the server.
     options: [],
-    onSearch: opts.newPartyAllowed ? sbSearchPartiesForInstall : sbSearchProductParties,
+    onSearch: opts.newPartyAllowed ? sbSearchPartiesForInstall : sbSearchPartiesForCall,
+    // Shown but unpickable where the customer owns no machine — see the note on
+    // sbSearchPartiesForCall. The reason on the row beats a bare "no match".
+    isDisabled: opts.newPartyAllowed ? undefined : partyOwnsNoMachine,
+    labelForOption: opts.newPartyAllowed ? undefined : (v: string) => (partyOwnsNoMachine(v)
+      ? `${v} — no machine on record` : v),
     allowFreeText: !!opts.newPartyAllowed,
     datalist: undefined,
     help: opts.newPartyAllowed

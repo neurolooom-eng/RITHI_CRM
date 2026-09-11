@@ -51,6 +51,14 @@ export interface FieldDef {
   // user's rule, 2026-09-09: "fallback or no fallback depends on the field") --
   // a free-text note can take anything, a Standard Complaint cannot.
   allowFreeText?: boolean;
+  /** Rows that show but cannot be chosen, with the reason on the label — a
+   *  customer who owns no machine, a spare with no stock. Seeing WHY something
+   *  is not an option beats it being absent. */
+  isDisabled?: (value: string) => boolean;
+  /** What a row READS, where the value alone does not say enough — above all
+   *  the REASON a disabled row cannot be chosen. A greyed row with no reason is
+   *  just a row that does not work. */
+  labelForOption?: (value: string) => React.ReactNode;
   /** A `select` field may search the SERVER rather than carry its whole list.
    *  For the customer field that is the difference between three paged requests
    *  before the form is usable and one small one per search. */
@@ -351,6 +359,8 @@ function FieldControl({
           className={error ? 'input-error' : undefined}
           allowFreeText={field.allowFreeText === true}
           onSearch={field.onSearch}
+          isDisabled={field.isDisabled}
+          labelForOption={field.labelForOption}
           options={[
             ...(hasCur ? [] : [{ value: cur, label: `${cur} (from sheet)` }]),
             ...opts.map((o) => ({ value: String(o.value), label: o.label })),
