@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.195',
+    date: '2026-09-11',
+    title: 'A search that fails now says so, instead of \u201Cnothing matches\u201D',
+    changes: [
+      'A CUSTOMER SEARCH THAT CANNOT REACH THE DATABASE NOW SAYS SO. It used to show \u201CNothing matches\u201D \u2014 identical to a genuine no-result \u2014 so real customers looked as though they were not on the system, and the next step is raising them again as a duplicate.',
+      'YOUR DATA IS NOT MISSING. The \u201C200\u201D on Product Master and \u201C1,000\u201D on Party Master are how many rows that screen loads at a time, not how many exist.',
+      'The Product Master search timing out is real and is being chased: there is now a read-only diagnostic to run against the database that says whether it is a missing index, a bigger table than expected, or a time limit set too short.',
+      'And an index added last week turned out to be an exact duplicate of one that already existed, so every product upload was maintaining it twice for nothing. Removed.',
+    ],
+  },
+  {
     version: '0.9.194',
     date: '2026-09-11',
     title: 'You can now see what your own access actually is',

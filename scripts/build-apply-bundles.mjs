@@ -320,7 +320,9 @@ const MODULES = {
       // The party list for every Party->Product->Serial cascade, distinct from
       // the PRODUCT register. Sits beside 0098, which does the same for product
       // names and for the same reason.
-      '0160_product_party_names.sql'],
+      '0160_product_party_names.sql',
+      // Drops the duplicate index 0160 added. AFTER it, necessarily.
+      '0161_drop_duplicate_party_index.sql'],
   },
   audit: {
     title: 'Audit Log',

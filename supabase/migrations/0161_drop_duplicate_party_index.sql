@@ -1,0 +1,24 @@
+-- ===========================================================================
+-- A DUPLICATE INDEX I ADDED, removed.
+--
+-- 0160 created `products_party_name_group_idx` on `products (party_name)` to
+-- give the party GROUP BY something to group from. `products_party_name_eq`
+-- (0052) is the SAME INDEX — `CREATE INDEX ... USING btree (party_name)`,
+-- character for character — and had been there since long before.
+--
+-- Found by the diagnostic written for the search timeout
+-- (`_search_diagnose.sql`), which lists every index on `products` precisely so
+-- a person can see what is and is not there. It answered a question it was not
+-- asked, which is the usual way a duplicate index is found: nobody goes looking.
+--
+-- IT IS NOT FREE TO KEEP. Every insert and update to `products` maintained both
+-- copies, and the Product Master upload writes the whole register — so a bulk
+-- load paid for it 21,000 times. It also misleads: somebody reading the index
+-- list later would reasonably assume two indexes meant two different lookups.
+--
+-- The one that stays is 0052's, because it is the older name and the one its
+-- own comment explains ("Btree indexes for the EXACT-match / IN lookups — a
+-- trigram index does not serve `=`/`IN`"). Dropping the newer one leaves that
+-- reasoning intact and leaves 0160's GROUP BY exactly as well served.
+-- ===========================================================================
+drop index if exists public.products_party_name_group_idx;

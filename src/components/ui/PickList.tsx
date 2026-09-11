@@ -96,6 +96,8 @@ export function PickList({
   // rows: they read as the answer.
   const [remote, setRemote] = useState<{ q: string; rows: string[] } | null>(null);
   const [searching, setSearching] = useState(false);
+  // WHY THE LIST IS EMPTY, when it is empty because the request failed.
+  const [failed, setFailed] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -117,11 +119,19 @@ export function PickList({
         // a lower-cased one — storing "The principal" and comparing it with
         // "the principal" would never match, and the list would stay empty for
         // any query with a capital in it.
-        .then((rows) => { if (alive) { setRemote({ q: q.toLowerCase(), rows }); setHi(0); } })
-        // A failed search leaves whatever was already listed rather than
-        // emptying the box: "nothing matches" and "the request failed" must not
-        // look the same, and the second is not the reader's problem to solve.
-        .catch(() => {})
+        .then((rows) => { if (alive) { setRemote({ q: q.toLowerCase(), rows }); setFailed(null); setHi(0); } })
+        // A FAILED SEARCH SAYS SO. This used to swallow the error — and the
+        // comment here claimed the opposite of what the code did, which is how
+        // it survived review: "nothing matches" and "the request failed" must
+        // not look the same, and then they did.
+        //
+        // It matters more than a tidy message. Reported 2026-09-11: real
+        // customers — "Nagapattinam Medical College", "HKSD" — came back as
+        // "Nothing matches", on a database whose product searches were timing
+        // out. The person at the desk concludes the customer is not on the
+        // system and raises them again as a duplicate. A search that cannot
+        // reach the database must never answer the question it was asked.
+        .catch((e) => { if (alive) setFailed(e instanceof Error ? e.message : String(e)); })
         .finally(() => { if (alive) setSearching(false); });
     }, 220);
     return () => { alive = false; window.clearTimeout(t); setSearching(false); };
@@ -265,7 +275,13 @@ export function PickList({
               Use “{typed}” — not on the list
             </button>
           )}
-          {matches.length === 0 && !canTake && !searching && (
+          {failed && !searching && (
+            <div className="picklist-none picklist-failed">
+              The search could not reach the database, so this list is empty —
+              it does <b>not</b> mean the customer is missing. {failed}
+            </div>
+          )}
+          {matches.length === 0 && !canTake && !searching && !failed && (
             <div className="picklist-none">
               Nothing matches “{query}”.{emptyHint ? ` ${emptyHint}` : ''}
             </div>
@@ -277,7 +293,9 @@ export function PickList({
                 showing and that more may exist — the project's own rule that a
                 count over partly-loaded data is a LOWER BOUND. */}
             {onSearch
-              ? (searching
+              ? (failed && !searching
+                  ? <>the search failed · Esc to leave it alone</>
+                  : searching
                   ? <>searching…</>
                   : <>{matches.length} shown{matches.length ? '+' : ''} · keep typing to narrow · Enter to choose, Esc to leave it alone</>)
               : searchable

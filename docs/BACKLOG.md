@@ -268,6 +268,54 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **"all issues related to Product Database. .. Something is awfully wrong"**
+(2026-09-11, v0.9.195).
+
+**FIRST, THE REASSURANCE, because the screenshot invites the opposite reading:
+NO DATA IS MISSING.** Product Master's "200" is `PAGE = 200` in that module and
+Party Master's "1,000" is its own page size. They are how many rows the screen
+loads at a time, not how many exist. Worth stating plainly — a person looking at
+"Product Master 200 / Part Master 0" is entitled to fear the register has been
+emptied.
+
+**THE LIE WAS MINE, AND IT IS THE WHOLE REASON THIS FELT CATASTROPHIC.**
+`sbSearchProductParties` failing left `PickList` with `.catch(() => {})`, so a
+TIMEOUT rendered as **"Nothing matches 'Nagapattinam Medical College'"**. The
+comment directly above that line read *"'nothing matches' and 'the request
+failed' must not look the same"* — I wrote the principle and then implemented
+its opposite two lines later, and a comment is not a check, which is why there
+is now an assertion. On a call desk the consequence is not cosmetic: the person
+concludes the customer is not on the system and raises them again as a
+duplicate.
+
+A failed search now says the list is empty **because the search failed**, says
+it is not evidence the customer is missing, and clears itself on the next
+success.
+
+**THE TIMEOUT ITSELF IS REAL AND NOT YET EXPLAINED.** The same three-filter
+search — party `vivek`, product `monnal t75`, serial `7680` — runs in **6.9 ms**
+against a rehearsal database of 22,000 machines, planning a bitmap scan on
+`products_item_name_trgm`. So the answer is in THEIR database, not in the query,
+and guessing at it from here is how the last two rounds were spent.
+
+**`supabase/apply/_search_diagnose.sql`** asks the four questions that separate
+the possibilities and prints them: the real row counts, every index on
+`products` with its kind and size, the `statement_timeout` actually in force,
+and `EXPLAIN ANALYZE` for the three failing shapes — including a **short serial
+on its own**, which is 0129's documented trap (four characters give a trigram
+index almost no selectivity). Read-only; `check:ui` refuses it if it ever gains
+a write.
+<https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_search_diagnose.sql>
+
+**A DUPLICATE INDEX, FOUND BY THE DIAGNOSTIC ON ITS FIRST RUN.**
+`products_party_name_group_idx` (0160, mine) and `products_party_name_eq` (0052)
+are character-for-character the same `btree (party_name)`. Every insert and
+update to `products` maintained both, and the Product Master upload writes the
+whole register — so a bulk load paid for it 21,000 times. 0161 drops mine and
+keeps 0052's, whose own comment explains why it exists. The diagnostic answered
+a question it was not asked, which is the usual way a duplicate index is found:
+nobody goes looking.
+
 🐞 **FOUR REPORTS FROM VARUN SARADHI** (2026-09-11, v0.9.194). Taken in order
 of what could be PROVED from here.
 
