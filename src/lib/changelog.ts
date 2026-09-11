@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.203',
+    date: '2026-09-11',
+    title: 'Roles can be added from the app, and the report link on a review opens',
+    changes: [
+      'ROLES & PERMISSIONS NOW HAS "＋ ADD A ROLE". Give it a name, choose the role to copy from, and it appears as a new column in the matrix \u2014 untick what it should not have and Save.',
+      'A NEW ROLE ALWAYS STARTS AS A COPY, and that is not a convenience. A role holding NOTHING does not grant nothing: it falls back to an ENGINEER\u2019s permissions, so an "empty" role would quietly hand out an engineer\u2019s writes. Copying makes that impossible rather than leaving it as a trap.',
+      'The new role is offered everywhere a role is chosen \u2014 User Master, User Access, the new-user form \u2014 so somebody can actually be put on it.',
+      'A role is never deleted from this screen: people may be on it, and removing it would drop them to that same engineer fallback with nothing said. Untick what it holds, or move its users first.',
+      'ON CALL REVIEW, the Manual Report is now a link that opens, instead of a long web address to copy by hand.',
+    ],
+  },
+  {
     version: '0.9.202',
     date: '2026-09-11',
     title: 'Call Review \u2014 a second look at the report on a closed call',

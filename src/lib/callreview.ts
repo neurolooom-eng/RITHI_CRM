@@ -24,3 +24,16 @@ export function isReviewable(state: string, status: string): boolean {
   if (s !== 'solved') return false;
   return !/report\s*pending/i.test(String(status ?? ''));
 }
+
+// A report link is a LINK. The signed manual report is the thing the reviewer
+// has come to look at, and it arrived as a wall of Drive URL to copy by hand.
+export const isUrl = (v: string): boolean => /^https?:\/\/\S+$/i.test(String(v ?? '').trim());
+
+// What the link READS. A Drive URL is 80 characters of id that tells nobody
+// anything, so it takes the field's own name — "Manual Report" — and the raw
+// address goes in the tooltip for anyone who wants it. A non-report link keeps
+// its host, which is the part of a URL that says where it goes.
+export function linkLabel(field: string, url: string): string {
+  if (/manual\s*report|report\s*link/i.test(field)) return 'Open the report ↗';
+  try { return `${new URL(url).hostname} ↗`; } catch { return url; }
+}

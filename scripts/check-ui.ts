@@ -16,14 +16,14 @@ import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
 import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
-import { isReviewable, REVIEW_DONE } from '../src/lib/callreview';
+import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { timeAgo } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
-import { DEFAULT_PERMS, MODULES, moduleAction, parentAction } from '../src/lib/rbac';
+import { DEFAULT_PERMS, MODULES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
@@ -3209,6 +3209,74 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const fn = /export async function consumptionForCall[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
   eq('matched on both keys', /ucn\.eq\.\$\{k\},call_number\.eq\.\$\{k\}/.test(fn), true);
   eq('and a row matching both is not shown twice', /seen\.has\(r\.id\)/.test(fn), true);
+}
+
+// ---------------------------------------------------------------------------
+// The signed manual report is what the reviewer has come to look at, so it is
+// a LINK, not 80 characters of Drive URL to copy by hand.
+{
+  console.log('\n-- the report link is clickable --');
+  eq('an https link is one', isUrl('https://drive.google.com/file/d/1o9mfd/view'), true);
+  eq('http too', isUrl('http://example.com/r.pdf'), true);
+  eq('a plain answer is not', isUrl('No'), false);
+  eq('nor a sentence that mentions one', isUrl('see https://x.test for the report'), false);
+  eq('nor an empty field', isUrl('   '), false);
+  // A Drive id tells nobody anything, so the report takes the field's name.
+  eq('the report link reads as the report',
+    linkLabel('Manual Report', 'https://drive.google.com/file/d/1o9mfd/view'), 'Open the report ↗');
+  eq('another link keeps its host', linkLabel('Reference', 'https://example.com/a/b'), 'example.com ↗');
+
+  const cr = readFileSync('src/modules/CallReview.tsx', 'utf8');
+  eq('the link opens away from the app, and cannot reach back into it',
+    /target="_blank" rel="noopener noreferrer"/.test(cr), true);
+}
+
+// ---------------------------------------------------------------------------
+// ADDING A ROLE FROM THE APP.
+// The rule that matters is that a role can NEVER be created empty: has_perm()
+// falls back to the ENGINEER's permissions for a role whose row is an empty
+// array (0008), so an empty role does not grant nothing — it silently grants
+// an engineer's writes to everyone put on it.
+{
+  console.log('\n-- a role added from the app is never empty --');
+  const have = ['admin', 'engineer', 'rm'];
+  eq('a role with no source is refused',
+    roleProblem('regional_coordinator', 'Regional Coordinator', have, '') !== null, true);
+  eq('and the message says to copy one',
+    /copy from/i.test(roleProblem('x_role', 'X Role', have, '') ?? ''), true);
+  eq('with a source it is allowed',
+    roleProblem('regional_coordinator', 'Regional Coordinator', have, 'rm'), null);
+
+  eq('an unnamed role is refused', roleProblem('', '', have, 'rm') !== null, true);
+  eq('a duplicate key is refused', roleProblem('engineer', 'Engineer', have, 'rm') !== null, true);
+  eq('a reserved key is refused', roleProblem('admin', 'Admin', [], 'rm') !== null, true);
+  eq('and every reserved key really is', RESERVED_ROLE_KEYS.includes('admin'), true);
+  eq('a key starting with a digit is refused', roleProblem('2nd_line', '2nd Line', have, 'rm') !== null, true);
+
+  // The key is a database value that appears in policies and in every user's
+  // profile, so it is a slug.
+  eq('the key is slugged from the name', roleKeyFrom('Regional Coordinator'), 'regional_coordinator');
+  eq('punctuation and spaces do not survive it', roleKeyFrom('  Zonal / Area  Head! '), 'zonal_area_head');
+  eq('a name with nothing usable gives no key', roleKeyFrom('!!! ???'), '');
+
+  // A role the database has and the code does not must still be offered
+  // everywhere, or it is a role nobody can be put on.
+  const merged = rolesWith(['engineer', 'regional_coordinator']);
+  eq('a stored role joins the list', merged.some((r) => r.key === 'regional_coordinator'), true);
+  eq('a built-in role is not duplicated by it',
+    merged.filter((r) => r.key === 'engineer').length, 1);
+  eq('and it gets a readable label', roleLabelFor('regional_coordinator'), 'Regional Coordinator');
+  eq('a built-in keeps its own label', roleLabelFor('rm'), 'Reporting Manager');
+
+  // The pickers must ask for the merged list, not the code's.
+  const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
+  eq('the User Master pickers offer every role',
+    (um.match(/options=\{roleOptions\} \/>/g) ?? []).length, 3);
+  eq('and the options come from the stored keys', /rolesWith\(Object\.keys\(rolePerms/.test(um), true);
+  const rp = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
+  eq('the matrix draws a column per stored role, not per coded one',
+    /roles\.map\(\(r\) => <th/.test(rp) && !/ROLES\.map\(\(r\) => <th/.test(rp), true);
+  eq('and saving walks the same list', /for \(const r of roles\)/.test(rp), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

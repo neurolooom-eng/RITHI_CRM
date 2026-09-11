@@ -3933,3 +3933,25 @@ export async function consumptionForCall(ucn: string, callNumber: string): Promi
   const seen = new Set<unknown>();
   return (data ?? []).filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
 }
+
+// Every role the DATABASE knows, with its label — the built-in list in
+// rbac.ts is the starting set, not the whole set, once roles can be added from
+// the app. Labels come from the same row as the permissions, so a renamed role
+// reads the same everywhere without a code change.
+export async function listRoleRows(): Promise<{ role: string; label: string; permissions: string[] }[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('app_roles').select('role,label,permissions').order('role');
+  if (error) return [];
+  return (data ?? []).map((r) => ({
+    role: String(r.role), label: String(r.label ?? '') || String(r.role),
+    permissions: Array.isArray(r.permissions) ? (r.permissions as string[]) : [],
+  }));
+}
+
+// Add a role. CLONED, never empty — see createRole() in lib/rbac.ts for why
+// that is not a convenience.
+export async function createRole(role: string, label: string, permissions: string[]): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.from('app_roles').insert({ role, label, permissions });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}

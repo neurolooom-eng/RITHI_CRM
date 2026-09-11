@@ -59,3 +59,8 @@
   .dccr-desk { grid-template-columns: 1fr !important; height: auto; }
   .dccr-split { display: none; }
 }
+
+/* A link in the visit details reads as a link in both themes, and the long
+   Drive URL behind it never forces the pane to scroll sideways. */
+.cr-dl-row dd a { color: var(--primary); text-decoration: underline; overflow-wrap: anywhere; }
+.cr-dl-row dd a:hover { text-decoration: none; }

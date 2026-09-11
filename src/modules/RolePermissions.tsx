@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { useAuth } from '../lib/auth';
 import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, masterListActions, dynamicActionLabel,
+  roleKeyFrom, roleProblem, type RoleDef,
   type PermHeader, type PermPage } from '../lib/rbac';
-import { setRolePerms, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
+import { setRolePerms, listMasterLists, listRoleRows, createRole, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
 import './fieldcalls.css';
 
@@ -22,6 +24,31 @@ const label = (key: string) => ACTIONS.find((a) => a.key === key)?.label ?? dyna
 
 export function RolePermissions() {
   const { can, rolePerms, reloadRoles } = useAuth();
+  // THE ROLES ARE THE DATABASE'S, not the code's. ROLES in rbac.ts is the
+  // starting set that ships with the app; once a role can be added here, a
+  // matrix drawn from the code alone would simply not show it, with no error --
+  // the new role would exist, people would be on it, and nobody could see or
+  // tune what it holds.
+  const [roles, setRoles] = useState<RoleDef[]>(ROLES);
+  const refreshRoleList = async () => {
+    try {
+      const rows = await listRoleRows();
+      const seen = new Set(ROLES.map((r) => r.key));
+      const extra = rows.filter((r) => !seen.has(r.role)).map((r) => ({ key: r.role, label: r.label }));
+      setRoles([...ROLES, ...extra]);
+      setPerms((cur) => {
+        const next = { ...cur };
+        extra.forEach((r) => { if (!next[r.key]) next[r.key] = new Set(permsForRole(r.key, rolePerms)); });
+        return next;
+      });
+    } catch { /* the built-in list still draws the screen */ }
+  };
+  useEffect(() => { void refreshRoleList(); /* eslint-disable-next-line */ }, [rolePerms]);
+
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [cloneFrom, setCloneFrom] = useState('');
+
   const [perms, setPerms] = useState<Record<string, Set<string>>>(() => {
     const out: Record<string, Set<string>> = {};
     ROLES.forEach((r) => { out[r.key] = new Set(permsForRole(r.key, rolePerms)); });
@@ -90,11 +117,37 @@ export function RolePermissions() {
     });
   };
 
+
+  // ---- adding a role ------------------------------------------------------
+  // ALWAYS A COPY OF AN EXISTING ROLE, and that is not a convenience. has_perm()
+  // falls back to the ENGINEER's permissions for a role whose row is an empty
+  // array (0008), so a role created with nothing does not grant nothing -- it
+  // silently grants an engineer's writes to everyone put on it. Requiring a
+  // source makes the empty role impossible instead of documenting the trap.
+  const newKey = roleKeyFrom(newLabel);
+  const addRole = async () => {
+    const problem = roleProblem(newKey, newLabel, roles.map((r) => r.key), cloneFrom);
+    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
+    const source = cloneFrom === 'admin'
+      ? [...ACTIONS.map((a) => a.key), ...masters.flatMap((m) => [masterAction(m.key), ...masterListActions(m.key)])]
+      : [...(perms[cloneFrom] ?? [])];
+    setBusy(true); setMsg({ tone: 'info', text: 'Adding…' });
+    const res = await createRole(newKey, newLabel.trim(), source);
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: `Could not add the role: ${res.error}` }); return; }
+    logAudit({ action: 'rbac.role.add', target: newKey, status: 'ok', meta: { cloned_from: cloneFrom, permissions: source.length } });
+    await reloadRoles();
+    await refreshRoleList();
+    setPerms((cur) => ({ ...cur, [newKey]: new Set(source) }));
+    setAdding(false); setNewLabel(''); setCloneFrom('');
+    setMsg({ tone: 'ok', text: `Added "${newLabel.trim()}" (${newKey}) with ${cloneFrom}'s ${source.length} permissions. Untick what it should not have, then Save.` });
+  };
+
   const save = async () => {
     if (!supabaseConfigured()) { setMsg({ tone: 'error', text: 'Connect the database first.' }); return; }
     setBusy(true); setMsg({ tone: 'info', text: 'Saving…' });
     try {
-      for (const r of ROLES) {
+      for (const r of roles) {
         const list = r.key === 'admin'
           ? [...ACTIONS.map((a) => a.key),
              ...masters.flatMap((m) => [masterAction(m.key), ...masterListActions(m.key)])]
@@ -103,14 +156,14 @@ export function RolePermissions() {
         if (!res.ok) { setMsg({ tone: 'error', text: `Save failed for ${r.label}: ${res.error}` }); setBusy(false); return; }
       }
       await reloadRoles();
-      logAudit({ action: 'rbac.save', status: 'ok', meta: { roles: ROLES.length } });
+      logAudit({ action: 'rbac.save', status: 'ok', meta: { roles: roles.length } });
       setMsg({ tone: 'ok', text: 'Permissions saved. They apply on each user’s next action / reload.' });
     } catch (e) {
       setMsg({ tone: 'error', text: `Save failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
   };
 
-  const cells = (action: string, kind: '' | 'view' = '') => ROLES.map((r) => (
+  const cells = (action: string, kind: '' | 'view' = '') => roles.map((r) => (
     <td key={r.key} className="rbac-cell">
       <input type="checkbox" className={kind === 'view' ? 'rbac-view-box' : undefined}
         checked={has(r.key, action)} disabled={!mayEdit || r.key === 'admin'}
@@ -128,6 +181,43 @@ export function RolePermissions() {
         </div>
       )}
 
+      {mayEdit && (
+        <SectionCard title="Roles">
+          <div className="rbac-addrole">
+            {!adding ? (
+              <button className="btn btn-sm" onClick={() => setAdding(true)}>＋ Add a role</button>
+            ) : (
+              <>
+                <label className="field">
+                  <span className="field-label">Role name</span>
+                  <input className="input" value={newLabel} autoFocus
+                    onChange={(e) => setNewLabel(e.target.value)} placeholder="e.g. Regional Coordinator" />
+                  {newLabel.trim() && <span className="muted rbac-addrole-key">Key: <code>{newKey || '—'}</code> — this is what the database stores, and it cannot be changed later.</span>}
+                </label>
+                <label className="field">
+                  <span className="field-label">Copy permissions from</span>
+                  <SelectPicker value={cloneFrom} onChange={setCloneFrom} placeholder="— pick a role to copy —"
+                    options={roles.map((r) => ({ value: r.key, label: r.label }))} />
+                  <span className="muted rbac-addrole-key">
+                    A new role must start from an existing one. A role holding NOTHING does not grant nothing —
+                    it falls back to an <b>Engineer</b>&rsquo;s permissions, which is the opposite of what an empty
+                    role looks like. Copy the closest role, then untick what this one should not have.
+                  </span>
+                </label>
+                <div className="rbac-addrole-btns">
+                  <button className="btn btn-primary btn-sm" onClick={() => void addRole()} disabled={busy}>Add role</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => { setAdding(false); setNewLabel(''); setCloneFrom(''); }}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+          <p className="muted rbac-addrole-note">
+            A role is never deleted from here: people may be on it, and removing it would drop them to the
+            engineer fallback without telling anybody. Untick everything it holds instead, or move its users first.
+          </p>
+        </SectionCard>
+      )}
+
       <SectionCard title="Permission matrix">
         <div className="rbac-tools">
           <button className="btn btn-sm" onClick={expandAll}>⌄ Expand all</button>
@@ -142,7 +232,7 @@ export function RolePermissions() {
             <thead>
               <tr>
                 <th className="rbac-action">Module / action</th>
-                {ROLES.map((r) => <th key={r.key} title={r.key}>{r.label}</th>)}
+                {roles.map((r) => <th key={r.key} title={r.key}>{r.label}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -152,7 +242,7 @@ export function RolePermissions() {
                 return (
                   <Fragment key={head.title}>
                     <tr className="rbac-group rbac-head-row" onClick={() => setOpenHeads((s) => toggleIn(s, head.title))}>
-                      <td colSpan={ROLES.length + 1}>
+                      <td colSpan={roles.length + 1}>
                         <span className="rbac-caret">{headOpen ? '⌄' : '›'}</span> {head.title}
                         <span className="muted"> · {pages.length} page{pages.length === 1 ? '' : 's'}</span>
                       </td>
@@ -181,7 +271,7 @@ export function RolePermissions() {
                             </td>
                             {view
                               ? cells(view, 'view')
-                              : ROLES.map((r) => <td key={r.key} className="rbac-cell muted">—</td>)}
+                              : roles.map((r) => <td key={r.key} className="rbac-cell muted">—</td>)}
                           </tr>
 
                           {pageOpen && page.actions.map((a) => (
@@ -196,7 +286,7 @@ export function RolePermissions() {
                           {pageOpen && hasChildren && (
                             <tr className="rbac-child rbac-bulk">
                               <td className="rbac-action rbac-indent muted">Everything on this page</td>
-                              {ROLES.map((r) => (
+                              {roles.map((r) => (
                                 <td key={r.key} className="rbac-cell">
                                   <button className="btn btn-ghost btn-sm" disabled={!mayEdit || r.key === 'admin'}
                                     title={`Tick every action on ${page.label} for ${r.label}`}

@@ -3,7 +3,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, Drawer, Modal } from '../components/ui/ui';
 import { useAuth, type User } from '../lib/auth';
-import { ROLES, ACTIONS, permsForRole } from '../lib/rbac';
+import { ROLES, ACTIONS, permsForRole, rolesWith, roleLabelFor } from '../lib/rbac';
 import { csvExport, fmtLongDate, statusBadge } from '../lib/format';
 import { listUsers, dataConfigured } from '../lib/sheets';
 import {
@@ -31,7 +31,7 @@ import './fieldcalls.css';
 type Row = Record<string, unknown> & { id: string };
 
 const VALIDITY_TONES = { TRUE: 'success', FALSE: 'neutral' } as const;
-const roleLabel = (key: string) => ROLES.find((r) => r.key === key)?.label ?? (key || '—');
+const roleLabel = (key: string) => roleLabelFor(key) || (key || '—');
 
 const emptyRow = (): DirectoryRow => ({
   id: 0, name: '', email: '', gmail: '', designation: '',
@@ -40,7 +40,13 @@ const emptyRow = (): DirectoryRow => ({
 });
 
 export function UserMasterView() {
-  const { users, can, reloadUsers } = useAuth();
+  const { users, can, reloadUsers, rolePerms } = useAuth();
+  // EVERY role the database knows, not only the ones in the code: a role added
+  // on Roles & Permissions that no picker offers is a role nobody can be put
+  // on, which is a feature that does nothing.
+  const roleOptions = useMemo(
+    () => rolesWith(Object.keys(rolePerms ?? {})).map((r) => ({ value: r.key, label: r.label })),
+    [rolePerms]);
   const live = supabaseConfigured();
   const editable = live && can('users.manage');
 
@@ -304,7 +310,7 @@ export function UserMasterView() {
           return (
             <SelectPicker value={String(draftOf(r).role ?? '')} placeholder="— no role —"
               onChange={(v) => setField(r, 'role', v)}
-              options={ROLES.map((x) => ({ value: x.key, label: x.label }))} />
+              options={roleOptions} />
           );
         }
         const signedIn = profileByEmail.get(r.email.toLowerCase()) ?? profileByEmail.get(r.gmail.toLowerCase());
@@ -571,6 +577,7 @@ export function UserMasterView() {
             signedInRole={(profileByEmail.get(edit.email.trim().toLowerCase()) ?? profileByEmail.get(edit.gmail.trim().toLowerCase()))?.role}
             names={dirNames}
             regions={dirRegions}
+            roleOptions={roleOptions}
             onChange={setEdit}
             onCancel={() => { setEdit(null); setCloneSrc(null); setMkLogin(false); }}
             onSave={() => void save(edit)}
@@ -680,6 +687,9 @@ function AccessDrawer({ user, onClose, onSaved, onError }: {
   user: User; onClose: () => void; onSaved: (t: string) => void; onError: (t: string) => void;
 }) {
   const { rolePerms } = useAuth();
+  const roleOptions = useMemo(
+    () => rolesWith(Object.keys(rolePerms ?? {})).map((r) => ({ value: r.key, label: r.label })),
+    [rolePerms]);
   const [role, setRole] = useState(user.rbacRole || 'engineer');
   const [extra, setExtra] = useState<Set<string>>(new Set(user.extraPermissions ?? []));
   const [busy, setBusy] = useState(false);
@@ -707,7 +717,7 @@ function AccessDrawer({ user, onClose, onSaved, onError }: {
         <label className="rep-field" style={{ maxWidth: 320 }}>
           <span className="field-label">Role</span>
           <SelectPicker value={role} onChange={setRole}
-            options={ROLES.map((r) => ({ value: r.key, label: r.label }))} />
+            options={roleOptions} />
         </label>
         <div className="muted rep-hint">The role sets the base access. Tick anything extra this person needs on top.</div>
         <div className="assoc-scroll" style={{ marginTop: 8 }}>
@@ -793,7 +803,7 @@ function DataViewDrawer({ user, onClose }: { user: User; onClose: () => void }) 
   );
 }
 
-function UserForm({ row, busy, signedInRole, names, regions, onChange, onCancel, onSave }: {
+function UserForm({ row, busy, signedInRole, names, regions, roleOptions, onChange, onCancel, onSave }: {
   row: DirectoryRow; busy: boolean; signedInRole?: string;
   // WHAT THE DIRECTORY ALREADY SAYS. Offered, not imposed (the user's ask,
   // 2026-09-06): a manager who is not in the directory yet has to be typeable,
@@ -802,6 +812,9 @@ function UserForm({ row, busy, signedInRole, names, regions, onChange, onCancel,
   // matched BY NAME to build the reporting tree, so choosing from the list is
   // what makes that tree work.
   names: string[]; regions: string[];
+  // Passed in rather than read here: the list includes roles the DATABASE has
+  // and the code does not, and it is the register above that holds them.
+  roleOptions: { value: string; label: string }[];
   onChange: (r: DirectoryRow) => void; onCancel: () => void; onSave: () => void;
 }) {
   const set = <K extends keyof DirectoryRow>(k: K, v: DirectoryRow[K]) => onChange({ ...row, [k]: v });
@@ -846,7 +859,7 @@ function UserForm({ row, busy, signedInRole, names, regions, onChange, onCancel,
         <label className="rep-field">
           <span className="field-label">Role</span>
           <SelectPicker value={row.role} onChange={(v) => set('role', v)} placeholder="— no role —"
-            options={ROLES.map((r) => ({ value: r.key, label: r.label }))} />
+            options={roleOptions} />
         </label>
         <label className="rep-field">
           <span className="field-label">Active</span>
