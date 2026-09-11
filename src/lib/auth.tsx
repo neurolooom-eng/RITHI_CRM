@@ -257,7 +257,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supaMode) { setSupaBooting(false); return; }
     let alive = true;
     const hydrate = async () => {
-      const p = await sbCurrentProfile();
+      // A FAILED PROFILE READ MUST NOT BOOT SOMEBODY AS A BARE ENGINEER, and it
+      // must not hang the app either. It used to do the first silently; throwing
+      // without catching here would do the second. So: no identity, booting
+      // finished, and the sign-in screen — which is recoverable and honest,
+      // where a quiet downgrade is neither.
+      let p: Awaited<ReturnType<typeof sbCurrentProfile>> = null;
+      try {
+        p = await sbCurrentProfile();
+      } catch {
+        if (!alive) return;
+        setSupaUser(null); setAuditUser(null); setSupaUsers([]);
+        setSupaBooting(false);
+        return;
+      }
       if (!alive) return;
       const u = p ? profileToUser(p) : null;
       // A login disabled after they signed in is signed out on the next load.
@@ -389,7 +402,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (m.includes('not confirmed')) return { ok: false, error: 'Email not confirmed — turn off "Confirm email" in Supabase, or confirm the address.' };
         return { ok: false, error: res.error || 'Login failed.' };
       }
-      const p = await sbCurrentProfile();
+      let p: Awaited<ReturnType<typeof sbCurrentProfile>> = null;
+      try {
+        p = await sbCurrentProfile();
+      } catch (e) {
+        // Signed in, but their own profile could not be read. Saying so beats
+        // letting them in with whatever the fallback happened to allow.
+        await sbSignOut();
+        return { ok: false, error: e instanceof Error ? e.message : 'Could not read your profile.' };
+      }
       const u = p ? profileToUser(p) : null;
       // A disabled login (profiles.active = false) can authenticate but must not
       // be let into the app — a leaver's history stays, their access does not.

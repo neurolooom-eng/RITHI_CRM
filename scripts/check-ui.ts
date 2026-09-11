@@ -2450,9 +2450,21 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // The search is DEBOUNCED — a request per keystroke would be worse than the
   // download it replaces — and only runs while the box is open.
   const pl2 = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  // The PROPERTY: the call to onSearch sits inside a setTimeout (debounced) and
+  // the effect gives up early when the box is closed. Not the expression that
+  // happens to produce the query — that has now cost a cycle twice.
   eq('the search is debounced and only runs while open',
     /if \(!onSearch \|\| !open\) return;/.test(pl2)
-    && /setTimeout\([\s\S]{0,400}onSearch\(query\.trim\(\)\)/.test(pl2), true);
+    && /setTimeout\([\s\S]{0,700}onSearch\(/.test(pl2)
+    && /\}, \d+\);/.test(pl2), true);
+
+  // AND IT NEVER SHOWS ROWS THAT CONTRADICT WHAT IS TYPED. The results are kept
+  // WITH the query that produced them: holding the rows alone left the previous
+  // answer on screen mid-search, so typing "The principal" listed hospitals
+  // beginning with A under a quiet "searching…".
+  eq('...and results are keyed to the query that produced them',
+    /setRemote\(\{ q: q\.toLowerCase\(\), rows \}\)/.test(pl2)
+    && /remote\.q === q \? remote\.rows : null/.test(pl2), true);
   // A server-searched list does not know the total and must not claim one: the
   // project's rule that a count over partly-loaded data is a LOWER BOUND.
   eq('...and it does not claim a total it cannot know',
@@ -2499,6 +2511,40 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // storing it would serve that emptiness back for a week.
   eq('...and an empty list is never stored',
     /if \(v\.length\) writeStored\(name, v\);/.test(mst), true);
+}
+
+console.log('\n-- a person can see what their own access actually is --');
+{
+  // Reported 2026-09-11: an administrator using "View as" saw three actions on
+  // a call and the engineer signing in himself saw one. Both go through the
+  // SAME can(), so the difference was in the inputs — and neither screen showed
+  // what those inputs were. Two people comparing screenshots is not a diagnosis.
+  const prof = readFileSync('src/modules/Profile.tsx', 'utf8');
+  eq('My Profile says which role is in effect',
+    /const roleKey = user\.rbacRole \|\| legacyToRbac\(user\.role\)/.test(prof), true);
+  // THE DISTINCTION THIS PROJECT KEEPS BEING CAUGHT BY: a stored row that is
+  // absent or empty falls back to the built-in defaults SILENTLY, so a role can
+  // look configured on Roles & Permissions and behave like something else.
+  eq('...and whether they come from the stored role or the defaults',
+    /const fromStored = !!\(stored && stored\.length\)/.test(prof)
+    && /the built-in defaults/.test(prof), true);
+  eq('...and what is granted to them personally',
+    /user\.extraPermissions \?\? \[\]/.test(prof), true);
+  // While previewing, the panel must say it is the PREVIEW identity — or it
+  // becomes another way to mistake one person's access for another's.
+  eq('...and says when it is describing a preview, not you',
+    /previewing && \(/.test(prof), true);
+
+  // A FAILED PROFILE READ MUST NOT SILENTLY DOWNGRADE SOMEBODY. It used to drop
+  // the error and fall through to a bare-engineer identity; a person quietly
+  // downgraded looks like a broken app rather than like access not granted.
+  const sbLib = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('a failed profile read is not swallowed',
+    /const \{ data, error \} = await c\.from\('profiles'\)[\s\S]{0,200}if \(error\) throw/.test(sbLib), true);
+  // ...and throwing must not hang the boot either.
+  const au = readFileSync('src/lib/auth.tsx', 'utf8');
+  eq('...and the failure still finishes booting',
+    /catch \{[\s\S]{0,300}setSupaBooting\(false\);/.test(au), true);
 }
 
 console.log('\n-- the KPI export narrows the calls before it reads the visits --');

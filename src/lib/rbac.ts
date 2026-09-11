@@ -125,7 +125,9 @@ const NON_ADMIN_MODULES = MODULES.filter((m) => !m.admin).map((m) => moduleActio
 const ALL_MODULES = MODULES.map((m) => moduleAction(m.path));
 
 export interface ActionDef { key: string; label: string; group: string }
-const FUNCTIONAL_ACTIONS: ActionDef[] = [
+// EXPORTED so a person can be shown what they hold, in words. My Profile lists
+// it: "an action missing here is why a button is missing on a screen".
+export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.view', label: 'View calls' },
   { group: 'Calls', key: 'calls.create', label: 'Create / register calls' },
   { group: 'Calls', key: 'install.create', label: 'Create installation calls (Commercial)' },

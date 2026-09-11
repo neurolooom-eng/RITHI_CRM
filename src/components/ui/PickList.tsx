@@ -88,8 +88,13 @@ export function PickList({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [hi, setHi] = useState(0);
-  // Server-side results, when the form asked for them.
-  const [remote, setRemote] = useState<string[] | null>(null);
+  // Server-side results, when the form asked for them — WITH THE QUERY THAT
+  // PRODUCED THEM. Holding the rows alone let the previous answer sit on screen
+  // while a new search was in flight, so typing "The principal" showed a list of
+  // hospitals beginning with A and a quiet "searching…" underneath (reported
+  // 2026-09-11). Rows that contradict what has been typed are worse than no
+  // rows: they read as the answer.
+  const [remote, setRemote] = useState<{ q: string; rows: string[] } | null>(null);
   const [searching, setSearching] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -106,8 +111,13 @@ export function PickList({
     let alive = true;
     setSearching(true);
     const t = window.setTimeout(() => {
-      onSearch(query.trim())
-        .then((rows) => { if (alive) { setRemote(rows); setHi(0); } })
+      const q = query.trim();
+      onSearch(q)
+        // Keyed on the NORMALISED query, because the memo below compares against
+        // a lower-cased one — storing "The principal" and comparing it with
+        // "the principal" would never match, and the list would stay empty for
+        // any query with a capital in it.
+        .then((rows) => { if (alive) { setRemote({ q: q.toLowerCase(), rows }); setHi(0); } })
         // A failed search leaves whatever was already listed rather than
         // emptying the box: "nothing matches" and "the request failed" must not
         // look the same, and the second is not the reader's problem to solve.
@@ -123,7 +133,11 @@ export function PickList({
     // again here — a second filter would drop rows it matched on something this
     // side cannot see, and would hide everything until the first result lands.
     if (onSearch) {
-      const rows = remote ?? options;
+      // ONLY results that answer THE QUERY ON SCREEN. While a search is in
+      // flight for something else, the list is empty and the footer says it is
+      // searching — see the note on `remote` above.
+      const fresh = remote && remote.q === q ? remote.rows : null;
+      const rows = fresh ?? (remote === null ? options : []);
       // The CURRENT value stays selectable even when it is not in the page of
       // results, or opening a saved record and pressing Enter would blank it.
       return value && !rows.includes(value) && !q ? [value, ...rows] : rows;

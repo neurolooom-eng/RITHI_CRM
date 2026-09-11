@@ -2908,7 +2908,14 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
   const c = getSupabase(); if (!c) return null;
   const { data: { user } } = await c.auth.getUser();
   if (!user) return null;
-  const { data } = await c.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  // THE ERROR IS NOT SWALLOWED. This used to read `const { data }` and drop the
+  // error on the floor — so a failed read of somebody's own profile fell
+  // silently through to the bare-engineer identity below, and they simply found
+  // buttons missing with nothing anywhere saying why. A person quietly
+  // downgraded is the worst kind of permission bug: it looks like the app is
+  // broken rather than like access was not granted.
+  const { data, error } = await c.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (error) throw new Error(`Could not read your profile: ${errMsg(error)}`);
   if (data) return data as Profile;
   // No profile row yet: build one from this person's User Master row, so they
   // arrive with the role they were given rather than as a bare engineer (and
