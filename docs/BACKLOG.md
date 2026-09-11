@@ -268,6 +268,40 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **"Why is it now Engineer" — A ROLE ON THE USER MASTER NEVER REACHED THE
+SIGN-IN** (2026-09-11, v0.9.198). DEEPIKA M shows as *"Zoho Migration (now
+Engineer)"*.
+
+**The column was telling the truth and the truth was the bug.** That cell
+compares two different stores: `user_directory.role` (the User Master, what she
+was GIVEN) against `profiles.role` (her sign-in, what she HAS). **`can()` reads
+the profile**, so she is an engineer in every way that matters — a read-only
+migration login running with an engineer's write actions.
+
+**Why they drift:** `UserMasterView.persist` is the ONLY path that writes the
+role through to `profiles`, and it runs only when an admin saves THAT ONE ROW on
+that screen. `user_directory` is also a bulk-import target (Data Import), and
+`ensureMyProfile()` builds a profile from the directory on FIRST sign-in only —
+so a role changed after somebody has signed in, or loaded in bulk, never
+arrives. Silently: the person simply finds buttons missing.
+
+**This is very likely the same fault behind "same user but some actions are
+missing"** (Varun, 2026-09-11) — the report that could not be resolved from
+here. The My Profile panel added in v0.9.194 answers it directly now: it says
+which role is in effect.
+
+**The fix keeps the admin in charge rather than guessing a source of truth.**
+The User Master counts everyone whose sign-in disagrees, says so at the top of
+the screen, and applies the list's role to all of them in one action. A failure
+is NAMED, not counted — "3 of 5 applied" is not something anybody can act on,
+and these are permissions. Each change goes to the audit trail as
+`user.role.apply`.
+
+**What is deliberately NOT done: making one of them automatically win.** The
+directory is the origin (it builds the profile on first sign-in) but User Access
+is where a role is managed afterwards, and silently overriding a deliberate
+change there would be a worse fault than the one being fixed.
+
 ✅ **THE DIAGNOSTIC CAME BACK AND THE DATABASE IS HEALTHY** (2026-09-11,
 v0.9.197). Their numbers, against a rehearsal that had guessed 22,000:
 

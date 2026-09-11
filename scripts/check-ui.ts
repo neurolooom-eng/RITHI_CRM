@@ -2582,6 +2582,33 @@ console.log('\n-- a failed search never reads as "no such customer" --');
     /with ordinality/.test(diag) && /order by ord, seq;/.test(diag), true);
 }
 
+console.log('\n-- the role on the list reaches the sign-in --');
+{
+  // Reported 2026-09-11: "Why is it now Engineer" — a user whose User Master row
+  // said Zoho Migration and whose SIGN-IN said Engineer. The sign-in is what
+  // can() reads, so Engineer is what she had.
+  //
+  // The role only ever reached `profiles` through UserMasterView.persist — one
+  // row, saved by hand on that screen. A bulk import of the directory, or any
+  // other path, left the two disagreeing silently.
+  const um = readFileSync('src/modules/UserMasterView.tsx', 'utf8');
+  eq('the drift between the list and the sign-in is counted',
+    /const roleDrift = useMemo/.test(um) && /signedIn\.role !== r\.role/.test(um), true);
+  eq('...and shown, not left to be noticed in a column',
+    /roleDrift\.length > 0 && \(/.test(um) && /sheet-banner/.test(um), true);
+  eq('...and fixable in one action',
+    /const applyRoleDrift = async/.test(um)
+    && /updateProfile\(d\.profileId, \{ role: d\.row\.role \}\)/.test(um), true);
+  // A failure must be NAMED. "3 of 5 applied" without saying which two is a
+  // report nobody can act on — and these are permissions.
+  eq('...and names the ones it could not apply',
+    /failed\.push\(`\$\{d\.row\.name \|\| d\.row\.email\}/.test(um)
+    && /Could not apply \$\{failed\.length\}: \$\{failed\.join/.test(um), true);
+  // Applying somebody's role is an access change and belongs in the trail.
+  eq('...and records each one in the audit trail',
+    /action: 'user\.role\.apply'/.test(um), true);
+}
+
 console.log('\n-- a person can see what their own access actually is --');
 {
   // Reported 2026-09-11: an administrator using "View as" saw three actions on
