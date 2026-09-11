@@ -3023,5 +3023,50 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the renamer is last in the tracker module', list[list.length - 1], RENAMER);
 }
 
+// ---------------------------------------------------------------------------
+// THE SPARE STILL IN THE PICKER IS SAVED TOO.
+// Reported 2026-09-11: "Always 1 Consumption is getting Missed." The report
+// wrote `spares` — the lines committed with the Add button — and the draft
+// line sitting filled-in on screen was thrown away. Exactly one line short,
+// silently, on a record that is both a quality record and the hand-stock
+// balance. Asserted as behaviour: the insert must carry the draft, and the
+// draft must pass the SAME rules the Add button applies.
+{
+  console.log('\n-- the spare in the picker is saved --');
+  const cr = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+
+  // What is handed to addConsumptionRows must not be the committed-only list.
+  const insert = /addConsumptionRows\(([A-Za-z]+)\.map/.exec(cr)?.[1] ?? '';
+  eq('the consumption insert carries more than the added lines', insert !== 'spares' && insert !== '', true);
+
+  // …and that list must actually be the committed lines PLUS the draft.
+  const built = new RegExp(`const ${insert} = [^;]*spares[^;]*\\.line`).test(cr)
+             || new RegExp(`const ${insert} = [^;]*\\.\\.\\.spares`).test(cr);
+  eq('and it is the added lines plus the draft', built, true);
+
+  // One rule set, not two: Save must refuse a draft Add would refuse rather
+  // than saving it on easier terms or dropping it.
+  const save = /const save = async \(\) => \{[\s\S]*?const t0 = performance\.now\(\);/.exec(cr)?.[0] ?? '';
+  eq('Save validates the draft before writing', /draftLine\(\)/.test(save), true);
+  eq('and a draft it refuses stops the save instead of being dropped',
+    /'error' in d\) \{ setErr\(d\.error\); return; \}/.test(save), true);
+  eq('the Add button runs that same validator',
+    /const addSpare = [\s\S]{0,300}draftLine\(\)/.test(cr), true);
+}
+
+// ---------------------------------------------------------------------------
+// A consumption line is CORRECTED by voiding it (0049 blocks deletion), and
+// that needs the database id. Rows past the first page had none, so a line
+// below 1,000 could not be put right at all — Refresh reloads page one.
+{
+  console.log('\n-- every loaded consumption line can be corrected --');
+  const sc = readFileSync('src/modules/SpareConsumption.tsx', 'utf8');
+  const loadMore = /const loadMore = async \(\) => \{[\s\S]*?\n  \};/.exec(sc)?.[0] ?? '';
+  eq('loadMore keeps the database id', /_dbId: x\.id/.test(loadMore), true);
+  // The first page always did; both paths must, or the bug is half-fixed.
+  const load = /const load = async \(\) => \{[\s\S]*?\n  \};/.exec(sc)?.[0] ?? '';
+  eq('and so does the first page', /_dbId: x\.id/.test(load), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

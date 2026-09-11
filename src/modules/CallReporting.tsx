@@ -265,15 +265,27 @@ export function CallReportDrawer({
     return held - taken;
   };
 
-  const addSpare = () => {
+  // ONE set of rules for the draft line, used by the Add button AND by Save.
+  // They have to be the same rules: the line the engineer is looking at is
+  // consumption whether or not they thought to press Add, and a line that Save
+  // accepts on terms Add would refuse is a quality record nobody checked.
+  const draftLine = (): { line: { part: string; qty: string; grir: string } } | { error: string } | null => {
     const part = spareDraft.part.trim();
-    if (!part) { setErr('Pick a spare before adding.'); return; }
+    if (!part) return null;
     const n = Math.floor(Number(spareDraft.qty) || 0);
-    if (n < 1) { setErr('Quantity must be at least 1.'); return; }
+    if (n < 1) return { error: 'Quantity must be at least 1.' };
     const left = remainingOf(part);
-    if (left <= 0) { setErr(`${part} is not in ${engineer || 'the engineer'}'s hand stock.`); return; }
-    if (n > left) { setErr(`Only ${left} of that spare left in hand stock.`); return; }
-    setSpares((s) => [...s, { part, qty: String(n), grir: spareDraft.grir.trim() }]);
+    if (left <= 0) return { error: `${part} is not in ${engineer || 'the engineer'}'s hand stock.` };
+    if (n > left) return { error: `Only ${left} of that spare left in hand stock.` };
+    return { line: { part, qty: String(n), grir: spareDraft.grir.trim() } };
+  };
+
+  const addSpare = () => {
+    if (!spareDraft.part.trim()) { setErr('Pick a spare before adding.'); return; }
+    const d = draftLine();
+    if (d && 'error' in d) { setErr(d.error); return; }
+    if (!d) return;
+    setSpares((s) => [...s, d.line]);
     setSpareDraft({ part: '', qty: '1', grir: '' });
     setErr('');
   };
@@ -354,6 +366,16 @@ export function CallReportDrawer({
   const save = async () => {
     const v = validate();
     if (v) { setErr(v); return; }
+    // THE SPARE STILL IN THE PICKER IS CONSUMPTION TOO. It sits on screen fully
+    // filled in, and before this it was thrown away unless the engineer
+    // remembered to press Add — one line short, silently, on a quality record
+    // that also drives the hand-stock balance. Pressing Save IS the intent to
+    // record it, so it is carried; only a line the Add button would itself
+    // refuse stops the save, and then it says why rather than dropping it.
+    const d = draftLine();
+    if (d && 'error' in d) { setErr(d.error); return; }
+    const allSpares = d ? [...spares, d.line] : spares;
+    if (d) { setSpares(allSpares); setSpareDraft({ part: '', qty: '1', grir: '' }); }
     setBusy(true); setErr('');
     const t0 = performance.now();
     try {
@@ -389,15 +411,15 @@ export function CallReportDrawer({
       // report can never keep some of its spares and drop the rest. A failure
       // here is shown, not swallowed: the visit is already filed, so pressing
       // Save Report again retries just this.
-      const cons = sparesSaved ? { ok: true as const } : await addConsumptionRows(spares.map((sp) => ({
+      const cons = sparesSaved ? { ok: true as const } : await addConsumptionRows(allSpares.map((sp) => ({
         ucn, call_number: String(call?.callNumber ?? ''), part: sp.part, qty: Number(sp.qty) || 1,
         grir: sp.grir ?? '',
         engineer, engineer_email: user?.email ?? '', data: {},
       })));
       if (cons.ok) setSparesSaved(true);
       if (!cons.ok) {
-        logAudit({ action: 'call.report.consumption', target: ucn, status: 'error', error: cons.error, meta: { spares: spares.length } });
-        setErr(`The visit was saved, but the ${spares.length} spare${spares.length === 1 ? '' : 's'} could not be recorded: ${cons.error} — fix it and press Save Report again to retry just the spares.`);
+        logAudit({ action: 'call.report.consumption', target: ucn, status: 'error', error: cons.error, meta: { spares: allSpares.length } });
+        setErr(`The visit was saved, but the ${allSpares.length} spare${allSpares.length === 1 ? '' : 's'} could not be recorded: ${cons.error} — fix it and press Save Report again to retry just the spares.`);
         setBusy(false);
         return;
       }
@@ -420,7 +442,7 @@ export function CallReportDrawer({
           return;
         }
       }
-      logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: spares.length } });
+      logAudit({ action: 'call.report', target: ucn, status: 'ok', duration_ms: Math.round(performance.now() - t0), meta: { call_status: status, spares: allSpares.length } });
       onSaved?.('saved', ucn);
       onClose();
     } catch (e) {
@@ -703,7 +725,8 @@ export function CallReportDrawer({
                 : <span className="muted rep-hint">
                     Only spares in {engineer || 'the engineer'}&rsquo;s hand stock can be consumed — issued by Stores on a DC,
                     less what has already been used or transferred. Raise a spare request for anything else.
-                    Lines above stay editable until you save the report.
+                    Lines above stay editable until you save the report, and the spare in the
+                    picker is saved with them &mdash; &#65291; Add is only needed to start another line.
                   </span>}
             </section>
           )}

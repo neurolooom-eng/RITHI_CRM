@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.200',
+    date: '2026-09-11',
+    title: 'The spare still in the picker is now recorded with the rest',
+    changes: [
+      'ONE SPARE WAS BEING LOST FROM EVERY VISIT THAT ENDED WITH A PART STILL IN THE PICKER. The report saved only the lines committed with \u{FF0B} Add; a spare chosen, counted and sitting on screen was thrown away when Save Report was pressed.',
+      'It was silent, and it was one line short every time \u2014 which is why it read as "the first spare is always ignored". It cost twice over: the consumption record missed a part that went into a machine, and the engineer\u2019s hand stock stayed high by that part.',
+      'Pressing Save now records it. A line Save cannot accept \u2014 more than the engineer holds, or a quantity below one \u2014 stops the save and says so, instead of being dropped.',
+      '\u{FF0B} Add is now only for starting a SECOND line, and the note under the picker says so.',
+      'Separately: a consumption line past the first 1,000 could not be corrected or voided at all \u2014 it answered "This line has no database id", and Refresh only reloaded the first thousand. Every loaded line can now be put right.',
+    ],
+  },
+  {
     version: '0.9.199',
     date: '2026-09-11',
     title: 'A call can no longer be raised without the machine\u2019s serial number',

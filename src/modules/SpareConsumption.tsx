@@ -252,7 +252,12 @@ export function SpareConsumption() {
     setBusy(true);
     try {
       const r = await listConsumptionRows(PAGE, offset);
-      const mapped = r.map((x, i) => ({ ...x, id: `${pick(x, UCN_KEYS)}-${offset + i}` } as Row));
+      // _dbId is what an adjustment updates, and a voided line is the ONLY way
+      // to correct consumption (0049 blocks deletion). Without it every row
+      // past the first page answered "This line has no database id — Refresh",
+      // and Refresh reloads page one, so a line below 1,000 could never be put
+      // right at all.
+      const mapped = r.map((x, i) => ({ ...x, _dbId: x.id, id: `${pick(x, UCN_KEYS)}-${offset + i}` } as Row));
       const merged = [...rows, ...mapped];
       setRows(merged); setOffset(offset + r.length); setMore(r.length === PAGE); setLastSync(saveCache(CACHE_KEY, merged));
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); } finally { setBusy(false); }
