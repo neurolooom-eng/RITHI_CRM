@@ -19,6 +19,41 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### One spare lost from every visit — 2026-09-11 (v0.9.200, shipped, no SQL)
+
+Reported: *"In Spare Consumption, always 1 Consumption is getting Missed — looks
+like the first Spare is always Ignored."*
+
+**The picker's own line was never saved.** `CallReporting` kept committed lines
+in `spares` and the line being entered in `spareDraft`, and the insert read
+`spares.map(...)`. A spare chosen, counted and visible on screen was discarded
+unless the engineer pressed **＋ Add** first. Exactly one line short, every time,
+with no error — and it read as "the first" because a visit with a single spare
+loses all of it.
+
+It cost twice: the consumption record missed a part that went into a machine
+(a quality record), and hand stock is DERIVED from consumption, so the
+engineer's balance stayed high by that part.
+
+Ruled out first, both by reading and by test: the cap trigger
+(`0061_cap_all_consumption.sql`) RAISES rather than dropping, and all lines go
+in one insert, so a refusal would abort the whole statement; and the register's
+paging has no off-by-one.
+
+Fixed by extracting the Add button's validation into `draftLine()` and running
+it from `save()` — **the same rules both ways**, because a line Save accepts on
+easier terms than Add is a record nobody checked. A draft that fails stops the
+save with the reason instead of vanishing.
+
+**Second defect found in the same module:** `loadMore` dropped `_dbId`, so a
+consumption line past the first 1,000 could not be adjusted or voided — it
+answered *"This line has no database id — Refresh and try again"*, and Refresh
+reloads page one. Since 0049 blocks deletion, voiding is the ONLY correction
+available, so those lines were uncorrectable. One line to fix.
+
+`check:ui` pins both, and all three assertions were mutation-tested — including
+reverting the insert to `spares.map` and watching the check go red.
+
 ### The product serial is mandatory — 2026-09-11 (v0.9.199, SQL to run)
 
 A call request went in as `R18627-MONNAL T75-NA` — no serial, so the UniqueID
