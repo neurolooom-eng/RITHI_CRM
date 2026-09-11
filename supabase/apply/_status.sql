@@ -740,7 +740,17 @@ with checks(sort_order, bundle, provides, present) as (
     (32, 'handstock: historical consumption', 'spare_consumption_history + its arm -- the pre-2026 record, uncapped (0075)',
         (to_regclass('public.spare_consumption_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
-                  and definition ilike '%spare_consumption_history%')))
+                  and definition ilike '%spare_consumption_history%'))),
+    (123, 'Tracker: nobody is assigned to "Claude"', 'The tracker''s With whom names a TEAM somebody can chase, never a tool (the user''s rule, 2026-09-11): 0162 renames the eight seeded rows to NL Team. Like row 119 this tests ROWS rather than an object, and for the same reason -- a rename has nothing to point at. It also tests something an object check could not: 0162 must run LAST in the tracker module, because the bundles are replayed one at a time and the seeds that wrote the old value (0144, 0150, 0157) run in the same one. So a NO here does not mean the migration is missing; it means the ORDER broke and the seeds put the old value back, which is invisible from the migration alone. Restore: tracker.sql',
+        -- Read through query_to_xml for row 119''s reason: a plain reference is
+        -- resolved when this statement is PLANNED, so a project that has never
+        -- run tracker.sql would fail the WHOLE report instead of this one row.
+        (case when to_regclass('public.tracker_items') is null then true
+              else coalesce((xpath('/row/c/text()', query_to_xml(
+                     $q$select count(*) as c from public.tracker_items
+                         where btrim(coalesce(owner, '')) ilike 'claude'$q$,
+                     false, true, '')))[1]::text::int = 0, false)
+         end))
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,
