@@ -184,6 +184,9 @@ const MODULES = {
       // to — and after rbac in ALL_ORDER, which creates app_roles.
       '0126_call_allot_permission.sql',
       '0127_call_edit_sections.sql',
+      // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
+      // replayed alone would otherwise restore the per-row version.
+      '0164_cr_read_initplan.sql',
     ],
   },
   sla: {

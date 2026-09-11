@@ -3279,5 +3279,40 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('and saving walks the same list', /for \(const r of roles\)/.test(rp), true);
 }
 
+// ---------------------------------------------------------------------------
+// A READ POLICY ASKS ITS QUESTIONS ONCE PER QUERY, NOT ONCE PER ROW.
+// Reported 2026-09-11 as "the Party drop-down keeps failing for the engineers,
+// it works fine for me". cr_read called can_view_all_calls(), auth.uid() and
+// auth.email() BARE, so each ran for every row of call_requests. The OR
+// short-circuits at is_admin() for an administrator and not for an engineer,
+// which is exactly why one person saw it and the other did not. Measured on
+// 3,000 requests: engineer 1,840 ms -> 7.4 ms, admin 189 ms -> 5.5 ms.
+//
+// The cost is the WHOLE TABLE, not what the reader sees: an engineer entitled
+// to 112 requests still makes the database test every row to find them.
+{
+  console.log('\n-- the call-request read policy is an InitPlan --');
+  const sql = readFileSync('supabase/migrations/0164_cr_read_initplan.sql', 'utf8');
+  const body = sql.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  // Each helper wrapped as (select f()) — that is what makes it an InitPlan.
+  for (const fn of ['public.can_view_all_calls()', 'auth.uid()', 'auth.email()']) {
+    eq(`${fn} is wrapped`, new RegExp(`\\(\\s*select\\s+${fn.replace(/[.()]/g, '\\$&')}`, 'i').test(body), true);
+  }
+  // …and none of them left bare. A bare call is the defect itself.
+  const bare = body.replace(/\(\s*select\s+[a-z_.]+\(\)/gi, '(');
+  eq('no helper is left calling per row',
+    /\b(can_view_all_calls|auth\.uid|auth\.email|is_admin|has_perm)\s*\(/i.test(bare), false);
+
+  // It only holds if it runs LAST in its module: 0003 and 0053 both define
+  // cr_read, and the bundles are replayed one at a time.
+  const gen = readFileSync('scripts/build-apply-bundles.mjs', 'utf8');
+  const files = /call_requests: \{[\s\S]*?files: \[([\s\S]*?)\n    \]/.exec(gen)?.[1] ?? '';
+  const list = [...files.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  eq('the fix is last in the call_requests module', list[list.length - 1], '0164_cr_read_initplan.sql');
+  eq('and the earlier definitions it must outrank are in the same module',
+    list.includes('0053_call_requests_view_all.sql'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
