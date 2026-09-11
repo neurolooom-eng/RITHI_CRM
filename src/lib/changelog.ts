@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.204',
+    date: '2026-09-11',
+    title: 'The Party drop-down no longer times out for engineers',
+    changes: [
+      'THE CALL REQUEST PAGE WAS SLOW FOR ENGINEERS AND FAST FOR ADMINISTRATORS, and that difference was the whole fault. The rule deciding which requests you may see was being re-asked FOR EVERY ROW in the register instead of once.',
+      'It short-circuits early for an administrator and not for an engineer, so the same page cost an engineer about ten times as much \u2014 and the cost grows with the register, not with what you can see: an engineer entitled to 112 requests still made the database check every request on file to find those 112.',
+      'Once the page was heavy enough, the database cancelled the work and the Party drop-down reported that the search could not reach it.',
+      'Measured on 3,000 requests: an engineer\u2019s read went from 1.84 seconds to 7 milliseconds. WHO CAN SEE WHAT IS UNCHANGED \u2014 the rows returned to an engineer and to an administrator were compared before and after, and are identical.',
+    ],
+  },
+  {
     version: '0.9.203',
     date: '2026-09-11',
     title: 'Roles can be added from the app, and the report link on a review opens',
