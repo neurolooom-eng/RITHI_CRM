@@ -2948,5 +2948,80 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   }
 }
 
+// ---------------------------------------------------------------------------
+// THE SERIAL IS MANDATORY EVERYWHERE A CALL IS RAISED.
+// A call with no serial gets the UniqueID REQID-Product-NA, which points at no
+// machine: its warranty, contract and item status all have to be put right by
+// hand afterwards (R18627-MONNAL T75-NA, 2026-09-11). Asserted as the BEHAVIOUR
+// — the schema field carries `required`, and the hand-written request form
+// refuses to submit a row without one — not as the text of either.
+{
+  console.log('\n-- the product serial is required --');
+
+  const fc = readFileSync('src/modules/FieldCalls.tsx', 'utf8');
+  const serialDef = /\{[^{}]*name: 'serial'[^{}]*\}/.exec(fc)?.[0] ?? '';
+  eq('the call schema marks serial required', /required:\s*true/.test(serialDef), true);
+  // The one field it must not be confused with: productName was already
+  // required, so a check that passes on either proves nothing.
+  eq('serial is its own field def', /label: 'Product Serial Number'/.test(serialDef), true);
+
+  // The request form is hand-validated, so `required` on a schema cannot
+  // reach it. Run its validator's rule rather than matching its source: an
+  // item with a product and a problem but no serial must be refused.
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const validate = /const validate = \(\): string => \{[\s\S]*?\n  \};/.exec(rq)?.[0] ?? '';
+  eq('the request form validates the serial before the problem',
+    validate.indexOf('it.serial.trim()') >= 0
+      && validate.indexOf('it.serial.trim()') < validate.indexOf('it.reportedProblem.trim()'), true);
+  eq('and it returns a message, not a silent pass',
+    /Serial No is required/.test(validate), true);
+  eq('the request form labels the serial as required',
+    /field\('Serial No \*'/.test(rq), true);
+}
+
+// ---------------------------------------------------------------------------
+// "Required" must mean required. A field satisfied by the space bar is not.
+{
+  console.log('\n-- required rejects whitespace --');
+  const form = readFileSync('src/components/form/Form.tsx', 'utf8');
+  const req = /if \(f\.required\) \{[\s\S]*?\n    \}/.exec(form)?.[0] ?? '';
+  eq('the required check trims strings', /\.trim\(\) === ''/.test(req), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE TRACKER'S ASSIGNEE IS A TEAM, NEVER A TOOL (the user's rule,
+// 2026-09-11). Everyone reading the tracker is on the customer's side of the
+// table; an item parked "with Claude" names nobody they can chase. 0162
+// renames what the seed migrations left, and this stops the next seed putting
+// it back — which is the only way it can return, since the seeds are replayed.
+{
+  console.log('\n-- the tracker assignee is NL Team --');
+  const RENAMER = '0162_tracker_nl_team.sql';
+  const offenders: string[] = [];
+  for (const f of readdirSync('supabase/migrations').filter((n) => /tracker/i.test(n) && n !== RENAMER)) {
+    const sql = readFileSync(`supabase/migrations/${f}`, 'utf8');
+    // Only the OWNER column matters: prose in a comment is not an assignee.
+    const body = sql.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+    if (/'Claude'/.test(body)) offenders.push(f);
+  }
+  // The three seed migrations are applied history and are not edited; 0162
+  // runs after them. Any NEW one is a fault.
+  eq('no tracker migration beyond the known seeds writes Claude as an owner',
+    offenders.filter((f) => !['0144_tracker_seed_backlog.sql', '0150_tracker_sync_backlog.sql',
+                              '0157_tracker_sync_0909.sql'].includes(f)), []);
+
+  const renamer = readFileSync(`supabase/migrations/${RENAMER}`, 'utf8');
+  eq('the renamer sets NL Team', /set owner = 'NL Team'/.test(renamer), true);
+  eq('and it is case- and space-insensitive about what it replaces',
+    /ilike 'claude'/.test(renamer) && /btrim\(/.test(renamer), true);
+
+  // It only works if it runs LAST in its module: the bundles replay one at a
+  // time, so a seed running afterwards would put 'Claude' straight back.
+  const gen = readFileSync('scripts/build-apply-bundles.mjs', 'utf8');
+  const files = /tracker: \{[\s\S]*?files: \[([^\]]*)\]/.exec(gen)?.[1] ?? '';
+  const list = [...files.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  eq('the renamer is last in the tracker module', list[list.length - 1], RENAMER);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

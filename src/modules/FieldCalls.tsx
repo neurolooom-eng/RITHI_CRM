@@ -110,7 +110,7 @@ export const FIELD_CALL_FIELDS: FieldDef[] = [
   { name: 'city', label: 'City', section: 'Customer & Product', span: 1 },
   { name: 'state', label: 'State', section: 'Customer & Product', span: 1 },
   { name: 'productName', label: 'Product Name', section: 'Customer & Product', required: true, span: 1 },
-  { name: 'serial', label: 'Product Serial Number', section: 'Customer & Product', span: 1 },
+  { name: 'serial', label: 'Product Serial Number', section: 'Customer & Product', required: true, span: 1 },
   { name: 'itemStatus', label: 'Item Status', type: 'select', options: OPT(ITEM_STATUS), section: 'Customer & Product', span: 1 },
 
   // Warranty & contract
