@@ -23,6 +23,7 @@
 --   0152_part_category_free_text.sql
 --   0159_kpi_export_lateral.sql
 --   0160_product_party_names.sql
+--   0161_drop_duplicate_party_index.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -1538,12 +1539,43 @@ create or replace view public.product_party_names as
 alter view public.product_party_names set (security_invoker = on);
 grant select on public.product_party_names to authenticated;
 
--- The GROUP BY reads every row, so give it an index to group from rather than
--- sorting 21,000 rows on each form open.
-create index if not exists products_party_name_group_idx
-  on public.products (party_name);
+-- The GROUP BY reads every row and wants an index to group from rather than
+-- sorting on each call. `products_party_name_eq` (0052) IS that index —
+-- `btree (party_name)` — and has been there all along; 0160 originally added a
+-- second, identical one and 0161 drops it again. Left as a note rather than a
+-- silent deletion, because the next person to look at the GROUP BY will ask the
+-- same question and deserves the answer without re-deriving it.
 
 comment on view public.product_party_names is
   'Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).';
+
+-- ------------------------------------------------------------------------
+-- 0161_drop_duplicate_party_index.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A DUPLICATE INDEX I ADDED, removed.
+--
+-- 0160 created `products_party_name_group_idx` on `products (party_name)` to
+-- give the party GROUP BY something to group from. `products_party_name_eq`
+-- (0052) is the SAME INDEX — `CREATE INDEX ... USING btree (party_name)`,
+-- character for character — and had been there since long before.
+--
+-- Found by the diagnostic written for the search timeout
+-- (`_search_diagnose.sql`), which lists every index on `products` precisely so
+-- a person can see what is and is not there. It answered a question it was not
+-- asked, which is the usual way a duplicate index is found: nobody goes looking.
+--
+-- IT IS NOT FREE TO KEEP. Every insert and update to `products` maintained both
+-- copies, and the Product Master upload writes the whole register — so a bulk
+-- load paid for it 21,000 times. It also misleads: somebody reading the index
+-- list later would reasonably assume two indexes meant two different lookups.
+--
+-- The one that stays is 0052's, because it is the older name and the one its
+-- own comment explains ("Btree indexes for the EXACT-match / IN lookups — a
+-- trigram index does not serve `=`/`IN`"). Dropping the newer one leaves that
+-- reasoning intact and leaves 0160's GROUP BY exactly as well served.
+-- ===========================================================================
+drop index if exists public.products_party_name_group_idx;
 
 commit;

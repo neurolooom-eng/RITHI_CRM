@@ -1,0 +1,5 @@
+
+/* A SEARCH THAT COULD NOT REACH THE DATABASE, told apart from one that found
+   nothing. The two used to render identically, and a real customer coming back
+   as "nothing matches" is how somebody raises them again as a duplicate. */
+.picklist-failed { color: #b91c1c; }

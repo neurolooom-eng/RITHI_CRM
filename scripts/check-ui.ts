@@ -2513,6 +2513,38 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
     /if \(v\.length\) writeStored\(name, v\);/.test(mst), true);
 }
 
+console.log('\n-- a failed search never reads as "no such customer" --');
+{
+  // Reported 2026-09-11: real customers — "Nagapattinam Medical College",
+  // "HKSD" — came back as "Nothing matches", on a database whose product
+  // searches were timing out. The person at the desk concludes the customer is
+  // not on the system and raises them again as a duplicate.
+  //
+  // The comment in PickList already said "nothing matches and the request
+  // failed must not look the same" — above a `.catch(() => {})` that made them
+  // identical. A comment is not a check, which is why this one exists.
+  const pk = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  eq('a failed search is captured, not swallowed',
+    /\.catch\(\(e\) => \{ if \(alive\) setFailed\(/.test(pk)
+    && /\.catch\(\(\) => \{\}\)/.test(pk) === false, true);
+  eq('...and says the list is empty because the search failed',
+    /does <b>not<\/b> mean the customer is missing/.test(pk), true);
+  // "Nothing matches" must be suppressed while a failure is showing, or both
+  // messages appear and the reader picks the wrong one.
+  eq('...and does not also claim nothing matches',
+    /matches\.length === 0 && !canTake && !searching && !failed &&/.test(pk), true);
+  // A success must CLEAR it, or one timeout marks the box failed for ever.
+  eq('...and a later success clears it',
+    /setRemote\(\{ q: q\.toLowerCase\(\), rows \}\); setFailed\(null\);/.test(pk), true);
+
+  // The diagnostic is read-only: it is handed to somebody to run against the
+  // live project, so it must not be able to change it.
+  const diag = readFileSync('supabase/apply/_search_diagnose.sql', 'utf8');
+  eq('the search diagnostic only reads',
+    /\b(insert|update|delete|drop|alter|create)\b/i.test(
+      diag.split('\n').filter((l) => !l.trim().startsWith('--') && !l.trim().startsWith('\\echo')).join('\n')) === false, true);
+}
+
 console.log('\n-- a person can see what their own access actually is --');
 {
   // Reported 2026-09-11: an administrator using "View as" saw three actions on
