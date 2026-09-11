@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.206',
+    date: '2026-09-11',
+    title: 'On a call request, the machine now names the customer',
+    changes: [
+      'YOU NO LONGER LOOK FOR THE CUSTOMER. On a Field or PM request you pick the PRODUCT and then the SERIAL, and the customer and city are filled in from the machine \u2014 per call row, so two machines on one request can belong to different customers and different cities.',
+      'The serial box searches every machine on the register, not just one customer\u2019s, and each row reads \u201Cserial \u00b7 customer \u00b7 city\u201d so you can see you have the right unit before picking it.',
+      'This is why it is faster: a serial is looked up by its opening characters on an indexed column \u2014 0.2 ms across all 19,253 machines \u2014 while a customer name had to be matched anywhere inside five thousand names. That search is simply gone from this form.',
+      'It is also why the customer will now be RIGHT. It comes off the machine record rather than being chosen separately, which is how a call was filed against the wrong customer and had to be corrected by hand this morning.',
+      'A serial that is not on the register is refused, naming the reason: the machine is missing from Product Master. The same machine cannot be put on one request twice, and the message says which row it clashes with.',
+      'INSTALLATIONS ARE UNCHANGED \u2014 the machine is not on the register yet, so that form still asks for the customer and city as before.',
+      'State, Address and Customer Contact stay on the request, since they describe where the engineer is going and who to ask for.',
+    ],
+  },
+  {
     version: '0.9.205',
     date: '2026-09-11',
     title: 'The customer search stops counting the whole register on every keystroke',

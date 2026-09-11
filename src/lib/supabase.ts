@@ -1223,13 +1223,57 @@ export interface CallRequestItem {
   serial: string;
   standardComplaint: string;
   reportedProblem: string;
+  // THE CUSTOMER COMES FROM THE MACHINE, not from a box somebody typed it into
+  // (the user's design, 2026-09-11). `call_requests` has always held party_name
+  // and city PER ROW -- it was only the form that grouped them -- so carrying
+  // them on the item needs no migration. Absent on an INSTALLATION, where there
+  // is no machine on the register yet and the form still asks.
+  party?: string;
+  city?: string;
 }
 const itemCols = (it: CallRequestItem) => ({
   product: it.product,
   serial_no: it.serial,
   standard_complaint: it.standardComplaint,
   reported_problem: it.reportedProblem,
+  // Only override the request's own when the row actually carries one: an
+  // installation row has neither, and writing '' would blank the party the
+  // form collected.
+  ...(it.party?.trim() ? { party_name: it.party.trim() } : {}),
+  ...(it.city?.trim() ? { city: it.city.trim() } : {}),
 });
+
+// FIND THE MACHINE, AND THE CUSTOMER COMES WITH IT.
+//
+// A serial is a far cheaper thing to look for than a customer name: measured
+// over all 19,253 machines with no party filter, as a signed-in engineer, a
+// serial prefix is 0.21 ms and a mid-string match 1.7-5 ms, against a customer
+// search that has been timing out. It is also the identifier the engineer
+// actually has -- they are standing at the machine, reading its label.
+//
+// The LIMIT is what keeps it cheap: the scan stops as soon as it has enough,
+// so a short term that matches half the register costs no more than a precise
+// one. City rides in `products.extra` under the spreadsheet's own heading.
+export interface MachineHit { serial: string; product: string; party: string; city: string }
+export async function sbSearchMachines(product: string, query: string, limit = 50): Promise<MachineHit[]> {
+  const c = getSupabase(); if (!c) return [];
+  const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
+  let q = c.from('products').select('serial_number,item_name,party_name,extra').limit(limit);
+  if (product.trim()) q = q.eq('item_name', product.trim());
+  if (term) q = q.ilike('serial_number', `%${term}%`);
+  else q = q.order('serial_number');
+  const { data, error } = await q;
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []).map((r) => {
+    const ex = (r.extra as Record<string, unknown>) ?? {};
+    return {
+      serial: String(r.serial_number ?? ''),
+      product: String(r.item_name ?? ''),
+      party: String(r.party_name ?? ''),
+      city: String(ex['City'] ?? ''),
+    };
+  }).filter((m) => m.serial);
+}
 export async function addCallRequestBatch(base: Record<string, unknown>, items: CallRequestItem[]): Promise<{ ok: boolean; reqid?: string; count?: number; error?: string }> {
   const c = must();
   if (items.length === 0) return { ok: false, error: 'Add at least one call.' };

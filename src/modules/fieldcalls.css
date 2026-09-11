@@ -519,3 +519,8 @@
 .rbac-addrole-key { display: block; font-size: 11.5px; margin-top: 4px; line-height: 1.45; }
 .rbac-addrole-btns { display: flex; gap: 8px; align-items: center; padding-top: 22px; }
 .rbac-addrole-note { font-size: 12px; margin: 10px 0 0; }
+
+/* The customer a machine resolved to, on a call-request row. Read-only: it is
+   the register's answer, not an opinion — and SHOWN rather than hidden, so a
+   wrong serial is caught on the form instead of on the call. */
+.req-machine-party { font-size: 12.5px; padding: 2px 2px 0; overflow-wrap: anywhere; }
