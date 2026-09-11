@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.198',
+    date: '2026-09-11',
+    title: 'A role given on the User Master now reaches the person\u2019s sign-in',
+    changes: [
+      'A ROLE SET ON THE USER MASTER ONLY EVER REACHED SOMEBODY\u2019S SIGN-IN IF THAT ONE ROW WAS SAVED BY HAND on that screen. A bulk import of the directory, or a role set any other way, left the two disagreeing \u2014 and the sign-in is what decides what the person can actually do.',
+      'That is why a user shows as \u201CZoho Migration (now Engineer)\u201D: the list says one thing, their sign-in says another, and the sign-in wins.',
+      'The User Master now COUNTS everyone in that state at the top of the screen, and applies the list\u2019s role to all of them in one click.',
+      'Anyone it could not change is named, not just counted \u2014 these are permissions, and \u201C3 of 5 applied\u201D is not something you can act on.',
+      'Each change is written to the audit trail, and takes effect the next time that person loads the app.',
+    ],
+  },
+  {
     version: '0.9.197',
     date: '2026-09-11',
     title: 'A customer with no machine on record is shown, with the reason',

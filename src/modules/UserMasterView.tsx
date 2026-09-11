@@ -388,6 +388,47 @@ export function UserMasterView() {
     return dir.filter((r) => `${r.name} ${r.email} ${r.gmail} ${r.designation} ${r.region} ${roleLabel(r.role)}`.toLowerCase().includes(s));
   }, [dir, q]);
 
+  // ---------------------------------------------------------------------
+  // WHERE THE LIST AND THE SIGN-IN DISAGREE ABOUT SOMEBODY'S ROLE.
+  //
+  // The role column already SHOWS it — "Zoho Migration (now Engineer)" — but
+  // showing is not fixing, and until now the only way to apply it was to open
+  // that one row and save it, because `persist` below is the ONLY path that
+  // writes the role through to the sign-in. A role that arrived any other way —
+  // a bulk import of this directory, a change made here and never saved
+  // individually — never reached `profiles`, and `profiles.role` is what
+  // decides what the person can actually do.
+  //
+  // So the mismatch is COUNTED and fixable in one action. Reported 2026-09-11:
+  // "Why is it now Engineer" — a user given Zoho Migration who was, in every way
+  // that matters, an engineer.
+  // ---------------------------------------------------------------------
+  const roleDrift = useMemo(() => visibleDir.flatMap((r) => {
+    const signedIn = profileByEmail.get(r.email.trim().toLowerCase())
+      ?? profileByEmail.get(r.gmail.trim().toLowerCase());
+    return r.role && signedIn && signedIn.role !== r.role
+      ? [{ row: r, profileId: signedIn.id, was: signedIn.role }] : [];
+  }), [visibleDir, profileByEmail]);
+
+  const applyRoleDrift = async () => {
+    if (!confirm(`Apply this list's role to the sign-in for ${roleDrift.length} user${roleDrift.length === 1 ? '' : 's'}?\n\nThey get the access this list says they should have. It takes effect the next time they load the app.`)) return;
+    setBusy(true);
+    let ok = 0; const failed: string[] = [];
+    for (const d of roleDrift) {
+      // One at a time, and a failure is NAMED rather than counted. "3 of 5
+      // applied" without saying which two is a report nobody can act on.
+      const r = await updateProfile(d.profileId, { role: d.row.role });
+      if (r.ok) { ok += 1; logAudit({ action: 'user.role.apply', target: d.row.email || d.row.name, meta: { from: d.was, to: d.row.role } }); }
+      else failed.push(`${d.row.name || d.row.email}: ${r.error ?? 'refused'}`);
+    }
+    await reloadUsers(); await load();
+    setBusy(false);
+    setMsg(failed.length
+      ? { tone: 'error', text: `Applied ${ok}. Could not apply ${failed.length}: ${failed.join('; ')}` }
+      : { tone: 'ok', text: `Applied the role to ${ok} sign-in${ok === 1 ? '' : 's'}. It takes effect next time they load the app.` });
+  };
+
+
   return (
     <div>
       <PageHeader
@@ -418,6 +459,26 @@ export function UserMasterView() {
         <div className={`sheet-banner sheet-banner-${msg.tone}`}>
           <span>{msg.text}</span>
           <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
+        </div>
+      )}
+
+      {/* THE ROLE ON THIS LIST IS NOT THE ROLE THEY HAVE. Shown here rather than
+          left to be noticed in a column, because it is the difference between
+          what somebody was GIVEN and what they can actually DO — and it is
+          silent: the person simply finds buttons missing. */}
+      {!editing && roleDrift.length > 0 && (
+        <div className="sheet-banner sheet-banner-info">
+          <span>
+            <b>{roleDrift.length}</b> {roleDrift.length === 1 ? 'user has' : 'users have'} a different
+            role on their sign-in than on this list, so that is the access they
+            actually have. A role set here only reaches the sign-in when the row
+            is saved — a bulk import of this directory does not.
+          </span>
+          {editable && (
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => void applyRoleDrift()}>
+              Apply this list's role to {roleDrift.length === 1 ? 'it' : 'them'}
+            </button>
+          )}
         </div>
       )}
 
