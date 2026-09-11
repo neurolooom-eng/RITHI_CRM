@@ -10,6 +10,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
+import { machineRowProblem } from '../src/lib/callrequest';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
@@ -1999,22 +2000,30 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   eq('a complaint off the master is still offered',
     /withCurrent\(complaintMaster\.values, it\.standardComplaint\)/.test(rq), true);
 
-  // SERIAL TOO (2026-09-09). A hospital can own dozens of the same machine
-  // whose serials differ by a digit in the middle.
-  eq('the serial is picked with a PickList',
-    /<PickList[\s\S]{0,400}onPick=\{\(v\) => setItem\(i, 'serial', v\)\}/.test(rq), true);
+  // SERIAL TOO (2026-09-09), and since 2026-09-11 the serial is the MACHINE
+  // PICKER: it searches across every customer and fetches the customer with the
+  // machine. A hospital can own dozens of the same model whose serials differ by
+  // a digit in the middle, so it still has to be type-to-search.
+  eq('the serial is picked with a PickList that searches the server',
+    /<PickList[\s\S]{0,900}onSearch=\{async \(qq\) => \{[\s\S]{0,200}sbSearchMachines/.test(rq), true);
   eq('...and no native <option> list is left over the serials',
     /\{serials\.map\(\(v\) => <option/.test(rq), false);
   eq('a serial the list no longer offers is still shown',
-    /withCurrent\(serials, it\.serial\)/.test(rq), true);
+    /withCurrent\(machineHits\.map\(\(m: MachineHit\) => m\.serial\), it\.serial\)/.test(rq), true);
 
-  // THE EMPTY BOX IS DOING WORK. Four sentences, each naming what to do next;
-  // "every serial is already on this request" stops somebody hunting for a
-  // machine that is on the form two rows up. A generic "— select —" would say
-  // none of it, which is why PickList takes `emptyLabel` at all.
-  for (const phrase of ['pick a product first', 'pick a serial',
-                        'every serial is already on this request', 'no serial on record']) {
-    eq(`the serial box still says "${phrase}"`, rq.includes(phrase), true);
+  // THE EMPTY BOX AND THE ROWS ARE STILL DOING WORK, and they have to say
+  // DIFFERENT things now: the list spans customers, so a row must show WHOSE
+  // machine it is before somebody picks it — two hospitals own the same model
+  // and the serial is all that tells them apart. And a machine already on the
+  // request is shown, disabled, with the reason, rather than vanishing and
+  // sending somebody hunting for it.
+  eq('each row names the customer and city',
+    /\$\{m\.serial\} · \$\{m\.party\}/.test(rq), true);
+  eq('a machine already on the request says so rather than disappearing',
+    /already on this request/.test(rq) && /isDisabled=\{taken\}/.test(rq), true);
+  for (const phrase of ['type a serial to find the machine',
+                        'across every customer', 'Pick a product above to narrow it']) {
+    eq(`the serial box says "${phrase}"`, rq.includes(phrase), true);
   }
   const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
   eq('...and PickList shows it rather than a generic label',
@@ -3349,6 +3358,79 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /ownersR\.status === 'rejected' && masterR\.status === 'rejected'/.test(call), true);
   eq('and the master-only names stay flagged as owning no machine',
     /extras\.forEach\(\(v\) => nonOwners\.add/.test(call), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE MACHINE NAMES THE CUSTOMER (the user's design, 2026-09-11).
+// The old order asked for the customer FIRST — an infix search over ~5,000
+// names, which is the search that kept timing out on a phone. A serial is a
+// prefix on an indexed column (0.21 ms over all 19,253 machines) and it is what
+// the engineer is holding. So Product + Serial now fetch the customer, per row.
+{
+  console.log('\n-- the machine names the customer --');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+
+  // Per row, and carried to the database per row.
+  eq('a call row carries its own customer and city',
+    /product: '', serial: '', party: '', city: ''/.test(rq), true);
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  const cols = /const itemCols = [\s\S]*?\n\}\);/.exec(sb)?.[0] ?? '';
+  eq('and the row writes them', /party_name: it\.party/.test(cols) && /city: it\.city/.test(cols), true);
+  // An installation row has neither; writing '' would blank what the form asked.
+  eq('but only when the row actually has one',
+    /it\.party\?\.trim\(\) \? \{ party_name/.test(cols), true);
+
+  // The customer field is the INSTALLATION's alone now — there is no machine on
+  // the register for a new install, so the question still has to be asked.
+  eq('the customer box is shown only for an installation',
+    /\{isInstall && field\('Party Name \*'/.test(rq), true);
+  eq('and so is the City box', /\{isInstall && field\('City'/.test(rq), true);
+  eq('the customer is required only where it is asked for',
+    /isInstall && !f\.partyName\.trim\(\)/.test(rq), true);
+
+  // THE RULE, RUN WITH REAL INPUTS. The first version of this check tested that
+  // the identifier `noParty` appeared in the source — which it still did after
+  // the rule was replaced with `-1`. A regex proves a line is present, not that
+  // it fires.
+  const ok = { product: 'MONNAL T75', serial: '10915', party: 'JAIPUR HOSPITAL' };
+  eq('a machine that named its customer is accepted', machineRowProblem([ok], false), null);
+  eq('a serial that named no customer is refused',
+    machineRowProblem([{ ...ok, party: '' }], false) !== null, true);
+  eq('and a whitespace customer is not a customer',
+    machineRowProblem([{ ...ok, party: '   ' }], false) !== null, true);
+  eq('the message says where to go next',
+    /Product Master/.test(machineRowProblem([{ ...ok, party: '' }], false) ?? ''), true);
+  // An INSTALLATION has no machine on the register — that is why it still asks.
+  eq('an installation is exempt', machineRowProblem([{ ...ok, party: '' }], true), null);
+  // One machine, one call — the check spans customers now.
+  eq('the same machine twice is refused',
+    machineRowProblem([ok, { ...ok, party: 'ANOTHER HOSPITAL' }], false) !== null, true);
+  eq('and it names which row it clashes with',
+    /already on this request as call 1/.test(machineRowProblem([ok, ok], false) ?? ''), true);
+  eq('two different machines are fine',
+    machineRowProblem([ok, { ...ok, serial: '10916' }], false), null);
+  eq('an empty row is not a duplicate of another empty row',
+    machineRowProblem([{ product: '', serial: '', party: '' }, { product: '', serial: '', party: '' }], false), null);
+  eq('and the form asks the rule rather than restating it',
+    /machineRowProblem\(filled, isInstall\)/.test(rq), true);
+
+  // The serial search must span customers — narrowing it by party would put
+  // the slow search back in front of the fast one.
+  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  // NOT split('return')[0] — the function's first `return` is its opening
+  // guard, so that examined one line and could never have failed.
+  eq('the machine search is not narrowed by customer',
+    /\.(eq|ilike)\('party_name'/.test(fn), false);
+  eq('it filters by product when there is one', /\.eq\('item_name'/.test(fn), true);
+  eq('and it is capped so a short serial costs no more than a precise one',
+    /\.limit\(limit\)/.test(fn), true);
+  eq('it returns the customer with the machine',
+    /party: String\(r\.party_name/.test(fn) && /city: String\(ex\['City'\]/.test(fn), true);
+
+  // One machine cannot be two calls on a request — and that check now has to
+  // span customers, because the rows may be for different ones.
+  eq('the duplicate-machine check is by serial alone',
+    /const serialTakenElsewhere = \(serial: string, forIndex: number\)/.test(rq), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
