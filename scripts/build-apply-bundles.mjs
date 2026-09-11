@@ -235,7 +235,12 @@ const MODULES = {
             // them in that order.
             '0153_frequent_failure_rule.sql',
             '0119_bulk_review2.sql', '0124_auto_review2.sql',
-            '0048_daily_review_map_by_call_number.sql'],
+            '0048_daily_review_map_by_call_number.sql',
+            // Call Review (/call-review) -- a SECOND review, on the report rather
+            // than the failure. It lives in this module because it runs after
+            // rbac (its permission grants) and after call_requests (its policies
+            // read the `calls` view).
+            '0163_call_report_review.sql'],
   },
   notifications: {
     title: 'Notifications',

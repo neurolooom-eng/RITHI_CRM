@@ -49,6 +49,7 @@ export const NAV: NavGroup[] = [
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
+      { to: '/call-review', label: 'Call Review', icon: '🔎' },
     ],
   },
   {

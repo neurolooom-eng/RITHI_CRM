@@ -50,6 +50,7 @@ export const MODULES: ModuleDef[] = [
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
+  { path: '/call-review', label: 'Call Review' },
   { path: '/parties', label: 'Party Master' },
   { path: '/product-master', label: 'Product Master' },
   { path: '/user-master', label: 'User Master' },
@@ -154,6 +155,11 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   { group: 'Calls', key: 'calls.report', label: 'Report / update calls' },
   { group: 'Calls', key: 'calls.cancel', label: 'Cancel a call (and restore it)' },
   { group: 'Calls', key: 'review.edit', label: 'Complete the daily call review (Review 2 / 3)' },
+  // A SECOND review, on the REPORT rather than the failure -- so a separate
+  // right. Somebody who completes the DCCR is not thereby entitled to sign off
+  // that a closed call's report stands, and the two are held by different
+  // people here. It also carries the Reco and Re-open actions on that screen.
+  { group: 'Calls', key: 'callreview.mark', label: 'Review a closed call\u2019s report (mark Report Reviewed)' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
   { group: 'Spares', key: 'spare.request', label: 'Request spares' },
@@ -239,13 +245,13 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
-  nsm: ['calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
+  nsm: ['callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
   rgm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
-  rm: ['calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
+  rm: ['callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
+  hotline: ['callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
   spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
@@ -319,6 +325,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
+    { path: '/call-review', label: 'Call Review', actions: ['callreview.mark'] },
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },

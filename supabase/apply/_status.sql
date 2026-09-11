@@ -741,6 +741,17 @@ with checks(sort_order, bundle, provides, present) as (
         (to_regclass('public.spare_consumption_history') is not null
      and exists (select 1 from pg_views where schemaname='public' and viewname='handstock_movements'
                   and definition ilike '%spare_consumption_history%'))),
+    (124, 'Call Review: the second review, on the REPORT', 'call_report_reviews + the two rights (0163). A SECOND review and not the Daily Call Review: the DCCR asks what the failure WAS, this asks whether the report the engineer filed stands. It lists SOLVED calls only and lets the reviewer book a spare the engineer did not (a Reconciliation line -- "Reco"), re-open the call, or mark it Report Reviewed. This row tests the PROPERTY: the table, the stamp trigger (which discards a caller-supplied reviewer, as 0113 does on a call -- a review naming somebody who did not do it is worse than one naming nobody), and that the write policy asks for the right rather than admitting anyone who can see the call. The PAGE goes to six roles; the ACTION deliberately NOT to Technical Support or Zoho Migration, since what makes those read-only is what they do not hold -- one tick on Roles & Permissions grants it. NO means the page is absent or nobody can record a review. Restore: daily_review.sql',
+        (to_regclass('public.call_report_reviews') is not null
+     and exists (select 1 from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
+                  join pg_namespace n on n.oid = c.relnamespace
+                 where n.nspname='public' and c.relname='call_report_reviews'
+                   and tg.tgname='zz_call_report_reviews_stamp')
+     and exists (select 1 from pg_policies
+                  where schemaname='public' and tablename='call_report_reviews'
+                    and policyname='crr_write' and with_check ilike '%callreview.mark%')
+     and exists (select 1 from public.app_roles
+                  where role = 'admin' and permissions ? 'callreview.mark'))),
     (123, 'Tracker: nobody is assigned to "Claude"', 'The tracker''s With whom names a TEAM somebody can chase, never a tool (the user''s rule, 2026-09-11): 0162 renames the eight seeded rows to NL Team. Like row 119 this tests ROWS rather than an object, and for the same reason -- a rename has nothing to point at. It also tests something an object check could not: 0162 must run LAST in the tracker module, because the bundles are replayed one at a time and the seeds that wrote the old value (0144, 0150, 0157) run in the same one. So a NO here does not mean the migration is missing; it means the ORDER broke and the seeds put the old value back, which is invisible from the migration alone. Restore: tracker.sql',
         -- Read through query_to_xml for row 119''s reason: a plain reference is
         -- resolved when this statement is PLANNED, so a project that has never

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.202',
+    date: '2026-09-11',
+    title: 'Call Review \u2014 a second look at the report on a closed call',
+    changes: [
+      'A NEW SCREEN, separate from the Daily Call Review. The DCCR asks what the failure WAS; this asks whether the report the engineer filed actually stands.',
+      'It lists SOLVED CALLS ONLY, in the same three-pane layout: the calls on the left, the call in the middle, and what actually happened on it \u2014 visit work details and every spare consumed \u2014 on the right. The panes are draggable and the widths are remembered.',
+      'Three things can be done about a call. BOOK A SPARE THE ENGINEER DID NOT (a reconciliation line, off the attending engineer\u2019s hand stock and capped at what they hold). RE-OPEN THE CALL, with a reason, if the report does not close it. Or mark it REPORT REVIEWED.',
+      'Every call now shows whether it has been reviewed, and by whom. The list opens on what is still waiting.',
+      'On Reporting Manager, Hotline Engineer, Admin, NSM, Zoho Migration and Technical Support. The last two can read the screen but not record a review \u2014 they are read-only roles by design; tick "Review a closed call\u2019s report" on Roles & Permissions to change that.',
+    ],
+  },
+  {
     version: '0.9.201',
     date: '2026-09-11',
     title: 'The Filters panel is usable again, and Add Consumption is answered rather than skipped',
