@@ -512,3 +512,10 @@
    <select>; the picker is a wrapper div, so the width belongs to a class. */
 .mrn-eng-filter { max-width: 220px; }
 .hs-eng-filter { max-width: 240px; }
+
+/* Add a role (Roles & Permissions). */
+.rbac-addrole { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px; }
+.rbac-addrole .field { min-width: 240px; flex: 1 1 240px; }
+.rbac-addrole-key { display: block; font-size: 11.5px; margin-top: 4px; line-height: 1.45; }
+.rbac-addrole-btns { display: flex; gap: 8px; align-items: center; padding-top: 22px; }
+.rbac-addrole-note { font-size: 12px; margin: 10px 0 0; }

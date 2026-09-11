@@ -438,3 +438,47 @@ export const parentAction = (key: string): string | undefined => {
 // Every action the tree accounts for — used to spot one that has been added to
 // the system but not yet placed on a page.
 export const TREE_ACTION_KEYS = new Set(PERM_TREE.flatMap((h) => h.pages.flatMap((p) => p.actions)));
+
+// ===========================================================================
+// ADDING A ROLE FROM THE APP.
+// ===========================================================================
+
+// A role key is a database value that appears in policies and in every user's
+// profile, so it is a slug: lower case, letters, digits and underscores. Spaces
+// and punctuation would work until the day one of them met a policy.
+export const roleKeyFrom = (label: string): string =>
+  label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
+export const RESERVED_ROLE_KEYS = ['admin', 'super_admin', 'authenticated', 'anon', 'postgres'];
+
+/** Why a proposed role cannot be created, or null. */
+export function roleProblem(key: string, label: string, existing: string[], cloneFrom: string): string | null {
+  if (!label.trim()) return 'Give the role a name.';
+  if (!key) return 'That name has no letters or digits in it — the key is built from the name.';
+  if (/^[0-9]/.test(key)) return 'A role key cannot start with a digit.';
+  if (RESERVED_ROLE_KEYS.includes(key)) return `"${key}" is reserved.`;
+  if (existing.includes(key)) return `A role with the key "${key}" already exists.`;
+  // THE ONE THAT MATTERS. has_perm() falls back to the ENGINEER's permissions
+  // for a role whose row is an empty array (0008), so a role created with
+  // nothing does not grant nothing — it silently grants an engineer's writes.
+  // Requiring a source makes that impossible rather than documenting it.
+  if (!cloneFrom) return 'Choose the role to copy from — a role cannot start empty.';
+  return null;
+}
+
+/** A label for a role key that is not in the built-in list: "regional_coordinator" → "Regional Coordinator". */
+export const roleLabelFor = (key: string): string =>
+  ROLES.find((r) => r.key === key)?.label
+  ?? (key ? key.split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : '');
+
+/**
+ * The built-in roles PLUS any the database has that the code does not know.
+ * Every role picker must use this: a role added from the app that no picker
+ * offers is a role nobody can be put on, which is a feature that does nothing.
+ */
+export function rolesWith(storedKeys: string[]): RoleDef[] {
+  const seen = new Set(ROLES.map((r) => r.key));
+  const extra = storedKeys.filter((k) => k && !seen.has(k)).sort()
+    .map((k) => ({ key: k, label: roleLabelFor(k) }));
+  return [...ROLES, ...extra];
+}

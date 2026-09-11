@@ -11,7 +11,7 @@ import {
 } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { parseAnyDate } from '../lib/dates';
-import { isReviewable, REVIEW_DONE } from '../lib/callreview';
+import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../lib/callreview';
 import './dccr.css';
 import './callreview.css';
 
@@ -408,7 +408,16 @@ export function CallReview() {
                       {Object.entries(d)
                         .filter(([k, val]) => String(val ?? '').trim() && !/^email-id$/i.test(k))
                         .map(([k, val]) => (
-                          <div className="cr-dl-row" key={k}><dt>{k}</dt><dd>{String(val)}</dd></div>
+                          <div className="cr-dl-row" key={k}>
+                            <dt>{k}</dt>
+                            {/* THE SIGNED REPORT IS THE POINT OF THE REVIEW, and it
+                                was a wall of URL to copy by hand. Any http(s) value
+                                opens; the rest stays text. `noopener` because the
+                                target is Drive, not this app. */}
+                            <dd>{isUrl(String(val))
+                              ? <a href={String(val)} target="_blank" rel="noopener noreferrer">{linkLabel(k, String(val))}</a>
+                              : String(val)}</dd>
+                          </div>
                         ))}
                     </dl>
                   </div>
