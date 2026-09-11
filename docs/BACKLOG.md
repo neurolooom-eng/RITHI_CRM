@@ -268,6 +268,71 @@ the form the panel sits under a *live* Reported Problem textarea that the effect
 depends on. Every keystroke was a full table fetch. 350 ms; on a call, where all
 three inputs are fixed, the timer fires once and nothing is different.
 
+🐞 **FOUR REPORTS FROM VARUN SARADHI** (2026-09-11, v0.9.194). Taken in order
+of what could be PROVED from here.
+
+**1. "same user but some actions are missing" — an administrator previewing him
+saw the Visit Entry and Request Spares buttons; he saw neither.** Both go through
+the SAME `can()`, so the difference had to be in its INPUTS — and neither screen
+showed what those were. Traced as far as the code allows from here: the policies
+are symmetrical (`ar_read` lets anyone signed in read `app_roles`;
+`profiles_self_read` lets anyone read their own row), `permsForRole` is shared,
+and both identities are built by the same `profileToUser`. **What it could not
+be resolved against is their live data**, so the fix is to make it answerable
+rather than to guess: **My Profile now states the role key in effect, WHERE the
+permissions came from — the stored role row or the built-in defaults — what is
+held, and what is granted personally.** One screenshot now settles it.
+
+That stored-versus-default distinction is the one this project keeps being caught
+by (0151, and the `has_perm` gate note in CLAUDE.md): **a role whose `app_roles`
+row is absent or EMPTY falls back to the defaults silently**, so it can look
+configured on Roles & Permissions and behave like something else. If Varun's
+panel says "the built-in defaults", that is the answer.
+
+**And a real fault found on the way: `sbCurrentProfile` swallowed its error.** It
+read `const { data }` and dropped the error, falling through to a synthesised
+bare-engineer identity — so a failed read of somebody's own profile signed them
+in with the minimum access and nothing anywhere said why. **A person quietly
+downgraded reads as a broken app rather than as access not granted.** It now
+throws; both call sites handle it (the boot still finishes, the sign-in still
+returns a message) because throwing without handling would have hung the app,
+which is worse than what it replaced.
+
+**2. "it goes into not responding quite often" — FOUND, NOT YET FIXED.**
+`sheets.ts` calls `listCalls(tab, limit || 100000)`: the register downloads **up
+to 100,000 calls, a thousand at a time, every column**, then maps every row
+through `dbToCall`. On a phone that is a hundred sequential requests and a very
+large array before anything is interactive — Varun's screen showed 129 rows
+because "Open only" filters CLIENT-SIDE, after all of them have arrived.
+
+**Not changed in this round, deliberately.** The table, the grouping, the
+counts and the CSV export all assume the whole register is in memory; moving to
+server-side paging is a real change and not one to start at the end of a long
+session. **Next step, and it needs a decision**: page the register server-side
+and push "Open only" into the query, which is how the 129 rows become 129 rows
+fetched.
+
+**3. "The visit was saved, but the 2 spares could not be recorded: VARUN SARADHI
+has 0 of MSA-125 in hand" — WORKING AS DESIGNED, not a bug.** The consumption
+trigger caps every line at the engineer's hand-stock balance, and the message
+names the part, the balance and who fixes it. Recorded here so it is not
+"fixed" later by somebody reading the screenshot as a defect.
+
+**4. The customer search showed the PREVIOUS results while a new one ran.**
+Typing "The principal" listed hospitals beginning with A under a quiet
+"searching…". The results were held as rows alone, so the last answer stayed on
+screen until the next landed. They are now held WITH the query that produced
+them and only shown when that matches what is typed. **Rows that contradict what
+has been typed are worse than no rows: they read as the answer.**
+
+Also caught while fixing it: the memo compares a LOWER-CASED query, so storing
+the raw one would never have matched and the list would have stayed empty for
+any query containing a capital. Normalised on both sides.
+
+**FIFTH assertion this session to fail for pinning a shape** — it matched
+`onSearch(query.trim())` and the code hoisted that into a variable. Rewritten to
+the property.
+
 🐞 **"party name and Product - both are taking about 8 & 4 sec -- is that
 expected?"** (2026-09-10, v0.9.193). **No — and the honest answer was that
 caching the wrong thing does not make it right.**

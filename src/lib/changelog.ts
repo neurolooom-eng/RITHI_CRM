@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.194',
+    date: '2026-09-11',
+    title: 'You can now see what your own access actually is',
+    changes: [
+      'MY PROFILE NOW SHOWS WHAT YOU CAN DO and, more usefully, WHERE IT COMES FROM \u2014 the role as configured under Roles & Permissions, or the built-in defaults when nothing has been saved for that role. A role can look configured and still be running on the defaults, and until now there was no way to tell from any screen.',
+      'It lists every action and page you hold, and anything granted to you personally. An action missing there is why a button is missing on a screen.',
+      'This was prompted by an administrator and an engineer seeing different buttons on the same call: one screenshot from this panel now answers which of the two is right.',
+      'WHEN THE PREVIEW IS ON it says so, so a preview is never mistaken for your own access.',
+      'AND IF YOUR PROFILE CANNOT BE READ, you are told. Before, that failure silently signed you in with the minimum access and nothing said why \u2014 it looked like the app was broken rather than like access had not been given.',
+      'The customer search no longer shows results from your previous search while a new one is running \u2014 typing a hospital name and seeing a list of unrelated ones underneath was worse than seeing nothing.',
+    ],
+  },
+  {
     version: '0.9.193',
     date: '2026-09-10',
     title: 'The customer box opens instantly — it searches instead of downloading',
