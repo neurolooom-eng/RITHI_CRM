@@ -19,7 +19,6 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
-<<<<<<< HEAD
 ### The register was empty, and the role was misnamed — 2026-09-12 (v0.9.224, SQL to run)
 
 Two reports from one screenshot.
@@ -66,8 +65,6 @@ checks it. **Then tick "Read the whole Field Failure Register"** for the roles
 that should see it — the role in the report holds the page but not `ffr.manage`,
 so the migration's grant does not reach it.
 
-=======
->>>>>>> origin/claude/field-service-module-poc-hslouq
 ### Field Failure: Insights + the Register as a desk — 2026-09-12 (v0.9.223, shipped, no SQL)
 
 The user: *"Add an Insights tab and Register [Move the current View to Register].

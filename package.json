@@ -1,11 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-<<<<<<< HEAD
   "version": "0.9.224",
-=======
-  "version": "0.9.223",
->>>>>>> origin/claude/field-service-module-poc-hslouq
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
