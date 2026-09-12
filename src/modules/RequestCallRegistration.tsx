@@ -40,7 +40,8 @@ type Item = CallRequestItem;
 type Doc = { name: string; url: string } | null;
 type Docs = { installationReport: Doc; kyc: Doc };
 const blankItem = (install = false): Item => ({
-  product: '', serial: '', party: '', city: '',
+  product: '', serial: '', party: '', city: '', state: '', address: '',
+  contactDetails: '', contactNumber: '',
   standardComplaint: install ? 'INSTALLATION CALL' : '',
   reportedProblem: install ? 'INSTALLATION CALL' : '',
 });
@@ -322,9 +323,22 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   // Picking a machine fills its customer IN THAT ROW. City comes with it --
   // the user's decision (2026-09-11): city per row, State / Address / Contact
   // stay on the request, since those describe where the engineer is going.
+  // Picking a machine fills its customer AND its site into that row. The site
+  // fields stay EDITABLE: the register records where the machine was sold, and
+  // a hospital moves a ventilator between wards without telling anybody.
+  // Anything already typed in the row is kept — a correction is not overwritten
+  // by the register it was correcting.
   const takeMachine = (i: number, m: MachineHit) =>
     setItems((s) => s.map((it, j) => (j === i
-      ? { ...it, product: m.product || it.product, serial: m.serial, party: m.party, city: m.city }
+      ? {
+          ...it,
+          product: m.product || it.product,
+          serial: m.serial,
+          party: m.party,
+          city: it.city?.trim() ? it.city : m.city,
+          state: it.state?.trim() ? it.state : m.state,
+          address: it.address?.trim() ? it.address : m.address,
+        }
       : it)));
 
   const setItem = (i: number, k: keyof Item, v: string) => setItems((s) => s.map((it, j) => (j === i ? { ...it, [k]: v } : it)));
@@ -434,15 +448,16 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
           </div>
         </section>
 
+        {/* THE WHOLE SITE BLOCK IS THE INSTALLATION'S NOW (the user's ask,
+            2026-09-12). On a field or PM call the customer, the city, the
+            state, the address and the contact are all PER CALL — a request
+            whose calls name their own customers cannot carry one site at the
+            top. An installation has no machine to read any of it from, so it
+            keeps the block exactly as it was. */}
+        {isInstall && (
         <section className="rep-sec">
-          {/* A heading has to describe what is under it. On a field or PM call
-              the customer is no longer here -- it comes off each machine below --
-              so this section is now what is left: where the engineer is going
-              and who to ask for. Calling it "Customer" with no customer in it
-              was the confusing part of the new layout. */}
-          <div className="rep-sec-title">
-            {isInstall ? 'Customer' : <>Site &amp; contact <span className="muted" style={{ fontWeight: 400 }}>— the customer comes from the machine, on each call below</span></>}
-          </div>
+          {/* Reached only when isInstall — the block above is gated on it. */}
+          <div className="rep-sec-title">Customer</div>
           <div className="rep-grid">
             {/* THE PARTY IS PICKED, NOT TYPED — and this is the fix for "it is
                 taking a very long time to accept the party" (2026-09-09).
@@ -515,6 +530,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
             {field('Customer Contact Number', <input className="input" value={f.customerContactNumber} onChange={(e) => set('customerContactNumber', e.target.value)} />)}
           </div>
         </section>
+        )}
 
         <section className="rep-sec">
           <div className="rep-sec-title">
@@ -597,9 +613,24 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 {!isInstall && it.serial.trim() !== '' && (
                   <div className="req-machine-party">
                     {it.party
-                      ? <>Customer: <b>{it.party}</b>{it.city ? <> · {it.city}</> : null}</>
+                      ? <>Customer: <b>{it.party}</b></>
                       : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Master.</span>}
                   </div>
+                )}
+                {/* THE SITE, PER CALL (the user's ask, 2026-09-12). It used to
+                    sit once at the top of the request, which only works while
+                    every call on it is for one customer — and since the machine
+                    started naming the customer, they need not be. Prefilled from
+                    the register and EDITABLE: the register says where the
+                    machine was sold, and a ward move is not filed with anybody. */}
+                {!isInstall && (
+                  <>
+                    {field('City', <input className="input" value={it.city ?? ''} onChange={(e) => setItem(i, 'city', e.target.value)} />)}
+                    {field('State', <input className="input" value={it.state ?? ''} onChange={(e) => setItem(i, 'state', e.target.value)} />)}
+                    {field('Address', <textarea className="input" rows={2} value={it.address ?? ''} onChange={(e) => setItem(i, 'address', e.target.value)} />, true)}
+                    {field('Customer Contact Details', <input className="input" value={it.contactDetails ?? ''} onChange={(e) => setItem(i, 'contactDetails', e.target.value)} />)}
+                    {field('Customer Contact Number', <input className="input" value={it.contactNumber ?? ''} onChange={(e) => setItem(i, 'contactNumber', e.target.value)} />)}
+                  </>
                 )}
                 {/* TYPE TO SEARCH, because the master is five hundred entries
                     long and a native dropdown offers no way through it but the

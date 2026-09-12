@@ -1230,6 +1230,10 @@ export interface CallRequestItem {
   // is no machine on the register yet and the form still asks.
   party?: string;
   city?: string;
+  state?: string;
+  address?: string;
+  contactDetails?: string;
+  contactNumber?: string;
 }
 const itemCols = (it: CallRequestItem) => ({
   product: it.product,
@@ -1241,6 +1245,10 @@ const itemCols = (it: CallRequestItem) => ({
   // form collected.
   ...(it.party?.trim() ? { party_name: it.party.trim() } : {}),
   ...(it.city?.trim() ? { city: it.city.trim() } : {}),
+  ...(it.state?.trim() ? { state: it.state.trim() } : {}),
+  ...(it.address?.trim() ? { address: it.address.trim() } : {}),
+  ...(it.contactDetails?.trim() ? { customer_contact_details: it.contactDetails.trim() } : {}),
+  ...(it.contactNumber?.trim() ? { customer_contact_number: it.contactNumber.trim() } : {}),
 });
 
 // FIND THE MACHINE, AND THE CUSTOMER COMES WITH IT.
@@ -1254,7 +1262,7 @@ const itemCols = (it: CallRequestItem) => ({
 // The LIMIT is what keeps it cheap: the scan stops as soon as it has enough,
 // so a short term that matches half the register costs no more than a precise
 // one. City rides in `products.extra` under the spreadsheet's own heading.
-export interface MachineHit { serial: string; product: string; party: string; city: string }
+export interface MachineHit { serial: string; product: string; party: string; city: string; state: string; address: string }
 export async function sbSearchMachines(product: string, query: string, limit = 50): Promise<MachineHit[]> {
   const c = getSupabase(); if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
@@ -1270,7 +1278,12 @@ export async function sbSearchMachines(product: string, query: string, limit = 5
       serial: String(r.serial_number ?? ''),
       product: String(r.item_name ?? ''),
       party: String(r.party_name ?? ''),
+      // The site, as the register has it. Prefilled into the row and EDITABLE
+      // there: the register is where the machine was sold, and a hospital moves
+      // a ventilator between wards and buildings without telling anybody.
       city: String(ex['City'] ?? ''),
+      state: String(ex['State'] ?? ''),
+      address: String(ex['Address'] ?? ''),
     };
   }).filter((m) => m.serial);
 }
