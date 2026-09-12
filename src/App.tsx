@@ -25,6 +25,7 @@ import { SpareRequests } from './modules/SpareRequests';
 import { SpareRmApproval } from './modules/SpareRmApproval';
 import { SpareDispatch } from './modules/SpareDispatch';
 import { StockOut } from './modules/StockOut';
+import { FieldFailureReportPrint } from './modules/FieldFailureReportPrint';
 import { DeliveryChallan } from './modules/DeliveryChallan';
 import { Declaration } from './modules/Declaration';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -75,12 +76,17 @@ function Shell() {
   // The challan and the declaration print on their own: no sidebar, no header,
   // nothing that would land on the paper. Their rows are RLS-scoped, so a stock
   // out the user may not see simply is not found.
-  if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')) {
+  if (location.pathname.startsWith('/dc/') || location.pathname.startsWith('/declaration/')
+      || location.pathname.startsWith('/ffr/')) {
     return (
       <ErrorBoundary where="printable document">
         <Routes>
           <Route path="/dc/:stockOut" element={<DeliveryChallan />} />
           <Route path="/declaration/:stockOut" element={<Declaration />} />
+          {/* The Field Failure Report prints the same way — its own route, no
+              chrome, one Print button. Its row is RLS-scoped, so a report the
+              reader may not see is simply not found. */}
+          <Route path="/ffr/:ffrNo" element={<FieldFailureReportPrint />} />
         </Routes>
       </ErrorBoundary>
     );

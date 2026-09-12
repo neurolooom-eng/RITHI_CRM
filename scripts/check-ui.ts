@@ -3708,7 +3708,15 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const text = new TextDecoder().decode(bytes);
   eq('it declares the WordprocessingML part',
     text.includes('wordprocessingml.document.main+xml'), true);
-  eq('and carries the controlled form it follows', text.includes('R-SER-03'), true);
+  // THE FORM'S OWN IDENTITY, as the template prints it in its footer. This used
+  // to look for 'R-SER-03' — the name of the form, which the template does not
+  // actually put anywhere. Now it tests the string the controlled document
+  // carries, so the check would fail if the footer were dropped.
+  eq('and carries the controlled form it follows',
+    text.includes('TMPL No: R/SER/03 Rev: MAR 2020'), true);
+  eq('with the header band on every page',
+    text.includes('FIELD FAILURE REPORT') && text.includes('AIR LIQUIDE MEDICAL SYSTEMS PVT. LTD.'), true);
+  eq('and the page numbered by a field, not a literal', text.includes(' PAGE '), true);
   // A newline inside <w:t> is whitespace, not a line break — the observation is
   // where somebody notices, so multi-line text becomes separate paragraphs.
   eq('a multi-line observation becomes paragraphs, not one run',
@@ -3961,6 +3969,105 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     eq(`${label} signs only the block that names the printer`,
       /signatureBelongsTo\(/.test(src), true);
   }
+}
+
+// ---------------------------------------------------------------------------
+// R-SER-03 — THE WORD COPY IS THE CONTROLLED FORM ("FFR word copy has to be
+// exactly same as the template", 2026-09-12), AND THE PRINTABLE PAGE IS THE
+// SAME FORM.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- the Field Failure Report form --');
+  const form = readFileSync('src/lib/ffrform.ts', 'utf8');
+
+  // THE TEMPLATE'S OWN LABELS, padding included — the padding is how the
+  // printed form aligns its colons, so trimming it changes the form.
+  for (const label of [
+    'Hospital Name : ', 'Complaint Date  : ', 'Address             : ',
+    'Phone No   :', 'Mobile No           :', 'Email                   :',
+    'UC Number: ', 'Model                   :', 'Equipment Name: ',
+    'Software Details  :', 'Serial No: ', 'Software               :',
+    'Punched S. No   :', 'Equipment status : ',
+    'Problem Description  :', 'Service Department Observation',
+    'CAPA No: ', 'Problem Status: ', 'Raised by: ', 'Signature:',
+  ]) {
+    eq(`the form carries "${label.trim()}"`, form.includes(`'${label}'`), true);
+  }
+  eq('both section headings', form.includes("'Customer Information'") && form.includes("'Equipment Information'"), true);
+  eq('the form identity is on the page', form.includes('TMPL No: R/SER/03 Rev: MAR 2020'), true);
+  eq('so is the property notice', form.includes('property of Air Liquide Medical Systems'), true);
+  eq('the template’s column split', /left: 6435, right: 4500/.test(form), true);
+  eq('and its page setup', /w: 11906, h: 16838/.test(form), true);
+
+  // THE NUMBER AND DATE ARE NOT INVENTED AT THE TOP. The template has neither
+  // field; the first generated version added both, which is what made it a
+  // different form.
+  eq('no FFR-number field is added to the form',
+    !/label: 'FFR No/.test(form) && !/label: 'Date/.test(form), true);
+
+  // ONE DEFINITION, TWO RENDERINGS. Either renderer growing its own copy of a
+  // label is the drift this file exists to prevent.
+  const docSrc = readFileSync('src/lib/ffrdoc.ts', 'utf8');
+  const pageSrc = readFileSync('src/modules/FieldFailureReportPrint.tsx', 'utf8');
+  for (const [src, who] of [[docSrc, 'the Word copy'], [pageSrc, 'the printable page']] as const) {
+    eq(`${who} renders the shared rows`, /FFR_ROWS/.test(src), true);
+    eq(`${who} does not hand-write a label`, /'Hospital Name|'Serial No:|'CAPA No:/.test(src), false);
+  }
+  eq('the printable page uses the COMPANY mark', /COMPANY_LOGO/.test(pageSrc), true);
+  eq('…from brand.ts, never a direct asset import', /from '\.\.\/assets\//.test(pageSrc), false);
+}
+
+// ---------------------------------------------------------------------------
+// WHO REVIEWED IT (0173) and THE UPDATE LOG (0174).
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- who reviewed it, and what changed --');
+  const r = readFileSync('supabase/migrations/0173_dccr_reviewer.sql', 'utf8');
+  const body = r.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  eq('the reviewer comes from the session', /new\.review2_by_uid := v_uid/.test(body), true);
+  eq('…and only when the review is COMPLETED', /if now2 and not was2 then/.test(body), true);
+  // A SCREEN IS NEVER RECORDED AS A PERSON. Scoped to raise_ffr's own body:
+  // the string still appears in the back-fill's WHERE clause, which is where it
+  // is MATCHED in order to be replaced — the opposite of assigning it.
+  const raise = /create or replace function public\.raise_ffr[\s\S]*?\n\$\$;|create or replace function public\.raise_ffr[\s\S]*?end \$\$;/.exec(body)?.[0] ?? '';
+  eq('raise_ffr() was found', raise !== '', true);
+  eq('a screen is never recorded as a person', /'Daily Call Review'/.test(raise), false);
+  eq('…and Review 3’s reviewer is preferred',
+    /nullif\(btrim\(coalesce\(p_review\.review3_by, ''\)\), ''\),\s*\n\s*nullif\(btrim\(coalesce\(p_review\.review2_by, ''\)\), ''\)/.test(raise), true);
+
+  // THE MIRROR. A generated column is computed AFTER the BEFORE triggers, so
+  // the trigger cannot read review2_done and evaluates 0044's expression
+  // itself. A mirror is only safe while it stays a copy — so compare them.
+  const gen = readFileSync('supabase/migrations/0044_daily_call_review.sql', 'utf8');
+  const norm = (x: string) => x.replace(/\s+/g, ' ').trim();
+  const genExpr = (col: string) => {
+    const m = new RegExp(`add column if not exists ${col} boolean[\\s\\S]*?generated always as \\(([\\s\\S]*?)\\) stored`).exec(gen);
+    return m ? norm(m[1]) : '';
+  };
+  const mirrored = (v: string) => {
+    const m = new RegExp(`${v} boolean := ([^;]+);`).exec(body);
+    return m ? norm(m[1]).replace(/new\./g, '') : '';
+  };
+  for (const [col, v] of [['review2_done', 'now2'], ['review3_done', 'now3']] as const) {
+    const a = genExpr(col), b = mirrored(v);
+    eq(`${col}’s mirror matches 0044 word for word`, a !== '' && a === b, true);
+  }
+
+  const h = readFileSync('supabase/migrations/0174_ffr_history.sql', 'utf8');
+  const hbody = h.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+  eq('the log is written by a trigger, not the client',
+    /create trigger zz_ffr_history after update on public\.field_failure_reports/.test(hbody), true);
+  eq('an update that changes nothing writes nothing',
+    /if v_diff = '\{\}'::jsonb then return null/.test(hbody), true);
+  eq('updated_at is never an entry on its own', /skip\s+text\[\] := array\[[^\]]*'updated_at'/.test(hbody), true);
+  // APPEND-ONLY BY OMISSION: no insert, update or delete policy exists.
+  for (const cmd of ['insert', 'update', 'delete']) {
+    eq(`no ${cmd} policy on the log`,
+      new RegExp(`create policy [a-z_]+ on public\\.ffr_history for ${cmd}`).test(hbody), false);
+  }
+  eq('a read needs ffr.manage or admin',
+    /create policy ffrh_read on public\.ffr_history for select[\s\S]*?has_perm\('ffr\.manage'\)/.test(hbody), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

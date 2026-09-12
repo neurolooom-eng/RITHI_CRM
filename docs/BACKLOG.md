@@ -19,6 +19,59 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The real R-SER-03, an update log, and who reviewed it — 2026-09-12 (v0.9.220, SQL to run)
+
+Four asks: the Word copy must be the template exactly; a printable HTML version
+like the DC and the Declaration; the DCCR must record who reviewed it and put
+that name on the FFR; and every FFR update must be captured for log keeping.
+
+**THE CONTROLLED FORM, TAKEN FROM THE TEMPLATE FILE.** The first version treated
+R-SER-03 as a *specification* and wrote a tidier document carrying the same
+fields. That is not what a controlled form is. The template was pulled from
+Drive (`R-SER-03 Field Failure Report Rev02`), its `document.xml` parsed, and
+the layout extracted: the header band, the 6435/4500 grid, every label with its
+exact wording **and internal padding** (which is how the printed form aligns its
+colons), A4 with the template's margins, and the footer's
+`TMPL No: R/SER/03 Rev: MAR 2020`. Verified by parsing both files and diffing
+row by row — 15 rows, same order, same spans, same labels.
+
+Two things the template does **not** have and the first version invented: an FFR
+number field and a date field. Both removed; the number travels in the file name.
+
+**ONE FORM, TWO RENDERINGS.** `src/lib/ffrform.ts` holds the rows; the Word
+writer and the new `/ffr/:ffrNo` page both render them. A controlled form
+transcribed twice is a form that drifts, so `check:ui` fails either renderer
+that hand-writes a label.
+
+**WHO REVIEWED IT (0173).** The screen stamped a reviewer only on Save — but the
+DCCR also auto-saves and has a bulk path, neither of which sends a name, so
+reports were raised naming *"Daily Call Review"*. The identity now comes from
+`auth.uid()` in the database at the moment a stage becomes complete, on every
+path, with the display name from User Master.
+
+⚠️ **A fault found only by running it:** PostgreSQL computes a GENERATED column
+**after** the BEFORE triggers, so the trigger's first version read
+`new.review2_done` as NULL and stamped nothing — silently, everywhere. It
+evaluates the completion test from the source columns instead, mirroring 0044's
+expression; `check:ui` compares the two word for word and fails on drift.
+
+**THE UPDATE LOG (0174).** `ffr_history`, one row per UPDATE, holding
+`{column: {from, to}}` for only what differs. Written by a **database** trigger,
+not the client — the application's audit trail is client-written and sees
+nothing of an edit through the API. No insert, update or delete policy exists,
+so it cannot be forged, edited or tidied; 0166's deletion guard is armed on it
+too. Shown as "Update log" on the report.
+
+**BAGYARAJ** is looked up in User Master and taken verbatim — never typed. If he
+is not on the master the migration raises a notice and changes nothing, because
+a name matching no user is worse than a blank one.
+
+**To run:** `daily_review.sql` (0173) and `data_integrity.sql` (0174).
+`_status.sql` rows 131 and 132 check them.
+
+Validation package **Rev 2.3**: URS-058/059, FRS-069/070 (and FRS-067 restated),
+R-37/38, FM-28/29, OQ-52/53.
+
 ### Signatures, Stock Out and the menu — 2026-09-12 (v0.9.219, SQL to run)
 
 Three asks in one: save a signature, a Stock Out page, and a menu rearrangement
