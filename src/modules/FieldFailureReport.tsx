@@ -163,7 +163,18 @@ export function FieldFailureReport() {
     if (!problem) { setMsg({ tone: 'error', text: 'Problem reported by customer is required — it is what the report is about.' }); return; }
     if (!String(form.customer_name ?? '').trim()) { setMsg({ tone: 'error', text: 'Customer Name is required.' }); return; }
     setBusy(true);
-    const payload = { ...form, raised_by_name: user?.email ?? '' };
+    // RAISED BY IS SET ONCE, WHEN THE REPORT IS RAISED — never on an edit.
+    //
+    // This used to stamp `user?.email` on EVERY save, so opening somebody
+    // else's report, correcting a typo and saving replaced the raiser with the
+    // editor. Two things wrong with that: it is not who raised the report, and
+    // an e-mail address is not the name the register shows everywhere else
+    // (0173 takes the reviewer's name from User Master for exactly that
+    // reason). An edit now leaves the field alone, and the weekly review has
+    // `reviewed_by_name` of its own to say who looked at it.
+    const payload = editing == null
+      ? { ...form, raised_by_name: String(form.raised_by_name ?? '').trim() || user?.fullName || user?.email || '' }
+      : form;
     const res = editing == null ? await addFfr(payload) : await updateFfr(editing, payload);
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Save failed.' }); return; }

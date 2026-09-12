@@ -19,6 +19,35 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### Editing an FFR failed on the view's columns — 2026-09-12 (v0.9.222, shipped, no SQL)
+
+Reported from use: **"Could not find the 'live_any_potential_effect' column of
+`field_failure_reports` in the schema cache"**.
+
+**THE REGISTER READS A VIEW AND THE FORM SAVES A TABLE.**
+`field_failure_register` carries the record PLUS the live call beside it — 16
+`live_*` columns. Clicking a row seeded the edit form with that row, and
+`updateFfr` dropped two keys and sent everything else, so PostgREST refused the
+whole write and the edit was silently lost. Present since the register was built
+(0167); it surfaced now because the weekly review actually edits reports.
+
+Fixed with a **whitelist** (`FFR_WRITABLE` / `ffrWritable` in `src/lib/ffr.ts`),
+not a `live_%` strip: a blacklist works until the view gains a column that is
+not prefixed, and the failure would again be a save that looks fine until it
+isn't. `check:ui` compares the list against the table's own definition in
+0165 + 0168, runs the strip over a view-shaped row, **and** asserts both writers
+call it — without that last one the fix could be reverted in `supabase.ts` with
+every other check still green.
+
+**AND A SECOND BUG IN THE SAME SAVE:** it stamped `raised_by_name = user.email`
+on *every* save, so correcting a typo on somebody else's report replaced the
+raiser with the editor — and with an address rather than the name the register
+shows everywhere else. Raised by is set once now, on the raise; who looked at it
+since is the Update log's and the weekly review's job.
+
+⚠️ **Worth an audit, not yet done:** any other screen that READS A VIEW and
+WRITES ITS TABLE has the same shape. This is the only one found so far.
+
 ### The reviewer is found by role, not spelling — 2026-09-12 (v0.9.221, SQL to run)
 
 The user: **"Bagyaraj would be mapped as nsm."**

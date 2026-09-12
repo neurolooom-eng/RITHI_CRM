@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.222',
+    date: '2026-09-12',
+    title: 'Editing a Field Failure Report saves again',
+    changes: [
+      'FIXED: opening a report from the register and saving it failed with \u201CCould not find the \u2018live_any_potential_effect\u2019 column\u201D, and the edit was lost. The register shows the report BESIDE the live call, and saving was sending those live columns back as if they were part of the report.',
+      'FIXED: saving an edit replaced \u201CRaised by\u201D with the e-mail address of whoever saved it \u2014 so correcting a typo on somebody else\u2019s report took their name off it. Raised by is now set once, when the report is raised, and left alone afterwards.',
+      'Who looked at a report since is answered by the Update log and the weekly review, not by overwriting who raised it.',
+    ],
+  },
+  {
     version: '0.9.221',
     date: '2026-09-12',
     title: 'Finding the reviewer by who they are, not how their name is spelt',

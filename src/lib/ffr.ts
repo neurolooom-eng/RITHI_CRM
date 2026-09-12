@@ -88,6 +88,49 @@ export const FFR_REVIEW_FIELDS = [
   'ffr_status', 'attachment_url', 'attachment_name',
 ] as const;
 
+/**
+ * WHAT MAY BE WRITTEN TO `field_failure_reports`.
+ *
+ * THE REGISTER READS A VIEW AND THE FORM SAVES A TABLE, and that is the whole
+ * reason this list exists. `field_failure_register` carries the record PLUS the
+ * live call beside it (`live_call_status`, `live_any_potential_effect`, …);
+ * clicking a row seeds the edit form with that row, and saving it sent every
+ * one of those columns back to the table, which does not have them. PostgREST
+ * answers "Could not find the 'live_any_potential_effect' column of
+ * 'field_failure_reports' in the schema cache" and the edit is lost — reported
+ * from use, 2026-09-12.
+ *
+ * A WHITELIST, NOT A BLACKLIST. Stripping `live_%` would work today and fail
+ * the first time the view gains a column that is not prefixed — and the failure
+ * would again be a save that looks like it worked until the error appears.
+ * `check:ui` compares this list against the table's own definition in the
+ * migrations, so a column added to one and not the other is caught.
+ *
+ * The columns the DATABASE owns are deliberately absent: `id`, `ffr_no` (issued
+ * once, never edited — 0168's stamp puts the old value back anyway),
+ * `raised_by`, `created_at` and `updated_at`.
+ */
+export const FFR_WRITABLE = [
+  'ffr_date', 'source', 'ucn', 'crn_date',
+  'customer_name', 'place', 'product_name', 'cover', 'item_code', 'product_serial',
+  'installation_date',
+  'problem_reported', 'additional_problem', 'service_observation', 'problem_status',
+  'capa_responsibility', 'capa_no', 'capa_status',
+  'verified_by', 'remarks', 'current_call_status', 'call_solved_at',
+  'visit_remarks', 'spares_consumed', 'call_type', 'ffr_status', 'doc_url',
+  'extra', 'raised_by_name',
+  // The weekly review's own columns (0168).
+  'attachment_url', 'attachment_name', 'reviewed_at', 'reviewed_by_name',
+] as const;
+
+/** A row reduced to what the table will accept. Keys it does not know are
+ *  dropped rather than sent — including every live_* column the view added. */
+export function ffrWritable(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of FFR_WRITABLE) if (k in row) out[k] = row[k];
+  return out;
+}
+
 /** Reports not looked at since `since`. The point of a weekly cycle is knowing
  *  which ones those are, and `updated_at` cannot answer it — any edit moves
  *  that, so a report corrected on Tuesday would read as reviewed. */

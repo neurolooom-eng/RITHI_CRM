@@ -11,6 +11,7 @@
 // ---------------------------------------------------------------------------
 
 import { machineKey } from './machine';
+import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
 import { byColumnSet } from './uploads';
@@ -4199,17 +4200,23 @@ export async function ffrsForCall(ucn: string): Promise<Record<string, unknown>[
 /** Raise one. The NUMBER and the raiser are the database's to issue (0165), so
  *  neither is sent: a caller-supplied FFR number could collide with one already
  *  on the sheet, and a caller-supplied raiser could name anybody. */
+// THE REGISTER READS A VIEW AND THESE WRITE A TABLE. Both reduce the row to the
+// table's own columns (ffrWritable) rather than dropping two keys and hoping:
+// the previous version sent every live_* column the view had added, and
+// PostgREST refused the whole write with "Could not find the
+// 'live_any_potential_effect' column … in the schema cache" — so an edit made
+// on the register was simply lost. Reported from use, 2026-09-12.
 export async function addFfr(row: Record<string, unknown>): Promise<{ ok: boolean; ffrNo?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
-  const { ffr_no: _drop, raised_by: _drop2, ...rest } = row;
-  const { data, error } = await c.from('field_failure_reports').insert(rest).select('ffr_no').single();
+  const { data, error } = await c.from('field_failure_reports')
+    .insert(ffrWritable(row)).select('ffr_no').single();
   if (error) return { ok: false, error: errMsg(error) };
   return { ok: true, ffrNo: String(data?.ffr_no ?? '') };
 }
 
 export async function updateFfr(id: number, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
-  const { ffr_no: _drop, raised_by: _drop2, ...rest } = patch;
-  const { error } = await c.from('field_failure_reports').update(rest).eq('id', id);
+  const { error } = await c.from('field_failure_reports')
+    .update(ffrWritable(patch)).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
