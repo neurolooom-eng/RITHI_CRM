@@ -4125,6 +4125,46 @@ export async function createRole(role: string, label: string, permissions: strin
 // AutoCrat plumbing columns are not carried: the document is generated here.
 export interface FfrRow { [k: string]: unknown }
 
+/** ONE report, by its number — what the printable page opens. A separate read
+ *  rather than a filter over listFfrs(): the print route is reached by URL, so
+ *  it must stand on its own without the register having been loaded first.
+ *  The view is security_invoker, so a report the reader may not see is simply
+ *  not found, with no separate permission check needed. */
+export async function getFfr(ffrNo: string): Promise<Record<string, unknown> | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data, error } = await c.from('field_failure_register').select('*')
+    .eq('ffr_no', ffrNo).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown>) ?? null;
+}
+
+/** THE CHANGE LOG FOR ONE REPORT (0174) — "I need to be able to capture
+ *  everytime it is updated - For log keeping".
+ *
+ *  Newest first, because the question a weekly review asks is what changed
+ *  since last week. Written by a database trigger, so this reads a record the
+ *  application cannot have failed to write. */
+export interface FfrHistoryRow {
+  id: number;
+  changed_at: string;
+  changed_by_name: string;
+  action: string;
+  changes: Record<string, { from: unknown; to: unknown }>;
+}
+
+export async function listFfrHistory(ffrNo: string): Promise<FfrHistoryRow[]> {
+  const c = getSupabase(); if (!c) return [];
+  const { data, error } = await c.from('ffr_history')
+    .select('id, changed_at, changed_by_name, action, changes')
+    .eq('ffr_no', ffrNo)
+    .order('changed_at', { ascending: false }).order('id', { ascending: false })
+    .limit(200);
+  // A missing table is "no history yet", not a broken drawer: the migration is
+  // the user's step and the report itself must still open.
+  if (error) return [];
+  return (data ?? []) as FfrHistoryRow[];
+}
+
 export async function listFfrs(limit = 5000): Promise<Record<string, unknown>[]> {
   const c = getSupabase(); if (!c) return [];
   const PAGE = 1000;

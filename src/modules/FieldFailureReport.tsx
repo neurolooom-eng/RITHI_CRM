@@ -8,7 +8,8 @@ import { logAudit } from '../lib/audit';
 import { fmtLongDate, csvExport } from '../lib/format';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
-import { listFfrs, addFfr, updateFfr, supabaseConfigured } from '../lib/supabase';
+import { listFfrs, addFfr, updateFfr, listFfrHistory, supabaseConfigured,
+  type FfrHistoryRow } from '../lib/supabase';
 import {
   FFR_COLUMNS, FFR_LIVE_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY,
   FFR_STATUS, FFR_SOURCES, ffrDocFrom, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn,
@@ -16,6 +17,7 @@ import {
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
+import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -123,13 +125,21 @@ export function FieldFailureReport() {
     {
       key: '_doc', header: 'Report', width: 110, wrap: false,
       render: (r: Row) => (
-        <button className="btn btn-ghost btn-sm" title="Download the R-SER-03 report"
-                onClick={(e) => { e.stopPropagation(); doc(r); }}>📄 Word</button>
+        <div className="row" onClick={(e) => e.stopPropagation()}>
+          {/* TWO WAYS OUT, because they are for different moments: the page
+              prints now, from anything with a browser; the Word copy is for
+              somebody who has to edit or file it. Both render R-SER-03 from the
+              same form definition (src/lib/ffrform.ts). */}
+          <button className="btn btn-ghost btn-sm" title="Open the printable R-SER-03 report"
+                  onClick={() => nav(`/ffr/${encodeURIComponent(String(r.ffr_no ?? ''))}`)}>🖨 Print</button>
+          <button className="btn btn-ghost btn-sm" title="Download the R-SER-03 report as Word"
+                  onClick={() => void doc(r)}>📄 Word</button>
+        </div>
       ),
     },
   ], []);
 
-  const doc = (r: Row) => {
+  const doc = async (r: Row) => {
     const raisedBy = String(r.raised_by_name ?? '') || (user?.email ?? '');
     // THE SIGNATURE BLOCK IS THE RAISER'S, so it carries a saved signature only
     // when the person pressing this button IS the raiser. Anybody else printing
@@ -137,7 +147,13 @@ export function FieldFailureReport() {
     // src/lib/signature.ts for why that is the rule and not a limitation to be
     // worked around.
     const signature = signatureBelongsTo(raisedBy, user) ? (mySig?.signature ?? '') : '';
-    ffrDocDownload({ ...ffrDocFrom(r, raisedBy), signature });
+    // The mark is fetched rather than bundled as a constant (brand.ts), and a
+    // failure to read it costs the document its logo and nothing else.
+    const logo = await companyLogoBytes();
+    ffrDocDownload({
+      ...ffrDocFrom(r, raisedBy), signature,
+      ...(logo ? { logo, logoType: COMPANY_LOGO_TYPE } : {}),
+    });
     logAudit({ action: 'ffr.document', target: String(r.ffr_no ?? ''), status: 'ok', meta: { signed: !!signature } });
   };
 
@@ -276,9 +292,18 @@ export function FieldFailureReport() {
               </div>
             </section>
 
+            {/* THE CHANGE LOG. Only on an existing report — a report being
+                raised has no history, and an empty panel on the new-report form
+                would read as one that failed to load. */}
+            {editing != null && <FfrHistory ffrNo={String(form?.ffr_no ?? '')} />}
+
             <div className="rep-actions">
               {editing != null && (
-                <button className="btn btn-sm" onClick={() => doc({ ...(form as Row), id: '0' })}>📄 Word</button>
+                <>
+                  <button className="btn btn-sm"
+                          onClick={() => nav(`/ffr/${encodeURIComponent(String(form?.ffr_no ?? ''))}`)}>🖨 Print</button>
+                  <button className="btn btn-sm" onClick={() => void doc({ ...(form as Row), id: '0' })}>📄 Word</button>
+                </>
               )}
               <button className="btn btn-ghost" onClick={() => { setForm(null); setEditing(null); }}>Cancel</button>
               <button className="btn btn-primary" onClick={() => void save()} disabled={busy}>
@@ -289,5 +314,106 @@ export function FieldFailureReport() {
         )}
       </Drawer>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// WHAT CHANGED, AND WHO CHANGED IT (0174).
+//
+// The user, 2026-09-12: "I need to be able to capture everytime it is updated -
+// For log keeping." The FFR is reviewed weekly and edited each time, so the
+// register's current state answers none of the questions a weekly cycle asks.
+//
+// WRITTEN BY THE DATABASE, so this panel shows a record the application cannot
+// have failed to write — including an edit made straight through the API, which
+// the client-written audit trail never sees.
+//
+// FIELD NAMES ARE SHOWN AS THE REGISTER'S OWN HEADINGS. `capa_status` means
+// nothing to the person reading this; "CAPA Status" is the column they edited.
+// ---------------------------------------------------------------------------
+const FFR_HEADING = new Map(
+  [...FFR_COLUMNS, ...FFR_LIVE_COLUMNS].map((c) => [c.key, c.header] as const));
+
+const headingFor = (k: string) =>
+  FFR_HEADING.get(k)
+  // The weekly-review columns are not on the register's grid, so they are named
+  // here rather than shown raw.
+  ?? ({ attachment_url: 'Attachment', attachment_name: 'Attachment name',
+        reviewed_at: 'Weekly review date', reviewed_by_name: 'Reviewed by',
+        raised_by_name: 'Raised by', extra: 'Why it was raised' } as Record<string, string>)[k]
+  ?? k;
+
+/** A value as the log should show it. `null` and '' are both "empty" to a
+ *  reader, and printing "null" would suggest the field holds that word. */
+const shown = (v: unknown): string => {
+  if (v === null || v === undefined) return '(empty)';
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.trim() === '' ? '(empty)' : (s.length > 160 ? `${s.slice(0, 160)}…` : s);
+};
+
+function FfrHistory({ ffrNo }: { ffrNo: string }) {
+  const [rows, setRows] = useState<FfrHistoryRow[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    setBusy(true);
+    listFfrHistory(ffrNo)
+      .then((r) => { if (live) setRows(r); })
+      .finally(() => { if (live) setBusy(false); });
+    return () => { live = false; };
+  }, [ffrNo]);
+
+  const edits = rows.filter((r) => r.action === 'update').length;
+
+  return (
+    <section className="rep-section">
+      <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}>
+        {open ? '⌃' : '⌄'} Update log
+        {busy ? ' …' : ` — ${edits} change${edits === 1 ? '' : 's'}`}
+      </button>
+
+      {open && (
+        busy ? <div className="muted" style={{ marginTop: 8 }}>Loading…</div>
+        : rows.length === 0 ? (
+          <div className="muted" style={{ marginTop: 8 }}>
+            Nothing recorded yet. If this report predates the update log, its
+            history starts from the next change.
+          </div>
+        ) : (
+          <div className="assoc-scroll" style={{ marginTop: 8 }}>
+            <table className="assoc-table">
+              <thead>
+                <tr><th style={{ width: 150 }}>When</th><th style={{ width: 150 }}>Who</th><th>What changed</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((h) => (
+                  <tr key={h.id}>
+                    <td>{fmtLongDate(h.changed_at)}</td>
+                    <td>{h.changed_by_name || <span className="muted">—</span>}</td>
+                    <td>
+                      {h.action === 'create' ? (
+                        <b>Report raised</b>
+                      ) : (
+                        Object.entries(h.changes ?? {}).map(([k, v]) => (
+                          <div key={k}>
+                            <b>{headingFor(k)}</b>{': '}
+                            <span className="muted">{shown(v?.from)}</span>
+                            {' → '}
+                            <span>{shown(v?.to)}</span>
+                          </div>
+                        ))
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </section>
   );
 }

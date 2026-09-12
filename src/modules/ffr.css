@@ -1,0 +1,76 @@
+/* ---------------------------------------------------------------------------
+   R-SER-03 FIELD FAILURE REPORT — the printable page.
+
+   Laid out from the same form definition as the Word file (src/lib/ffrform.ts),
+   at the template's own proportions: A4, the template's margins, and the
+   6435/4500 column split expressed as percentages of the table.
+
+   The DELIVERY CHALLAN is the model for how this behaves (dc.css): a white
+   sheet on a grey desk on screen, and nothing but the sheet on paper. The
+   toolbar is screen-only.
+   --------------------------------------------------------------------------- */
+.ffr-page { background: #6b7280; min-height: 100vh; padding: 16px 0 40px; }
+
+.ffr-toolbar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  max-width: 210mm; margin: 0 auto 12px; padding: 10px 12px;
+  background: var(--surface); border-radius: 8px;
+}
+
+.ffr-sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 16px;
+  padding: 12.7mm 22.9mm 25.4mm;   /* the template's margins: top 1800, side 1296, bottom 1440 twips */
+  background: #fff; color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 11pt; line-height: 1.25;
+  box-shadow: 0 2px 12px rgba(0,0,0,.35);
+  box-sizing: border-box;
+}
+
+/* THE HEADER BAND — the mark spanning two rows, the organisation over the
+   form's title, the page number spanning two rows. The same three-column
+   structure the template's header table has. */
+.ffr-head { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ffr-head td { border: 1px solid #000; padding: 3px 6px; vertical-align: middle; text-align: center; }
+.ffr-head .ffr-h-logo { width: 21%; }
+.ffr-head .ffr-h-mid  { width: 62%; font-weight: 700; }
+.ffr-head .ffr-h-page { width: 17%; font-weight: 700; }
+.ffr-head .ffr-h-logo img { max-width: 100%; max-height: 12mm; object-fit: contain; }
+.ffr-title { font-weight: 700; }
+
+/* THE BODY GRID — 6435 / 4500 of 10935, as the template divides it. */
+.ffr-grid { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 6px; }
+.ffr-grid td { border: 1px solid #000; padding: 3px 6px; vertical-align: top; }
+.ffr-grid .ffr-c-left  { width: 58.85%; }
+.ffr-grid .ffr-c-right { width: 41.15%; }
+.ffr-section { font-weight: 700; }
+/* EVERY BOX IS AT LEAST ONE LINE TALL. The template has a deliberately blank
+   row between the equipment block and the problem description; with nothing in
+   it the row collapsed to a couple of pixels and read as a rendering fault
+   rather than as the space the form leaves. */
+.ffr-grid td > div { min-height: 1.25em; }
+.ffr-label { font-weight: 700; white-space: pre; }   /* the template pads its labels to align the colons */
+.ffr-value { font-weight: 400; }
+/* A box whose value may run to several lines keeps them as lines, and keeps a
+   long word inside the cell rather than widening the sheet. */
+.ffr-lines { white-space: pre-wrap; overflow-wrap: anywhere; min-height: 14mm; }
+.ffr-obs { min-height: 28mm; }
+.ffr-sign-ink { display: block; max-height: 16mm; max-width: 60mm; object-fit: contain; }
+
+.ffr-foot { margin-top: 8px; text-align: center; }
+.ffr-foot-notice { font-size: 8pt; }
+.ffr-foot-tmpl { font-size: 10pt; }
+
+.ffr-missing { max-width: 210mm; margin: 0 auto; background: #fff; padding: 20mm; border-radius: 4px; }
+
+@media print {
+  .ffr-page { background: #fff; padding: 0; }
+  .ffr-toolbar { display: none !important; }
+  .ffr-sheet {
+    width: auto; min-height: 0; margin: 0; padding: 0;
+    box-shadow: none; page-break-after: auto;
+  }
+  @page { size: A4 portrait; margin: 12.7mm 22.9mm 25.4mm; }
+}

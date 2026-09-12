@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.220',
+    date: '2026-09-12',
+    title: 'The Field Failure Report is the real form, and every change to it is kept',
+    changes: [
+      'THE WORD COPY IS NOW THE CONTROLLED FORM \u2014 R-SER-03 Rev 02 itself: the header band with the company mark and the page number, the same boxes in the same order with the same wording, and the footer carrying the template number. It is no longer a tidier document holding the same information.',
+      'AND THERE IS A PRINTABLE PAGE, the way the Delivery Challan and the Declaration print \u2014 open a report and press Print. Same form, no Word needed.',
+      'AN UPDATE LOG ON EVERY REPORT. Open a report and there is an \u201CUpdate log\u201D showing every change ever made to it: what changed, from what to what, by whom and when. It starts at the day the report was raised.',
+      'The log is kept by the database itself, so a change made any way at all is recorded \u2014 and nobody can edit or delete it, not even an administrator.',
+      'THE DAILY CALL REVIEW NOW RECORDS WHO REVIEWED IT, whether you press Save or let it save itself, and that name goes onto the Field Failure Report.',
+      'No report says \u201CRaised by: Daily Call Review\u201D any more \u2014 that is a screen, not a person.',
+      'Old reports with nobody named are set to Bagyaraj, spelt as User Master spells it.',
+    ],
+  },
+  {
     version: '0.9.219',
     date: '2026-09-12',
     title: 'Save your signature, and a tidier menu',

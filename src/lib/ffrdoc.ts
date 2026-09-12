@@ -1,30 +1,43 @@
 // ===========================================================================
 // THE FIELD FAILURE REPORT AS A WORD DOCUMENT — R-SER-03 Rev 02.
 //
-// WHY THIS WRITES THE DOCUMENT RATHER THAN FILLING THE TEMPLATE.
+// "FFR word copy has to be exactly same as the template" (the user,
+// 2026-09-12). It now is, and the difference from the first version is worth
+// stating because it was a deliberate decision that turned out to be the wrong
+// one:
 //
-// The supplied template is an AutoCrat form: its fields are `<<Column Name>>`
-// tags matching the register's headings. Filling it in the browser would mean
-// reading a .docx (so an inflater), patching `word/document.xml`, and writing it
-// back. And the tags DO NOT SURVIVE AS TEXT: Word splits them across runs, so
-// `<<Customer Name>>` is stored as `<<` in one run and `Customer Name>>` in the
-// next. A search-and-replace finds nothing; joining runs first is a second
-// parser to get right.
+// THE FIRST VERSION TREATED THE TEMPLATE AS A SPECIFICATION and wrote a
+// document that carried the same FIELDS in a tidier layout. That is not what a
+// controlled form is. R-SER-03 is a numbered, revision-controlled record; a
+// document that holds the same information in a different shape is a different
+// form, however good it looks.
 //
-// So the template is treated as the SPECIFICATION for the document — its
-// layout, its wording and its field set — and the document is written from
-// that. The form number and revision are carried on the page, so a reader can
-// tell which controlled form it follows.
+// SO THE LAYOUT IS NOW TAKEN FROM THE TEMPLATE FILE ITSELF — its header band
+// with the mark, department and page number, its title, its two-column grid at
+// the template's own 6435/4500 split, every label with the template's exact
+// wording and internal spacing, its page size and margins, and its footer with
+// the property notice and `TMPL No: R/SER/03 Rev: MAR 2020`. The rows live in
+// ffrform.ts and the printable HTML page renders the SAME rows, so the two
+// cannot drift apart.
 //
-// THIS IS A DIFFERENCE WORTH KNOWING: the output matches the controlled form,
-// it is not a copy of the controlled file. If byte-fidelity to the .docx is
-// required for the QMS, that is the inflater route above and a decision for
-// RA/QA rather than something to assume.
+// IT IS STILL WRITTEN RATHER THAN FILLED IN, and that is not a shortcut. The
+// template's `<<Customer Name>>` tags are AutoCrat merge fields, and Word does
+// not store them as text: it splits `<<Customer Name>>` across runs, so a
+// search-and-replace inside the .docx finds nothing and joining runs first is a
+// second parser to get right. Writing the document from the extracted layout
+// gives byte-level control of the result and no dependency on how Word happened
+// to split a run that day.
 //
-// The file itself is a ZIP of XML, written with zip.ts — the same writer the
-// workbook export uses.
+// WHAT THIS MEANS FOR RA/QA: the output matches the controlled form's layout,
+// labels, page setup and form identity. It is not a copy of the controlled
+// FILE. If byte-fidelity to the .docx is required, that is the inflater route
+// and a decision for RA/QA rather than something to assume.
 // ===========================================================================
 import { enc, xmlText, zipStore, download, dataUriBytes, pngSize } from './zip';
+import {
+  FFR_ROWS, FFR_HEADER, FFR_FOOTER, FFR_GRID, FFR_PAGE,
+  ffrCellValue, ffrProblemText, type FfrCell,
+} from './ffrform';
 
 /** Everything the report prints. The names are the register's, not the sheet's
  *  column letters, so a reader of this file can see what fills each box. */
@@ -48,70 +61,145 @@ export interface FfrDocFields {
   /** THE RAISER'S SAVED SIGNATURE, as a PNG data URI — and only ever when the
    *  person generating the document IS the raiser (src/lib/signature.ts). Left
    *  undefined otherwise, and the block then prints empty to be signed by hand,
-   *  exactly as the controlled form is filled in today. */
+   *  exactly as the controlled form is completed today. */
   signature?: string;
+  /** The company's mark for the header band. JPEG or PNG bytes; omitted when
+   *  the asset could not be read, which costs the document its logo and
+   *  nothing else. */
+  logo?: Uint8Array;
+  logoType?: 'jpeg' | 'png';
 }
-
-const FORM_ID = 'R-SER-03';
-const FORM_REV = 'Rev 02';
 
 // ---- the small amount of WordprocessingML this needs ----------------------
-const B = (t: string) => `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${xmlText(t)}</w:t></w:r>`;
-const T = (t: string) => `<w:r><w:t xml:space="preserve">${xmlText(t)}</w:t></w:r>`;
+// Times New Roman throughout, as the template is set.
+const FONT = '<w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:cs="Times New Roman" w:eastAsia="Times New Roman"/>';
+const rpr = (opts: { b?: boolean; size?: number } = {}) =>
+  `<w:rPr>${FONT}${opts.b ? '<w:b/><w:bCs/>' : ''}`
+  + `${opts.size ? `<w:sz w:val="${opts.size}"/><w:szCs w:val="${opts.size}"/>` : '<w:sz w:val="22"/><w:szCs w:val="22"/>'}`
+  + '</w:rPr>';
 
-/** A paragraph. Multi-line text becomes several paragraphs, because a newline
+const B = (t: string, size?: number) =>
+  `<w:r>${rpr({ b: true, size })}<w:t xml:space="preserve">${xmlText(t)}</w:t></w:r>`;
+const T = (t: string, size?: number) =>
+  `<w:r>${rpr({ size })}<w:t xml:space="preserve">${xmlText(t)}</w:t></w:r>`;
+
+/** A paragraph. Multi-line text becomes SEVERAL paragraphs, because a newline
  *  inside a <w:t> is not a line break in Word — it is whitespace, and the
- *  observation field is where somebody notices. */
-function para(runs: string, opts: { align?: string; size?: number } = {}): string {
-  const pr = `<w:pPr>${opts.align ? `<w:jc w:val="${opts.align}"/>` : ''}`
-    + `<w:spacing w:after="40"/>${opts.size ? `<w:rPr><w:sz w:val="${opts.size}"/></w:rPr>` : ''}</w:pPr>`;
-  return `<w:p>${pr}${runs}</w:p>`;
+ *  observation box is where somebody notices. */
+function para(runs: string, opts: { align?: string } = {}): string {
+  return `<w:p><w:pPr>${opts.align ? `<w:jc w:val="${opts.align}"/>` : ''}`
+    + `<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>${rpr()}</w:pPr>${runs}</w:p>`;
 }
 
-const lines = (label: string, value: string): string => {
-  const parts = String(value ?? '').split(/\r?\n/);
-  return [para(B(label)), ...parts.map((l) => para(T(l)))].join('');
+/** The template's labels are bold and their values are not, which is what makes
+ *  a filled form readable as a form. An empty value leaves the label alone. */
+const labelled = (c: FfrCell, value: string) =>
+  para(B(c.label) + (value ? T(value) : ''));
+
+/** Several paragraphs from text that may carry newlines. */
+const multiline = (text: string) => {
+  const parts = String(text ?? '').split(/\r?\n/);
+  return parts.map((l) => para(l ? T(l) : T(''))).join('');
 };
 
-/** One cell of the two-column information grid. */
-const cell = (w: number, body: string) =>
-  `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>${body || para(T(''))}</w:tc>`;
+const tc = (w: number, body: string, span = 1) =>
+  `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${span > 1 ? `<w:gridSpan w:val="${span}"/>` : ''}</w:tcPr>`
+  + `${body || para(T(''))}</w:tc>`;
 
-const row = (cells: string) => `<w:tr>${cells}</w:tr>`;
+const tr = (cells: string) => `<w:tr>${cells}</w:tr>`;
 
-/** A full-width row that spans both columns. */
-const wide = (body: string) =>
-  row(`<w:tc><w:tcPr><w:tcW w:w="9360" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>${body}</w:tc>`);
+const FULL = FFR_GRID.left + FFR_GRID.right;
 
-const pair = (l: string, r: string) => row(cell(4680, l) + cell(4680, r));
+const borders = '<w:tblBorders>'
+  + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
+    .map((s) => `<w:${s} w:val="single" w:sz="6" w:color="000000"/>`).join('')
+  + '</w:tblBorders>';
 
-const field = (label: string, value: string) =>
-  para(B(label) + T(value ? ` ${value}` : ' '));
+// ---------------------------------------------------------------------------
+// THE HEADER BAND, exactly as the template's: the mark spanning two rows on the
+// left, the organisation and department over the form's title in the middle,
+// and the page number spanning two rows on the right. `PAGE` is a Word FIELD,
+// not a literal 1 — a report whose observation runs to a second page must
+// number it.
+// ---------------------------------------------------------------------------
+const H_GRID = [2310, 6780, 1815];
 
-const section = (title: string) =>
-  wide(para(B(title)));
+function headerXml(hasLogo: boolean): string {
+  const pageField = '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+    + `<w:r>${rpr()}<w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>`
+    + '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+    + `<w:r>${rpr()}<w:t>1</w:t></w:r>`
+    + '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+
+  // The template's own extent for the mark, so it prints at the size the
+  // controlled form prints it at rather than at whatever the asset happens to
+  // measure.
+  const logoRun = hasLogo
+    ? '<w:r><w:drawing>'
+      + '<wp:inline distT="0" distB="0" distL="0" distR="0"'
+      + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+      + '<wp:extent cx="1172210" cy="457200"/><wp:docPr id="7" name="Logo"/>'
+      + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+      + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+      + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+      + '<pic:nvPicPr><pic:cNvPr id="7" name="logo"/><pic:cNvPicPr/></pic:nvPicPr>'
+      + '<pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+      + '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1172210" cy="457200"/></a:xfrm>'
+      + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+      + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>'
+    : '';
+
+  const cell = (w: number, body: string, vMerge?: 'restart' | 'continue') =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>`
+    + `${vMerge ? `<w:vMerge w:val="${vMerge}"/>` : ''}`
+    + '<w:vAlign w:val="center"/></w:tcPr>'
+    + `${body || para(T(''))}</w:tc>`;
+
+  const table = `<w:tbl><w:tblPr><w:tblW w:w="${H_GRID.reduce((a, b) => a + b, 0)}" w:type="dxa"/>${borders}</w:tblPr>`
+    + `<w:tblGrid>${H_GRID.map((w) => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`
+    + tr(cell(H_GRID[0], para(logoRun, { align: 'center' }), 'restart')
+      + cell(H_GRID[1], para(B(FFR_HEADER.org), { align: 'center' })
+        + para(B(FFR_HEADER.dept), { align: 'center' }))
+      + cell(H_GRID[2], para(B(`${FFR_HEADER.pageLabel} `) + pageField), 'restart'))
+    + tr(cell(H_GRID[0], '', 'continue')
+      + cell(H_GRID[1], para(B(FFR_HEADER.title), { align: 'center' }))
+      + cell(H_GRID[2], '', 'continue'))
+    + '</w:tbl>';
+
+  return part('w:hdr', table);
+}
+
+const footerXml = () => part('w:ftr',
+  para(T(FFR_FOOTER.notice, 16), { align: 'center' })
+  + para(T(FFR_FOOTER.tmpl, 20), { align: 'center' }));
+
+/** The XML envelope shared by document.xml, header and footer. */
+function part(tag: string, body: string): string {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + `<${tag} xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + `${body}</${tag.split(' ')[0]}>`;
+}
 
 // ---------------------------------------------------------------------------
 // A PICTURE IN A WORD DOCUMENT is four things agreeing: the bytes as a part of
-// the ZIP, a content type for its extension, a RELATIONSHIP from document.xml
-// to that part, and a drawing in the body that references the relationship by
-// id. Any one of them missing and Word reports the file as corrupt rather than
-// as missing a picture — which is why this returns "no picture at all" for
-// anything it cannot read, and why the caller writes the rels part only when
-// there is something to relate to.
+// the ZIP, a content type for its extension, a RELATIONSHIP from the part that
+// shows it, and a drawing referencing that relationship by id. Any one missing
+// and Word reports the file as CORRUPT rather than as missing a picture — which
+// is why an unreadable signature yields no picture at all rather than half of
+// one.
 //
-// EMU is the unit: 914,400 to the inch. The extent is computed from the PNG's
-// own pixels at 96 dpi and then scaled to fit the block, so a signature keeps
-// its shape — a fixed width and height would stretch one person's handwriting
-// into the proportions of another's.
+// EMU is the unit: 914,400 to the inch. The signature's extent is computed from
+// its own pixels at 96 dpi and scaled to fit the block, so it keeps its shape —
+// a fixed width and height would stretch one person's handwriting into the
+// proportions of another's.
 // ---------------------------------------------------------------------------
-const EMU_PER_PX = 9525;          // 914400 / 96
-const SIG_MAX_W_EMU = 2200000;    // ~2.4 in — the width of the block on the form
-const SIG_MAX_H_EMU = 700000;     // ~0.77 in
+const EMU_PER_PX = 9525;
+const SIG_MAX_W_EMU = 2200000;
+const SIG_MAX_H_EMU = 700000;
+const SIG_REL = 'rIdSig';
 
-const REL_ID = 'rIdSig';
-
-function pictureRun(bytes: Uint8Array): string {
+function signatureRun(bytes: Uint8Array): string {
   const size = pngSize(bytes);
   if (!size) return '';
   let cx = size.w * EMU_PER_PX;
@@ -121,13 +209,12 @@ function pictureRun(bytes: Uint8Array): string {
   return '<w:r><w:drawing>'
     + '<wp:inline distT="0" distB="0" distL="0" distR="0"'
     + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
-    + `<wp:extent cx="${cx}" cy="${cy}"/>`
-    + '<wp:docPr id="1" name="Signature"/>'
+    + `<wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="1" name="Signature"/>`
     + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
     + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
     + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
     + '<pic:nvPicPr><pic:cNvPr id="1" name="signature.png"/><pic:cNvPicPr/></pic:nvPicPr>'
-    + `<pic:blipFill><a:blip r:embed="${REL_ID}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+    + `<pic:blipFill><a:blip r:embed="${SIG_REL}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
     + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
     + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
     + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
@@ -135,49 +222,53 @@ function pictureRun(bytes: Uint8Array): string {
 
 export function buildFfrDocx(f: FfrDocFields): Uint8Array {
   const sigBytes = f.signature ? dataUriBytes(f.signature) : new Uint8Array(0);
-  // Both must hold, or neither part is written: a drawing with no image part
-  // is a corrupt document, and an image part with no drawing is dead weight.
-  const sigRun = sigBytes.length ? pictureRun(sigBytes) : '';
+  const sigRun = sigBytes.length ? signatureRun(sigBytes) : '';
   const hasSig = !!sigRun;
 
-  const body = [
-    para(B(`FFR No. : ${f.ffrNo}`)),
-    para(T(`Date: ${f.ffrDate}`)),
-    '<w:p/>',
-    '<w:tbl>'
-    + '<w:tblPr><w:tblW w:w="9360" w:type="dxa"/>'
-    + '<w:tblBorders>'
-    + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-      .map((s) => `<w:${s} w:val="single" w:sz="6" w:color="000000"/>`).join('')
-    + '</w:tblBorders></w:tblPr>'
-    + '<w:tblGrid><w:gridCol w:w="4680"/><w:gridCol w:w="4680"/></w:tblGrid>'
-    + section('Customer Information')
-    + pair(field('Hospital Name :', f.customerName), field('Complaint Date :', f.crnDate))
-    + pair(field('Address :', f.place), field('Phone No :', ''))
-    + pair(field('Contact person :', ''), field('Email :', ''))
-    + section('Equipment Information')
-    + pair(field('UC Number :', f.crnNo), field('Model :', f.itemCode))
-    + pair(field('Equipment Name :', f.productName), field('Software Details :', ''))
-    + pair(field('Serial No :', f.productSerial), field('Software :', ''))
-    + pair(field('Punched S. No :', ''), field('Equipment status :', f.cover))
-    + wide(lines('Problem Description :', [f.problemReported, f.additionalProblem].filter(Boolean).join('\n')))
-    + wide(lines('Service Department Observation', f.serviceObservation))
-    + wide(field('CAPA No :', f.capaNo) + lines('Problem Status :', f.problemStatus))
-    + wide(para(B('Raised by: ') + T(f.raisedBy)) + para(T('')) + para(B('Signature:') + sigRun))
-    + '</w:tbl>',
-    para(T(`${FORM_ID} ${FORM_REV}`), { size: 16 }),
-  ].join('');
+  const logoBytes = f.logo ?? new Uint8Array(0);
+  const hasLogo = logoBytes.length > 0;
+  const logoExt = f.logoType === 'png' ? 'png' : 'jpeg';
 
-  const documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-    // The relationship namespace, needed only when a picture is embedded — but
-    // declared always: an unused namespace declaration is inert, and a
-    // conditional one is a second thing that has to be got right.
-    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-    + `<w:body>${body}`
-    + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
-    + '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'
-    + '</w:body></w:document>';
+  // THE BODY, ROW BY ROW, FROM THE SHARED FORM DEFINITION.
+  const rows = FFR_ROWS.map((r) => {
+    if (r.kind === 'section') return tr(tc(FULL, para(B(r.title)), 2));
+    if (r.kind === 'pair') {
+      return tr(
+        tc(FFR_GRID.left, labelled(r.left, ffrCellValue(f, r.left.key)))
+        + tc(FFR_GRID.right, labelled(r.right, ffrCellValue(f, r.right.key))));
+    }
+    if (r.kind === 'block') {
+      const text = r.key === 'problemReported' ? ffrProblemText(f) : ffrCellValue(f, r.key);
+      return tr(tc(FULL, para(B(r.label)) + multiline(text), 2));
+    }
+    // stack: two labelled lines in one full-width box. The signature line is
+    // the one that may carry a picture.
+    return tr(tc(FULL, r.lines.map((c) => {
+      const isSignature = c.label.startsWith('Signature');
+      return para(B(c.label) + (isSignature ? sigRun : (ffrCellValue(f, c.key) ? T(ffrCellValue(f, c.key)) : '')));
+    }).join(''), 2));
+  }).join('');
+
+  const table = `<w:tbl><w:tblPr><w:tblW w:w="${FULL}" w:type="dxa"/>${borders}</w:tblPr>`
+    + `<w:tblGrid><w:gridCol w:w="${FFR_GRID.left}"/><w:gridCol w:w="${FFR_GRID.right}"/></w:tblGrid>`
+    + `${rows}</w:tbl>`;
+
+  const sectPr = '<w:sectPr>'
+    + '<w:headerReference w:type="default" r:id="rIdHdr"/>'
+    + '<w:footerReference w:type="default" r:id="rIdFtr"/>'
+    + `<w:pgSz w:w="${FFR_PAGE.w}" w:h="${FFR_PAGE.h}"/>`
+    + `<w:pgMar w:top="${FFR_PAGE.top}" w:right="${FFR_PAGE.side}"`
+    + ` w:bottom="${FFR_PAGE.bottom}" w:left="${FFR_PAGE.side}" w:header="270" w:footer="720"/>`
+    + '</w:sectPr>';
+
+  const documentXml = part('w:document', `<w:body>${table}${sectPr}</w:body>`);
+
+  const rels = (entries: string) =>
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+    + `${entries}</Relationships>`;
+  const rel = (id: string, type: string, target: string) =>
+    `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`;
 
   return zipStore([
     { path: '[Content_Types].xml', data: enc(
@@ -185,37 +276,37 @@ export function buildFfrDocx(f: FfrDocFields): Uint8Array {
       + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
       + '<Default Extension="xml" ContentType="application/xml"/>'
-      + (hasSig ? '<Default Extension="png" ContentType="image/png"/>' : '')
+      + (hasSig || (hasLogo && logoExt === 'png') ? '<Default Extension="png" ContentType="image/png"/>' : '')
+      + (hasLogo && logoExt === 'jpeg' ? '<Default Extension="jpeg" ContentType="image/jpeg"/>' : '')
       + '<Override PartName="/word/document.xml"'
       + ' ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+      + '<Override PartName="/word/header1.xml"'
+      + ' ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
+      + '<Override PartName="/word/footer1.xml"'
+      + ' ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
       + '</Types>') },
-    { path: '_rels/.rels', data: enc(
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-      + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-      + '<Relationship Id="rId1"'
-      + ' Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"'
-      + ' Target="word/document.xml"/>'
-      + '</Relationships>') },
+    { path: '_rels/.rels', data: enc(rels(rel('rId1', 'officeDocument', 'word/document.xml'))) },
     { path: 'word/document.xml', data: enc(documentXml) },
-    // WRITTEN ONLY WHEN THERE IS A PICTURE. An empty Relationships part is
-    // valid, but writing one unconditionally means writing a media entry
-    // unconditionally too, and the two drifting apart is the failure mode this
-    // whole shape exists to avoid.
-    ...(hasSig ? [
-      { path: 'word/_rels/document.xml.rels', data: enc(
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        + `<Relationship Id="${REL_ID}"`
-        + ' Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"'
-        + ' Target="media/signature.png"/>'
-        + '</Relationships>') },
-      { path: 'word/media/signature.png', data: sigBytes },
+    { path: 'word/_rels/document.xml.rels', data: enc(rels(
+      rel('rIdHdr', 'header', 'header1.xml')
+      + rel('rIdFtr', 'footer', 'footer1.xml')
+      + (hasSig ? rel(SIG_REL, 'image', 'media/signature.png') : ''))) },
+    { path: 'word/header1.xml', data: enc(headerXml(hasLogo)) },
+    { path: 'word/footer1.xml', data: enc(footerXml()) },
+    // The header's own relationships part exists only when it has a picture to
+    // relate to; an empty one is valid but pointless, and an entry pointing at
+    // a part that is not there is not.
+    ...(hasLogo ? [
+      { path: 'word/_rels/header1.xml.rels', data: enc(rels(rel('rIdLogo', 'image', `media/logo.${logoExt}`))) },
+      { path: `word/media/logo.${logoExt}`, data: logoBytes },
     ] : []),
+    ...(hasSig ? [{ path: 'word/media/signature.png', data: sigBytes }] : []),
   ]);
 }
 
-/** The file name somebody will look for later: the register's own
- *  "FFR - 001/26 - MONNAL T75 ( 11125 )", with the slash made safe. */
+/** The file name somebody will look for later. The template carries no FFR
+ *  number field, so the number travels here — which is where the register
+ *  already put it. */
 export function ffrDocName(f: FfrDocFields): string {
   const base = `${f.ffrNo} - ${f.productName} ( ${f.productSerial} )`.trim();
   return `${base.replace(/[\\/:*?"<>|]/g, '-')}.docx`;

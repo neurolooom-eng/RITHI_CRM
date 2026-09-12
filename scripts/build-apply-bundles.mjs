@@ -267,7 +267,11 @@ const MODULES = {
             '0169_ffr_backfill.sql',
             // 0170 redefines backfill_ffrs(), so it must come after 0169 —
             // otherwise a replay of this bundle puts the locked-out gate back.
-            '0170_ffr_backfill_gate.sql'],
+            '0170_ffr_backfill_gate.sql',
+            // 0173 redefines raise_ffr() (0169) and stamps call_reviews (0044),
+            // both of which this module owns — so it belongs here and AFTER
+            // them, or a replay would put the old raise_ffr back.
+            '0173_dccr_reviewer.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -324,7 +328,10 @@ const MODULES = {
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.
-            '0166_ffr_retention_guard.sql'],
+            '0166_ffr_retention_guard.sql',
+            // Here for the same reason 0166 is: it arms block_hard_delete() on
+            // the history table, and that function is defined in THIS module.
+            '0174_ffr_history.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
