@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.216',
+    date: '2026-09-12',
+    title: 'An FFR raises itself when the review says Any Potential Effect',
+    changes: [
+      'ANSWER YES TO ANY POTENTIAL EFFECT IN THE DAILY CALL REVIEW AND THE FIELD FAILURE REPORT IS CREATED \u2014 from the review\u2019s own details, with no second step. Any Potential Effect is YES as soon as any one of Risk to Patient, Warranty Failure or Frequent Failure is Yes.',
+      'THE FFR IS DATED THE DAY REVIEW 2 WAS COMPLETED, not the day the record happened to be written.',
+      'It is created ONCE per call. Review 2 gets edited and re-saved all day; only the first answer raises a report.',
+      'Review 3 arrives later and carries the Service Dept Observation, so it fills itself in when answered \u2014 unless somebody has already written one on the report, which is never overwritten.',
+      'THE REGISTER NOW SHOWS THE LIVE CALL BESIDE THE RECORD \u2014 its status now, its engineer now, how many visits, what has been fitted since, and all three review answers \u2014 so the register can be used for analysis rather than only as a filing cabinet.',
+      'If somebody later changes the answer back to No, THE REPORT STAYS: a quality record is not deleted because a judgement was revised. The register marks it \u201Cwithdrawn\u201D so it is visible at a glance.',
+    ],
+  },
+  {
     version: '0.9.215',
     date: '2026-09-12',
     title: 'An FFR is filled in from the Daily Call Review itself',

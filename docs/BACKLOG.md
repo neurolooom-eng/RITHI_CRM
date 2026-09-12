@@ -19,6 +19,35 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### FFR raised by the review — 2026-09-12 (v0.9.216, SQL to run)
+
+The user's rule: **a call answered YES for ANY POTENTIAL EFFECT in the DCCR
+creates an FFR from the review's details, dated the day REVIEW 2 was
+completed.**
+
+A TRIGGER, not a screen action (0167). `any_potential_effect` is a generated
+column — YES when any of Risk to Patient / Warranty Failure / Frequent Failure
+is YES — so the answer is made by writing the review. A register that waits for
+somebody to press a button afterwards has holes in it.
+
+One per call (review 2 is re-saved constantly); reads the BASE call tables, not
+the `calls` view, because a security_invoker view inside a definer applies the
+CALLER's policies and a call it cannot see is a report it fails to raise
+silently; and it never undoes itself — an answer changed back to NO leaves the
+report standing (0049) and the register marks it **withdrawn**.
+
+`field_failure_register` is the record beside the live call — status, engineer,
+visits, spares and all three review answers — which is what "all the live data
+should show for analysis and decisions" asks for. security_invoker, so a reader
+sees only what their role allows.
+
+**To run:** `daily_review.sql`. `_status.sql` row 127 checks it.
+
+⚠️ **Still unsettled before any import of the 35 sheet rows:** "Call Solved Date
+& Time" is exactly the visit date **+ 1 day** in all 20 rows that carry both —
+too consistent to be people filing late, so it looks like the sheet's own
+formula. The app uses the visit date.
+
 ### Field Failure Register built — 2026-09-12 (v0.9.214, SQL to run)
 
 The placeholder is gone. `field_failure_reports` (0165) carries the

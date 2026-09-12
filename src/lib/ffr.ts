@@ -42,6 +42,43 @@ export const FFR_COLUMNS: { key: string; header: string; width?: number }[] = [
   { key: 'ffr_status', header: 'FFR STATUS', width: 110 },
 ];
 
+/**
+ * THE LIVE CALL, BESIDE THE RECORD (the user: "all the Live data should show in
+ * the field failure register as well for analysis and decisions").
+ *
+ * The columns above are the RECORD — what was true when the report was raised,
+ * and what the document prints. These are the same call as it stands NOW. Both
+ * are shown because they answer different questions: the record says what was
+ * reported, the live columns say whether it still holds.
+ *
+ * The most useful of them is the effect: an FFR raised on
+ * `any_potential_effect = YES` whose review now reads NO is not deleted (a
+ * quality record is not removed because somebody revised an opinion), so this
+ * is how a reader sees that happened.
+ */
+export const FFR_LIVE_COLUMNS: { key: string; header: string; width?: number }[] = [
+  { key: 'live_any_potential_effect', header: 'Any Potential Effect (now)', width: 150 },
+  { key: 'live_call_status', header: 'Call Status (now)', width: 140 },
+  { key: 'live_engineer', header: 'Engineer (now)', width: 140 },
+  { key: 'live_visit_count', header: 'Visits (now)', width: 100 },
+  { key: 'live_spares_consumed', header: 'Spares (now)', width: 220 },
+  { key: 'live_risk_to_patient', header: 'Risk to Patient', width: 120 },
+  { key: 'live_warranty_failure', header: 'Warranty Failure', width: 130 },
+  { key: 'live_frequent_failure', header: 'Frequent Failure', width: 130 },
+  { key: 'live_complaint_grouping', header: 'Complaint Grouping', width: 170 },
+  { key: 'live_root_cause_keyword', header: 'Root Cause Key Word', width: 170 },
+  { key: 'live_spare_category', header: 'Spare / Consumable', width: 150 },
+];
+
+/** An FFR whose review no longer says YES. Not an error — the record stands —
+ *  but the one thing on this register somebody should be able to see at a
+ *  glance, because it means the finding was revised after the report was made. */
+export function ffrEffectWithdrawn(r: Record<string, unknown>): boolean {
+  const rule = String((r.extra as Record<string, unknown>)?.raised_by_rule ?? '');
+  const now = String(r.live_any_potential_effect ?? '').trim().toUpperCase();
+  return rule === 'any_potential_effect=YES' && now !== '' && now !== 'YES';
+}
+
 /** The vocabularies the sheet actually uses. */
 export const FFR_SOURCES = ['PC'];
 export const FFR_COVER = ['WGP', 'OGP', 'AMC', 'CMC'];

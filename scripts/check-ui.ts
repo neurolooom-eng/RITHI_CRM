@@ -11,7 +11,7 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
-import { FFR_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS } from '../src/lib/ffr';
+import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
@@ -3736,6 +3736,71 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('it is gated on its own right, not on review.edit', /canDo\('ffr\.manage'\)/.test(dcr), true);
   eq('and an existing report for that call is shown, not hidden',
     /ffrsForCall\(/.test(dcr) && /Already reported/.test(dcr), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE REVIEW RAISES THE FFR, NOT A BUTTON (the user's rule, 2026-09-12).
+// `any_potential_effect` is a GENERATED column — YES when any of Risk to
+// Patient / Warranty Failure / Frequent Failure is YES, blank while any is
+// unanswered — so the answer is made by writing the review, and the report must
+// follow it. A register that depends on a screen being opened has holes in it.
+{
+  console.log('\n-- the review raises the FFR --');
+  const sql = readFileSync('supabase/migrations/0167_ffr_from_review.sql', 'utf8');
+  const body = sql.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  eq('it fires on the review, not on a screen',
+    /create trigger zz_ffr_from_review after insert or update on public\.call_reviews/.test(body), true);
+  eq('only on YES', /upper\(coalesce\(btrim\(new\.any_potential_effect\), ''\)\) <> 'YES'/.test(body), true);
+  // ONE FFR PER CALL. Review 2 is edited, re-saved and corrected; every write
+  // fires this and all but the first must do nothing.
+  eq('and only once per call',
+    /if exists \(select 1 from public\.field_failure_reports f where f\.ucn = v_ucn\) then return new/.test(body), true);
+  // THE DATE IS REVIEW 2's COMPLETION (the user's rule), not the day the row
+  // happened to be written.
+  eq('the FFR date is the review 2 completion date',
+    /coalesce\(new\.review2_at,/.test(body), true);
+  // Reading the `calls` VIEW inside a definer would apply the CALLER's policies
+  // — a call the trigger cannot see is an FFR it fails to raise, silently, for
+  // exactly the reviewer whose answer triggered it (0125's reasoning).
+  eq('it reads the base tables, not the calls view',
+    /from public\.field_calls where ucn = v_ucn/.test(body)
+      && !/from public\.calls\b/.test(body.split('create or replace view')[0]), true);
+  // WHY it was raised is kept: "Any Potential Effect = YES" does not say WHICH.
+  for (const k of ['risk_to_patient', 'warranty_failure', 'frequent_failure']) {
+    eq(`the record keeps ${k}`, new RegExp(`'${k}', coalesce\\(new\\.${k}`).test(body), true);
+  }
+  // A quality record is not deleted because somebody revised an opinion.
+  eq('nothing deletes the FFR when the answer changes',
+    /delete from public\.field_failure_reports/.test(body), false);
+
+  // THE LIVE CALL BESIDE THE RECORD, which is what the register is read for.
+  eq('the register view carries the live call',
+    /create or replace view public\.field_failure_register/.test(body), true);
+  eq('and applies RLS to the reader', /security_invoker = on/.test(body), true);
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('the screen reads the view, not the bare table',
+    /from\('field_failure_register'\)/.test(sb), true);
+
+  // The live columns are SEPARATE from the record's — a reader has to be able
+  // to tell which is the report and which is today.
+  eq('the live columns are their own set', FFR_LIVE_COLUMNS.length >= 8, true);
+  eq('and none of them collides with a record column',
+    FFR_LIVE_COLUMNS.some((c) => FFR_COLUMNS.some((r) => r.key === c.key)), false);
+  eq('every live column is named "(now)" or is a review answer',
+    FFR_LIVE_COLUMNS.every((c) => /\(now\)|Risk|Warranty|Frequent|Grouping|Root Cause|Spare \//.test(c.header)), true);
+
+  // An FFR raised on YES whose review now reads NO: the record stands, and a
+  // reader should see it at a glance.
+  const raised = { extra: { raised_by_rule: 'any_potential_effect=YES' } };
+  eq('a withdrawn finding is flagged',
+    ffrEffectWithdrawn({ ...raised, live_any_potential_effect: 'NO' }), true);
+  eq('one that still says YES is not',
+    ffrEffectWithdrawn({ ...raised, live_any_potential_effect: 'YES' }), false);
+  eq('an unanswered review is not "withdrawn"',
+    ffrEffectWithdrawn({ ...raised, live_any_potential_effect: '' }), false);
+  eq('and a hand-raised FFR is never flagged',
+    ffrEffectWithdrawn({ extra: {}, live_any_potential_effect: 'NO' }), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
