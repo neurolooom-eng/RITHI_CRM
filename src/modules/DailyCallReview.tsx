@@ -1,6 +1,7 @@
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
@@ -12,6 +13,7 @@ import {
   frequentFailure, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
   getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FrequentFailure,
   reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
+  ffrsForCall,
 } from '../lib/supabase';
 import { fallbackList } from './masterLists';
 import { MasterListTable } from './MasterListTable';
@@ -982,6 +984,14 @@ function ReviewDrawer({
   // that one call.
   autoSave?: boolean;
 }) {
+  // RAISING AN FFR FROM THE REVIEW. The right is its own (`ffr.manage`, 0165):
+  // deciding a failure goes to manufacturing is not the same act as coding the
+  // call, and the two are held by different people here.
+  const nav = useNavigate();
+  const { can: canDo } = useAuth();
+  const canFfr = canDo('ffr.manage');
+  const [ffrsHere, setFfrsHere] = useState<Record<string, unknown>[]>([]);
+
   const [draft, setDraft] = useState<ReviewPatch>({});
   const [groupings, setGroupings] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
@@ -1013,6 +1023,16 @@ function ReviewDrawer({
   const [spares, setSpares] = useState<Record<string, unknown>[] | null>(null);
 
   const ucn = row?.ucn ?? '';
+
+  // Already reported? A machine can fail twice, so this INFORMS rather than
+  // blocks — raising a second FFR is a decision, and one nobody can make
+  // without being told the first exists.
+  useEffect(() => {
+    if (!canFfr || !ucn) { setFfrsHere([]); return; }
+    let alive = true;
+    ffrsForCall(String(ucn)).then((r) => { if (alive) setFfrsHere(r); }).catch(() => { if (alive) setFfrsHere([]); });
+    return () => { alive = false; };
+  }, [canFfr, ucn]);
   const productName = row?.product_name ?? '';
 
   useEffect(() => {
@@ -1156,6 +1176,34 @@ function ReviewDrawer({
           (the user's marks on the screen, 2026-09-06). Call Status keeps its
           own state colour, because "Unattended" and "Solved" are not the same
           kind of fact. */}
+      {/* RAISE AN FFR FROM HERE. This is where somebody decides a failure is
+          worth reporting to manufacturing — the register is where it is then
+          completed. The call and its visit fill the report in; re-typing the
+          observation from the screen next door is how the two come to
+          disagree about the same failure. */}
+      {canFfr && (
+        <div className="dccr-ffr-bar">
+          <button
+            className="btn btn-sm"
+            title="Raise a Field Failure Report for this call"
+            onClick={() => nav('/failure-report', { state: { ffrFromCall: {
+              ucn: row.ucn, call_number: row.call_number, reg_date: row.reg_date,
+              party_name: row.party_name, city: row.city,
+              product_name: row.product_name, serial: row.serial,
+              item_status: row.item_status, call_type: row.call_type,
+              complaint_reported: row.complaint_reported,
+              standard_complaint: row.standard_complaint,
+              open_state: row.open_state, last_status: row.last_status,
+            } } })}
+          >🧪 Raise FFR</button>
+          {ffrsHere.length > 0 && (
+            <span className="muted dccr-ffr-note">
+              Already reported: {ffrsHere.map((f) => String(f.ffr_no ?? '')).join(', ')} — raising another is a decision, not a slip.
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="dccr-callcard">
         <div><span>Call Number</span>{row.call_number || '—'}</div>
         <div><span>Call Date</span>{fmtLongDate(row.reg_date) || '—'}</div>

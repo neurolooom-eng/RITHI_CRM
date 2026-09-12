@@ -243,7 +243,11 @@ const MODULES = {
             // than the failure. It lives in this module because it runs after
             // rbac (its permission grants) and after call_requests (its policies
             // read the `calls` view).
-            '0163_call_report_review.sql'],
+            '0163_call_report_review.sql',
+            // The Field Failure Register is raised FROM the Daily Call Review,
+            // and its policies read the `calls` view and has_perm — so it
+            // belongs after rbac and call_requests, as this module is.
+            '0165_field_failure_register.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -296,7 +300,11 @@ const MODULES = {
             'records. Read by admins / audit.view; written only by triggers.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
     files: ['0048_record_audit.sql', '0049_record_retention_guard.sql', '0103_record_audit_not_bulk.sql',
-            '0112_stop_record_audit.sql'],
+            '0112_stop_record_audit.sql',
+            // The FFR register's retention trigger. HERE, not beside the table
+            // in 0165: block_hard_delete() is defined in this module, which runs
+            // after daily_review — check:replay caught the fresh apply failing.
+            '0166_ffr_retention_guard.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

@@ -19,39 +19,22 @@
 // fewer part, and one fewer index to keep in step.
 // ===========================================================================
 
+import { enc, xmlText, zipStore, download } from './zip';
+
 export interface Sheet {
   name: string;
   columns: string[];
   rows: Record<string, unknown>[];
 }
 
-const CRC_TABLE = (() => {
-  const t = new Uint32Array(256);
-  for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[i] = c >>> 0;
-  }
-  return t;
-})();
 
-function crc32(bytes: Uint8Array): number {
-  let c = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-const enc = (s: string) => new TextEncoder().encode(s);
 
 // XML text. `&` is replaced FIRST or it would escape the escapes. Control
 // characters are stripped because Excel REFUSES a file containing one — a
 // stray character in a complaint would take the whole workbook down rather
 // than spoil a single cell.
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g;
-const xml = (v: unknown) => String(v ?? '')
-  .replace(CONTROL_CHARS, '')
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+const xml = xmlText;
 
 // Excel refuses these characters in a tab name and silently truncates past 31
 // — which would make two sheets collide and lose one.
@@ -112,53 +95,10 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
     ...sheets.map((s, i) => ({ path: `xl/worksheets/sheet${i + 1}.xml`, data: enc(sheetXml(s)) })),
   ];
 
-  // ---- the ZIP ------------------------------------------------------------
-  const chunks: Uint8Array[] = [];
-  const central: Uint8Array[] = [];
-  let offset = 0;
-  const u16 = (n: number) => [n & 0xff, (n >> 8) & 0xff];
-  const u32 = (n: number) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff];
-
-  for (const p of parts) {
-    const name = enc(p.path);
-    const crc = crc32(p.data);
-    const local = Uint8Array.from([
-      ...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
-      ...u32(crc), ...u32(p.data.length), ...u32(p.data.length),
-      ...u16(name.length), ...u16(0), ...name,
-    ]);
-    chunks.push(local, p.data);
-    central.push(Uint8Array.from([
-      ...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
-      ...u32(crc), ...u32(p.data.length), ...u32(p.data.length),
-      ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0),
-      ...u32(offset), ...name,
-    ]));
-    offset += local.length + p.data.length;
-  }
-
-  const centralSize = central.reduce((a, c) => a + c.length, 0);
-  const end = Uint8Array.from([
-    ...u32(0x06054b50), ...u16(0), ...u16(0),
-    ...u16(parts.length), ...u16(parts.length),
-    ...u32(centralSize), ...u32(offset), ...u16(0),
-  ]);
-
-  const total = chunks.reduce((a, c) => a + c.length, 0) + centralSize + end.length;
-  const out = new Uint8Array(total);
-  let at = 0;
-  for (const c of [...chunks, ...central, end]) { out.set(c, at); at += c.length; }
-  return out;
+  return zipStore(parts);
 }
 
 export function xlsxDownload(filename: string, sheets: Sheet[]): void {
-  const blob = new Blob([buildXlsx(sheets) as unknown as BlobPart], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  download(filename, buildXlsx(sheets),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 }

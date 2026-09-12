@@ -4077,3 +4077,54 @@ export async function createRole(role: string, label: string, permissions: strin
   const { error } = await c.from('app_roles').insert({ role, label, permissions });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// ---- Field Failure Register (/failure-report) -------------------------------
+// The format is the Field_Failure_Register workbook's 2026 tab (0165). The
+// AutoCrat plumbing columns are not carried: the document is generated here.
+export interface FfrRow { [k: string]: unknown }
+
+export async function listFfrs(limit = 5000): Promise<Record<string, unknown>[]> {
+  const c = getSupabase(); if (!c) return [];
+  const PAGE = 1000;
+  const out: Record<string, unknown>[] = [];
+  // Paged like every register: one response is capped at ~1000 rows, and an FFR
+  // at position 1001 would read as missing rather than as unreached.
+  for (let from = 0; from < limit; from += PAGE) {
+    const { data, error } = await c.from('field_failure_reports').select('*')
+      .order('ffr_date', { ascending: false }).order('id', { ascending: false })
+      .range(from, Math.min(from + PAGE, limit) - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = data ?? [];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+/** Is there already an FFR against this call? A machine can fail twice, so this
+ *  informs rather than blocks — raising a second one is a decision, not a slip. */
+export async function ffrsForCall(ucn: string): Promise<Record<string, unknown>[]> {
+  const c = getSupabase(); if (!c || !ucn.trim()) return [];
+  const { data, error } = await c.from('field_failure_reports')
+    .select('ffr_no,ffr_date,ffr_status').eq('ucn', ucn.trim()).order('id');
+  if (error) return [];
+  return data ?? [];
+}
+
+/** Raise one. The NUMBER and the raiser are the database's to issue (0165), so
+ *  neither is sent: a caller-supplied FFR number could collide with one already
+ *  on the sheet, and a caller-supplied raiser could name anybody. */
+export async function addFfr(row: Record<string, unknown>): Promise<{ ok: boolean; ffrNo?: string; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { ffr_no: _drop, raised_by: _drop2, ...rest } = row;
+  const { data, error } = await c.from('field_failure_reports').insert(rest).select('ffr_no').single();
+  if (error) return { ok: false, error: errMsg(error) };
+  return { ok: true, ffrNo: String(data?.ffr_no ?? '') };
+}
+
+export async function updateFfr(id: number, patch: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { ffr_no: _drop, raised_by: _drop2, ...rest } = patch;
+  const { error } = await c.from('field_failure_reports').update(rest).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
