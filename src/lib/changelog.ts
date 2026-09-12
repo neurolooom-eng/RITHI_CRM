@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.213',
+    date: '2026-09-12',
+    title: 'The product box stops contradicting its own list',
+    changes: [
+      'On the second call it read \u201C<customer> has no machines on the register\u201D while listing two of their machines directly underneath. The list was right; the words were wrong.',
+      'That message now appears ONLY when the list is genuinely empty. With machines to choose from it says \u201Cpick a product\u201D, as it should.',
+      'Loading and a failed load say so in their own words too, rather than all three coming out as \u201Cno machines\u201D.',
+    ],
+  },
+  {
     version: '0.9.212',
     date: '2026-09-12',
     title: 'Call 2 offers the customer\u2019s products, not every product',

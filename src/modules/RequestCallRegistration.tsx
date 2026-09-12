@@ -10,7 +10,7 @@ import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
 import { useMaster } from '../lib/masters';
 import { PickList } from '../components/ui/PickList';
-import { machineRowProblem } from '../lib/callrequest';
+import { machineRowProblem, productPlaceholder } from '../lib/callrequest';
 import { sbSearchPartiesForCall, sbSearchPartiesForInstall, partyOwnsNoMachine, sbSearchMachines, type MachineHit } from '../lib/supabase';
 import { SupportingDocs } from './CallAssociations';
 import { todayISO } from '../lib/format';
@@ -339,15 +339,28 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     return () => { alive = false; };
   }, [isInstall, lockedParty]);
 
-  /** The products call `i` may choose from, and what the box says when there are none. */
-  const productChoices = (i: number): { list: string[]; empty: string } => {
-    if (isInstall || i === 0 || !lockedParty) return { list: productOptions, empty: '— pick a product —' };
+
+  /**
+   * The products call `i` may choose from, and what the CLOSED BOX should read.
+   *
+   * The second is easy to get wrong and was: a message explaining an empty list
+   * must appear ONLY when the list is empty. Used as the placeholder outright,
+   * it read "<customer> has no machines on the register" over a perfectly good
+   * list of two (reported 2026-09-12) — the words contradicting the dropdown
+   * directly beneath them.
+   */
+  const productChoices = (i: number): { list: string[]; placeholder: string } => {
     // NO SILENT FALLBACK TO THE WHOLE REGISTER. Offering a product this customer
     // does not own leads to an empty serial box and a dead end, and it hides the
     // fault that produced the empty list.
-    if (ownedState === 'loading') return { list: [], empty: `— loading ${lockedParty}'s machines —` };
-    if (ownedState === 'failed') return { list: [], empty: '— could not load this customer\u2019s machines —' };
-    return { list: ownedProducts, empty: `— ${lockedParty} has no machines on the register —` };
+    const narrowed = !isInstall && i > 0 && !!lockedParty;
+    const list = narrowed ? (ownedState === 'ready' ? ownedProducts : []) : productOptions;
+    return {
+      list,
+      placeholder: productPlaceholder({
+        isInstall, isFirstCall: i === 0, party: lockedParty, state: ownedState, count: list.length,
+      }),
+    };
   };
 
   // The customer's details, as call 1 has them — copied onto a new call rather
@@ -640,8 +653,9 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                       ? { ...x, product: v, serial: '', party: '', city: '', state: '', address: '' }
                       : x)))}
                     // SelectPicker carries the closed-box text here, so the
-                    // reason an empty list is empty is said where it is read.
-                    placeholder={isInstall ? '— pick from Product Master —' : productChoices(i).empty}
+                    // reason an empty list is empty is said where it is read —
+                    // and ONLY when it is empty.
+                    placeholder={productChoices(i).placeholder}
                     // CALL 1 SEARCHES THE WHOLE REGISTER, because nothing is
                     // known yet. From call 2 the customer is fixed, so the list
                     // is what THEY own — a product they have none of is not an
