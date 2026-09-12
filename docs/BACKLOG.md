@@ -19,6 +19,24 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### Two more rows off the visit — 2026-09-12 (v0.9.228, shipped, no SQL)
+
+**Visit Date & Time** and **Complaint Date**, highlighted on screen. Both for
+the same reason as the first eight: the value is already there.
+
+* the visit's own HEADING carries the date, two lines above — and it comes from
+  the `visit_at` column rather than from this answer, so it stands whether or
+  not the form was filled in;
+* Complaint Date is when the CALL was raised: one fact about the call, repeated
+  identically on every visit of it and printed on the report.
+
+Both spellings of the first are listed (`visitdatetime`, `visitdateandtime`) —
+"and" and "&" are equally likely in a label somebody typed.
+
+A visit now reads: date and engineer, then Job Done, the report link, the
+software version and the hour meter. Rendered with all three visits from the
+screenshot before shipping.
+
 ### The part code and name, split once — 2026-09-12 (v0.9.227, shipped, no SQL)
 
 The spares table beside a report printed the catalogue string raw —

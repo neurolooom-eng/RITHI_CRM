@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.228',
+    date: '2026-09-12',
+    title: 'Two more rows off the visit details',
+    changes: [
+      'Visit Date & Time and Complaint Date no longer show on a visit \u2014 the visit\u2019s own heading already gives the date, and the complaint date is one fact about the call repeated on every visit of it.',
+      'A visit now reads: the date and the engineer, then the work done, the report link, the software version and the hour meter.',
+    ],
+  },
+  {
     version: '0.9.227',
     date: '2026-09-12',
     title: 'The part code and the part name, in their own columns',
