@@ -19,6 +19,35 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### Field Failure: Insights + the Register as a desk — 2026-09-12 (v0.9.223, shipped, no SQL)
+
+The user: *"Add an Insights tab and Register [Move the current View to Register].
+For the Register, Use the Review Desk -- Left: List of FFRs, Center: Details of
+FFR, Right: Details of the Call's Visit Details + Spares Used [Spares Used in a
+Tabular Format]."*
+
+**THE RIGHT-HAND PANE IS SHARED, NOT COPIED.** It was lifted out of Call Review
+into `src/components/callcontext/CallContext.tsx` and both desks render it. Two
+copies of "what happened on this call" would drift, and what they render is a
+quality record. `check:ui` now asserts the content where it LIVES *and* that
+Call Review has no second copy of it — checking only the old file would have
+started passing again the moment somebody inlined one.
+
+**THE FLAT TABLE IS KEPT** as Desk / Table on the Register tab. The ask said to
+move the current view there; the desk cannot do what the table does (every
+column at once, sorted, filtered, exported), and dropping it would have been a
+loss nobody asked for.
+
+**Insights** is computed from the rows already loaded rather than a second set
+of queries, over the WHOLE set rather than the filtered one — an aggregate that
+moves when somebody types in a search box answers a different question from the
+one the page appears to be asking.
+
+Two things found by looking at it rendered: the right pane claimed "0 visits"
+while still loading (a count stated before it is known — and on the Call Review
+desk "no visit on a solved call" is a *finding*, so a false one matters), and
+the template's blank spacer row had collapsed to a sliver on the printed FFR.
+
 ### Editing an FFR failed on the view's columns — 2026-09-12 (v0.9.222, shipped, no SQL)
 
 Reported from use: **"Could not find the 'live_any_potential_effect' column of

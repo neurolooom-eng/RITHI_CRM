@@ -11,7 +11,8 @@ import {
 } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { parseAnyDate } from '../lib/dates';
-import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../lib/callreview';
+import { isReviewable, REVIEW_DONE } from '../lib/callreview';
+import { CallContext } from '../components/callcontext/CallContext';
 import './dccr.css';
 import './callreview.css';
 
@@ -393,54 +394,12 @@ export function CallReview() {
             <div className="cr-empty muted">&nbsp;</div>
           ) : (
             <>
-              <div className="cr-h"><b>Visit work details</b> <span className="muted">{visits.length} visit{visits.length === 1 ? '' : 's'}</span></div>
-              {ctxBusy && <div className="muted cr-note">Loading…</div>}
-              {!ctxBusy && !visits.length && <div className="muted cr-note">No visit on record — which on a solved call is itself the finding.</div>}
-              {visits.map((v, i) => {
-                const d = (v.data && typeof v.data === 'object' ? v.data : {}) as Record<string, unknown>;
-                return (
-                  <div className="cr-visit" key={i}>
-                    <div className="cr-visit-h">
-                      <b>{fmt(v.visit_at) || fmt(v.updated_at)}</b>
-                      <span className="muted">{String(v.engineer ?? '')}</span>
-                    </div>
-                    <dl className="cr-dl">
-                      {Object.entries(d)
-                        .filter(([k, val]) => String(val ?? '').trim() && !/^email-id$/i.test(k))
-                        .map(([k, val]) => (
-                          <div className="cr-dl-row" key={k}>
-                            <dt>{k}</dt>
-                            {/* THE SIGNED REPORT IS THE POINT OF THE REVIEW, and it
-                                was a wall of URL to copy by hand. Any http(s) value
-                                opens; the rest stays text. `noopener` because the
-                                target is Drive, not this app. */}
-                            <dd>{isUrl(String(val))
-                              ? <a href={String(val)} target="_blank" rel="noopener noreferrer">{linkLabel(k, String(val))}</a>
-                              : String(val)}</dd>
-                          </div>
-                        ))}
-                    </dl>
-                  </div>
-                );
-              })}
-
-              <div className="cr-h cr-h-gap"><b>Spares consumed</b> <span className="muted">{spares.length} line{spares.length === 1 ? '' : 's'}</span></div>
-              {!ctxBusy && !spares.length && <div className="muted cr-note">Nothing booked against this call.</div>}
-              {spares.length > 0 && (
-                <table className="cr-spares">
-                  <thead><tr><th>Part</th><th>Qty</th><th>GRIR</th><th>Source</th></tr></thead>
-                  <tbody>
-                    {spares.map((s, i) => (
-                      <tr key={i} className={Number(s.qty ?? 0) === 0 ? 'cr-void' : ''}>
-                        <td>{String(s.part ?? '')}</td>
-                        <td>{String(s.qty ?? '')}{Number(s.qty ?? 0) === 0 ? ' (voided)' : ''}</td>
-                        <td>{String(s.grir ?? '')}</td>
-                        <td>{String(s.source ?? '')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              <CallContext
+                visits={visits}
+                spares={spares}
+                busy={ctxBusy}
+                noVisitsNote="No visit on record — which on a solved call is itself the finding."
+              />
             </>
           )}
         </div>
