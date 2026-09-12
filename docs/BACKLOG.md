@@ -19,6 +19,26 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### Call Request, redesigned — 2026-09-11/12 (v0.9.199 → v0.9.210)
+
+The module now works the other way round: **the machine names the customer**.
+Product → Serial → the customer, city, state and address come off the machine;
+the first call fixes the customer for the request and the rest inherit it. The
+customer search is gone from the form entirely, which is what the timeouts were.
+
+Written up as [`CALL_REQUEST_REQUIREMENTS.md`](CALL_REQUEST_REQUIREMENTS.md) —
+CR-001…CR-030, each with its status, because the reasoning was otherwise spread
+across a dozen commit messages and the next person to touch the form would have
+had to reconstruct it.
+
+Two of those requirements are easy to undo by accident and are asserted:
+CR-006 (the party filter on the machine search stays CONDITIONAL — an
+unconditional one puts the slow search back in front of the fast one) and CR-024
+(`cr_read` evaluated once per query: 1,840 ms → 7.4 ms for an engineer).
+
+⚠️ **Still to run on the live project:** `call_requests.sql` for 0164 (CR-024),
+and the one-line duplicate-index drop from 0161.
+
 ### One spare lost from every visit — 2026-09-11 (v0.9.200, shipped, no SQL)
 
 Reported: *"In Spare Consumption, always 1 Consumption is getting Missed — looks
