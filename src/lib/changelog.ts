@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.215',
+    date: '2026-09-12',
+    title: 'An FFR is filled in from the Daily Call Review itself',
+    changes: [
+      'CHECKED AGAINST THE 35 REPORTS ALREADY ON THE 2026 SHEET, and the mapping was wrong in three places. It is right now.',
+      'The Daily Call Review already has a field headed \u201CService Dept Observation\u201D \u2014 the same box the report asks for \u2014 so it now carries straight across instead of being rebuilt from the visit. Its visit list is already in the sheet\u2019s format, and its spares are already listed, so those come over as they are.',
+      'INSTALLATION DATE IS FILLED IN. It is on all 35 rows of the sheet and was being left blank.',
+      'CAPA Status now offers \u201CIn-Progress\u201D and \u201CNA\u201D, which the register uses and the list was missing, and CAPA Responsibility is a list rather than free text.',
+      'The CAPA columns start with the sheet\u2019s own defaults \u2014 \u201CNo closed in FFR\u201D, \u201CNA\u201D, \u201CNot required\u201D \u2014 instead of blank.',
+      'Every report on the 2026 sheet is a SOLVED call. Raising one on a call that is not solved still works, but the screen says so rather than letting it pass unremarked.',
+    ],
+  },
+  {
     version: '0.9.214',
     date: '2026-09-12',
     title: 'The Field Failure Register is built',

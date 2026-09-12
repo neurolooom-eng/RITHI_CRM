@@ -45,7 +45,11 @@ export const FFR_COLUMNS: { key: string; header: string; width?: number }[] = [
 /** The vocabularies the sheet actually uses. */
 export const FFR_SOURCES = ['PC'];
 export const FFR_COVER = ['WGP', 'OGP', 'AMC', 'CMC'];
-export const FFR_CAPA_STATUS = ['Not required', 'Open', 'TBD', 'Closed'];
+// The sheet's own LookupValues tab, in full. 'In-Progress' and 'NA' were
+// missing from the first draft — a status a register already uses and a picker
+// will not offer is a value somebody has to work around.
+export const FFR_CAPA_STATUS = ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD', 'NA'];
+export const FFR_CAPA_RESPONSIBILITY = ['No closed in FFR', 'ALMS-FRANCE', 'NA', 'TBD'];
 export const FFR_STATUS = ['Open', 'Closed'];
 
 /** A number this register issued, or one carried in from the sheet. Used to
@@ -81,31 +85,74 @@ export function ffrDocFrom(r: Record<string, unknown>, raisedBy: string): FfrDoc
   };
 }
 
-/** What a call fills in when an FFR is raised from the Daily Call Review. The
- *  rest is the reviewer's to write — an observation nobody wrote is not one. */
-export interface CallPrefill {
-  ucn?: unknown; call_number?: unknown; reg_date?: unknown;
+/**
+ * WHAT THE DAILY CALL REVIEW FILLS IN.
+ *
+ * The review already holds nearly the whole report, and that is not a
+ * coincidence — both exist to say what failed and what was done about it. Its
+ * Review 3 field is HEADED "Service Dept Observation", which is the FFR column
+ * of that name; `visit_details` is already "date : what was done", newest
+ * first, which is the sheet's VISIT REMARKS format; and `spares_consumed` is
+ * already the joined list the sheet carries.
+ *
+ * So the report is filled FROM THE REVIEW ROW rather than by re-reading the
+ * visits and the consumption. Fewer requests, and — the point — the register,
+ * the review and the report cannot then disagree about the same failure.
+ *
+ * CHECKED AGAINST THE 35 ROWS ALREADY IN THE 2026 TAB. Every one is a SOLVED
+ * FIELD call; Item Code is empty in all 35; Verified By, Sign and Remarks are
+ * empty in all 35; and Additional Problem Description is the spreadsheet's own
+ * `#N/A` in 33 of them, which is a lookup failure rather than a value and is
+ * deliberately not reproduced here.
+ */
+export interface ReviewSource {
+  ucn?: unknown; call_number?: unknown; reg_date?: unknown; complaint_date?: unknown;
   party_name?: unknown; city?: unknown; product_name?: unknown; serial?: unknown;
-  item_status?: unknown; complaint_reported?: unknown; standard_complaint?: unknown;
-  open_state?: unknown; last_status?: unknown; call_type?: unknown;
+  item_status?: unknown; call_type?: unknown; warranty_start?: unknown;
+  standard_complaint?: unknown; complaint_reported?: unknown;
+  service_observation?: unknown; observation?: unknown; job_done?: unknown;
+  visit_details?: unknown; spares_consumed?: unknown;
+  open_state?: unknown; last_status?: unknown; last_visit_at?: unknown;
 }
 
-export function ffrFromCall(c: CallPrefill): Record<string, unknown> {
+export function ffrFromReview(r: ReviewSource): Record<string, unknown> {
   const s = (v: unknown) => String(v ?? '').trim();
+  const day = (v: unknown) => (s(v) ? s(v).slice(0, 10) : null);
   return {
-    source: 'PC',
-    ucn: s(c.ucn),
-    crn_date: s(c.reg_date) || null,
-    customer_name: s(c.party_name),
-    place: s(c.city),
-    product_name: s(c.product_name),
-    product_serial: s(c.serial),
-    cover: s(c.item_status),
-    problem_reported: s(c.complaint_reported) || s(c.standard_complaint),
-    current_call_status: s(c.open_state) || s(c.last_status),
-    call_type: s(c.call_type),
+    source: 'PC',                       // the only Source in the 2026 tab
+    ucn: s(r.ucn),
+    crn_date: day(r.reg_date) ?? day(r.complaint_date),
+    customer_name: s(r.party_name),
+    place: s(r.city),
+    product_name: s(r.product_name),
+    product_serial: s(r.serial),
+    cover: s(r.item_status),
+    // The machine's installation date — filled in all 35 rows of the sheet, and
+    // the warranty start is where the register keeps it.
+    installation_date: day(r.warranty_start),
+    problem_reported: s(r.complaint_reported) || s(r.standard_complaint),
+    // REVIEW 3's OWN FIELD, which is headed "Service Dept Observation". The
+    // visit's Complaint Observation is the fallback for a call reviewed before
+    // that field was answered.
+    service_observation: s(r.service_observation) || s(r.observation),
+    problem_status: s(r.job_done),
+    visit_remarks: s(r.visit_details),
+    spares_consumed: s(r.spares_consumed),
+    current_call_status: s(r.open_state) || s(r.last_status),
+    call_solved_at: s(r.last_visit_at) || null,
+    call_type: s(r.call_type),
+    // The sheet's defaults, from its LookupValues tab.
+    capa_responsibility: 'No closed in FFR',
     capa_no: 'NA',
     capa_status: 'Not required',
     ffr_status: 'Open',
   };
+}
+
+/** Every one of the 35 rows in the 2026 tab is a SOLVED call, and that is the
+ *  rule rather than a coincidence: an FFR describes a failure that has been
+ *  diagnosed. Raising one on an open call is allowed — somebody may have to —
+ *  but the screen says so rather than letting it pass unremarked. */
+export function ffrCallNotSolved(state: string): boolean {
+  return !/^solved/i.test(String(state ?? '').trim());
 }

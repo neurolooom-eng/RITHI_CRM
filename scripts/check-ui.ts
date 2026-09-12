@@ -11,7 +11,7 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
-import { FFR_COLUMNS, ffrFromCall, ffrDocFrom, FFR_NO_SHAPE } from '../src/lib/ffr';
+import { FFR_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
@@ -3635,18 +3635,48 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   }
   eq('every column maps to a stored field', FFR_COLUMNS.every((c) => /^[a-z_]+$/.test(c.key)), true);
 
-  // A CALL FILLS IN WHAT IT KNOWS, and nothing it does not. An observation
-  // nobody wrote is not an observation.
-  const fromCall = ffrFromCall({
+  // THE REVIEW FILLS THE REPORT IN, and the mapping was checked against the 35
+  // rows already in the 2026 tab rather than guessed.
+  const fromCall = ffrFromReview({
     ucn: '26I10F0002', reg_date: '2026-01-09', party_name: 'DHANVANTRI', city: 'MEERUT',
     product_name: 'MONNAL T75', serial: '11125', item_status: 'WGP',
+    warranty_start: '2025-07-08',
     complaint_reported: 'Alarm 030', open_state: 'Solved', call_type: 'FIELD',
+    service_observation: 'Alarm 030 confirmed by the engineer',
+    job_done: 'Replaced the solenoid valve unit',
+    visit_details: '13-Jan-2026 : Replaced spare, calibrated, unit working',
+    spares_consumed: 'KY560500|SOLENOID VALVE UNIT-MT75',
+    last_visit_at: '2026-01-13T00:00:00Z',
   });
   eq('the call names the machine and the customer',
     [fromCall.ucn, fromCall.customer_name, fromCall.product_serial, fromCall.cover],
     ['26I10F0002', 'DHANVANTRI', '11125', 'WGP']);
   eq('and the complaint becomes the problem reported', fromCall.problem_reported, 'Alarm 030');
-  eq('the observation is left for a person to write', fromCall.service_observation, undefined);
+  // REVIEW 3's OWN FIELD is headed "Service Dept Observation" — the FFR column
+  // of that name. Re-deriving it from the visit is how the review and the
+  // report come to disagree about one failure.
+  eq('the review\u2019s Service Dept Observation carries straight across',
+    fromCall.service_observation, 'Alarm 030 confirmed by the engineer');
+  eq('the visit list is already the sheet\u2019s VISIT REMARKS format',
+    fromCall.visit_remarks, '13-Jan-2026 : Replaced spare, calibrated, unit working');
+  eq('the spares come joined, not re-fetched',
+    fromCall.spares_consumed, 'KY560500|SOLENOID VALVE UNIT-MT75');
+  // Filled in all 35 rows of the sheet, and the register keeps it as the
+  // warranty start.
+  eq('the installation date is filled from the machine', fromCall.installation_date, '2025-07-08');
+  // The sheet's own defaults, from its LookupValues tab.
+  eq('the CAPA columns take the sheet\u2019s defaults',
+    [fromCall.capa_responsibility, fromCall.capa_no, fromCall.capa_status],
+    ['No closed in FFR', 'NA', 'Not required']);
+  eq('and the source is the only one the 2026 tab uses', fromCall.source, 'PC');
+  // A status the register already uses and the picker will not offer is a value
+  // somebody has to work around.
+  for (const st of ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD', 'NA']) {
+    eq(`"${st}" is offered as a CAPA status`, FFR_CAPA_STATUS.includes(st), true);
+  }
+  // Every one of the 35 is a solved call — said, not enforced.
+  eq('an unsolved call is flagged', ffrCallNotSolved('Unsolved'), true);
+  eq('a solved one is not', ffrCallNotSolved('Solved - Report Completed'), false);
   // THE NUMBER IS NEVER SENT. It is issued by the database and seeded past what
   // is already on the sheet; a client-chosen one could collide with FFR - 035/26.
   eq('no FFR number is sent from the client', 'ffr_no' in fromCall, false);
@@ -3689,6 +3719,20 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the review offers to raise one', /Raise FFR/.test(dcr), true);
   eq('and hands the call over rather than making the person re-type it',
     /state: \{ ffrFromCall: \{/.test(dcr), true);
+  // The WHOLE row's worth: a subset would make the FFR screen fetch again.
+  //
+  // SCOPED TO THE HAND-OVER BLOCK. The first version tested the whole file and
+  // passed with the line deleted, because `service_observation: row.service_
+  // observation` also appears where the review's own draft is initialised —
+  // an assertion that matches a different line is not an assertion.
+  const handover = /state: \{ ffrFromCall: \{[\s\S]*?last_visit_at: row\.last_visit_at,/.exec(dcr)?.[0] ?? '';
+  eq('the hand-over block was found', handover.length > 200, true);
+  for (const f of ['service_observation', 'visit_details', 'spares_consumed', 'warranty_start', 'job_done']) {
+    eq(`the review hands over ${f}`, new RegExp(`${f}: row\\.${f}`).test(handover), true);
+  }
+  const ffrMod = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  eq('so the report does not re-read the visits',
+    /reportsByCall|consumptionForCall/.test(ffrMod), false);
   eq('it is gated on its own right, not on review.edit', /canDo\('ffr\.manage'\)/.test(dcr), true);
   eq('and an existing report for that call is shown, not hidden',
     /ffrsForCall\(/.test(dcr) && /Already reported/.test(dcr), true);
