@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
+import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbListPartyItems, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
@@ -305,6 +305,59 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
   }, [isInstall, f.partyName]);
 
   const productOptions = useMemo(() => productMaster.values, [productMaster.values]);
+
+  // THE FIRST CALL FIXES WHOSE MACHINES THE REQUEST IS ABOUT (the user's rule,
+  // 2026-09-12). A request is one visit to one site; once call 1 has named the
+  // customer, every later call is looking among that customer's machines, and
+  // its site and contact are the same site and contact.
+  const lockedParty = (items[0]?.party ?? '').trim();
+
+  // What that customer owns — the product list for calls 2..5. Loaded once per
+  // customer, not per keystroke: it is a filter on a fixed set, not a search.
+  const [ownedProducts, setOwnedProducts] = useState<string[]>([]);
+  useEffect(() => {
+    if (isInstall || !lockedParty) { setOwnedProducts([]); return; }
+    let alive = true;
+    sbListPartyItems(lockedParty)
+      .then((rows) => {
+        if (!alive) return;
+        setOwnedProducts([...new Set(rows.map((r) => String(r['Item Name'] ?? '')).filter(Boolean))].sort());
+      })
+      .catch(() => { if (alive) setOwnedProducts([]); });
+    return () => { alive = false; };
+  }, [isInstall, lockedParty]);
+
+  // The customer's details, as call 1 has them — copied onto a new call rather
+  // than asked for again.
+  const customerOf = (it: Item) => ({
+    party: it.party ?? '', city: it.city ?? '', state: it.state ?? '',
+    address: it.address ?? '', contactDetails: it.contactDetails ?? '', contactNumber: it.contactNumber ?? '',
+  });
+
+  // WHEN CALL 1'S CUSTOMER CHANGES, the later calls follow it. A machine
+  // belonging to the customer who has just been replaced cannot stay on the
+  // request, so it is cleared — leaving it would file a call against a machine
+  // this customer does not own, which is the fault this whole design removes.
+  useEffect(() => {
+    if (isInstall) return;
+    setItems((s) => {
+      if (s.length < 2 || !s[0]) return s;
+      const src = customerOf(s[0]);
+      if (!src.party) return s;
+      let touched = false;
+      const next = s.map((it, i) => {
+        if (i === 0) return it;
+        const staleMachine = (it.party ?? '').trim() !== '' && (it.party ?? '').trim() !== src.party;
+        if (!staleMachine && (it.party ?? '') === src.party) return it;
+        touched = true;
+        return staleMachine
+          ? { ...it, ...src, product: '', serial: '' }
+          : { ...it, ...src };
+      });
+      return touched ? next : s;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedParty, isInstall]);
   // Serial numbers this party owns of this product, minus the ones another
   // call on the request has already taken — one machine cannot be two calls
   // (its UniqueID is REQID-Product-Serial, so the DB would reject the pair
@@ -349,7 +402,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       : it)));
 
   const setItem = (i: number, k: keyof Item, v: string) => setItems((s) => s.map((it, j) => (j === i ? { ...it, [k]: v } : it)));
-  const addItem = () => setItems((s) => (s.length < MAX_ITEMS ? [...s, blankItem(isInstall)] : s));
+  // A NEW CALL INHERITS THE CUSTOMER. Asking for the same hospital, city,
+  // address and contact five times over is how they end up disagreeing.
+  const addItem = () => setItems((s) => {
+    if (s.length >= MAX_ITEMS) return s;
+    const fresh = blankItem(isInstall);
+    return [...s, isInstall || !s[0]?.party ? fresh : { ...fresh, ...customerOf(s[0]) }];
+  });
   const removeItem = (i: number) => setItems((s) => (s.length > 1 ? s.filter((_, j) => j !== i) : s));
   const reset = () => { setF(blank); setItems([blankItem()]); setDocs({ installationReport: null, kyc: null }); };
 
@@ -561,8 +620,14 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     // any more, and a box telling somebody to do something the
                     // form no longer asks for is worse than a bare label.
                     placeholder={isInstall ? '— pick from Product Master —' : '— pick a product —'}
-                    // a value the current list cannot offer (e.g. imported) stays selectable
-                    options={withCurrent(productOptions, it.product)} />
+                    // CALL 1 SEARCHES THE WHOLE REGISTER, because nothing is
+                    // known yet. From call 2 the customer is fixed, so the list
+                    // is what THEY own — a product they have none of is not an
+                    // option, and offering it only leads to an empty serial box.
+                    options={withCurrent(
+                      !isInstall && i > 0 && lockedParty && ownedProducts.length ? ownedProducts : productOptions,
+                      it.product,
+                    )} />
                 ))}
                 {field('Serial No *', (
                   // An installation is a machine the party does not own yet, so
@@ -588,7 +653,9 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                           value={it.serial}
                           options={withCurrent(hitsFor(i).map((m: MachineHit) => m.serial), it.serial)}
                           onSearch={async (qq) => {
-                            const hits = await sbSearchMachines(it.product, qq);
+                            // Party + product from call 2 onward. On call 1
+                            // there is no customer yet, so it is product alone.
+                            const hits = await sbSearchMachines(it.product, qq, 50, i > 0 ? lockedParty : '');
                             setMachineHits((h) => ({ ...h, [i]: hits }));
                             return hits.map((m: MachineHit) => m.serial);
                           }}
@@ -608,9 +675,11 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                           plainValue
                           placeholder="Type any part of the serial…"
                           emptyLabel="— type a serial to find the machine —"
-                          emptyHint={it.product
-                            ? `Serials of ${it.product}, across every customer. The customer is filled in from the machine.`
-                            : 'Every machine on the register. Pick a product above to narrow it.'}
+                          emptyHint={i > 0 && lockedParty
+                            ? `Machines belonging to ${lockedParty}${it.product ? ` — ${it.product} only` : ''}. The customer is set by call 1.`
+                            : it.product
+                              ? `Serials of ${it.product}, across every customer. The customer is filled in from the machine.`
+                              : 'Every machine on the register. Pick a product above to narrow it.'}
                         />
                       );
                     })()
@@ -619,10 +688,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     register's answer and not an opinion — and shown rather than
                     hidden, so a wrong serial is caught here instead of on the
                     call. */}
-                {!isInstall && it.serial.trim() !== '' && (
+                {!isInstall && (it.serial.trim() !== '' || (it.party ?? '').trim() !== '') && (
                   <div className="req-machine-party">
                     {it.party
-                      ? <>Customer: <b>{it.party}</b></>
+                      ? <>Customer: <b>{it.party}</b>{i > 0 ? <span className="muted"> · from call 1</span> : null}</>
                       : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Master.</span>}
                   </div>
                 )}

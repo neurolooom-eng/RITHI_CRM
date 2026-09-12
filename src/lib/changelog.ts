@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.210',
+    date: '2026-09-12',
+    title: 'The first call sets the customer for the whole request',
+    changes: [
+      'ONCE CALL 1 HAS NAMED THE CUSTOMER, EVERY LATER CALL BELONGS TO THEM. A request is one visit to one site, and it now behaves that way.',
+      'ADD A SECOND CALL AND ITS CUSTOMER, CITY, STATE, ADDRESS AND CONTACT ARE ALREADY FILLED IN from the first. Asking for the same hospital five times over is how five slightly different spellings of it end up on one request.',
+      'The Product list on calls 2 to 5 is only what THAT customer owns \u2014 a product they have none of is not offered, because picking it leads nowhere.',
+      'And the Serial box is narrowed to that customer AND that product, so it is a short list of their machines rather than a search of the whole register.',
+      'Call 1 is deliberately left wide: nothing is known yet, so it still searches every machine on record. The customer is never something you have to find first.',
+      'If you change call 1 to a different customer, the later calls follow \u2014 and any machine belonging to the customer you just replaced is cleared, rather than being left on a request it no longer belongs to.',
+    ],
+  },
+  {
     version: '0.9.209',
     date: '2026-09-12',
     title: 'The serial search on one call no longer disturbs another',

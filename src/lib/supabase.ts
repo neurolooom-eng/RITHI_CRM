@@ -1263,11 +1263,16 @@ const itemCols = (it: CallRequestItem) => ({
 // so a short term that matches half the register costs no more than a precise
 // one. City rides in `products.extra` under the spreadsheet's own heading.
 export interface MachineHit { serial: string; product: string; party: string; city: string; state: string; address: string }
-export async function sbSearchMachines(product: string, query: string, limit = 50): Promise<MachineHit[]> {
+export async function sbSearchMachines(product: string, query: string, limit = 50, party = ''): Promise<MachineHit[]> {
   const c = getSupabase(); if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
   let q = c.from('products').select('serial_number,item_name,party_name,extra').limit(limit);
   if (product.trim()) q = q.eq('item_name', product.trim());
+  // NARROWED TO ONE CUSTOMER on the second call onward: the first call fixes
+  // whose machines the request is about, so the rest need only look among
+  // theirs. EQUALITY on party_name, which is indexed (products_party_name_eq) —
+  // this is a filter, not a search, so it costs nothing.
+  if (party.trim()) q = q.eq('party_name', party.trim());
   if (term) q = q.ilike('serial_number', `%${term}%`);
   else q = q.order('serial_number');
   const { data, error } = await q;
