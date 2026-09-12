@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.225',
+    date: '2026-09-12',
+    title: 'The visits and spares show on a Field Failure Report',
+    changes: [
+      'FIXED: the register\u2019s right-hand pane was empty for everyone except administrators and the office roles \u2014 \u201C0 visits\u201D and \u201CNothing booked against this call\u201D on a report that plainly had both.',
+      'Reading the register did not carry the CALL behind it, and the visits and spares are scoped to the calls you can see. Now \u201CRead the whole Field Failure Register\u201D covers the pane too \u2014 one tick, not two.',
+      'It opens ONLY calls that have a report. Reading the register does not become a way to read every call.',
+      'And nobody loses anything: if you could already see a call\u2019s visits, you still can.',
+    ],
+  },
+  {
     version: '0.9.224',
     date: '2026-09-12',
     title: 'Who can see the Field Failure Register, and a role called by its own name',

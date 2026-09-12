@@ -19,6 +19,42 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The right-hand pane was empty too — 2026-09-12 (v0.9.225, SQL to run)
+
+Two screenshots side by side: an administrator saw the visit work and the
+spares; a user on a role granted `ffr.view` saw **"0 visits"** and *"Nothing
+booked against this call"* on the same report. The user: *"If certain
+Permissions are required, please add it under the Group."*
+
+0176 made READING THE REGISTER a right. It could not, on its own, make the CALL
+readable — and the pane loads `reports` and `spare_consumption`, both scoped to
+**call visibility**:
+
+* `reports_read` — `calls.view` AND (`can_view_all_calls()` OR the call is
+  allotted inside your reporting tree)
+* `cons_read` — `can_view_all_calls()` OR yours OR your tree
+
+The same half-granted shape as the register itself, one layer down.
+
+**A FUNCTION, NOT FIVE POLICY EDITS.** Widening it through the policies would
+mean touching `reports_read` (owned by `call_requests`), `cons_read` (owned
+through the **guarded mirror** in 0121 that `check:bundles` compares word for
+word) and the three call tables — five policies across three modules, in the
+most fragile corner of this schema. `ffr_call_context()` is one object that says
+"elevated on purpose" and carries its own authority test.
+
+**Narrow by construction:** nothing unless the caller may read the register
+**and** the UCN actually has a report — so it is not a general call reader. NULL
+to anybody else, and the desk falls back to the tables, so nobody loses a visit
+their own policies already allow.
+
+⚠️ **Still needs call visibility:** the UCN's status colour and the "call as it
+stands now" section come from the `calls` view, not from this function. A role
+that should see those wants `data.view_all` ("Across the system") — a much
+broader grant, and deliberately not what this change makes.
+
+**To run:** `daily_review.sql`. `_status.sql` row 134 checks it.
+
 ### The register was empty, and the role was misnamed — 2026-09-12 (v0.9.224, SQL to run)
 
 Two reports from one screenshot.

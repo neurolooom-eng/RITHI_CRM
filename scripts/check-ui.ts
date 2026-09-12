@@ -4256,5 +4256,44 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('…and the database label wins once loaded', roleLabelFor('vptechnical'), 'VP Technical');
 }
 
+// ---------------------------------------------------------------------------
+// THE VISITS AND SPARES BEHIND A REPORT (0178).
+//
+// Reported with two screenshots: an administrator saw the register's right-hand
+// pane populated; somebody granted `ffr.view` saw "0 visits" on the SAME
+// report. `reports` and `spare_consumption` are scoped to CALL visibility,
+// which reading the register does not confer.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- the call behind a Field Failure Report --');
+  const m = readFileSync('supabase/migrations/0178_ffr_call_context.sql', 'utf8');
+  const body = m.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  eq('it is a definer function', /security definer/.test(body), true);
+  eq('gated on the right to read the register',
+    /has_perm\('ffr\.view'\)[\s\S]{0,120}can_view_all_calls\(\)[\s\S]{0,60}is_admin\(\)/.test(body), true);
+  // THE SCOPING CONDITION is what stops it being a general call reader: without
+  // it, knowing any UCN would return that call's visits.
+  eq('and it opens ONLY calls that have a report',
+    /if not exists \(select 1 from public\.field_failure_reports f where f\.ucn = v_ucn\) then\s*\n\s*return null;/.test(body), true);
+  // NULL rather than an exception: "not for you" is not an error here — the
+  // caller reads the tables under their own policies instead.
+  eq('a caller who does not qualify gets null, not an error',
+    /return null;/.test(body) && !/raise exception/.test(body), true);
+
+  // …AND THE DESK FALLS BACK, so nobody loses a visit they can already see.
+  const desk = readFileSync('src/modules/FieldFailureDesk.tsx', 'utf8');
+  eq('the desk asks for the register context first', /ffrCallContext\(ucn\)/.test(desk), true);
+  eq('and falls back to the tables when it gets nothing',
+    /ctx \?\? \{[\s\S]{0,160}reportHistory\(ucn\)[\s\S]{0,120}consumptionForCall\(ucn/.test(desk), true);
+
+  const lib = readFileSync('src/lib/supabase.ts', 'utf8');
+  const fn = /export async function ffrCallContext[\s\S]*?\n\}/.exec(lib)?.[0] ?? '';
+  eq('the client helper was found', fn !== '', true);
+  // A database without 0178 must not break the pane.
+  eq('a missing function reads as "fall back", not an error',
+    /if \(error \|\| !data\) return null;/.test(fn), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
