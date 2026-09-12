@@ -271,7 +271,10 @@ const MODULES = {
             // 0173 redefines raise_ffr() (0169) and stamps call_reviews (0044),
             // both of which this module owns — so it belongs here and AFTER
             // them, or a replay would put the old raise_ffr back.
-            '0173_dccr_reviewer.sql'],
+            '0173_dccr_reviewer.sql',
+            // AFTER 0173: it replaces that file's name-prefix lookup, and a
+            // replay in the other order would put the prefix match back.
+            '0175_ffr_reviewer_nsm.sql'],
   },
   notifications: {
     title: 'Notifications',
