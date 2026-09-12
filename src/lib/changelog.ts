@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.209',
+    date: '2026-09-12',
+    title: 'The serial search on one call no longer disturbs another',
+    changes: [
+      'ALL FIVE CALLS ON A REQUEST WERE SHARING ONE SET OF SEARCH RESULTS. Searching a serial on call 2 replaced what call 1 was offering \u2014 and picking on call 1 then found no machine, so that row got a serial with NO CUSTOMER and the request was refused for a serial that is perfectly well on the register.',
+      'Each call now keeps its own results.',
+      'CHANGING THE PRODUCT NOW CLEARS THE MACHINE with it. It used to clear only the serial and leave the previous machine\u2019s customer, city, state and address sitting on the row \u2014 which then stuck to whatever machine you picked next.',
+      'The Product box no longer says \u201Cpick a Party first\u201D or \u201Cno products for this party\u201D. There is no party to pick first any more, and a box asking for something the form does not have was only ever going to confuse.',
+    ],
+  },
+  {
     version: '0.9.208',
     date: '2026-09-12',
     title: 'The site and contact move onto each call',

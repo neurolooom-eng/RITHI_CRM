@@ -2009,7 +2009,7 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   eq('...and no native <option> list is left over the serials',
     /\{serials\.map\(\(v\) => <option/.test(rq), false);
   eq('a serial the list no longer offers is still shown',
-    /withCurrent\(machineHits\.map\(\(m: MachineHit\) => m\.serial\), it\.serial\)/.test(rq), true);
+    /withCurrent\(hitsFor\(i\)\.map\(\(m: MachineHit\) => m\.serial\), it\.serial\)/.test(rq), true);
 
   // THE EMPTY BOX AND THE ROWS ARE STILL DOING WORK, and they have to say
   // DIFFERENT things now: the list spans customers, so a row must show WHOSE
@@ -3474,6 +3474,37 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     eq(`"${f}" is asked per call`,
       new RegExp(`field\\('${f}',[\\s\\S]{0,200}setItem\\(i, '`).test(rq), true);
   }
+}
+
+// ---------------------------------------------------------------------------
+// FIVE CALLS, FIVE SEARCHES. The machine results were held in ONE variable for
+// the whole form, so a search in call 2 replaced call 1's options — and picking
+// in call 1 then found no machine, giving that row a serial with NO CUSTOMER
+// and a request refused for a serial that is on the register.
+{
+  console.log('\n-- each call keeps its own machine results --');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+
+  eq('the results are held per row', /useState<Record<number, MachineHit\[\]>>\(\{\}\)/.test(rq), true);
+  eq('and written under that row', /setMachineHits\(\(h\) => \(\{ \.\.\.h, \[i\]: hits \}\)\)/.test(rq), true);
+  // Every read must go through the per-row accessor; one stray shared read
+  // brings the whole fault back.
+  eq('every read is scoped to the row',
+    /machineHits\.(find|map)\(/.test(rq), false);
+  eq('the options come from this row', /withCurrent\(hitsFor\(i\)/.test(rq), true);
+  eq('and so does the pick', /hitsFor\(i\)\.find/.test(rq), true);
+
+  // CHANGING THE PRODUCT DROPS THE WHOLE MACHINE. It used to clear only the
+  // serial, leaving the previous machine's customer and site on the row — and
+  // takeMachine deliberately keeps what is already there, so the OLD site would
+  // have stuck to the NEW machine.
+  eq('changing the product clears the machine it resolved',
+    /product: v, serial: '', party: '', city: '', state: '', address: ''/.test(rq), true);
+
+  // …and the product box no longer tells anybody to pick a party first.
+  eq('the product box does not ask for a party that is gone',
+    /pick a Party first/.test(rq), false);
+  eq('nor mentions the party having no products', /no products for this party/.test(rq), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
