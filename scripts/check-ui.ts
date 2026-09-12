@@ -10,7 +10,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
-import { machineRowProblem } from '../src/lib/callrequest';
+import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
@@ -3555,22 +3555,42 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // empty, because it was loaded through a DIFFERENT match rule from the one
   // the serial search uses. Call 2 then offered every product in the company
   // (reported 2026-09-12) and the fallback is what hid the cause.
-  eq('calls 2+ are offered only that customer\u2019s products',
-    /if \(isInstall \|\| i === 0 \|\| !lockedParty\) return \{ list: productOptions/.test(rq), true);
-  eq('and an empty list is never widened to the register',
-    /return \{ list: ownedProducts, empty:/.test(rq)
-      && !/ownedProducts\.length \? ownedProducts : productOptions/.test(rq), true);
-  // Loading and failure are DIFFERENT from "owns nothing", and each says so.
-  for (const st of ["ownedState === 'loading'", "ownedState === 'failed'"]) {
-    eq(`"${st}" is a state of its own`, rq.includes(st), true);
-  }
+  // Comments stripped: this file EXPLAINS the paths it stopped using, and an
+  // assertion that reads the prose would fail on its own documentation.
+  const rqCode = rq.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  eq('calls 2+ are narrowed to the customer',
+    /const narrowed = !isInstall && i > 0 && !!lockedParty;/.test(rq), true);
+  // THE PROPERTY: once narrowed, the list is this customer's or it is EMPTY.
+  // It is never widened back to the register — that is what hid the fault.
+  eq('and a narrowed list is never widened to the register',
+    /const list = narrowed \? \(ownedState === 'ready' \? ownedProducts : \[\]\) : productOptions;/.test(rq), true);
+  eq('so productOptions appears once, on the un-narrowed side',
+    (rqCode.match(/: productOptions;/g) ?? []).length, 1);
+  // WHAT THE BOX READS, run with real inputs. THE RULE THAT BROKE: a message
+  // explaining an empty list must appear ONLY when the list is empty. Used as
+  // the placeholder outright it read "<customer> has no machines on the
+  // register" over a good list of two, contradicting the dropdown beneath it.
+  const P = (o: Partial<Parameters<typeof productPlaceholder>[0]>) => productPlaceholder({
+    isInstall: false, isFirstCall: false, party: 'HKSD SARVODAYA', state: 'ready', count: 2, ...o,
+  });
+  eq('a list with options just says pick one', P({}), PICK_A_PRODUCT);
+  eq('and the no-machines message appears ONLY when there are none',
+    /no machines found for HKSD SARVODAYA/.test(P({ count: 0 })), true);
+  eq('loading says loading, not "no machines"',
+    /loading HKSD SARVODAYA/.test(P({ state: 'loading', count: 0 })), true);
+  eq('a failure says so rather than blaming the customer',
+    /could not load/.test(P({ state: 'failed', count: 0 })), true);
+  // Call 1 is not narrowed, so it never carries a customer's name…
+  eq('call 1 just says pick a product', P({ isFirstCall: true, count: 0 }), PICK_A_PRODUCT);
+  eq('…and neither does a call with no customer yet', P({ party: '  ', count: 0 }), PICK_A_PRODUCT);
+  eq('an installation names the master it picks from',
+    /Product Master/.test(P({ isInstall: true, count: 0 })), true);
+  eq('and the form asks the rule rather than restating it',
+    /placeholder: productPlaceholder\(\{/.test(rq), true);
   // ONE MATCH RULE. The owned list and the serial search must agree, so both go
   // through sbSearchMachines' equality on the column the name came from.
   eq('the owned list is read the same way the serials are',
     /sbSearchMachines\('', '', 500, lockedParty\)/.test(rq), true);
-  // Comments stripped: this file EXPLAINS the ilike path it stopped using, and
-  // an assertion that reads the prose would fail on its own documentation.
-  const rqCode = rq.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
   eq('and not through the ilike path that disagreed with it',
     /sbListPartyItems/.test(rqCode), false);
   // …and the serial search is party + product.

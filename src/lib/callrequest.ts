@@ -48,3 +48,24 @@ export function machineRowProblem(rows: RequestRow[], isInstall: boolean): strin
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// WHAT THE PRODUCT BOX READS WHEN NOTHING IS CHOSEN.
+//
+// A message explaining an empty list must appear ONLY when the list is empty.
+// Used as the placeholder outright it read "<customer> has no machines on the
+// register" over a perfectly good list of two (reported 2026-09-12) — the words
+// contradicting the dropdown directly beneath them. Here so it can be run with
+// real inputs rather than read out of a JSX tree.
+export type OwnedState = 'idle' | 'loading' | 'ready' | 'failed';
+export const PICK_A_PRODUCT = '— pick a product —';
+
+export function productPlaceholder(
+  opts: { isInstall: boolean; isFirstCall: boolean; party: string; state: OwnedState; count: number },
+): string {
+  if (opts.isInstall) return '— pick from Product Master —';
+  if (opts.isFirstCall || !opts.party.trim()) return PICK_A_PRODUCT;
+  if (opts.state === 'loading') return `— loading ${opts.party}'s machines —`;
+  if (opts.state === 'failed') return '— could not load this customer’s machines —';
+  return opts.count > 0 ? PICK_A_PRODUCT : `— no machines found for ${opts.party} —`;
+}
