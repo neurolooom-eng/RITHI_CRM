@@ -247,7 +247,11 @@ const MODULES = {
             // The Field Failure Register is raised FROM the Daily Call Review,
             // and its policies read the `calls` view and has_perm — so it
             // belongs after rbac and call_requests, as this module is.
-            '0165_field_failure_register.sql'],
+            '0165_field_failure_register.sql',
+            // The review RAISES the FFR (any_potential_effect = YES), so it must
+            // come after both the review tables and the FFR table — both in
+            // this module.
+            '0167_ffr_from_review.sql'],
   },
   notifications: {
     title: 'Notifications',

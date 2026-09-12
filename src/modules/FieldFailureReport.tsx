@@ -10,8 +10,9 @@ import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
 import { listFfrs, addFfr, updateFfr, supabaseConfigured } from '../lib/supabase';
 import {
-  FFR_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY, FFR_STATUS, FFR_SOURCES,
-  ffrDocFrom, ffrFromReview, ffrCallNotSolved, type ReviewSource,
+  FFR_COLUMNS, FFR_LIVE_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY,
+  FFR_STATUS, FFR_SOURCES, ffrDocFrom, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn,
+  type ReviewSource,
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
 import './fieldcalls.css';
@@ -104,6 +105,19 @@ export function FieldFailureReport() {
           ? (r: Row) => <>{fmtLongDate(r[c.key]) || ''}</>
           : undefined,
     })),
+    // THE LIVE CALL, after the record. Not interleaved with it: a reader has to
+    // be able to tell which columns are the report and which are today.
+    ...FFR_LIVE_COLUMNS.map((c) => ({
+      key: c.key,
+      header: c.header,
+      width: c.width,
+      wrap: (c.width ?? 0) > 200,
+      render: c.key === 'live_any_potential_effect'
+        ? (r: Row) => (ffrEffectWithdrawn(r)
+            ? <span className="badge badge-warning" title="This report was raised on Any Potential Effect = YES; the review no longer says so. The record stands.">{String(r.live_any_potential_effect ?? '')} — withdrawn</span>
+            : <>{String(r.live_any_potential_effect ?? '')}</>)
+        : undefined,
+    })),
     {
       key: '_doc', header: 'Report', width: 110, wrap: false,
       render: (r: Row) => (
@@ -156,7 +170,7 @@ export function FieldFailureReport() {
     <div>
       <PageHeader
         title="Field Failure Register"
-        subtitle="Failures reported to manufacturing. The format is the Field Failure Register sheet; the report is R-SER-03 Rev 02."
+        subtitle="Raised automatically when a call is answered YES for Any Potential Effect in the Daily Call Review. The format is the Field Failure Register sheet; the report is R-SER-03 Rev 02."
         icon="🧪"
         count={visible.length}
         countMore={false}

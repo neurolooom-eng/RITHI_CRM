@@ -4090,7 +4090,10 @@ export async function listFfrs(limit = 5000): Promise<Record<string, unknown>[]>
   // Paged like every register: one response is capped at ~1000 rows, and an FFR
   // at position 1001 would read as missing rather than as unreached.
   for (let from = 0; from < limit; from += PAGE) {
-    const { data, error } = await c.from('field_failure_reports').select('*')
+    // THE VIEW, not the table: it carries the record AND the call as it stands
+    // now, which is what the register is read for. It is security_invoker, so a
+    // reader still sees only the reports and calls their role allows.
+    const { data, error } = await c.from('field_failure_register').select('*')
       .order('ffr_date', { ascending: false }).order('id', { ascending: false })
       .range(from, Math.min(from + PAGE, limit) - 1);
     if (error) throw new Error(errMsg(error));
