@@ -79,6 +79,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/spare-requests', label: 'Spare Requests' },
   { path: '/spare-rm-approval', label: 'RM Approval' },
   { path: '/spare-dispatch', label: 'Pending Dispatch' },
+  // STOCK OUT — the flat list of what Stores has issued, a page since
+  // 2026-09-12 (it was a tab on Pending Dispatch). Its own key rather than
+  // Pending Dispatch's: the people who read it — Commercial chasing a DC, a
+  // Reporting Manager checking what an engineer was sent — are not the people
+  // who work the queue, and one key could not tell the two apart.
+  { path: '/stock-out', label: 'Stock Out' },
   { path: '/spare-consumption', label: 'Spare Consumption' },
   { path: '/handstock', label: 'Hand Stock' },
   { path: '/mrn', label: 'Material Returns (MRN)' },
@@ -324,21 +330,21 @@ export interface PermHeaderOpts { lists?: boolean }
 export interface PermHeader extends PermHeaderOpts { title: string; pages: PermPage[] }
 
 export const PERM_TREE: PermHeader[] = [
+  // THE HEADERS AND THEIR ORDER FOLLOW THE MENU (2026-09-12). The matrix is
+  // read next to the menu — "what can this role open?" is asked with the menu
+  // in front of you — so a page filed here under a header it no longer sits
+  // under is how an administrator grants the wrong thing and believes they
+  // granted the right one. check:ui compares the two on every run.
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
-    { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
-    { path: '/call-review', label: 'Call Review', actions: ['callreview.mark'] },
   ] },
-  { title: 'Master', lists: true, pages: [
-    { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
-    { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
-    { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
-    { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
-    // All Masters is just the overview screen; each value list is its own page
-    // under this header, so access is given list by list.
-    { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
+  { title: 'Quality & Analytics', pages: [
+    { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
+    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.manage'] },
+    { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
+    { path: '/objective', label: 'Objective', actions: [] },
   ] },
   { title: 'Documents', pages: [
     { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
@@ -357,24 +363,18 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/pm-calls', label: 'Preventive (PM)', actions: [] },
     { path: '/pending-calls', label: 'Pending Calls', actions: [] },
     { path: '/reports', label: 'Visit Reports / Service Reports', actions: ['reports.view'] },
-    { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
-    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
-    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
+    { path: '/call-review', label: 'Call Review', actions: ['callreview.mark'] },
+    { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
   ] },
   { title: 'Spares', pages: [
     { path: '/spare-requests', label: 'Spare Requests', actions: ['spare.request', 'spare.approve_rm', 'spare.approve_commercial', 'spare.approve_nsm', 'spare.drop', 'spare.receive'] },
     { path: '/spare-rm-approval', label: 'RM Approval', actions: ['spare.approve_rm'] },
     { path: '/spare-dispatch', label: 'Pending Dispatch', actions: ['spare.dispatch'] },
+    { path: '/stock-out', label: 'Stock Out', actions: [] },
     { path: '/spare-consumption', label: 'Spare Consumption', actions: ['consumption.view', 'consumption.reconcile'] },
     { path: '/handstock', label: 'Hand Stock', actions: [] },
     { path: '/mrn', label: 'Material Returns (MRN)', actions: ['stock.return'] },
     { path: '/stock-transfer', label: 'Stock Transfer', actions: ['stock.transfer'] },
-  ] },
-  { title: 'Quality & Analytics', pages: [
-    { path: '/feedback', label: 'Customer Feedback', actions: ['feedback.view'] },
-    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.manage'] },
-    { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
-    { path: '/objective', label: 'Objective', actions: [] },
   ] },
   // A HEADER OF ITS OWN, because the MENU has one (2026-09-08). The matrix is
   // read next to the menu — "what can this role open?" is asked with the menu
@@ -392,11 +392,23 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/indoor', label: 'Indoor Service Register',
       actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
   ] },
+  { title: 'Master', lists: true, pages: [
+    { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
+    { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
+    { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
+    { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
+    // All Masters is just the overview screen; each value list is its own page
+    // under this header, so access is given list by list.
+    { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
+  ] },
   { title: 'Administration', pages: [
     { path: '/tracker', label: 'Tracker', actions: [] },
     { path: '/users', label: 'User Access', actions: [] },
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
     { path: '/audit', label: 'Audit Log', actions: ['audit.view'] },
+    { path: '/bulk-uploads', label: 'Bulk Uploads', actions: [] },
+    { path: '/report-mapping', label: 'Bulk Report Mapping', actions: [] },
+    { path: '/pm-bulk-upload', label: 'PM Bulk Upload', actions: [] },
     { path: '/admin-config', label: 'Admin Config', actions: ['config.manage'] },
     { path: '/software-validation', label: 'Software Validation', actions: ['config.manage'] },
     { path: '/settings', label: 'Settings', actions: [] },

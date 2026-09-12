@@ -48,19 +48,28 @@ export const NAV: NavGroup[] = [
       // here and not under Reports.
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
-      { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
-      { to: '/call-review', label: 'Call Review', icon: '🔎' },
+      // DAILY CALL REVIEW MOVED TO QUALITY & ANALYTICS and CALL REVIEW TO
+      // SERVICE CALLS (the user, 2026-09-12). Both sat here because they were
+      // built here, not because this is where they belong: the DCCR is the
+      // quality record the Field Failure Register is raised from, and the Call
+      // Review is somebody reading a call — which is what Service Calls is.
     ],
   },
   {
-    title: 'Master',
+    // RIGHT BELOW OVERVIEW (the user, 2026-09-12: "Move the Whole Quality and
+    // Analytics Below OverView"). It is the group the business is run from —
+    // the review, the failure register, the KPIs and the objective — and it was
+    // nine headings down, under the day-to-day registers.
+    title: 'Quality & Analytics',
     items: [
-      { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/product-master', label: 'Product Master', icon: '🩺' },
-      { to: '/user-master', label: 'User Master', icon: '👤' },
-      { to: '/parts', label: 'Part Master', icon: '🔩' },
-      { to: '/masters', label: 'All Masters', icon: '🗂️' },
-      ...MASTER_LISTS.map((l) => ({ to: masterListPath(l.key), label: l.label, icon: l.icon })),
+      // DAILY CALL REVIEW, from Overview. It heads this group rather than
+      // trailing it: it is where the day's calls are judged, and the Field
+      // Failure Register below it is RAISED BY that judgement (0167), so the
+      // order on the menu is the order the work happens in.
+      { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
+      { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
+      { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
+      { to: '/objective', label: 'Objective', icon: '🎯' },
     ],
   },
   {
@@ -120,8 +129,16 @@ export const NAV: NavGroup[] = [
       { to: '/pm-calls', label: 'Preventive (PM)', icon: '🗓️' },
       { to: '/pending-calls', label: 'Pending Calls', icon: '🔥' },
       { to: '/reports', label: 'Visit Reports / Service Reports', icon: '🗒️' },
-      { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
-      { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
+      // CALL REVIEW, from Overview. It is read against a call, beside the
+      // registers it reads from.
+      { to: '/call-review', label: 'Call Review', icon: '🔎' },
+      // CUSTOMER FEEDBACK, from Quality & Analytics (the user, 2026-09-12).
+      // The feedback is collected on a CALL — it is the last step of the visit,
+      // not an analysis of many — so it is filled in where the call is worked.
+      { to: '/feedback', label: 'Customer Feedback', icon: '⭐' },
+      // BULK REPORT MAPPING AND PM BULK UPLOAD MOVED TO ADMINISTRATION (the
+      // user, 2026-09-12). Both were already admin-only; they are bulk data
+      // operations sitting among the screens an engineer uses every day.
     ],
   },
   {
@@ -130,6 +147,10 @@ export const NAV: NavGroup[] = [
       { to: '/spare-requests', label: 'Spare Requests', icon: '📦' },
       { to: '/spare-rm-approval', label: 'RM Approval', icon: '✅' },
       { to: '/spare-dispatch', label: 'Pending Dispatch', icon: '🚚' },
+      // STOCK OUT — the flat list that was a tab on Pending Dispatch, now a
+      // page (the user, 2026-09-12). Directly below the queue, because the two
+      // are the same register either side of the dispatch.
+      { to: '/stock-out', label: 'Stock Out', icon: '📄' },
       { to: '/spare-consumption', label: 'Spare Consumption', icon: '🧾' },
       { to: '/handstock', label: 'Hand Stock', icon: '🎒' },
       { to: '/mrn', label: 'Material Returns', icon: '↩️' },
@@ -145,15 +166,6 @@ export const NAV: NavGroup[] = [
     title: 'Indoor Service',
     items: [
       { to: '/indoor', label: 'Indoor Service Register', icon: '🏭' },
-    ],
-  },
-  {
-    title: 'Quality & Analytics',
-    items: [
-      { to: '/feedback', label: 'Customer Feedback', icon: '⭐' },
-      { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
-      { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
-      { to: '/objective', label: 'Objective', icon: '🎯' },
     ],
   },
   {
@@ -175,12 +187,35 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    // ABOVE ADMINISTRATION (the user, 2026-09-12: "Move Master Above
+    // Administration"), where it used to sit second. The masters are REFERENCE
+    // DATA — they are maintained occasionally and read constantly through the
+    // pickers, not opened daily — so they belong with the setup screens rather
+    // than above the work.
+    title: 'Master',
+    items: [
+      { to: '/parties', label: 'Party Master', icon: '🏥' },
+      { to: '/product-master', label: 'Product Master', icon: '🩺' },
+      { to: '/user-master', label: 'User Master', icon: '👤' },
+      { to: '/parts', label: 'Part Master', icon: '🔩' },
+      { to: '/masters', label: 'All Masters', icon: '🗂️' },
+      ...MASTER_LISTS.map((l) => ({ to: masterListPath(l.key), label: l.label, icon: l.icon })),
+    ],
+  },
+  {
     title: 'Administration',
     items: [
       { to: '/tracker', label: 'Tracker', icon: '🧭' },
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },
       { to: '/bulk-uploads', label: 'Bulk Uploads', icon: '⤵', adminOnly: true },
+      // THE TWO BULK UPLOADERS, from Service Calls (the user, 2026-09-12).
+      // Beside Bulk Uploads, which is the importer they belong with — Bulk
+      // Uploads does the registers, these two do the things it does not (a
+      // report's mapping, a PM schedule), and keeping them apart is what made
+      // somebody look for a table in the wrong one.
+      { to: '/report-mapping', label: 'Bulk Report Mapping', icon: '🧩', adminOnly: true },
+      { to: '/pm-bulk-upload', label: 'PM Bulk Upload', icon: '⬆️', adminOnly: true },
       { to: '/admin-config', label: 'Admin Config', icon: '🛠️', adminOnly: true },
       { to: '/software-validation', label: 'Software Validation', icon: '🧪', adminOnly: true },
       { to: '/settings', label: 'Settings', icon: '⚙️', adminOnly: true },

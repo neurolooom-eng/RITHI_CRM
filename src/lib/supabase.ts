@@ -3079,6 +3079,48 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
   // Nothing to build from — the minimal identity, as before.
   return { id: user.id, email: user.email ?? '', full_name: user.email ?? '', role: 'engineer' };
 }
+// ---------------------------------------------------------------------------
+// A USER'S SAVED SIGNATURE (0172).
+//
+// Read and written only by its owner — the row policies say so, so these need
+// no scoping of their own and a bug here cannot leak one. There is deliberately
+// no "read somebody else's": a signature a second person can obtain is one they
+// can put on anything.
+// ---------------------------------------------------------------------------
+export interface MySignature { signature: string; name_line: string; title_line: string; updated_at?: string }
+
+export async function sbMySignature(): Promise<MySignature | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data: { user } } = await c.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await c.from('user_signatures')
+    .select('signature, name_line, title_line, updated_at').eq('user_id', user.id).maybeSingle();
+  // A table that is not there yet is "no signature", not a broken Profile page:
+  // the migration is the user's step and the rest of the page must still work.
+  if (error) return null;
+  return (data as MySignature) ?? null;
+}
+
+export async function sbSaveMySignature(sig: MySignature): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { data: { user } } = await c.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  // user_id is sent because the INSERT policy tests it; the trigger overwrites
+  // it with the session's id anyway, so the two cannot disagree.
+  const { error } = await c.from('user_signatures').upsert(
+    { user_id: user.id, signature: sig.signature, name_line: sig.name_line, title_line: sig.title_line },
+    { onConflict: 'user_id' });
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export async function sbClearMySignature(): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { data: { user } } = await c.auth.getUser();
+  if (!user) return { ok: false, error: 'Not signed in.' };
+  const { error } = await c.from('user_signatures').delete().eq('user_id', user.id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
 // All profiles the current user may see (admins: everyone; others: themselves).
 export async function sbListProfiles(): Promise<Profile[]> {
   const c = getSupabase(); if (!c) return [];

@@ -24,6 +24,7 @@ import { RequestCallRegistration } from './modules/RequestCallRegistration';
 import { SpareRequests } from './modules/SpareRequests';
 import { SpareRmApproval } from './modules/SpareRmApproval';
 import { SpareDispatch } from './modules/SpareDispatch';
+import { StockOut } from './modules/StockOut';
 import { DeliveryChallan } from './modules/DeliveryChallan';
 import { Declaration } from './modules/Declaration';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -138,6 +139,7 @@ function Shell() {
         <Route path="/spare-requests" element={<SpareRequests />} />
         <Route path="/spare-rm-approval" element={<SpareRmApproval />} />
         <Route path="/spare-dispatch" element={<SpareDispatch />} />
+        <Route path="/stock-out" element={<StockOut />} />
         <Route path="/spare-consumption" element={<SpareConsumption />} />
         <Route path="/handstock" element={<HandStock />} />
         <Route path="/mrn" element={<MaterialReturns />} />

@@ -134,6 +134,13 @@ const MODULES = {
             // runs that insert and then this delete, so the revocation holds.
             // The other order would restore a super admin on every replay.
             '0156_remove_super_admin_mmdev74.sql',
+            // A grant into app_roles and nothing else, so it is safe anywhere
+            // after 0008 seeds the matrix — but AFTER 0151, which is what puts
+            // the mod: keys into the roles this reads.
+            '0171_stock_out_module.sql',
+            // A table of its own with its own policies; needs is_admin() and
+            // has_perm() (0008 above) for the status view, and nothing else.
+            '0172_user_signatures.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it
@@ -257,7 +264,10 @@ const MODULES = {
             '0168_ffr_weekly_review.sql',
             // The catch-up, and the one definition of what a review-raised FFR
             // contains. LAST: it redefines next_ffr_no and ffr_from_review.
-            '0169_ffr_backfill.sql'],
+            '0169_ffr_backfill.sql',
+            // 0170 redefines backfill_ffrs(), so it must come after 0169 —
+            // otherwise a replay of this bundle puts the locked-out gate back.
+            '0170_ffr_backfill_gate.sql'],
   },
   notifications: {
     title: 'Notifications',

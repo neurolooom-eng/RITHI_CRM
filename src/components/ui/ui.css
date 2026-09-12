@@ -299,3 +299,43 @@ body.drawer-resizing * { cursor: col-resize !important; }
   padding: 5px 10px; font-size: 11.5px; color: var(--text-muted);
   border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--surface);
 }
+
+/* ---------------------------------------------------------------------------
+   THE SIGNATURE PAD.
+
+   A ruled box the width of its column, with the proportions of a signature
+   line rather than a square — people sign along, not down.
+
+   `touch-action: none` is not optional: without it a drag on a phone SCROLLS
+   THE PAGE instead of drawing, and the pad looks broken on exactly the devices
+   most likely to use it.
+
+   The canvas itself stays TRANSPARENT (the ink is drawn with alpha), so the
+   surface colour here is the page's and the saved PNG carries no white box to
+   print over a document's ruled line.
+   --------------------------------------------------------------------------- */
+.sig-pad {
+  display: block;
+  width: 100%;
+  max-width: 600px;
+  aspect-ratio: 3 / 1;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  touch-action: none;
+  cursor: crosshair;
+}
+.sig-pad:hover { border-color: var(--primary); }
+
+/* The saved signature as it will print: on the page's own surface, with a rule
+   under it, because that is the thing it has to sit on and look right on. */
+.sig-preview {
+  display: flex;
+  align-items: flex-end;
+  min-height: 72px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--text);
+  max-width: 320px;
+}
+.sig-preview img { max-height: 64px; max-width: 100%; }
+.sig-caption { font-size: 12px; color: var(--muted); margin-top: 4px; max-width: 320px; }

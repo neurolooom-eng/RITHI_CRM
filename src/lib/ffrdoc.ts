@@ -24,7 +24,7 @@
 // The file itself is a ZIP of XML, written with zip.ts — the same writer the
 // workbook export uses.
 // ===========================================================================
-import { enc, xmlText, zipStore, download } from './zip';
+import { enc, xmlText, zipStore, download, dataUriBytes, pngSize } from './zip';
 
 /** Everything the report prints. The names are the register's, not the sheet's
  *  column letters, so a reader of this file can see what fills each box. */
@@ -45,6 +45,11 @@ export interface FfrDocFields {
   problemStatus: string;
   capaNo: string;
   raisedBy: string;
+  /** THE RAISER'S SAVED SIGNATURE, as a PNG data URI — and only ever when the
+   *  person generating the document IS the raiser (src/lib/signature.ts). Left
+   *  undefined otherwise, and the block then prints empty to be signed by hand,
+   *  exactly as the controlled form is filled in today. */
+  signature?: string;
 }
 
 const FORM_ID = 'R-SER-03';
@@ -86,7 +91,55 @@ const field = (label: string, value: string) =>
 const section = (title: string) =>
   wide(para(B(title)));
 
+// ---------------------------------------------------------------------------
+// A PICTURE IN A WORD DOCUMENT is four things agreeing: the bytes as a part of
+// the ZIP, a content type for its extension, a RELATIONSHIP from document.xml
+// to that part, and a drawing in the body that references the relationship by
+// id. Any one of them missing and Word reports the file as corrupt rather than
+// as missing a picture — which is why this returns "no picture at all" for
+// anything it cannot read, and why the caller writes the rels part only when
+// there is something to relate to.
+//
+// EMU is the unit: 914,400 to the inch. The extent is computed from the PNG's
+// own pixels at 96 dpi and then scaled to fit the block, so a signature keeps
+// its shape — a fixed width and height would stretch one person's handwriting
+// into the proportions of another's.
+// ---------------------------------------------------------------------------
+const EMU_PER_PX = 9525;          // 914400 / 96
+const SIG_MAX_W_EMU = 2200000;    // ~2.4 in — the width of the block on the form
+const SIG_MAX_H_EMU = 700000;     // ~0.77 in
+
+const REL_ID = 'rIdSig';
+
+function pictureRun(bytes: Uint8Array): string {
+  const size = pngSize(bytes);
+  if (!size) return '';
+  let cx = size.w * EMU_PER_PX;
+  let cy = size.h * EMU_PER_PX;
+  const k = Math.min(SIG_MAX_W_EMU / cx, SIG_MAX_H_EMU / cy, 1);
+  cx = Math.round(cx * k); cy = Math.round(cy * k);
+  return '<w:r><w:drawing>'
+    + '<wp:inline distT="0" distB="0" distL="0" distR="0"'
+    + ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+    + `<wp:extent cx="${cx}" cy="${cy}"/>`
+    + '<wp:docPr id="1" name="Signature"/>'
+    + '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+    + '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+    + '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+    + '<pic:nvPicPr><pic:cNvPr id="1" name="signature.png"/><pic:cNvPicPr/></pic:nvPicPr>'
+    + `<pic:blipFill><a:blip r:embed="${REL_ID}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+    + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
+    + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+    + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+
 export function buildFfrDocx(f: FfrDocFields): Uint8Array {
+  const sigBytes = f.signature ? dataUriBytes(f.signature) : new Uint8Array(0);
+  // Both must hold, or neither part is written: a drawing with no image part
+  // is a corrupt document, and an image part with no drawing is dead weight.
+  const sigRun = sigBytes.length ? pictureRun(sigBytes) : '';
+  const hasSig = !!sigRun;
+
   const body = [
     para(B(`FFR No. : ${f.ffrNo}`)),
     para(T(`Date: ${f.ffrDate}`)),
@@ -110,13 +163,17 @@ export function buildFfrDocx(f: FfrDocFields): Uint8Array {
     + wide(lines('Problem Description :', [f.problemReported, f.additionalProblem].filter(Boolean).join('\n')))
     + wide(lines('Service Department Observation', f.serviceObservation))
     + wide(field('CAPA No :', f.capaNo) + lines('Problem Status :', f.problemStatus))
-    + wide(para(B('Raised by: ') + T(f.raisedBy)) + para(T('')) + para(B('Signature:')))
+    + wide(para(B('Raised by: ') + T(f.raisedBy)) + para(T('')) + para(B('Signature:') + sigRun))
     + '</w:tbl>',
     para(T(`${FORM_ID} ${FORM_REV}`), { size: 16 }),
   ].join('');
 
   const documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    // The relationship namespace, needed only when a picture is embedded — but
+    // declared always: an unused namespace declaration is inert, and a
+    // conditional one is a second thing that has to be got right.
+    + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + `<w:body>${body}`
     + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
     + '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'
@@ -128,6 +185,7 @@ export function buildFfrDocx(f: FfrDocFields): Uint8Array {
       + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
       + '<Default Extension="xml" ContentType="application/xml"/>'
+      + (hasSig ? '<Default Extension="png" ContentType="image/png"/>' : '')
       + '<Override PartName="/word/document.xml"'
       + ' ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
       + '</Types>') },
@@ -139,6 +197,20 @@ export function buildFfrDocx(f: FfrDocFields): Uint8Array {
       + ' Target="word/document.xml"/>'
       + '</Relationships>') },
     { path: 'word/document.xml', data: enc(documentXml) },
+    // WRITTEN ONLY WHEN THERE IS A PICTURE. An empty Relationships part is
+    // valid, but writing one unconditionally means writing a media entry
+    // unconditionally too, and the two drifting apart is the failure mode this
+    // whole shape exists to avoid.
+    ...(hasSig ? [
+      { path: 'word/_rels/document.xml.rels', data: enc(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        + `<Relationship Id="${REL_ID}"`
+        + ' Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"'
+        + ' Target="media/signature.png"/>'
+        + '</Relationships>') },
+      { path: 'word/media/signature.png', data: sigBytes },
+    ] : []),
   ]);
 }
 

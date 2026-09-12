@@ -15,6 +15,7 @@ import {
   type ReviewSource,
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
+import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -37,6 +38,7 @@ const DATE_KEYS = new Set(['ffr_date', 'crn_date', 'installation_date', 'call_so
 
 export function FieldFailureReport() {
   const { can, user } = useAuth();
+  const mySig = useMySignature();
   const mayRaise = can('ffr.manage');
   const nav = useNavigate();
   const loc = useLocation();
@@ -128,8 +130,15 @@ export function FieldFailureReport() {
   ], []);
 
   const doc = (r: Row) => {
-    ffrDocDownload(ffrDocFrom(r, String(r.raised_by_name ?? '') || (user?.email ?? '')));
-    logAudit({ action: 'ffr.document', target: String(r.ffr_no ?? ''), status: 'ok' });
+    const raisedBy = String(r.raised_by_name ?? '') || (user?.email ?? '');
+    // THE SIGNATURE BLOCK IS THE RAISER'S, so it carries a saved signature only
+    // when the person pressing this button IS the raiser. Anybody else printing
+    // the same report gets an empty block to sign by hand — see
+    // src/lib/signature.ts for why that is the rule and not a limitation to be
+    // worked around.
+    const signature = signatureBelongsTo(raisedBy, user) ? (mySig?.signature ?? '') : '';
+    ffrDocDownload({ ...ffrDocFrom(r, raisedBy), signature });
+    logAudit({ action: 'ffr.document', target: String(r.ffr_no ?? ''), status: 'ok', meta: { signed: !!signature } });
   };
 
   const save = async () => {

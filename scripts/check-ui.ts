@@ -3874,12 +3874,93 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   const dry = /if p_dry_run then[\s\S]*?else/.exec(body)?.[0] ?? '';
   eq('a dry run issues no number', /next_ffr_no|raise_ffr/.test(dry), false);
 
-  eq('only an administrator may run it', /if not public\.is_admin\(\) then/.test(body), true);
+  // THE GATE IS 0170's, NOT THIS FILE's, and the check has to follow it there
+  // or it goes on asserting a fact about a definition nothing runs — the exact
+  // "a bundle must carry the LATEST definition" hazard, in check form.
+  //
+  // 0169 guarded with is_admin(), which reads auth.uid(); in the Supabase SQL
+  // editor that is NULL, so it refused the administrator typing the catch-up in
+  // — reported from use, 2026-09-12. 0170 aims it at API callers instead.
+  const gate = readFileSync('supabase/migrations/0170_ffr_backfill_gate.sql', 'utf8')
+    .split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+  eq('a signed-in non-administrator is refused',
+    /if v_by_api and not public\.is_admin\(\) then/.test(gate), true);
+  eq('…and the API is told apart by its jwt claim',
+    /current_setting\('request\.jwt\.claims', true\)/.test(gate), true);
+  // anon must still be kept out by the grant, not by that test alone.
+  eq('anon cannot reach it at all',
+    /revoke all on function public\.backfill_ffrs\(boolean\) from public/.test(gate)
+    && /grant execute on function public\.backfill_ffrs\(boolean\) to authenticated/.test(gate), true);
   // Oldest first, so the numbering runs the way the register was written.
   eq('in review order', /order by cr\.review2_at nulls last, cr\.ucn/.test(body), true);
   // Idempotent: raise_ffr returns NULL for a call that already has one.
   eq('and it skips calls that already have a report',
     /if exists \(select 1 from public\.field_failure_reports f where f\.ucn = v_ucn\) then return null/.test(body), true);
+}
+
+// ---------------------------------------------------------------------------
+// A SAVED SIGNATURE (0172) — "Add a Provision for users to Save their
+// signatures", 2026-09-12.
+//
+// The one property worth checking mechanically: NOBODY READS ANYBODY ELSE'S.
+// Everything else about the feature is visible on screen; this is the part that
+// would fail silently and would not look like a fault.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- a saved signature --');
+  const sql = readFileSync('supabase/migrations/0172_user_signatures.sql', 'utf8');
+  const body = sql.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  // READ AND WRITE ARE YOUR OWN ROW, with no `or is_admin()` anywhere near
+  // them: an administrator who can read the image can put it on anything.
+  const read = /create policy usig_read[\s\S]*?;/.exec(body)?.[0] ?? '';
+  eq('the read policy exists', read !== '', true);
+  eq('a signature is read only by its owner',
+    /using \(user_id = \(select auth\.uid\(\)\)\)/.test(read), true);
+  eq('…and not by an administrator', /is_admin|users\.manage|has_perm/.test(read), false);
+
+  const upd = /create policy usig_update[\s\S]*?;/.exec(body)?.[0] ?? '';
+  eq('nor written by one', /is_admin|users\.manage|has_perm/.test(upd), false);
+
+  // DELETE IS THE OWNER'S TOO. `or is_admin()` here looks like it grants
+  // something and does not: PostgreSQL applies the SELECT policy to a DELETE
+  // that has to find its row, so an administrator who cannot read it reported
+  // `DELETE 0` with no error. Removal is a function instead.
+  const del = /create policy usig_delete[\s\S]*?;/.exec(body)?.[0] ?? '';
+  eq('delete carries no is_admin that cannot work', /is_admin/.test(del), false);
+  eq('removing a leaver\'s signature is an explicit act',
+    /create or replace function public\.remove_user_signature/.test(body), true);
+  eq('…which only an administrator may do',
+    /if not public\.is_admin\(\) then[\s\S]{0,200}raise exception/.test(body), true);
+
+  // WHO HAS ONE, without the image. A definer function, deliberately not a
+  // view: a definer view over RLS tables is the fault 0040/0050/0057 shipped
+  // three times, and check:views refuses one.
+  eq('who-has-one is a function, not a view',
+    /create or replace function public\.user_signature_status/.test(body)
+    && !/create (or replace )?view public\.user_signature_status/.test(body), true);
+  const status = /create or replace function public\.user_signature_status[\s\S]*?\$\$;/.exec(body)?.[0] ?? '';
+  eq('and it returns no ink', /s\.signature(?!\))/.test(status.replace(/btrim\(s\.signature\)/g, '')), false);
+
+  // THE CLIENT NEVER ASKS FOR SOMEBODY ELSE'S. Belt and braces — the policies
+  // above are the real control, but a query written for another user id is a
+  // clear statement of intent and should not appear.
+  const lib = readFileSync('src/lib/supabase.ts', 'utf8');
+  const sigFns = /export interface MySignature[\s\S]*?export async function sbClearMySignature[\s\S]*?\n}/.exec(lib)?.[0] ?? '';
+  eq('the client reads its own signature only', sigFns !== '' && !/eq\('user_id', (?!user\.id)/.test(sigFns), true);
+
+  // THE DOCUMENT RULE: a signature prints only in the block that names you.
+  const rule = readFileSync('src/lib/signature.ts', 'utf8');
+  eq('the match is exact, never a substring',
+    /a === name/.test(rule) && !/\.includes\(|startsWith\(/.test(rule), true);
+  for (const [file, label] of [
+    ['src/modules/DeliveryChallan.tsx', 'the Delivery Challan'],
+    ['src/modules/FieldFailureReport.tsx', 'the Field Failure Report'],
+  ] as const) {
+    const src = readFileSync(file, 'utf8');
+    eq(`${label} signs only the block that names the printer`,
+      /signatureBelongsTo\(/.test(src), true);
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
