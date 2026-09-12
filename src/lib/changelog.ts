@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.212',
+    date: '2026-09-12',
+    title: 'Call 2 offers the customer\u2019s products, not every product',
+    changes: [
+      'THE SECOND CALL WAS SHOWING THE WHOLE PRODUCT RANGE instead of what that customer owns.',
+      'The customer\u2019s machine list was being read one way and the serial search another, so the two could disagree \u2014 and when the list came back empty the form quietly widened it to every product in the company, which hid the fault instead of showing it. Both now read the register the same way.',
+      'AND THERE IS NO SILENT WIDENING ANY MORE. If the list is still loading, or could not be loaded, or the customer genuinely has no machines on the register, the box SAYS WHICH. Offering a product the customer does not own only leads to an empty serial box and a dead end.',
+    ],
+  },
+  {
     version: '0.9.211',
     date: '2026-09-12',
     title: 'The serial box no longer gets stuck searching',
