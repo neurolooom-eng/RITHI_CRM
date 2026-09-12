@@ -12,6 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+<<<<<<< HEAD
     version: '0.9.224',
     date: '2026-09-12',
     title: 'Who can see the Field Failure Register, and a role called by its own name',
@@ -24,6 +25,8 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+=======
+>>>>>>> origin/claude/field-service-module-poc-hslouq
     version: '0.9.223',
     date: '2026-09-12',
     title: 'Field Failure: an Insights tab, and the Register as a review desk',
