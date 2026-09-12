@@ -17,12 +17,57 @@
 // twice or passing a shape it does not have.
 // ===========================================================================
 import { isUrl, linkLabel } from '../../lib/callreview';
-import { parseAnyDate } from '../../lib/dates';
+import { fmtLongDate, fmtLongSmart } from '../../lib/format';
 
-const fmt = (v: unknown) => {
-  const d = parseAnyDate(String(v ?? ''));
-  return d ? d.toLocaleDateString('en-GB') : String(v ?? '');
-};
+// EVERY DATE ON THIS PANE READS DD-MMM-YYYY (the user, 2026-09-12: "Fix the
+// Date Field -- follow the DD-MMM-YYYY"). It used to render the visit's own
+// heading through toLocaleDateString('en-GB') — "01/09/2026" — which is a
+// FIFTH format in an application that already settled on one, and the ambiguous
+// one: 01/09 and 09/01 are the same string in two countries.
+//
+// fmtLongSmart is the register's own formatter: it adds the time only when the
+// value carries one, so a date stays a date and a timestamp stays a timestamp.
+const fmt = (v: unknown) => fmtLongDate(v);
+
+// ---------------------------------------------------------------------------
+// WHAT A VISIT IS NOT WORTH SHOWING HERE (the user, 2026-09-12, with the eight
+// fields highlighted on screen).
+//
+// Two kinds, and both are noise on a pane read beside a REPORT:
+//
+//  * THE FORM'S OWN ANSWERS — "Add Consumption?", "Maintenance Done?",
+//    "Recomended Filter Changed?", "Update Visit Work Details?". These steer
+//    the visit form while it is being filled in; they say nothing about the
+//    failure. Four rows of "Yes" between the reader and the work done.
+//  * WHAT THE RECORD ALREADY CARRIES — Call Type and Standard Complaint are
+//    facts about the CALL, repeated identically on every one of its visits and
+//    printed on the report itself; Visit Entry Date is when the form was
+//    saved, beside the Visit Date & Time that says when the engineer was there.
+//
+// MATCHED ON A NORMALISED KEY — lower-cased with punctuation removed — because
+// these labels are data, typed into the visit form, and one of them is
+// misspelt in the live data ("Recomended"). Matching the exact string would
+// hide it today and stop the day somebody corrects the spelling.
+// ---------------------------------------------------------------------------
+const norm = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const HIDDEN_VISIT_FIELDS = new Set([
+  'emailid',                    // was already hidden
+  'calltype',
+  'addconsumption',
+  'visitentrydate',
+  'maintenancedone',
+  'standardcomplaint',
+  'complaintobservation',
+  'recomendedfilterchanged', 'recommendedfilterchanged',   // as typed, and as corrected
+  'updatevisitworkdetails',
+]);
+
+/** A date field, shown the way the rest of the application shows dates. Gated
+ *  on the KEY rather than on whether the value happens to parse: "V1.2.9" and
+ *  an hour-meter reading are not dates, and a formatter that guessed would
+ *  eventually rewrite one. */
+const looksLikeDate = (k: string) => /date|time/i.test(k);
 
 export interface CallContextProps {
   visits: Record<string, unknown>[];
@@ -62,7 +107,7 @@ export function CallContext({ visits, spares, busy, noVisitsNote }: CallContextP
             </div>
             <dl className="cr-dl">
               {Object.entries(d)
-                .filter(([k, val]) => String(val ?? '').trim() && !/^email-id$/i.test(k))
+                .filter(([k, val]) => String(val ?? '').trim() && !HIDDEN_VISIT_FIELDS.has(norm(k)))
                 .map(([k, val]) => (
                   <div className="cr-dl-row" key={k}>
                     <dt>{k}</dt>
@@ -72,7 +117,7 @@ export function CallContext({ visits, spares, busy, noVisitsNote }: CallContextP
                         Drive, not this app. */}
                     <dd>{isUrl(String(val))
                       ? <a href={String(val)} target="_blank" rel="noopener noreferrer">{linkLabel(k, String(val))}</a>
-                      : String(val)}</dd>
+                      : looksLikeDate(k) ? fmtLongSmart(val) : String(val)}</dd>
                   </div>
                 ))}
             </dl>

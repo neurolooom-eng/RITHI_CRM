@@ -203,9 +203,25 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
             <div className="cr-empty muted">Pick a report on the left.</div>
           ) : (
             <>
-              <div className="cr-h">
-                <b>{g(current, 'ffr_no')}</b>
-                <Ucn ucn={current.ucn} state={callStateFor(current.ucn)} />
+              {/* THE ACTIONS SIT AT THE TOP (the user, 2026-09-12: "Move the Edit
+                  and Print to the Top"). They were below the record, which on a
+                  long report meant scrolling past everything to reach the two
+                  things you came to do — and the pane scrolls independently, so
+                  they could be off-screen entirely. */}
+              <div className="cr-h ffr-h-actions">
+                <div className="ffr-h-id">
+                  <b>{g(current, 'ffr_no')}</b>
+                  <Ucn ucn={current.ucn} state={callStateFor(current.ucn)} />
+                </div>
+                <div className="cr-btns">
+                  <button className="btn btn-primary btn-sm" onClick={() => onEdit(current as Row)}>
+                    ✎ Edit / weekly review
+                  </button>
+                  <button className="btn btn-sm"
+                          onClick={() => navigate(`/ffr/${encodeURIComponent(g(current, 'ffr_no'))}`)}>
+                    🖨 Print
+                  </button>
+                </div>
               </div>
 
               {ffrEffectWithdrawn(current) && (
@@ -233,17 +249,6 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
                 ))}
               </dl>
 
-              <div className="cr-actions">
-                <div className="cr-btns">
-                  <button className="btn btn-primary btn-sm" onClick={() => onEdit(current as Row)}>
-                    ✎ Edit / weekly review
-                  </button>
-                  <button className="btn btn-sm"
-                          onClick={() => navigate(`/ffr/${encodeURIComponent(g(current, 'ffr_no'))}`)}>
-                    🖨 Print
-                  </button>
-                </div>
-              </div>
             </>
           )}
         </div>

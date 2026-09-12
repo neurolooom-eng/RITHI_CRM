@@ -64,3 +64,23 @@
    Drive URL behind it never forces the pane to scroll sideways. */
 .cr-dl-row dd a { color: var(--primary); text-decoration: underline; overflow-wrap: anywhere; }
 .cr-dl-row dd a:hover { text-decoration: none; }
+
+/* ---------------------------------------------------------------------------
+   THE FIELD FAILURE DESK'S HEADER, with the two actions on it.
+
+   The report's number and its UCN on the left, Edit and Print on the right —
+   asked for at the top (2026-09-12) because the pane scrolls on its own and a
+   long report put them out of reach.
+
+   It WRAPS rather than shrinking the buttons: at a narrow pane width the
+   actions drop under the number, which is readable, where a squeezed row is
+   not.
+   --------------------------------------------------------------------------- */
+.ffr-h-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.ffr-h-id { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

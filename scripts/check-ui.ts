@@ -4295,5 +4295,49 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /if \(error \|\| !data\) return null;/.test(fn), true);
 }
 
+// ---------------------------------------------------------------------------
+// THE VISIT PANE, TIDIED (the user, 2026-09-12, with eight fields highlighted).
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- what a visit shows --');
+  const ctx = readFileSync('src/components/callcontext/CallContext.tsx', 'utf8');
+
+  // THE EIGHT, matched on a NORMALISED key — these labels are DATA, typed into
+  // the visit form, and one is misspelt in the live data ("Recomended").
+  // Matching the exact string would hide it today and stop the day somebody
+  // corrects the spelling, so both are listed.
+  for (const k of ['calltype', 'addconsumption', 'visitentrydate', 'maintenancedone',
+                   'standardcomplaint', 'complaintobservation',
+                   'recomendedfilterchanged', 'recommendedfilterchanged',
+                   'updatevisitworkdetails']) {
+    eq(`a visit hides "${k}"`, new RegExp(`'${k}'`).test(ctx), true);
+  }
+  eq('and the key is normalised before matching',
+    /replace\(\/\[\^a-z0-9\]\/g, ''\)/.test(ctx), true);
+  // What a visit is FOR must survive the tidy.
+  eq('Job Done is not hidden', /'jobdone'/.test(ctx), false);
+  eq('nor the hour meter', /'hourmeterreading'/.test(ctx), false);
+
+  // EVERY DATE READS DD-MMM-YYYY. toLocaleDateString('en-GB') gives 01/09/2026
+  // — a fifth format, and the ambiguous one.
+  eq('dates use the application’s formatter', /fmtLongSmart|fmtLongDate/.test(ctx), true);
+  // COMMENTS STRIPPED FIRST. The note explaining why toLocaleDateString was
+  // removed contains the word, so reading the whole file failed this — a check
+  // that was testing prose rather than code.
+  const ctxCode = ctx.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  eq('and not a locale string', /toLocaleDateString/.test(ctxCode), false);
+  // Gated on the KEY: "V1.2.9" and an hour-meter reading are not dates.
+  eq('only date-ish fields are reformatted', /looksLikeDate\(k\) \? fmtLongSmart/.test(ctx), true);
+
+  // THE ACTIONS ARE AT THE TOP of the Field Failure desk's middle pane.
+  const desk = readFileSync('src/modules/FieldFailureDesk.tsx', 'utf8');
+  const idx = (re: RegExp) => desk.search(re);
+  eq('Edit and Print sit in the header', idx(/ffr-h-actions/) > 0, true);
+  eq('…above the record, not below it',
+    idx(/ffr-h-actions/) < idx(/>The report</), true);
+  eq('and there is only one pair of them',
+    (desk.match(/Edit \/ weekly review/g) ?? []).length, 1);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
