@@ -11,7 +11,7 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
-import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS } from '../src/lib/ffr';
+import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
@@ -4089,6 +4089,81 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   }
   eq('a read needs ffr.manage or admin',
     /create policy ffrh_read on public\.ffr_history for select[\s\S]*?has_perm\('ffr\.manage'\)/.test(hbody), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE REGISTER READS A VIEW AND THE FORM SAVES A TABLE.
+//
+// Reported from use, 2026-09-12: "Could not find the
+// 'live_any_potential_effect' column of 'field_failure_reports' in the schema
+// cache". Clicking a row seeded the edit form with the VIEW's row — record plus
+// live_* columns — and saving sent the lot to the table, which has none of
+// them. PostgREST refused the whole write, so the edit was simply lost.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- what may be written to a Field Failure Report --');
+
+  // THE WHITELIST MUST MATCH THE TABLE. Derived from the migrations rather than
+  // trusted, because a column added to one and not the other is exactly the
+  // drift this check exists to catch.
+  const create = readFileSync('supabase/migrations/0165_field_failure_register.sql', 'utf8');
+  const weekly = readFileSync('supabase/migrations/0168_ffr_weekly_review.sql', 'utf8');
+  const body = /create table if not exists public\.field_failure_reports \(([\s\S]*?)\n\);/.exec(create)?.[1] ?? '';
+  eq('the table definition was found', body !== '', true);
+  const declared = body.split('\n')
+    .map((l) => l.replace(/--.*$/, '').trim())
+    .filter((l) => /^[a-z_]+\s+\S/.test(l))
+    .map((l) => l.split(/\s+/)[0]);
+  const added = [...weekly.matchAll(/add column if not exists\s+([a-z_]+)/g)].map((m) => m[1]);
+  const tableCols = new Set([...declared, ...added]);
+
+  // What the DATABASE owns and a client must never send.
+  const dbOwned = new Set(['id', 'ffr_no', 'raised_by', 'created_at', 'updated_at']);
+  const expected = [...tableCols].filter((c) => !dbOwned.has(c)).sort();
+  const actual = [...FFR_WRITABLE].sort();
+  eq('every writable column of the table is on the list',
+    expected.filter((c) => !actual.includes(c)), []);
+  eq('and the list invents none', actual.filter((c) => !expected.includes(c)), []);
+  eq('the columns the database owns are NOT writable',
+    [...dbOwned].filter((c) => (FFR_WRITABLE as readonly string[]).includes(c)), []);
+
+  // AND IT ACTUALLY STRIPS. Run the function over a row shaped like the view's,
+  // rather than reading the source and believing it.
+  const viewRow = {
+    ffr_no: 'FFR - 001/26', id: 7, updated_at: 'x', raised_by: 'u',
+    problem_status: 'Closed', capa_status: 'Open',
+    live_any_potential_effect: 'YES', live_call_status: 'Solved',
+    live_engineer: 'E', live_visit_count: 3, live_spares_consumed: 'p',
+  };
+  const out = ffrWritable(viewRow);
+  eq('a live_ column never reaches the table',
+    Object.keys(out).filter((k) => k.startsWith('live_')), []);
+  eq('nor does anything the database owns',
+    Object.keys(out).filter((k) => dbOwned.has(k)), []);
+  eq('and the real edits survive',
+    [out.problem_status, out.capa_status], ['Closed', 'Open']);
+
+  // …AND THE WRITERS ACTUALLY USE IT. Without this the fix could be reverted in
+  // supabase.ts and every check above would still pass — the list would be
+  // right and nothing would consult it.
+  const lib = readFileSync('src/lib/supabase.ts', 'utf8');
+  for (const fn of ['addFfr', 'updateFfr']) {
+    const src = new RegExp(`export async function ${fn}[\\s\\S]*?\\n\\}`).exec(lib)?.[0] ?? '';
+    eq(`${fn}() was found`, src !== '', true);
+    eq(`${fn}() reduces the row to the table's columns`, /ffrWritable\(/.test(src), true);
+    eq(`${fn}() does not spread the row straight through`,
+      /\.\.\.rest|\.insert\(row\)|\.update\(patch\)/.test(src), false);
+  }
+
+  // RAISED BY IS SET ONCE. It used to be stamped with the editor's e-mail on
+  // every save, so correcting a typo on somebody else's report replaced the
+  // raiser with whoever touched it last — and with an address rather than the
+  // name the register shows everywhere else.
+  const screen = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  const saveFn = /const save = async \(\) => \{[\s\S]*?\n  \};/.exec(screen)?.[0] ?? '';
+  eq('the save path was found', saveFn !== '', true);
+  eq('an edit does not restamp raised_by_name',
+    /editing == null[\s\S]*?raised_by_name/.test(saveFn) && !/^\s*const payload = \{ \.\.\.form, raised_by_name/m.test(saveFn), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
