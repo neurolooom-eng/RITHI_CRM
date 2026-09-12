@@ -84,3 +84,7 @@
   flex-wrap: wrap;
 }
 .ffr-h-id { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* The part CODE is an identifier, so it does not wrap and does not stretch —
+   it is scanned down the column, not read. The description takes the room. */
+.cr-spares .cr-spare-code { white-space: nowrap; width: 1%; font-variant-numeric: tabular-nums; }
