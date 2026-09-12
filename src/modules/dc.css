@@ -108,3 +108,23 @@
 .decl-from { width: 78mm; }
 .decl-fill-row { display: flex; gap: 10px; }
 .decl-fill-row .field { flex: 1; }
+
+/* ---------------------------------------------------------------------------
+   THE SAVED SIGNATURE, ON THE PRINTED CHALLAN.
+
+   It sits INSIDE the existing blank space rather than adding height: the sheet
+   is cut to exactly 20 rows plus a 69mm signature block (see dc.ts), and a
+   signature that grew the block would push the last row of the grid onto a
+   second page.
+
+   The PNG carries alpha, so nothing here paints a background — the ruled line
+   under the block shows through, which is what makes it look signed rather
+   than pasted.
+   --------------------------------------------------------------------------- */
+.dc-sign-ink {
+  display: block;
+  max-height: 16mm;
+  max-width: 60mm;
+  object-fit: contain;
+}
+.dc-sign-name { font-size: 9pt; }

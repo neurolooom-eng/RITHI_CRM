@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { listSpareDispatches, listDispatchLines, supabaseConfigured } from '../lib/supabase';
 import { buildDc, paginate, COMPANY, DECLARATION, type DcDocument, type DcPage } from '../lib/dc';
+import { useMySignature, signatureBelongsTo } from '../lib/signature';
+import { useAuth } from '../lib/auth';
 // A printed document carries the COMPANY's mark, never the app's (lib/brand).
 import { COMPANY_LOGO as logo } from '../lib/brand';
 import './dc.css';
@@ -85,6 +87,15 @@ export function DeliveryChallan() {
 // One printed sheet: letterhead, the party/stock-out block, its slice of the
 // grid, and the signature block. Complete on its own — that is the point.
 function Sheet({ doc, page }: { doc: DcDocument; page: DcPage }) {
+  // THE COMPANY'S BLOCK ON THIS CHALLAN NAMES THE PERSON WHO BOOKED THE STOCK
+  // OUT. Their saved signature prints here when they are the one printing it,
+  // and in no other case — see src/lib/signature.ts for why that is the rule
+  // rather than a convenience. The customer's block is never pre-signed: the
+  // point of it is that the person receiving the parcel signs it on arrival.
+  const { user } = useAuth();
+  const mine = useMySignature();
+  const issuer = signatureBelongsTo(doc.dispatchedBy, user) ? mine : null;
+
   return (
     <section className="dc-sheet">
       <div className="dc-letterhead">
@@ -159,8 +170,11 @@ function Sheet({ doc, page }: { doc: DcDocument; page: DcPage }) {
         </div>
         <div>
           <div className="dc-strong">{DECLARATION.forCompany}</div>
-          <div className="dc-sign-space" />
+          <div className="dc-sign-space">
+            {issuer?.signature && <img className="dc-sign-ink" src={issuer.signature} alt="" />}
+          </div>
           <div>{DECLARATION.signatory}</div>
+          {issuer?.name_line && <div className="dc-sign-name">{issuer.name_line}</div>}
         </div>
       </div>
       <div className="dc-signs">

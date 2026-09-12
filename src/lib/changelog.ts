@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.219',
+    date: '2026-09-12',
+    title: 'Save your signature, and a tidier menu',
+    changes: [
+      'SAVE YOUR SIGNATURE ONCE, on My Profile \u2014 sign with a finger, a stylus or the mouse, or upload a photograph of your signature on paper.',
+      'The documents you print then carry it: the Delivery Challan and the Field Failure Report.',
+      'ONLY YOU CAN SEE IT. Not your manager, and not an administrator \u2014 an administrator can see whether you have saved one, never the signature itself, and can remove it when somebody leaves.',
+      'And it goes on a document only when YOU are the one printing it. Anybody else printing the same document gets an empty block to sign by hand.',
+      'STOCK OUT IS ITS OWN PAGE now, under Spares \u2014 the same list of everything Stores has issued that used to be a tab on Pending Dispatch. Everyone who could read the tab can open the page.',
+      'THE MENU IS REARRANGED: Quality & Analytics has moved up to sit under Overview, and now holds the Daily Call Review; Call Review and Customer Feedback have moved into Service Calls; Bulk Report Mapping and PM Bulk Upload have moved into Administration, beside Bulk Uploads; and Master has moved down to sit above Administration.',
+      'Roles & Permissions is laid out the same way, so the matrix and the menu read alike \u2014 nothing gained or lost any access in the move.',
+      'FIXED: the one-time \u201Ccreate all the FFRs till date\u201D refused to run in the SQL editor, saying only an administrator may run it \u2014 to the administrator running it.',
+    ],
+  },
+  {
     version: '0.9.218',
     date: '2026-09-12',
     title: 'Every FFR due to date can be raised in one go',

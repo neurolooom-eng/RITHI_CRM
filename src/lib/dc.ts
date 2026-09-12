@@ -49,6 +49,10 @@ export interface DcDocument {
   remarks: string;
   lines: DcLine[];
   totalQty: number;
+  /** WHO BOOKED THE STOCK OUT — the person the company's signature block on
+   *  this challan actually names. Carried so the printed block can hold their
+   *  saved signature when they are the one printing it, and only then. */
+  dispatchedBy: string;
 }
 
 const s = (v: unknown) => String(v ?? '').trim();
@@ -94,6 +98,7 @@ export function buildDc(head: Record<string, unknown>, lines: Record<string, unk
     remarks: s(head.remarks),
     lines: rows,
     totalQty: rows.reduce((t, r) => t + r.qty, 0),
+    dispatchedBy: s(head.dispatched_by_name ?? head.dispatched_by),
   };
 }
 

@@ -477,9 +477,18 @@ function DispatchModal({ open, engineer, lines, busy, onClose, onConfirm }: {
 
 // ---------------------------------------------------------------------------
 // Stock outs already booked — the record behind every DC.
+//
+// EXPORTED, because it is now TWO things: the "Stock outs" tab here, and the
+// Stock Out page in its own right (the user, 2026-09-12: "Add a Separate Page
+// as Stock Out - the same FlatList under Pending Dispatch"). THE SAME
+// component, not a copy — two flat lists of the same record is how the two
+// start disagreeing about what a column means.
 // ---------------------------------------------------------------------------
-function StockOuts({ onMigrationError, onPrint, onDeclare }: {
+export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
   onMigrationError: () => void; onPrint: (stockOut: string) => void; onDeclare: (stockOut: string) => void;
+  // The page above wants the number for its title badge. The tab does not, so
+  // it is optional rather than state lifted out of a component that works.
+  onCount?: (n: number) => void;
 }) {
   // A FLAT list: one row per spare actually issued, not a card per stock out —
   // that is what Stores reads to see what went where, and it carries the days
@@ -506,6 +515,8 @@ function StockOuts({ onMigrationError, onPrint, onDeclare }: {
     return rows.filter((r) => ['stock_out_no', 'dc_number', 'engineer', 'part', 'or_no', 'ucn', 'call_number', 'party_name']
       .some((k) => g(r, k).toLowerCase().includes(q)));
   }, [rows, search]);
+
+  useEffect(() => { onCount?.(visible.length); }, [visible.length, onCount]);
 
   // Slow dispatches are the point of the column, so they are coloured.
   const daysTone = (d: number) => (d >= 7 ? 'danger' : d >= 3 ? 'warning' : 'success');

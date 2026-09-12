@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
+import { SignaturePad } from '../components/ui/SignaturePad';
+import { sbMySignature, sbSaveMySignature, sbClearMySignature, supabaseConfigured } from '../lib/supabase';
 import { useAuth, roleLabel } from '../lib/auth';
 import { permsForRole, DEFAULT_PERMS, FUNCTIONAL_ACTIONS, MODULES, moduleAction, legacyToRbac } from '../lib/rbac';
 import { useTheme } from '../theme/ThemeProvider';
@@ -59,6 +62,10 @@ export function Profile() {
 
       <div style={{ height: 16 }} />
 
+      <MySignatureCard />
+
+      <div style={{ height: 16 }} />
+
       <ChangePassword />
 
       <div style={{ height: 16 }} />
@@ -91,6 +98,141 @@ export function Profile() {
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// MY SIGNATURE.
+//
+// The user's ask (2026-09-12): "Add a Provision for users to Save their
+// signatures." Here rather than in Settings because Settings is
+// administrator-only and this is the most personal thing in the system —
+// nobody else can save it, and nobody else can read it back (0172).
+//
+// THE PAGE SAYS SO, in as many words. A signature is worth what its exclusivity
+// is worth, and a person deciding whether to put their own mark into a computer
+// is entitled to know who can get at it. It also says the other half — the part
+// people would otherwise discover by being surprised: a document prints your
+// signature only when YOU print it. Somebody else printing the same document
+// gets a blank block to sign by hand, because the alternative is a system that
+// signs documents on people's behalf.
+// ---------------------------------------------------------------------------
+function MySignatureCard() {
+  const { user } = useAuth();
+  const onDb = supabaseConfigured();
+  const [ink, setInk] = useState('');
+  const [nameLine, setNameLine] = useState('');
+  const [titleLine, setTitleLine] = useState('');
+  const [saved, setSaved] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!onDb) { setLoaded(true); return; }
+    void sbMySignature().then((s) => {
+      setInk(s?.signature ?? '');
+      setSaved(s?.signature ?? '');
+      // Defaulted from the profile only when nothing has been saved: once
+      // somebody has signed, the name they signed UNDER is theirs to keep, not
+      // something a later profile edit rewrites under their mark.
+      setNameLine(s?.name_line || (user?.fullName ?? ''));
+      setTitleLine(s?.title_line || (user?.designation ?? ''));
+      setLoaded(true);
+    });
+  }, [onDb, user?.fullName, user?.designation]);
+
+  const dirty = ink !== saved;
+
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    const res = await sbSaveMySignature({ signature: ink, name_line: nameLine.trim(), title_line: titleLine.trim() });
+    setBusy(false);
+    if (!res.ok) {
+      setMsg({ tone: 'error', text: /user_signatures|does not exist|schema cache/i.test(res.error ?? '')
+        ? 'Saving a signature needs migration 0172_user_signatures.sql — run it in the Supabase SQL editor (apply bundle: rbac.sql).'
+        : (res.error ?? 'Could not save your signature.') });
+      return;
+    }
+    setSaved(ink);
+    setMsg({ tone: 'ok', text: 'Saved. Documents you print will carry it.' });
+  };
+
+  const remove = async () => {
+    setBusy(true); setMsg(null);
+    const res = await sbClearMySignature();
+    setBusy(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not remove your signature.' }); return; }
+    setInk(''); setSaved('');
+    setMsg({ tone: 'ok', text: 'Removed. Documents will print an empty block to sign by hand.' });
+  };
+
+  return (
+    <SectionCard title="My Signature">
+      <div className="muted" style={{ marginBottom: 12 }}>
+        Sign once here and the documents you print carry it — the Delivery Challan,
+        the Declaration and the Field Failure Report.
+      </div>
+
+      {!onDb ? (
+        <div className="muted">Connect to Supabase to save a signature.</div>
+      ) : !loaded ? (
+        <div className="muted">Loading…</div>
+      ) : (
+        <>
+          <SignaturePad value={ink} onChange={setInk} />
+
+          <div className="row" style={{ gap: 12, marginTop: 14, flexWrap: 'wrap' }}>
+            <label className="field" style={{ minWidth: 220 }}>
+              <span className="field-label">Name printed under it</span>
+              <input className="input" value={nameLine} onChange={(e) => setNameLine(e.target.value)} />
+            </label>
+            <label className="field" style={{ minWidth: 220 }}>
+              <span className="field-label">Designation (optional)</span>
+              <input className="input" value={titleLine} onChange={(e) => setTitleLine(e.target.value)}
+                     placeholder="Service Engineer" />
+            </label>
+          </div>
+
+          {saved && (
+            <div style={{ marginTop: 14 }}>
+              <div className="field-label">As it will print</div>
+              <div className="sig-preview"><img src={saved} alt="Your saved signature" /></div>
+              <div className="sig-caption">
+                <b>{nameLine || '—'}</b>{titleLine ? ` · ${titleLine}` : ''}
+              </div>
+            </div>
+          )}
+
+          <div className="row" style={{ gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" disabled={busy || !dirty || !ink} onClick={() => void save()}>
+              {busy ? 'Saving…' : dirty ? '✔ Save signature' : '✔ Saved'}
+            </button>
+            {saved && (
+              <button className="btn" disabled={busy} onClick={() => void remove()}>🗑 Remove my signature</button>
+            )}
+          </div>
+
+          {msg && (
+            <div className={`sheet-banner sheet-banner-${msg.tone}`} style={{ marginTop: 12 }}>
+              <span>{msg.text}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => setMsg(null)}>✕</button>
+            </div>
+          )}
+
+          {/* WHO CAN SEE THIS. Said plainly, because a person deciding whether
+              to put their own mark into a computer is entitled to know — and
+              because the second half is the part that would otherwise be
+              discovered by surprise. */}
+          <div className="muted rep-hint" style={{ marginTop: 14 }}>
+            <b>Only you can see this signature</b> — not your manager, and not an administrator.
+            An administrator can see <i>whether</i> you have saved one, never the image, and can remove
+            it when somebody leaves. It is printed on a document only when <b>you</b> are the one
+            printing it; anyone else gets an empty block to sign by hand.
+          </div>
+        </>
+      )}
+    </SectionCard>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // The access this session is ACTUALLY running with — not what a role is

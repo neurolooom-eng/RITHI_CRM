@@ -19,6 +19,76 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### Signatures, Stock Out and the menu — 2026-09-12 (v0.9.219, SQL to run)
+
+Three asks in one: save a signature, a Stock Out page, and a menu rearrangement
+with matching permissions.
+
+**A SAVED SIGNATURE (0172).** Its own table, not a column on `profiles` — RLS
+grants by ROW, so a policy letting somebody save a signature on their profile
+row lets them rewrite the role and permissions on it. Read and write test
+`user_id = auth.uid()` and nothing else: **no administrator can read one or set
+one**, deliberately, because a mark a second person can obtain is one they can
+put on anything. An administrator can ask WHO has saved one
+(`user_signature_status()`) and can remove a leaver's
+(`remove_user_signature()`), never see one.
+
+Two things the test found that would otherwise have shipped:
+
+* `or is_admin()` on the DELETE policy **does nothing** — Postgres applies the
+  SELECT policy to a `DELETE ... WHERE`, so the administrator who cannot read
+  the row got `DELETE 0` and no error. Removal is a function instead.
+* the "who has one" report is a definer **function**, not a view: a definer view
+  over RLS tables is the 0040/0050/0057 fault, and `check:views` refuses one.
+  Writing an exception into that check to admit this would blunt the control
+  that catches the real thing.
+
+On a document the rule is one line, in `src/lib/signature.ts`: **a signature
+prints only in the block that names you.** Wired into the Delivery Challan (the
+company block, when the printer booked the stock out) and the Field Failure
+Report (when the printer is the raiser). Anybody else gets an empty block. The
+FFR's Word file embeds it as a real image part — proved by generating both
+variants and validating the zip, the XML, the relationship id, the content type
+and the aspect ratio; four kinds of unreadable signature each produce a valid
+document with an empty block rather than one Word refuses to open.
+
+**STOCK OUT (0171)** is the same `StockOuts` component the Pending Dispatch tab
+uses, exported rather than copied, on `/stock-out`. `mod:/stock-out` is merged
+into every role already holding `mod:/spare-dispatch`, so nobody loses the list
+they were reading; a role with NO permissions is left alone, since an empty
+array means "not configured" and writing one key into it would turn that
+fallback off.
+
+**THE MENU** moved seven things and the order of two groups; `PERM_TREE` moved
+with it. No path changed, so no role gained or lost access — `check:ui` compares
+the nav with `MODULES` on every run.
+
+**To run:** `rbac.sql` (0171 + 0172). `_status.sql` rows 129 and 130 check them.
+
+Validation package **Rev 2.2**: URS-057, FRS-066..068, R-36, FM-27, OQ-51 —
+written as a confidentiality requirement, and stating plainly what it is not: a
+reproduced image, not a cryptographic signature, binding nothing to the
+document's content.
+
+### The back-fill refused the administrator running it — 2026-09-12 (v0.9.219, SQL to run)
+
+Reported from use: `select * from public.backfill_ffrs();` in the Supabase SQL
+editor answered *"Only an administrator may back-fill the Field Failure
+Register."*
+
+0169 guarded it with `is_admin()`, which reads `auth.uid()` — **NULL in the SQL
+editor**, so the gate could never pass there, and the SQL editor is the only
+place a one-time catch-up is ever run.
+
+0170 aims it instead: a call that arrived **through the API** must be an
+administrator (`request.jwt.claims` is set by PostgREST and by nothing else). A
+direct database connection already has every table and every function; a role
+check inside one guards nothing it could not step around by writing the INSERT
+itself. `anon` is still kept out by the grant, so the claim test is never the
+only defence.
+
+**To run:** `daily_review.sql`, then the dry run and the real one.
+
 ### FFR raised by the review — 2026-09-12 (v0.9.216, SQL to run)
 
 The user's rule: **a call answered YES for ANY POTENTIAL EFFECT in the DCCR
