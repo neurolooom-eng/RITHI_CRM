@@ -2488,9 +2488,19 @@ console.log('\n-- every Party->Product->Serial cascade reads the product registe
   // the effect gives up early when the box is closed. Not the expression that
   // happens to produce the query — that has now cost a cycle twice.
   eq('the search is debounced and only runs while open',
-    /if \(!onSearch \|\| !open\) return;/.test(pl2)
-    && /setTimeout\([\s\S]{0,700}onSearch\(/.test(pl2)
+    /if \(!hasSearch \|\| !open\) return;/.test(pl2)
+    && /setTimeout\([\s\S]{0,900}run\(q\)/.test(pl2)
     && /\}, \d+\);/.test(pl2), true);
+  // AND IT DOES NOT DEPEND ON THE HANDLER'S IDENTITY. An inline handler is a
+  // new function every render, so an effect keyed on it re-runs forever when
+  // that handler sets state — thirteen searches from one keystroke, and a box
+  // that never stopped saying "searching…". `npm run check:picklist` proves the
+  // behaviour in a browser; this keeps the mechanism from being undone by a
+  // well-meant dependency-array tidy-up.
+  eq('the search effect is not keyed on the handler identity',
+    /\}, \[hasSearch, open, query\]\);/.test(pl2), true);
+  eq('and the handler is reached through a ref',
+    /const onSearchRef = useRef\(onSearch\)/.test(pl2), true);
 
   // AND IT NEVER SHOWS ROWS THAT CONTRADICT WHAT IS TYPED. The results are kept
   // WITH the query that produced them: holding the rows alone left the previous
