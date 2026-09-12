@@ -19,6 +19,27 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The part code and name, split once — 2026-09-12 (v0.9.227, shipped, no SQL)
+
+The spares table beside a report printed the catalogue string raw —
+*"TOUCH PANEL|Touch panel assembly"*, pipe and all.
+
+**TWO PARSERS ALREADY EXISTED AND DISAGREED.** `dc.ts` had `codeOf`/`descOf`
+(no pipe → the whole string); `handstock.ts` has `partDescription` (no pipe →
+`''`). Adding a third would have been the four-date-parsers story again, so the
+pair moved into `src/lib/parts.ts` as `partCode`/`partName` and `dc.ts`
+re-exports them under its old names — a move, not a rewrite, so the Delivery
+Challan and the Declaration are untouched.
+
+⚠️ **`partDescription` in handstock.ts is deliberately left alone.** Its
+difference is not a bug — hand stock wants "the description, or nothing", a
+display column wants "whatever names this part" — but a third caller picking one
+at random is how they start to matter. Noted in `parts.ts`.
+
+Verified by rendering all four cases: a normal string, one with a pipe in the
+description, one with NO pipe (shows the code rather than a blank cell), and a
+voided line, which stays struck through with its original quantity (0049).
+
 ### The visit pane, tidied — 2026-09-12 (v0.9.226, shipped, no SQL)
 
 Eight fields highlighted on screen, plus two layout asks.

@@ -10,6 +10,7 @@
 // live here rather than in the component so the printed page has one source
 // for them, and so a change of address or GSTIN is one edit.
 // ---------------------------------------------------------------------------
+import { partCode, partName } from './parts';
 
 export const COMPANY = {
   name: 'Air Liquide Medical Systems Pvt Ltd',
@@ -60,12 +61,12 @@ const n = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x :
 
 // A spare is stored as "CODE|Description"; the challan prints them in separate
 // columns, exactly as the template does.
-export const codeOf = (part: unknown): string => s(part).split('|')[0]!.trim().toUpperCase();
-export const descOf = (part: unknown): string => {
-  const t = s(part);
-  const i = t.indexOf('|');
-  return (i === -1 ? t : t.slice(i + 1)).trim();
-};
+//
+// THE SPLIT MOVED TO parts.ts when a second table needed it (the Field Failure
+// desk, 2026-09-12). Re-exported under the names this module has always used,
+// so every caller here is untouched — a move, not a rewrite.
+export const codeOf = partCode;
+export const descOf = partName;
 
 // dd-MM-yyyy, the way the form is filled in by hand.
 export function dcDate(v: unknown): string {

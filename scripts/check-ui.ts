@@ -2,6 +2,7 @@
 // screen must follow that reading the component will not tell you.
 // No test runner in this repo, so: `npm run check:ui`.
 import { groupRowsBy, groupTree, NO_GROUP } from '../src/components/table/group';
+import { partCode, partName } from '../src/lib/parts';
 import { URS, FRS, TESTS } from '../src/lib/validation';
 import { mergeDcLines } from '../src/lib/dc';
 import { callFamily } from '../src/lib/calltype';
@@ -4337,6 +4338,47 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     idx(/ffr-h-actions/) < idx(/>The report</), true);
   eq('and there is only one pair of them',
     (desk.match(/Edit \/ weekly review/g) ?? []).length, 1);
+}
+
+// ---------------------------------------------------------------------------
+// THE PART CODE AND THE PART NAME, SPLIT ONCE (the user, 2026-09-12: "Split the
+// part code and description into separate columns").
+//
+// A spare is stored as one string, "CODE|Description". The Delivery Challan has
+// always cut it; the Field Failure desk's spares table was printing it raw.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- the part code and the part name --');
+
+  eq('a normal catalogue string splits', partCode('TOUCH PANEL|Touch panel assembly'), 'TOUCH PANEL');
+  eq('…and its description', partName('TOUCH PANEL|Touch panel assembly'), 'Touch panel assembly');
+  // A code is a code however it was typed.
+  eq('the code is upper-cased', partCode('touch panel|x'), 'TOUCH PANEL');
+  // NO PIPE: the whole string is the part. A blank cell where a part has only a
+  // code is worse than showing the code twice — this is the case the two
+  // pre-existing parsers disagreed on.
+  eq('no pipe: the code is the string', partCode('WIDGET'), 'WIDGET');
+  eq('no pipe: the name is the string too', partName('WIDGET'), 'WIDGET');
+  // A description carrying a pipe of its own keeps it: only the FIRST cut counts.
+  eq('only the first pipe cuts', partName('CODE|a|b'), 'a|b');
+  eq('surrounding space is trimmed', partName('  CODE |  Thing  '), 'Thing');
+  eq('and so is the code', partCode('  code | x '), 'CODE');
+  eq('nothing in, nothing out', [partCode(''), partName(null)], ['', '']);
+
+  // ONE DEFINITION. dc.ts must not keep a second copy — that is how the two
+  // start disagreeing, which is exactly what had begun here.
+  const dc = readFileSync('src/lib/dc.ts', 'utf8');
+  eq('the challan uses the shared split, not its own',
+    /codeOf = partCode/.test(dc) && /descOf = partName/.test(dc), true);
+  eq('and defines no second parser', /split\('\|'\)/.test(dc), false);
+
+  // THE TABLE HAS BOTH COLUMNS, and prints neither raw.
+  const ctx = readFileSync('src/components/callcontext/CallContext.tsx', 'utf8');
+  eq('the spares table has a Code column and a Part column',
+    /<th>Code<\/th><th>Part<\/th>/.test(ctx), true);
+  eq('and renders them through the split',
+    /partCode\(s\.part\)/.test(ctx) && /partName\(s\.part\)/.test(ctx), true);
+  eq('rather than the raw string', /\{String\(s\.part \?\? ''\)\}/.test(ctx), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

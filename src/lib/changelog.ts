@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.227',
+    date: '2026-09-12',
+    title: 'The part code and the part name, in their own columns',
+    changes: [
+      'The spares table beside a report now has a Code column and a Part column, instead of one cell reading \u201CTOUCH PANEL|Touch panel assembly\u201D.',
+      'A spare that carries only a code shows the code rather than a blank cell.',
+      'The Delivery Challan has always split them this way; both now use the same split, so the two cannot drift apart.',
+    ],
+  },
+  {
     version: '0.9.226',
     date: '2026-09-12',
     title: 'A tidier visit pane, and the buttons where you reach for them',

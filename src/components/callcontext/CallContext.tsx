@@ -17,6 +17,7 @@
 // twice or passing a shape it does not have.
 // ===========================================================================
 import { isUrl, linkLabel } from '../../lib/callreview';
+import { partCode, partName } from '../../lib/parts';
 import { fmtLongDate, fmtLongSmart } from '../../lib/format';
 
 // EVERY DATE ON THIS PANE READS DD-MMM-YYYY (the user, 2026-09-12: "Fix the
@@ -132,16 +133,22 @@ export function CallContext({ visits, spares, busy, noVisitsNote }: CallContextP
         </span>
       </div>
       {!busy && !spares.length && <div className="muted cr-note">Nothing booked against this call.</div>}
+      {/* THE CODE AND THE PART IN SEPARATE COLUMNS (the user, 2026-09-12).
+          A spare is stored as one string, "CODE|Description", and this table
+          was printing it raw — "TOUCH PANEL|Touch panel assembly", pipe and
+          all. The Delivery Challan has always split them; the split now lives
+          in one place (src/lib/parts.ts) and both use it. */}
       {spares.length > 0 && (
         <table className="cr-spares">
-          <thead><tr><th>Part</th><th>Qty</th><th>GRIR</th><th>Source</th></tr></thead>
+          <thead><tr><th>Code</th><th>Part</th><th>Qty</th><th>GRIR</th><th>Source</th></tr></thead>
           <tbody>
             {spares.map((s, i) => (
               // A VOIDED LINE IS SHOWN, NOT HIDDEN. A wrong consumption is
               // voided rather than deleted (0049) — the row stays with its
               // original quantity, and the register says so.
               <tr key={i} className={Number(s.qty ?? 0) === 0 ? 'cr-void' : ''}>
-                <td>{String(s.part ?? '')}</td>
+                <td className="cr-spare-code">{partCode(s.part)}</td>
+                <td>{partName(s.part)}</td>
                 <td>{String(s.qty ?? '')}{Number(s.qty ?? 0) === 0 ? ' (voided)' : ''}</td>
                 <td>{String(s.grir ?? '')}</td>
                 <td>{String(s.source ?? '')}</td>
