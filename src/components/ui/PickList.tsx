@@ -52,6 +52,15 @@ export interface PickListProps {
   // option) but picking it would only earn a refusal from the trigger that caps
   // consumption at the balance.
   isDisabled?: (value: string) => boolean;
+  // DECORATE THE ROWS, NOT THE CLOSED BOX. `labelFor` normally decorates both,
+  // and for Spare Consumption that is right: "PART — 3 in hand" is worth having
+  // in the box you are looking at. It is wrong where the decoration is long --
+  // the machine picker's rows read "serial · customer · city", which is what
+  // tells two identical models apart in the list, and which turned the closed
+  // box into two wrapped lines of hospital name (reported 2026-09-12). The
+  // customer has its own line under that field; the box only has to say which
+  // machine.
+  plainValue?: boolean;
   // MAY A VALUE BE TYPED THAT IS NOT ON THE LIST? The default is no, and that
   // is the right default: these fields come from masters, and a typed-in value
   // is a master entry that does not exist. But it is a per-FORM decision, not a
@@ -83,7 +92,7 @@ export interface PickListProps {
 export function PickList({
   value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
   emptyLabel = '— select —', labelFor, searchThreshold = 8, allowFreeText = false,
-  isDisabled, onSearch, id,
+  isDisabled, onSearch, id, plainValue,
 }: PickListProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -235,7 +244,7 @@ export function PickList({
           disabled={disabled}
           onClick={openList}
         >
-          <span>{value ? (labelFor?.(value) ?? value) : emptyLabel}</span>
+          <span>{value ? (plainValue ? value : (labelFor?.(value) ?? value)) : emptyLabel}</span>
           <span className="picklist-caret" aria-hidden="true">▾</span>
         </button>
       )}
@@ -245,7 +254,7 @@ export function PickList({
         // opens under the thing that was clicked rather than replacing it.
         <button id={id} type="button" className={`input picklist-value${value ? '' : ' picklist-empty'}`}
                 disabled={disabled} onClick={() => close()}>
-          <span>{value ? (labelFor?.(value) ?? value) : emptyLabel}</span>
+          <span>{value ? (plainValue ? value : (labelFor?.(value) ?? value)) : emptyLabel}</span>
           <span className="picklist-caret" aria-hidden="true">▴</span>
         </button>
       )}
