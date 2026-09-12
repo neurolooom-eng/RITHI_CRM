@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.214',
+    date: '2026-09-12',
+    title: 'The Field Failure Register is built',
+    changes: [
+      'THE FIELD FAILURE REGISTER IS A REAL REGISTER NOW, not a placeholder. Its columns are the Field Failure Register sheet\u2019s 2026 tab, in the same order, so it reads the way the sheet does.',
+      'RAISE AN FFR FROM THE DAILY CALL REVIEW \u2014 that is where somebody decides a failure goes to manufacturing. The call fills the report in: customer, place, machine, cover, complaint, and from the visit itself the observation, what was fitted and when it was solved. If that call already has an FFR, the button says so rather than letting a second one be raised by accident.',
+      'EVERY FFR GETS ITS NUMBER FROM THE SYSTEM \u2014 FFR - 001/26, restarting each year. It starts ABOVE what is already on the sheet (2026 is at FFR - 035/26), so nothing is issued twice. A number is issued once and can never be edited afterwards.',
+      'AND THE WORD REPORT IS GENERATED: 📄 Word on any row downloads R-SER-03 Rev 02 filled in, named the way the sheet names it \u2014 "FFR - 036-26 - MONNAL T75 ( 11125 )".',
+      'Reports are never deleted. One raised in error is closed with a remark.',
+      'On Admin, NSM, Reporting Manager, Regional Manager and Hotline. Everyone else can read the register.',
+    ],
+  },
+  {
     version: '0.9.213',
     date: '2026-09-12',
     title: 'The product box stops contradicting its own list',

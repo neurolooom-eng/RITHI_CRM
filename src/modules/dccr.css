@@ -323,3 +323,12 @@
   gap: 14px;
   align-items: start;
 }
+
+/* Raise FFR, above the call card on the review. A bar rather than a button
+   floating in the grid: the note beside it ("already reported: FFR - 012/26")
+   is the part that stops a second report being raised by accident. */
+.dccr-ffr-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.dccr-ffr-note { font-size: 12px; overflow-wrap: anywhere; }

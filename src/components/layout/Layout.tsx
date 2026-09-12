@@ -151,7 +151,7 @@ export const NAV: NavGroup[] = [
     title: 'Quality & Analytics',
     items: [
       { to: '/feedback', label: 'Customer Feedback', icon: '⭐' },
-      { to: '/failure-report', label: 'Field Failure Report', icon: '🧪' },
+      { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
     ],

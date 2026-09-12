@@ -11,6 +11,8 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
+import { FFR_COLUMNS, ffrFromCall, ffrDocFrom, FFR_NO_SHAPE } from '../src/lib/ffr';
+import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
@@ -3608,6 +3610,88 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('a machine belonging to the replaced customer is cleared',
     /staleMachine\s*\n?\s*\? \{ \.\.\.it, \.\.\.src, product: '', serial: '' \}/.test(rq), true);
   eq('and the rest just take the new details', /: \{ \.\.\.it, \.\.\.src \}/.test(rq), true);
+}
+
+// ---------------------------------------------------------------------------
+// THE FIELD FAILURE REGISTER. Format: the Field_Failure_Register workbook's
+// 2026 tab. Report: R-SER-03 Rev 02.
+{
+  console.log('\n-- the field failure register --');
+
+  // The register is the SHEET's columns in the SHEET's order, so somebody who
+  // has used it for years reads the same thing. The AutoCrat plumbing columns
+  // are deliberately absent: they exist to make a spreadsheet behave like an
+  // application, and the document is generated here.
+  const heads = FFR_COLUMNS.map((c) => c.header);
+  eq('the register leads with the FFR number and its date',
+    heads.slice(0, 2), ['FFR NO: (No/Yr)', 'FFR Date']);
+  for (const h of ['CRN NO', 'Customer Name', 'Product S. No', 'Problem reported by customer',
+                   'Service Dept Observation', 'SPARES CONSUMED']) {
+    eq(`the sheet's "${h}" is carried`, heads.includes(h), true);
+  }
+  for (const h of ['Merged Doc ID - FFR-2022', 'Document Merge Status - FFR-2022', 'Add Attachments',
+                   'Raise CAPA', 'Update(Link)']) {
+    eq(`the AutoCrat column "${h}" is not`, heads.includes(h), false);
+  }
+  eq('every column maps to a stored field', FFR_COLUMNS.every((c) => /^[a-z_]+$/.test(c.key)), true);
+
+  // A CALL FILLS IN WHAT IT KNOWS, and nothing it does not. An observation
+  // nobody wrote is not an observation.
+  const fromCall = ffrFromCall({
+    ucn: '26I10F0002', reg_date: '2026-01-09', party_name: 'DHANVANTRI', city: 'MEERUT',
+    product_name: 'MONNAL T75', serial: '11125', item_status: 'WGP',
+    complaint_reported: 'Alarm 030', open_state: 'Solved', call_type: 'FIELD',
+  });
+  eq('the call names the machine and the customer',
+    [fromCall.ucn, fromCall.customer_name, fromCall.product_serial, fromCall.cover],
+    ['26I10F0002', 'DHANVANTRI', '11125', 'WGP']);
+  eq('and the complaint becomes the problem reported', fromCall.problem_reported, 'Alarm 030');
+  eq('the observation is left for a person to write', fromCall.service_observation, undefined);
+  // THE NUMBER IS NEVER SENT. It is issued by the database and seeded past what
+  // is already on the sheet; a client-chosen one could collide with FFR - 035/26.
+  eq('no FFR number is sent from the client', 'ffr_no' in fromCall, false);
+  eq('nor a raiser', 'raised_by' in fromCall, false);
+
+  // THE DOCUMENT. One mapping from the register row, so the register and the
+  // report cannot disagree about what a box contains.
+  const row = {
+    ffr_no: 'FFR - 036/26', ffr_date: '12-Sep-2026', customer_name: 'DHANVANTRI', place: 'MEERUT',
+    ucn: '26A09F0040', crn_date: '09-Jan-2026', product_name: 'MONNAL T75', item_code: 'MT75',
+    product_serial: '11125', cover: 'WGP', problem_reported: 'Alarm 030',
+    additional_problem: '', service_observation: 'Line one\nLine two', problem_status: 'Solved',
+    capa_no: '', raised_by_name: 'P.M.Bagyaraj',
+  };
+  const f = ffrDocFrom(row, '');
+  eq('the report takes the register\u2019s number', f.ffrNo, 'FFR - 036/26');
+  eq('the UCN fills the CRN box', f.crnNo, '26A09F0040');
+  eq('an empty CAPA reads NA rather than blank', f.capaNo, 'NA');
+  eq('and it is a real number shape', FFR_NO_SHAPE.test(f.ffrNo), true);
+
+  // The file is a ZIP of XML and must actually be one — a .docx Word refuses to
+  // open is worse than no button.
+  const bytes = buildFfrDocx(f);
+  eq('the document is a ZIP', [bytes[0], bytes[1], bytes[2], bytes[3]], [0x50, 0x4b, 0x03, 0x04]);
+  const text = new TextDecoder().decode(bytes);
+  eq('it declares the WordprocessingML part',
+    text.includes('wordprocessingml.document.main+xml'), true);
+  eq('and carries the controlled form it follows', text.includes('R-SER-03'), true);
+  // A newline inside <w:t> is whitespace, not a line break — the observation is
+  // where somebody notices, so multi-line text becomes separate paragraphs.
+  eq('a multi-line observation becomes paragraphs, not one run',
+    text.includes('Line one') && text.includes('Line two') && !text.includes('Line one\nLine two'), true);
+  // The name is the register's own, with the slash made safe for a file system.
+  eq('the file is named as the register names it',
+    ffrDocName(f), 'FFR - 036-26 - MONNAL T75 ( 11125 ).docx');
+  eq('and carries no path separator', /[\\/:*?"<>|]/.test(ffrDocName(f).replace(/\.docx$/, '')), false);
+
+  // RAISED FROM THE DAILY CALL REVIEW, which is where the decision is made.
+  const dcr = readFileSync('src/modules/DailyCallReview.tsx', 'utf8');
+  eq('the review offers to raise one', /Raise FFR/.test(dcr), true);
+  eq('and hands the call over rather than making the person re-type it',
+    /state: \{ ffrFromCall: \{/.test(dcr), true);
+  eq('it is gated on its own right, not on review.edit', /canDo\('ffr\.manage'\)/.test(dcr), true);
+  eq('and an existing report for that call is shown, not hidden',
+    /ffrsForCall\(/.test(dcr) && /Already reported/.test(dcr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
