@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.211',
+    date: '2026-09-12',
+    title: 'The serial box no longer gets stuck searching',
+    changes: [
+      'IT SAID \u201Csearching\u2026\u201D AND NEVER STOPPED. Typing a serial started a search that restarted itself over and over \u2014 one keystroke set thirteen searches going in three seconds, none of them ever finished as far as the box was concerned, and the list never appeared.',
+      'It was hammering the database at the same time, which is very likely behind some of the timeouts reported over the last two days.',
+      'Fixed in the dropdown itself, so every search box in the app is protected \u2014 not just this one.',
+      'A new automated check types one character into a real dropdown in a real browser and counts: one keystroke, one search, box settles. Before the fix that check reports thirteen.',
+    ],
+  },
+  {
     version: '0.9.210',
     date: '2026-09-12',
     title: 'The first call sets the customer for the whole request',

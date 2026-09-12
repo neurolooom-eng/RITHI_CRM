@@ -117,13 +117,32 @@ export function PickList({
   // THE SEARCH RUNS ON THE SERVER when the form asked for it, and DEBOUNCED —
   // a request per keystroke would be worse than the download it replaces. Only
   // while the box is open: a closed picker must cost nothing.
+  //
+  // THE HANDLER IS HELD IN A REF, AND THAT IS NOT TIDINESS — IT IS THE BUG.
+  // This effect used to list `onSearch` among its dependencies. A caller that
+  // passes a STABLE function (a module-level one, as the customer picker does)
+  // was fine. A caller that writes the handler INLINE gets a new function on
+  // every render, and if that handler sets state — which the call-request
+  // machine picker must, to keep the customer that came back with the machine —
+  // the loop closes: search, setState, re-render, new identity, effect re-runs,
+  // search again. Measured on a harness: ONE keystroke fired THIRTEEN searches
+  // in three seconds and the box never stopped saying "searching…" (reported
+  // 2026-09-12, "got stuck in serial no selection").
+  //
+  // Depending on whether a handler EXISTS, rather than on which one it is,
+  // fixes it for every caller instead of asking each to remember useCallback.
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => { onSearchRef.current = onSearch; });
+  const hasSearch = !!onSearch;
   useEffect(() => {
-    if (!onSearch || !open) return;
+    if (!hasSearch || !open) return;
     let alive = true;
     setSearching(true);
     const t = window.setTimeout(() => {
       const q = query.trim();
-      onSearch(q)
+      const run = onSearchRef.current;
+      if (!run) { setSearching(false); return; }
+      run(q)
         // Keyed on the NORMALISED query, because the memo below compares against
         // a lower-cased one — storing "The principal" and comparing it with
         // "the principal" would never match, and the list would stay empty for
@@ -144,7 +163,7 @@ export function PickList({
         .finally(() => { if (alive) setSearching(false); });
     }, 220);
     return () => { alive = false; window.clearTimeout(t); setSearching(false); };
-  }, [onSearch, open, query]);
+  }, [hasSearch, open, query]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
