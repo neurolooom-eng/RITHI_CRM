@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { addCallRequestBatch, listCallRequests, sbPartyInfo, sbListPartyItems, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
+import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
 import { logAudit } from '../lib/audit';
@@ -314,18 +314,41 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 
   // What that customer owns — the product list for calls 2..5. Loaded once per
   // customer, not per keystroke: it is a filter on a fixed set, not a search.
+  //
+  // THROUGH THE SAME READ THE SERIAL SEARCH USES, and that matters. It was
+  // sbListPartyItems, which matches with `ilike` plus a JavaScript re-check,
+  // while the machine search matches with `.eq('party_name', …)`. Two rules for
+  // one relationship diverge, and the divergence was invisible: an empty result
+  // fell through to the whole register, so call 2 offered every product in the
+  // company (reported 2026-09-12). The name here came verbatim from
+  // products.party_name when the machine was picked, so equality cannot miss
+  // where the serial search hits.
   const [ownedProducts, setOwnedProducts] = useState<string[]>([]);
+  const [ownedState, setOwnedState] = useState<'idle' | 'loading' | 'ready' | 'failed'>('idle');
   useEffect(() => {
-    if (isInstall || !lockedParty) { setOwnedProducts([]); return; }
+    if (isInstall || !lockedParty) { setOwnedProducts([]); setOwnedState('idle'); return; }
     let alive = true;
-    sbListPartyItems(lockedParty)
-      .then((rows) => {
+    setOwnedState('loading');
+    sbSearchMachines('', '', 500, lockedParty)
+      .then((ms) => {
         if (!alive) return;
-        setOwnedProducts([...new Set(rows.map((r) => String(r['Item Name'] ?? '')).filter(Boolean))].sort());
+        setOwnedProducts([...new Set(ms.map((m) => m.product).filter(Boolean))].sort());
+        setOwnedState('ready');
       })
-      .catch(() => { if (alive) setOwnedProducts([]); });
+      .catch(() => { if (alive) { setOwnedProducts([]); setOwnedState('failed'); } });
     return () => { alive = false; };
   }, [isInstall, lockedParty]);
+
+  /** The products call `i` may choose from, and what the box says when there are none. */
+  const productChoices = (i: number): { list: string[]; empty: string } => {
+    if (isInstall || i === 0 || !lockedParty) return { list: productOptions, empty: '— pick a product —' };
+    // NO SILENT FALLBACK TO THE WHOLE REGISTER. Offering a product this customer
+    // does not own leads to an empty serial box and a dead end, and it hides the
+    // fault that produced the empty list.
+    if (ownedState === 'loading') return { list: [], empty: `— loading ${lockedParty}'s machines —` };
+    if (ownedState === 'failed') return { list: [], empty: '— could not load this customer\u2019s machines —' };
+    return { list: ownedProducts, empty: `— ${lockedParty} has no machines on the register —` };
+  };
 
   // The customer's details, as call 1 has them — copied onto a new call rather
   // than asked for again.
@@ -616,18 +639,14 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     onChange={(v) => setItems((s) => s.map((x, j) => (j === i
                       ? { ...x, product: v, serial: '', party: '', city: '', state: '', address: '' }
                       : x)))}
-                    // The party words are gone: there is no party to pick first
-                    // any more, and a box telling somebody to do something the
-                    // form no longer asks for is worse than a bare label.
-                    placeholder={isInstall ? '— pick from Product Master —' : '— pick a product —'}
+                    // SelectPicker carries the closed-box text here, so the
+                    // reason an empty list is empty is said where it is read.
+                    placeholder={isInstall ? '— pick from Product Master —' : productChoices(i).empty}
                     // CALL 1 SEARCHES THE WHOLE REGISTER, because nothing is
                     // known yet. From call 2 the customer is fixed, so the list
                     // is what THEY own — a product they have none of is not an
                     // option, and offering it only leads to an empty serial box.
-                    options={withCurrent(
-                      !isInstall && i > 0 && lockedParty && ownedProducts.length ? ownedProducts : productOptions,
-                      it.product,
-                    )} />
+                    options={withCurrent(productChoices(i).list, it.product)} />
                 ))}
                 {field('Serial No *', (
                   // An installation is a machine the party does not own yet, so

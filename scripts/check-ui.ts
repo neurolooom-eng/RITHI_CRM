@@ -3550,8 +3550,29 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /party: it\.party[\s\S]{0,240}contactNumber: it\.contactNumber/.test(rq), true);
 
   // The product list narrows to what that customer owns…
+  // NO SILENT FALLBACK TO THE WHOLE REGISTER. The first version fell back to
+  // every product when the customer's list came back empty — and it came back
+  // empty, because it was loaded through a DIFFERENT match rule from the one
+  // the serial search uses. Call 2 then offered every product in the company
+  // (reported 2026-09-12) and the fallback is what hid the cause.
   eq('calls 2+ are offered only that customer\u2019s products',
-    /i > 0 && lockedParty && ownedProducts\.length \? ownedProducts : productOptions/.test(rq), true);
+    /if \(isInstall \|\| i === 0 \|\| !lockedParty\) return \{ list: productOptions/.test(rq), true);
+  eq('and an empty list is never widened to the register',
+    /return \{ list: ownedProducts, empty:/.test(rq)
+      && !/ownedProducts\.length \? ownedProducts : productOptions/.test(rq), true);
+  // Loading and failure are DIFFERENT from "owns nothing", and each says so.
+  for (const st of ["ownedState === 'loading'", "ownedState === 'failed'"]) {
+    eq(`"${st}" is a state of its own`, rq.includes(st), true);
+  }
+  // ONE MATCH RULE. The owned list and the serial search must agree, so both go
+  // through sbSearchMachines' equality on the column the name came from.
+  eq('the owned list is read the same way the serials are',
+    /sbSearchMachines\('', '', 500, lockedParty\)/.test(rq), true);
+  // Comments stripped: this file EXPLAINS the ilike path it stopped using, and
+  // an assertion that reads the prose would fail on its own documentation.
+  const rqCode = rq.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  eq('and not through the ilike path that disagreed with it',
+    /sbListPartyItems/.test(rqCode), false);
   // …and the serial search is party + product.
   eq('and the serial search is narrowed by customer too',
     /sbSearchMachines\(it\.product, qq, 50, i > 0 \? lockedParty : ''\)/.test(rq), true);
