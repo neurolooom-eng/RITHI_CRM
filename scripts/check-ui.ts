@@ -3842,5 +3842,45 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('no module calls a hook below a conditional return', offenders, []);
 }
 
+// ---------------------------------------------------------------------------
+// THE CATCH-UP ("create all the FFRs till date", 2026-09-12). Every review
+// already answered YES before 0167 shipped has no report; this raises them.
+{
+  console.log('\n-- the FFR back-fill --');
+  const sql = readFileSync('supabase/migrations/0169_ffr_backfill.sql', 'utf8');
+  const body = sql.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+
+  // ONE CODE PATH. The trigger and the back-fill must produce identical
+  // records, or the catch-up is a second, subtly different register.
+  eq('the record has one definition', /create or replace function public\.raise_ffr/.test(body), true);
+  eq('and the trigger calls it', /perform public\.raise_ffr\(new\)/.test(body), true);
+  eq('as does the back-fill', /v_no := public\.raise_ffr\(r\)/.test(body), true);
+
+  // THE NUMBER IS IN THE REVIEW'S YEAR. A 2025 review numbered /26 is wrong on
+  // the face of the document.
+  eq('the number takes a year', /next_ffr_no\(p_yr smallint default null\)/.test(body), true);
+  eq('and the year comes from the FFR date',
+    /next_ffr_no\(\(extract\(year from v_date\)::int % 100\)::smallint\)/.test(body), true);
+  // The old zero-argument signature must GO, or the call site is ambiguous
+  // between two functions and Postgres refuses it.
+  eq('the old signature is dropped', /drop function if exists public\.next_ffr_no\(\);/.test(body), true);
+
+  // DRY RUN BY DEFAULT: the numbers are permanent, and a count discovered
+  // afterwards is discovered too late.
+  eq('it reports before it writes',
+    /backfill_ffrs\(p_dry_run boolean default true\)/.test(body), true);
+  // …and a dry run must not consume numbers: a reserved-and-unused number is a
+  // gap in a numbered series that somebody has to explain.
+  const dry = /if p_dry_run then[\s\S]*?else/.exec(body)?.[0] ?? '';
+  eq('a dry run issues no number', /next_ffr_no|raise_ffr/.test(dry), false);
+
+  eq('only an administrator may run it', /if not public\.is_admin\(\) then/.test(body), true);
+  // Oldest first, so the numbering runs the way the register was written.
+  eq('in review order', /order by cr\.review2_at nulls last, cr\.ucn/.test(body), true);
+  // Idempotent: raise_ffr returns NULL for a call that already has one.
+  eq('and it skips calls that already have a report',
+    /if exists \(select 1 from public\.field_failure_reports f where f\.ucn = v_ucn\) then return null/.test(body), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

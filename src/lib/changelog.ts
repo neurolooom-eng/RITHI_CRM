@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.218',
+    date: '2026-09-12',
+    title: 'Every FFR due to date can be raised in one go',
+    changes: [
+      'A ONE-TIME CATCH-UP: every call already answered YES for Any Potential Effect \u2014 before reports started raising themselves \u2014 gets its Field Failure Report.',
+      'IT SHOWS YOU WHAT IT WOULD DO FIRST. Run it once and it lists every report it would create and creates nothing; run it again with the go-ahead and it makes them. The numbers it issues are permanent, so seeing the list first is the point.',
+      'EACH REPORT IS NUMBERED IN ITS OWN YEAR \u2014 a review completed in 2025 gets a 2025 number, not this year\u2019s.',
+      'They are created oldest review first, and any call that already has a report is skipped, so running it twice changes nothing.',
+      'Administrator only.',
+    ],
+  },
+  {
     version: '0.9.217',
     date: '2026-09-12',
     title: 'The Daily Call Review opens again',
