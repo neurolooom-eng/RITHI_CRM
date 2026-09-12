@@ -254,7 +254,10 @@ const MODULES = {
             '0167_ffr_from_review.sql',
             // The weekly review's columns, and the register view re-asserted with
             // them. LAST, because it replaces the view 0167 defines.
-            '0168_ffr_weekly_review.sql'],
+            '0168_ffr_weekly_review.sql',
+            // The catch-up, and the one definition of what a review-raised FFR
+            // contains. LAST: it redefines next_ffr_no and ffr_from_review.
+            '0169_ffr_backfill.sql'],
   },
   notifications: {
     title: 'Notifications',
