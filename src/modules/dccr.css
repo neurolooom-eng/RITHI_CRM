@@ -332,3 +332,9 @@
   margin-bottom: 8px;
 }
 .dccr-ffr-note { font-size: 12px; overflow-wrap: anywhere; }
+
+/* Administrator's date correction, beside a stage's own date. Small and quiet:
+   it is a repair, not part of answering a review. */
+.dccr-admin-date { display: inline-flex; align-items: center; gap: 5px; margin-left: 6px; }
+.dccr-admin-date span { font-size: 11px; color: var(--text-muted); }
+.dccr-admin-date .input { padding: 1px 4px; font-size: 11.5px; width: 128px; }

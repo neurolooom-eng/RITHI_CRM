@@ -70,6 +70,35 @@ export const FFR_LIVE_COLUMNS: { key: string; header: string; width?: number }[]
   { key: 'live_spare_category', header: 'Spare / Consumable', width: 150 },
 ];
 
+/**
+ * THE WEEKLY REVIEW'S OWN FIELDS, and only those.
+ *
+ * The Google Form this replaces updates exactly these, keyed on the UCN and the
+ * FFR number: the two long texts, the three CAPA columns, the FFR status and an
+ * attachment. The rest of the register is not on it — a weekly review is not a
+ * chance to rewrite the machine or the customer, and a form that offered those
+ * would invite it.
+ *
+ * "Generate FFR Word Copy?" is on the form because a spreadsheet needed telling.
+ * Here the document is a button on the row, so the question does not arise.
+ */
+export const FFR_REVIEW_FIELDS = [
+  'additional_problem', 'problem_status', 'service_observation',
+  'capa_responsibility', 'capa_no', 'capa_status',
+  'ffr_status', 'attachment_url', 'attachment_name',
+] as const;
+
+/** Reports not looked at since `since`. The point of a weekly cycle is knowing
+ *  which ones those are, and `updated_at` cannot answer it — any edit moves
+ *  that, so a report corrected on Tuesday would read as reviewed. */
+export function ffrDueForReview(r: Record<string, unknown>, since: Date): boolean {
+  if (String(r.ffr_status ?? '') !== 'Open') return false;
+  const at = String(r.reviewed_at ?? '').trim();
+  if (!at) return true;
+  const d = new Date(`${at.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? true : d < since;
+}
+
 /** An FFR whose review no longer says YES. Not an error — the record stands —
  *  but the one thing on this register somebody should be able to see at a
  *  glance, because it means the finding was revised after the report was made. */
@@ -85,9 +114,18 @@ export const FFR_COVER = ['WGP', 'OGP', 'AMC', 'CMC'];
 // The sheet's own LookupValues tab, in full. 'In-Progress' and 'NA' were
 // missing from the first draft — a status a register already uses and a picker
 // will not offer is a value somebody has to work around.
-export const FFR_CAPA_STATUS = ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD', 'NA'];
-export const FFR_CAPA_RESPONSIBILITY = ['No closed in FFR', 'ALMS-FRANCE', 'NA', 'TBD'];
-export const FFR_STATUS = ['Open', 'Closed'];
+export const FFR_CAPA_STATUS = ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD'];
+// The update form's own list (2026-09-12). It takes free text as well — the
+// form has an "Other" line, and a responsibility is a PERSON: the list will
+// always be behind by whoever joined last, and refusing a name is worse than
+// carrying one the list has not caught up with.
+export const FFR_CAPA_RESPONSIBILITY =
+  ['No closed in FFR', 'Shyam', 'NRCK', 'ALMS-FRANCE', 'DILIP', 'PK'];
+// Likewise: NA / Not Required, or a real CAPA number typed in.
+export const FFR_CAPA_NO = ['NA', 'Not Required'];
+// 'Cancelled' is on the update form beside Open and Closed. A cancelled report
+// is still a record — marked, never deleted (0049).
+export const FFR_STATUS = ['Open', 'Closed', 'Cancelled'];
 
 /** A number this register issued, or one carried in from the sheet. Used to
  *  tell a reader that a row predates the application. */

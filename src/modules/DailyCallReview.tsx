@@ -988,7 +988,7 @@ function ReviewDrawer({
   // deciding a failure goes to manufacturing is not the same act as coding the
   // call, and the two are held by different people here.
   const nav = useNavigate();
-  const { can: canDo } = useAuth();
+  const { can: canDo, isAdmin } = useAuth();
   const canFfr = canDo('ffr.manage');
   const [ffrsHere, setFfrsHere] = useState<Record<string, unknown>[]>([]);
 
@@ -1021,6 +1021,30 @@ function ReviewDrawer({
   // so the report can be a link and the spares can be a table.
   const [visits, setVisits] = useState<Record<string, unknown>[] | null>(null);
   const [spares, setSpares] = useState<Record<string, unknown>[] | null>(null);
+
+  // THE REVIEW DATES, EDITABLE BY AN ADMINISTRATOR (the user's ask,
+  // 2026-09-12). They are the database's by default — 0044 stamps each when its
+  // stage completes — but it stamps only when the column is NULL, so a value
+  // set here passes through untouched.
+  //
+  // ADMIN ONLY, and deliberately so: the date is what a reviewer is held to,
+  // and the FFR a YES raises carries it. Correcting one is putting history
+  // right, which is a different act from answering a review, and it belongs to
+  // whoever is accountable for the register rather than to everyone who can
+  // complete one.
+  const adminDate = (key: 'review1_at' | 'review2_at' | 'review3_at', current: unknown) => (
+    isAdmin ? (
+      <label className="dccr-admin-date" title="Administrator: correct the date this review was completed">
+        <span>set</span>
+        <input
+          type="date"
+          className="input"
+          value={String(draft[key] ?? current ?? '').slice(0, 10)}
+          onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value || null }))}
+        />
+      </label>
+    ) : null
+  );
 
   const ucn = row?.ucn ?? '';
 
@@ -1091,6 +1115,37 @@ function ReviewDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ucn, productName]);
 
+  // ---- EVERY HOOK IS ABOVE THE EARLY RETURN, AND MUST STAY THERE ----------
+  //
+  // These two used to sit BELOW `if (!row) return null`, so the component ran
+  // seven hooks with a call selected and five without. React counts them, and
+  // the count changing between renders is error #310 — which is what the Daily
+  // Call Review's View button hit (reported 2026-09-12). `npm run check:ui`
+  // now refuses a hook placed after a return in this file.
+  //
+  // `write` is referenced by the debounce below and defined further down: that
+  // is safe because the reference resolves when the timeout FIRES, long after
+  // render, not when the effect is declared.
+  // The draft as written, so an identical redraw is not a reason to save.
+  const draftKey = JSON.stringify(draft);
+
+  // WHEN THE CALL CHANGES, the baseline moves with it — otherwise opening a
+  // second call would look like an edit to the first and write it back.
+  useEffect(() => { written.current = ''; setSavedAt(''); }, [ucn]);
+
+  useEffect(() => {
+    if (!autoSave || !editable || !ucn) return;
+    // Nothing has been typed yet on this call: the first render is not an edit.
+    if (written.current === '') { written.current = draftKey; return; }
+    if (written.current === draftKey) return;
+    const t = setTimeout(() => {
+      written.current = draftKey;
+      void write(true);
+    }, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey, autoSave, editable, ucn]);
+
   if (!row) return null;
   const ctx = live ?? row;   // the freshly-read row when it has arrived
 
@@ -1146,25 +1201,7 @@ function ReviewDrawer({
   };
   const save = async () => { await write(false); };
 
-  // The draft as written, so an identical redraw is not a reason to save.
-  const draftKey = JSON.stringify(draft);
 
-  // WHEN THE CALL CHANGES, the baseline moves with it — otherwise opening a
-  // second call would look like an edit to the first and write it back.
-  useEffect(() => { written.current = ''; setSavedAt(''); }, [ucn]);
-
-  useEffect(() => {
-    if (!autoSave || !editable || !ucn) return;
-    // Nothing has been typed yet on this call: the first render is not an edit.
-    if (written.current === '') { written.current = draftKey; return; }
-    if (written.current === draftKey) return;
-    const t = setTimeout(() => {
-      written.current = draftKey;
-      void write(true);
-    }, AUTOSAVE_DELAY_MS);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftKey, autoSave, editable, ucn]);
 
   // ---- pane: what happened (the call, its visits, its spares) -------------
   const detailsPane = (
@@ -1383,6 +1420,7 @@ function ReviewDrawer({
           <h3>Review 2 · Risk assessment</h3>
           {statusBadge(stage2Done ? 'Completed' : 'Pending', { Completed: 'success', Pending: 'warning' })}
           <span className="dccr-stage-date">{row.review2_at ? fmtLongDate(row.review2_at) : 'dated when completed'}</span>
+          {adminDate('review2_at', row.review2_at)}
           {/* MOST CALLS ARE NO TO ALL THREE, and clicking NO three times per
               call across a day's review is the work this removes. It fills the
               boxes; it does not save — the reviewer still reads the answers and
@@ -1505,6 +1543,7 @@ function ReviewDrawer({
           <h3>Review 3 · Root cause</h3>
           {statusBadge(stage3Done ? 'Completed' : 'Pending', { Completed: 'success', Pending: 'info' })}
           <span className="dccr-stage-date">{row.review3_at ? fmtLongDate(row.review3_at) : 'dated when completed'}</span>
+          {adminDate('review3_at', row.review3_at)}
         </div>
         <div className="dccr-fields">
           <div>

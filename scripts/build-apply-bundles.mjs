@@ -251,7 +251,10 @@ const MODULES = {
             // The review RAISES the FFR (any_potential_effect = YES), so it must
             // come after both the review tables and the FFR table — both in
             // this module.
-            '0167_ffr_from_review.sql'],
+            '0167_ffr_from_review.sql',
+            // The weekly review's columns, and the register view re-asserted with
+            // them. LAST, because it replaces the view 0167 defines.
+            '0168_ffr_weekly_review.sql'],
   },
   notifications: {
     title: 'Notifications',
