@@ -2005,7 +2005,7 @@ console.log('\n-- the Standard Complaint is searched, not scrolled --');
   // machine. A hospital can own dozens of the same model whose serials differ by
   // a digit in the middle, so it still has to be type-to-search.
   eq('the serial is picked with a PickList that searches the server',
-    /<PickList[\s\S]{0,900}onSearch=\{async \(qq\) => \{[\s\S]{0,200}sbSearchMachines/.test(rq), true);
+    /<PickList[\s\S]{0,900}onSearch=\{async \(qq\) => \{[\s\S]{0,400}sbSearchMachines/.test(rq), true);
   eq('...and no native <option> list is left over the serials',
     /\{serials\.map\(\(v\) => <option/.test(rq), false);
   eq('a serial the list no longer offers is still shown',
@@ -3417,10 +3417,24 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // The serial search must span customers — narrowing it by party would put
   // the slow search back in front of the fast one.
   const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
-  // NOT split('return')[0] — the function's first `return` is its opening
-  // guard, so that examined one line and could never have failed.
-  eq('the machine search is not narrowed by customer',
-    /\.(eq|ilike)\('party_name'/.test(fn), false);
+  // THE CUSTOMER FILTER IS OPTIONAL, AND THAT IS THE POINT.
+  //
+  // This began as "the machine search is never narrowed by customer", which
+  // protected something real: finding a customer is an infix search over ~5,000
+  // names and it must never come BEFORE the machine search — that ordering is
+  // what timed out on a phone. Since 2026-09-12 calls 2..5 DO narrow, because
+  // call 1 has already established the customer for nothing extra.
+  //
+  // So the rule is not "never" but "never REQUIRED": the filter must stay
+  // conditional, and call 1 must pass no customer at all. An unconditional
+  // party filter would put the search back in the wrong order.
+  // (NOT split('return')[0] — the function's first `return` is its opening
+  // guard, so an earlier version of this examined one line and could never
+  // have failed.)
+  eq('the customer filter is conditional, never unconditional',
+    /if \(party\.trim\(\)\) q = q\.eq\('party_name'/.test(fn), true);
+  eq('and there is no other party filter in it',
+    (fn.match(/\.(eq|ilike)\('party_name'/g) ?? []).length, 1);
   eq('it filters by product when there is one', /\.eq\('item_name'/.test(fn), true);
   eq('and it is capped so a short serial costs no more than a precise one',
     /\.limit\(limit\)/.test(fn), true);
@@ -3505,6 +3519,44 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the product box does not ask for a party that is gone',
     /pick a Party first/.test(rq), false);
   eq('nor mentions the party having no products', /no products for this party/.test(rq), false);
+}
+
+// ---------------------------------------------------------------------------
+// THE FIRST CALL FIXES THE CUSTOMER FOR THE REQUEST (the user's rule,
+// 2026-09-12). A request is one visit to one site: once call 1 has named the
+// customer, the later calls look among THAT customer's machines and share its
+// site and contact.
+{
+  console.log('\n-- call 1 sets the customer for the rest --');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+
+  eq('the request takes its customer from call 1',
+    /const lockedParty = \(items\[0\]\?\.party \?\? ''\)\.trim\(\)/.test(rq), true);
+
+  // A new call inherits rather than asking for the same hospital five times.
+  eq('a new call inherits the customer', /\.\.\.fresh, \.\.\.customerOf\(s\[0\]\)/.test(rq), true);
+  eq('and it inherits the whole site, not just the name',
+    /party: it\.party[\s\S]{0,240}contactNumber: it\.contactNumber/.test(rq), true);
+
+  // The product list narrows to what that customer owns…
+  eq('calls 2+ are offered only that customer\u2019s products',
+    /i > 0 && lockedParty && ownedProducts\.length \? ownedProducts : productOptions/.test(rq), true);
+  // …and the serial search is party + product.
+  eq('and the serial search is narrowed by customer too',
+    /sbSearchMachines\(it\.product, qq, 50, i > 0 \? lockedParty : ''\)/.test(rq), true);
+  const fn = /export async function sbSearchMachines[\s\S]*?\n\}/.exec(sb)?.[0] ?? '';
+  eq('the search takes a customer and filters on equality',
+    /if \(party\.trim\(\)\) q = q\.eq\('party_name', party\.trim\(\)\)/.test(fn), true);
+  // Call 1 must NOT be narrowed — there is no customer yet, and narrowing it
+  // would put the customer search back in front of the machine search.
+  eq('call 1 is not narrowed', /i > 0 \? lockedParty : ''/.test(rq), true);
+
+  // CHANGING CALL 1'S CUSTOMER cannot leave another call pointing at a machine
+  // the new customer does not own.
+  eq('a machine belonging to the replaced customer is cleared',
+    /staleMachine\s*\n?\s*\? \{ \.\.\.it, \.\.\.src, product: '', serial: '' \}/.test(rq), true);
+  eq('and the rest just take the new details', /: \{ \.\.\.it, \.\.\.src \}/.test(rq), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
