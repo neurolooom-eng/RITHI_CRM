@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.224',
+    date: '2026-09-12',
+    title: 'Who can see the Field Failure Register, and a role called by its own name',
+    changes: [
+      'FIXED: somebody\u2019s profile and the menu bar showed the WRONG ROLE. A role added from the app was labelled with the old built-in role instead \u2014 so a person moved to \u201CVP Technical\u201D was shown as \u201CField Engineer\u201D. Their access was correct all along; only the name on screen was wrong.',
+      'READING THE FIELD FAILURE REGISTER IS NOW ITS OWN PERMISSION. It was never governed by the Field Failure right at all \u2014 the register showed only reports on calls you could already see, so somebody could be given the page, and the right to edit reports, and still open an empty register.',
+      'Tick \u201CRead the whole Field Failure Register\u201D under Roles & Permissions for the people who should see it. Nobody gains anything until you do \u2014 everyone sees exactly what they saw before.',
+      'And an empty register now SAYS whether it is empty or withheld, instead of just looking broken.',
+      'Reports on your own calls stay visible to you without any of this.',
+    ],
+  },
+  {
     version: '0.9.223',
     date: '2026-09-12',
     title: 'Field Failure: an Insights tab, and the Register as a review desk',

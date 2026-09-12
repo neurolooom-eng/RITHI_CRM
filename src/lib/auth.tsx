@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { db, genId, type BaseRecord } from './db';
 import { authLogin, authSetPassword, listUsers, sheetsConfigured, type SheetUser } from './sheets';
-import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
-import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES } from './rbac';
+import { sbSignIn, sbSignOut, clearMyNotifications, sbCurrentProfile, sbListProfiles, sbOnAuthChange, getRolePerms, getRoleLabels, supabaseConfigured, hasPendingRecovery, sbConsumeRecovery, sbUpdatePassword, type Profile } from './supabase';
+import { DEFAULT_PERMS, permsForRole, toCanonical, legacyToRbac, parentAction, ROLES , roleLabelFor, setRoleLabels } from './rbac';
 import { setAuditUser, logAudit } from './audit';
 import { setCanExport } from './format';
 
@@ -90,11 +90,30 @@ export const ROLE_LABELS: Record<Role, string> = {
 // buckets, so on its own it renders every RBAC role (hotline, nsm, commercial,
 // spare_coordinator, …) as its bucket — e.g. Hotline shows as "Field Engineer".
 // Prefer the real RBAC role's label; fall back to the coarse label.
+/**
+ * The name to show for a person's role.
+ *
+ * IT NEVER FALLS BACK TO A DIFFERENT ROLE'S NAME. It used to: an rbac key the
+ * static ROLES list did not know fell through to ROLE_LABELS[u.role] — the
+ * LEGACY role — so somebody moved onto a role added from the application
+ * ("VP Technical", key `vptechnical`) was shown as "Field Engineer" on their
+ * own profile and in the menu bar. Reported 2026-09-12: "I have assigned a
+ * different Role, but he is on a Different Role."
+ *
+ * Their access was right the whole time — it runs on the key — which is what
+ * made it convincing and dangerous: the screen said one role and the system
+ * enforced another, and nothing reconciled the two.
+ *
+ * roleLabelFor() is now the single labeller: the built-in name, else the label
+ * the database holds for a role added from the app, else the key humanised.
+ * Every one of those NAMES THE ROLE THE PERSON IS ACTUALLY ON.
+ */
 export function roleLabel(u: { rbacRole?: string; role: Role } | null | undefined): string {
   if (!u) return '';
   const rb = (u.rbacRole || '').toLowerCase();
-  const fromRbac = rb ? ROLES.find((r) => r.key === rb)?.label : undefined;
-  return fromRbac || ROLE_LABELS[u.role] || rb || '';
+  // Only when there is no rbac key at all is the legacy label the right answer.
+  if (!rb) return ROLE_LABELS[u.role] || '';
+  return roleLabelFor(rb) || rb;
 }
 
 const USERS = 'users';
@@ -233,7 +252,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // A recovery link was captured at boot (see takeRecoveryFromUrl): exchange it
   // for a session so the user can set a new password.
   const [recovering, setRecovering] = useState(false);
-  const reloadRoles = async () => { if (supaMode) { const p = await getRolePerms(); if (Object.keys(p).length) setRolePerms((cur) => ({ ...cur, ...p })); } };
+  // The matrix AND the names. A role added from the application carries the
+  // label an administrator typed; without it every screen would humanise the
+  // key instead ("Vptechnical").
+  const reloadRoles = async () => {
+    if (!supaMode) return;
+    const p = await getRolePerms();
+    if (Object.keys(p).length) setRolePerms((cur) => ({ ...cur, ...p }));
+    setRoleLabels(await getRoleLabels());
+  };
   const reloadUsers = async () => { if (supaMode) { const list = await sbListProfiles(); setSupaUsers(list.map(profileToUser)); } };
 
   useEffect(() => {

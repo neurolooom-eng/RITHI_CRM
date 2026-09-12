@@ -169,6 +169,12 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // Deciding a failure goes to manufacturing is not the same act as coding the
   // call in the Daily Call Review, and the two are held by different people
   // here — so it is its own right rather than riding on review.edit.
+  // READING THE REGISTER IS ITS OWN RIGHT (0176). The page key opens the SCREEN;
+  // this is what puts rows on it. They were one thing until somebody held
+  // ffr.manage, opened the register and found it empty — the data is governed
+  // by RLS, which knew nothing about either permission and scoped the register
+  // to call visibility instead.
+  { group: 'Calls', key: 'ffr.view', label: 'Read the whole Field Failure Register' },
   { group: 'Calls', key: 'ffr.manage', label: 'Raise and complete a Field Failure Report' },
   { group: 'Requests', key: 'request.create', label: 'Raise call requests' },
   { group: 'Requests', key: 'pending.register', label: 'Register pending (Hotline)' },
@@ -255,13 +261,13 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
-  nsm: ['ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
-  rgm: ['ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
-  rm: ['ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
+  nsm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
+  rgm: ['ffr.view', 'ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
+  rm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
   engineer: ['calls.view', 'calls.report', 'request.create', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view'],
   // Hotline: register/create calls; no spare requests. May drop a spare.
-  hotline: ['ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
+  hotline: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'ownership.transfer', 'calls.create', 'install.create', 'calls.edit', 'calls.allot', 'request.create', 'pending.register', 'spare.approve_rm', 'spare.drop', 'consumption.view', 'consumption.reconcile', 'masters.view', 'dashboard.view', 'review.edit'],
   spare_coordinator: ['calls.view', 'docs.manage', 'spare.request', 'spare.approve_rm', 'spare.dispatch', 'spare.drop', 'stock.transfer', 'stock.return', 'consumption.view', 'consumption.reconcile', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   stores_incharge: ['calls.view', 'spare.dispatch', 'stock.transfer', 'stock.return', 'consumption.view', 'reports.view', 'dashboard.view', 'indoor.receive', 'indoor.work', 'indoor.dispatch'],
   tally_coordinator: ['calls.view', 'consumption.view', 'reports.view', 'feedback.view', 'dashboard.view'],
@@ -342,7 +348,7 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
-    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.manage'] },
+    { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
     { path: '/objective', label: 'Objective', actions: [] },
   ] },
@@ -483,8 +489,28 @@ export function roleProblem(key: string, label: string, existing: string[], clon
 }
 
 /** A label for a role key that is not in the built-in list: "regional_coordinator" → "Regional Coordinator". */
+// ---------------------------------------------------------------------------
+// THE LABELS THE DATABASE HOLDS, for roles the code does not know.
+//
+// A role added from the application (URS-056) exists in `app_roles` with the
+// name an administrator typed — "VP Technical" — and nowhere in this file. Until
+// the labels are loaded, such a key can only be humanised from itself, which
+// gives "Vptechnical". Filled once by the auth provider when it reads the role
+// matrix, so EVERY label in the application is right rather than each screen
+// solving it again.
+//
+// A cache with a safe fallback, deliberately: a label that has not loaded yet
+// renders as the humanised key, never as a different role's name.
+// ---------------------------------------------------------------------------
+let dbRoleLabels: Record<string, string> = {};
+
+export function setRoleLabels(labels: Record<string, string>): void {
+  dbRoleLabels = { ...dbRoleLabels, ...labels };
+}
+
 export const roleLabelFor = (key: string): string =>
   ROLES.find((r) => r.key === key)?.label
+  ?? (key && dbRoleLabels[key]) 
   ?? (key ? key.split('_').filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : '');
 
 /**

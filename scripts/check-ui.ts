@@ -26,7 +26,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
-import { DEFAULT_PERMS, MODULES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
+import { DEFAULT_PERMS, MODULES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
@@ -4179,6 +4179,81 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the save path was found', saveFn !== '', true);
   eq('an edit does not restamp raised_by_name',
     /editing == null[\s\S]*?raised_by_name/.test(saveFn) && !/^\s*const payload = \{ \.\.\.form, raised_by_name/m.test(saveFn), true);
+}
+
+// ---------------------------------------------------------------------------
+// READING THE FIELD FAILURE REGISTER IS ITS OWN RIGHT (0176).
+//
+// Reported from use, 2026-09-12: a role holding ffr.manage and the page key
+// opened the register and it was EMPTY. ffr_read tested neither permission — it
+// scoped the register to CALL visibility, so ffr.manage granted the right to
+// WRITE a register its holder could not READ.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- reading the Field Failure Register --');
+  const m = readFileSync('supabase/migrations/0176_ffr_view_right.sql', 'utf8');
+  const body = m.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+  const read = /create policy ffr_read[\s\S]*?\n  \);/.exec(body)?.[0] ?? '';
+  eq('the read policy was found', read !== '', true);
+  eq('ffr.view grants the register', /has_perm\('ffr\.view'\)/.test(read), true);
+  // THE OLD SCOPE IS KEPT. Removing it would take away what people have today —
+  // a report on your own call — which nobody asked for.
+  eq('…and your own call still is', /from public\.calls c where c\.ucn/.test(read), true);
+  eq('as are your own reports and the office roles',
+    /raised_by = \(select auth\.uid\(\)\)/.test(read) && /can_view_all_calls\(\)/.test(read), true);
+  // IT WIDENS NOTHING ON APPLY: only roles that already held ffr.manage.
+  eq('the grant is scoped to roles that already write',
+    /where ar\.permissions \? 'ffr\.manage'/.test(body), true);
+  eq('and it MERGES rather than overwrites', /jsonb_agg\(distinct v\)/.test(body), true);
+  // THE HISTORY FOLLOWS THE REGISTER — in 0177, and in its own file for a
+  // reason: ffrh_read belongs to the `data_integrity` module while ffr_read
+  // belongs to `daily_review`, and one migration redefining both would be
+  // reverted by a replay of the other. check:bundles caught exactly that here.
+  const hist = readFileSync('supabase/migrations/0177_ffr_history_view_right.sql', 'utf8');
+  eq('the update log follows the register',
+    /create policy ffrh_read[\s\S]*?has_perm\('ffr\.view'\)/.test(hist), true);
+  eq('…and the two policies stay in separate files',
+    /ffrh_read/.test(body), false);
+
+  // THE RIGHT MUST BE GRANTABLE FROM THE SCREEN, or it is a permission nobody
+  // can give — which is how this started.
+  const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
+  eq('ffr.view is on the action list', /key: 'ffr\.view'/.test(rbac), true);
+  eq('and on the Field Failure page in the matrix',
+    /'\/failure-report', label: 'Field Failure Register', actions: \['ffr\.view', 'ffr\.manage'\]/.test(rbac), true);
+
+  // AN EMPTY REGISTER MUST SAY WHY. "There are no reports" and "you cannot see
+  // the reports" look identical and mean opposite things.
+  const screen = readFileSync('src/modules/FieldFailureReport.tsx', 'utf8');
+  eq('an empty register names the right to ask for',
+    /!can\('ffr\.view'\)/.test(screen) && /Read the whole Field Failure Register/.test(screen), true);
+}
+
+// ---------------------------------------------------------------------------
+// A ROLE'S NAME IS THE ROLE THE PERSON IS ON.
+//
+// Reported 2026-09-12: "I have assigned a different Role, but he is on a
+// Different Role." A key the static ROLES list did not know fell through to the
+// LEGACY role's label, so somebody on `vptechnical` was shown as "Field
+// Engineer" — while their access ran on vptechnical the whole time.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- a role is named as itself --');
+  const auth = readFileSync('src/lib/auth.tsx', 'utf8');
+  const fn = /export function roleLabel\([\s\S]*?\n\}/.exec(auth)?.[0] ?? '';
+  eq('roleLabel was found', fn !== '', true);
+  // The legacy label is only right when there is NO rbac key at all.
+  eq('an rbac key is never labelled from the legacy role',
+    /if \(!rb\) return ROLE_LABELS\[u\.role\]/.test(fn) && !/\|\| ROLE_LABELS\[u\.role\]/.test(fn), true);
+  eq('and it uses the one labeller', /roleLabelFor\(rb\)/.test(fn), true);
+
+  // A role the code does not know is named from the database, and failing that
+  // from its own key — never from another role.
+  eq('database labels are consulted', /dbRoleLabels\[key\]/.test(readFileSync('src/lib/rbac.ts', 'utf8')), true);
+  eq('an unknown key humanises to itself', roleLabelFor('vptechnical'), 'Vptechnical');
+  eq('a built-in key keeps its name', roleLabelFor('nsm'), 'NSM (National Service Manager)');
+  setRoleLabels({ vptechnical: 'VP Technical' });
+  eq('…and the database label wins once loaded', roleLabelFor('vptechnical'), 'VP Technical');
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
