@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.226',
+    date: '2026-09-12',
+    title: 'A tidier visit pane, and the buttons where you reach for them',
+    changes: [
+      'The visit details beside a report no longer show the form\u2019s own answers \u2014 Add Consumption?, Maintenance Done?, Recomended Filter Changed?, Update Visit Work Details? \u2014 nor Call Type, Standard Complaint, Complaint Observation or Visit Entry Date, which the report already carries or the Visit Date already says.',
+      'What is left is the work: Job Done, the report link, software version, visit date and hour meter.',
+      'EDIT AND PRINT ARE AT THE TOP of the report now, beside its number \u2014 no scrolling past the whole record to reach them.',
+      'Every date on the pane reads DD-MMM-YYYY like the rest of the app, instead of 01/09/2026.',
+      'The same tidy applies to the Call Review desk, which shows the same pane.',
+    ],
+  },
+  {
     version: '0.9.225',
     date: '2026-09-12',
     title: 'The visits and spares show on a Field Failure Report',

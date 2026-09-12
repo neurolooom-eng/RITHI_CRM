@@ -19,6 +19,37 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The visit pane, tidied — 2026-09-12 (v0.9.226, shipped, no SQL)
+
+Eight fields highlighted on screen, plus two layout asks.
+
+**HIDDEN**, matched on a NORMALISED key (lower-cased, punctuation stripped)
+because these labels are DATA typed into the visit form and one is misspelt in
+the live data — *"Recomended Filter Changed?"*. Both spellings are listed, so
+correcting it later does not un-hide the field.
+
+* the form's own answers — Add Consumption?, Maintenance Done?, Recomended
+  Filter Changed?, Update Visit Work Details? — which steer the form while it is
+  filled in and say nothing about the failure;
+* what the record already carries — Call Type and Standard Complaint are facts
+  about the CALL repeated on every visit and printed on the report; Visit Entry
+  Date is when the form was saved, beside the Visit Date that says when the
+  engineer was there;
+* Complaint Observation, also highlighted.
+
+**DATES** now read DD-MMM-YYYY through the application's own formatter. The
+visit heading was `toLocaleDateString('en-GB')` — "01/09/2026", a fifth format
+and the ambiguous one. Gated on the KEY, not on whether a value happens to
+parse: "V1.2.9" and an hour-meter reading are not dates.
+
+**EDIT AND PRINT** moved to the header row beside the FFR number. The pane
+scrolls on its own, so on a long report they could be off-screen entirely.
+
+⚠️ **This is the SHARED pane**, so the Call Review desk gets the same tidy. That
+follows from keeping one definition of "what happened on this call" — but it was
+not separately asked for, and Complaint Observation is the one I would put back
+first if any of it is wanted there.
+
 ### The right-hand pane was empty too — 2026-09-12 (v0.9.225, SQL to run)
 
 Two screenshots side by side: an administrator saw the visit work and the
