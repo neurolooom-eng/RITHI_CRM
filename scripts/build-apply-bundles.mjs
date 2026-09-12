@@ -279,7 +279,10 @@ const MODULES = {
             // which 0165 above creates. In any other module a replay of
             // daily_review.sql alone would restore 0165's version and the
             // register would go empty again.
-            '0176_ffr_view_right.sql'],
+            '0176_ffr_view_right.sql',
+            // A function of its own — it defines nothing another module owns,
+            // so it is safe last here beside the right it is gated on.
+            '0178_ffr_call_context.sql'],
   },
   notifications: {
     title: 'Notifications',

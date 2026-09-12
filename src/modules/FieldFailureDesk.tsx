@@ -27,7 +27,7 @@ import { SearchBox } from '../components/ui/ui';
 import { CallContext } from '../components/callcontext/CallContext';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
-import { reportHistory, consumptionForCall } from '../lib/supabase';
+import { reportHistory, consumptionForCall, ffrCallContext } from '../lib/supabase';
 import { fmtLongDate } from '../lib/format';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrEffectWithdrawn, ffrDueForReview } from '../lib/ffr';
 import './dccr.css';
@@ -115,10 +115,24 @@ export function FieldFailureDesk({ rows, busy, onEdit }: {
     if (!ucn) { setVisits([]); setSpares([]); return; }
     let alive = true;
     setVisits([]); setSpares([]); setCtxBusy(true);
+    // THE REGISTER'S OWN CONTEXT FIRST (0178), then the tables.
+    //
+    // `reports` and `spare_consumption` are scoped to CALL visibility, which
+    // reading the register does not confer — so somebody granted `ffr.view`
+    // saw an empty pane beside every report until this existed. The function
+    // returns the visits and spares for a call that HAS a report, to somebody
+    // who may read the register; NULL otherwise, and then the direct reads
+    // apply the caller's own policies exactly as before. Nobody loses a visit
+    // they could already see.
+    //
     // BY UCN, not by call number: a report carries the UCN and nothing else
     // identifying the call, and `reports` is keyed on it.
-    Promise.all([reportHistory(ucn), consumptionForCall(ucn, '')])
-      .then(([v, s]) => { if (alive) { setVisits(v); setSpares(s); } })
+    ffrCallContext(ucn)
+      .then(async (ctx) => ctx ?? {
+        visits: await reportHistory(ucn),
+        spares: await consumptionForCall(ucn, ''),
+      })
+      .then(({ visits: v, spares: s }) => { if (alive) { setVisits(v); setSpares(s); } })
       .catch(() => { if (alive) { setVisits([]); setSpares([]); } })
       .finally(() => { if (alive) setCtxBusy(false); });
     return () => { alive = false; };

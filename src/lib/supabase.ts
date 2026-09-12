@@ -4182,6 +4182,31 @@ export async function listFfrHistory(ffrNo: string): Promise<FfrHistoryRow[]> {
   return (data ?? []) as FfrHistoryRow[];
 }
 
+/**
+ * THE VISITS AND SPARES BEHIND A REPORT (0178).
+ *
+ * Reported from use: an administrator saw the register's right-hand pane
+ * populated and somebody granted `ffr.view` saw "0 visits" on the same report.
+ * `reports` and `spare_consumption` are scoped to CALL visibility, which
+ * reading the register does not confer.
+ *
+ * Returns null when the caller does not qualify, or when the UCN has no report
+ * — and the desk then reads the tables directly, so nobody loses the visits
+ * their own policies already allow them.
+ */
+export async function ffrCallContext(ucn: string): Promise<
+  { visits: Record<string, unknown>[]; spares: Record<string, unknown>[] } | null> {
+  const c = getSupabase(); if (!c) return null;
+  const { data, error } = await c.rpc('ffr_call_context', { p_ucn: ucn });
+  // A database that has not had 0178 yet is "fall back", not "broken".
+  if (error || !data) return null;
+  const d = data as { visits?: unknown; spares?: unknown };
+  return {
+    visits: Array.isArray(d.visits) ? d.visits as Record<string, unknown>[] : [],
+    spares: Array.isArray(d.spares) ? d.spares as Record<string, unknown>[] : [],
+  };
+}
+
 export async function listFfrs(limit = 5000): Promise<Record<string, unknown>[]> {
   const c = getSupabase(); if (!c) return [];
   const PAGE = 1000;
