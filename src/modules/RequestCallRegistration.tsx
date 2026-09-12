@@ -250,10 +250,17 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 
   const [f, setF] = useState<Form>(blank);
   const [items, setItems] = useState<Item[]>([blankItem()]);
-  // The machines the last serial search returned, kept so a PICK can find the
-  // customer that came with the row. PickList hands back the value, not the
-  // object, and the customer is the whole point of the search.
-  const [machineHits, setMachineHits] = useState<MachineHit[]>([]);
+  // The machines each serial search returned, kept so a PICK can find the
+  // customer that came with it: PickList hands back the value, not the object,
+  // and the customer is the whole point of the search.
+  //
+  // PER ROW, and that is the fix for "now product serial no search is an
+  // issue". One shared list meant a search in call 2 replaced call 1's options,
+  // and picking in call 1 then found no machine -- so the row got a serial with
+  // NO CUSTOMER, and the request was refused for a serial that is on the
+  // register. Five calls, one variable.
+  const [machineHits, setMachineHits] = useState<Record<number, MachineHit[]>>({});
+  const hitsFor = (i: number): MachineHit[] => machineHits[i] ?? [];
   // Installation Report / KYC are documents: uploaded to the Drive folder and
   // stored on the request as their Drive link.
   const [docs, setDocs] = useState<Docs>({ installationReport: null, kyc: null });
@@ -547,11 +554,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 {field('Product *', (
                   <SelectPicker
                     value={it.product}
-                    onChange={(v) => setItems((s) => s.map((x, j) => (j === i ? { ...x, product: v, serial: '' } : x)))}
-                    placeholder={isInstall ? '— pick from Product Master —'
-                      : !f.partyName.trim() ? '— pick a Party first —'
-                      : productOptions.length ? '— pick a product —'
-                      : '— no products for this party —'}
+                    onChange={(v) => setItems((s) => s.map((x, j) => (j === i
+                      ? { ...x, product: v, serial: '', party: '', city: '', state: '', address: '' }
+                      : x)))}
+                    // The party words are gone: there is no party to pick first
+                    // any more, and a box telling somebody to do something the
+                    // form no longer asks for is worse than a bare label.
+                    placeholder={isInstall ? '— pick from Product Master —' : '— pick a product —'}
                     // a value the current list cannot offer (e.g. imported) stays selectable
                     options={withCurrent(productOptions, it.product)} />
                 ))}
@@ -577,18 +586,18 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                       return (
                         <PickList
                           value={it.serial}
-                          options={withCurrent(machineHits.map((m: MachineHit) => m.serial), it.serial)}
+                          options={withCurrent(hitsFor(i).map((m: MachineHit) => m.serial), it.serial)}
                           onSearch={async (qq) => {
                             const hits = await sbSearchMachines(it.product, qq);
-                            setMachineHits(hits);
+                            setMachineHits((h) => ({ ...h, [i]: hits }));
                             return hits.map((m: MachineHit) => m.serial);
                           }}
                           onPick={(v) => {
-                            const m = machineHits.find((x: MachineHit) => x.serial === v);
+                            const m = hitsFor(i).find((x: MachineHit) => x.serial === v);
                             if (m) takeMachine(i, m); else setItem(i, 'serial', v);
                           }}
                           labelFor={(v: string) => {
-                            const m = machineHits.find((x: MachineHit) => x.serial === v);
+                            const m = hitsFor(i).find((x: MachineHit) => x.serial === v);
                             if (!m) return v;
                             return `${m.serial} · ${m.party}${m.city ? ` · ${m.city}` : ''}${taken(v) ? ' — already on this request' : ''}`;
                           }}
