@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.223',
+    date: '2026-09-12',
+    title: 'Field Failure: an Insights tab, and the Register as a review desk',
+    changes: [
+      'TWO TABS now. INSIGHTS answers the questions asked across the whole register \u2014 which machines fail, under what cover, month by month, root cause and complaint grouping from the Daily Call Review, and how many reports are open, due a weekly review, or still have a CAPA in hand.',
+      'REGISTER is the review desk: the list of reports on the left, the report itself in the middle, and on the right what actually happened on its call \u2014 every visit, and the spares used in a table.',
+      'It is the same desk as Call Review, so if you work one you already know the other.',
+      'Filter the list to Open, or to the ones due a review this week, and open the report to edit it or print it without leaving the desk.',
+      'The flat table is still there \u2014 Desk / Table on the Register tab \u2014 for every column at once, sorted, filtered and exported.',
+    ],
+  },
+  {
     version: '0.9.222',
     date: '2026-09-12',
     title: 'Editing a Field Failure Report saves again',

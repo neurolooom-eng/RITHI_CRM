@@ -16,6 +16,8 @@ import {
   type ReviewSource,
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
+import { FieldFailureInsights } from './FieldFailureInsights';
+import { FieldFailureDesk } from './FieldFailureDesk';
 import { useMySignature, signatureBelongsTo } from '../lib/signature';
 import { companyLogoBytes, COMPANY_LOGO_TYPE } from '../lib/brand';
 import './fieldcalls.css';
@@ -52,6 +54,12 @@ export function FieldFailureReport() {
   const [status, setStatus] = useState('');
   const [form, setForm] = useState<Record<string, unknown> | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
+  // TWO TABS (the user, 2026-09-12): Insights across the record, Register for
+  // the record itself. Register opens on the DESK they asked for; the flat
+  // table is the other view on it, because a desk cannot do what a table does —
+  // every column at once, sorted, filtered and exported.
+  const [tab, setTab] = useState<'insights' | 'register'>('register');
+  const [view, setView] = useState<'desk' | 'table'>('desk');
 
   const load = async () => {
     if (!supabaseConfigured()) { setMsg({ tone: 'info', text: 'Connect the database in Settings to load the register.' }); return; }
@@ -208,7 +216,7 @@ export function FieldFailureReport() {
         title="Field Failure Register"
         subtitle="Raised automatically when a call is answered YES for Any Potential Effect in the Daily Call Review. The format is the Field Failure Register sheet; the report is R-SER-03 Rev 02."
         icon="🧪"
-        count={visible.length}
+        count={tab === 'insights' ? rows.length : visible.length}
         countMore={false}
         onRefresh={() => void load()}
         refreshing={busy}
@@ -229,24 +237,56 @@ export function FieldFailureReport() {
         </div>
       )}
 
-      <div className="cr-bar" style={{ marginBottom: 10 }}>
-        <SearchBox value={q} onChange={setQ} placeholder="FFR no, UCN, customer, product, serial, problem…" />
-        <div className="cr-tabs">
-          {['', ...FFR_STATUS].map((s) => (
-            <button key={s || 'all'} className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => setStatus(s)}>{s || 'All'}</button>
-          ))}
-          <button className="btn btn-sm" onClick={() => csvExport('field-failure-register.csv', FFR_COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible)}>⬇ CSV</button>
-        </div>
+      <div className="stage-chips hs-tabs">
+        <button className={`chip ${tab === 'insights' ? 'chip-on' : ''}`} onClick={() => setTab('insights')}>
+          📈 Insights
+        </button>
+        <button className={`chip ${tab === 'register' ? 'chip-on' : ''}`} onClick={() => setTab('register')}>
+          🧪 Register <b>{rows.length}</b>
+        </button>
+        {tab === 'register' && (
+          <>
+            <div className="spacer" />
+            <button className={`chip ${view === 'desk' ? 'chip-on' : ''}`} onClick={() => setView('desk')}>Desk</button>
+            <button className={`chip ${view === 'table' ? 'chip-on' : ''}`} onClick={() => setView('table')}>Table</button>
+          </>
+        )}
       </div>
 
-      <DataTable
-        rows={visible}
-        columns={columns}
-        getRowId={(r) => r.id}
-        storageKey="rithi.ffr.table"
-        onRowClick={mayRaise ? (r) => { setEditing(Number(r.id)); setForm({ ...r }); } : undefined}
-      />
+      {tab === 'insights' ? (
+        // OVER EVERY ROW LOADED, not the filtered set: an aggregate that moves
+        // when somebody types in a search box is a different question from the
+        // one the page appears to be answering.
+        <FieldFailureInsights rows={rows} />
+      ) : view === 'desk' ? (
+        <FieldFailureDesk
+          rows={visible}
+          busy={busy}
+          // The desk SHOWS and the drawer WRITES — one save path, not two.
+          onEdit={(r) => { if (mayRaise) { setEditing(Number(r.id)); setForm({ ...r }); } }}
+        />
+      ) : (
+        <>
+          <div className="cr-bar" style={{ marginBottom: 10 }}>
+            <SearchBox value={q} onChange={setQ} placeholder="FFR no, UCN, customer, product, serial, problem…" />
+            <div className="cr-tabs">
+              {['', ...FFR_STATUS].map((s) => (
+                <button key={s || 'all'} className={`btn btn-sm ${status === s ? 'btn-primary' : 'btn-ghost'}`}
+                        onClick={() => setStatus(s)}>{s || 'All'}</button>
+              ))}
+              <button className="btn btn-sm" onClick={() => csvExport('field-failure-register.csv', FFR_COLUMNS.map((c) => ({ key: c.key, header: c.header })), visible)}>⬇ CSV</button>
+            </div>
+          </div>
+
+          <DataTable
+            rows={visible}
+            columns={columns}
+            getRowId={(r) => r.id}
+            storageKey="rithi.ffr.table"
+            onRowClick={mayRaise ? (r) => { setEditing(Number(r.id)); setForm({ ...r }); } : undefined}
+          />
+        </>
+      )}
 
       <Drawer
         open={!!form}

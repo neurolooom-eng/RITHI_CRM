@@ -3214,8 +3214,21 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // The three panes the user asked for, in their order.
   eq('three panes: calls, the call, what happened on it',
     /dccr-pane-list[\s\S]*dccr-pane-review[\s\S]*dccr-pane-details/.test(cr), true);
+  // THE RIGHT PANE IS A SHARED COMPONENT NOW. It was lifted out of this screen
+  // when the Field Failure Register asked for the same pane (2026-09-12) — two
+  // copies of "what happened on this call" would drift, and what they render is
+  // a quality record. So the content is asserted where it LIVES, and this
+  // screen is asserted to USE it: checking only the file it used to be in would
+  // have started passing again the moment somebody inlined a second copy.
+  const ctx = readFileSync('src/components/callcontext/CallContext.tsx', 'utf8');
   eq('the right pane carries the visit work AND the spares',
-    /Visit work details/.test(cr) && /Spares consumed/.test(cr), true);
+    /Visit work details/.test(ctx) && /Spares consumed/.test(ctx), true);
+  eq('and the Call Review renders that one pane', /<CallContext\b/.test(cr), true);
+  eq('rather than a second copy of it',
+    /Visit work details/.test(cr) || /Spares consumed/.test(cr), false);
+  // The spares are a TABLE, which is how the user asked for them.
+  eq('the spares are tabular',
+    /<table className="cr-spares">[\s\S]*?<th>Part<\/th>[\s\S]*?<th>Qty<\/th>/.test(ctx), true);
   eq('and the three actions are on it', /Report Reviewed/.test(cr) && /Reco/.test(cr) && /Re-open/.test(cr), true);
 }
 
@@ -3247,9 +3260,11 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     linkLabel('Manual Report', 'https://drive.google.com/file/d/1o9mfd/view'), 'Open the report ↗');
   eq('another link keeps its host', linkLabel('Reference', 'https://example.com/a/b'), 'example.com ↗');
 
-  const cr = readFileSync('src/modules/CallReview.tsx', 'utf8');
+  // The visit fields are rendered by the shared pane, so the link rule is
+  // asserted there rather than in the screen it used to sit in.
+  const ctx = readFileSync('src/components/callcontext/CallContext.tsx', 'utf8');
   eq('the link opens away from the app, and cannot reach back into it',
-    /target="_blank" rel="noopener noreferrer"/.test(cr), true);
+    /target="_blank" rel="noopener noreferrer"/.test(ctx), true);
 }
 
 // ---------------------------------------------------------------------------
