@@ -8,13 +8,10 @@ import { logAudit } from '../lib/audit';
 import { fmtLongDate, csvExport } from '../lib/format';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
+import { listFfrs, addFfr, updateFfr, supabaseConfigured } from '../lib/supabase';
 import {
-  listFfrs, addFfr, updateFfr, supabaseConfigured,
-  reportsByCall, consumptionForCall,
-} from '../lib/supabase';
-import {
-  FFR_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_STATUS, FFR_SOURCES,
-  ffrDocFrom, ffrFromCall, type CallPrefill,
+  FFR_COLUMNS, FFR_COVER, FFR_CAPA_STATUS, FFR_CAPA_RESPONSIBILITY, FFR_STATUS, FFR_SOURCES,
+  ffrDocFrom, ffrFromReview, ffrCallNotSolved, type ReviewSource,
 } from '../lib/ffr';
 import { ffrDocDownload } from '../lib/ffrdoc';
 import './fieldcalls.css';
@@ -64,37 +61,23 @@ export function FieldFailureReport() {
   };
   useEffect(() => { void load(); }, []);
 
-  // ARRIVED FROM THE DAILY CALL REVIEW. The call fills in what it knows and the
-  // visit fills in the rest — the observation, what was fitted, when it was
-  // solved — because re-typing those from the screen next door is how the
-  // register and the report come to disagree with the call.
+  // ARRIVED FROM THE DAILY CALL REVIEW, which already holds the report.
+  //
+  // It used to re-read the visits and the consumption here. It does not need
+  // to: the review row carries Review 3's "Service Dept Observation" — the FFR
+  // column of that name — plus `visit_details` already formatted as the sheet
+  // formats VISIT REMARKS, and `spares_consumed` already joined. Two fewer
+  // requests, and the register, the review and the report cannot disagree
+  // about the same failure.
   useEffect(() => {
-    const call = (loc.state as { ffrFromCall?: CallPrefill } | null)?.ffrFromCall;
+    const call = (loc.state as { ffrFromCall?: ReviewSource } | null)?.ffrFromCall;
     if (!call) return;
     nav(loc.pathname, { replace: true, state: null });   // so a reload does not re-open it
-    const base = ffrFromCall(call);
     setEditing(null);
-    setForm(base);
-    const ucn = String(call.ucn ?? '');
-    const callNo = String(call.call_number ?? '');
-    if (!ucn && !callNo) return;
-    void Promise.all([reportsByCall(callNo || ucn), consumptionForCall(ucn, callNo)])
-      .then(([visits, spares]) => {
-        const latest = visits[0] as Record<string, unknown> | undefined;
-        const d = (latest?.data && typeof latest.data === 'object' ? latest.data : {}) as Record<string, unknown>;
-        setForm((f) => (f ? {
-          ...f,
-          service_observation: String(d['Complaint Observation'] ?? ''),
-          problem_status: String(d['Job Done'] ?? ''),
-          visit_remarks: visits.map((v) => {
-            const vd = (v.data && typeof v.data === 'object' ? v.data : {}) as Record<string, unknown>;
-            return `${fmtLongDate(v.visit_at) || ''} : ${String(vd['Job Done'] ?? '')}`.trim();
-          }).filter((s) => s.length > 3).join('\n'),
-          spares_consumed: spares.map((s) => String(s.part ?? '')).filter(Boolean).join(', '),
-          call_solved_at: latest?.visit_at ?? null,
-        } : f));
-      })
-      .catch(() => { /* the call's own fields are already in; the visit is a bonus */ });
+    setForm(ffrFromReview(call));
+    if (ffrCallNotSolved(String(call.open_state ?? call.last_status ?? ''))) {
+      setMsg({ tone: 'info', text: 'This call is not solved yet. Every FFR on the 2026 register is a solved call — raising one now is allowed, but the observation and status will be incomplete.' });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.state]);
 
@@ -180,7 +163,7 @@ export function FieldFailureReport() {
         onRefresh={() => void load()}
         refreshing={busy}
         actions={mayRaise
-          ? <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(ffrFromCall({})); }}>＋ Raise FFR</button>
+          ? <button className="btn btn-primary" onClick={() => { setEditing(null); setForm(ffrFromReview({})); }}>＋ Raise FFR</button>
           : undefined}
       />
 
@@ -260,7 +243,7 @@ export function FieldFailureReport() {
             <section className="rep-sec">
               <div className="rep-sec-title">CAPA and closure</div>
               <div className="rep-grid">
-                {field('CAPA (if reqd) Responsibility', 'capa_responsibility')}
+                {field('CAPA (if reqd) Responsibility', 'capa_responsibility', 'pick', FFR_CAPA_RESPONSIBILITY)}
                 {field('CAPA NO', 'capa_no')}
                 {field('CAPA Status', 'capa_status', 'pick', FFR_CAPA_STATUS)}
                 {field('FFR Status', 'ffr_status', 'pick', FFR_STATUS)}

@@ -1187,13 +1187,27 @@ function ReviewDrawer({
             className="btn btn-sm"
             title="Raise a Field Failure Report for this call"
             onClick={() => nav('/failure-report', { state: { ffrFromCall: {
-              ucn: row.ucn, call_number: row.call_number, reg_date: row.reg_date,
+              // THE WHOLE ROW'S WORTH, because this review already holds the
+              // report: Review 3's own "Service Dept Observation" is the FFR
+              // column of that name, `visit_details` is already the sheet's
+              // VISIT REMARKS format, and `spares_consumed` is already joined.
+              // Sending a subset would make the FFR screen fetch again and
+              // risk the two disagreeing about one failure.
+              ucn: row.ucn, call_number: row.call_number,
+              reg_date: row.reg_date, complaint_date: row.complaint_date,
               party_name: row.party_name, city: row.city,
               product_name: row.product_name, serial: row.serial,
               item_status: row.item_status, call_type: row.call_type,
+              warranty_start: row.warranty_start,
               complaint_reported: row.complaint_reported,
               standard_complaint: row.standard_complaint,
+              service_observation: row.service_observation,
+              observation: row.observation,
+              job_done: row.job_done,
+              visit_details: row.visit_details,
+              spares_consumed: row.spares_consumed,
               open_state: row.open_state, last_status: row.last_status,
+              last_visit_at: row.last_visit_at,
             } } })}
           >🧪 Raise FFR</button>
           {ffrsHere.length > 0 && (
