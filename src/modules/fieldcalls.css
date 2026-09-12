@@ -523,4 +523,20 @@
 /* The customer a machine resolved to, on a call-request row. Read-only: it is
    the register's answer, not an opinion — and SHOWN rather than hidden, so a
    wrong serial is caught on the form instead of on the call. */
-.req-machine-party { font-size: 12.5px; padding: 2px 2px 0; overflow-wrap: anywhere; }
+/* The customer a machine resolved to. It spans the row (it is a .rep-field, so
+   .rep-span2 applies) and reads as an ANSWER rather than another input: no box,
+   no border, set against the row so it cannot be mistaken for something to
+   fill in. */
+.req-machine-party {
+  /* Spans the row ITSELF rather than borrowing .rep-field -- that class is a
+     flex COLUMN, which turned "Customer:" and the name into two stacked items. */
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 6px 9px;
+  border-left: 3px solid var(--primary);
+  background: var(--surface);
+  border-radius: 0 6px 6px 0;
+  overflow-wrap: anywhere;
+}
+.req-machine-party b { font-weight: 650; }

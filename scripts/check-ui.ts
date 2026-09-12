@@ -3433,5 +3433,41 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /const serialTakenElsewhere = \(serial: string, forIndex: number\)/.test(rq), true);
 }
 
+// ---------------------------------------------------------------------------
+// THE MACHINE ROW'S LAYOUT. Three separate faults, reported together
+// 2026-09-12 ("fix this whole thing in one go"), each of which made the new
+// flow read as broken even though it worked.
+{
+  console.log('\n-- the machine row lays out --');
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+
+  // 1. The CLOSED box shows the machine, not the decorated row. Undecorated it
+  //    became two wrapped lines of hospital name in a field labelled Serial No.
+  eq('the serial box shows the serial alone', /plainValue\n/.test(rq) || /plainValue$/m.test(rq), true);
+  eq('and PickList honours that for both closed states',
+    (pl.match(/plainValue \? value : \(labelFor\?\.\(value\) \?\? value\)/g) ?? []).length, 2);
+  // Spare Consumption still WANTS the decoration ("part — 3 in hand"), so the
+  // default must stay decorated.
+  eq('a picker that does not ask still gets its label',
+    /plainValue\?: boolean;/.test(pl), true);
+
+  // 2. The resolved customer spans the row. It did not, because .rep-span2
+  //    only spans when paired with .rep-field — so it sat in the left column
+  //    and pushed the complaint into the right one.
+  const line = /\.req-machine-party \{[^}]*\}/.exec(css)?.[0] ?? '';
+  eq('the customer line spans the row on its own', /grid-column: 1 \/ -1/.test(line), true);
+  // 3. …and it must NOT borrow .rep-field, which is a flex COLUMN: that stacked
+  //    "Customer:" and the name onto separate lines.
+  eq('and does not inherit the flex column', /className="req-machine-party"/.test(rq), true);
+  eq('so it is not also a rep-field', /rep-field[^"]*req-machine-party/.test(rq), false);
+
+  // 4. A section heading has to describe what is under it: on a field call the
+  //    customer is no longer in that section at all.
+  eq('the section is not called Customer when it holds none',
+    /isInstall \? 'Customer' :/.test(rq), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

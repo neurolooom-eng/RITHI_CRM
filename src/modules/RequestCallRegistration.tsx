@@ -435,7 +435,14 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
         </section>
 
         <section className="rep-sec">
-          <div className="rep-sec-title">Customer</div>
+          {/* A heading has to describe what is under it. On a field or PM call
+              the customer is no longer here -- it comes off each machine below --
+              so this section is now what is left: where the engineer is going
+              and who to ask for. Calling it "Customer" with no customer in it
+              was the confusing part of the new layout. */}
+          <div className="rep-sec-title">
+            {isInstall ? 'Customer' : <>Site &amp; contact <span className="muted" style={{ fontWeight: 400 }}>— the customer comes from the machine, on each call below</span></>}
+          </div>
           <div className="rep-grid">
             {/* THE PARTY IS PICKED, NOT TYPED — and this is the fix for "it is
                 taking a very long time to accept the party" (2026-09-09).
@@ -570,6 +577,10 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                             return `${m.serial} · ${m.party}${m.city ? ` · ${m.city}` : ''}${taken(v) ? ' — already on this request' : ''}`;
                           }}
                           isDisabled={taken}
+                          // The rows carry the customer; the BOX carries the
+                          // machine. Decorating both turned this field into two
+                          // wrapped lines of hospital name.
+                          plainValue
                           placeholder="Type any part of the serial…"
                           emptyLabel="— type a serial to find the machine —"
                           emptyHint={it.product
@@ -584,7 +595,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     hidden, so a wrong serial is caught here instead of on the
                     call. */}
                 {!isInstall && it.serial.trim() !== '' && (
-                  <div className="req-machine-party rep-span2">
+                  <div className="req-machine-party">
                     {it.party
                       ? <>Customer: <b>{it.party}</b>{it.city ? <> · {it.city}</> : null}</>
                       : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Master.</span>}

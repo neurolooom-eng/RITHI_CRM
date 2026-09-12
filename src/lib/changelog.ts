@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.207',
+    date: '2026-09-12',
+    title: 'The call request row reads properly again',
+    changes: [
+      'THE SERIAL BOX NOW SHOWS THE SERIAL. It was showing the whole row \u2014 serial, hospital and city \u2014 wrapped over two lines in a field labelled Serial No. The list still shows all three, which is what tells two identical machines apart; the box only has to say which one you chose.',
+      'THE CUSTOMER LINE SITS ACROSS THE ROW, under the machine it came from, instead of squeezing into the left column and pushing Standard Complaint out to the right.',
+      'And it reads as one line \u2014 \u201CCustomer: NAME \u00b7 CITY\u201d \u2014 rather than stacking the word \u201CCustomer:\u201D above the name.',
+      'The section at the top is no longer headed \u201CCustomer\u201D on a Field or PM call, since the customer is not in it any more. It says what it now holds: the site and who to contact \u2014 and that the customer comes from the machine on each call below.',
+      'Checked at phone width and at full width.',
+    ],
+  },
+  {
     version: '0.9.206',
     date: '2026-09-11',
     title: 'On a call request, the machine now names the customer',
