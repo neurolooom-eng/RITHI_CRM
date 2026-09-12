@@ -4205,10 +4205,15 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the grant is scoped to roles that already write',
     /where ar\.permissions \? 'ffr\.manage'/.test(body), true);
   eq('and it MERGES rather than overwrites', /jsonb_agg\(distinct v\)/.test(body), true);
-  // The history follows the register, or somebody reads a report and not what
-  // changed on it.
+  // THE HISTORY FOLLOWS THE REGISTER — in 0177, and in its own file for a
+  // reason: ffrh_read belongs to the `data_integrity` module while ffr_read
+  // belongs to `daily_review`, and one migration redefining both would be
+  // reverted by a replay of the other. check:bundles caught exactly that here.
+  const hist = readFileSync('supabase/migrations/0177_ffr_history_view_right.sql', 'utf8');
   eq('the update log follows the register',
-    /create policy ffrh_read[\s\S]*?has_perm\('ffr\.view'\)/.test(body), true);
+    /create policy ffrh_read[\s\S]*?has_perm\('ffr\.view'\)/.test(hist), true);
+  eq('…and the two policies stay in separate files',
+    /ffrh_read/.test(body), false);
 
   // THE RIGHT MUST BE GRANTABLE FROM THE SCREEN, or it is a permission nobody
   // can give — which is how this started.
