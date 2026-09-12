@@ -3463,10 +3463,17 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('and does not inherit the flex column', /className="req-machine-party"/.test(rq), true);
   eq('so it is not also a rep-field', /rep-field[^"]*req-machine-party/.test(rq), false);
 
-  // 4. A section heading has to describe what is under it: on a field call the
-  //    customer is no longer in that section at all.
-  eq('the section is not called Customer when it holds none',
-    /isInstall \? 'Customer' :/.test(rq), true);
+  // 4. THE WHOLE SITE BLOCK IS THE INSTALLATION'S. On a field or PM call the
+  //    customer, city, state, address and contact are all per call, so a
+  //    request cannot carry one site at the top — the section is not rendered
+  //    at all rather than sitting there empty or mislabelled.
+  eq('the site block is gated on the installation path',
+    /\{isInstall && \(\n\s*<section className="rep-sec">/.test(rq), true);
+  // …and those five fields are on the ROW instead.
+  for (const f of ['City', 'State', 'Address', 'Customer Contact Details', 'Customer Contact Number']) {
+    eq(`"${f}" is asked per call`,
+      new RegExp(`field\\('${f}',[\\s\\S]{0,200}setItem\\(i, '`).test(rq), true);
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

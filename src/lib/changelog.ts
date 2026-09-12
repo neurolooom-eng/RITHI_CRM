@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.208',
+    date: '2026-09-12',
+    title: 'The site and contact move onto each call',
+    changes: [
+      'CITY, STATE, ADDRESS AND THE CUSTOMER CONTACT ARE NOW ASKED PER CALL, not once at the top of the request. They follow the customer, which has been per call since yesterday \u2014 a request whose calls name their own customers could not carry one address between them.',
+      'City, State and Address fill themselves in from the machine you pick, and stay EDITABLE: the register records where the machine was sold, and a hospital moves a ventilator between wards without telling anybody. Anything you have already typed is kept rather than overwritten.',
+      'On a Field or PM request the whole customer block at the top is gone \u2014 there is nothing left in it.',
+      'INSTALLATIONS ARE UNCHANGED. There is no machine on the register to read any of this from, so that form still asks for the customer and the site once, as before.',
+    ],
+  },
+  {
     version: '0.9.207',
     date: '2026-09-12',
     title: 'The call request row reads properly again',
