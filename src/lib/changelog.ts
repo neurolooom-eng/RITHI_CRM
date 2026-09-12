@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.217',
+    date: '2026-09-12',
+    title: 'The Daily Call Review opens again',
+    changes: [
+      'VIEWING A CALL FROM THE DAILY CALL REVIEW CRASHED THE SCREEN \u2014 \u201CThis screen hit an error\u201D with React error #310. Fixed.',
+      'THE SAME FAULT WAS FOUND ON THE AUDIT LOG and fixed with it. It had not been reported yet; it would have shown as the same blank error, and only for people whose permissions had not finished loading.',
+      'A new automated check refuses this whole class of mistake across every screen, so it cannot reach anyone again.',
+      'ADMINISTRATORS CAN NOW CORRECT A REVIEW DATE on the Daily Call Review \u2014 Review 2\u2019s and Review 3\u2019s. A review answered on paper weeks ago and typed in today otherwise reads as reviewed today, and the Field Failure Report it raises carries that wrong date with it.',
+      'The Field Failure Register gained the fields its weekly review needs \u2014 an attachment, and when it was last reviewed \u2014 plus \u201CCancelled\u201D as an FFR status and the CAPA lists from the update form.',
+    ],
+  },
+  {
     version: '0.9.216',
     date: '2026-09-12',
     title: 'An FFR raises itself when the review says Any Potential Effect',

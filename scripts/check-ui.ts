@@ -3671,7 +3671,11 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('and the source is the only one the 2026 tab uses', fromCall.source, 'PC');
   // A status the register already uses and the picker will not offer is a value
   // somebody has to work around.
-  for (const st of ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD', 'NA']) {
+  // THE UPDATE FORM'S OWN LIST (the screenshots, 2026-09-12). 'NA' is on the
+  // sheet's older LookupValues tab but NOT on the form, and the form is the
+  // instrument in use — a historic row carrying it still displays, because the
+  // column takes no CHECK constraint (0152's lesson).
+  for (const st of ['Not required', 'Open', 'In-Progress', 'Closed', 'TBD']) {
     eq(`"${st}" is offered as a CAPA status`, FFR_CAPA_STATUS.includes(st), true);
   }
   // Every one of the 35 is a solved call — said, not enforced.
@@ -3801,6 +3805,41 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     ffrEffectWithdrawn({ ...raised, live_any_potential_effect: '' }), false);
   eq('and a hand-raised FFR is never flagged',
     ffrEffectWithdrawn({ extra: {}, live_any_potential_effect: 'NO' }), false);
+}
+
+// ---------------------------------------------------------------------------
+// NO HOOK AFTER AN EARLY RETURN.
+//
+// React counts hooks per render, so a hook below a conditional `return` makes
+// the count depend on the condition — and a count that changes between renders
+// is error #310, a white screen with a stack trace. The Daily Call Review hit
+// exactly that on its View button (reported 2026-09-12): `if (!row) return
+// null` sat above two useEffects, so the component ran seven hooks with a call
+// selected and five without.
+//
+// Checked across every module, not just the one that broke: this is a whole
+// CLASS of fault and the next one will be somewhere else.
+{
+  console.log('\n-- no hook sits after an early return --');
+  const HOOK = /\b(useState|useEffect|useMemo|useRef|useCallback|useLayoutEffect|useNavigate|useLocation|useAuth|useTeamEngineers|useMaster|useCallStates)\s*\(/;
+  // A `return` that ends a component, as opposed to one inside a callback: at
+  // the component's own indentation, two spaces.
+  const EARLY_RETURN = /^ {2}(if \s*\(.*\)\s*)?return\b/;
+  const offenders: string[] = [];
+
+  for (const file of readdirSync('src/modules').filter((f) => f.endsWith('.tsx'))) {
+    const lines = readFileSync(`src/modules/${file}`, 'utf8').split('\n');
+    let seenReturn = 0;
+    lines.forEach((line, i) => {
+      // A new component resets the reckoning.
+      if (/^(export )?function [A-Z]/.test(line)) seenReturn = 0;
+      if (EARLY_RETURN.test(line) && !/^ {2}return \(/.test(line)) seenReturn = i + 1;
+      if (seenReturn && HOOK.test(line) && !/^\s*(\/\/|\*)/.test(line)) {
+        offenders.push(`${file}:${i + 1} (after the return on line ${seenReturn})`);
+      }
+    });
+  }
+  eq('no module calls a hook below a conditional return', offenders, []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

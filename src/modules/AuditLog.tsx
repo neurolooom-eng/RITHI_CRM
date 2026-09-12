@@ -44,7 +44,6 @@ export function AuditLog() {
   const set = (k: keyof AuditFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
   const hasFilter = !!(filter.action || filter.email || filter.status);
 
-  if (!can('audit.view')) return <div style={{ padding: 24 }} className="muted">You don’t have permission to view the audit log.</div>;
 
   const refresh = async () => {
     if (!supabaseConfigured()) return;
@@ -96,6 +95,17 @@ export function AuditLog() {
   };
 
   const allFields = useMemo(() => COLUMNS.map((c) => ({ key: c.key, header: c.header })), []);
+
+  // THE PERMISSION GATE IS HERE, BELOW EVERY HOOK, AND THAT IS NOT STYLE.
+  // It used to sit above four of them, so this screen ran six hooks without
+  // `audit.view` and ten with it. Permissions arrive asynchronously, so the
+  // first render can be the one without — and a hook count that changes
+  // between renders is React error #310, a white screen. The Daily Call Review
+  // hit exactly that on 2026-09-12; this is the same fault, found by the check
+  // written for it rather than by somebody opening the page.
+  if (!can('audit.view')) {
+    return <div style={{ padding: 24 }} className="muted">You don’t have permission to view the audit log.</div>;
+  }
 
   return (
     <div>

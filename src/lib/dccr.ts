@@ -271,6 +271,19 @@ export interface ReviewPatch {
   service_observation?: string;
   action_taken?: string;
   review3_by?: string;
+  // THE REVIEW DATES, EDITABLE BY AN ADMINISTRATOR ONLY (the user's ask,
+  // 2026-09-12: "expose the DCCR register including the review date for me to
+  // edit old information [Only for Admin]").
+  //
+  // They are normally the database's: 0044 stamps each when its stage is
+  // completed. But it stamps ONLY WHEN THE COLUMN IS NULL, so a value supplied
+  // here passes straight through — no migration was needed, and none should be
+  // invented. Correcting history is what this is for: a review answered on
+  // paper weeks ago and typed in today otherwise reads as reviewed today, and
+  // the FFR it raises would carry the wrong date with it.
+  review1_at?: string | null;
+  review2_at?: string | null;
+  review3_at?: string | null;
 }
 
 const yes = (v: unknown) => String(v ?? '').trim().toUpperCase() === 'YES';
