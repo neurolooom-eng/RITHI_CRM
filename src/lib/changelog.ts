@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.221',
+    date: '2026-09-12',
+    title: 'Finding the reviewer by who they are, not how their name is spelt',
+    changes: [
+      'Setting the reviewer on old Field Failure Reports now finds the person by NAME AND ROLE \u2014 Bagyaraj is the NSM \u2014 so it works whether User Master spells him \u201CBagyaraj M\u201D, \u201CM Bagyaraj\u201D or something else again.',
+      'IT REFUSES TO GUESS. If two people match, or nobody does, it changes nothing and tells you why: a report naming the wrong person is worse than one naming nobody.',
+      'It shows you what it would do before it does it, and it can be run again later \u2014 so if somebody is not on User Master yet, add them and run it once more.',
+      'Records that already name a reviewer are never reassigned.',
+    ],
+  },
+  {
     version: '0.9.220',
     date: '2026-09-12',
     title: 'The Field Failure Report is the real form, and every change to it is kept',

@@ -19,6 +19,35 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The reviewer is found by role, not spelling — 2026-09-12 (v0.9.221, SQL to run)
+
+The user: **"Bagyaraj would be mapped as nsm."**
+
+0173 looked him up with `lower(name) like 'bagyaraj%'` — a prefix match on the
+spelling alone, and both halves are fragile: the master may hold *"M Bagyaraj"*
+or *"BAGYARAJ.M"*, which a prefix never finds, and a name is not unique.
+
+`ffr_reviewer_backfill()` (0175) asks for **name AND role**, then name alone,
+then role alone, and says which it used. It **refuses to guess**: several
+matches, or keys that disagree, change nothing — a quality record naming the
+wrong person is worse than one naming nobody, because blank is a question
+somebody asks and a plausible name is one nobody checks. A left (`validity =
+false`) master row is never chosen.
+
+It is a FUNCTION as well as a migration step, because he may not be on User
+Master yet — so it can be run after he is added, without re-running a bundle:
+
+```sql
+select * from public.ffr_reviewer_backfill();                 -- report only
+select * from public.ffr_reviewer_backfill(p_apply => true);  -- set it
+```
+
+Dry run by default, and it fills silence only: a record already naming somebody
+is never reassigned, on any run. Carries 0170's gate, since the SQL editor is
+where it runs.
+
+**To run:** `daily_review.sql`. `_status.sql` row 131 checks it.
+
 ### The real R-SER-03, an update log, and who reviewed it — 2026-09-12 (v0.9.220, SQL to run)
 
 Four asks: the Word copy must be the template exactly; a printable HTML version

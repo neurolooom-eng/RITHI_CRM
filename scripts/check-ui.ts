@@ -4054,6 +4054,27 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     eq(`${col}’s mirror matches 0044 word for word`, a !== '' && a === b, true);
   }
 
+  // FINDING THE REVIEWER BY NAME **AND** ROLE (0175). "Bagyaraj would be mapped
+  // as nsm" — the role is the second key, and a far better one than a spelling.
+  const n = readFileSync('supabase/migrations/0175_ffr_reviewer_nsm.sql', 'utf8');
+  const nbody = n.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
+  eq('the lookup takes a role as well as a name',
+    /p_role\s+text\s+default 'nsm'/.test(nbody), true);
+  // A PREFIX match misses "M Bagyaraj"; the match is on the whole name.
+  eq('the name is matched anywhere in it, not as a prefix',
+    /'%' \|\| lower\(btrim\(coalesce\(p_name_like, ''\)\)\) \|\| '%'/.test(nbody), true);
+  eq('it refuses to guess when several match',
+    /if v_count > 1 then[\s\S]*?nothing changed/.test(nbody), true);
+  eq('a left user is never chosen', /coalesce\(d\.validity, true\)/.test(nbody), true);
+  // DRY RUN BY DEFAULT, like the FFR back-fill: naming a person on a quality
+  // record is not something to discover afterwards.
+  eq('it reports before it writes', /p_apply\s+boolean default false/.test(nbody), true);
+  eq('and it fills silence rather than reassigning work',
+    /where coalesce\(btrim\(raised_by_name\), ''\) in \('', 'Daily Call Review'\)/.test(nbody), true);
+  // Run from the SQL editor, so the 0170 gate applies here too.
+  eq('the SQL editor is not locked out of it',
+    /current_setting\('request\.jwt\.claims', true\)/.test(nbody), true);
+
   const h = readFileSync('supabase/migrations/0174_ffr_history.sql', 'utf8');
   const hbody = h.split('\n').filter((l) => !/^\s*--/.test(l)).join('\n');
   eq('the log is written by a trigger, not the client',
