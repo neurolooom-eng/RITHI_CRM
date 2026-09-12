@@ -4310,7 +4310,10 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   for (const k of ['calltype', 'addconsumption', 'visitentrydate', 'maintenancedone',
                    'standardcomplaint', 'complaintobservation',
                    'recomendedfilterchanged', 'recommendedfilterchanged',
-                   'updatevisitworkdetails']) {
+                   'updatevisitworkdetails',
+                   // The second round: already on the screen — the visit's own
+                   // heading, and a call-level fact repeated on every visit.
+                   'visitdatetime', 'visitdateandtime', 'complaintdate']) {
     eq(`a visit hides "${k}"`, new RegExp(`'${k}'`).test(ctx), true);
   }
   eq('and the key is normalised before matching',

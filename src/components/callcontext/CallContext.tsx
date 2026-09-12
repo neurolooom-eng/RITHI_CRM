@@ -62,6 +62,19 @@ const HIDDEN_VISIT_FIELDS = new Set([
   'complaintobservation',
   'recomendedfilterchanged', 'recommendedfilterchanged',   // as typed, and as corrected
   'updatevisitworkdetails',
+  // A SECOND ROUND (the user, 2026-09-12), and both for the same reason as the
+  // first: the value is already on the screen.
+  //
+  //  * Visit Date & Time is the date in the visit's OWN HEADING, two lines
+  //    above it. The heading comes from the `visit_at` column rather than from
+  //    this answer, so it stands whether or not the form was filled in.
+  //  * Complaint Date is when the CALL was raised — one fact about the call,
+  //    repeated identically on every one of its visits, and on the report.
+  //
+  // Both spellings of the first, since "and" and "&" are equally likely in a
+  // label somebody typed.
+  'visitdatetime', 'visitdateandtime',
+  'complaintdate',
 ]);
 
 /** A date field, shown the way the rest of the application shows dates. Gated
