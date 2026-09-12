@@ -111,6 +111,17 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
   reported 170 policies where there are 117.
 - **`docs/BACKLOG.md`** is the running record — mark what shipped and what is
   still pending (a migration to run, a redeploy to do) as part of the change.
+- **`docs/CALL_REQUEST_REQUIREMENTS.md`** is the standing reference for the CALL
+  REQUEST module — 30 requirements (CR-001…CR-030) covering the keys, the
+  machine-names-the-customer rule, what a request must capture, the installation
+  exception, status, visibility, performance and the records. **Read it before
+  changing anything on that form.** The module was redesigned on 2026-09-11/12
+  and the reasoning was spread across a dozen commit messages; it is gathered
+  there. Two rules in it are easy to undo by accident: the customer search must
+  never come BEFORE the machine search (CR-006 — the party filter stays
+  conditional), and the visibility rule is evaluated once per query rather than
+  once per row (CR-024). Its status lines are updated in the same change that
+  makes one true.
 - **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
   SERVICING PROCESS must do — 37 requirements (SR-001…SR-037) from ISO 13485
   §7.5.4 and the clauses it reaches into, each assessed against this system.
