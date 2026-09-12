@@ -19,6 +19,52 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The register was empty, and the role was misnamed — 2026-09-12 (v0.9.224, SQL to run)
+
+Two reports from one screenshot.
+
+**THE ROLE ON SCREEN WAS NOT THE ROLE IN EFFECT.** *"I have assigned a different
+Role, but he is on a Different Role."* `roleLabel()` in `auth.tsx` looked the
+rbac key up in the static `ROLES` list and, not finding a role added from the
+application, **fell through to `ROLE_LABELS[u.role]` — the LEGACY role**. So
+somebody on `vptechnical` was shown as "Field Engineer" on their own profile
+and in the menu bar.
+
+Their access ran on `vptechnical` the whole time, which is what made it
+convincing: the screen named one role and the system enforced another, and
+nothing reconciled the two. `roleLabelFor()` is the single labeller now —
+built-in name, else the label the database holds for a role added from the app
+(loaded with the matrix), else the key humanised. **All three name the role the
+person is actually on.**
+
+**THE FFR REGISTER WAS EMPTY FOR SOMEBODY WHO HELD THE PERMISSION.** Reproduced:
+`ffr.manage` held, page key held, **0 rows**.
+
+`ffr_read` (0165) tested *neither* permission. Its only clause reaching an
+ordinary user was `exists (select 1 from public.calls c where c.ucn = …)`, and
+`calls` is `security_invoker` — so the register was scoped to **call
+visibility**, and `ffr.manage` granted the right to WRITE a register its holder
+could not READ. The "role that sees NOTHING" fault in a new coat, and worse than
+a missing permission because everything *looks* granted.
+
+`ffr.view` (0176) now grants the whole register — the user's decision, asked
+before changing it: *"I am going to hide the view to everyone; only ppl who need
+to view is being given access."* It **widens nothing on apply** (only roles that
+already held `ffr.manage`), and the old scope is kept — a report on your own
+call is still yours. The screen now says when an empty register is access rather
+than emptiness.
+
+⚠️ **`check:bundles` caught a real one:** filing it beside the history policy put
+`ffr_read` in `data_integrity` while 0165 creates it in `daily_review` — a
+replay of `daily_review.sql` alone would have restored the old policy and
+emptied the register again. Split: 0176 last in `daily_review`, 0177 in
+`data_integrity`.
+
+**To run:** `daily_review.sql`, then `data_integrity.sql`. `_status.sql` row 133
+checks it. **Then tick "Read the whole Field Failure Register"** for the roles
+that should see it — the role in the report holds the page but not `ffr.manage`,
+so the migration's grant does not reach it.
+
 ### Field Failure: Insights + the Register as a desk — 2026-09-12 (v0.9.223, shipped, no SQL)
 
 The user: *"Add an Insights tab and Register [Move the current View to Register].

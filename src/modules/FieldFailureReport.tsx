@@ -237,6 +237,26 @@ export function FieldFailureReport() {
         </div>
       )}
 
+      {/* AN EMPTY REGISTER IS NOT AN ANSWER. Reported 2026-09-12: somebody
+          holding the permission opened this page and found nothing, with the
+          menu entry present and the box ticked — so it read as broken rather
+          than as withheld.
+          The rows are governed by RLS, not by the page key: without
+          `ffr.view` a reader sees only reports on calls THEY can see. When that
+          comes to nothing, the screen says so and names the right to ask for,
+          because "there are no reports" and "you cannot see the reports" look
+          identical and mean opposite things. */}
+      {!busy && !rows.length && supabaseConfigured() && !can('ffr.view') && (
+        <div className="sheet-banner sheet-banner-info">
+          <span>
+            Nothing here — and that may be access rather than an empty register.
+            Without the <b>Read the whole Field Failure Register</b> right you see
+            only reports raised on calls you can see. Ask an administrator for it
+            under Roles &amp; Permissions.
+          </span>
+        </div>
+      )}
+
       <div className="stage-chips hs-tabs">
         <button className={`chip ${tab === 'insights' ? 'chip-on' : ''}`} onClick={() => setTab('insights')}>
           📈 Insights

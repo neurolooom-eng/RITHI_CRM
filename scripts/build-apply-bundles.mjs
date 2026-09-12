@@ -274,7 +274,12 @@ const MODULES = {
             '0173_dccr_reviewer.sql',
             // AFTER 0173: it replaces that file's name-prefix lookup, and a
             // replay in the other order would put the prefix match back.
-            '0175_ffr_reviewer_nsm.sql'],
+            '0175_ffr_reviewer_nsm.sql',
+            // LAST in this module, and it must stay last: it redefines ffr_read,
+            // which 0165 above creates. In any other module a replay of
+            // daily_review.sql alone would restore 0165's version and the
+            // register would go empty again.
+            '0176_ffr_view_right.sql'],
   },
   notifications: {
     title: 'Notifications',
@@ -334,7 +339,10 @@ const MODULES = {
             '0166_ffr_retention_guard.sql',
             // Here for the same reason 0166 is: it arms block_hard_delete() on
             // the history table, and that function is defined in THIS module.
-            '0174_ffr_history.sql'],
+            '0174_ffr_history.sql',
+            // AFTER 0174: it redefines that file's ffrh_read policy, and the
+            // other order would put the ffr.manage-only version back.
+            '0177_ffr_history_view_right.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

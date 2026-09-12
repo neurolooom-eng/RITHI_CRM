@@ -1769,6 +1769,22 @@ export async function getRolePerms(): Promise<Record<string, string[]>> {
   (data ?? []).forEach((r) => { out[String(r.role)] = Array.isArray(r.permissions) ? (r.permissions as string[]) : []; });
   return out;
 }
+/** The NAME of each role, including those added from the application. Kept
+ *  apart from getRolePerms so that adding it did not change a return type four
+ *  screens depend on; one extra column on one small table, read once at sign-in
+ *  with the matrix. */
+export async function getRoleLabels(): Promise<Record<string, string>> {
+  const c = getSupabase(); if (!c) return {};
+  const { data, error } = await c.from('app_roles').select('role,label');
+  if (error) return {};
+  const out: Record<string, string> = {};
+  (data ?? []).forEach((r) => {
+    const label = String(r.label ?? '').trim();
+    if (label) out[String(r.role)] = label;
+  });
+  return out;
+}
+
 export async function setRolePerms(role: string, permissions: string[], label?: string): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
   const row: Record<string, unknown> = { role, permissions, updated_at: new Date().toISOString() };
