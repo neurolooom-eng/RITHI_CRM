@@ -13,6 +13,30 @@ up)_
 
 ---
 
+## 2026-09-13 — The cover derivations put two phantom columns on the row
+
+Found while continuing the cover rebuild, **not reported** — and it was a fault
+0.9.235 had already shipped.
+
+- `deriveItem` set `item_detail_long` on a warranty machine line. There is no
+  such column: `item_detail` exists on `parts` alone. `saveItem` sends the row
+  unfiltered, and PostgREST refuses the WHOLE write for one unknown column — so
+  editing a product code, name or serial lost the entire save.
+- The guard then caught a **second** instance: rate → tax → total was not gated
+  by register, and `sale_items` has no rate or tax columns. The spec puts them
+  on ContractDetails (cols 20-22) and nowhere on WarrantySaleDetails.
+- **This is the Field Failure Register's `live_*` fault, one module over, in the
+  same session.** So the fix is the class: `saveHeader`/`saveItem` now send only
+  the columns the register DECLARES, built from the field definitions, so a
+  column added to a form is writable by that fact alone. `saveHeader`'s old
+  blacklist (drop `item_count`, `items`) is gone — it worked until a third
+  arrived.
+- `check:ui` now runs every derivation over every declared field and fails on
+  any key that is not a real column. Mutation-tested: reinstating
+  `item_detail_long` fails it with all three driving fields named.
+- `check:ui` gained `--define:import.meta.env={}` so a check may import a module
+  that sits beside the Supabase client without needing a database.
+
 ## 2026-09-13 — The cover registers get the AppSheet arithmetic
 
 Asked for as "build the Warranty Sale Entry, Warranty Register, Contract Entry,

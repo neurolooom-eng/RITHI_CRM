@@ -10,6 +10,7 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
+import { configFor } from '../src/lib/cover';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
@@ -4453,11 +4454,43 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
     Object.keys(deriveHeader('contract', 'contract_end', { contract_end: '2025-06-30' })).length, 0);
   eq('a rate derives its tax and total',
     deriveItem('contract', 'rate', { rate: 1000 }), { item_tax_amount: 180, total_after_tax: 1180 });
+  // ...on a CONTRACT only. A sale has no rate: the spec puts those three
+  // columns on ContractDetails alone, and sale_items has no such columns.
+  eq('a sale line has no rate, tax or total', deriveItem('sale', 'rate', { rate: 1000 }), {});
   // The two registers derive the machine string in OPPOSITE directions, and
   // that is in the spec: a contract picks an existing machine, a sale names one.
   eq('a contract line splits the machine string',
     deriveItem('contract', 'product_details', { product_details: 'A|B|C' }).product_code, 'A');
-  eq('a sale line builds it', deriveItem('sale', 'product_code', { product_code: 'A', product_name: 'B', serial_number: 'C' }).item_detail_long, 'A|B|C');
+  // THE GUARD THAT WAS MISSING. Every key a derivation puts on a row must be a
+  // column the register declares — because saveHeader/saveItem send the row and
+  // PostgREST refuses the WHOLE write for one unknown column, losing the save
+  // rather than the field. `item_detail_long` was derived here and has no
+  // column on sale_items (item_detail exists on `parts` alone); it shipped in
+  // 0.9.235 and broke saving a machine line. Same fault as the Field Failure
+  // Register's live_* columns, one module over.
+  {
+    const declared = (k: 'sale' | 'contract') => new Set([
+      ...configFor(k).headerFields.map((f) => f.name),
+      ...configFor(k).itemFields.map((f) => f.name),
+      configFor(k).key,
+    ]);
+    const derivedKeys: string[] = [];
+    for (const k of ['sale', 'contract'] as const) {
+      const fields = [...configFor(k).headerFields, ...configFor(k).itemFields].map((f) => f.name);
+      const row: Record<string, unknown> = { rate: 1000, product_details: 'A|B|C', product_code: 'A',
+        product_name: 'B', serial_number: 'C', warranty_months: 12, contract_months: 12,
+        warranty_start: '2024-01-15', contract_start: '2024-01-15' };
+      for (const f of [...new Set([...fields, 'rate', 'product_details'])]) {
+        for (const out of [deriveHeader(k, f, row), deriveItem(k, f, row)]) {
+          for (const key of Object.keys(out)) {
+            if (!declared(k).has(key)) derivedKeys.push(`${k}.${f} -> ${key}`);
+          }
+        }
+      }
+    }
+    eq('every derived field is a real column on the register', derivedKeys, []);
+  }
+
 }
 
 console.log('\n-- the Insights tab can be interrogated --');

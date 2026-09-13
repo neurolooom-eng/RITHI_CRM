@@ -216,19 +216,32 @@ export function deriveHeader(kind: 'sale' | 'contract', changed: string, row: Ro
  *  picks an existing machine, a sale names one that may be new. */
 export function deriveItem(kind: 'sale' | 'contract', changed: string, row: Row): Row {
   const out: Row = {};
-  if (changed === 'rate') {
+  // RATE, TAX AND TOTAL ARE A CONTRACT'S, NOT A SALE'S. The spec puts them on
+  // ContractDetails (cols 20-22) and nowhere on WarrantySaleDetails, and the
+  // tables agree: sale_items has no such columns. Ungated, this put three
+  // non-existent columns on a sale line — which does not merely do nothing, it
+  // makes PostgREST refuse the whole save.
+  if (kind === 'contract' && changed === 'rate') {
     const tax = itemTaxAmount(row.rate);
     out.item_tax_amount = tax;
     out.total_after_tax = totalAfterTax(row.rate, tax);
   }
-  if (changed === 'item_tax_amount') out.total_after_tax = totalAfterTax(row.rate, row.item_tax_amount);
+  if (kind === 'contract' && changed === 'item_tax_amount') {
+    out.total_after_tax = totalAfterTax(row.rate, row.item_tax_amount);
+  }
   if (kind === 'contract' && changed === 'product_details') {
     const p = splitProductDetails(row.product_details);
     out.product_code = p.code; out.product_name = p.name; out.serial_number = p.serial;
   }
-  if (kind === 'sale' && ['product_code', 'product_name', 'serial_number'].includes(changed)) {
-    out.item_detail_long = itemDetailsLong(row.product_code, row.product_name, row.serial_number);
-  }
+  // NOTE: the spec's `Item Details Long` (WarrantySaleDetails col 3) is NOT set
+  // here, and that is deliberate rather than an omission. There is no such
+  // column on sale_items — `item_detail` exists on `parts` alone — so putting
+  // it on the row makes PostgREST refuse the WHOLE save with "could not find
+  // the column in the schema cache", which is the fault the Field Failure
+  // Register shipped with earlier and the reason writes are whitelisted below.
+  // The value is derivable from the three parts at any point it is needed
+  // (itemDetailsLong is exported); storing it would take a migration and a
+  // reason to store it.
   if (kind === 'sale' && WARRANTY_DRIVERS.includes(changed)) {
     out.warranty_years = periodYears(row.warranty_months);
     out.warranty_end = periodEnd(String(row.warranty_start ?? ''), row.warranty_months);
