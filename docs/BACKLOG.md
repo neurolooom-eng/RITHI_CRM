@@ -13,6 +13,22 @@ up)_
 
 ---
 
+## 2026-09-13 — Ownership Transfer stopped on its first row
+
+- **`0182`** — reported as `violates check constraint
+  "ownership_transfer_parties_differ" (row ~1) (0 written)`. Reproduced both
+  ways before fixing. 0072 fills a blank `from_party` from the machine master;
+  once the master has caught up that returns the **destination**, so from = to
+  and the constraint refuses the row — and one row stopped the whole file. Not
+  a corner case: a Product Master naming each machine's current owner hits it
+  on the last hop of every machine. The fill is now conditional and
+  `from_party` is left **empty** where the master cannot answer. The constraint
+  is deliberately untouched — the invariant was right, the manufactured value
+  was not.
+- **`reject` on the Ownership Transfer upload** — a row whose own file names the
+  same party twice is skipped with a reason rather than taking the batch down.
+- **Pending: the user to run `sales_contracts.sql`.**
+
 ## 2026-09-13 — The FFR importer met the real files, and three bugs fell out
 
 Reported as "the Bulk upload is not working", with all ten years attached. It
