@@ -146,8 +146,9 @@ on testing the old shape. **When a migration replaces a definition, move the
   conditional), and the visibility rule is evaluated once per query rather than
   once per row (CR-024). Its status lines are updated in the same change that
   makes one true.
-- **`docs/HOW_TO_USE.md`** is the USER-FACING handbook for the modules built this
-  cycle — what each screen is for and the rules that are easy to get wrong.
+- **`docs/HOW_TO_USE.md`** is the USER-FACING handbook for the WHOLE application
+  — all 50 modules in `MODULES`, what each screen is for and the rules that are
+  easy to get wrong. A module added to `MODULES` belongs here too.
   Written in the user's words, not the code's. Update it in the same change that
   makes one of its statements untrue; where it and the code disagree, the code
   is the fact and the handbook is the bug.
