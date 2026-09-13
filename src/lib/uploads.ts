@@ -977,7 +977,18 @@ export const UPLOADS: UploadDef[] = [
       TEXT('reference_no', 'ot number', 'reference no', 'reference', 'document no'),
       TEXT('reason'), TEXT('remarks'),
       TEXT('document_url', 'file upload', 'document', 'document link'),
-    ] },
+    ],
+    // A row that names the SAME party on both sides is not a transfer, and the
+    // database refuses it (ownership_transfer_parties_differ) — which used to
+    // stop the whole file on the row it reached. Caught here instead, so the
+    // rest of the register loads and the screen names the row and the reason.
+    // Only the case the FILE states: where "From Party" is blank the database
+    // fills it, and 0182 leaves it empty rather than copying the destination.
+    reject: (r) => {
+      const from = String(r.from_party ?? '').trim().toLowerCase();
+      const to = String(r.to_party ?? '').trim().toLowerCase();
+      return from && from === to ? `already with ${String(r.to_party ?? '').trim()} — not a transfer` : '';
+    } },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'serial_key', conflictFrom: ['serial_number'], requires: 'Product Master',
     note: 'For machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',

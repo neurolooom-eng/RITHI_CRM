@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.233',
+    date: '2026-09-13',
+    title: 'Ownership Transfer loads again',
+    changes: [
+      'Loading the Ownership Transfer register stopped on its first row with \u201Cparties differ\u201D and wrote nothing. Fixed.',
+      'THE CAUSE: when \u201CFrom Party\u201D is left blank we fill it in from whoever holds the machine now. That is right while the machine master still shows the previous owner \u2014 and wrong once it has caught up, because it then hands back the party the machine is going TO. The row became \u201CApollo to Apollo\u201D, which is not a transfer, and the register refused it.',
+      'It is worst exactly when your data is best: a Product Master that already names each machine\u2019s current owner hits this on the last hand-over of every machine.',
+      'Now, where the master cannot name the previous owner, \u201CFrom Party\u201D is simply left blank \u2014 the hand-over is still recorded with what IS known. Where it can, it is filled in as before.',
+      'A row in your FILE that names the same party on both sides is still refused, but it is now listed as a skipped row with the reason instead of stopping the whole upload.',
+    ],
+  },
+  {
     version: '0.9.232',
     date: '2026-09-13',
     title: 'The old Field Failure years actually load now',
