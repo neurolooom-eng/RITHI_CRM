@@ -282,7 +282,10 @@ const MODULES = {
             '0176_ffr_view_right.sql',
             // A function of its own — it defines nothing another module owns,
             // so it is safe last here beside the right it is gated on.
-            '0178_ffr_call_context.sql'],
+            '0178_ffr_call_context.sql',
+            // Redefines ffr_stamp(), which 0165 creates in THIS module and 0168
+            // last redefined — so it belongs here and after both.
+            '0179_ffr_import.sql'],
   },
   notifications: {
     title: 'Notifications',

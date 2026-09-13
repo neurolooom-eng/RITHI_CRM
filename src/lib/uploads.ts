@@ -757,6 +757,93 @@ export const UPLOADS: UploadDef[] = [
       TEXT('product_name', 'product name'), TEXT('serial', 'serial no'), TEXT('complaint'),
       TS('visit_at', 'visit date'),
     ] },
+  // ---------------------------------------------------------------------------
+  // THE FIELD FAILURE REGISTER, BACK TO 2016 — AND EVERY YEAR IS A DIFFERENT
+  // SHEET (the user, 2026-09-13: "I think every year it has a Different Format
+  // -- But it needs to be able to merge all into 1 Table").
+  //
+  // SO THIS IS BUILT NOT TO NEED THE FORMATS IN ADVANCE. Three things carry it:
+  //
+  //  * MANY NAMES PER COLUMN. Each `from` list holds every heading that year's
+  //    sheet might use for the same thing, matched case- and space-insensitively
+  //    through headers.ts. A year that says "Hospital Name" and one that says
+  //    "Customer Name" land in the same column.
+  //  * `extraInto: 'extra'` — ANYTHING NOT RECOGNISED IS KEPT ON THE ROW rather
+  //    than dropped. This is the whole answer to "a different format": an
+  //    unknown column is not a loss, it is a column nobody has named yet. The
+  //    upload screen LISTS what it kept that way, so the next thing to do is
+  //    always visible.
+  //  * `conflict: 'ffr_no'` — the number is the record's identity and it is
+  //    unique, so re-loading a corrected year updates those reports instead of
+  //    adding them a second time. Load the years in any order, as many times as
+  //    it takes.
+  //
+  // WHAT IS DELIBERATELY NOT MAPPED: the sheet's AutoCrat columns (Merged Doc
+  // ID, Document Merge Status, Add Attachments, Raise CAPA, EO). They exist to
+  // make a spreadsheet behave like an application, and the application is here
+  // now. They fall into `extra` rather than being named, so nothing is lost and
+  // nothing pretends to be a field of this register.
+  //
+  // `imported_from` marks every row as migrated (0179), so a figure over the
+  // register can report the split between the years that were typed into a
+  // spreadsheet and the reports this system raised. And ffr_stamp leaves
+  // `raised_by` NULL on an imported row — the sheet's "Raised by" is a name,
+  // not a user account, and linking it to whoever ran the upload would say a
+  // 2016 report was raised by somebody who had not seen it.
+  // ---------------------------------------------------------------------------
+  { key: 'ffr', label: 'Field Failure Register (any year)', group: 'Quality',
+    table: 'field_failure_reports', conflict: 'ffr_no', extraInto: 'extra',
+    stamp: { imported_from: 'Field Failure Register (sheet)' },
+    note: 'Every year of the register, into one table. Export the year’s TAB as CSV and load it — the years do not have to agree with each other, or with 2026. Matched on the FFR NUMBER, so re-loading a corrected year updates those reports rather than adding them again, and the years can be loaded in any order. ANY COLUMN NOT RECOGNISED IS KEPT ON THE ROW and listed below as "kept on the row" — nothing in the file is discarded, so an unfamiliar heading is something to name later rather than data lost now. Rows are marked as imported, so the register can tell a migrated year from a report this system raised. A row with no FFR number is not loaded: the number is what a re-run matches on, and without it the same row would arrive again on every load.',
+    cols: [
+      // THE NUMBER IS THE KEY. Required — see the note: without it a re-run
+      // cannot correct the row, it can only add it again.
+      { to: 'ffr_no', required: true,
+        from: ['ffr no: (no/yr)', 'ffr no', 'ffr no.', 'ffr number', 'ffr', 'ffr no (no/yr)',
+               'ffr no:', 'report no', 'report number', 'ffr ref', 'ffr no/yr'] },
+      DATE('ffr_date', 'ffr date', 'date of ffr', 'date', 'report date', 'raised on'),
+      TEXT('source', 'source', 'ffr source'),
+      // The sheet calls the call number CRN; the app calls it the UCN. Same
+      // thing, and the two names have to reach the same column or a report
+      // cannot be read beside its call.
+      TEXT('ucn', 'crn no', 'crn no.', 'crn number', 'ucn', 'uc number', 'uc no', 'call no', 'call number'),
+      DATE('crn_date', 'crn date', 'complaint date', 'call date', 'date of complaint'),
+      TEXT('customer_name', 'customer name', 'hospital name', 'customer', 'party name', 'hospital'),
+      TEXT('place', 'place', 'city', 'location', 'address'),
+      TEXT('product_name', 'product name', 'equipment name', 'product', 'model name', 'machine'),
+      TEXT('cover', 'wgp/ ogp/ amc', 'wgp/ogp/amc', 'wgp / ogp / amc', 'cover', 'equipment status',
+           'warranty status', 'item status'),
+      TEXT('item_code', 'item code', 'model', 'model no', 'material code'),
+      TEXT('product_serial', 'product s. no', 'product s no', 'product serial', 'serial no',
+           'serial number', 'sr no', 's. no', 'equipment serial no'),
+      DATE('installation_date', 'installation date', 'date of installation', 'install date'),
+      TEXT('problem_reported', 'problem reported by customer', 'problem reported', 'problem description',
+           'complaint', 'complaint reported', 'fault reported'),
+      TEXT('additional_problem', 'additional problem description', 'additional problem',
+           'additional problem descripition'),
+      TEXT('service_observation', 'service dept observation', 'service department observation',
+           'service observation', 'observation', 'findings'),
+      TEXT('problem_status', 'problem status', 'status of problem', 'resolution'),
+      TEXT('capa_responsibility', 'capa(if reqd) responsibility', 'capa responsibility',
+           'capa (if reqd) responsibility', 'responsibility'),
+      TEXT('capa_no', 'capa no: f<no>/yr', 'capa no', 'capa no.', 'capa number', 'capa'),
+      TEXT('capa_status', 'capa status', 'status of capa'),
+      TEXT('verified_by', 'verified by', 'verified'),
+      TEXT('remarks', 'remarks', 'remark', 'comments'),
+      TEXT('current_call_status', 'current call status', 'call status', 'status'),
+      // A TIMESTAMP rather than a date: the sheet's own heading says "& Time",
+      // and TS keeps one where the cell carries it.
+      TS('call_solved_at', 'call solved date & time', 'call solved date and time', 'call solved date',
+         'closed on', 'date closed'),
+      TEXT('visit_remarks', 'visit remarks', 'visit details', 'work done', 'job done'),
+      TEXT('spares_consumed', 'spares consumed', 'spare consumed', 'spares used', 'parts used',
+           'spare parts'),
+      TEXT('call_type', 'call type', 'type of call'),
+      TEXT('ffr_status', 'ffr status', 'status of ffr', 'report status'),
+      // The sheet's own "Raised by" is a NAME. It lands in the name column and
+      // never in raised_by, which is a user account this record has none of.
+      TEXT('raised_by_name', 'raised by', 'raised by name', 'reported by', 'initiated by'),
+    ] },
   { key: 'call_reviews', label: 'DCCR Register', group: 'Quality', table: 'call_reviews',
     conflict: 'ucn', requires: 'Field Calls',
     note: 'Review Status, Any Potential Effect, Action Taken and the “Review N Completed” flags are DERIVED — the register computes them from the answers below, so the file\u2019s own copies are ignored rather than loaded. Everything else the file carries (call details, visit remarks, spares consumed, the failure-age columns) belongs to the call and its visits, not to the review, and is ignored here too.',

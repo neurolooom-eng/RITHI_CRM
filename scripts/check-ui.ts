@@ -4384,5 +4384,58 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('rather than the raw string', /\{String\(s\.part \?\? ''\)\}/.test(ctx), false);
 }
 
+// ---------------------------------------------------------------------------
+// LOADING THE FIELD FAILURE REGISTER BACK TO 2016 (0179) — where every year is
+// a different sheet and they all have to land in one table.
+// ---------------------------------------------------------------------------
+{
+  console.log('\n-- loading the register, any year --');
+  const def = UPLOADS.find((u) => u.key === 'ffr');
+  eq('the upload exists', !!def, true);
+  if (def) {
+    eq('it writes the register table', def.table, 'field_failure_reports');
+    // THE NUMBER IS THE KEY, or a re-run adds the year again instead of
+    // correcting it — the one thing a multi-year load cannot afford.
+    eq('re-loading a year corrects rather than duplicates', def.conflict, 'ffr_no');
+    eq('and the number is required', !!def.cols.find((c) => c.to === 'ffr_no')?.required, true);
+    // AN UNKNOWN COLUMN IS KEPT. This is what makes "a different format every
+    // year" safe: nothing is dropped, and the screen lists what it kept.
+    eq('an unrecognised column is kept on the row', def.extraInto, 'extra');
+    // MIGRATED DATA STAYS DISTINGUISHABLE (URS-037).
+    eq('every imported row is marked as migrated',
+      String((def.stamp ?? {}).imported_from ?? '') !== '', true);
+    // THE SHEET'S "Raised by" IS A NAME, not a user account.
+    const raisedBy = def.cols.find((c) => c.from.includes('raised by'));
+    eq('the sheet’s Raised by lands in the NAME column', raisedBy?.to, 'raised_by_name');
+    eq('and never in raised_by', def.cols.some((c) => c.to === 'raised_by'), false);
+
+    // THE SAME THING UNDER DIFFERENT HEADINGS MUST REACH THE SAME COLUMN —
+    // that IS the ask. Spot-checked on the ones the years are most likely to
+    // disagree about.
+    const colFor = (h: string) => def.cols.find((c) => c.from.includes(h))?.to;
+    for (const [heading, target] of [
+      ['hospital name', 'customer_name'], ['customer name', 'customer_name'],
+      ['crn no', 'ucn'], ['uc number', 'ucn'],
+      ['equipment name', 'product_name'], ['product name', 'product_name'],
+      ['serial no', 'product_serial'], ['product s. no', 'product_serial'],
+      ['complaint date', 'crn_date'], ['crn date', 'crn_date'],
+      ['equipment status', 'cover'], ['wgp/ ogp/ amc', 'cover'],
+    ] as const) {
+      eq(`"${heading}" reaches ${target}`, colFor(heading), target);
+    }
+    // A DATE COLUMN MUST BE TYPED, or a day-first sheet date lands as text and
+    // every ordering over it is wrong.
+    for (const k of ['ffr_date', 'crn_date', 'installation_date']) {
+      eq(`${k} is parsed as a date`, def.cols.find((c) => c.to === k)?.type, 'date');
+    }
+  }
+
+  // THE SPLIT IS SHOWN, not merely stored: URS-037 asks a figure drawn from
+  // both to REPORT it, and every aggregate on Insights is drawn from both.
+  const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
+  eq('Insights reports the migrated split',
+    /imported_from/.test(ins) && /label="Migrated"/.test(ins), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

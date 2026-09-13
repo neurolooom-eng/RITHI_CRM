@@ -70,6 +70,13 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
       due: rows.filter((r) => ffrDueForReview(r, weekAgo)).length,
       withdrawn: rows.filter((r) => ffrEffectWithdrawn(r)).length,
       capaOpen: rows.filter((r) => /^(open|in-progress)$/i.test(s(r, 'capa_status'))).length,
+      // MIGRATED vs RAISED HERE. Not decoration: a report typed into a
+      // spreadsheet years ago and one this system raised from a review are both
+      // quality records, but they are not the same kind of evidence — the
+      // second carries its own history and the rule that raised it. URS-037
+      // requires a figure drawn from both to report the split, and every
+      // aggregate on this page is drawn from both.
+      migrated: rows.filter((r) => s(r, 'imported_from') !== '').length,
       unsolved: rows.filter((r) => {
         const st = s(r, 'live_call_status') || s(r, 'current_call_status');
         return st !== '' && !/^solved/i.test(st);
@@ -112,6 +119,8 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
                  sub="raised on YES, review now says otherwise" />
         <KpiCard label="Closed" value={stats.closed} icon="✅" tone="success" sub="" />
         <KpiCard label="Cancelled" value={stats.cancelled} icon="✕" tone="neutral" sub="marked, never deleted" />
+        <KpiCard label="Migrated" value={stats.migrated} icon="⤵" tone="neutral"
+                 sub="loaded from the register sheet, not raised here" />
       </KpiGrid>
 
       <SectionCard title="Which machines fail">
