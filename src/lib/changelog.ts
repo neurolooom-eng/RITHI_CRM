@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.241',
+    date: '2026-09-13',
+    title: 'Validation package Rev 2.4',
+    changes: [
+      'Five new requirements, four of them written from faults found while loading the old system\u2019s own exports rather than from a standard \u2014 a record must be keyed on what identifies it (a device is its model AND its serial); a value that cannot be worked out is left blank rather than guessed; every register loadable from a file has a key so a re-load corrects; a read-only role holds nothing that writes and a copied role does not follow its source; and no part of a password can appear in a log.',
+      'Each is backed by what was actually measured \u2014 342 machines and 12 machines that would have been lost, 2,985 rows of 4,327 refused \u2014 rather than by argument.',
+      'The Technical Support status row no longer reports a deliberate grant as a missing update. It said NO on a fully updated project and sent people to re-run something that could not fix it.',
+    ],
+  },
+  {
     version: '0.9.240',
     date: '2026-09-13',
     title: 'How to Use RITHI CRM covers the rest of the application',

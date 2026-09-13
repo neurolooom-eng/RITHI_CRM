@@ -13,6 +13,31 @@ up)_
 
 ---
 
+## 2026-09-13 — Validation package Rev 2.4
+
+URS-060..064, FRS-072..076, R-39..R-43, FM-30..FM-32, OQ-54..57. Four of the
+five are written from **faults found in use**, each established by MEASUREMENT
+rather than by reading the schema:
+
+- **URS-060** a record is keyed on what identifies it — a device is its model
+  AND its serial. 342 machines and 12 machines would have been lost silently.
+- **URS-061** a value that cannot be determined is left empty, not fabricated —
+  2,985 rows of 4,327 refused by a manufactured value.
+- **URS-062** every loadable register has an inferable natural key. The check
+  refused a partial index written during this revision.
+- **URS-063** a read-only role holds no write authority; a copied role does not
+  track its source. **And such a holding is reported for REVIEW, not as a
+  defect** — a status row that reads NO on a deliberate grant sends somebody to
+  re-apply configuration that cannot remove it. That row did exactly that, twice.
+- **URS-064** no part of a credential can be recovered from a log. Masking is
+  insufficient: the client reports the piece it failed on.
+
+Traceability verified programmatically: no FRS points at a missing URS, every new
+URS carries a test, no risk points at a missing FRS.
+
+**The credential exposure is NOT closed by Rev 2.4** and is recorded in it as
+requiring rotation.
+
 ## 2026-09-13 — The Technical Support status row was lying
 
 The user ran `_status.sql` after applying `rbac.sql`. Zoho Migration went green;
