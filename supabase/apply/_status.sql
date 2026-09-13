@@ -558,22 +558,11 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
                      from pg_class where relname = 'tracker_list'
                        and relnamespace = 'public'::regnamespace), false))),
-    (111, 'RBAC: the Technical Support role', 'app_roles carries `technical_support` -- EVERY module key the admin role holds, so no page is hidden, plus `data.view_all` so the call pages are not empty, and only actions that READ. What makes it read-only is what it does NOT hold: every write in this database is gated by a policy naming the action it needs, so the refusal is Postgres''s and not a hidden button. TWO EXCEPTIONS, both by earlier design: the Tracker is one permission for view and edit (the user''s own rule), and fb_write accepts feedback.view -- so this role can add on those two pages. Untick the module or the action to close either. `admin.view` is the new key that opens the administration screens read-only (0145). Restore: rbac.sql',
+    (111, 'RBAC: the Technical Support role', 'app_roles carries `technical_support` with EVERY module key the admin role holds, plus `data.view_all` so the call pages are not empty and `admin.view` for the administration screens read-only (0145). THIS ROW TESTS WHAT THE BUNDLE PROVIDES, and no longer tests that the role holds nothing that writes -- which it did, and which made it LIE. An administrator ticked `review.edit` on this role deliberately (2026-09-13) and chose to keep it; the row then read NO on a project where rbac.sql was fully applied, and sent somebody to re-run a bundle that cannot fix it, because 0145 MERGES and never removes. A row that answers NO when nothing is missing is worse than no row -- it teaches the reader that a NO here may mean nothing. What makes the role read-only is still what it does NOT hold, and that is now a QUESTION rather than a verdict: run _zoho_diag.sql, which reports the write actions on this role and on Zoho Migration and says plainly that a grant is somebody''''s decision to review, not a bundle to run. NO here means the role is absent or the bundle has not been applied. Restore: rbac.sql',
         (to_regclass('public.app_roles') is not null
      and exists (select 1 from public.app_roles r where r.role = 'technical_support'
                   and r.permissions ? 'data.view_all' and r.permissions ? 'admin.view'
-                  and r.permissions ? 'mod:/users')
-        -- Read-only is the CLAIM, so it is what gets checked: not one action
-        -- that any write policy asks for, bar the two known exceptions above.
-     and not exists (
-           select 1 from public.app_roles r,
-                lateral jsonb_array_elements_text(r.permissions) g(v)
-            where r.role = 'technical_support'
-              and g.v in ('calls.create','calls.edit','calls.report','calls.cancel','calls.allot',
-                          'masters.edit','cover.edit','ownership.transfer','review.edit',
-                          'spare.request','spare.dispatch','spare.drop','stock.transfer','stock.return',
-                          'consumption.reconcile','pending.register','request.create','install.create',
-                          'docs.manage','qms.manage','users.manage','config.manage','rbac.manage')))),
+                  and r.permissions ? 'mod:/users'))),
     (112, 'Reports: Not Consumed Against this Call', 'unused_spare_report -- spare lines DISPATCHED or RECEIVED against a call and not fully accounted for in that call''s consumption: NOT USED where none of the part was booked, SHORT where less was booked than was sent. Aggregated per call and part rather than per line, so a part sent twice and booked once is not two false findings. Refused and dropped lines are EXCLUDED: nothing arrived, so nothing could be fitted, and flagging them would send somebody to look for a part that was never in the van. Matched on the part CODE, because both sides store CODE|Description and the description drifts -- matching the whole string reports a part as unused when somebody re-typed its name. A voided consumption still counts as booked (0049 keeps the row). security_invoker, so a reader sees only the calls their role allows (0147). Restore: performance.sql',
         (to_regclass('public.unused_spare_report') is not null
      and coalesce((select array_to_string(reloptions, ',') like '%security_invoker=on%'
