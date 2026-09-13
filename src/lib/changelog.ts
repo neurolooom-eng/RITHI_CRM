@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.229',
+    date: '2026-09-13',
+    title: 'Two \u201Cnot applied\u201D warnings that were wrong',
+    changes: [
+      'FIXED: the SQL status report claimed two Field Failure Register items had not been applied when they had \u2014 it was checking for parts that a later change deliberately replaced.',
+      'Nothing was wrong with the database; the report was. A false \u201Cnot applied\u201D is worse than none, because somebody acts on it.',
+      'The report is now itself checked against a database that has everything, so a row cannot go on claiming something is missing when it is not.',
+    ],
+  },
+  {
     version: '0.9.228',
     date: '2026-09-12',
     title: 'Two more rows off the visit details',

@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.228",
+  "version": "0.9.229",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -23,7 +23,8 @@
     "db:baseline": "node scripts/apply-migrations.mjs --baseline",
     "db:baseline:through": "node scripts/apply-migrations.mjs --baseline-through",
     "schema:doc": "node scripts/schema-doc.mjs",
-    "check:picklist": "node scripts/check-picklist.mjs"
+    "check:picklist": "node scripts/check-picklist.mjs",
+    "check:status": "node scripts/check-status.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

@@ -19,6 +19,36 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### _status.sql lied about two rows — 2026-09-13 (v0.9.229, shipped, no SQL)
+
+The user ran everything and `_status.sql` still reported **four** NOs. Two were
+real (Technical Support and Zoho Migration — `rbac.sql`). **Two were my own
+faulty checks.**
+
+Proved rather than argued: `_status.sql` run against a database built from
+EVERY migration — where nothing *can* be missing — still reported them NO.
+
+* **the register, its number and its retention** asked for
+  `next_ffr_no()` — the ZERO-ARGUMENT signature that **0169 dropped on
+  purpose**, because a defaulted argument beside it left the call site
+  ambiguous.
+* **the REVIEW raises it** asked for `review2_at` inside `ffr_from_review` —
+  but 0169 rewrote that as a thin wrapper so the trigger and the catch-up share
+  one definition, and the date rule moved into `raise_ffr()`.
+
+Both go on asserting a fact about a definition a later migration replaced. The
+same class the project already knows (`check:replay`, the guarded mirrors) — in
+the one file whose whole job is saying what is missing.
+
+⚠️ **A row that answers NO when nothing is missing is worse than no row**, because
+it is ACTED ON: it sent the user to re-run bundles already applied, and it
+teaches that a NO here may mean nothing.
+
+**`npm run check:status`** now runs `_status.sql` against a fully-applied
+database and fails on any NO, with a named exemption list (pg_cron only, with
+its reason). Added to the SQL verification loop in CLAUDE.md. It catches the
+original fault — verified by reintroducing it.
+
 ### Two more rows off the visit — 2026-09-12 (v0.9.228, shipped, no SQL)
 
 **Visit Date & Time** and **Complaint Date**, highlighted on screen. Both for
