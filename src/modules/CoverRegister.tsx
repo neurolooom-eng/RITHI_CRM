@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
+import { deriveHeader, deriveItem } from '../lib/coverspec';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
 import { csvExport, fmtDate, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -75,9 +76,9 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, item, header, canEdit, onSaved, onDeleted,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted,
 }: {
-  cfg: ReturnType<typeof configFor>; item: Row; header: Row; canEdit: boolean;
+  cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
 }) {
   const [open, setOpen] = useState(!item.id);
@@ -86,7 +87,16 @@ function ItemCard({
   const [msg, setMsg] = useState('');
   useEffect(() => { setDraft(item); }, [item]);
 
-  const set = (f: CoverField, v: string) => setDraft((d) => ({ ...d, [f.name]: toDb(f, v) }));
+  // A machine line carries the same arithmetic as the entry above it — rate to
+  // tax to total, the machine string to its three parts, the period to the end
+  // date — from the one transcription in coverspec.ts. Derived from the field
+  // just edited, never over the whole row: these fields INHERIT from the
+  // header when blank, and re-deriving everything would pin them all the first
+  // time anybody touched one.
+  const set = (f: CoverField, v: string) => setDraft((d) => {
+    const next = { ...d, [f.name]: toDb(f, v) };
+    return { ...next, ...deriveItem(kind, f.name, next) };
+  });
   const unpin = (f: CoverField) => setDraft((d) => ({ ...d, [f.name]: null }));
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(item), [draft, item],
@@ -539,7 +549,15 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
                   <label key={f.name} className="rep-field">
                     <span className="field-label">{f.label}</span>
                     <FieldInput field={f} value={fromDb(f, draft[f.name])} disabled={!canEdit}
-                      onChange={(v) => setDraft((d) => ({ ...d, [f.name]: toDb(f, v) }))} />
+                      onChange={(v) => setDraft((d) => {
+                        // The register's own arithmetic, from the AppSheet
+                        // definition (src/lib/coverspec.ts). Derived from the
+                        // field just edited, so an end date somebody typed for
+                        // a part-month contract is not undone by an unrelated
+                        // keystroke.
+                        const next = { ...d, [f.name]: toDb(f, v) };
+                        return { ...next, ...deriveHeader(kind, f.name, next) };
+                      })} />
                   </label>
                 ))}
               </div>
@@ -558,7 +576,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
           {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
           {items.map((it) => (
-            <ItemCard key={str(it.id)} cfg={cfg} item={it} header={draft} canEdit={canEdit}
+            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit}
               onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
               onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
           ))}

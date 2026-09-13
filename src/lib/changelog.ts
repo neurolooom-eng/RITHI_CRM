@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.235',
+    date: '2026-09-13',
+    title: 'Warranty and Contract entry do the arithmetic for you',
+    changes: [
+      'Type the period in MONTHS on a Warranty Sale or Contract entry and the rest fills itself in: the years, the end date, and the number of PM visits \u2014 by the same rules the old AppSheet app used.',
+      'The two PM rates are NOT the same and now behave differently: warranty is three visits a year, a contract is one every six months.',
+      'On a contract machine line, a Rate now fills in the 18% tax and the total after tax.',
+      'Picking a machine on a contract line splits CODE|NAME|SERIAL into the three columns; naming one on a sale line builds that string back \u2014 which is what links it to the Product Master.',
+      'The end date STAYS TYPEABLE. Editing it changes nothing else, so a contract that does not run a whole number of months still works.',
+      'The AppSheet app definition is now kept in the repository as the reference these rules were taken from.',
+    ],
+  },
+  {
     version: '0.9.234',
     date: '2026-09-13',
     title: 'Ownership Transfer imports properly, and FFR Insights answers questions',
