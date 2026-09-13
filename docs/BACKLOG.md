@@ -13,6 +13,27 @@ up)_
 
 ---
 
+## 2026-09-13 — The Technical Support status row was lying
+
+The user ran `_status.sql` after applying `rbac.sql`. Zoho Migration went green;
+**Technical Support still read NO**, and I had told them `rbac.sql` was the fix.
+It is not, and cannot be.
+
+- The row tested that the role holds none of 23 write actions, **including
+  `review.edit`** — which an administrator ticked deliberately and which **the
+  user chose to keep** when they answered "revoke from Zoho only". 0145 MERGES
+  and never removes, so no bundle can make that row green.
+- **This is the exact fault CLAUDE.md warns about**: a NO when nothing is
+  missing, acted on by re-running a bundle already in. It happened twice now.
+- Row 111 tests **what the bundle provides** — the role, its module keys,
+  `data.view_all`, `admin.view`. Reproduced the live state (review.edit ticked)
+  on a throwaway: `check:status` now reads all yes.
+- The read-only property moved to `_zoho_diag.sql`, widened to **both** roles and
+  to all 23 actions. It reports a grant as a **question** — "somebody granted
+  this; is that still what you want?" — never as a bundle to run.
+- Clause A relabelled from **drift** to **difference (expected)**: under
+  seed-once cloning the two roles are meant to diverge.
+
 ## 2026-09-13 — The in-app How to Use guide covers every area
 
 Asked for as "Update 'How to Use RITHI CRM' under Knowledgebase with all
