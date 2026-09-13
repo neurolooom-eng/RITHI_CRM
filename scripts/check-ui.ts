@@ -4477,6 +4477,41 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
     eq('a series past 999 still reads correctly',
       nextInSeries('sale', ['SA999', 'SA1200']), 'SA1201');
   }
+
+  // THE LABELS PEOPLE ARE MIGRATING FROM. Reconciled against schemas 3.6/3.7 so
+  // a field is recognisable to somebody who used the AppSheet app.
+  //
+  // NOT matched: the spec's SHOUTING (INVOICE NO, PM VISITS, COUNTRY). Those are
+  // COLUMN names, and the document's own boundary note says the AppSheet Label
+  // property is recorded only "where it materially identifies a field" — so what
+  // the old screen displayed is not in the document, and copying the column's
+  // case would assert something it does not support while making the form shout
+  // in four places and nowhere else.
+  //
+  // NOT matched either: `Timestamp`, which is a Google-Forms artefact meaning
+  // nothing to a reader — and the spec's own detail table calls the same value
+  // "Sale Entry Date". And "(as keyed)" stays on the two status fields, because
+  // the register computes a status elsewhere and the bare word would make two
+  // different things look like one.
+  {
+    const lbl = (kind: 'sale' | 'contract', name: string) =>
+      [...configFor(kind).headerFields, ...configFor(kind).itemFields].find((f) => f.name === name)?.label;
+    for (const [name, want] of [
+      ['warranty_start', 'Warranty Start Date'], ['warranty_end', 'Warranty End Date'],
+      ['warranty_years', 'Warranty Period (in Years)'], ['warranty_months', 'Warranty Period (in Months)'],
+      ['engineer', 'Service Engineer - Initial'], ['pincode', 'Inst. Pincode'],
+    ] as const) eq(`sale: ${name} reads as the spec names it`, lbl('sale', name), want);
+    for (const [name, want] of [
+      ['contract_start', 'Contract Start Date'], ['contract_end', 'Contract End Date'],
+      ['contract_years', 'Contract Period (Years)'], ['contract_months', 'Contract Period (Months)'],
+      ['prev_mc_number', 'Prev MC Number'], ['bill_generate_at', 'Bill Generate At'],
+    ] as const) eq(`contract: ${name} reads as the spec names it`, lbl('contract', name), want);
+    // The two registers must not borrow each other's wording: "Period (Years)"
+    // appeared in BOTH, so a global rename would have mislabelled one of them.
+    eq('a warranty period is never called a contract period',
+      lbl('sale', 'warranty_years')!.includes('Contract'), false);
+    eq('...and the reverse', lbl('contract', 'contract_years')!.includes('Warranty'), false);
+  }
   // The two registers derive the machine string in OPPOSITE directions, and
   // that is in the spec: a contract picks an existing machine, a sale names one.
   eq('a contract line splits the machine string',
