@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.230',
+    date: '2026-09-13',
+    title: 'Load the Field Failure Register back to 2016',
+    changes: [
+      'Bulk Uploads has a new entry \u2014 Field Failure Register (any year). Export a year\u2019s tab as CSV and load it; the years do not have to match each other, or 2026.',
+      'IT KEEPS WHAT IT DOES NOT RECOGNISE. A column no other year has is kept on the report and listed as \u201Ckept on the row\u201D, so nothing in your file is thrown away \u2014 tell us what an unfamiliar heading should be and it can be named properly.',
+      'Matched on the FFR number, so a corrected year is re-loaded over itself instead of arriving twice, and the years can go in any order.',
+      'Loaded reports are marked as migrated \u2014 Insights shows how many came from the sheet and how many were raised here.',
+      'A loaded report keeps the sheet\u2019s own \u201CRaised by\u201D name and is NOT attributed to whoever ran the upload.',
+      'Loading old years cannot disturb this year\u2019s FFR numbering.',
+    ],
+  },
+  {
     version: '0.9.229',
     date: '2026-09-13',
     title: 'Two \u201Cnot applied\u201D warnings that were wrong',

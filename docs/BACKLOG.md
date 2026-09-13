@@ -19,6 +19,39 @@ This file is 2,000+ lines and its open items were scattered across four
 sections. They are indexed here so nothing waits unseen; each links to the entry
 that explains it.
 
+### The register, back to 2016 — 2026-09-13 (v0.9.230, SQL to run)
+
+*"I want Provision to upload FFR Data from 2016 -- I think every year it has a
+Different Format -- But it needs to be able to merge all into 1 Table."*
+
+**BUILT NOT TO NEED THE FORMATS IN ADVANCE**, which is the only honest way to
+answer it — the 2016–2025 tabs have not been seen. Three things carry it: many
+accepted headings per column through the shared matcher; `extraInto: 'extra'`,
+so an unrecognised column is KEPT and listed on screen rather than dropped; and
+`conflict: 'ffr_no'`, so a corrected year re-loads over itself and the years go
+in any order.
+
+Two properties are in the DATABASE (0179) rather than the importer:
+
+* `imported_from` marks every loaded row, so migrated years stay
+  distinguishable and a figure over the register can report the split
+  (**URS-037**) — the Insights tab now does.
+* `ffr_stamp` leaves `raised_by` NULL on a loaded row. The sheet's "Raised by"
+  is a NAME with no account behind it; stamping the uploader would say a 2016
+  report was raised by somebody who never saw it.
+
+⚠️ **check:replay caught a real one:** `field_failure_register` selects `f.*`, so
+the new column arrives in the MIDDLE of its output and `create or replace view`
+can only append — a replay failed with *"cannot change name of view column"*.
+The view is dropped and rebuilt in 0179, with `security_invoker` re-asserted.
+The migration applied fine in order; only the replay exposed it.
+
+**NEXT, and it needs the user:** load one old year and send the "kept on the
+row" list. Those are the headings worth naming as real columns; until then they
+are on the row and nothing is lost.
+
+**To run:** `daily_review.sql`.
+
 ### _status.sql lied about two rows — 2026-09-13 (v0.9.229, shipped, no SQL)
 
 The user ran everything and `_status.sql` still reported **four** NOs. Two were
