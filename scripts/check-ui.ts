@@ -4394,9 +4394,19 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   eq('the upload exists', !!def, true);
   if (def) {
     eq('it writes the register table', def.table, 'field_failure_reports');
-    // THE NUMBER IS THE KEY, or a re-run adds the year again instead of
-    // correcting it — the one thing a multi-year load cannot afford.
-    eq('re-loading a year corrects rather than duplicates', def.conflict, 'ffr_no');
+    // THE NUMBER AND THE MACHINE ARE THE KEY, or a re-run adds the year again
+    // instead of correcting it — the one thing a multi-year load cannot afford.
+    // The number ALONE is not the identity: one paper report covers several
+    // units (16/18 in the 2018 register covers serials 252-255), and keying on
+    // it alone silently overwrote twelve machines across 2016-2019.
+    eq('re-loading a year corrects rather than duplicates', def.conflict, 'ffr_no,product_serial');
+    eq('...and the machine is half of that key',
+      def.conflict!.split(',').includes('product_serial'), true);
+    // The pair only works because the serial can never be NULL — NULLs do not
+    // collide, so a report with no serial would arrive again on every load.
+    eq('the serial column the key depends on is declared not-null in 0165',
+      /product_serial\s+text\s+not null\s+default\s+''/.test(
+        readFileSync('supabase/migrations/0165_field_failure_register.sql', 'utf8')), true);
     eq('and the number is required', !!def.cols.find((c) => c.to === 'ffr_no')?.required, true);
     // AN UNKNOWN COLUMN IS KEPT. This is what makes "a different format every
     // year" safe: nothing is dropped, and the screen lists what it kept.

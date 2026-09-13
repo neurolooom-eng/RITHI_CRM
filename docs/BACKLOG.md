@@ -13,6 +13,32 @@ up)_
 
 ---
 
+## 2026-09-13 — The FFR importer met the real files, and three bugs fell out
+
+Reported as "the Bulk upload is not working", with all ten years attached. It
+was not the files.
+
+- **`parseCSV` read row 1 as the header row.** Every year of this register has
+  three rows above the headings (company, title, PAGE NO), so nothing matched,
+  the required column was "missing" and every row was skipped. `pickHeaderRow`
+  finds it from the importer's own aliases. Default unchanged where no aliases
+  are passed, so no other importer moves.
+- **The 2020 tab is TAB-separated** and read through a comma parser as one
+  column. `pickDelimiter` decides from the file, not the extension.
+- **A repeated heading took the LAST column.** 2021–2025 each carry `FFR Date`
+  twice — the date, and a month label ("Feb 2021") — so every FFR date in five
+  years would have parsed from the month alone and lost its day, silently.
+  First occurrence wins now, matching headers.ts.
+- **`0181` — one report can cover several machines.** Eight FFR numbers in
+  2016–2019 appear on several rows (16/18 covers serials 252–255). Keyed on the
+  number alone, 20 rows became 8: twelve machines overwritten with no error.
+  The key is now (ffr_no, product_serial).
+- **`isMonthFirst` in dates.ts** — 2016 is American-style. Decided per COLUMN
+  from evidence (a value above 12 in the month position) and shown on the
+  upload screen; day-first remains the rule and every other year is untouched.
+- Result: 655 reports across 2016–2025, with only formula-residue rows skipped.
+- **Pending: the user to run `daily_review.sql` (0181) and load the years.**
+
 ## 2026-09-13 — Zoho Migration held a write action, and cloning was the cause
 
 - **`0180_zoho_readonly.sql` — `review.edit` revoked from `zoho_migration`.**

@@ -33,7 +33,35 @@ const fullYear = (y: string) => (y.length === 4 ? +y : +y <= 68 ? 2000 + +y : 19
 
 export interface DateParts { y: number; mo: number; d: number; hh: number; mi: number; ss: number; hasTime: boolean }
 
-export function parseDateParts(v: unknown): DateParts | null {
+/** Does a COLUMN of values prove itself month-first (3/28/2016 = 28 March)?
+ *
+ *  Day-first is this project's rule and stays the default. But a file can PROVE
+ *  it is written the other way: "3/28/2016" has 28 in the month position, which
+ *  no day-first date ever does. The 2016 Field Failure Register is such a file,
+ *  and every other year of it is `28-Mar-2016`, which is not ambiguous at all.
+ *
+ *  EVIDENCE, NOT A SETTING, and the whole column or nothing. It answers yes only
+ *  when some value is impossible as day-first AND none is impossible as
+ *  month-first — a column carrying both is contradictory, and the honest answer
+ *  there is to leave the rule alone and let the impossible dates fail loudly.
+ *  This is why it takes the values rather than one string: a single "3/4/2016"
+ *  proves nothing, and guessing per value would read two rows of one column by
+ *  two different rules. */
+export function isMonthFirst(values: readonly unknown[]): boolean {
+  let provesMonthFirst = 0, provesDayFirst = 0;
+  for (const v of values) {
+    const m = /^\s*(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/.exec(String(v ?? '').trim());
+    if (!m) continue;
+    const a = +m[1], b = +m[2];
+    if (b > 12 && a <= 12) provesMonthFirst++;
+    if (a > 12 && b <= 12) provesDayFirst++;
+  }
+  return provesMonthFirst > 0 && provesDayFirst === 0;
+}
+
+export interface DateOpts { monthFirst?: boolean }
+
+export function parseDateParts(v: unknown, opts?: DateOpts): DateParts | null {
   const s = String(v ?? '').trim();
   if (!s) return null;
   const t = /[T ](\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(s);
@@ -50,14 +78,20 @@ export function parseDateParts(v: unknown): DateParts | null {
   // rather than guessed. A month name removes that ambiguity, which is why the
   // rule above accepts two digits and this one does not.
   m = /^(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/.exec(s);
-  if (m) { const mo = +m[2]; if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d: +m[1], ...time }; }
+  if (m) {
+    // Day-first unless the CALLER has established otherwise for the whole
+    // column — see isMonthFirst. Never decided from this value alone.
+    const mo = opts?.monthFirst ? +m[1] : +m[2];
+    const d = opts?.monthFirst ? +m[2] : +m[1];
+    if (mo >= 1 && mo <= 12) return { y: +m[3], mo, d, ...time };
+  }
 
   return null;
 }
 
 /** 'yyyy-mm-dd', or null. Never a half-parsed guess. */
-export function toIsoDate(v: unknown): string | null {
-  const p = parseDateParts(v);
+export function toIsoDate(v: unknown, opts?: DateOpts): string | null {
+  const p = parseDateParts(v, opts);
   return p ? `${p.y}-${pad(p.mo)}-${pad(p.d)}` : null;
 }
 
@@ -72,8 +106,8 @@ export function toIsoDate(v: unknown): string | null {
 // that genuinely carries UTC, but nothing in the app uses it today.
 export type TimestampAs = 'local' | 'utc';
 
-export function toIsoTimestamp(v: unknown, as: TimestampAs = 'local'): string | null {
-  const p = parseDateParts(v);
+export function toIsoTimestamp(v: unknown, as: TimestampAs = 'local', opts?: DateOpts): string | null {
+  const p = parseDateParts(v, opts);
   if (!p) return null;
   if (as === 'utc') return `${p.y}-${pad(p.mo)}-${pad(p.d)}T${pad(p.hh)}:${pad(p.mi)}:${pad(p.ss)}Z`;
   const dt = new Date(p.y, p.mo - 1, p.d, p.hh, p.mi, p.ss);
