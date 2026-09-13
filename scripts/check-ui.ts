@@ -4395,6 +4395,41 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   console.log('\n-- loading the register, any year --');
   const def = UPLOADS.find((u) => u.key === 'ffr');
   eq('the upload exists', !!def, true);
+console.log('\n-- the How to Use guide points at real screens --');
+{
+  const guide = readFileSync('src/modules/HowToUse.tsx', 'utf8');
+  const rbac = readFileSync('src/lib/rbac.ts', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  // Modules AND plain routes: /profile is a real screen that is deliberately not
+  // a module, because it is personal and no permission gates it. Checking only
+  // MODULES called it broken.
+  const paths = new Set([
+    ...[...rbac.matchAll(/path: '([^']*)'/g)].map((m) => m[1]),
+    ...[...app.matchAll(/path="([^"]*)"/g)].map((m) => m[1]),
+  ]);
+
+  // EVERY "Open …" BUTTON MUST REACH A REAL MODULE. A typo here is a button
+  // that lands on the Dashboard, which is how the jump strip failed before
+  // (reported 2026-09-08) — it looks like the guide working, right up until
+  // somebody presses it.
+  const gone = [...guide.matchAll(/to: '(\/[a-z0-9/-]*)'/g)].map((m) => m[1])
+    .filter((t) => !paths.has(t));
+  eq('every Open button names a module that exists', [...new Set(gone)], []);
+
+  // The guide grew from 15 call-and-spare tasks to cover every area. These are
+  // the ones that had NO instructions at all and are the reason it was updated;
+  // if one is dropped the guide has gone backwards without anybody noticing.
+  for (const id of ['dccr', 'callreview', 'ffr', 'ffr-insights', 'cover-entry', 'ownership',
+                    'handstock', 'mrn', 'bulk', 'ffr-years', 'indoor', 'objective',
+                    'exports', 'masters', 'lookup', 'signature', 'tracker', 'access']) {
+    eq(`the guide covers ${id}`, guide.includes(`id: '${id}'`), true);
+  }
+  // Numbered without a gap or a repeat, because the numbers are how somebody is
+  // sent to one ("read step 18").
+  const ns = [...guide.matchAll(/id: '[a-z0-9-]+', n: '(\d+)'/g)].map((m) => Number(m[1]));
+  eq('the task numbers run 1..n with no gap', ns, ns.map((_, i) => i + 1));
+}
+
 console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 {
   const spec = readFileSync('docs/APPSHEET_ADMIN_APPDEF.md', 'utf8');

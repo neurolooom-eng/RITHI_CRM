@@ -13,6 +13,32 @@ up)_
 
 ---
 
+## 2026-09-13 — The in-app How to Use guide covers every area
+
+Asked for as "Update 'How to Use RITHI CRM' under Knowledgebase with all
+Instructions for all Modules — First Read what is there, Analyse the Delta and
+then Update." **The page already existed** (`src/modules/HowToUse.tsx`, its own
+topic under Knowledge Base) with 15 tasks, all calls and spares.
+
+- **The delta:** nothing at all for the Daily Call Review, Call Review, Field
+  Failure Register, Insights, cover entries, ownership, hand stock, MRN,
+  transfers, Stock Out, Bulk Uploads, the FFR years, Indoor Service, Objective,
+  the three exports, masters, search, signature, Tracker or access. **18 added**,
+  numbered 16–33.
+- Grouping added to the jump strip and the sections — a task carries the heading
+  it opens, so the array order is still the page order and nothing was re-nested.
+- **check:ui now guards it**: every "Open …" button must name a real screen, the
+  18 new tasks must stay, and the numbers must run 1..n with no gap (they are how
+  somebody is sent to one).
+- **That guard immediately found a real error of mine**: I had written that
+  *My Signature* is under Settings. It is on **Profile**. Wrong in the guide, in
+  `docs/HOW_TO_USE.md` and in the published artifact — all three corrected.
+  It also showed the first version of the check was too strict: `/profile` is a
+  real route deliberately outside `MODULES`, because it is personal and no
+  permission gates it. The check reads routes as well as modules now.
+
+**Still to do:** update the validation package.
+
 ## 2026-09-13 — Two exports "unable to load", both the importer's fault
 
 Reported as *"Nothing loadable — every row is missing serial number / ucn. Is

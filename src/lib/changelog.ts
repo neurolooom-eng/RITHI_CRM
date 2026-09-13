@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.240',
+    date: '2026-09-13',
+    title: 'How to Use RITHI CRM covers the rest of the application',
+    changes: [
+      'The in-app guide had fifteen tasks, all about calls and spares. It now has thirty-three, grouped by area \u2014 the Daily Call Review, Call Review, the Field Failure Register and its Insights, warranty and contract entries, ownership transfers, hand stock, returns and transfers, Bulk Uploads, loading the old FFR years, Indoor Service, Objective, the three exports, master lists, search, your signature, the Tracker and giving somebody access.',
+      'The contents strip is grouped now that the list is long enough to need it.',
+      'CORRECTION: the guide said My Signature was under Settings. It is on your Profile.',
+    ],
+  },
+  {
     version: '0.9.239',
     date: '2026-09-13',
     title: 'Two exports that would not load, now do',
