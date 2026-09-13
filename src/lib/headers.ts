@@ -33,3 +33,21 @@ export function findHeaderFor(headers: string[], aliases: string[]): string | un
   for (const a of aliases) { const h = findHeader(headers, a); if (h) return h; }
   return undefined;
 }
+
+/** Which row of a file holds the headings.
+ *
+ *  The row that NAMES the most of what the importer is looking for. A letterhead
+ *  row matches nothing, so it scores 0 and loses to the real headings below it;
+ *  ties go to the earliest row, and a file with no preamble is unaffected because
+ *  its first row is also its best. Only the first `limit` rows are considered —
+ *  beyond that a "header row" would be data that happens to read like one. */
+export function pickHeaderRow(rows: string[][], aliases: string[], limit = 15): number {
+  let best = 0, bestScore = -1;
+  for (let i = 0; i < Math.min(rows.length, limit); i++) {
+    const cells = (rows[i] ?? []).map((h) => h.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    if (!cells.length) continue;
+    const score = aliases.reduce((n, a) => n + (findHeader(cells, a) ? 1 : 0), 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return bestScore > 0 ? best : 0;
+}

@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { shapeCoverRows, type CoverTable } from './coverImport';
-import { toIsoDate, toIsoTimestamp, parseAnyDate } from './dates';
+import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
 
 export type ColType = 'text' | 'date' | 'ts' | 'num' | 'int' | 'bool' | 'json';
@@ -109,17 +109,17 @@ const norm = loose;
 
 // Dates live in ./dates — one parser for every import. Kept under the names
 // the registers and the checks already use.
-export const toDate = (v: unknown): string | null => toIsoDate(v);
-export const toTs = (v: unknown): string | null => toIsoTimestamp(v, 'local');
+export const toDate = (v: unknown, o?: DateOpts): string | null => toIsoDate(v, o);
+export const toTs = (v: unknown, o?: DateOpts): string | null => toIsoTimestamp(v, 'local', o);
 
 const TRUE = new Set(['y', 'yes', 'true', '1', 't', 'active', 'enabled', 'live']);
 const FALSE = new Set(['n', 'no', 'false', '0', 'f', 'inactive', 'disabled', 'retired']);
 
-export function coerce(v: unknown, type: ColType = 'text'): unknown {
+export function coerce(v: unknown, type: ColType = 'text', dateOpts?: DateOpts): unknown {
   const s = String(v ?? '').trim();
   switch (type) {
-    case 'date': return toDate(s);
-    case 'ts': return toTs(s);
+    case 'date': return toDate(s, dateOpts);
+    case 'ts': return toTs(s, dateOpts);
     case 'num': { if (!s) return null; const n = Number(s.replace(/,/g, '')); return Number.isFinite(n) ? n : null; }
     case 'int': { if (!s) return null; const n = parseInt(s.replace(/,/g, ''), 10); return Number.isFinite(n) ? n : null; }
     case 'bool': { const l = s.toLowerCase(); return TRUE.has(l) ? true : FALSE.has(l) ? false : null; }
@@ -136,6 +136,9 @@ export interface ShapeResult {
   /** Headers in the file that no column claimed — shown so a mis-picked
    *  register is obvious BEFORE anything is written. */
   unmatched: string[];
+  /** Columns read MONTH-FIRST because their own values proved it. Surfaced so
+   *  a date convention is never applied silently. */
+  monthFirst: string[];
   /** Headers the register deliberately overrides (Call Type on a call
    *  register). Not a problem, and not listed as one. */
   stamped?: string[];
@@ -152,6 +155,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
         ? [{ row: 0, why: `${raw.length - out.length} row(s) without the key this register needs, or duplicated within the file` }]
         : [],
       unmatched: [],
+      monthFirst: [],
     };
   }
   const rows: Record<string, unknown>[] = [];
@@ -177,6 +181,19 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); }
   });
 
+  // WHICH WAY ROUND THIS FILE WRITES ITS DATES, decided ONCE PER COLUMN over
+  // every row before any row is shaped. Day-first is the rule and the default;
+  // a column is read the other way only where its own values PROVE it (a value
+  // above 12 in the month position), which no correctly day-first column can
+  // do. Per column rather than per file because one sheet can carry both, and
+  // once rather than per value because deciding per value would read two rows
+  // of one column by two different rules.
+  const monthFirst = new Set<string>();
+  bind.forEach((cols, h) => {
+    if (!cols.some((c) => c.type === 'date' || c.type === 'ts')) return;
+    if (isMonthFirst(raw.map((r) => r[h]))) monthFirst.add(h);
+  });
+
   raw.forEach((r, i) => {
     const out: Record<string, unknown> = { ...(def.stamp ?? {}) };
     const extra: Record<string, unknown> = {};
@@ -189,7 +206,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
           const raw = String(v ?? '').trim();
           if (col.when && raw && !col.when(raw)) return;   // not this column's kind of value
           usedBy += 1;
-          const val = coerce(v, col.type);
+          const val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
           // Never let a blank cell overwrite a stamped constant.
           if (val !== null && val !== '') out[col.to] = val;
         });
@@ -245,6 +262,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     rows: deduped,
     skipped,
     unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h))),
+    monthFirst: [...monthFirst],
     stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
   };
 }
@@ -792,9 +810,9 @@ export const UPLOADS: UploadDef[] = [
   // 2016 report was raised by somebody who had not seen it.
   // ---------------------------------------------------------------------------
   { key: 'ffr', label: 'Field Failure Register (any year)', group: 'Quality',
-    table: 'field_failure_reports', conflict: 'ffr_no', extraInto: 'extra',
+    table: 'field_failure_reports', conflict: 'ffr_no,product_serial', extraInto: 'extra',
     stamp: { imported_from: 'Field Failure Register (sheet)' },
-    note: 'Every year of the register, into one table. Export the year’s TAB as CSV and load it — the years do not have to agree with each other, or with 2026. Matched on the FFR NUMBER, so re-loading a corrected year updates those reports rather than adding them again, and the years can be loaded in any order. ANY COLUMN NOT RECOGNISED IS KEPT ON THE ROW and listed below as "kept on the row" — nothing in the file is discarded, so an unfamiliar heading is something to name later rather than data lost now. Rows are marked as imported, so the register can tell a migrated year from a report this system raised. A row with no FFR number is not loaded: the number is what a re-run matches on, and without it the same row would arrive again on every load.',
+    note: 'Every year of the register, into one table. Export the year’s TAB as CSV and load it — the years do not have to agree with each other, or with 2026. Matched on the FFR NUMBER AND THE MACHINE, so re-loading a corrected year updates those reports rather than adding them again, and the years can be loaded in any order. One paper report often covers several units — 16/18 in the 2018 register covers four — and each keeps its own row, its own serial and its own installation date. ANY COLUMN NOT RECOGNISED IS KEPT ON THE ROW and listed below as "kept on the row" — nothing in the file is discarded, so an unfamiliar heading is something to name later rather than data lost now. Rows are marked as imported, so the register can tell a migrated year from a report this system raised. A row with no FFR number is not loaded: the number is what a re-run matches on, and without it the same row would arrive again on every load.',
     cols: [
       // THE NUMBER IS THE KEY. Required — see the note: without it a re-run
       // cannot correct the row, it can only add it again.

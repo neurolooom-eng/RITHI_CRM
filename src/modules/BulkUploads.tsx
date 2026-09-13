@@ -32,7 +32,10 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     setMsg(null); setPending(null);
     if (!f) return;
     try {
-      const raw = parseCSV(await f.text());
+      // The register's own column names, so the header row can be FOUND rather
+      // than assumed to be the first: these sheets are printed for filing and
+      // carry a letterhead above the headings.
+      const raw = parseCSV(await f.text(), { aliases: def.cols.flatMap((c) => c.from) });
       if (!raw.length) { setMsg({ tone: 'error', text: 'That file has no rows.' }); return; }
       const shaped = shapeUpload(def, raw);
       setPending({ file: f.name, shaped });
@@ -141,6 +144,19 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
               Software Version) live exactly there, and that is where the app
               reads them from. Calling it "does not know" read like a failure on
               a load that was entirely correct. */}
+          {/* A DATE CONVENTION IS NEVER APPLIED SILENTLY. Day-first is the rule;
+              a column is read the other way only where its own values prove it,
+              and when that happens the file has to SAY so — a date read the
+              wrong way round is wrong by up to eleven months and looks
+              perfectly ordinary on screen. */}
+          {s.monthFirst.length > 0 && (
+            <p style={{ margin: '4px 0' }}>
+              <b>Read month-first ({s.monthFirst.length}):</b> {s.monthFirst.join(', ')}.{' '}
+              This file writes those dates American-style — 3/28/2016 is 28 March — proved by
+              values with a day above 12 in the month position. Every other column is read
+              day-first as usual.
+            </p>
+          )}
           {s.unmatched.length > 0 && (
             <p style={{ margin: '4px 0' }}>
               {def.extraInto ? (

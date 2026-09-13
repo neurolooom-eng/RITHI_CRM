@@ -289,7 +289,10 @@ const MODULES = {
             '0178_ffr_call_context.sql',
             // Redefines ffr_stamp(), which 0165 creates in THIS module and 0168
             // last redefined — so it belongs here and after both.
-            '0179_ffr_import.sql'],
+            '0179_ffr_import.sql',
+            // After 0179: it re-keys the same table, and the import needs the
+            // pair as its conflict target.
+            '0181_ffr_one_row_per_machine.sql'],
   },
   notifications: {
     title: 'Notifications',

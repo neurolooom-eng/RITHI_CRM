@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.232',
+    date: '2026-09-13',
+    title: 'The old Field Failure years actually load now',
+    changes: [
+      'THE UPLOAD WAS BROKEN AND IT WAS OUR FAULT, not your files. The register is printed for filing, so it carries the company name, the title and PAGE NO above the column headings \u2014 and the importer was reading the first line as the headings. It matched nothing, so every row was refused. It now FINDS the heading row.',
+      'A tab-separated export (the 2020 tab) loads too \u2014 it used to arrive as one long column.',
+      'A HEADING THAT APPEARS TWICE NO LONGER WINS FROM THE WRONG SIDE. 2021\u20132025 each carry \u201CFFR Date\u201D twice \u2014 the real date, and a month label like \u201CFeb 2021\u201D. The month label was being used, so every FFR date in five years would have lost its day. The first column wins now.',
+      'ONE REPORT CAN COVER SEVERAL MACHINES, which the old registers do often \u2014 16/18 in 2018 covers four units. Each machine keeps its own row, serial and installation date. Twelve machines across 2016\u20132019 would otherwise have been overwritten without a word.',
+      'The 2016 tab writes dates American-style (3/28/2016 = 28 March). Where a column PROVES that \u2014 a day above 12 in the month position \u2014 it is read that way and the upload screen says so. Every other year is read day-first as before.',
+      'Across the ten years 2016\u20132025 that is 655 reports. Rows carrying only leftover spreadsheet formulas are skipped, not loaded.',
+    ],
+  },
+  {
     version: '0.9.231',
     date: '2026-09-13',
     title: 'Zoho Migration is read-only again',
