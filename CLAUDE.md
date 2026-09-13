@@ -40,13 +40,24 @@ psql -h /tmp/pg -p 55432 -U postgres -v ON_ERROR_STOP=1 \
 psql -h /tmp/pg -p 55432 -U postgres -f supabase/tests/<suite>_test.sql
 ```
 
-Then the two checks that need a database — the first proves no bundle undoes
-another, the second that no view has lost `security_invoker`:
+Then the three checks that need a database — no bundle undoes another, no view
+has lost `security_invoker`, and `_status.sql` tells the truth:
 
 ```bash
 npm run check:replay -- "-h /tmp/pg -p 55432 -U postgres"          # no -d: it makes its own
 npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
+npm run check:status -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
 ```
+
+`check:status` runs `_status.sql` against that database and fails on any NO.
+Nothing can be missing there, so **every NO is a faulty check** — and a row that
+answers NO when nothing is missing is worse than no row, because it is ACTED ON:
+it sends somebody to re-run a bundle already in, and teaches them a NO here may
+mean nothing. It happened (2026-09-13): two Field Failure rows read NO on the
+live project because 0169 had legitimately dropped the zero-argument
+`next_ffr_no()` and rewritten `ffr_from_review` as a wrapper, and the rows went
+on testing the old shape. **When a migration replaces a definition, move the
+`_status.sql` row with it.**
 
 ## Conventions
 
