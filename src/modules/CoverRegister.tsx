@@ -10,7 +10,7 @@ import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
 import {
   configFor, listHeaders, listItems, listMachines, countMachines, saveHeader, saveItem,
-  deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod,
+  deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
 import './fieldcalls.css';
@@ -303,6 +303,23 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   // may exist, and when its browse set was last synced. Same behaviour as the
   // Field Call Register — instant from cache, ↻ Refresh, 30-minute auto-sync,
   // Load more, and CSV export of what is on screen.
+  /** Open a blank entry with the next number in the series already in it.
+   *
+   *  OFFERED, NOT RESERVED, and it stays editable: two people starting an entry
+   *  at the same moment are offered the same number and the second is refused
+   *  on save by the unique key. That is the honest failure — handing out a
+   *  number and then not using it leaves a gap in a series somebody audits.
+   *  If the lookup fails the form still opens, with the number blank to type:
+   *  not being able to suggest one is no reason to refuse the entry. */
+  const newEntry = async () => {
+    setOpen({}); setItems([]);
+    setDraft({});
+    try {
+      const n = await nextCoverNumber(kind);
+      setDraft((d) => (str(d[cfg.key]) ? d : { ...d, [cfg.key]: n }));
+    } catch { /* offered, not required — the field is typeable */ }
+  };
+
   const cacheKey = (t: Tab) => `cover-${kind}-${t}`;
   const fromCache = (t: Tab): Feed => {
     const c = loadCache<Row>(cacheKey(t));
@@ -501,7 +518,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
               <SearchBox value={q} onChange={setQ} placeholder={`${cfg.keyLabel} or party…`} />
               <div className="spacer" />
               {canEdit && (
-                <button className="btn btn-sm btn-primary" onClick={() => { setOpen({}); setDraft({}); setItems([]); }}>+ New entry</button>
+                <button className="btn btn-sm btn-primary" onClick={() => void newEntry()}>+ New entry</button>
               )}
               {rows.length > 0 && (
                 <button className="btn btn-sm" onClick={() => csvExport(`${kind}-entries.csv`, headerColumns.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows)}>⭳ Export CSV</button>
