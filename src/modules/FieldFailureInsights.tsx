@@ -19,7 +19,7 @@
 // reported; a machine that failed twice has two. Said on the page rather than
 // left to be assumed.
 // ===========================================================================
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, ColumnChart, DonutChart } from '../components/charts/Charts';
@@ -55,7 +55,58 @@ function byMonth(rows: Row[]): { label: string; value: number }[] {
     .map(([label, value]) => ({ label: label.slice(2), value }));   // YY-MM, so 12 fit
 }
 
-export function FieldFailureInsights({ rows }: { rows: Row[] }) {
+// ---------------------------------------------------------------------------
+// THE DIMENSIONS YOU CAN INTERROGATE THE REGISTER BY.
+//
+// One list, used for the filtering, the chips and the charts alike, so a
+// dimension cannot be filterable but unnamed, or named and not actually
+// filtered — which is the way a cross-filter usually goes wrong.
+// `month` reads the first seven characters of ffr_date rather than a column.
+// ---------------------------------------------------------------------------
+const DIMS = [
+  { key: 'product_name', label: 'Machine' },
+  { key: 'cover', label: 'Cover' },
+  { key: 'ffr_status', label: 'Report status' },
+  { key: 'capa_status', label: 'CAPA' },
+  { key: 'live_root_cause_keyword', label: 'Root cause' },
+  { key: 'live_complaint_grouping', label: 'Grouping' },
+  { key: 'customer_name', label: 'Customer' },
+  { key: 'month', label: 'Month' },
+] as const;
+type DimKey = (typeof DIMS)[number]['key'];
+type Picked = Partial<Record<DimKey, string>>;
+
+const BLANK = '(not stated)';
+/** The value a row has for a dimension, matching what `tally` put on the chart
+ *  — including the blank label, so clicking "(not stated)" selects exactly the
+ *  rows that bar counted. */
+const dimValue = (r: Row, k: DimKey) =>
+  (k === 'month' ? s(r, 'ffr_date').slice(0, 7) || '(no date)' : s(r, k)) || BLANK;
+
+/** Rows matching every chosen dimension EXCEPT the ones named in `except`.
+ *
+ *  Excluding a chart's OWN dimension is what makes this a cross-filter rather
+ *  than a search box: filter the Machine chart by the machine you just clicked
+ *  and it collapses to the single bar you already knew about. Every OTHER chart
+ *  narrows, which is the question being asked — "for this machine, what else is
+ *  true?" */
+function applyPicks(rows: Row[], picked: Picked, except?: DimKey): Row[] {
+  const keys = (Object.keys(picked) as DimKey[]).filter((k) => k !== except && picked[k]);
+  if (!keys.length) return rows;
+  return rows.filter((r) => keys.every((k) => dimValue(r, k) === picked[k]));
+}
+
+export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
+  const [picked, setPicked] = useState<Picked>({});
+
+  /** Clicking the chosen mark again clears it — the same gesture both ways, so
+   *  nobody has to find a separate control to undo what a click did. */
+  const pick = (k: DimKey) => (label: string) =>
+    setPicked((p) => (p[k] === label ? { ...p, [k]: undefined } : { ...p, [k]: label }));
+
+  const rows = useMemo(() => applyPicks(allRows, picked), [allRows, picked]);
+  const active = (Object.keys(picked) as DimKey[]).filter((k) => picked[k]);
+
   const stats = useMemo(() => {
     // A WEEK AGO, for "not looked at since". The weekly cycle is the reason
     // reviewed_at exists (0168) — updated_at cannot answer it, because any edit
@@ -84,16 +135,18 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
     };
   }, [rows]);
 
-  const byProduct = useMemo(() => tally(rows, 'product_name'), [rows]);
-  const byCover = useMemo(() => tally(rows, 'cover'), [rows]);
-  const byStatus = useMemo(() => tally(rows, 'ffr_status'), [rows]);
-  const byCapa = useMemo(() => tally(rows, 'capa_status'), [rows]);
-  const byRootCause = useMemo(() => tally(rows, 'live_root_cause_keyword'), [rows]);
-  const byGrouping = useMemo(() => tally(rows, 'live_complaint_grouping'), [rows]);
-  const byCustomer = useMemo(() => tally(rows, 'customer_name'), [rows]);
-  const months = useMemo(() => byMonth(rows), [rows]);
+  // Each chart counts the rows left by EVERY OTHER choice — see applyPicks.
+  const forDim = (k: DimKey) => applyPicks(allRows, picked, k);
+  const byProduct = useMemo(() => tally(forDim('product_name'), 'product_name'), [allRows, picked]);
+  const byCover = useMemo(() => tally(forDim('cover'), 'cover'), [allRows, picked]);
+  const byStatus = useMemo(() => tally(forDim('ffr_status'), 'ffr_status'), [allRows, picked]);
+  const byCapa = useMemo(() => tally(forDim('capa_status'), 'capa_status'), [allRows, picked]);
+  const byRootCause = useMemo(() => tally(forDim('live_root_cause_keyword'), 'live_root_cause_keyword'), [allRows, picked]);
+  const byGrouping = useMemo(() => tally(forDim('live_complaint_grouping'), 'live_complaint_grouping'), [allRows, picked]);
+  const byCustomer = useMemo(() => tally(forDim('customer_name'), 'customer_name'), [allRows, picked]);
+  const months = useMemo(() => byMonth(forDim('month')), [allRows, picked]);
 
-  if (!rows.length) {
+  if (!allRows.length) {
     return (
       <SectionCard title="Insights">
         <div className="muted">No Field Failure Reports on the register yet — there is nothing to analyse.</div>
@@ -103,6 +156,40 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
 
   return (
     <div>
+      {/* WHAT THE PAGE IS ANSWERING FOR, in words, above the numbers. Every
+          figure below moves when a mark is clicked, and a page that quietly
+          changed what it was counting would be worse than one that could not be
+          filtered at all. */}
+      <div className="ffr-picks">
+        {active.length === 0 ? (
+          <span className="muted">
+            Click any bar, column or slice to narrow every figure on this page to it. Click it again to clear.
+          </span>
+        ) : (
+          <>
+            <b>
+              {rows.length} of {allRows.length} reports
+            </b>
+            {active.map((k) => (
+              <button key={k} type="button" className="ffr-chip"
+                      title="Remove this"
+                      onClick={() => setPicked((p) => ({ ...p, [k]: undefined }))}>
+                {DIMS.find((d) => d.key === k)!.label}: {picked[k]} <span aria-hidden>×</span>
+              </button>
+            ))}
+            <button type="button" className="ffr-chip ffr-chip-clear" onClick={() => setPicked({})}>
+              Clear all
+            </button>
+          </>
+        )}
+      </div>
+      {rows.length === 0 && (
+        <SectionCard title="Nothing matches">
+          <div className="muted">
+            No report matches every choice above. Remove one of them to widen it again.
+          </div>
+        </SectionCard>
+      )}
       <KpiGrid>
         <KpiCard label="Reports" value={stats.total} icon="🧪" tone="primary" sub="on the register" />
         <KpiCard label="Open" value={stats.open} icon="📂" tone={stats.open ? 'warning' : 'neutral'} sub="not yet closed" />
@@ -127,7 +214,8 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
         <div className="muted" style={{ marginBottom: 10 }}>
           One report is one failure reported — a machine that failed twice appears twice.
         </div>
-        <BarChart data={byProduct.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))} />
+        <BarChart data={byProduct.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+                  onPick={pick('product_name')} active={picked.product_name ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
@@ -136,13 +224,13 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
         <div className="muted" style={{ marginBottom: 10 }}>
           A failure under warranty (WGP) is the company’s cost and the one worth watching.
         </div>
-        <DonutChart data={byCover} />
+        <DonutChart data={byCover} onPick={pick('cover')} active={picked.cover ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Reports raised, month by month">
-        <ColumnChart data={months} />
+        <ColumnChart data={months} onPick={pick('month')} active={picked.month ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
@@ -152,31 +240,34 @@ export function FieldFailureInsights({ rows }: { rows: Row[] }) {
           Taken from the review as it stands now, not as it stood when the report was raised —
           a cause corrected later should read corrected here.
         </div>
-        <BarChart data={byRootCause.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))} />
+        <BarChart data={byRootCause.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+                  onPick={pick('live_root_cause_keyword')} active={picked.live_root_cause_keyword ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Complaint grouping">
-        <BarChart data={byGrouping.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))} />
+        <BarChart data={byGrouping.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+                  onPick={pick('live_complaint_grouping')} active={picked.live_complaint_grouping ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Where they are raised">
-        <BarChart data={byCustomer.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))} />
+        <BarChart data={byCustomer.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+                  onPick={pick('customer_name')} active={picked.customer_name ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Report status">
-        <DonutChart data={byStatus} />
+        <DonutChart data={byStatus} onPick={pick('ffr_status')} active={picked.ffr_status ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="CAPA status">
-        <BarChart data={byCapa} />
+        <BarChart data={byCapa} onPick={pick('capa_status')} active={picked.capa_status ?? null} />
       </SectionCard>
     </div>
   );

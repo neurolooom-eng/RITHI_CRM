@@ -37,10 +37,17 @@ select party_name as should_be_new_owner_hospital
   from public.products where serial_number = 'OT-B';
 
 \echo ''
-\echo '=== 4. the invariant is KEPT: a file naming both sides the same ========'
-\echo '    expect ERROR below -- a transfer between one party and itself is not one'
-insert into public.ownership_transfers (serial_number, from_party, to_party)
-values ('OT-C','FIRST OWNER','FIRST OWNER');
+\echo '=== 4. a file naming both sides the same LOADS, with from left empty ==='
+-- This ASSERTED AN ERROR until 0183, and the change is deliberate. The first
+-- real export held back 2,985 of 4,327 rows this way: its Party Name (FROM)
+-- resolves to the CURRENT owner, so every already-applied hand-over names its
+-- own destination. Refusing those discarded real records -- an OT number, a
+-- date, a machine -- for the sake of one value that was never information.
+insert into public.ownership_transfers (serial_number, from_party, to_party, reference_no)
+values ('OT-C','FIRST OWNER','FIRST OWNER','OT-SAME-1');
+select case when btrim(from_party) = '' then 'EMPTY (not known)' else from_party end as from_party,
+       to_party
+  from public.ownership_transfers where reference_no = 'OT-SAME-1';
 
 \echo ''
 \echo '=== 5. a chain loaded in date order still records each hop ============='
@@ -50,3 +57,25 @@ insert into public.ownership_transfers (serial_number, to_party, transfer_date)
 values ('OT-C','THIRD OWNER','2024-01-01');
 select transfer_date, from_party, to_party from public.ownership_transfers
  where serial_number = 'OT-C' order by transfer_date;
+
+\echo ''
+\echo '=== 6. THE REAL EXPORT: its own "From Party" is the CURRENT owner ======'
+-- Reported from use: 2,985 of 4,327 rows held back, every one "already with
+-- <party> — not a transfer". The AppSheet sheet resolves Party Name (FROM) to
+-- whoever holds the machine NOW, so every already-applied hand-over reads back
+-- as going where it already is. These are real hand-overs with an OT number,
+-- a date and a machine; only the predecessor is unknown (0183).
+insert into public.products (serial_number, item_name, party_name)
+values ('EXP-1','ANAVENT','APOLLO HOSPITALS,NELLORE-6918') on conflict do nothing;
+insert into public.ownership_transfers (serial_number, from_party, to_party, transfer_date, reference_no)
+values ('EXP-1','APOLLO HOSPITALS,NELLORE-6918','APOLLO HOSPITALS,NELLORE-6918','2022-07-10','OT10001');
+select reference_no,
+       case when btrim(from_party) = '' then 'EMPTY (not known)' else from_party end as from_party,
+       to_party
+  from public.ownership_transfers where reference_no = 'OT10001';
+\echo '    the hand-over is KEPT -- only the value that was never information is dropped'
+
+\echo ''
+\echo '=== 7. ...and the invariant is still declared, just unreachable ========'
+select count(*) as constraint_still_there
+  from pg_constraint where conname = 'ownership_transfer_parties_differ';

@@ -173,6 +173,8 @@
 --   0077_upsert_targets.sql
 --   0106_cover_views_security_invoker.sql
 --   0182_ownership_transfer_same_party.sql
+--   0183_ownership_from_equals_to.sql
+--   0184_ownership_transfer_key.sql
 --   0044_sla_rules.sql
 --   0042_knowledge_base.sql
 --   0043_help_screenshots.sql
@@ -21277,6 +21279,141 @@ begin
   new.updated_at := now();
   return new;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0183_ownership_from_equals_to.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0183 — A "FROM" THAT EQUALS THE "TO" IS NOT A ROW TO THROW AWAY.
+--
+-- Reported from use with the real export: loading the AppSheet Ownership
+-- Transfer register, 2,985 of 4,327 rows were held back, every one of them
+-- reading "already with <party> — not a transfer".
+--
+-- 0182 established the principle on the value this system FILLS IN: where the
+-- source cannot name the predecessor, "from Apollo to Apollo" is not a fact, it
+-- is the source saying so, and the honest record is the hand-over with an EMPTY
+-- from_party rather than no hand-over at all.
+--
+-- The export's own `Party Name (FROM)` has exactly the same defect, for exactly
+-- the same reason: it resolves to WHO HOLDS THE MACHINE NOW, so for every
+-- transfer that has already been applied — which is most of a historical
+-- register — it reads back as the destination. Applying the principle to the
+-- filled-in value and not to the supplied one is a distinction the data does
+-- not support, and it cost 69% of the file.
+--
+-- So a supplied from_party equal to to_party is treated as NOT SUPPLIED. The
+-- row then takes the same path as a blank one: ask the machine master, and
+-- accept its answer only if it is an answer. What is kept either way is what is
+-- actually known — this machine went to this party, on this date, under this OT
+-- number — and what is dropped is only the part that was never information.
+--
+-- THE CONSTRAINT STAYS. It is now unreachable through the trigger, which is the
+-- point: the invariant is still declared, and nothing can write a row that
+-- breaks it. Removing it would leave the rule true only by habit.
+-- ===========================================================================
+
+create or replace function public.ownership_transfer_apply()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  v_serial text := btrim(coalesce(new.serial_number, ''));
+  v_holder text;
+begin
+  if v_serial = '' then
+    raise exception 'An ownership transfer needs the machine serial number.';
+  end if;
+  if btrim(coalesce(new.to_party, '')) = '' then
+    raise exception 'An ownership transfer needs the party it is going to.';
+  end if;
+
+  if tg_op = 'INSERT' then
+    new.recorded_by := coalesce(new.recorded_by, auth.uid());
+
+    -- A SUPPLIED "FROM" THAT IS THE DESTINATION IS NOT AN ANSWER. Discard it
+    -- and fall through to the master, exactly as a blank one would.
+    if lower(btrim(coalesce(new.from_party, ''))) = lower(btrim(new.to_party)) then
+      new.from_party := '';
+    end if;
+
+    -- Who holds it now, per the machine master — the truthful "from", BUT ONLY
+    -- WHERE IT IS ACTUALLY AN ANSWER (0182).
+    if btrim(coalesce(new.from_party, '')) = '' then
+      select coalesce(p.party_name, '') into v_holder
+        from public.products p
+       where lower(btrim(p.serial_number)) = lower(v_serial)
+       limit 1;
+      if lower(btrim(coalesce(v_holder, ''))) is distinct from lower(btrim(new.to_party)) then
+        new.from_party := coalesce(v_holder, '');
+      end if;
+    end if;
+
+    if btrim(coalesce(new.item_name, '')) = '' then
+      select coalesce(p.item_name, '') into new.item_name
+        from public.products p
+       where lower(btrim(p.serial_number)) = lower(v_serial)
+       limit 1;
+    end if;
+  else
+    new.recorded_by := old.recorded_by;   -- authorship is not editable
+    new.created_at  := old.created_at;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0184_ownership_transfer_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0184 — AN OWNERSHIP TRANSFER GETS A KEY, SO A RE-IMPORT CORRECTS IT.
+--
+-- The user, 2026-09-13: "In Ownership Transfer there can be a situation where
+-- the Warranty Date or Period is changed. So ideally import everything —
+-- create a key and import."
+--
+-- The upload screen has been saying so itself: "No natural key: a second run
+-- adds rows rather than correcting them." The register carries the warranty
+-- context from the sale (StartDate(SA), Period(SA), EndDate(SA) and the rest
+-- are kept on the row), and that context is RESTATED every time the export is
+-- taken. Without a key, correcting one warranty period means the whole file
+-- arrives a second time.
+--
+-- THE KEY IS THE OT NUMBER AND THE MACHINE, not the OT number alone. One
+-- hand-over document can cover several machines — the same shape the Field
+-- Failure Register turned out to have (0181), where keying on the document
+-- number alone silently overwrote twelve machines. The grain of this record is
+-- "this machine changed hands under this paperwork", and that is the pair.
+--
+-- A PLAIN BTREE over two columns: `serial_number` is `not null` and
+-- `reference_no` is `not null default ''`, so there are no NULLs to stop rows
+-- colliding, and nothing here is an expression or a partial index — both of
+-- which `check:upserts` refuses as a conflict target, for the good reason that
+-- PostgREST cannot infer them.
+--
+-- WHAT THIS DOES NOT DO: it does not decide which of two hand-overs of the same
+-- machine under the SAME OT number is right — it makes them one row, because
+-- they are one record stated twice. A row with no OT number at all cannot be
+-- matched on a re-run and the importer holds it back and names it, the same
+-- rule the Field Failure Register already uses for a missing FFR number: a row
+-- that cannot be corrected is a row that arrives again on every load.
+-- ===========================================================================
+
+-- Existing duplicates would stop the index being built, and they are exactly
+-- what this file exists to prevent: collapse them first, keeping the row most
+-- recently recorded, since a re-import is a correction of what came before.
+delete from public.ownership_transfers a
+ using public.ownership_transfers b
+ where a.reference_no = b.reference_no
+   and a.serial_number = b.serial_number
+   and a.id < b.id;
+
+create unique index if not exists ownership_transfer_key_uniq
+  on public.ownership_transfers (reference_no, serial_number);
+
+comment on index public.ownership_transfer_key_uniq is
+  'The hand-over document AND the machine. One OT can cover several machines, so the number alone is not the identity — the same shape 0181 found in the Field Failure Register. It is what lets a corrected export (a changed warranty period, say) update these rows rather than arrive again.';
 
 -- ------------------------------------------------------------------------
 -- 0044_sla_rules.sql

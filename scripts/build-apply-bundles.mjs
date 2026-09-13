@@ -533,7 +533,9 @@ const MODULES = {
     files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0080_ownership_extra.sql', '0077_upsert_targets.sql', '0106_cover_views_security_invoker.sql',
              // LAST in this module: it redefines ownership_transfer_apply(),
              // which 0072 above creates.
-             '0182_ownership_transfer_same_party.sql'],
+             '0182_ownership_transfer_same_party.sql',
+             '0183_ownership_from_equals_to.sql',
+             '0184_ownership_transfer_key.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',

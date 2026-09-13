@@ -74,3 +74,22 @@
   }
   @page { size: A4 portrait; margin: 12.7mm 22.9mm 25.4mm; }
 }
+
+/* ---------------------------------------------------------------------------
+   THE INSIGHTS FILTER BAR — what the page is currently answering for.
+   Chips invert against the page (highlight is CONTRAST, not a tint), so they
+   read as applied rather than decorative, and work in both themes unchanged.
+--------------------------------------------------------------------------- */
+.ffr-picks {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 12px; padding-block: 4px; min-height: 30px;
+}
+.ffr-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid transparent;
+  background: var(--text); color: var(--surface);
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.ffr-chip:hover { opacity: .85; }
+.ffr-chip:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ffr-chip-clear { background: transparent; color: var(--text); border-color: var(--border, currentColor); font-weight: 500; }

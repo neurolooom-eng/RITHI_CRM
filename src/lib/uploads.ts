@@ -963,8 +963,8 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
-    requires: 'Product Master', extraInto: 'extra',
-    note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Everything else the export carries (the SA and warranty context, engineer, city) is kept on the row.',
+    requires: 'Product Master', extraInto: 'extra', conflict: 'reference_no,serial_number',
+    note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Everything else the export carries (the SA and warranty context, engineer, city) is kept on the row. MATCHED ON THE OT NUMBER AND THE MACHINE, so a corrected export \u2014 a changed warranty period, say \u2014 updates those hand-overs rather than adding them again; one OT covering several machines keeps a row per machine. A row with no OT number is not loaded: without it a re-run cannot correct the row, only add it.',
     cols: [
       { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial'], required: true },
       // `Party Name (TO)` and `Party Name (FROM)` both lose their brackets under
@@ -974,21 +974,21 @@ export const UPLOADS: UploadDef[] = [
       { to: 'from_party', from: ['party name (from)', 'party name from', 'from party', 'old party', 'transferred from'] },
       TEXT('item_name', 'product details', 'item details', 'item name', 'product name', 'product'),
       DATE('transfer_date', 'transfer date', 'ot date', 'date'),
-      TEXT('reference_no', 'ot number', 'reference no', 'reference', 'document no'),
+      // REQUIRED, because it is half the key. A hand-over with no OT number
+      // cannot be matched on a re-run, so it would arrive again on every load —
+      // the same rule the Field Failure Register uses for a missing FFR number.
+      { to: 'reference_no', required: true,
+        from: ['ot number', 'reference_no', 'reference no', 'reference', 'document no'] },
       TEXT('reason'), TEXT('remarks'),
       TEXT('document_url', 'file upload', 'document', 'document link'),
     ],
-    // A row that names the SAME party on both sides is not a transfer, and the
-    // database refuses it (ownership_transfer_parties_differ) — which used to
-    // stop the whole file on the row it reached. Caught here instead, so the
-    // rest of the register loads and the screen names the row and the reason.
-    // Only the case the FILE states: where "From Party" is blank the database
-    // fills it, and 0182 leaves it empty rather than copying the destination.
-    reject: (r) => {
-      const from = String(r.from_party ?? '').trim().toLowerCase();
-      const to = String(r.to_party ?? '').trim().toLowerCase();
-      return from && from === to ? `already with ${String(r.to_party ?? '').trim()} — not a transfer` : '';
-    } },
+    // NO reject for "from equals to". It was tried and it was wrong: the real
+    // export resolves its own "Party Name (FROM)" to whoever holds the machine
+    // NOW, so every already-applied hand-over reads back as going to where it
+    // already is — 2,985 of 4,327 rows on the first real file. Those are
+    // hand-overs with an OT number, a date and a machine; only the predecessor
+    // is unknown. 0183 discards that one value and keeps the record.
+  },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'serial_key', conflictFrom: ['serial_number'], requires: 'Product Master',
     note: 'For machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
