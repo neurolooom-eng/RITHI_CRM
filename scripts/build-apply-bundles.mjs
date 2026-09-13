@@ -141,6 +141,10 @@ const MODULES = {
             // A table of its own with its own policies; needs is_admin() and
             // has_perm() (0008 above) for the status view, and nothing else.
             '0172_user_signatures.sql',
+            // AFTER 0155, which is what created the role, and after every
+            // grant above that could put a key on it. It takes ONE key off
+            // ONE role, so it has to run once they have all had their say.
+            '0180_zoho_readonly.sql',
             // LAST, and it must stay last: it re-asserts the six policies 0008
             // above creates and other modules narrow, so a replay of rbac.sql
             // alone stops reverting them. Every block is guarded on what it

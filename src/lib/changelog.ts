@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.231',
+    date: '2026-09-13',
+    title: 'Zoho Migration is read-only again',
+    changes: [
+      'The Zoho Migration role could write Daily Call Reviews \u2014 and answering one can raise a Field Failure Report, which is a record that can never be deleted. That right has been taken back.',
+      'Nobody made a mistake ticking a box. The right was granted to TECHNICAL SUPPORT deliberately, and it stays there. It reached Zoho Migration on its own, because the two roles were being re-synchronised every time the permissions file was run.',
+      'CLONING NOW MEANS WHAT IT SAYS: copying a role sets the new one up ONCE. From then on it is yours to change, and it will not quietly follow the role it was copied from. Narrowing or revoking the copy no longer touches the original.',
+      'Nothing already recorded is undone \u2014 any review or failure report filed under the role stands exactly as it is.',
+      'The health check stopped asking whether the two roles still match, because they are not meant to. It asks the question that matters: can this role change anything?',
+    ],
+  },
+  {
     version: '0.9.230',
     date: '2026-09-13',
     title: 'Load the Field Failure Register back to 2016',

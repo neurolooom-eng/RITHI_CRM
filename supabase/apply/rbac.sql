@@ -32,6 +32,7 @@
 --   0156_remove_super_admin_mmdev74.sql
 --   0171_stock_out_module.sql
 --   0172_user_signatures.sql
+--   0180_zoho_readonly.sql
 --   0121_rbac_policy_tail.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
@@ -1556,29 +1557,40 @@ begin
         from (select distinct name from public.masters where coalesce(name,'') <> '') ml
     ) u;
 
+  -- ---------------------------------------------------------------------
+  -- A CLONE SEEDS A ROLE ONCE. IT IS NOT A STANDING MIRROR.
+  -- (The user's rule, 2026-09-13, and it applies to ALL cloning here.)
+  --
+  -- This used to MERGE Technical Support's row into Zoho Migration on every
+  -- run, and that is how `review.edit` reached a role built to change
+  -- nothing: an administrator ticked it on Technical Support -- their
+  -- decision, and it stands -- and the next run of rbac.sql copied it across.
+  -- Zoho Migration silently gained the right to write Daily Call Reviews,
+  -- which RAISE FIELD FAILURE REPORTS, and a quality record can never be
+  -- deleted (0166). Nobody ticking a box on one role expects a DIFFERENT role
+  -- to change, and nothing on the screen said that it had.
+  --
+  -- Two roles kept identical forever are one role with two names; the point of
+  -- a separate role is that it can DIVERGE -- narrowed as the migration
+  -- proceeds, and revoked when it ends, without touching the support login.
+  -- So once the role exists it is the administrator's, and this file stops
+  -- having an opinion about it. Divergence is the expected state, not drift.
   if exists (select 1 from public.app_roles r where r.role = 'zoho_migration') then
-    update public.app_roles r
-       set permissions = (
-             select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
-               from (
-                 select e.v from jsonb_array_elements_text(r.permissions) as e(v)
-                 union
-                 select g.v from jsonb_array_elements_text(granted) as g(v)
-               ) m
-           ),
-           label      = coalesce(nullif(r.label, ''), 'Zoho Migration'),
-           updated_at = now()
-     where r.role = 'zoho_migration';
+    raise notice 'Zoho Migration already exists -- left exactly as it is. A clone seeds a role once; it is not kept in sync.';
   else
     insert into public.app_roles (role, label, permissions)
     values ('zoho_migration', 'Zoho Migration', granted);
+
+    -- Reported from what the role ACTUALLY has, and only on the run that
+    -- seeded it. It used to report `granted` every time -- so a run that
+    -- deliberately changed nothing still announced a clone, which is the
+    -- report saying the opposite of what happened.
+    select count(*) into n_mods
+      from jsonb_array_elements_text(granted) as e(v) where e.v like 'mod:%';
+
+    raise notice 'Zoho Migration CREATED: % permission(s), % module/page key(s) -- seeded from Technical Support, read-only. It is the administrator''s from here; this file will not touch it again.',
+      jsonb_array_length(granted), n_mods;
   end if;
-
-  select count(*) into n_mods
-    from jsonb_array_elements_text(granted) as e(v) where e.v like 'mod:%';
-
-  raise notice 'Zoho Migration: % permission(s), % module/page key(s) -- cloned from Technical Support, read-only',
-    jsonb_array_length(granted), n_mods;
 end $zm$;
 
 -- ------------------------------------------------------------------------
@@ -1897,6 +1909,74 @@ end $$;
 
 revoke all on function public.user_signature_status() from public;
 grant execute on function public.user_signature_status() to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0180_zoho_readonly.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0180 — ZOHO MIGRATION GIVES BACK `review.edit`.
+--
+-- Found by _status.sql on the live project and confirmed with the user
+-- (2026-09-13): the Zoho Migration row reported NO, and the clause that fired
+-- was not drift -- it was A WRITE ACTION on a role whose whole definition is
+-- that it holds none.
+--
+-- WHAT IT COULD DO, established on a database rather than read off the policy:
+-- `review.edit` grants ALL commands on `call_reviews`. A user on the role
+-- answered Review 2 with Risk to Patient = Yes, the 0167 trigger fired, and
+-- FFR - 001/26 was raised in their name. By 0166 that record can never be
+-- deleted. So the role could create permanent quality records -- which is a
+-- long way from "read-only", and further still from what a data migration
+-- needs.
+--
+-- HOW IT GOT THERE, and it was nobody's mistake at the tick: an administrator
+-- granted `review.edit` to TECHNICAL SUPPORT, deliberately. 0155 then merged
+-- Technical Support's whole row into Zoho Migration on every run of rbac.sql,
+-- so the tick crossed to a role it was never aimed at, silently. 0155 no
+-- longer does that -- a clone seeds a role ONCE and is not a standing mirror
+-- (the user's rule, and it applies to all cloning here) -- but the key is
+-- already on the live row, and a file that only stops the leak leaves it
+-- standing. This removes it.
+--
+-- TECHNICAL SUPPORT KEEPS IT. That was the user's decision, asked before
+-- changing anything: the grant there was intended, and revoking a permission
+-- an administrator chose is not a tidy-up. This file names ONE role and ONE
+-- key for that reason.
+--
+-- NOTHING IS UNDONE. Any Field Failure Report or review already recorded under
+-- this role stays exactly as it is -- 0049's rule, and the reason the register
+-- is worth anything. Withdrawing access is not a way of editing the record.
+-- ===========================================================================
+
+do $zr$
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice 'app_roles is missing -- run rbac.sql first';
+    return;
+  end if;
+
+  if not exists (select 1 from public.app_roles where role = 'zoho_migration') then
+    raise notice 'zoho_migration is not there -- nothing to revoke';
+    return;
+  end if;
+
+  if not exists (select 1 from public.app_roles
+                  where role = 'zoho_migration' and permissions ? 'review.edit') then
+    raise notice 'zoho_migration does not hold review.edit -- nothing to do';
+    return;
+  end if;
+
+  -- `-` on a jsonb ARRAY removes every matching element by value. Only this
+  -- key and only this role: an administrator may have tuned the rest, and a
+  -- rebuild of the row from a literal list would quietly discard that.
+  update public.app_roles
+     set permissions = permissions - 'review.edit',
+         updated_at  = now()
+   where role = 'zoho_migration';
+
+  raise notice 'Zoho Migration: review.edit revoked. It can no longer write a Daily Call Review, so it can no longer raise a Field Failure Report.';
+end $zr$;
 
 -- ------------------------------------------------------------------------
 -- 0121_rbac_policy_tail.sql
