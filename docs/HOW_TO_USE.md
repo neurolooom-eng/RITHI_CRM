@@ -259,7 +259,8 @@ typed into a form that reads it.
   > Not the servicing process requirements. Software validation does not discharge
   > a process requirement, which is why they are two documents.
 - **Settings** `/settings` — your preferences, and for an administrator the
-  connection settings. **My Signature** lives here: only you can see or set it,
-  and it prints only in the block that names you. An administrator can ask who has
-  saved one and remove a leaver's, never read one.
+  connection settings.
+- **Your Profile** `/profile` — **My Signature** lives here, not in Settings:
+  only you can see or set it, and it prints only in the block that names you. An
+  administrator can ask who has saved one and remove a leaver's, never read one.
 - **Version History** `/version-history` — what changed in each release.

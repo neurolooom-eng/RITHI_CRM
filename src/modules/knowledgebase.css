@@ -152,3 +152,18 @@
    leave a reader checking which section they actually chose. */
 .kb-sec.kb-jumped { box-shadow: 0 0 0 2px var(--primary); border-radius: 8px; }
 .kb-sec { transition: box-shadow .3s ease; scroll-margin-top: 76px; }
+
+/* --- the How-To jump strip, grouped -------------------------------------
+   The guide covers every module now, so the flat strip stopped being
+   scannable. A heading appears before the first task of each group; the
+   buttons themselves are unchanged. --------------------------------------- */
+.kb-jump { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.kb-jump-item { display: contents; }
+.kb-jump-group {
+  flex-basis: 100%; margin: 10px 0 2px; font-size: 11px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.kb-group {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600; margin: 0 0 6px;
+}
