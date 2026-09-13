@@ -49,6 +49,19 @@ npm run check:views  -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
 npm run check:status -- "-h /tmp/pg -p 55432 -U postgres -d <db>"
 ```
 
+And the two that need no database, after any change to `src/lib/uploads.ts`:
+
+```bash
+npm run check:uploads        # the shaping behind each register upload
+npm run check:upserts -- "<psql args>"
+```
+
+`check:uploads` is in this list because it was NOT, and drifted: two of its
+assertions had been failing on `main` unnoticed — one still looking for
+`Purchase Cost` in `extra` after 0148 gave `parts` a real column, one counting
+30 registers after a 31st was added. A check nobody runs is a check that
+records what used to be true.
+
 `check:status` runs `_status.sql` against that database and fails on any NO.
 Nothing can be missing there, so **every NO is a faulty check** — and a row that
 answers NO when nothing is missing is worse than no row, because it is ACTED ON:

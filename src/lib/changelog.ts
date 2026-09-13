@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.234',
+    date: '2026-09-13',
+    title: 'Ownership Transfer imports properly, and FFR Insights answers questions',
+    changes: [
+      'OWNERSHIP TRANSFER: 2,985 of 4,327 rows were being held back as \u201Calready with X \u2014 not a transfer\u201D. The export\u2019s own \u201CFrom Party\u201D column reads whoever holds the machine NOW, so every hand-over that had already been applied looked like it was going where it already is. Those are real hand-overs \u2014 they load now, with the previous owner left blank because the file genuinely does not know it.',
+      'OWNERSHIP TRANSFER NOW HAS A KEY: the OT number plus the machine. Re-import a corrected export \u2014 a changed warranty period, say \u2014 and it UPDATES those hand-overs instead of adding the whole file again. One OT covering several machines keeps a row per machine.',
+      'A row with no OT number is not loaded, and is listed with the reason: without it a re-run cannot correct the row, only add it.',
+      'FFR INSIGHTS IS NOW INTERACTIVE. Click any bar, column or slice \u2014 a machine, a cover type, a month, a root cause, a customer \u2014 and every figure on the page re-answers for just those reports. Click it again to clear.',
+      'Choices combine, and the bar you chose stays visible alongside its alternatives, so you can keep asking \u201Cand within that, what else?\u201D The bar at the top always says how many of the total you are looking at, with a chip per choice and a Clear all.',
+    ],
+  },
+  {
     version: '0.9.233',
     date: '2026-09-13',
     title: 'Ownership Transfer loads again',

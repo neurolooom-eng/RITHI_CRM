@@ -4392,6 +4392,53 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   console.log('\n-- loading the register, any year --');
   const def = UPLOADS.find((u) => u.key === 'ffr');
   eq('the upload exists', !!def, true);
+console.log('\n-- the Insights tab can be interrogated --');
+{
+  const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
+  const charts = readFileSync('src/components/charts/Charts.tsx', 'utf8');
+
+  // EVERY DIMENSION IS BOTH FILTERABLE AND CLICKABLE. A dimension listed in
+  // DIMS but never wired to a chart is a chip nobody can raise; a chart wired
+  // to a key that is not in DIMS filters by something the chip bar cannot name.
+  const dims = [...ins.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
+  eq('every dimension is declared once', dims.length, new Set(dims).size);
+  for (const d of dims) {
+    eq(`${d} is wired to a chart`, ins.includes(`pick('${d}')`), true);
+    eq(`${d} passes its own active mark`, ins.includes(`picked.${d} ??`), true);
+  }
+  const picks = [...ins.matchAll(/pick\('([a-z_]+)'\)/g)].map((m) => m[1]);
+  for (const p of picks) eq(`the chart key ${p} is a declared dimension`, dims.includes(p), true);
+
+  // THE CROSS-FILTER RULE. Each chart must count the rows left by every OTHER
+  // choice — filtering a chart by its own dimension collapses it to the single
+  // bar that was just clicked, which answers nothing.
+  eq('a chart excludes its own dimension', /applyPicks\(rows, picked, except\?: DimKey\)|except\?: DimKey/.test(ins), true);
+  eq('...and the charts go through forDim', ins.includes("tally(forDim('product_name'), 'product_name')"), true);
+  eq('the KPIs read the FULLY filtered rows', /const rows = useMemo\(\(\) => applyPicks\(allRows, picked\)/.test(ins), true);
+  // The empty state must test the WHOLE register, not the filtered set —
+  // otherwise narrowing to nothing reads as "no reports on the register".
+  eq('"nothing on the register" tests the whole register', ins.includes('if (!allRows.length)'), true);
+  eq('...and a filter matching nothing says so separately', ins.includes('Nothing matches'), true);
+
+  // WHAT THE PAGE IS ANSWERING FOR IS ON SCREEN. Every figure moves when a mark
+  // is clicked; a page that changed what it counted without saying so would be
+  // worse than one that could not be filtered.
+  eq('the count of shown vs total is stated', /\{rows\.length\} of \{allRows\.length\}/.test(ins), true);
+  eq('there is a clear-all', ins.includes('Clear all'), true);
+
+  // Interaction is OPTIONAL on the shared charts, so every other dashboard
+  // renders exactly as before.
+  for (const c of ['BarChart', 'ColumnChart', 'DonutChart']) {
+    eq(`${c} takes the interaction as optional`, new RegExp(`export function ${c}\\([^)]*Pickable`).test(charts), true);
+  }
+  eq('a pickable mark is a real button', charts.includes("role: 'button'"), true);
+  eq('...reachable by keyboard', charts.includes("e.key === 'Enter'"), true);
+  // Selection is CONTRAST, not a tint (the project's rule).
+  const css = readFileSync('src/components/charts/charts.css', 'utf8');
+  eq('the chosen mark inverts against the page',
+    /\.ch-pick\.is-active\s*\{[^}]*background:\s*var\(--text\)[^}]*color:\s*var\(--surface\)/.test(css), true);
+}
+
   if (def) {
     eq('it writes the register table', def.table, 'field_failure_reports');
     // THE NUMBER AND THE MACHINE ARE THE KEY, or a re-run adds the year again

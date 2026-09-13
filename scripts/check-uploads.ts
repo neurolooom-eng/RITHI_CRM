@@ -230,7 +230,13 @@ eq('Item Code is the code', pm2.rows[0].code, 'ACC-0081');
 eq('"Inactive" means not active', pm2.rows[0].active, false);
 eq('"Active" means active', pm2.rows[1].active, true);
 eq('a file with no Item Details builds one', pm2.rows[1].item_detail, 'EM-600|BUZZER MH1-OR');
-eq('the cost and the rest are kept', (pm2.rows[0].extra as Record<string, unknown>)['Purchase Cost'], '15');
+// Purchase Cost stopped being "kept on the row" when 0148/0149 gave `parts` a
+// REAL purchase_cost column. This asserted it was still in `extra`, and had
+// been failing quietly ever since — check:uploads is not in CLAUDE.md's
+// verification list, which is how it drifted. A check that goes on testing
+// where a value USED to land is the fault _status.sql had, one file over.
+eq('the cost is a column of its own now', pm2.rows[0].purchase_cost, 15);
+eq('...and is not also left on the row', (pm2.rows[0].extra as Record<string, unknown>)['Purchase Cost'], undefined);
 // On CODE|Description, not the code: the real register uses YR134500 for two
 // different parts (LOUDSPEAKER V2-MT50 and SPEAKER V2-MT75), so the code would
 // have merged them — and a unique index on it would have refused the load.
@@ -318,7 +324,7 @@ eq('the OT number is the reference', ot2.rows[0].reference_no, 'OT-118');
 eq('the upload is the document', ot2.rows[0].document_url, 'https://drive/x');
 eq('the rest is kept, not dropped', ot2.rows[0].extra, { 'SA Number': 'SA9765', 'ENGINEER': 'A Kumar' });
 eq('a row with no destination is held back',
-   shapeUpload(def('ownership_transfers'), [{ 'Item Serial Number': 'X' }]).skipped[0].why, 'no party name (to)');
+   shapeUpload(def('ownership_transfers'), [{ 'Item Serial Number': 'X' }]).skipped[0].why, 'no party name (to), ot number');
 
 console.log('\n-- the real DCCR export headers --');
 const dc = shapeUpload(def('call_reviews'), [{
@@ -347,7 +353,9 @@ UPLOADS.forEach((d) => {
     console.log(`  ✗ ${d.key}: conflict key "${d.conflict}" is not derived from anything it fills`); fail++;
   }
 });
-eq('registers defined', UPLOADS.length, 30);
+// 31 since the Field Failure Register (any year) was added. The count is here
+// so a register cannot appear or vanish unnoticed.
+eq('registers defined', UPLOADS.length, 31);
 
 console.log('\n-- call registration requests --');
 const cr = shapeUpload(def('call_requests'), [
@@ -406,12 +414,14 @@ eq('pools stay distinct (not deduped together)', hso.rows.map((r) => r.source), 
 eq('as-of read day-first', hso.rows[0].as_of, '2022-06-01');
 
 console.log('\n-- ownership transfer --');
-const ot = shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1', 'To Party': 'HOSP TWO', 'Transfer Date': '01/06/2024' }]);
+// The OT number is half the key since 0184, so every fixture carries one —
+// a hand-over without it cannot be corrected on a re-run, only added again.
+const ot = shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1', 'To Party': 'HOSP TWO', 'Transfer Date': '01/06/2024', 'OT Number': 'OT-900' }]);
 eq('from party may be blank (filled in by the database)', ot.rows[0].from_party, undefined);
 eq('transfer date day-first', ot.rows[0].transfer_date, '2024-06-01');
 // The reason names the header the file should carry.
 eq('a row with no destination is held back',
-   shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no party name (to)');
+   shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no party name (to), ot number');
 
 console.log('\n-- recovered warranty --');
 const ae = shapeUpload(def('product_additional_entries'), [

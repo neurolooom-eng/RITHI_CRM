@@ -125,3 +125,26 @@
 .ch-legend-val {
   font-weight: 650;
 }
+
+/* ---------------------------------------------------------------------------
+   A CHART YOU CAN INTERROGATE.
+   Only applied where a chart was given `onPick` — every other chart in the
+   application renders exactly as before.
+
+   SELECTION IS CONTRAST, NOT A TINT (the project's rule): the chosen mark
+   INVERTS against the page, so it projects off the surface instead of sitting
+   slightly on top of it, and it reads the same in both themes by construction.
+   What is not chosen is dimmed rather than recoloured, so the palette still
+   means what it meant.
+--------------------------------------------------------------------------- */
+.ch-pick { cursor: pointer; border-radius: 6px; transition: opacity .12s ease, background .12s ease; }
+.ch-pick:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.ch-pick:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ch-pick.is-dimmed { opacity: .38; }
+.ch-pick.is-active { background: var(--text); color: var(--surface); }
+.ch-pick.is-active .ch-bar-label,
+.ch-pick.is-active .ch-bar-value,
+.ch-pick.is-active .ch-col-label,
+.ch-pick.is-active .ch-legend-label,
+.ch-pick.is-active .ch-legend-val { color: var(--surface); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .ch-pick { transition: none; } }

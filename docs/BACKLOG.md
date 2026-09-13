@@ -13,6 +13,34 @@ up)_
 
 ---
 
+## 2026-09-13 — The real Ownership Transfer export, and Insights you can question
+
+- **`0183`** — the first real file held back **2,985 of 4,327 rows**, all
+  "already with X — not a transfer". The AppSheet export's own `Party Name
+  (FROM)` resolves to the machine's CURRENT owner, so every already-applied
+  hand-over names its own destination. 0182 had established the principle for
+  the value this system fills in; applying it to the filled value but not the
+  supplied one was a distinction the data does not support. A supplied `from`
+  equal to `to` is now treated as not supplied. The constraint stays, and is
+  now unreachable through the trigger — the invariant is still declared.
+- **`0184`** — the register had **no natural key**, so a second run added rows
+  rather than correcting them, and the screen said so. The key is the **OT
+  number AND the machine** — one hand-over document can cover several machines,
+  the same shape 0181 found in the Field Failure Register. The OT number is now
+  required, per the rule the FFR importer already uses.
+- **FFR Insights cross-filters.** Click any mark and every figure re-answers for
+  it; each chart counts the rows left by every OTHER choice, so the chart you
+  clicked still shows its alternatives. Chips name what is applied.
+- **`check:uploads` added to the CLAUDE.md verification list.** It was not in it
+  and had drifted: two assertions had been failing on `main` unnoticed — one
+  looking for `Purchase Cost` in `extra` after 0148 gave `parts` a real column,
+  one counting 30 registers after a 31st was added.
+- **Pending: the user to run `sales_contracts.sql`** (0183 + 0184).
+- **Next: Warranty Sale Entry / Register and Contract Entry / Register** from
+  `Admin_AppDef_Source_Grounded_Review.md`. Checked: every column the spec names
+  already exists in `sale_entries`/`sale_items` and
+  `contract_entries`/`contract_items`, so it is a UI build with no schema work.
+
 ## 2026-09-13 — Ownership Transfer stopped on its first row
 
 - **`0182`** — reported as `violates check constraint
