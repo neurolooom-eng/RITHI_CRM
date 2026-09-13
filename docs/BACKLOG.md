@@ -13,6 +13,25 @@ up)_
 
 ---
 
+## 2026-09-13 — `_status.sql` gains the row for 0179, and a Zoho diagnostic
+
+- **`_status.sql` row 135, "a row loaded from a sheet says so"** — 0179 shipped
+  the `imported_from` column and NOTHING in `_status.sql` tested it. The user's
+  status output came back with every FFR row green and no way to tell whether
+  the column the importer needs is actually there; the convention (add a row
+  when a bundle gains a checkable object) had been missed. The row tests the
+  column, the exception in `ffr_stamp()`, the column reaching the register view,
+  and `security_invoker` still on that view.
+- **`supabase/apply/_zoho_diag.sql`** — read-only. The Zoho Migration row read
+  NO on the live project after `rbac.sql` was run, and it could NOT be
+  reproduced here: a fresh apply, and a replay of `rbac.sql` onto a complete
+  database, both read yes. So the divergence is in LIVE DATA, not the SQL, and
+  the status row alone cannot say which of its two clauses failed — drift (the
+  clone fell behind) and not-read-only (the role holds a write action) mean
+  opposite things and only one of them matters. The diagnostic names the exact
+  keys. Both clauses were mutation-tested. **Pending: the user's output from it,
+  then the actual fix.**
+
 ## 📌 OPEN ITEMS — everything waiting, in one place
 
 This file is 2,000+ lines and its open items were scattered across four
