@@ -13,6 +13,40 @@ up)_
 
 ---
 
+## 2026-09-13 — The cover registers get the AppSheet arithmetic
+
+Asked for as "build the Warranty Sale Entry, Warranty Register, Contract Entry,
+Contract Register" from `Admin_AppDef_Source_Grounded_Review.md`. **All four
+already existed** (`CoverRegister.tsx`, mounted in App.tsx) with entries,
+machines, "+ New entry", header→machine inheritance and contract renewal. The
+user's decision when told: rebuild to match AppSheet exactly.
+
+- **The spec has NO layouts.** Its own boundary note says the PDF stops after
+  `Product Master_Schema` col 4 — no views, format rules, actions or slices. So
+  "exactly" can only mean the FIELDS and the FORMULAS, which it does give. No
+  layout was invented and called a match.
+- **`src/lib/coverspec.ts`** transcribes the arithmetic with each expression
+  kept verbatim beside its implementation: Years = Months/12, the EOMONTH end
+  date, warranty PM = (months/12)×3, contract PM = months/6 (**different
+  rates**), 18% tax, Total After Tax, the CODE|NAME|SERIAL split and its
+  rebuild, and the status bands.
+- **The end date already matched.** `addPeriod` implements the spec's EOMONTH
+  rule exactly — proved over 80 combinations including every month-end, zero
+  differences — so it is reused rather than re-spelled.
+- **Derivation is keyed on the field EDITED**, not run over the row: editing the
+  end date derives nothing, so a part-month contract still works, and a machine
+  line's inherited fields are not all pinned the first time one is touched.
+- **The numbering deviates deliberately.** The spec uses `_RowNumber`, a
+  spreadsheet row — unstable, and not a property a database row has. The series
+  continues from the highest issued, with the spec's offsets kept as the FLOOR.
+- The spec is now `docs/APPSHEET_ADMIN_APPDEF.md`, and check:ui asserts each
+  formula against the expression the document prints.
+
+**Still to do on this ask:** reconcile field ORDER and labels against the
+schemas (3.5–3.8), add the missing line fields (`replacement_unit`,
+`replacement_unit_sl`, `item_detail_long`, `added_by`) to the forms, and wire
+`nextInSeries` into "+ New entry" so the number is offered rather than typed.
+
 ## 2026-09-13 — The migrate pipeline leaked a password fragment AGAIN
 
 `SUPABASE_DB_URL` **is set** on the repository, so `db-migrate.yml` runs on

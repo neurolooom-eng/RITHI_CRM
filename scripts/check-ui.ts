@@ -10,6 +10,8 @@ import { withoutHistory } from '../src/lib/handstock';
 import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
+import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
+         splitProductDetails, itemDetailsLong, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
@@ -4392,6 +4394,72 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   console.log('\n-- loading the register, any year --');
   const def = UPLOADS.find((u) => u.key === 'ffr');
   eq('the upload exists', !!def, true);
+console.log('\n-- the cover registers carry the AppSheet arithmetic --');
+{
+  const spec = readFileSync('docs/APPSHEET_ADMIN_APPDEF.md', 'utf8');
+  // THE SPEC IS IN THE REPO, so these assertions can be checked against it
+  // rather than against a PDF nobody here can open.
+  eq('the source document is kept', spec.includes('ContractEntry_Schema'), true);
+
+  // Each formula matched to the expression the document actually prints. If the
+  // spec is ever re-transcribed and an expression changes, these stop passing.
+  eq('the spec states Years = Months / 12',
+    spec.includes('[Contract Period (Months)] / 12'), true);
+  eq('the spec states the EOMONTH end date',
+    spec.includes('EOMONTH([Contract Start Date],[Contract Period (Months)]-1)+DAY([Contract Start Date])-1'), true);
+  eq('the spec states warranty PM visits',
+    spec.includes('([Warranty Period (in Months)] / 12) * 3'), true);
+  eq('the spec states contract PM visits',
+    spec.includes('[Contract Period (Months)] / 6'), true);
+  eq('the spec states the 18% tax', spec.includes('((18 * [Rate])/100)'), true);
+  eq('the spec states the split', spec.includes('INDEX(SPLIT([Product Details],"|"),1)'), true);
+  eq('the spec states Item Details Long',
+    spec.includes('CONCATENATE([Product Code],"|",[Product Name],"|",[Product Serial Number])'), true);
+
+  // And the transcription produces those values. Worked by hand from the
+  // expressions above, so a wrong implementation fails rather than a wrong
+  // expectation agreeing with it.
+  eq('18 months is 1.5 years', periodYears(18), 1.5);
+  eq('24 months warranty is 6 PM visits', warrantyPmVisits(24), 6);
+  eq('24 months contract is 4 PM visits', contractPmVisits(24), 4);
+  eq('warranty and contract PM rates DIFFER', warrantyPmVisits(12) === contractPmVisits(12), false);
+  eq('a 12-month cover from 15 Jan ends 14 Jan', periodEnd('2024-01-15', 12), '2025-01-14');
+  eq('...and a month from 31 Jan ends 1 Mar', periodEnd('2024-01-31', 1), '2024-03-01');
+  eq('1000 at 18% is 180 tax', itemTaxAmount(1000), 180);
+  eq('...and 1180 after tax', totalAfterTax(1000), 1180);
+  eq('the machine string splits three ways',
+    splitProductDetails('ORION-G|Orion G|SN1'), { code: 'ORION-G', name: 'Orion G', serial: 'SN1' });
+  eq('a short string does not shift the parts along',
+    splitProductDetails('ORION-G|Orion G').serial, '');
+  eq('Item Details Long is built back', itemDetailsLong('ORION-G', 'Orion G', 'SN1'), 'ORION-G|Orion G|SN1');
+
+  // The numbering DEVIATES from the spec deliberately: _RowNumber is a
+  // spreadsheet row, and a contract number that changes when a row is deleted
+  // is not a number. The floors are the spec's, so this system's first number
+  // follows the sheet's last rather than colliding with it.
+  eq('the SA floor is the spec\'s', SERIES.sale.floor, 1183);
+  eq('the MC floor is the spec\'s', SERIES.contract.floor, 13);
+  eq('an empty register starts above the floor', nextInSeries('contract', []), 'MC14');
+  eq('the series follows the highest issued', nextInSeries('sale', ['SA1200', 'SA1199']), 'SA1201');
+  eq('...and junk in the column does not derail it', nextInSeries('sale', ['SA1200', 'n/a', '']), 'SA1201');
+
+  // Derivation is keyed on the field EDITED. Editing the end date must not
+  // re-derive it from the period — that is what makes a part-month contract
+  // possible, and it has always been typeable here.
+  eq('editing the period derives the end date',
+    Object.keys(deriveHeader('contract', 'contract_months', { contract_months: 12, contract_start: '2024-01-15' })).sort(),
+    ['contract_end', 'contract_years', 'pm_visits_total']);
+  eq('editing the end date derives nothing',
+    Object.keys(deriveHeader('contract', 'contract_end', { contract_end: '2025-06-30' })).length, 0);
+  eq('a rate derives its tax and total',
+    deriveItem('contract', 'rate', { rate: 1000 }), { item_tax_amount: 180, total_after_tax: 1180 });
+  // The two registers derive the machine string in OPPOSITE directions, and
+  // that is in the spec: a contract picks an existing machine, a sale names one.
+  eq('a contract line splits the machine string',
+    deriveItem('contract', 'product_details', { product_details: 'A|B|C' }).product_code, 'A');
+  eq('a sale line builds it', deriveItem('sale', 'product_code', { product_code: 'A', product_name: 'B', serial_number: 'C' }).item_detail_long, 'A|B|C');
+}
+
 console.log('\n-- the Insights tab can be interrogated --');
 {
   const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
