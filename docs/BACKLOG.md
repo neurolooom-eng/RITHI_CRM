@@ -13,6 +13,55 @@ up)_
 
 ---
 
+## 2026-09-13 — Queued: Contract / Warranty field-by-field comparison
+
+**WAITING ON THE USER'S MARKDOWN FILE — do not start before it arrives.** The
+user is supplying a markdown file carrying **the formulas from each sheet**,
+which is the thing that makes this fixable rather than guessable.
+
+**The ask:** produce the field tables for **Contract Entry**, **Contract
+Details**, **Warranty Sale Entry** and **Warranty Sale Details** (the parent and
+the child of each), and compare **AppSheet against here** — field by field.
+
+What is already known and should be reused rather than re-derived:
+
+- `docs/APPSHEET_ADMIN_APPDEF.md` holds schemas 3.5–3.8, but **only the column
+  definitions** — its own boundary note says the PDF stops before the views,
+  format rules and actions. The new file is expected to carry the formulas the
+  PDF did not show.
+- The ContractDetails comparison was already done once by hand (session
+  2026-09-13): 23 of 31 columns map to a field on the machine line, 3 are the
+  database's (UID, MC Number, Contract Entry Date), 3 are deliberately not
+  carried (`_RowNumber`, `Item Details Long` / `Item Details`, `LINK`), and
+  **one is a genuine gap — `Product Details`**, the picker that should feed the
+  code / name / serial split. The splitter exists in `coverspec.ts` and is
+  tested, but nothing on the screen feeds it.
+- Arithmetic already transcribed in `src/lib/coverspec.ts` (v0.9.235) with each
+  expression verbatim: years, EOMONTH end date, the two DIFFERENT PM rates,
+  18% tax, the split and its rebuild.
+
+**Open decision, unanswered:** whether Contract Details gains a **Product
+Details picker** so a machine is chosen from Product Master rather than typed.
+
+## 2026-09-13 — How to Use RITHI CRM is grouped in a sensible order
+
+Reported: "Its arranged in a Random Order." It was, and the cause was mechanical
+— 18 tasks were APPENDED to the existing 15, so *Quality* and *Your account*
+each opened twice and the reader met calls, spares, feedback, password, then
+quality again.
+
+Reordered into ten contiguous groups, renumbered 1–33: Calls · Spares & stock ·
+Quality · Warranty & contract · Workshop · Loading data · Analysis & reports ·
+Masters & search · Your account & the app · Admin & the team.
+
+- The reorder is a MOVE, not a rewrite: every section literal is unchanged apart
+  from its number and which group it opens.
+- **My own check was wrong and hid the fix**: its pattern assumed `n` follows
+  `id` immediately, so the ten group-opening tasks did not match and it reported
+  a gap the file did not have. It allows `group` between them now.
+- Two assertions added: no group heading appears twice (which is exactly the
+  fault reported), and every group is named.
+
 ## 2026-09-13 — Validation package Rev 2.4
 
 URS-060..064, FRS-072..076, R-39..R-43, FM-30..FM-32, OQ-54..57. Four of the

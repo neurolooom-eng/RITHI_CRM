@@ -4426,8 +4426,19 @@ console.log('\n-- the How to Use guide points at real screens --');
   }
   // Numbered without a gap or a repeat, because the numbers are how somebody is
   // sent to one ("read step 18").
-  const ns = [...guide.matchAll(/id: '[a-z0-9-]+', n: '(\d+)'/g)].map((m) => Number(m[1]));
+  // `group` sits between `id` and `n` on the first task of each group, so the
+  // pattern has to allow it — the first version did not and matched only the 23
+  // tasks that open no group, reporting a gap the file did not have.
+  const ns = [...guide.matchAll(/id: '[a-z0-9-]+',(?: group: '[^']*',)? n: '(\d+)'/g)].map((m) => Number(m[1]));
   eq('the task numbers run 1..n with no gap', ns, ns.map((_, i) => i + 1));
+
+  // GROUPED, AND EACH GROUP CONTIGUOUS. The guide was 15 call-and-spare tasks
+  // with 18 appended, so "Quality" and "Your account" each appeared twice and
+  // the order read as random. A heading opening a group that has already been
+  // opened means the sections have drifted apart again.
+  const groups = [...guide.matchAll(/group: '([^']*)'/g)].map((m) => m[1]);
+  eq('no group heading appears twice', groups.length, new Set(groups).size);
+  eq('every group is named', groups.filter((g) => !g.trim()), []);
 }
 
 console.log('\n-- the cover registers carry the AppSheet arithmetic --');

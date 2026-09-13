@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.242',
+    date: '2026-09-13',
+    title: 'How to Use is in a sensible order',
+    changes: [
+      'The guide read as a random order because eighteen tasks had been added to the end of the existing fifteen \u2014 so Quality and Your account each turned up twice.',
+      'It is now ten groups in a sensible sequence: Calls, Spares & stock, Quality, Warranty & contract, Workshop, Loading data, Analysis & reports, Masters & search, Your account & the app, Admin & the team.',
+      'Nothing in any task changed \u2014 only its number and where it sits.',
+    ],
+  },
+  {
     version: '0.9.241',
     date: '2026-09-13',
     title: 'Validation package Rev 2.4',
