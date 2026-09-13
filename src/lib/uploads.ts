@@ -765,15 +765,23 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- quality
   { key: 'feedback', label: 'Customer Feedback', group: 'Quality', table: 'feedback',
-    requires: 'Field Calls', extraInto: 'answers',
-    note: 'The answers are kept as given — every column that is not named below becomes one. No natural key, so a re-run ADDS rows.',
+    requires: 'Field Calls', extraInto: 'answers', conflict: 'ucn_key', conflictFrom: ['ucn'],
+    note: 'Takes the v2Feedback export. The answers are kept as given — every column not named below becomes one. MATCHED ON THE UCN, one feedback per call, so re-loading a corrected export updates those rows rather than adding the file again. A row with no UCN is not loaded: feedback that names no call cannot be filed against one.',
     cols: [
-      { to: 'ucn', from: ['ucn'], required: true },
+      // "UC Number" is what the v2Feedback export says, and only 'ucn' was
+      // listed — so every one of its 24,752 rows was held back as missing a
+      // UCN, which reads as the file being wrong rather than the register.
+      { to: 'ucn', required: true, from: ['ucn', 'uc number', 'uc no', 'crn no', 'call no'] },
       TEXT('call_number', 'call number'), TEXT('call_type', 'call type'),
-      TEXT('engineer'), TEXT('engineer_email', 'engineer email'),
-      TEXT('party_name', 'party name'), TEXT('state'),
-      TEXT('product_name', 'product name'), TEXT('serial', 'serial no'), TEXT('complaint'),
-      TS('visit_at', 'visit date'),
+      TEXT('engineer', 'visiting service engineer', 'service engineer', 'engineer name'),
+      TEXT('engineer_email', 'engineer email'),
+      TEXT('party_name', 'party name', 'customer name'), TEXT('state'),
+      TEXT('product_name', 'product name'),
+      TEXT('serial', 'product serial number', 'serial no', 'serial number'),
+      TEXT('complaint', 'complaint reported', 'standard complaint'),
+      // The export writes "Visit Date & Time". Loose matching drops the
+      // punctuation but keeps the word, so 'visit date' alone never reached it.
+      TS('visit_at', 'visit date & time', 'visit date and time', 'visit date'),
     ] },
   // ---------------------------------------------------------------------------
   // THE FIELD FAILURE REGISTER, BACK TO 2016 — AND EVERY YEAR IS A DIFFERENT
@@ -990,17 +998,28 @@ export const UPLOADS: UploadDef[] = [
     // is unknown. 0183 discards that one value and keeps the record.
   },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
-    table: 'product_additional_entries', conflict: 'serial_key', conflictFrom: ['serial_number'], requires: 'Product Master',
-    note: 'For machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
+    table: 'product_additional_entries', conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
+    requires: 'Product Master', extraInto: 'extra',
+    note: 'Takes the AppSheet “AdditionalEntryDetails” export, for machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. MATCHED ON THE PRODUCT AND THE SERIAL, never the serial alone: serials repeat across models, and this export alone has 298 shared by more than one product. Anything the export carries beyond the fields below is kept on the row. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
     cols: [
-      { to: 'serial_number', from: ['serial number', 'serial no', 'serial'], required: true },
-      TEXT('item_name', 'item name', 'product name'), TEXT('party_name', 'party name', 'customer'),
-      TEXT('warranty_number', 'warranty number', 'sa number', 'invoice no'),
-      DATE('warranty_start', 'warranty start'), DATE('warranty_end', 'warranty end'),
+      // "Product Serial Number" is what the export says, and its absence held
+      // back EVERY row of the real file — reported as "nothing loadable, every
+      // row is missing serial number", which read as the file being wrong.
+      { to: 'serial_number', required: true,
+        from: ['product serial number', 'serial number', 'item serial number', 'product s. no',
+               'product s no', 'serial no', 'serial'] },
+      // Half the key, so it is required too: without the model, two machines
+      // sharing a serial are one row and the second overwrites the first.
+      { to: 'item_name', required: true, from: ['product name', 'item name', 'product', 'item details long'] },
+      TEXT('party_name', 'party name', 'customer'),
+      TEXT('warranty_number', 'warranty number', 'sa number', 'ae number', 'invoice no'),
+      DATE('warranty_start', 'warranty start date', 'warranty start'),
+      DATE('warranty_end', 'warranty end date', 'warranty end'),
       TEXT('contract_number', 'contract number', 'mc number'), TEXT('contract_type', 'contract type'),
-      DATE('contract_start', 'contract start'), DATE('contract_end', 'contract end'),
+      DATE('contract_start', 'contract start date', 'contract start'),
+      DATE('contract_end', 'contract end date', 'contract end'),
       TEXT('source_note', 'source note', 'source'), TEXT('document_url', 'document', 'document link'),
-      TEXT('remarks'),
+      TEXT('remarks', 'remarks', 'other details'),
     ] },
 
   // ---- cover

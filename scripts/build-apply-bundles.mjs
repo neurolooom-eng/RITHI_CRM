@@ -355,7 +355,11 @@ const MODULES = {
             '0174_ffr_history.sql',
             // AFTER 0174: it redefines that file's ffrh_read policy, and the
             // other order would put the ffr.manage-only version back.
-            '0177_ffr_history_view_right.sql'],
+            '0177_ffr_history_view_right.sql',
+            // The feedback key. HERE and not in `base`, which creates the table
+            // in 0001 but REFUSES to run once RBAC is in — a migration filed
+            // there would never reach a live project.
+            '0186_feedback_key.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -530,7 +534,9 @@ const MODULES = {
             'Writing needs the `cover.edit` action; the bundle grants it to admin,',
             'commercial and nsm so an existing project keeps working.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
-    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0080_ownership_extra.sql', '0077_upsert_targets.sql', '0106_cover_views_security_invoker.sql',
+    files: ['0036_sales_contracts.sql', '0037_cover_import_speed.sql', '0072_ownership_transfer.sql', '0073_product_additional_entries.sql', '0080_ownership_extra.sql', '0077_upsert_targets.sql',
+             // AFTER 0077: it replaces the serial-only key that file created.
+             '0185_additional_entry_machine_key.sql', '0106_cover_views_security_invoker.sql',
              // LAST in this module: it redefines ownership_transfer_apply(),
              // which 0072 above creates.
              '0182_ownership_transfer_same_party.sql',

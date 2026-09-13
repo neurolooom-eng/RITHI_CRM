@@ -424,15 +424,45 @@ eq('a row with no destination is held back',
    shapeUpload(def('ownership_transfers'), [{ 'Serial Number': 'SN-1' }]).skipped[0].why, 'no party name (to), ot number');
 
 console.log('\n-- recovered warranty --');
+// The PRODUCT is half the key now, so every fixture names one — see 0185. All
+// 2,263 rows of the real AdditionalEntryDetails export do.
 const ae = shapeUpload(def('product_additional_entries'), [
-  { 'Serial No': 'SN-2', 'Warranty Start': '01-Apr-2019', 'Warranty End': '31-Mar-2021', 'Source': "Customer's invoice" },
+  { 'Serial No': 'SN-2', 'Product Name': 'ORION-G', 'Warranty Start': '01-Apr-2019',
+    'Warranty End': '31-Mar-2021', 'Source': "Customer's invoice" },
 ]);
 eq('dd-Mon-yyyy read', [ae.rows[0].warranty_start, ae.rows[0].warranty_end], ['2019-04-01', '2021-03-31']);
 eq('provenance kept', ae.rows[0].source_note, "Customer's invoice");
-// On the STORED serial_key, not the raw column: `on conflict` cannot infer the
-// expression index the first version relied on (0077).
-eq('upserts on the machine', def('product_additional_entries').conflict, 'serial_key');
-eq('...derived from the column the file supplies', def('product_additional_entries').conflictFrom, ['serial_number']);
+// On the STORED machine_key, not the raw columns: `on conflict` cannot infer an
+// expression index (0077 learned that), and the key is the MODEL AND THE SERIAL
+// because serials repeat across models — 298 of them in that one export.
+eq('upserts on the machine', def('product_additional_entries').conflict, 'machine_key');
+eq('...which is the product AND the serial',
+   def('product_additional_entries').conflictFrom, ['item_name', 'serial_number']);
+
+// THE EXPORT'S OWN HEADING. Its absence held back every row of the real file,
+// reported as "nothing loadable, every row is missing serial number" — which
+// reads as the FILE being at fault.
+const aeReal = shapeUpload(def('product_additional_entries'), [
+  { 'Product Serial Number': '2', 'Product Name': 'MONNAL T75', 'Party Name': 'CHRISTUDAS HOSPITAL-179',
+    'Warranty Start Date': '15-July-2009', 'Warranty End Date': '14-July-2010', 'AE Number': 'AE00002',
+    'PM VISITS': '0', 'Already Sold TO': 'CHRISTUDAS' },
+]);
+eq('"Product Serial Number" is the serial', aeReal.rows[0]?.serial_number, '2');
+eq('"Warranty Start Date" is a date', aeReal.rows[0]?.warranty_start, '2009-07-15');
+eq('what the export also carries is KEPT, not dropped',
+   Object.keys((aeReal.rows[0]?.extra ?? {}) as Record<string, unknown>).sort(),
+   ['Already Sold TO', 'PM VISITS']);
+// Two machines can share a serial and must stay two rows.
+eq('a shared serial is two machines, not one',
+   shapeUpload(def('product_additional_entries'), [
+     { 'Product Serial Number': '15', 'Product Name': 'ANAVENT' },
+     { 'Product Serial Number': '15', 'Product Name': 'ORION' },
+   ]).rows.length, 2);
+// A row whose machine cannot be identified is held back and named, rather than
+// keyed as "|15" and overwriting the next such row.
+eq('no product means the machine is unknown, so the row is held back',
+   shapeUpload(def('product_additional_entries'), [{ 'Serial No': 'SN-9' }]).skipped[0]?.why,
+   'no product name');
 eq('grouped in reading order', uploadGroups(UPLOADS).map((g) => g.title),
    ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Cover']);
 
