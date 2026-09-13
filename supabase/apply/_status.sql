@@ -611,15 +611,10 @@ with checks(sort_order, bundle, provides, present) as (
      and coalesce((select 'security_invoker=on' = any(reloptions) from pg_class
                     where relname = 'spare_pending_rm'
                       and relnamespace = 'public'::regnamespace), false)))),
-    (117, 'Zoho Migration: a read-only clone of Technical Support', 'zoho_migration holds everything technical_support holds -- taken from the STORED row, so a page added to one reaches the other without this file being edited -- plus the report and master-list sub-pages spelled out, because Roles & Permissions shows a row per sub-page and empty boxes beside working access is a screen nobody can read. Read-only by what it does NOT hold: none of the actions a write policy names, so a refusal is Postgres''s and not the browser''s. A SEPARATE role from Technical Support on purpose -- it ends when the migration does, and revoking it leaves the support login alone. NO means the role is absent or has drifted from its source. Restore: rbac.sql',
+    (117, 'Zoho Migration: read-only, and free to diverge', 'zoho_migration exists and holds NO WRITE ACTION (0155 seeds it, 0180 keeps it honest). A CLONE SEEDS A ROLE ONCE AND IS NOT A STANDING MIRROR (the user''s rule, 2026-09-13, and it applies to all cloning here) -- so this row NO LONGER TESTS THAT THE TWO MATCH. It used to, and that was wrong twice over: two roles kept identical forever are one role with two names, and the point of a separate role is that it CAN diverge -- narrowed as the migration proceeds, revoked when it ends, without touching the support login. Divergence is the expected state, not drift. What is left is the property that actually defines the role: it holds none of the actions a write policy names, so a refusal is Postgres''s and not the browser''s. THIS ROW EARNED ITS KEEP: it reported NO on the live project and the cause was real. `review.edit` grants ALL commands on call_reviews, and a user on the role answered Review 2 with Risk to Patient = Yes, fired the 0167 trigger and raised FFR - 001/26 in their own name -- a record 0166 means can never be deleted. It arrived by the old merge: an administrator ticked review.edit on TECHNICAL SUPPORT deliberately (it stays there, the user''s decision) and every run of rbac.sql copied it across. NO means the role is absent, or holds a write action -- check WHICH with _zoho_diag.sql before changing a permission, since one of those is somebody''s decision and the other is a leak. Restore: rbac.sql',
         (to_regclass('public.app_roles') is null
       or (exists (select 1 from public.app_roles where role = 'zoho_migration')
-          -- The property, not the presence: still a clone, and still read-only.
-     and not exists (
-           select 1 from public.app_roles ts, lateral jsonb_array_elements_text(ts.permissions) m(v)
-            where ts.role = 'technical_support'
-              and not exists (select 1 from public.app_roles zm
-                               where zm.role = 'zoho_migration' and zm.permissions ? m.v))
+          -- The property that defines the role. NOT that it mirrors its source.
      and not exists (
            select 1 from public.app_roles zm, lateral jsonb_array_elements_text(zm.permissions) m(v)
             where zm.role = 'zoho_migration'

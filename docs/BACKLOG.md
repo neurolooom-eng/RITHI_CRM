@@ -13,6 +13,33 @@ up)_
 
 ---
 
+## 2026-09-13 — Zoho Migration held a write action, and cloning was the cause
+
+- **`0180_zoho_readonly.sql` — `review.edit` revoked from `zoho_migration`.**
+  `_status.sql` reported the role NO on the live project and `_zoho_diag.sql`
+  named the clause: not drift, a WRITE ACTION. Established on a database rather
+  than argued — `review.edit` grants ALL commands on `call_reviews`, a user on
+  the role answered Review 2 with Risk to Patient = Yes, the 0167 trigger fired
+  and **FFR - 001/26 was raised in their name**, a record 0166 means can never
+  be deleted. **Technical Support KEEPS it** — the user's decision, asked before
+  anything was changed: the grant there was intended, and revoking a permission
+  an administrator chose is not a tidy-up.
+- **`0155` — a clone SEEDS a role once; it is not a standing mirror.** The
+  user's rule (2026-09-13), and it applies to all cloning here. 0155 used to
+  merge Technical Support's whole row into Zoho Migration on every run of
+  `rbac.sql`, so a tick on one role silently widened the other — which is
+  exactly how `review.edit` crossed over. Two roles kept identical forever are
+  one role with two names; the point of a separate role is that it CAN diverge.
+  Once it exists, 0155 leaves it alone. **`0155` is the only role clone in the
+  migrations** — 0035 and 0040 clone tables, not roles.
+- **`_status.sql` row 117 no longer tests that the two roles match.** Under the
+  rule above, divergence is the expected state, not drift. It tests the property
+  that defines the role: it holds none of the actions a write policy names.
+- Both halves were needed: a revoke alone would have been undone by the next
+  `rbac.sql` run, and the seed-once fix alone would have left the key on the
+  live row. Mutation-tested — restoring the old merge makes a newly-ticked
+  `masters.edit` cross over again, and the suite catches it.
+
 ## 2026-09-13 — `_status.sql` gains the row for 0179, and a Zoho diagnostic
 
 - **`_status.sql` row 135, "a row loaded from a sheet says so"** — 0179 shipped

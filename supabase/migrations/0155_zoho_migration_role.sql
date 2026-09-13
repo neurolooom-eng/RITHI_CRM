@@ -69,27 +69,38 @@ begin
         from (select distinct name from public.masters where coalesce(name,'') <> '') ml
     ) u;
 
+  -- ---------------------------------------------------------------------
+  -- A CLONE SEEDS A ROLE ONCE. IT IS NOT A STANDING MIRROR.
+  -- (The user's rule, 2026-09-13, and it applies to ALL cloning here.)
+  --
+  -- This used to MERGE Technical Support's row into Zoho Migration on every
+  -- run, and that is how `review.edit` reached a role built to change
+  -- nothing: an administrator ticked it on Technical Support -- their
+  -- decision, and it stands -- and the next run of rbac.sql copied it across.
+  -- Zoho Migration silently gained the right to write Daily Call Reviews,
+  -- which RAISE FIELD FAILURE REPORTS, and a quality record can never be
+  -- deleted (0166). Nobody ticking a box on one role expects a DIFFERENT role
+  -- to change, and nothing on the screen said that it had.
+  --
+  -- Two roles kept identical forever are one role with two names; the point of
+  -- a separate role is that it can DIVERGE -- narrowed as the migration
+  -- proceeds, and revoked when it ends, without touching the support login.
+  -- So once the role exists it is the administrator's, and this file stops
+  -- having an opinion about it. Divergence is the expected state, not drift.
   if exists (select 1 from public.app_roles r where r.role = 'zoho_migration') then
-    update public.app_roles r
-       set permissions = (
-             select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
-               from (
-                 select e.v from jsonb_array_elements_text(r.permissions) as e(v)
-                 union
-                 select g.v from jsonb_array_elements_text(granted) as g(v)
-               ) m
-           ),
-           label      = coalesce(nullif(r.label, ''), 'Zoho Migration'),
-           updated_at = now()
-     where r.role = 'zoho_migration';
+    raise notice 'Zoho Migration already exists -- left exactly as it is. A clone seeds a role once; it is not kept in sync.';
   else
     insert into public.app_roles (role, label, permissions)
     values ('zoho_migration', 'Zoho Migration', granted);
+
+    -- Reported from what the role ACTUALLY has, and only on the run that
+    -- seeded it. It used to report `granted` every time -- so a run that
+    -- deliberately changed nothing still announced a clone, which is the
+    -- report saying the opposite of what happened.
+    select count(*) into n_mods
+      from jsonb_array_elements_text(granted) as e(v) where e.v like 'mod:%';
+
+    raise notice 'Zoho Migration CREATED: % permission(s), % module/page key(s) -- seeded from Technical Support, read-only. It is the administrator''s from here; this file will not touch it again.',
+      jsonb_array_length(granted), n_mods;
   end if;
-
-  select count(*) into n_mods
-    from jsonb_array_elements_text(granted) as e(v) where e.v like 'mod:%';
-
-  raise notice 'Zoho Migration: % permission(s), % module/page key(s) -- cloned from Technical Support, read-only',
-    jsonb_array_length(granted), n_mods;
 end $zm$;
