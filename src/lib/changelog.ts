@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.237',
+    date: '2026-09-13',
+    title: 'A new Warranty or Contract entry arrives with its number',
+    changes: [
+      '\u201C+ New entry\u201D now opens with the next number already in it \u2014 SA for a warranty sale, MC for a contract \u2014 continuing from the highest one on record.',
+      'It is OFFERED, not reserved, and stays editable. Two people starting an entry at the same moment get the same number and the second is refused when saving; a number handed out and then abandoned would leave a gap in a series somebody audits.',
+      'If the number cannot be looked up, the form still opens with the field blank to type.',
+    ],
+  },
+  {
     version: '0.9.236',
     date: '2026-09-13',
     title: 'Saving a warranty machine line works again',

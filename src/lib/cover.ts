@@ -14,6 +14,7 @@
 // ===========================================================================
 import { getSupabase } from './supabase';
 import { dayAfter, addPeriod } from './dates';
+import { nextInSeries } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -202,6 +203,26 @@ export async function listHeaders(kind: CoverKind, f: HeaderFilter, offset = 0, 
     const items = r.items as { count: number }[] | undefined;
     return { ...r, item_count: items?.[0]?.count ?? 0 };
   });
+}
+
+/** The number to offer for a new entry.
+ *
+ *  Reads the most recent 500 numbers and continues the series from the highest
+ *  (src/lib/coverspec.ts). Ordered by `id`, not by the number: `SA999` sorts
+ *  after `SA1200` as TEXT, so asking the database for the "largest" number
+ *  would answer with the wrong one as soon as the series passed 999. Numbers
+ *  are issued in order, so the newest rows carry the highest.
+ *
+ *  It is an OFFER, not a reservation. Two people starting an entry at the same
+ *  moment are offered the same number and the second is refused on save by the
+ *  unique key — which is the honest failure: a number handed out and then not
+ *  used leaves a gap in a series somebody audits. */
+export async function nextCoverNumber(kind: CoverKind): Promise<string> {
+  const cfg = configFor(kind);
+  const { data, error } = await client().from(cfg.headerTable)
+    .select(cfg.key).order('id', { ascending: false }).limit(500);
+  if (error) throw err(error);
+  return nextInSeries(kind, (data ?? []).map((r) => String((r as Row)[cfg.key] ?? '')));
 }
 
 /** The raw items under one header — raw, so an override is visible as such. */

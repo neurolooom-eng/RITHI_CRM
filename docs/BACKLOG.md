@@ -13,6 +13,25 @@ up)_
 
 ---
 
+## 2026-09-13 — The cover entry offers its own number
+
+- `nextCoverNumber(kind)` + "+ New entry" opens with the next SA/MC already in
+  it. **Ordered by `id`, not by the number**: `SA999` sorts after `SA1200` as
+  text, so asking the database for the largest number answers with the wrong one
+  the moment the series passes 999.
+- **Offered, not reserved**, and editable. A concurrent second entry is refused
+  by the unique key on save — the honest failure, since a number handed out and
+  abandoned leaves a gap in a series somebody audits.
+- A failed lookup does not block the form; the field is simply blank.
+- One assertion had to be rewritten: it split the file on `nextCoverNumber` and
+  found the IMPORT line, so it passed on text that proved nothing. It reads the
+  handler body now. Mutation-tested.
+
+**Remaining on the AppSheet rebuild:** field ORDER and labels against schemas
+3.5–3.8. The contract fields are already complete; the warranty line is complete
+except `Item Details Long`, which has no column and is derivable — see the
+2026-09-13 phantom-column note for why it is not written to the row.
+
 ## 2026-09-13 — The cover derivations put two phantom columns on the row
 
 Found while continuing the cover rebuild, **not reported** — and it was a fault

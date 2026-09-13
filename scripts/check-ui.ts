@@ -4457,6 +4457,26 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
   // ...on a CONTRACT only. A sale has no rate: the spec puts those three
   // columns on ContractDetails alone, and sale_items has no such columns.
   eq('a sale line has no rate, tax or total', deriveItem('sale', 'rate', { rate: 1000 }), {});
+
+  // THE NUMBER IS OFFERED, NOT RESERVED. It must land in the key field, stay
+  // editable, and never block opening the form — a lookup that fails is no
+  // reason to refuse a new entry.
+  {
+    const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+    const lib = readFileSync('src/lib/cover.ts', 'utf8');
+    eq('a new entry asks for the next number', reg.includes('await nextCoverNumber(kind)'), true);
+    // Read the HANDLER, not the file: splitting on the name found the import
+    // line first, so the check passed on text that proved nothing.
+    const body = (reg.split('const newEntry')[1] ?? '').split('\n  const ')[0];
+    eq('the form opens BEFORE the lookup', body.indexOf('setOpen({})') < body.indexOf('await nextCoverNumber'), true);
+    eq('...and a failed lookup does not stop it', /catch/.test(body), true);
+    // Ordered by id, NOT by the number: 'SA999' sorts after 'SA1200' as text,
+    // so the database's "largest" is the wrong one past 999.
+    eq('the series is read newest-first by id, not by the number',
+      /order\('id', \{ ascending: false \}\)\.limit\(500\)/.test(lib), true);
+    eq('a series past 999 still reads correctly',
+      nextInSeries('sale', ['SA999', 'SA1200']), 'SA1201');
+  }
   // The two registers derive the machine string in OPPOSITE directions, and
   // that is in the spec: a contract picks an existing machine, a sale names one.
   eq('a contract line splits the machine string',
