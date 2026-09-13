@@ -146,6 +146,12 @@ on testing the old shape. **When a migration replaces a definition, move the
   conditional), and the visibility rule is evaluated once per query rather than
   once per row (CR-024). Its status lines are updated in the same change that
   makes one true.
+- **`docs/HOW_TO_USE.md`** is the USER-FACING handbook for the modules built this
+  cycle — what each screen is for and the rules that are easy to get wrong.
+  Written in the user's words, not the code's. Update it in the same change that
+  makes one of its statements untrue; where it and the code disagree, the code
+  is the fact and the handbook is the bug.
+  Shareable copy: <https://claude.ai/code/artifact/a6cb9ac1-cd68-47f7-9ce9-7e88eafc5908>
 - **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
   SERVICING PROCESS must do — 37 requirements (SR-001…SR-037) from ISO 13485
   §7.5.4 and the clauses it reaches into, each assessed against this system.
