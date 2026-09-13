@@ -244,7 +244,11 @@ export async function countMachines(kind: CoverKind, state: string, f: { q?: str
 
 export async function saveHeader(kind: CoverKind, row: Row): Promise<Row> {
   const cfg = configFor(kind);
-  const { id, item_count: _c, items: _i, ...rest } = row as Row & { id?: number };
+  // The same whitelist as saveItem. It used to name the two fields to DROP
+  // (item_count, items) — which worked until a third arrived, and a derived
+  // value with no column behind it loses the whole save rather than itself.
+  const { id, ...all } = row as Row & { id?: number };
+  const rest = onlyWritable(all, writableFor(cfg, 'header'));
   const c = client();
   const { data, error } = id
     ? await c.from(cfg.headerTable).update(rest).eq('id', id).select().single()
@@ -253,9 +257,30 @@ export async function saveHeader(kind: CoverKind, row: Row): Promise<Row> {
   return data as Row;
 }
 
+/** Only the columns this register DECLARES, plus the key that links a machine
+ *  to its entry.
+ *
+ *  A WHITELIST, not a strip, and the reason is a fault this codebase has now
+ *  shipped twice: a value derived for the screen (or read from a view) that has
+ *  no column behind it makes PostgREST refuse the WHOLE row — "could not find
+ *  the column in the schema cache" — so one stray key loses the entire save,
+ *  not just itself. A blacklist works until the next such value is added and
+ *  nobody remembers to list it.
+ *
+ *  Built from the field definitions, so a column added to a form is writable by
+ *  that fact alone and cannot be forgotten here. `uid` is deliberately absent:
+ *  the database fills it (cover_item_uid), and a client that sent its own would
+ *  be inventing a key. */
+const writableFor = (cfg: ReturnType<typeof configFor>, part: 'header' | 'item'): Set<string> =>
+  new Set([...(part === 'header' ? cfg.headerFields : cfg.itemFields).map((f) => f.name), cfg.key, 'extra']);
+
+const onlyWritable = (row: Row, allow: Set<string>): Row =>
+  Object.fromEntries(Object.entries(row).filter(([k]) => allow.has(k)));
+
 export async function saveItem(kind: CoverKind, key: string, row: Row): Promise<Row> {
   const cfg = configFor(kind);
-  const { id, ...rest } = row as Row & { id?: number };
+  const { id, ...all } = row as Row & { id?: number };
+  const rest = onlyWritable(all, writableFor(cfg, 'item'));
   const c = client();
   const { data, error } = id
     ? await c.from(cfg.itemTable).update(rest).eq('id', id).select().single()

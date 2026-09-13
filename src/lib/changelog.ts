@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.236',
+    date: '2026-09-13',
+    title: 'Saving a warranty machine line works again',
+    changes: [
+      'FIXES A FAULT SHIPPED IN 0.9.235: editing the product code, name or serial on a WARRANTY machine line failed to save. The screen was filling in a field that has no column behind it, and the database refuses the whole row for one unknown column \u2014 so the edit was lost, not just that field.',
+      'Rate, tax and total now apply to CONTRACT lines only, which is where they belong. A warranty sale has no rate.',
+      'Saving an entry or a machine now sends only the columns the register actually has, so a value shown on screen can never again take a save down with it.',
+    ],
+  },
+  {
     version: '0.9.235',
     date: '2026-09-13',
     title: 'Warranty and Contract entry do the arithmetic for you',
