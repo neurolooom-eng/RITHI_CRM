@@ -13,6 +13,34 @@ up)_
 
 ---
 
+## 2026-09-13 — The migrate pipeline leaked a password fragment AGAIN
+
+`SUPABASE_DB_URL` **is set** on the repository, so `db-migrate.yml` runs on
+every push touching `supabase/migrations/` — and fails, because the password
+contains an unencoded `@`. Run 56 (2026-09-13 15:02) printed:
+
+```
+could not translate host name "110@aws-0-ap-south-1.pooler.supabase.com"
+```
+
+That is the TAIL of the password, in a public log. **This is the second time.**
+
+- **Why the scrubber missed it.** Node's `URL` splits userinfo at the LAST `@`
+  (password `pa%40ss110`, host correct); **libpq splits at the FIRST**, so its
+  host is `ss110@…` — a SUFFIX of the password, which matches neither the
+  password nor the URL, so no exact-string mask could catch it. GitHub's own
+  masking showed `SUPABASE_DB_URL` as `***` and looked like it had covered it.
+- **Fixed by prevention:** `apply-migrations.mjs` now refuses before psql runs
+  when the URL has more than one `@`, naming the fix (`%40`) and printing no
+  part of the credential. Verified with the real shape.
+- **Defence in depth:** every tail of the password (3+ chars) is now masked, so
+  the same shape from any other tool is caught.
+
+**USER ACTION, both still outstanding:**
+1. **Rotate the database password** — a fragment is public, twice.
+2. Percent-encode it in the secret (`@` → `%40`), then the pipeline runs green.
+3. Optionally delete the failed `Apply database migrations` runs.
+
 ## 2026-09-13 — The real Ownership Transfer export, and Insights you can question
 
 - **`0183`** — the first real file held back **2,985 of 4,327 rows**, all

@@ -86,6 +86,46 @@ if (!url) {
   process.exit(2);
 }
 
+// ===========================================================================
+// REFUSE AN UNENCODED `@` IN THE PASSWORD, BEFORE psql IS EVER RUN.
+//
+// This is a LEAK GUARD, not a convenience check, and scrubbing cannot do its
+// job. Node's URL and libpq disagree about where the credentials end:
+//
+//   URL  postgresql://user:pa@ss110@host/db
+//   node   password = "pa%40ss110"   host = host          (splits at the LAST @)
+//   libpq  password = "pa"           host = "ss110@host"  (splits at the FIRST)
+//
+// So psql's error names a host that carries the TAIL of the password —
+// "could not translate host name \"110@aws-0-...\"" — and that tail is neither
+// the password nor the URL, so masking either of those does not match it. It
+// reached a public Actions log twice for exactly this reason, while GitHub's
+// own masking showed SUPABASE_DB_URL as `***` and looked like it had covered
+// it.
+//
+// The only reliable fix is to never make the call. This refuses first, names
+// what to change, and prints NO part of the credential.
+// ===========================================================================
+{
+  const firstAt = url.indexOf('@');
+  const lastAt = url.lastIndexOf('@');
+  if (firstAt !== -1 && firstAt !== lastAt) {
+    console.error(
+      'SUPABASE_DB_URL has an unencoded "@" in its password, so psql reads the\n' +
+      'rest of the password as the hostname and the connection cannot succeed.\n' +
+      '\n' +
+      'PERCENT-ENCODE IT: every "@" in the password becomes %40. The other\n' +
+      'characters that need it are  :  /  ?  #  [  ]  %  ->  %3A %2F %3F %23\n' +
+      '%5B %5D %25. Nothing else in the URI changes.\n' +
+      '\n' +
+      'Refusing before connecting is deliberate: psql would otherwise print the\n' +
+      'misread hostname, which carries part of the password, into this log.\n' +
+      'Nothing above or below prints any of it.',
+    );
+    process.exit(2);
+  }
+}
+
 // psql, with the URL handed over in the environment rather than argv.
 const psql = (sql, { quiet = true } = {}) => execFileSync(
   'psql',
@@ -112,7 +152,19 @@ const psqlFile = (file) => execFileSync(
 const secrets = [url];
 try {
   const u = new URL(url);
-  if (u.password) secrets.push(decodeURIComponent(u.password), u.password);
+  if (u.password) {
+    const decoded = decodeURIComponent(u.password);
+    secrets.push(decoded, u.password);
+    // EVERY TAIL OF THE PASSWORD, because that is the shape that escaped: with
+    // an unencoded `@` libpq names a host built from a SUFFIX of the password,
+    // and a suffix matches neither the password nor the URL. The guard above
+    // stops this arising at all; this is what catches it if some other tool
+    // ever prints the same shape. Short tails are skipped — masking two
+    // characters would redact ordinary words and tell a reader nothing.
+    for (let i = 1; i < decoded.length; i++) {
+      if (decoded.length - i >= 3) secrets.push(decoded.slice(i));
+    }
+  }
   if (u.username) secrets.push(u.username);
 } catch { /* not a parseable URL: the whole-string mask below still applies */ }
 
