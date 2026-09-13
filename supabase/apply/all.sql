@@ -171,6 +171,7 @@
 --   0073_product_additional_entries.sql
 --   0080_ownership_extra.sql
 --   0077_upsert_targets.sql
+--   0185_additional_entry_machine_key.sql
 --   0106_cover_views_security_invoker.sql
 --   0182_ownership_transfer_same_party.sql
 --   0183_ownership_from_equals_to.sql
@@ -201,6 +202,7 @@
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
+--   0186_feedback_key.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -21170,6 +21172,76 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0185_additional_entry_machine_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0185 — A RECOVERED ENTRY IS KEYED ON THE MACHINE, NOT THE SERIAL.
+--
+-- Reported from use, loading the AppSheet AdditionalEntryDetails export:
+-- "Nothing loadable — every row is missing serial number."
+--
+-- The missing-serial part was an alias gap in the importer (the file says
+-- "Product Serial Number"). Fixing that exposed the real fault underneath, and
+-- MEASURING THE FILE is what found it rather than reading the SQL:
+--
+--   2,263 rows          1,920 distinct serials
+--   298 serials belong to MORE THAN ONE PRODUCT
+--   -> 640 rows would collapse to 298. THREE HUNDRED AND FORTY-TWO MACHINES
+--      would vanish, silently, on a load that reported success.
+--
+-- Serial 15 is an ANAVENT and an ORION. Serial 239 is four different machines.
+--
+-- THIS PROJECT ALREADY KNOWS THE RULE and wrote it down in src/lib/machine.ts:
+-- "A machine is its MODEL plus its SERIAL, never the serial alone. Serials
+-- repeat across models — the install base has eleven machines numbered 219 —
+-- so keying on the number alone points at a different machine, usually at a
+-- different hospital." It records the incident: an ORION-G 201 request offered
+-- an open call for VEGA 201, one click from being mapped onto it.
+--
+-- 0077 keyed this table on `serial_key` alone, which contradicts that rule. The
+-- identity is the PAIR, exactly as it is for `products` and for the Field
+-- Failure Register (0181) and Ownership Transfer (0184) before it.
+--
+-- `machine_key` is GENERATED and STORED, so it is a plain btree — not an
+-- expression index, which `check:upserts` refuses because PostgREST cannot
+-- infer one. Both parts are not-null (item_name defaults to ''), so there are
+-- no NULLs to stop two rows colliding.
+--
+-- AND A PLACE FOR WHAT THE FILE ALSO CARRIES. The export has twenty-four
+-- columns; this table names nine of them. The rest — AE Number, the warranty
+-- period, PM VISITS, ACCESSORIES INCLUDED?, Already Sold TO — were being
+-- DROPPED, because this register had no `extra`. Every other importer here
+-- keeps what it does not recognise; this one now does too.
+-- ===========================================================================
+
+alter table public.product_additional_entries
+  add column if not exists extra jsonb not null default '{}'::jsonb;
+
+alter table public.product_additional_entries
+  add column if not exists machine_key text
+    generated always as (lower(btrim(item_name)) || '|' || lower(btrim(serial_number))) stored;
+
+-- Existing rows first: the index cannot be built over duplicates, and a pair
+-- appearing twice is one machine recorded twice, so the LATEST row wins — a
+-- second recovered entry is a correction of the first, which is what 0073 says.
+delete from public.product_additional_entries a
+ using public.product_additional_entries b
+ where lower(btrim(a.item_name)) = lower(btrim(b.item_name))
+   and lower(btrim(a.serial_number)) = lower(btrim(b.serial_number))
+   and a.id < b.id;
+
+create unique index if not exists product_additional_entries_machine_key_uniq
+  on public.product_additional_entries (machine_key);
+
+-- The serial-only key goes, or the pair cannot hold two machines sharing a
+-- serial — which is the whole point of this file.
+drop index if exists public.product_additional_entries_serial_key_uniq;
+
+comment on index public.product_additional_entries_machine_key_uniq is
+  'The MODEL and the SERIAL. Serials repeat across models (src/lib/machine.ts), and the AdditionalEntryDetails export proves it: 298 of its serials belong to more than one product, so a serial-only key lost 342 machines.';
+
+-- ------------------------------------------------------------------------
 -- 0106_cover_views_security_invoker.sql
 -- ------------------------------------------------------------------------
 
@@ -25861,6 +25933,55 @@ create policy ffrh_read on public.ffr_history for select to authenticated
      or (select public.has_perm('ffr.manage'))
      or (select public.is_admin())
   );
+
+-- ------------------------------------------------------------------------
+-- 0186_feedback_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0186 — FEEDBACK IS KEYED ON THE CALL.
+--
+-- The user, 2026-09-13: "Feedback has KEY - Simply use it." They are right, and
+-- the export proves it: v2Feedback - Merge has 24,749 rows and 24,748 DISTINCT
+-- UC Numbers with ZERO repeats. One feedback per call is what the register has
+-- always been; nothing was enforcing it.
+--
+-- Until now the upload declared no conflict target, so its own note admitted
+-- "No natural key, so a re-run ADDS rows" — load the export twice and the
+-- register holds it twice, with nothing to say which is current.
+--
+-- `ucn_key` is GENERATED and STORED so the index is a plain btree: an
+-- expression index is not a target PostgREST can infer, which `check:upserts`
+-- refuses for that reason.
+--
+-- A ROW WITH NO UCN IS NOT KEYED and must not collide with every other such
+-- row, so the index is over `ucn_key` with blanks excluded — and because a
+-- PARTIAL index is also not inferable, the importer REQUIRES the UCN instead
+-- (it already did) and blank rows never reach the table. One row of that export
+-- has no UC Number and is held back with the reason, which is the honest
+-- outcome: feedback that names no call cannot be filed against one.
+-- ===========================================================================
+
+alter table public.feedback
+  add column if not exists ucn_key text generated always as (lower(btrim(coalesce(ucn, '')))) stored;
+
+-- Existing duplicates first, or the index cannot be built. The LATEST row wins:
+-- a second feedback for one call is a correction of the first, which is the
+-- same rule the other registers use.
+delete from public.feedback a
+ using public.feedback b
+ where lower(btrim(coalesce(a.ucn, ''))) = lower(btrim(coalesce(b.ucn, '')))
+   and lower(btrim(coalesce(a.ucn, ''))) <> ''
+   and a.id < b.id;
+
+-- Rows with no UCN at all are left alone: they are not keyed, they are not
+-- duplicates of each other, and deleting somebody's feedback because it lacks a
+-- call number would be destroying a record to tidy an index.
+create unique index if not exists feedback_ucn_key_uniq
+  on public.feedback (ucn_key) where ucn_key <> '';
+
+comment on index public.feedback_ucn_key_uniq is
+  'One feedback per call. The v2Feedback export has 24,748 distinct UC Numbers in 24,749 rows and no repeats — the key was always there, nothing was using it, and a second load duplicated the register.';
 
 -- ------------------------------------------------------------------------
 -- 0052_search_indexes.sql

@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.239',
+    date: '2026-09-13',
+    title: 'Two exports that would not load, now do',
+    changes: [
+      'ADDITIONAL ENTRY DETAILS and CUSTOMER FEEDBACK both refused every row \u2014 \u201Cmissing serial number\u201D and \u201Cmissing ucn\u201D. Both were OUR fault: the registers were looking for \u201CSerial No\u201D and \u201CUCN\u201D while your exports say \u201CProduct Serial Number\u201D and \u201CUC Number\u201D. 2,262 and 24,748 rows load now.',
+      'ADDITIONAL ENTRY DETAILS IS NOW KEYED ON THE PRODUCT AND THE SERIAL. Serials repeat across models \u2014 in your file 298 of them do, serial 15 being both an ANAVENT and an ORION \u2014 so keying on the serial alone would have lost 342 machines without a word.',
+      'It also keeps everything else the export carries (AE Number, PM Visits, Already Sold To and fourteen more). It was the only importer dropping what it did not recognise.',
+      'CUSTOMER FEEDBACK IS KEYED ON THE UCN, so re-loading a corrected export updates those rows instead of adding the file again. Your export has 24,748 UC Numbers and no repeats \u2014 the key was always there.',
+      'A feedback row with no UCN is kept and stays its own record; it is not merged with every other blank.',
+    ],
+  },
+  {
     version: '0.9.238',
     date: '2026-09-13',
     title: 'Warranty and Contract fields read as they did in the old app',

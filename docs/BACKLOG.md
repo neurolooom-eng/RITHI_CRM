@@ -13,6 +13,37 @@ up)_
 
 ---
 
+## 2026-09-13 — Two exports "unable to load", both the importer's fault
+
+Reported as *"Nothing loadable — every row is missing serial number / ucn. Is
+this the right register for this file?"* It was the right register both times.
+
+- **Additional Entry Details** — the def looked for `serial number`; the export
+  says **`Product Serial Number`**. Also `Warranty Start Date` vs
+  `warranty start`. 2,262 of 2,263 rows load now (the one held back has a blank
+  serial).
+- **`0185`** — and fixing that exposed the real fault. **MEASURED:** 2,263 rows,
+  1,920 distinct serials, **298 serials belonging to more than one product** —
+  serial 15 is an ANAVENT and an ORION, 239 is four machines. Keyed on
+  `serial_key` alone, 640 rows would collapse to 298 and **342 machines vanish**
+  on a load reporting success. `src/lib/machine.ts` already states the rule and
+  records the incident behind it; 0077 contradicted it. Now `machine_key`.
+- That table also gained `extra` — it was the only importer **dropping**
+  unrecognised columns, and this export has 24 of which it named nine.
+- **Customer Feedback** — looked for `ucn`, export says **`UC Number`**; also
+  missed `Visiting Service Engineer`, `Product Serial Number`,
+  `Complaint Reported` and `Visit Date & Time`. 24,748 of 24,749 rows load now.
+- **`0186`** — the user: *"Feedback has KEY - Simply use it."* Correct: 24,748
+  distinct UC Numbers, zero repeats. Keyed on `ucn_key`.
+  **The first version used a PARTIAL index and `check:upserts` refused it** —
+  a partial index is no more inferable than an expression one. A blank UCN now
+  keys off its own row id, so the index is total and no record is deleted.
+  Filed in `data_integrity`, not `base`: base creates the table but refuses to
+  run once RBAC is in.
+
+**Pending: the user to run `sales_contracts.sql` (0185) and
+`data_integrity.sql` (0186), then re-upload both files.**
+
 ## 2026-09-13 — Cover field labels reconciled; the AppSheet rebuild is done
 
 Diffed programmatically against schemas 3.6/3.7, not by eye. **21 of 21 of the

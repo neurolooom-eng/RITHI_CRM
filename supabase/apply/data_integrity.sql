@@ -16,6 +16,7 @@
 --   0166_ffr_retention_guard.sql
 --   0174_ffr_history.sql
 --   0177_ffr_history_view_right.sql
+--   0186_feedback_key.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -568,5 +569,54 @@ create policy ffrh_read on public.ffr_history for select to authenticated
      or (select public.has_perm('ffr.manage'))
      or (select public.is_admin())
   );
+
+-- ------------------------------------------------------------------------
+-- 0186_feedback_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0186 — FEEDBACK IS KEYED ON THE CALL.
+--
+-- The user, 2026-09-13: "Feedback has KEY - Simply use it." They are right, and
+-- the export proves it: v2Feedback - Merge has 24,749 rows and 24,748 DISTINCT
+-- UC Numbers with ZERO repeats. One feedback per call is what the register has
+-- always been; nothing was enforcing it.
+--
+-- Until now the upload declared no conflict target, so its own note admitted
+-- "No natural key, so a re-run ADDS rows" — load the export twice and the
+-- register holds it twice, with nothing to say which is current.
+--
+-- `ucn_key` is GENERATED and STORED so the index is a plain btree: an
+-- expression index is not a target PostgREST can infer, which `check:upserts`
+-- refuses for that reason.
+--
+-- A ROW WITH NO UCN IS NOT KEYED and must not collide with every other such
+-- row, so the index is over `ucn_key` with blanks excluded — and because a
+-- PARTIAL index is also not inferable, the importer REQUIRES the UCN instead
+-- (it already did) and blank rows never reach the table. One row of that export
+-- has no UC Number and is held back with the reason, which is the honest
+-- outcome: feedback that names no call cannot be filed against one.
+-- ===========================================================================
+
+alter table public.feedback
+  add column if not exists ucn_key text generated always as (lower(btrim(coalesce(ucn, '')))) stored;
+
+-- Existing duplicates first, or the index cannot be built. The LATEST row wins:
+-- a second feedback for one call is a correction of the first, which is the
+-- same rule the other registers use.
+delete from public.feedback a
+ using public.feedback b
+ where lower(btrim(coalesce(a.ucn, ''))) = lower(btrim(coalesce(b.ucn, '')))
+   and lower(btrim(coalesce(a.ucn, ''))) <> ''
+   and a.id < b.id;
+
+-- Rows with no UCN at all are left alone: they are not keyed, they are not
+-- duplicates of each other, and deleting somebody's feedback because it lacks a
+-- call number would be destroying a record to tidy an index.
+create unique index if not exists feedback_ucn_key_uniq
+  on public.feedback (ucn_key) where ucn_key <> '';
+
+comment on index public.feedback_ucn_key_uniq is
+  'One feedback per call. The v2Feedback export has 24,748 distinct UC Numbers in 24,749 rows and no repeats — the key was always there, nothing was using it, and a second load duplicated the register.';
 
 commit;
