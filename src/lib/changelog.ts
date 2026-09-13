@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.238',
+    date: '2026-09-13',
+    title: 'Warranty and Contract fields read as they did in the old app',
+    changes: [
+      'Field names on the Warranty and Contract entry forms now match the AppSheet app you are moving from \u2014 Warranty Start Date, Warranty Period (in Years), Contract Period (Months), Prev MC Number, Service Engineer - Initial, and the rest.',
+      'The two registers keep their own wording: a warranty period is never labelled a contract period, and the reverse.',
+      'Four names deliberately stay as they are: \u201CSale Entry Date\u201D rather than \u201CTimestamp\u201D (which is a Google Forms leftover), and \u201C(as keyed)\u201D stays on the two status fields \u2014 the register works out a status of its own, and the bare word would make two different things look like one.',
+    ],
+  },
+  {
     version: '0.9.237',
     date: '2026-09-13',
     title: 'A new Warranty or Contract entry arrives with its number',

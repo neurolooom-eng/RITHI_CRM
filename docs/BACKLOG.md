@@ -13,6 +13,36 @@ up)_
 
 ---
 
+## 2026-09-13 — Cover field labels reconciled; the AppSheet rebuild is done
+
+Diffed programmatically against schemas 3.6/3.7, not by eye. **21 of 21 of the
+plain fields already matched**; ten differed by wording and were changed.
+
+- **My diff tool was wrong before the code was.** Its regex was `[a-z_]+`, so it
+  reported `tel1`/`tel2` MISSING when both are on the form. Verified before
+  changing anything — the lesson being that a tool built to find faults can be
+  the fault.
+- Surgical per register: `Period (Years)` appears in BOTH, so a global rename
+  would have mislabelled one. check:ui asserts neither borrows the other's word.
+- **Not matched, deliberately:** the spec's SHOUTING (`INVOICE NO`, `PM VISITS`,
+  `COUNTRY`). Those are COLUMN names, and the document's own boundary note says
+  the AppSheet **Label** property is recorded only "where it materially
+  identifies a field" — so what the old screen displayed is not in the document.
+  Copying the column's case would assert something it does not support, and make
+  the form shout in four places and nowhere else.
+- Also kept: `Sale Entry Date` over `Timestamp` (a Forms artefact; the spec's own
+  detail table calls it Sale Entry Date), and `(as keyed)` on the two status
+  fields, since the register computes a status of its own.
+
+**FIELD ORDER WAS NOT CHANGED, and that is a finding rather than an omission:**
+the schema order is the SPREADSHEET's column order, not a layout. The spec shows
+no views at all. Reordering the form to a sheet's column order would be matching
+the wrong artefact; the section grouping is a layout decision the document
+cannot contradict.
+
+The AppSheet rebuild is complete: formulas (0.9.235), the save-breaking phantom
+columns (0.9.236), numbering (0.9.237), labels (0.9.238).
+
 ## 2026-09-13 — The cover entry offers its own number
 
 - `nextCoverNumber(kind)` + "+ New entry" opens with the next SA/MC already in
