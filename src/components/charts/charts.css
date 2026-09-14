@@ -11,10 +11,15 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* The drag handle is positioned against this. */
+  position: relative;
 }
+/* LABEL, TOTAL, BAR — the two things being compared sit together and the bar
+   is the shape of the list rather than a column to read across. The label
+   width is the reader's, set by dragging and remembered per chart. */
 .ch-bar-row {
   display: grid;
-  grid-template-columns: 130px 1fr 56px;
+  grid-template-columns: var(--ch-label-w, 190px) 52px 1fr;
   align-items: center;
   gap: 10px;
 }
@@ -25,6 +30,29 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Sits on the edge between the label and the total, the full height of the
+   chart. Wider than it looks so it can actually be grabbed on a touch screen;
+   the visible line is the ::after. */
+.ch-bar-grip {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: calc(var(--ch-label-w, 190px) + 3px);
+  width: 10px;
+  margin-left: -5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.ch-bar-grip::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0; left: 4px;
+  width: 2px;
+  background: var(--border);
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.ch-bar-grip:hover::after, .ch-bar-grip:focus-visible::after { opacity: 1; }
+.ch-bar-grip:focus-visible { outline: 2px solid var(--text); outline-offset: -1px; }
 .ch-bar-track {
   background: var(--surface-alt);
   border-radius: 999px;
@@ -40,6 +68,7 @@
   font-size: 12.5px;
   font-weight: 650;
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* vertical columns */
@@ -192,3 +221,11 @@
   white-space: nowrap; text-align: center; font-size: 10px; color: var(--text-muted); }
 .ch-pareto-key.is-vital { color: var(--text); }
 .ch-pareto-key.is-active { background: var(--text); color: var(--surface); border-radius: 3px; }
+
+/* A data label on the trend line. Reads as a VALUE, not as an axis number, so
+   it takes the page's own text colour and a little weight — an axis tick and a
+   data point that look alike is how a chart gets misread. */
+.ch-line-tag { fill: var(--text); font-size: 10px; font-weight: 650;
+  font-variant-numeric: tabular-nums; paint-order: stroke;
+  stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.ch-line-tag.is-active { fill: var(--text); }

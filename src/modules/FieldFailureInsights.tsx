@@ -24,6 +24,8 @@ import { SectionCard } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { ffrDueForReview, ffrEffectWithdrawn } from '../lib/ffr';
+import { xlsxDownload } from '../lib/xlsx';
+import { logAudit } from '../lib/audit';
 
 type Row = Record<string, unknown>;
 
@@ -176,6 +178,7 @@ type ParetoKey = (typeof PARETO_LEVELS)[number]['key'];
 export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Picked>({});
   const [period, setPeriod] = useState<Period>('month');
+  const [trendLabels, setTrendLabels] = useState(false);
 
   /** Clicking the chosen mark again clears it — the same gesture both ways, so
    *  nobody has to find a separate control to undo what a click did. */
@@ -242,6 +245,95 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const pareto = useMemo(() => tally(forDim(paretoBy), paretoBy), [allRows, picked, period, paretoBy]);
   const paretoTotal = pareto.reduce((n, d) => n + d.value, 0);
   const paretoBlank = pareto.find((d) => d.label === BLANK)?.value ?? 0;
+
+  // THE TABLE AND THE CHART ARE ONE ARRAY. Every figure the reader sees — the
+  // share, the running total, the cumulative percentage, which rows are inside
+  // the 80% — is computed ONCE, here, and then drawn twice. A table built from
+  // its own pass over the same rows is a second implementation of the same
+  // arithmetic, and the two only have to disagree once to be worthless.
+  const PARETO_SHOWN = 14;
+  const paretoRows = useMemo(() => {
+    let run = 0;
+    return pareto.slice(0, PARETO_SHOWN).map((d) => {
+      run += d.value;
+      return {
+        label: d.label, value: d.value,
+        share: paretoTotal ? d.value / paretoTotal : 0,
+        running: run,
+        cum: paretoTotal ? run / paretoTotal : 0,
+        // Filled below, once the crossing is known.
+        vital: false,
+      };
+    });
+  }, [pareto, paretoTotal]);
+  const paretoCrossing = paretoRows.findIndex((r) => r.cum >= 0.8);
+  paretoRows.forEach((r, i) => { r.vital = paretoCrossing >= 0 && i <= paretoCrossing; });
+
+  /** The split-up as a file, with the arithmetic beside it rather than behind
+   *  it — the same standard the Objective evidence pack is held to: a number
+   *  somebody may act on has to be checkable without this screen. */
+  const downloadPareto = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const scope = PARETO_LEVELS.filter((l) => picked[l.key])
+      .map((l) => `${l.label}: ${picked[l.key]}`).join(' · ') || 'the whole register';
+    xlsxDownload(`ffr-pareto-${paretoBy}-${when}.xlsx`, [
+      {
+        name: 'Pareto',
+        columns: ['#', paretoAt.label, 'Reports', 'Share', 'Share worked out',
+                  'Running total', 'Cumulative %', 'Cumulative worked out', 'Inside 80%?'],
+        rows: paretoRows.map((r, i) => ({
+          '#': i + 1,
+          [paretoAt.label]: r.label,
+          Reports: r.value,
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${paretoTotal}`,
+          'Running total': r.running,
+          'Cumulative %': `${(r.cum * 100).toFixed(1)}%`,
+          'Cumulative worked out': `${r.running} ÷ ${paretoTotal}`,
+          'Inside 80%?': r.vital ? 'yes' : 'no',
+        })),
+      },
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Ranked by', Value: paretoAt.label },
+          { Item: 'Narrowed to', Value: scope },
+          { Item: 'Period shown', Value: PERIODS.find((x) => x.key === period)!.label },
+          { Item: 'Reports counted', Value: paretoTotal },
+          { Item: 'Rows on the chart', Value: paretoRows.length },
+          { Item: '', Value: '' },
+          { Item: 'Share', Value: 'this row’s reports ÷ the reports counted' },
+          { Item: 'Running total', Value: 'this row’s reports plus every row above it' },
+          { Item: 'Cumulative %', Value: 'the running total ÷ the reports counted' },
+          { Item: 'Inside 80%?', Value: 'yes up to and including the first row whose Cumulative % reaches 80' },
+          { Item: '', Value: '' },
+          { Item: 'What a report is',
+            Value: 'ONE FIELD FAILURE REPORT. A machine that failed twice appears twice; '
+              + 'a report covering several machines is still one report.' },
+          { Item: 'Where the figures come from',
+            Value: 'The Field Failure Register as it stands now, including the live Root Cause '
+              + 'and Grouping from the Daily Call Review — a cause corrected later reads corrected here.' },
+          ...(paretoBlank > 0
+            ? [{ Item: `"${BLANK}"`,
+                 Value: `${paretoBlank} report(s) do not state this. They are KEPT in the ranking rather `
+                   + 'than dropped: a gap this size is itself the finding, and removing it would make '
+                   + 'every percentage below it wrong.' }]
+            : []),
+          ...(pareto.length > paretoRows.length
+            ? [{ Item: 'Not shown',
+                 Value: `${pareto.length - paretoRows.length} smaller ${paretoAt.of} beyond the first `
+                   + `${paretoRows.length}. They are inside the total, so the percentages are over `
+                   + 'everything and not only over what is drawn.' }]
+            : []),
+          { Item: '', Value: '' },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'ffr.pareto.download', target: `${paretoBy} ${when}`,
+               meta: { rows: paretoRows.length, total: paretoTotal, scope } });
+  };
   /** Drop ONE level's choice. Not "and everything under it": with the order
    *  free there is no "under" — dropping the grouping while keeping the machine
    *  and the cause is a coherent question, and the chart simply re-opens that
@@ -321,7 +413,11 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
         <div className="muted" style={{ marginBottom: 10 }}>
           One report is one failure reported — a machine that failed twice appears twice.
         </div>
-        <BarChart data={byProduct.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+        {/* NO LONGER TRUNCATED AT 46 CHARACTERS. That slice pre-dated the
+            adjustable column and would have made widening it pointless —
+            the reader would drag the column open and find the name had
+            already been cut before it got here. */}
+        <BarChart data={byProduct.slice(0, 12)} widthKey="ffr.product"
                   onPick={pick('product_name')} active={picked.product_name ?? null} />
       </SectionCard>
 
@@ -355,8 +451,18 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
               {p.label}
             </button>
           ))}
+          <div className="spacer" />
+          {/* OFF BY DEFAULT. Over twenty-odd months the numbers collide and
+              read as noise, and which it is depends on how many periods are on
+              screen — so it is the reader's call, not a default. */}
+          <button type="button" className={`chip ${trendLabels ? 'chip-on' : ''}`}
+                  aria-pressed={trendLabels}
+                  onClick={() => setTrendLabels((v) => !v)}>
+            {trendLabels ? '✓ ' : ''}Data labels
+          </button>
         </div>
-        <LineChart data={trend} onPick={pick('month')} active={picked.month ?? null} />
+        <LineChart data={trend} showLabels={trendLabels}
+                   onPick={pick('month')} active={picked.month ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
@@ -400,8 +506,62 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
             than dropped: a gap this size in the record is itself the finding.</>
           )}
         </div>
-        <ParetoChart data={pareto.slice(0, 14)} onPick={pick(paretoBy)}
-                     active={picked[paretoBy] ?? null} />
+        {/* THE CHART AND ITS NUMBERS SIDE BY SIDE (the user's ask, 2026-09-14:
+            "Give me the Pareto Data right next to the Chart ... Provide Clean
+            Split Up and how that data point / % was arrived at").
+            A Pareto is READ off the line and ACTED on from the numbers, and
+            hovering fourteen bars to collect them is not reading. The table is
+            the same array the chart draws, so the two cannot disagree. */}
+        <div className="ffr-pareto-split">
+          <div className="ffr-pareto-chart">
+            <ParetoChart data={paretoRows.map((r) => ({ label: r.label, value: r.value }))}
+                         onPick={pick(paretoBy)} active={picked[paretoBy] ?? null} />
+          </div>
+          <div className="ffr-pareto-table">
+            <table className="ffr-mini">
+              <thead>
+                <tr>
+                  <th>#</th><th>{paretoAt.label}</th>
+                  <th className="num">Reports</th><th className="num">Share</th>
+                  <th className="num">Running</th><th className="num">Cum. %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paretoRows.map((r, i) => (
+                  <tr key={r.label}
+                      className={`${r.vital ? 'is-vital' : ''}${picked[paretoBy] === r.label ? ' is-active' : ''}`}
+                      onClick={() => pick(paretoBy)(r.label)}
+                      title={`${r.value} of ${paretoTotal} = ${(r.share * 100).toFixed(1)}%  ·  `
+                        + `running ${r.running} of ${paretoTotal} = ${(r.cum * 100).toFixed(1)}%`}>
+                    <td className="num muted">{i + 1}</td>
+                    <td>{r.label}</td>
+                    <td className="num">{r.value}</td>
+                    <td className="num">{(r.share * 100).toFixed(1)}%</td>
+                    <td className="num muted">{r.running}</td>
+                    <td className="num">{(r.cum * 100).toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td /><td>Total</td>
+                  <td className="num">{paretoTotal}</td>
+                  <td className="num">100.0%</td>
+                  <td /><td />
+                </tr>
+              </tfoot>
+            </table>
+            <div className="ffr-pareto-foot">
+              <span className="muted">
+                Share = reports ÷ {paretoTotal}. Cum. % = the running total ÷ {paretoTotal}.
+                {paretoCrossing >= 0
+                  ? <> The first {paretoCrossing + 1} reach 80%.</>
+                  : <> Nothing reaches 80% on its own.</>}
+              </span>
+              <button className="btn btn-sm" onClick={downloadPareto}>⭳ Download</button>
+            </div>
+          </div>
+        </div>
       </SectionCard>
 
       <div style={{ height: 12 }} />
@@ -411,21 +571,33 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
           Taken from the review as it stands now, not as it stood when the report was raised —
           a cause corrected later should read corrected here.
         </div>
-        <BarChart data={byRootCause.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+        {/* NO LONGER TRUNCATED AT 46 CHARACTERS. That slice pre-dated the
+            adjustable column and would have made widening it pointless —
+            the reader would drag the column open and find the name had
+            already been cut before it got here. */}
+        <BarChart data={byRootCause.slice(0, 12)} widthKey="ffr.rootcause"
                   onPick={pick('live_root_cause_keyword')} active={picked.live_root_cause_keyword ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Complaint grouping">
-        <BarChart data={byGrouping.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+        {/* NO LONGER TRUNCATED AT 46 CHARACTERS. That slice pre-dated the
+            adjustable column and would have made widening it pointless —
+            the reader would drag the column open and find the name had
+            already been cut before it got here. */}
+        <BarChart data={byGrouping.slice(0, 12)} widthKey="ffr.grouping"
                   onPick={pick('live_complaint_grouping')} active={picked.live_complaint_grouping ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
 
       <SectionCard title="Where they are raised">
-        <BarChart data={byCustomer.slice(0, 12).map((p) => ({ label: p.label.slice(0, 46), value: p.value }))}
+        {/* NO LONGER TRUNCATED AT 46 CHARACTERS. That slice pre-dated the
+            adjustable column and would have made widening it pointless —
+            the reader would drag the column open and find the name had
+            already been cut before it got here. */}
+        <BarChart data={byCustomer.slice(0, 12)} widthKey="ffr.customer"
                   onPick={pick('customer_name')} active={picked.customer_name ?? null} />
       </SectionCard>
 
@@ -438,7 +610,8 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
       <div style={{ height: 12 }} />
 
       <SectionCard title="CAPA status">
-        <BarChart data={byCapa} onPick={pick('capa_status')} active={picked.capa_status ?? null} />
+        <BarChart data={byCapa} widthKey="ffr.capa"
+                  onPick={pick('capa_status')} active={picked.capa_status ?? null} />
       </SectionCard>
     </div>
   );

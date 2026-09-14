@@ -13,6 +13,58 @@ up)_
 
 ---
 
+## 2026-09-14 — Call Report and Customer Feedback Report
+
+Asked for: *"Add Call Report , Customer Feedback Report -- Follow the Same
+concept of Consumption Report."*
+
+**"The same concept" is four properties, not a layout**, and each is a thing that
+has to stay true on every report rather than on the one somebody remembered:
+
+1. the filter runs in the **database** — every one of these registers pages, so a
+   browser-side filter reports on the first thousand rows and calls it the answer;
+2. the mandatory columns are shown **ticked and locked**, not hidden — a column
+   absent from a picker reads as an oversight, one visibly locked reads as a rule;
+3. the column order is the **view's**, not the click order — a file whose columns
+   move between downloads is one nobody can build a formula against;
+4. the file carries its **own scope** on a second sheet.
+
+So `ReportBuilder` holds all four and **the consumption screen was converted onto
+it too**. Three copies would have been three chances to lose one quietly, and the
+likeliest casualty is (1), because fetching and then narrowing *looks* the same
+until the register passes a thousand rows.
+
+`0191_call_and_feedback_reports.sql` adds both views, `security_invoker` on both
+— a report view running as its OWNER hands every call in the company to anybody
+who can open the screen, and this project has shipped that fault twice.
+
+**Call Report is ONE ROW PER CALL**, never per visit: a call with four visits is
+one call, and a report repeating it four times would have every count in it
+wrong. The latest visit is the latest ENTRY, matching `sync_call_last_visit()`.
+
+**The feedback questions are the export's own headings**, measured against the
+user's file rather than invented:
+
+| asked of | questions | rows |
+| --- | --- | --- |
+| every visit | Operating Feasibility, General Support | 24,748 |
+| a PM or field visit | four more | 23,759 |
+| an installation | four different ones | 1,009 |
+
+So **a blank is not a missing answer** — it means the question was not put — and
+the file says so, because a reader sorting a spreadsheet cannot tell otherwise.
+`Month`/`Year`/`Quater`/`Half-Yearly` are deliberately not carried: they are the
+date restated, and a period column that can disagree with the date beside it is a
+liability in a file somebody sorts.
+
+Each report is its own permission key inheriting from `mod:/exports`, so a role
+can be given one without the others.
+
+### To run on the live project
+
+[`performance.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)
+— `_status.sql` row 146 answers NO until it is in.
+
 ## 2026-09-14 — The feedback date, and a Pareto that drills
 
 ### Every uploaded feedback read as the day it was uploaded
