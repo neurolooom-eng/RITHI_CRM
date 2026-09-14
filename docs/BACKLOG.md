@@ -213,6 +213,42 @@ version, deletes all three.
 `field_failure_reports` (0049) and `ffr_history` (0174). That asymmetry is worth
 a decision: the DCCR is a quality record too.
 
+### "Delete all UCN which is not starting with 26 in DCCR"
+
+Asked as a ONE-OFF after the wrong file, and scoped by the user in the same
+breath: *"this is specific to DCCR Only and not any other tables"*.
+
+The UCN is `<YY><MonthLetter><DD><TypeLetter><Seq4>` (0001), so the first two
+characters ARE the year — `26%` is 2026 and everything else is older. Verified in
+the generator rather than inferred from the examples. `ucn` is the PRIMARY KEY
+and NOT NULL, so there is no blank case to reason about.
+
+`_dccr_undo.sql` gained two sections: **A** breaks down what would go, by year
+and by where it came from (created by the upload / existed before it / ever saved
+by a person / has a Field Failure Report); **B** is the delete, rolling back as
+written.
+
+**It is wider than "undo the upload"** and section A is how that is seen rather
+than discovered: it removes every pre-2026 review, including any that were there
+before the file — the 23 overwritten ones among them.
+
+A review is deleted; its FFR is not. Nothing cascades from `call_reviews`, so an
+FFR raised from a review removed here stays on the register — right (a quality
+record is cancelled, never deleted) but it means the two registers will disagree
+about whether a review exists. Section A's last column counts them.
+
+**Proved on a fixture with real-format UCNs across three years**: section A
+grouped them correctly, section B removed exactly the pre-2026 rows, and
+`field_calls`, `pm_calls`, `installation_calls`, `field_failure_reports` and
+`audit_log` were all unchanged — which is the user's scoping requirement, tested
+rather than asserted. `check:ui` now refuses a `delete from` in that file
+targeting anything but `public.call_reviews`.
+
+(A fixture note: the three call tables have a CHECK that a row's `call_type`
+matches the table it is in, so the PM and Installation calls had to go in their
+own tables. The first attempt put all five in `field_calls` and was refused —
+the constraint doing its job.)
+
 ### "What are those 23 Entries?"
 
 The live report came back **28,120 created · 23 overwritten · 0 FFRs raised**.

@@ -4992,6 +4992,19 @@ console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
     });
   }
   eq('no hand-run SQL file uses a psql meta-command', bad, []);
+
+  // A DESTRUCTIVE HAND-RUN FILE MAY ONLY TOUCH WHAT IT SAYS IT TOUCHES.
+  // `_dccr_undo.sql` is pasted whole into the SQL Editor and its deletes are
+  // the DCCR register's alone — the user's own scoping, 2026-09-14: "this is
+  // specific to DCCR Only and not any other tables". A second table appearing
+  // in a delete here would be a much bigger operation wearing this file's name.
+  {
+    const dccr = readFileSync('supabase/apply/_dccr_undo.sql', 'utf8');
+    const targets = [...dccr.matchAll(/delete\s+from\s+([a-z_.]+)/gi)].map((m) => m[1].toLowerCase());
+    eq('the DCCR tool deletes something', targets.length > 0, true);
+    eq('...and only ever from call_reviews',
+      [...new Set(targets)], ['public.call_reviews']);
+  }
 }
 
 console.log('\n-- the Insights tab can be interrogated --');
