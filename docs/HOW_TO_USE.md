@@ -164,8 +164,8 @@ against the call it was fitted to.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
 **Machines** (per serial, with Active / About to expire / Inactive tiles). Each
-opens on as many rows as the database will hand over at once, and every
-**Load more** fetches twice as much as the one before.
+opens on **2,000 rows** — two full requests of the 1,000 the database hands over
+at once — and every **Load more** fetches twice as much as the one before.
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.

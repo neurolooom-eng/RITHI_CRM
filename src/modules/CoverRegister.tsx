@@ -48,8 +48,14 @@ interface Feed { rows: Row[]; at: string; offset: number; more: boolean; step: n
 // truncate, which is the shape of bug that makes a register look complete when
 // it is not.
 const PAGE: Record<Tab, number> = { entries: 1000, machines: 1000 };
-/** How many server pages one "Load more" fetches, doubling each time. */
-const FIRST_STEP = 1;
+/** Server pages fetched when the tab OPENS, and by the first "Load more".
+ *
+ *  The user, 2026-09-14: "paging - Keep it at 1000 then" … "But perform that
+ *  action once more automatically" — so the REQUEST stays at the 1,000 the
+ *  server will actually return, and the register simply makes two of them
+ *  before showing anything. Opening on 2,000 rows and asking for 2,000 at a
+ *  time is the same bargain as one 2,000-row request, minus the truncation. */
+const OPEN_PAGES = 2;
 
 const STATES = ['ACTIVE', 'ABOUT TO EXPIRE', 'INACTIVE'] as const;
 const TONES: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -359,7 +365,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const fromCache = (t: Tab): Feed => {
     const c = loadCache<Row>(cacheKey(t));
     return { rows: c?.rows ?? [], at: c?.at ?? '', offset: c?.rows.length ?? 0,
-             more: (c?.rows.length ?? 0) >= PAGE[t], step: FIRST_STEP };
+             more: (c?.rows.length ?? 0) >= PAGE[t], step: OPEN_PAGES };
   };
   const [feeds, setFeeds] = useState<Record<Tab, Feed>>(() => ({ entries: fromCache('entries'), machines: fromCache('machines') }));
   const feed = feeds[tab];
@@ -400,15 +406,18 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     if (!live) return;
     setBusy(true);
     try {
-      const r = await fetchPage(t, 0);
+      const r = await fetchPages(t, 0, OPEN_PAGES);
       const at = filtered ? feeds[t].at : saveCache(cacheKey(t), r);
-      setFeed(t, { rows: r, offset: r.length, more: r.length >= PAGE[t], at, step: FIRST_STEP });
+      // `more` tests what was ASKED FOR, not one page: two full pages back
+      // means the register may well hold a third, and a short answer is the end.
+      setFeed(t, { rows: r, offset: r.length, more: r.length >= OPEN_PAGES * PAGE[t],
+                   at, step: OPEN_PAGES });
       if (t === 'machines') {
         const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
         setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
       }
       setMsg(r.length
-        ? { tone: 'ok', text: `${r.length}${r.length >= PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.` }
+        ? { tone: 'ok', text: `${r.length}${r.length >= OPEN_PAGES * PAGE[t] ? '+' : ''} ${t === 'entries' ? 'entries' : 'machines'}${filtered ? ' matched' : ''}.` }
         : { tone: 'info', text: filtered ? 'Nothing matched.' : 'Nothing here yet — import the exports in Settings → Bulk Data Import, or add an entry.' });
     } catch (e) { setMsg({ tone: 'error', text: e instanceof Error ? e.message : String(e) }); }
     finally { setBusy(false); }
