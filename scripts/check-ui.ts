@@ -5674,5 +5674,69 @@ console.log('\n-- a request for more than a thousand rows is PAGED, or it is a l
   eq('...and every paged read names an order, so the pages cannot overlap', unordered.length, 0);
 }
 
+console.log('\n-- a part can be renamed, and the rename carries its history --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-14: "I need to be able to Edit Part Master", and — asked
+  // before building, because the readings are very different work — the
+  // decision: "Rename carries the history".
+  //
+  // A part's identity is the STRING `CODE|Description`, and NOTHING HAS A
+  // FOREIGN KEY TO `parts`: nine tables carry that string as a value, and HAND
+  // STOCK IS DERIVED from them. So the screen must not offer a plain edit of
+  // those two fields — that would silently change an engineer's balance.
+  // -------------------------------------------------------------------------
+  const pm = code(readFileSync('src/modules/PartMaster.tsx', 'utf8'));
+  const sbp = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+
+  eq('the screen can edit a part at all', /const \[edit, setEdit\] = useState<EditForm \| null>/.test(pm)
+    && /\u270e Edit/.test(pm), true);
+  // THE CODE AND DESCRIPTION GO THROUGH THE RENAME, never through a column
+  // update. This is the assertion that stops the whole feature becoming a
+  // stock bug: `updatePart` must not be able to write either of them.
+  eq('the identity is never written as a plain column update',
+    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null \}/.test(sbp), true);
+  eq('...it goes through rename_part instead',
+    /rpc\('rename_part'/.test(sbp) && /await renamePart\(edit\.id, edit\.code, edit\.description\)/.test(pm), true);
+
+  // WHAT WOULD MOVE, SHOWN BEFORE IT MOVES. A count afterwards is a report; a
+  // count beforehand is a decision.
+  eq('what the rename will move is shown first',
+    /rpc\('part_rename_impact'/.test(sbp) && /\{renaming && \(/.test(pm)
+    && /record\(s\) will be renamed with it/.test(pm), true);
+  // ...AND THE BUTTON WAITS FOR IT. Offering "Rename" while the count is still
+  // loading is offering a decision without the fact it turns on.
+  eq('...and the button waits for that count',
+    /disabled=\{saving \|\| !!editProblem\(\) \|\| \(renaming && impact === null\)\}/.test(pm), true);
+  // "NOTHING ELSE NAMES THIS" IS AN ANSWER, not a reason to say nothing: it is
+  // what makes a rename easy, and hiding it leaves the reader assuming the worst.
+  eq('...including when nothing references the part',
+    /Nothing else names this part yet/.test(pm), true);
+
+  // THE MIGRATION'S OWN SHAPE. The exemption that lets the rename touch a
+  // consumption line must be a CAPABILITY, not a flag: `set_config` is callable
+  // by anybody, so the first version was forgeable by exactly the person the
+  // guard exists to stop.
+  const mig = readFileSync('supabase/migrations/0196_rename_part.sql', 'utf8');
+  eq('the rename exemption is a ticket, not a set_config flag',
+    /create table if not exists public\.part_rename_ticket/.test(mig)
+    && /from public\.part_rename_ticket t/.test(mig)
+    && !/current_setting\('app\.part_rename'/.test(mig), true);
+  eq('...with RLS on and no policy, so nobody can write one',
+    /alter table public\.part_rename_ticket enable row level security/.test(mig)
+    && !/create policy [a-z_]+ on public\.part_rename_ticket/.test(mig), true);
+  // ALL NINE TABLES OR NONE. Hand stock is derived; a rename that misses one
+  // changes a balance.
+  for (const t of ['spare_consumption', 'spare_consumption_history', 'spare_issue_history',
+                   'handstock_opening', 'spare_request_lines', 'spare_dispatch_lines',
+                   'stock_transfer_lines', 'material_returns', 'indoor_job_parts']) {
+    eq(`...and it moves ${t}`, new RegExp(`update ${t}\\s+set part`).test(mig), true);
+  }
+  // A RENAME IS NOT A MERGE: two parts means two sets of stock, which is not a
+  // decision a rename should make silently.
+  eq('a rename refuses to merge two parts',
+    /a rename cannot merge two parts/.test(mig), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

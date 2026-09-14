@@ -2348,6 +2348,46 @@ export async function addPart(
 // Parts are never deleted — a code may already be on a spare request, a stock
 // out or an engineer's hand stock. Deactivating keeps the history and takes it
 // out of the pickers.
+/** The fields nothing points at — safe to write straight to the row.
+ *
+ *  The CODE and DESCRIPTION are deliberately NOT here: together they are the
+ *  part's identity, nine tables name it by that string, and there is not one
+ *  foreign key to `parts`. Changing them is `renamePart` below, which carries
+ *  the history. */
+export async function updatePart(
+  id: number, patch: { category?: string; product?: string; purchase_cost?: number | null },
+): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('parts').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+export interface PartRenameImpact { relation: string; rows: number }
+/** What a rename would move, BEFORE it moves it. A count afterwards is a
+ *  report; a count beforehand is a decision. */
+export async function partRenameImpact(itemDetail: string): Promise<PartRenameImpact[]> {
+  const { data, error } = await must().rpc('part_rename_impact', { p_item_detail: itemDetail });
+  if (error) throw new Error(errMsg(error));
+  return ((data ?? []) as { relation: string; rows: number }[])
+    .map((r) => ({ relation: String(r.relation), rows: Number(r.rows) }))
+    .filter((r) => r.rows > 0);
+}
+
+/** Rename a part AND every record that names it, in one transaction (0196).
+ *
+ *  Not an update of two columns: hand stock is DERIVED from the tables that
+ *  carry the old string, so a half-done rename changes an engineer's balance.
+ *  The database does all nine or none. */
+export async function renamePart(
+  id: number, code: string, description: string,
+): Promise<{ ok: boolean; moved?: Record<string, number>; from?: string; to?: string; error?: string }> {
+  const { data, error } = await must().rpc('rename_part',
+    { p_id: id, p_code: code, p_description: description });
+  if (error) return { ok: false, error: errMsg(error) };
+  const r = (data ?? {}) as Record<string, unknown>;
+  return { ok: true, moved: (r.moved as Record<string, number>) ?? {},
+           from: String(r.from ?? ''), to: String(r.to ?? '') };
+}
+
 export async function setPartActive(id: number, active: boolean): Promise<{ ok: boolean; error?: string }> {
   const { error } = await must().from('parts').update({ active }).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };

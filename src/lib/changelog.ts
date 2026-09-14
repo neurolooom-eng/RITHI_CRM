@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.261',
+    date: '2026-09-14',
+    title: 'Part Master: parts can be edited, and renaming one carries its history',
+    changes: [
+      'Every part now has an Edit button. Category, product family and purchase cost are ordinary fields you can just change.',
+      'THE CODE AND DESCRIPTION ARE DIFFERENT, and the screen says so: every consumption line, hand-stock row, issue, dispatch, transfer and return names a part by CODE|Description, so changing either is a RENAME — and the rename moves all of them with it, in one go. Your engineers’ stock stays exactly as it was.',
+      'Before you rename, the screen tells you how many records will move and where they are. If nothing else names the part yet, it says that too — that is what makes a rename easy.',
+      'A rename will not merge two parts. If the new name is already taken you are told, because merging means deciding what happens to two sets of stock, and that is not a decision a rename should make quietly.',
+      'A blank purchase cost stays blank rather than becoming zero — nobody having recorded a cost is not the same as the cost being nothing.',
+    ],
+  },
+  {
     version: '0.9.260',
     date: '2026-09-14',
     title: 'Insights: the reports behind every number, and a table beside the line',
