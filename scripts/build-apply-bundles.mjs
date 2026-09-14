@@ -359,7 +359,11 @@ const MODULES = {
             // The feedback key. HERE and not in `base`, which creates the table
             // in 0001 but REFUSES to run once RBAC is in — a migration filed
             // there would never reach a live project.
-            '0186_feedback_key.sql'],
+            '0186_feedback_key.sql',
+            // LAST, and immediately after 0186: `if not exists` guards a NAME,
+            // never a DEFINITION, so 0186 cannot correct a project that ran its
+            // first version. 0188 inspects and replaces.
+            '0188_feedback_key_repair.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

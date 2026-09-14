@@ -13,6 +13,51 @@ up)_
 
 ---
 
+## 2026-09-14 — The feedback key could not be repaired by re-running the file
+
+Reported from use, AFTER running the corrected bundle:
+
+> Customer Feedback - there is no unique or exclusion constraint matching the
+> ON CONFLICT specification (row ~1) ... (0 written before it stopped.)
+
+**The bundle ran. It reported success. It changed nothing.** `IF NOT EXISTS`
+guards a NAME, never a DEFINITION:
+
+- `add column if not exists ucn_key ... generated always as (<new expr>)` is a
+  no-op when the column exists — the generation expression is never compared.
+- `create unique index if not exists feedback_ucn_key_uniq ...` is a no-op when
+  an index of that name exists — its definition is never compared.
+
+0186 changed BOTH while reusing BOTH names, so a project that had run its first
+version keeps the PARTIAL index for ever, and PostgREST cannot infer a partial
+index as an ON CONFLICT target. Every later run of the corrected file confirms
+it is already correct.
+
+**Proved rather than reasoned**: a throwaway Postgres built with every migration
+except 0186, the FIRST version of 0186 applied by hand, then the current
+`data_integrity.sql` run over it — no error, and the index was still
+`... (ucn_key) WHERE (ucn_key <> ''::text)`.
+
+`0188_feedback_key_repair.sql` inspects and replaces: it finds the index by
+SHAPE rather than by name (PostgREST does not read names either), rebuilds the
+generated column when its expression is superseded, de-duplicates, and creates a
+total index. Safe on all three states — never applied, applied at the first
+version, applied at the corrected version — and
+`supabase/tests/feedback_key_repair_test.sql` walks all three.
+
+`_status.sql` row 139 now asks by shape too. Its first version looked for the
+index BY NAME and checked its definition for a `WHERE` — right about the
+predicate, blind to an index under any other name.
+
+⚠️ The lesson is in `CLAUDE.md` under Gotchas, because this will recur: 0185
+escaped it only by naming its new index differently.
+
+### To run on the live project
+
+[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)
+— [read it here](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/data_integrity.sql).
+Once more, and it is safe however many times.
+
 ## 2026-09-14 — "About to expire" is thirty days, and the number lives in one place
 
 The formulas file the comparison was waiting on arrived, and it settles the one
