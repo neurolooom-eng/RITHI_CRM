@@ -16,6 +16,89 @@ up)_
 
 
 
+
+## 2026-09-14 — Part Master: renaming a part carries its history
+
+Asked: *"I need to be able to Edit Part Master - Bulk upload to edit it or
+Individual Item edit as well."* Then, put to the user before building because
+the two readings are very different work: **"Rename carries the history."**
+
+### Why this was not a two-column update
+
+A part's identity here is the STRING `CODE|Description`, and **nothing in the
+database has a foreign key to `public.parts`**. Measured rather than assumed:
+**nine tables** carry that string as a value — `spare_consumption`,
+`spare_consumption_history`, `spare_issue_history`, `handstock_opening`,
+`spare_request_lines`, `spare_dispatch_lines`, `stock_transfer_lines`,
+`material_returns`, `indoor_job_parts`. (The dozen `part`/`part_code` columns on
+views derive from these and follow on their own.)
+
+**Hand stock is derived, never stored.** So renaming the catalogue row and
+leaving those nine behind does not merely lose a link: an engineer's BALANCE
+CHANGES, because the consumption lines stop matching the issues. A rename is all
+nine or none, which is what one function in one transaction buys.
+
+Also found: **a re-upload with a corrected description silently creates a second
+part**, because the changed description is a changed key. Reported to the user;
+the individual rename is the fix that actually works today.
+
+### ⚠️ The exemption had to be unforgeable, and the first version was not
+
+`consumption_adjust_guard()` (0062) refuses any change to a consumption line's
+part — correctly: that is a quality record being re-pointed. A rename is not
+that, so the guard had to learn the difference.
+
+The first version declared the rename in a transaction-local `set_config`.
+**Tested, and it was a hole**: `set_config` is callable by anybody, so whoever
+could update a line could set the flag and re-point it — exactly what the guard
+exists to prevent. Proved by doing it before it shipped:
+
+```
+begin;
+select set_config('app.part_rename', <old>||chr(10)||<new>, true);
+update spare_consumption set part = <new> ...;      -- UPDATE 1.  Wrong.
+```
+
+**A flag is a suggestion; a row in a table nobody may write is a capability.**
+`rename_part()` files a ticket keyed on `txid_current()` into
+`part_rename_ticket` — RLS on, **no policy**, no grants — and the guard admits a
+part change only where a ticket for this transaction names exactly that
+substitution.
+
+And the retest had to be run **as `authenticated`, not as the owner**: the owner
+bypasses RLS and would have reported the hole closed while it was open.
+
+### Proved
+
+`supabase/tests/rename_part_test.sql`: the engineer's balance is identical
+before and after (including a history row stored with different spacing and
+case, which a raw-string match would have left behind); nothing still names the
+old string; the ticket is spent; a merge is refused; and re-pointing a line by
+part, engineer or UCN is still refused, flag or no flag.
+
+`_status.sql` row 150 answers NO if the function is missing **or if a policy is
+ever added to the ticket table** — mutation-tested both ways.
+
+### Filed in `handstock`, not `masters`
+
+Though the Part Master is a master. It redefines `consumption_adjust_guard()`,
+which 0062 and 0081 define in `handstock`, and `masters` runs BEFORE `handstock`
+in `ALL_ORDER` — so filing it with the Part Master would have let that module
+put the old guard back on a fresh apply. Same rule as `0055`.
+
+### Still to do
+
+**Bulk-upload editing.** Re-uploading corrects category, family, cost and active
+on a matching part, but a changed description creates a second part rather than
+renaming the first. The importer should recognise a probable rename and say so
+rather than silently inserting.
+
+### To run on the live project
+
+[`handstock.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/handstock.sql)
+— `_status.sql` row 150 answers NO until it is in, and the Edit button will fail
+on any part that has history.
+
 ## 2026-09-14 — A correction at source that the upload could not carry
 
 Reported with a screenshot of the app and of the SOURCE MASTER: **ORION-G 2410**

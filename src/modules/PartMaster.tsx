@@ -5,6 +5,7 @@ import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
 import {
   queryParts, supabaseConfigured, addPart, setPartActive,
+  updatePart, renamePart, partRenameImpact, type PartRenameImpact,
   normalisePartCode, composeItemDetail, PART_CODE_RE, type PartFilter,
 } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
@@ -182,6 +183,90 @@ export function PartMaster() {
     await refresh();
   };
 
+  // ---- EDITING AN EXISTING PART --------------------------------------------
+  // TWO KINDS OF CHANGE, and the screen keeps them apart because the database
+  // does. Category, family and cost are ordinary columns nothing points at.
+  // The CODE and DESCRIPTION together are the part's IDENTITY — nine tables
+  // name it by that string and there is not one foreign key to `parts` — so
+  // changing them is a RENAME that carries every one of those records (0196).
+  type EditForm = {
+    id: number; code: string; description: string;
+    category: string; product: string; cost: string;
+    wasCode: string; wasDescription: string; wasDetail: string;
+  };
+  const [edit, setEdit] = useState<EditForm | null>(null);
+  const [impact, setImpact] = useState<PartRenameImpact[] | null>(null);
+  const [impactFor, setImpactFor] = useState('');
+
+  const openEdit = (r: Row) => {
+    const cost = r.purchase_cost;
+    setEdit({
+      id: Number(r.id),
+      code: String(r.code ?? ''), description: String(r.description ?? ''),
+      category: String(r.category ?? ''), product: String(r.product ?? ''),
+      cost: cost === null || cost === undefined ? '' : String(cost),
+      wasCode: String(r.code ?? ''), wasDescription: String(r.description ?? ''),
+      wasDetail: String(r.item_detail ?? ''),
+    });
+    setImpact(null); setImpactFor('');
+  };
+
+  // WHAT WOULD MOVE, fetched when the drawer opens and not on every keystroke:
+  // it is a property of the part being renamed FROM, which does not change
+  // while the form is open.
+  useEffect(() => {
+    if (!edit || !live || impactFor === edit.wasDetail) return;
+    setImpactFor(edit.wasDetail);
+    void partRenameImpact(edit.wasDetail).then(setImpact).catch(() => setImpact([]));
+  }, [edit, live, impactFor]);
+
+  const editProblem = (): string => {
+    if (!edit) return '';
+    const c = normalisePartCode(edit.code);
+    if (!c) return 'Give the part code.';
+    if (c.includes('|')) return 'A part code cannot contain "|" — that separates the code from the description.';
+    if (!PART_CODE_RE.test(c)) return 'Use letters, digits and - _ . / only, starting with a letter or digit.';
+    if (!edit.description.trim()) return 'Give the description.';
+    if (edit.description.includes('|')) return 'A description cannot contain "|" either.';
+    if (edit.cost.trim() && !Number.isFinite(Number(edit.cost))) return 'Purchase cost has to be a number.';
+    return '';
+  };
+  const renaming = !!edit
+    && composeItemDetail(edit.code, edit.description) !== composeItemDetail(edit.wasCode, edit.wasDescription);
+  const movingCount = (impact ?? []).reduce((n, r) => n + r.rows, 0);
+
+  const saveEdit = async () => {
+    if (!edit) return;
+    const problem = editProblem();
+    if (problem) { setMsg({ tone: 'error', text: problem }); return; }
+    setSaving(true);
+    try {
+      // THE RENAME FIRST. If it is refused — the name is taken, the right is
+      // missing — nothing else should have been written either, so the safe
+      // fields wait behind it rather than landing on a part that did not move.
+      if (renaming) {
+        const res = await renamePart(edit.id, edit.code, edit.description);
+        if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not rename the part.' }); return; }
+        const moved = Object.entries(res.moved ?? {}).filter(([, n]) => n > 0);
+        setMsg({ tone: 'ok', text: moved.length
+          ? `Renamed to ${res.to}, and ${moved.reduce((n, [, v]) => n + v, 0)} record(s) came with it — `
+            + `${moved.map(([k, v]) => `${k} ${v}`).join(', ')}.`
+          : `Renamed to ${res.to}. Nothing else names this part yet.` });
+      }
+      const patch = {
+        category: edit.category.trim(), product: edit.product.trim(),
+        // BLANK IS NULL, NOT ZERO. A cost nobody has recorded and a cost of
+        // nothing are different answers about a part.
+        purchase_cost: edit.cost.trim() === '' ? null : Number(edit.cost),
+      };
+      const res2 = await updatePart(edit.id, patch);
+      if (!res2.ok) { setMsg({ tone: 'error', text: res2.error ?? 'Could not save the part.' }); return; }
+      if (!renaming) setMsg({ tone: 'ok', text: `${composeItemDetail(edit.code, edit.description)} saved.` });
+      setEdit(null);
+      await refresh();
+    } finally { setSaving(false); }
+  };
+
   const toggleActive = async (r: Row) => {
     const id = Number(r.id);
     const now = r.active !== false;
@@ -212,12 +297,16 @@ export function PartMaster() {
       )}
       <DataTable<Row>
         columns={mayEdit ? [...COLUMNS, {
-          key: '_act', header: '', width: 120, sortable: false, wrap: false, align: 'center',
+          key: '_act', header: '', width: 190, sortable: false, wrap: false, align: 'center',
           render: (r: Row) => (
-            <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); void toggleActive(r); }}
-              title={r.active === false ? 'Put this part back in the pickers' : 'Take this part out of the pickers'}>
-              {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
-            </button>
+            <div className="row" onClick={(e) => e.stopPropagation()}>
+              <button className="btn btn-sm" onClick={() => openEdit(r)}
+                title="Edit this part — and rename it, carrying every record that names it">✎ Edit</button>
+              <button className="btn btn-sm" onClick={() => void toggleActive(r)}
+                title={r.active === false ? 'Put this part back in the pickers' : 'Take this part out of the pickers'}>
+                {r.active === false ? '↩ Reactivate' : '⊘ Deactivate'}
+              </button>
+            </div>
           ),
         }] : COLUMNS}
         allFields={allFields}
@@ -285,6 +374,89 @@ export function PartMaster() {
                 {saving ? 'Saving…' : 'Add part'}
               </button>
               <button className="btn" onClick={() => setForm(null)} disabled={saving}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
+
+      {edit && (
+        <Drawer open title={`Edit ${edit.wasDetail}`} onClose={() => setEdit(null)} storeKey="partEdit">
+          <div className="kb-form">
+            {/* WHAT IS SAFE AND WHAT IS NOT, said before either box is typed
+                into. The two halves of this form behave completely differently
+                and only one of them can move stock. */}
+            <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+              Category, family and cost are just fields on this part. The <b>code</b> and
+              <b> description</b> are its identity — every consumption line, hand-stock row and
+              transfer names the part by <b>CODE|Description</b>, so changing either is a
+              <b> rename</b> that moves all of them with it.
+            </p>
+
+            <div className="field">
+              <label className="field-label">Part code</label>
+              <input className="input" value={edit.code} autoFocus
+                onChange={(e) => setEdit((f) => f && ({ ...f, code: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Description</label>
+              <input className="input" value={edit.description}
+                onChange={(e) => setEdit((f) => f && ({ ...f, description: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Will be listed as</label>
+              <code style={{ fontSize: 13 }}>{composeItemDetail(edit.code, edit.description)}</code>
+            </div>
+
+            {/* THE SIZE OF WHAT IS ABOUT TO MOVE, before it moves. A count
+                afterwards is a report; a count beforehand is a decision. It is
+                shown whenever the name has changed, INCLUDING when nothing
+                references the part — "nothing else names this" is the answer
+                that makes a rename easy, and hiding it would leave the reader
+                assuming the worst. */}
+            {renaming && (
+              <div className={`sheet-banner ${movingCount ? 'sheet-banner-warn' : 'sheet-banner-info'}`}>
+                <span>
+                  {impact === null ? 'Checking what names this part…'
+                    : movingCount === 0
+                      ? <>Nothing else names this part yet, so this rename moves only the catalogue entry.</>
+                      : <>
+                          <b>{movingCount}</b> record(s) will be renamed with it
+                          {' — '}{impact.map((r) => `${r.relation} ${r.rows}`).join(', ')}.
+                          {' '}They all move together, so hand stock stays exactly as it is.
+                        </>}
+                </span>
+              </div>
+            )}
+
+            <div className="field">
+              <label className="field-label">Category</label>
+              <input className="input" value={edit.category} placeholder="SPARE / CONSUMABLE"
+                onChange={(e) => setEdit((f) => f && ({ ...f, category: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Left blank it stays blank — Spare Insights reports those as Unclassified rather than guessing.
+              </span>
+            </div>
+            <div className="field">
+              <label className="field-label">Product family</label>
+              <input className="input" value={edit.product}
+                onChange={(e) => setEdit((f) => f && ({ ...f, product: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Purchase cost</label>
+              <input className="input" value={edit.cost} inputMode="decimal"
+                onChange={(e) => setEdit((f) => f && ({ ...f, cost: e.target.value }))} />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Blank means nobody has recorded one, which is not the same as zero.
+              </span>
+            </div>
+
+            {!!editProblem() && <div className="sheet-banner sheet-banner-error"><span>{editProblem()}</span></div>}
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" onClick={() => void saveEdit()}
+                      disabled={saving || !!editProblem() || (renaming && impact === null)}>
+                {saving ? 'Saving…' : renaming ? `Rename and save${movingCount ? ` (${movingCount} records move)` : ''}` : 'Save'}
+              </button>
+              <button className="btn" onClick={() => setEdit(null)} disabled={saving}>Cancel</button>
             </div>
           </div>
         </Drawer>
