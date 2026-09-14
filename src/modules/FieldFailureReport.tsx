@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { PageHeader, Drawer, SearchBox } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { MultiPick } from '../components/ui/MultiPick';
 import { useAuth } from '../lib/auth';
 import { logAudit } from '../lib/audit';
 import { fmtLongDate, csvExport } from '../lib/format';
@@ -37,10 +38,6 @@ import './fieldcalls.css';
 // ===========================================================================
 
 type Row = Record<string, unknown> & { id: string };
-
-// "All years" reads as a year until you try to parse it, so it is a named
-// constant rather than a bare string repeated in three places.
-const ALL_YEARS = 'All years';
 
 const DATE_KEYS = new Set(['ffr_date', 'crn_date', 'installation_date', 'call_solved_at']);
 
@@ -113,21 +110,38 @@ export function FieldFailureReport() {
   // typed up in January is a 2025 failure.
   const ffrYear = (r: Row) => String(r.ffr_date ?? '').slice(0, 4);
   const thisYear = String(new Date().getFullYear());
-  const [year, setYear] = useState(thisYear);
+
+  // MULTI-SELECT, both of them (the user's ask, 2026-09-14). EMPTY MEANS ALL,
+  // which is what makes the Product filter free to sit beside the Year one:
+  // it starts ticking nothing and therefore hides nothing.
+  //
+  // The Year still OPENS on the current year, because that was the earlier ask
+  // and a register that opens on eleven years of history is not the register
+  // anybody wanted. Ticking a second year adds to it rather than replacing it.
+  const [years, setYears] = useState<string[]>([thisYear]);
+  const [products, setProducts] = useState<string[]>([]);
 
   // Every year the register actually holds, newest first, with the current one
   // always offered even when it holds nothing yet — otherwise the default would
   // not be selectable on an empty year and the control would look broken.
-  const years = useMemo(() => {
+  const yearOptions = useMemo(() => {
     const seen = new Set(rows.map(ffrYear).filter((y) => /^\d{4}$/.test(y)));
     seen.add(thisYear);
     return [...seen].sort().reverse();
   }, [rows, thisYear]);
 
-  const inYear = useMemo(
-    () => (year === ALL_YEARS ? rows : rows.filter((r) => ffrYear(r) === year)),
-    [rows, year],
-  );
+  // THE PRODUCTS ON OFFER ARE THE ONES THIS YEAR HOLDS, not every product the
+  // register has ever seen. A filter that lists a model with nothing behind it
+  // in the chosen period offers a click that can only ever empty the screen.
+  const productOptions = useMemo(() => {
+    const pool = years.length ? rows.filter((r) => years.includes(ffrYear(r))) : rows;
+    return [...new Set(pool.map((r) => String(r.product_name ?? '').trim()).filter(Boolean))].sort();
+  }, [rows, years]);
+
+  const inYear = useMemo(() => rows.filter((r) =>
+    (years.length === 0 || years.includes(ffrYear(r)))
+    && (products.length === 0 || products.includes(String(r.product_name ?? '').trim()))),
+    [rows, years, products]);
 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -296,12 +310,17 @@ export function FieldFailureReport() {
           This page already learned that lesson once (the access banner above):
           "there is nothing" and "there is nothing HERE" look identical and mean
           different things. So say which, and offer the way out. */}
-      {!busy && !inYear.length && rows.length > 0 && year !== ALL_YEARS && (
+      {!busy && !inYear.length && rows.length > 0 && (years.length > 0 || products.length > 0) && (
         <div className="sheet-banner sheet-banner-info">
           <span>
-            No reports dated <b>{year}</b>. The register holds <b>{rows.length}</b> in other years.
+            Nothing matches {years.length ? <b>{years.join(', ')}</b> : null}
+            {years.length && products.length ? ' and ' : null}
+            {products.length ? <b>{products.join(', ')}</b> : null}.
+            {' '}The register holds <b>{rows.length}</b> report{rows.length === 1 ? '' : 's'} in all.
             {' '}
-            <button className="btn btn-sm" onClick={() => setYear(ALL_YEARS)}>Show all years</button>
+            <button className="btn btn-sm" onClick={() => { setYears([]); setProducts([]); }}>
+              Clear the filters
+            </button>
           </span>
         </div>
       )}
@@ -312,12 +331,13 @@ export function FieldFailureReport() {
       <div className="stage-chips hs-tabs">
         <label className="cr-year">
           <span className="muted">Year</span>
-          <SelectPicker
-            value={year}
-            onChange={setYear}
-            options={[...years, ALL_YEARS]}
-            className="cr-year-pick"
-          />
+          <MultiPick values={years} onChange={setYears} options={yearOptions}
+                     allLabel="All years" noun="years" className="cr-year-pick" />
+        </label>
+        <label className="cr-year">
+          <span className="muted">Product</span>
+          <MultiPick values={products} onChange={setProducts} options={productOptions}
+                     allLabel="All products" noun="products" className="cr-prod-pick" />
         </label>
         <button className={`chip ${tab === 'insights' ? 'chip-on' : ''}`} onClick={() => setTab('insights')}>
           📈 Insights

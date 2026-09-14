@@ -13,6 +13,58 @@ up)_
 
 ---
 
+## 2026-09-14 — Blank date boxes, multi-select filters, and a bigger first page
+
+### The dates were never in the form
+
+Reported: *"Why the Dates are not loaded in the Form even though the information
+is very much available?"* — the Contract Register listed START 06-Sep-2025 and
+END 05-Sep-2031 while the drawer showed three blank `dd --- yyyy` boxes.
+
+`fromDb` ran every date field through **`fmtLongDate`**, which produces
+`06-Sep-2025`. **`<input type="date">` accepts ONLY `yyyy-MM-dd`** and renders
+anything else as EMPTY — no console error, nothing on the page. The distinction
+was already understood in that file (an existing comment reads *"that is a
+VALUE, not a rendering"*) and applied the wrong way round.
+
+**Nothing was lost.** The draft holds the raw database value until somebody
+edits a field, so a save preserved the dates; they simply could not be seen or
+changed. `localIsoDate` rather than a slice, because `entry_at` is a
+TIMESTAMPTZ and slicing gives the UTC day — already tomorrow in IST after 18:30.
+
+### Multi-select on the Field Failure Register, and a Product filter
+
+Asked for: *"In the Filter in FFR , I need Multi Select Option. Add Product
+Filter as a Default Filter along with the Year Filter."*
+
+`MultiPick` is new — a **sibling of PickList, not a mode inside it**. PickList is
+on every form here and its contract is "one value, and choosing closes the
+list"; multi-select inverts both halves. Threading that through would put an
+`if (multi)` in each of its branches, on the control the Daily Call Review's
+Auto Save depends on.
+
+**Empty means ALL**, which is what lets the Product filter sit beside the Year
+one costing nothing. The products offered are the ones the CHOSEN YEARS hold: a
+filter listing a model with nothing behind it offers a click that can only empty
+the screen.
+
+### Contract / Warranty open on a full page
+
+Asked for: *"Make the Default Load Row to Max And Load More should load 2x"*.
+200/500 → 1000/1000, and each Load more doubles. **The doubling is in the NUMBER
+OF REQUESTS, not the size of one**: PostgREST caps a response (`db-max-rows`), so
+asking for 4,000 returns 1,000 and the page would conclude there was nothing
+more — a register that looks complete and is not.
+
+### Two guards that matched their own comments
+
+Twice in one session an assertion searched a whole module for a string and
+matched the COMMENT explaining what had been wrong — once for `fmtLongDate`,
+once for `<select>`. Both would have been "fixed" by rewording a comment, which
+is how a guard quietly stops guarding. `check:ui` now has `code(src)`, which
+strips comments: search it when the question is what a module DOES, the raw
+source when the question is what it SAYS.
+
 ## 2026-09-14 — A key without an UPDATE policy, and the FFR count automated
 
 ### The feedback upload stopped at row 24,093

@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
-import { csvExport, fmtDate, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
+import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
+import { localIsoDate } from '../lib/dates';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 import { supabaseConfigured } from '../lib/supabase';
@@ -32,8 +33,23 @@ import './fieldcalls.css';
 
 type Tab = 'entries' | 'machines';
 /** One feed per tab: what is loaded, how far it has paged, and its sync stamp. */
-interface Feed { rows: Row[]; at: string; offset: number; more: boolean }
-const PAGE: Record<Tab, number> = { entries: 200, machines: 500 };
+interface Feed { rows: Row[]; at: string; offset: number; more: boolean; step: number }
+// THE FIRST PAGE IS AS BIG AS THE SERVER WILL GIVE, and Load more doubles.
+//
+// The user, 2026-09-14: "In Contract , Warranty -- Make the Default Load Row to
+// Max And Load More should load 2x". It opened at 200 entries / 500 machines,
+// so a register of several thousand took a dozen clicks to walk.
+//
+// PostgREST caps a single response (`db-max-rows`, 1000 on this project), so a
+// request for 4,000 rows does not return 4,000 — it returns 1,000 and the page
+// would conclude there was no more. The cap is therefore the REQUEST size and
+// the doubling is the number of requests: one page, then two, then four. That
+// is "2x each time" without ever asking for a response the server will quietly
+// truncate, which is the shape of bug that makes a register look complete when
+// it is not.
+const PAGE: Record<Tab, number> = { entries: 1000, machines: 1000 };
+/** How many server pages one "Load more" fetches, doubling each time. */
+const FIRST_STEP = 1;
 
 const STATES = ['ACTIVE', 'ABOUT TO EXPIRE', 'INACTIVE'] as const;
 const TONES: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
@@ -41,9 +57,28 @@ const TONES: Record<string, 'success' | 'warning' | 'danger' | 'neutral'> = {
 };
 
 const str = (v: unknown) => (v == null ? '' : String(v));
-// Through the one formatter — see the note in CallAssociations. (The date
-// arithmetic further down keeps slicing: that is a VALUE, not a rendering.)
-const dateVal = (v: unknown) => fmtLongDate(v);
+
+// A DATE INPUT TAKES A VALUE, NOT A RENDERING, and getting that backwards is
+// what emptied every date box on this screen.
+//
+// Reported 2026-09-14: "Why the Dates are not loaded in the Form even though
+// the information is very much available?" — the Contract Register listed
+// START 06-Sep-2025 and END 05-Sep-2031 while the drawer showed three blank
+// `dd --- yyyy` boxes. This line was `fmtLongDate(v)`, which produces
+// "06-Sep-2025"; `<input type="date">` accepts ONLY `yyyy-MM-dd` and renders
+// anything else as EMPTY, with no error anywhere. So the value was always
+// there, always sent on save, and never once visible.
+//
+// The distinction was already understood in this file — the old comment said
+// "that is a VALUE, not a rendering" about the arithmetic below — and then
+// applied the wrong way round here. A formatter is for text somebody READS; an
+// input needs the machine form.
+//
+// `localIsoDate` rather than a slice, because `entry_at` is a TIMESTAMPTZ:
+// slicing `2026-09-11T18:40:00+00:00` yields the UTC day, which in IST is
+// already the 12th. It converts to the reader's own day and passes a plain
+// `date` column straight through.
+const dateVal = (v: unknown) => localIsoDate(v) ?? '';
 
 // A form value on its way back to the database: '' means "no value" (and on an
 // inheriting field, "follow the header"), never an empty string.
@@ -323,7 +358,8 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const cacheKey = (t: Tab) => `cover-${kind}-${t}`;
   const fromCache = (t: Tab): Feed => {
     const c = loadCache<Row>(cacheKey(t));
-    return { rows: c?.rows ?? [], at: c?.at ?? '', offset: c?.rows.length ?? 0, more: (c?.rows.length ?? 0) >= PAGE[t] };
+    return { rows: c?.rows ?? [], at: c?.at ?? '', offset: c?.rows.length ?? 0,
+             more: (c?.rows.length ?? 0) >= PAGE[t], step: FIRST_STEP };
   };
   const [feeds, setFeeds] = useState<Record<Tab, Feed>>(() => ({ entries: fromCache('entries'), machines: fromCache('machines') }));
   const feed = feeds[tab];
@@ -346,6 +382,19 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
       ? listHeaders(kind, { q }, offset, PAGE.entries)
       : listMachines(kind, { q, state }, offset, PAGE.machines);
 
+  /** `pages` server pages from `offset`, in order, stopping at the first short
+   *  one — a page that comes back smaller than asked for IS the end, and going
+   *  on would only spend requests to be told so again. */
+  const fetchPages = async (t: Tab, offset: number, pages: number): Promise<Row[]> => {
+    const out: Row[] = [];
+    for (let i = 0; i < pages; i += 1) {
+      const r = await fetchPage(t, offset + out.length);
+      out.push(...r);
+      if (r.length < PAGE[t]) break;
+    }
+    return out;
+  };
+
   // Force-sync a tab: first page, and (unfiltered) cache it with a sync stamp.
   const refresh = async (t: Tab = tab) => {
     if (!live) return;
@@ -353,7 +402,7 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
     try {
       const r = await fetchPage(t, 0);
       const at = filtered ? feeds[t].at : saveCache(cacheKey(t), r);
-      setFeed(t, { rows: r, offset: r.length, more: r.length >= PAGE[t], at });
+      setFeed(t, { rows: r, offset: r.length, more: r.length >= PAGE[t], at, step: FIRST_STEP });
       if (t === 'machines') {
         const cs = await Promise.all(STATES.map((x) => countMachines(kind, x, { q })));
         setCounts(Object.fromEntries(STATES.map((x, i) => [x, cs[i]])));
@@ -368,10 +417,16 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const loadMore = async () => {
     setBusy(true);
     try {
-      const r = await fetchPage(tab, feed.offset);
+      const want = feed.step * PAGE[tab];
+      const r = await fetchPages(tab, feed.offset, feed.step);
       const merged = [...feed.rows, ...r];
       const at = filtered ? feed.at : saveCache(cacheKey(tab), merged);
-      setFeed(tab, { rows: merged, offset: feed.offset + r.length, more: r.length >= PAGE[tab], at });
+      // THE DOUBLING ONLY CONTINUES WHILE IT PAID OFF. A short answer is the
+      // end of the register, so `more` goes false and the step stops growing —
+      // otherwise coming back to a filtered view would open with a request for
+      // sixteen pages of nothing.
+      setFeed(tab, { rows: merged, offset: feed.offset + r.length,
+                     more: r.length >= want, at, step: feed.step * 2 });
     } catch (e) { setMsg({ tone: 'error', text: `Load more failed: ${e instanceof Error ? e.message : String(e)}` }); }
     finally { setBusy(false); }
   };
