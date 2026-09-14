@@ -880,7 +880,16 @@ with checks(sort_order, bundle, provides, present) as (
                      $q$select count(*) as c from public.tracker_items
                          where btrim(coalesce(owner, '')) ilike 'claude'$q$,
                      false, true, '')))[1]::text::int = 0, false)
-         end))
+         end)),
+    (139, 'Cover: "about to expire" is the sheet''s thirty days', 'cover_state() bands the last THIRTY days before an end date, not sixty (0187). 0036 wrote 60 and said openly that the number was this application''s: the supplied AppSheet documentation described the four Status columns only as "a spreadsheet formula ... emits values including ABOUT TO EXPIRE, ACTIVE, INACTIVE" -- it named the outputs and withheld the rule. The formula export (Appsheet - Forms.xlsx) prints the rule, identically on all four sheets that carry the column -- SaleEntry M2, WarrantySaleDetails V2, ContractEntry L2, ContractDetails W2 -- as IF(end>=Today(),IF(end<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE"). Not cosmetic: the registers FILTER and COUNT by this value, so at sixty a contract with 45 days to run was listed as about to expire and chased a month early, and the tile''s count was a month too big. Tested by asking the function rather than by reading it, because that is the only way to tell 30 from 60 in a project that has run one bundle and not the other. NO means the sixty-day band is still live. Restore: sales_contracts.sql',
+        (to_regprocedure('public.cover_state(date)') is null
+         or (public.cover_state(current_date + 30) = 'ABOUT TO EXPIRE'
+         and public.cover_state(current_date + 31) = 'ACTIVE')))
+    -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
+    -- the FORM (a picker with three of the sheet's four values and no free-text
+    -- fallback), not in the database -- contract_entries.payment_schedule is
+    -- free text and always accepted it. A row that can only ever answer yes is
+    -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,
        case when present then 'yes' else 'NO  <-- apply this' end as applied,

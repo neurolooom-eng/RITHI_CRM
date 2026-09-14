@@ -23,6 +23,7 @@
 // check:views is pointed at.
 // ===========================================================================
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const args = (process.argv[2] ?? '').trim();
 if (!args) {
@@ -39,8 +40,42 @@ const EXEMPT = [
   ['quarter past nine', 'needs the pg_cron extension, which a throwaway Postgres has not got'],
 ];
 
-const out = execFileSync('psql', [...args.split(/\s+/), '-q', '-f', 'supabase/apply/_status.sql'],
-  { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+// FIRST, THAT THE REPORT RAN AT ALL.
+//
+// This check used to congratulate itself on a _status.sql that did not
+// COMPILE. `psql -f` exits 0 on a failed statement unless told otherwise, so a
+// syntax error produced an empty report, the "NO" filter below matched nothing,
+// and the script printed "every row reads yes". It was caught by accident
+// (2026-09-14) while adding a row: the skipped-row count silently fell from 1
+// to 0 and the error was on stderr, which was not being read.
+//
+// A checker that passes on NO OUTPUT is the worst kind, because it is loudest
+// exactly when it knows least. So: stop psql on the first error, keep stderr,
+// and then prove the report has as many rows as the file has checks — an empty
+// or truncated report now fails instead of passing.
+let out;
+try {
+  out = execFileSync('psql', [...args.split(/\s+/), '-q', '-v', 'ON_ERROR_STOP=1',
+                              '-f', 'supabase/apply/_status.sql'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+} catch (e) {
+  console.error('\n_status.sql did not run. It is the file people are told to run FIRST,');
+  console.error('so it failing silently is worse than any row it could get wrong.\n');
+  console.error(String(e.stderr ?? e.message).trim());
+  process.exit(1);
+}
+
+// Every check in the file is a `(<sort order>, '<name>', '<provides>', <test>)`
+// tuple; every check in the REPORT is a row answering yes or NO. If the two
+// disagree the report is truncated, and a missing row proves nothing.
+const declared = (readFileSync('supabase/apply/_status.sql', 'utf8')
+  .match(/^\s{4}\(\d+, '/gm) ?? []).length;
+const rows = out.split('\n').filter((l) => / \| (yes|NO  <-- apply this) +\|/.test(l)).length;
+if (!rows || rows !== declared) {
+  console.error(`\n_status.sql declares ${declared} checks and the report came back with ${rows} rows.`);
+  console.error('The report is empty or truncated, so "no NOs" would mean nothing.');
+  process.exit(1);
+}
 
 const nos = out.split('\n').filter((l) => l.includes('NO  <-- apply this'));
 const unexpected = [];
@@ -60,4 +95,5 @@ if (unexpected.length) {
   process.exit(1);
 }
 
-console.log(`\nevery _status.sql row reads yes on a fully-applied database (${nos.length} skipped)`);
+console.log(`\nevery one of the ${rows} _status.sql rows reads yes on a fully-applied database`
+  + (nos.length ? ` (${nos.length} skipped)` : ''));

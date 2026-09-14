@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { deriveHeader, deriveItem } from '../lib/coverspec';
+import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
 import { csvExport, fmtDate, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
@@ -636,13 +636,13 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
 
 // The state a header is in, from its own end date (the machines under it can
 // each differ — the by-machine tab is where that shows).
-function stateOf(end: string): string {
-  if (!end) return 'NOT COVERED';
-  const d = new Date(`${end.slice(0, 10)}T00:00:00`);
-  if (isNaN(d.getTime())) return 'NOT COVERED';
-  const days = Math.round((d.getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
-  return days < 0 ? 'INACTIVE' : days <= 60 ? 'ABOUT TO EXPIRE' : 'ACTIVE';
-}
+//
+// ONE RULE, NOT A SECOND COPY OF IT. This used to carry its own arithmetic and
+// its own threshold, which meant the ENTRIES tab and the MACHINES tab — the
+// latter reading `cover_state()` through the view — could label the same
+// contract differently the moment either number moved. It calls coverStatus
+// now; the SQL is the same rule where a view can reach it (0187).
+const stateOf = (end: string): string => coverStatus(end);
 
 // A machine row, in the shape the call form's prefill reads.
 function prefillFrom(r: Row, kind: CoverKind): Record<string, unknown> {

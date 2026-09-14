@@ -140,8 +140,13 @@ export const CONTRACT: CoverConfig = {
     { name: 'contract_years', label: 'Contract Period (Years)', type: 'number', section: 'Period' },
     { name: 'contract_months', label: 'Contract Period (Months)', type: 'number', section: 'Period' },
     { name: 'pm_visits_total', label: 'PM Visits (Total)', type: 'number', section: 'Period' },
+    // MONTHLY IS ON THE SHEET AND WAS MISSING HERE. ContractEntry_Schema col 5
+    // lists Yearly / Half Yearly / Quarterly / Monthly; three of the four were
+    // transcribed. The field takes no fallback, so a monthly contract could not
+    // be keyed at all — and an import carrying "Monthly" would show a value the
+    // form cannot re-select.
     { name: 'payment_schedule', label: 'Payment Schedule', type: 'select',
-      options: ['', 'Yearly', 'Half Yearly', 'Quarterly'], section: 'Billing' },
+      options: ['', 'Yearly', 'Half Yearly', 'Quarterly', 'Monthly'], section: 'Billing' },
     { name: 'bill_generate_at', label: 'Bill Generate At', type: 'select',
       options: ['', 'Beginning Of Period', 'End Of Period'], section: 'Billing' },
   ],
@@ -454,7 +459,6 @@ export async function renewContract(
       product_code: it.product_code ?? null,
       product_name: it.product_name ?? null,
       serial_number: it.serial_number ?? null,
-      priority: it.priority ?? null,
       present_item_status: it.present_item_status ?? null,
       // The item's own history of where it came from.
       last_contract_number: str(from.mc_number) || null,

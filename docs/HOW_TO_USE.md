@@ -160,6 +160,11 @@ Both work the same way. Two views: **Entries** (the deal and its machines) and
 so two people starting at once get the same number and the second is refused on
 saving.
 
+**About to expire means the last 30 days** — the same band the old sheet used,
+counted to the end date and including it. Before that it is Active; after it,
+Inactive. A machine with no end date shows **Not covered**, which is not the
+same as Inactive: nobody has said the cover ended, the date is simply missing.
+
 Type the period in **months** and the rest fills in:
 
 | You type | Warranty | Contract |
@@ -169,6 +174,10 @@ Type the period in **months** and the rest fills in:
 
 The two visit rates differ: warranty three a year, a contract one every six
 months. On a contract machine line a **Rate** fills in 18% tax and the total.
+A **Payment Schedule** can be Yearly, Half Yearly, Quarterly or Monthly.
+
+On a warranty machine line, filling in **Already Sold To** sets **Add Call**:
+`WI-` for a machine nobody has owned before, `RWI-` where it names somebody.
 
 **A machine follows its entry**: a field left empty follows the header, typing
 pins that machine, ↺ hands it back.

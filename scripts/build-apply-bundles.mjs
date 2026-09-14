@@ -541,7 +541,10 @@ const MODULES = {
              // which 0072 above creates.
              '0182_ownership_transfer_same_party.sql',
              '0183_ownership_from_equals_to.sql',
-             '0184_ownership_transfer_key.sql'],
+             '0184_ownership_transfer_key.sql',
+             // AFTER 0036: it redefines cover_state() with the 30-day band the
+             // AppSheet formula export finally supplied.
+             '0187_cover_expiry_30_days.sql'],
   },
   stock_transfer: {
     title: 'Stock Transfer',
