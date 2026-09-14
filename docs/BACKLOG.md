@@ -13,6 +13,43 @@ up)_
 
 ---
 
+## 2026-09-14 — A wrong file in the DCCR register
+
+Asked: *"I uploaded a Wrong file in DCCR -- How to delete it?"*
+
+`supabase/apply/_dccr_undo.sql` — **diagnostic first, delete commented out.** The
+obvious answer (delete the rows) is right for some of them and destroys real work
+on the others, and **`call_reviews` has no history table** to undo that from.
+
+The DCCR upload is an UPSERT on the UC Number, so one file did two things:
+
+| | what happened | what to do |
+| --- | --- | --- |
+| `created_at` **inside** the window | the review did not exist before | safe to delete |
+| `created_at` **before**, `updated_at` inside | an existing review was **overwritten** | **do not delete** — load the correct file, which writes them back |
+
+Deleting an overwritten row throws the review away as well, and the previous
+answers are not recoverable from anywhere.
+
+**And the third thing, which nobody expects:** a review whose answers make *Any
+Potential Effect* YES **raises a Field Failure Report** by database trigger
+(0167). A wrong file can therefore have created FFRs, and deleting the reviews
+does not remove them. Section 3 lists them, identified by the rule they record on
+themselves (`extra->>'raised_by_rule'`). They are quality records and the file
+does not offer to delete them — an FFR that should not stand is *cancelled* on
+the register, which keeps the record and marks it.
+
+**Tested against a simulated bad upload** rather than reasoned about: one
+pre-existing review overwritten, two inserted, one FFR raised. The diagnostic
+separated all three; the delete removed exactly the two inserted rows and left
+the overwritten one and the FFR alone. Mutation-tested — dropping the
+`created_at` guard and keeping only `updated_at`, which is the obvious wrong
+version, deletes all three.
+
+⚠️ **`call_reviews` has no history and no delete block**, unlike
+`field_failure_reports` (0049) and `ffr_history` (0174). That asymmetry is worth
+a decision: the DCCR is a quality record too.
+
 ## 2026-09-14 — Call Report and Customer Feedback Report
 
 Asked for: *"Add Call Report , Customer Feedback Report -- Follow the Same
