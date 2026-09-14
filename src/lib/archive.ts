@@ -32,6 +32,7 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { machineKey } from './machine';
+import { byColumnSet } from './uploads';
 import { getSupabase } from './supabase';
 
 const URL_KEY = 'rithi.archive.url';
@@ -322,4 +323,79 @@ export async function pingArchive(): Promise<{ ok: boolean; rows?: number; error
   const { count, error } = await c.from('history_calls').select('id', { count: 'exact', head: true });
   if (error) return { ok: false, error: error.message };
   return { ok: true, rows: count ?? 0 };
+}
+
+// ---------------------------------------------------------------------------
+// LOADING THE ARCHIVE FROM THE SCREEN.
+//
+// This is the ONE write path to the archive, and it is an INSERT and nothing
+// else. Not an upsert, not an update, not a delete — and the database agrees
+// rather than taking this module's word for it: ProdHistory_06 grants INSERT
+// and leaves UPDATE, DELETE and TRUNCATE revoked, so the strongest property of
+// the archive survives the fact that a browser can now write to it —
+//
+//   NOTHING REACHABLE FROM HERE CAN ALTER OR DESTROY AN EXISTING ROW.
+//
+// The worst case is rubbish rows NEXT TO the real ones, never instead of them,
+// and that is recoverable because every row carries the label it was loaded
+// under. Do not add an update path here without reading ProdHistory_02 and 06:
+// a value written over a 2016 record cannot be reconstructed from anywhere.
+//
+// Batched the same way the live uploader batches, and for the same reason:
+// PostgREST writes a batch as ONE insert whose column list is the union of the
+// objects' keys, so a row missing a key is sent as NULL rather than taking the
+// column's default. `byColumnSet` groups rows of identical shape, which is what
+// lets a column no row in the group carries genuinely default.
+// ---------------------------------------------------------------------------
+export async function archiveUploadRows(
+  table: string,
+  rows: Record<string, unknown>[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<{ ok: boolean; written: number; error?: string }> {
+  const c = getArchive();
+  if (!c) return { ok: false, written: 0, error: 'The archive is not connected (Settings → Archive).' };
+  if (!/^history_/.test(table)) {
+    // A live table name reaching this function would write live data into the
+    // archive project, which nothing would ever report as wrong — the insert
+    // would simply fail, or worse, succeed against a table of the same name.
+    return { ok: false, written: 0, error: `${table} is not an archive table.` };
+  }
+  // These tables carry no per-row trigger at all, so the batches can be large:
+  // 44,000 rows is 22 requests rather than 88.
+  const SIZE = 2000;
+  let written = 0;
+  const slices = byColumnSet(rows).flatMap((group) => {
+    const out: Record<string, unknown>[][] = [];
+    for (let i = 0; i < group.length; i += SIZE) out.push(group.slice(i, i + SIZE));
+    return out;
+  });
+  for (const slice of slices) {
+    const { error } = await c.from(table).insert(slice);
+    if (error) {
+      const m = error.message || 'Unknown error';
+      // The archive refuses an unlabelled row at the POLICY, so the message
+      // comes back as a bare RLS violation — which reads as "you are not
+      // allowed to load" when it means "this batch has no label on it".
+      const hint = /row-level security/i.test(m)
+        ? ' — every archive row must carry the export label, and the database refuses one without it.'
+          + ' Fill in "Which export is this?" and upload again. If the label IS set, the archive'
+          + ' has not had ProdHistory_06.sql run on it yet: without that file it accepts no writes at all.'
+        : '';
+      return { ok: false, written, error: `${m}${hint}` };
+    }
+    written += slice.length;
+    onProgress?.(written, rows.length);
+  }
+  return { ok: true, written };
+}
+
+/** How many rows an archive table holds, for the uploader's "N rows now".
+ *  Null when the archive is not connected — which the screen says in words,
+ *  rather than showing a 0 that reads as "loaded, and empty". */
+export async function countArchiveTable(table: string): Promise<number | null> {
+  const c = getArchive();
+  if (!c || !/^history_/.test(table)) return null;
+  const { count, error } = await c.from(table).select('id', { count: 'exact', head: true });
+  if (error) return null;
+  return count ?? 0;
 }

@@ -61,6 +61,15 @@ different totals. An empty register usually means access, not emptiness.
   If the screen says **Archive not connected**, it is showing the live
   registers only. Somebody with admin rights enters that project's key once per
   device under Settings → Archive (Product History).
+  **Loading the old data** is done on **Bulk Uploads**, under the heading
+  **2016 Archive** — five registers, one per kind of export (Machines, Calls,
+  Visits, Parts fitted, Cover). Each asks *which export is this?* before it will
+  upload, and writes that label on every row. That label matters: these
+  registers have no key to match on, so loading the same file twice **adds** the
+  rows a second time, and the label is the only way to take a batch back out
+  (which an administrator does in the database, not here). Nothing in the
+  application can change or delete an archive row once it is in — it can only
+  add.
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.

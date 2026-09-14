@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-14 (Product History and the 2016 archive project)_
+_Last updated: 2026-09-14 (Product History; loading the archive from Bulk Uploads)_
 
 _Previously: 2026-09-14 (two pages on open; the sheet's thirty-day expiry band) ·
 2026-09-06 (bundle replay safety; see the top of In progress) ·
@@ -105,6 +105,49 @@ spreadsheet is gone.
   ten-year-old export reliably lacks is a unique column — `feedback` is what a
   guessed key costs. To redo a load, delete it by its `source_system` label.
 
+### Loading it from the screen (ProdHistory_06)
+
+Asked for the same day: "How do i load the data into the Product History? add a
+provision to do that from the UI."
+
+`history_load()` in the SQL editor stays, and is still the right tool for a
+bulk cut-over. But ten exports loaded by hand is a job somebody does at a
+keyboard on a Tuesday, so the five archive tables are now **registers on Bulk
+Uploads**, under a `2016 Archive` heading.
+
+They are on that screen rather than in a loader of their own deliberately —
+"Bulk Uploads is the importer", and a second importer for one table is how a
+good file comes back as "0 rows". `UploadDef` gained `db: 'archive'`, which is
+read at write time and nowhere else, and the whole existing apparatus (header
+matching, day-first dates, `extraInto`, the preview of what is about to be
+written) came for free.
+
+⚠️ **This reopens part of ProdHistory_02's read-only posture, knowingly.**
+`ProdHistory_06.sql` grants INSERT and **nothing else** — no UPDATE policy, no
+DELETE policy, and both privileges stay revoked. So the property that matters
+survives: **nothing reachable from the browser can alter or destroy an existing
+archive row.** The worst a leaked key does is append rubbish NEXT TO the real
+data rather than over it, and that is recoverable. An UPDATE policy would not
+be: a value written over a 2016 record cannot be reconstructed from anywhere.
+
+**The label is the undo button, so the DATABASE requires it.** The insert
+policy's `with check` refuses a row whose `source_system` is blank. Bulk Uploads
+also refuses to send one, but a check that lives only in the browser is a check
+one curl request walks past. A batch loaded in error is then one line, run by
+the owner:
+
+```sql
+delete from public.history_calls where source_system = 'AppSheet calls 2016-2019';
+```
+
+Verified as `anon` against the archive schema: an unlabelled insert is refused
+by the policy, a labelled one is accepted, UPDATE and DELETE are both refused,
+and rows shaped by the real register (day-first dates, both ORION spellings
+collapsing to one `machine_key`, unnamed columns kept in `extra`) load and then
+delete cleanly by label. `check:columns` now runs against either database and
+says which it checked, so the archive registers cannot silently pass by being
+skipped.
+
 ### Status — SQL still to run
 
 Numbered `ProdHistory_xx` rather than into `supabase/migrations/`: four of them
@@ -119,6 +162,7 @@ at merge time only if they ever move.
 | [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
 | [`ProdHistory_04.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_04.sql) | **Live** `issxxmgsffszqbxugqis` | Grants `mod:/product-history` to every role holding `mod:/lookup` |
 | [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** | `serial_key` on the three call tables, so the lookup is an indexed equality |
+| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a row that carries its export label. Needed for the Bulk Uploads registers; without it the archive accepts no writes at all |
 
 **PENDING — none of these has been run on either live project.** All five were
 applied to a throwaway Postgres and re-applied to prove they are idempotent;

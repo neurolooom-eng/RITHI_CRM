@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.250',
+    date: '2026-09-14',
+    title: 'The 2016 history can be loaded from Bulk Uploads',
+    changes: [
+      'The old service history no longer needs anybody in the database to load it. Bulk Uploads has a new heading, 2016 Archive, with five registers \u2014 Machines, Calls, Visits, Parts fitted, and Cover \u2014 one per kind of export.',
+      'They work like every other register on that screen: pick the file, see what it is about to write before it writes it, dates read day-first, and any column with no field of its own kept on the row rather than dropped.',
+      'Each one asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. It is not paperwork \u2014 these registers have no key to match on, so loading the same file twice adds the rows again, and the label is the only way to take a batch back out afterwards.',
+      'The archive can only be ADDED to. Nothing in the application can change or delete a row that is already in it, and that is enforced by the history database itself, not just by the screen \u2014 those records cannot be rebuilt if they are lost.',
+      'The heading says so plainly when the archive is not connected on the device, instead of quietly not appearing.',
+    ],
+  },
+  {
     version: '0.9.249',
     date: '2026-09-14',
     title: 'Product History \u2014 one machine, and everything that ever happened to it',
