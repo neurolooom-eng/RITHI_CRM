@@ -119,10 +119,34 @@ has nothing to do with it — the fix is to give the two rows their own OT
 numbers, which is a one-line edit in that suite. Recorded here so it is not
 found again from scratch.
 
+### Verifying it landed — `_status.sql` row 148 is not enough
+
+Row 148 asks whether the twenty-one COLUMNS exist. **A column can exist and be
+empty on every one of twenty thousand machines**, and the backfill is the half
+that can silently do nothing — it fills only a column still EMPTY, it reads
+`extra` and never writes it, and the two dates are guarded on their shape. The
+Supabase SQL editor does not show a `raise notice`, so the migration's own
+"N machine(s) had their kept columns read back out of `extra`" is invisible
+there.
+
+[`_product_database_check.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_product_database_check.sql)
+(read-only) asks the rows themselves: per column, how many machines have a value
+in the COLUMN, and how many have one in `extra` that did **not** reach it. Every
+text column should read **0** in that second number. Where `PO Date` or
+`INST Date` do not, those are cells the parser could not read — the sample's own
+`INST Date` says `To Check` — and they are not lost; the file's own words are
+still in `extra`.
+
+Proved both ways against a throwaway Postgres carrying rows in the pre-0194
+importer shape: before the backfill every value showed as "still only in extra"
+except the two corrected by hand; after it, **0** for every text column, 1 for
+`pm_visits` (`three`), 1 for `po_date` (`31 Febbb 24`) and 2 for `inst_date`
+(`To Check`) — exactly the cells the guards exist for.
+
 ### To run on the live project
 
-[`masters.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/masters.sql)
-— `_status.sql` row 148 answers NO until it is in. (Row 147's `masters.sql` +
+`masters.sql` was run by the user on 2026-09-14, carrying 0194. Nothing is
+outstanding; confirm with `_status.sql` row 148 and the check above. (Row 147's `masters.sql` +
 [`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
 were run by the user on 2026-09-14; `masters.sql` now carries 0194 as well, so
 running it again brings both.)
