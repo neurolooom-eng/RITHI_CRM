@@ -816,7 +816,11 @@ export const UPLOADS: UploadDef[] = [
   // ---- quality
   { key: 'feedback', label: 'Customer Feedback', group: 'Quality', table: 'feedback',
     requires: 'Field Calls', extraInto: 'answers', conflict: 'ucn_key', conflictFrom: ['ucn'],
-    note: 'Takes the v2Feedback export. The answers are kept as given — every column not named below becomes one. MATCHED ON THE UCN, one feedback per call, so re-loading a corrected export updates those rows rather than adding the file again. A row with no UCN is not loaded: feedback that names no call cannot be filed against one.',
+    // `imported_from` marks every row as migrated (0190), so the register can
+    // show the loaded ones apart from the ones recorded here — and so a figure
+    // drawn from both can report the split (URS-037).
+    stamp: { imported_from: 'v2Feedback export' },
+    note: 'Takes the v2Feedback export. The answers are kept as given — every column not named below becomes one. MATCHED ON THE UCN, one feedback per call, so re-loading a corrected export updates those rows rather than adding the file again. A row with no UCN is not loaded: feedback that names no call cannot be filed against one. The register\u2019s Date is the export\u2019s own "Visit Entry Date", never the day it was uploaded.',
     cols: [
       // "UC Number" is what the v2Feedback export says, and only 'ucn' was
       // listed — so every one of its 24,752 rows was held back as missing a
@@ -832,6 +836,13 @@ export const UPLOADS: UploadDef[] = [
       // The export writes "Visit Date & Time". Loose matching drops the
       // punctuation but keeps the word, so 'visit date' alone never reached it.
       TS('visit_at', 'visit date & time', 'visit date and time', 'visit date'),
+      // THE FEEDBACK'S OWN DATE, and the one the register shows. Reported
+      // 2026-09-14: every uploaded feedback read as 14-Sep-2026, because the
+      // screen showed `created_at` — when the ROW was written — and this column
+      // did not exist. It was never lost: `extraInto` had been keeping it under
+      // its own heading, which is what let 0190 backfill twenty-four thousand
+      // rows instead of asking for the file again.
+      TS('entry_at', 'visit entry date', 'feedback date', 'entry date', 'timestamp'),
     ] },
   // ---------------------------------------------------------------------------
   // THE FIELD FAILURE REGISTER, BACK TO 2016 — AND EVERY YEAR IS A DIFFERENT

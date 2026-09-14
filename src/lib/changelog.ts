@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.250',
+    version: '0.9.252',
     date: '2026-09-14',
     title: 'The 2016 history can be loaded from Bulk Uploads',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.9.249',
+    version: '0.9.251',
     date: '2026-09-14',
     title: 'Product History \u2014 one machine, and everything that ever happened to it',
     changes: [
@@ -35,6 +35,29 @@ export const CHANGELOG: ChangeEntry[] = [
       'The 2016 history is READ-ONLY from here. Nothing in the application can change it, and nothing should \u2014 those records cannot be rebuilt.',
       'Until the archive is connected the screen shows the live registers only, and says so rather than looking like a machine with no past. The key is entered once per device under Settings \u2192 Archive (Product History).',
       'A machine that exists only in the archive \u2014 sold in 2016, retired years ago, never carried across \u2014 can still be found and read. Its row says it is archive-only, so nobody wonders why they cannot raise a call against it.',
+    ],
+  },
+  {
+    version: '0.9.250',
+    date: '2026-09-14',
+    title: 'Customer Feedback carries its own date',
+    changes: [
+      'Every uploaded feedback was showing 14-Sep-2026 \u2014 the day it was loaded \u2014 instead of its real date. The Date column was reading when the ROW was written, not when the feedback was taken. On a complaint record that date is part of the record.',
+      'Nothing was lost and you do not need to load the file again. The upload had been keeping every column it did not recognise, so the export\u2019s own \u201cVisit Entry Date\u201d was on all 24,748 rows all along \u2014 the database script reads it back out.',
+      'The register now shows the feedback\u2019s Date and the Visit Date, and keeps \u201cLoaded on\u201d as its own column so you can still see when a row arrived.',
+      'Uploaded and Entered here are told apart, with a chip for each. New feedback taken in this system is marked as such automatically.',
+      'On FFR Insights the Pareto drills down: Machine, then Complaint grouping and Root cause in whichever order you want, or straight past either. The path shows what you have fixed and what is left to rank.',
+    ],
+  },
+  {
+    version: '0.9.249',
+    date: '2026-09-14',
+    title: 'A Pareto and a trend line on FFR Insights',
+    changes: [
+      '\u201cReports raised\u201d is a LINE now, and you choose how to read it \u2014 Monthly, Quarterly or Yearly. Clicking a point still narrows the whole page, and switching the scale clears the point you had chosen rather than leaving a filter that matches nothing.',
+      'A Pareto chart: the bars are the count, the line is the running share, and the dashes mark 80%. Everything left of where the line crosses accounts for four-fifths of the reports \u2014 that is the shortlist to work on. Read it by Machine, Root cause, Grouping or Customer.',
+      'Where the record does not say (a root cause never filled in, say) it is kept on the chart and called out rather than quietly dropped \u2014 a gap that size is itself worth seeing.',
+      'On the Field Failure Register the filters are all on the left now and the view buttons all on the right; Insights and Register used to sit among the filters.',
     ],
   },
   {

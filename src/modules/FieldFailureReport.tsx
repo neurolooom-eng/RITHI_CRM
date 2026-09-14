@@ -339,6 +339,13 @@ export function FieldFailureReport() {
           <MultiPick values={products} onChange={setProducts} options={productOptions}
                      allLabel="All products" noun="products" className="cr-prod-pick" />
         </label>
+        {/* WHAT YOU ARE LOOKING AT, ALL OF IT ON THE RIGHT (the user's ask,
+            2026-09-14: "Arrange all the Viewing option on the Right , Filters
+            on the Left"). Insights/Register and Desk/Table are the same kind of
+            control — which view — and they were split either side of the
+            spacer, so one pair sat among the filters and read as one. The
+            spacer moves ahead of both instead. */}
+        <div className="spacer" />
         <button className={`chip ${tab === 'insights' ? 'chip-on' : ''}`} onClick={() => setTab('insights')}>
           📈 Insights
         </button>
@@ -347,7 +354,6 @@ export function FieldFailureReport() {
         </button>
         {tab === 'register' && (
           <>
-            <div className="spacer" />
             <button className={`chip ${view === 'desk' ? 'chip-on' : ''}`} onClick={() => setView('desk')}>Desk</button>
             <button className={`chip ${view === 'table' ? 'chip-on' : ''}`} onClick={() => setView('table')}>Table</button>
           </>

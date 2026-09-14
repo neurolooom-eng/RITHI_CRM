@@ -373,7 +373,10 @@ const MODULES = {
             // The UPDATE policy the key made necessary. Its audience is copied
             // from `fb_write` (0008, rbac) but it is a DIFFERENT policy, so
             // replaying rbac.sql alone cannot undo it.
-            '0189_feedback_update_policy.sql'],
+            '0189_feedback_update_policy.sql',
+            // The feedback's OWN date and where it came from. After 0186/0188,
+            // which own the key it is loaded on.
+            '0190_feedback_dates_and_origin.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { BarChart, ColumnChart, DonutChart } from '../components/charts/Charts';
+import { BarChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { ffrDueForReview, ffrEffectWithdrawn } from '../lib/ffr';
 
 type Row = Record<string, unknown>;
@@ -42,17 +42,51 @@ function tally(rows: Row[], key: string, blankLabel = '(not stated)'): { label: 
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
-/** Reports per month of their FFR date, oldest first — a trend reads left to
+// ---------------------------------------------------------------------------
+// THE PERIOD THE TREND IS READ AT (the user's ask, 2026-09-14: "Allow me to
+// adjust it [Monthly , Quarterly , Yearly]").
+//
+// ONE FUNCTION TURNS A DATE INTO A BUCKET, and it is the SAME one the
+// cross-filter uses. That matters more than it looks: the trend's marks are
+// clickable, so a bucket key is also a FILTER VALUE. If the chart grouped by
+// quarter while `dimValue` still answered in months, clicking 2026-Q1 would
+// filter on a value no row has and the page would silently empty.
+// ---------------------------------------------------------------------------
+export type Period = 'month' | 'quarter' | 'year';
+export const PERIODS: { key: Period; label: string }[] = [
+  { key: 'month', label: 'Monthly' },
+  { key: 'quarter', label: 'Quarterly' },
+  { key: 'year', label: 'Yearly' },
+];
+
+/** The bucket a report falls in, from its FFR DATE. Empty for an unparseable
+ *  date — counted nowhere rather than in the wrong period. */
+export function periodKey(iso: string, p: Period): string {
+  const d = iso.slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(d)) return '';
+  const [y, mo] = d.split('-');
+  if (p === 'year') return y;
+  if (p === 'quarter') return `${y}-Q${Math.floor((Number(mo) - 1) / 3) + 1}`;
+  return d;
+}
+
+/** What the axis reads. A month is shown YY-MM so twelve fit across; a quarter
+ *  and a year are short enough already, and shortening a YEAR to two digits
+ *  would be actively worse — "25" beside "26" is a month to most readers. */
+const periodLabel = (key: string, p: Period): string =>
+  (p === 'month' ? key.slice(2) : key);
+
+/** Reports per period of their FFR date, oldest first — a trend reads left to
  *  right in time, not in size. */
-function byMonth(rows: Row[]): { label: string; value: number }[] {
+function byPeriod(rows: Row[], p: Period): { label: string; value: number }[] {
   const m = new Map<string, number>();
   for (const r of rows) {
-    const d = s(r, 'ffr_date').slice(0, 7);          // YYYY-MM
-    if (!/^\d{4}-\d{2}$/.test(d)) continue;          // undated: counted nowhere rather than in the wrong month
-    m.set(d, (m.get(d) ?? 0) + 1);
+    const k = periodKey(s(r, 'ffr_date'), p);
+    if (!k) continue;
+    m.set(k, (m.get(k) ?? 0) + 1);
   }
   return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([label, value]) => ({ label: label.slice(2), value }));   // YY-MM, so 12 fit
+    .map(([label, value]) => ({ label: periodLabel(label, p), value }));
 }
 
 // ---------------------------------------------------------------------------
@@ -79,9 +113,16 @@ type Picked = Partial<Record<DimKey, string>>;
 const BLANK = '(not stated)';
 /** The value a row has for a dimension, matching what `tally` put on the chart
  *  — including the blank label, so clicking "(not stated)" selects exactly the
- *  rows that bar counted. */
-const dimValue = (r: Row, k: DimKey) =>
-  (k === 'month' ? s(r, 'ffr_date').slice(0, 7) || '(no date)' : s(r, k)) || BLANK;
+ *  rows that bar counted.
+ *
+ *  THE PERIOD IS PASSED IN, not read from a module variable: the trend's marks
+ *  are filter values, so this must bucket a date exactly as the chart did or a
+ *  click selects nothing. It is also why the axis LABEL and the filter VALUE
+ *  are kept apart — the chart shows `26-03`, the filter holds `2026-03`. */
+const dimValue = (r: Row, k: DimKey, p: Period) =>
+  (k === 'month'
+    ? periodLabel(periodKey(s(r, 'ffr_date'), p), p) || '(no date)'
+    : s(r, k)) || BLANK;
 
 /** Rows matching every chosen dimension EXCEPT the ones named in `except`.
  *
@@ -90,21 +131,58 @@ const dimValue = (r: Row, k: DimKey) =>
  *  and it collapses to the single bar you already knew about. Every OTHER chart
  *  narrows, which is the question being asked — "for this machine, what else is
  *  true?" */
-function applyPicks(rows: Row[], picked: Picked, except?: DimKey): Row[] {
+function applyPicks(rows: Row[], picked: Picked, p: Period, except?: DimKey): Row[] {
   const keys = (Object.keys(picked) as DimKey[]).filter((k) => k !== except && picked[k]);
   if (!keys.length) return rows;
-  return rows.filter((r) => keys.every((k) => dimValue(r, k) === picked[k]));
+  return rows.filter((r) => keys.every((k) => dimValue(r, k, p) === picked[k]));
 }
+
+// ---------------------------------------------------------------------------
+// THE PARETO DRILLS DOWN THREE LEVELS.
+//
+// The user, 2026-09-14: "I want for the Product at a Root Cause / Complaint
+// Grouping Level as well. Not just at the Product Level -- I need 3 Levels of
+// Drill Down , Product , Complaint Grouping , Root Cause Key Word".
+//
+// A CHAIN, NOT A CHOICE. The first version of this offered a "rank by" selector
+// — four dimensions, pick one — and that answers a different question. "Which
+// machines fail most" and "which root causes are behind them" are not two
+// charts you switch between; the second is asked OF the first. So clicking a
+// bar goes DOWN a level rather than swapping the chart.
+//
+// AND THE ORDER OF THE LAST TWO IS THE READER'S (the user, 2026-09-14: "The 2nd
+// and the 3rd are interchangeable or can be skipped"). Machine first, because
+// that is the thing being analysed; after that, whether you ask "which
+// groupings, then which causes" or "which causes, then which groupings" is a
+// question about the investigation, not about the data. Either can also be
+// stepped over: with a grouping chosen you may go straight past causes, and
+// with neither chosen you may start at causes. So the chart shows the levels
+// still OPEN and lets one be chosen, rather than marching through three.
+//
+// THE LEVEL IS DERIVED FROM THE FILTERS, never held in its own state. Drilling
+// sets the same `picked` the rest of the page reads, so the Pareto cannot show
+// a level the page is not filtered to — and picking a machine on the bar chart
+// above advances this chart too, which is the same question asked from the
+// other end. Two sources of truth for "where am I" is how a drill-down starts
+// showing one thing and claiming another.
+// ---------------------------------------------------------------------------
+const PARETO_LEVELS = [
+  { key: 'product_name', label: 'Machine', of: 'machines' },
+  { key: 'live_complaint_grouping', label: 'Complaint grouping', of: 'groupings' },
+  { key: 'live_root_cause_keyword', label: 'Root cause', of: 'root causes' },
+] as const;
+type ParetoKey = (typeof PARETO_LEVELS)[number]['key'];
 
 export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Picked>({});
+  const [period, setPeriod] = useState<Period>('month');
 
   /** Clicking the chosen mark again clears it — the same gesture both ways, so
    *  nobody has to find a separate control to undo what a click did. */
   const pick = (k: DimKey) => (label: string) =>
     setPicked((p) => (p[k] === label ? { ...p, [k]: undefined } : { ...p, [k]: label }));
 
-  const rows = useMemo(() => applyPicks(allRows, picked), [allRows, picked]);
+  const rows = useMemo(() => applyPicks(allRows, picked, period), [allRows, picked, period]);
   const active = (Object.keys(picked) as DimKey[]).filter((k) => picked[k]);
 
   const stats = useMemo(() => {
@@ -136,7 +214,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   }, [rows]);
 
   // Each chart counts the rows left by EVERY OTHER choice — see applyPicks.
-  const forDim = (k: DimKey) => applyPicks(allRows, picked, k);
+  const forDim = (k: DimKey) => applyPicks(allRows, picked, period, k);
   const byProduct = useMemo(() => tally(forDim('product_name'), 'product_name'), [allRows, picked]);
   const byCover = useMemo(() => tally(forDim('cover'), 'cover'), [allRows, picked]);
   const byStatus = useMemo(() => tally(forDim('ffr_status'), 'ffr_status'), [allRows, picked]);
@@ -144,7 +222,31 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const byRootCause = useMemo(() => tally(forDim('live_root_cause_keyword'), 'live_root_cause_keyword'), [allRows, picked]);
   const byGrouping = useMemo(() => tally(forDim('live_complaint_grouping'), 'live_complaint_grouping'), [allRows, picked]);
   const byCustomer = useMemo(() => tally(forDim('customer_name'), 'customer_name'), [allRows, picked]);
-  const months = useMemo(() => byMonth(forDim('month')), [allRows, picked]);
+  const trend = useMemo(() => byPeriod(forDim('month'), period), [allRows, picked, period]);
+
+  // WHAT IS STILL OPEN TO RANK: every level whose dimension has not been chosen.
+  // With nothing chosen that is all three; choose a machine and it is grouping
+  // and root cause, in either order or neither.
+  const paretoOpen = PARETO_LEVELS.filter((l) => !picked[l.key]);
+  // WHICH ONE IS ON SCREEN. The reader's pick if it is still open, else the
+  // first open level — so drilling advances on its own, and a step back that
+  // re-opens a level does not leave the chart pointing at a closed one.
+  const [paretoWant, setParetoWant] = useState<ParetoKey | ''>('');
+  const paretoBy: ParetoKey =
+    (paretoWant && paretoOpen.some((l) => l.key === paretoWant) ? paretoWant : paretoOpen[0]?.key)
+    ?? PARETO_LEVELS[PARETO_LEVELS.length - 1].key;
+  const paretoAt = PARETO_LEVELS.find((l) => l.key === paretoBy)!;
+  const paretoDone = PARETO_LEVELS.filter((l) => picked[l.key]);
+  // A cross-filtered tally like the rest — so it ranks groupings WITHIN the
+  // chosen machine without this file doing any filtering of its own.
+  const pareto = useMemo(() => tally(forDim(paretoBy), paretoBy), [allRows, picked, period, paretoBy]);
+  const paretoTotal = pareto.reduce((n, d) => n + d.value, 0);
+  const paretoBlank = pareto.find((d) => d.label === BLANK)?.value ?? 0;
+  /** Drop ONE level's choice. Not "and everything under it": with the order
+   *  free there is no "under" — dropping the grouping while keeping the machine
+   *  and the cause is a coherent question, and the chart simply re-opens that
+   *  level to rank. */
+  const paretoDrop = (k: ParetoKey) => { setPicked((q) => ({ ...q, [k]: undefined })); setParetoWant(k); };
 
   if (!allRows.length) {
     return (
@@ -174,7 +276,12 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
               <button key={k} type="button" className="ffr-chip"
                       title="Remove this"
                       onClick={() => setPicked((p) => ({ ...p, [k]: undefined }))}>
-                {DIMS.find((d) => d.key === k)!.label}: {picked[k]} <span aria-hidden>×</span>
+                {/* The period dimension is named for what it currently HOLDS.
+                    A chip reading "Month: 2026-Q1" would be plainly wrong, and
+                    it is the one label on this page that moves. */}
+                {k === 'month'
+                  ? (period === 'year' ? 'Year' : period === 'quarter' ? 'Quarter' : 'Month')
+                  : DIMS.find((d) => d.key === k)!.label}: {picked[k]} <span aria-hidden>×</span>
               </button>
             ))}
             <button type="button" className="ffr-chip ffr-chip-clear" onClick={() => setPicked({})}>
@@ -229,8 +336,72 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
 
       <div style={{ height: 12 }} />
 
-      <SectionCard title="Reports raised, month by month">
-        <ColumnChart data={months} onPick={pick('month')} active={picked.month ?? null} />
+      <SectionCard title={`Reports raised, ${period === 'year' ? 'year by year'
+        : period === 'quarter' ? 'quarter by quarter' : 'month by month'}`}>
+        <div className="ffr-chart-bar">
+          <span className="muted">Read it</span>
+          {PERIODS.map((p) => (
+            <button key={p.key} type="button"
+                    className={`chip ${period === p.key ? 'chip-on' : ''}`}
+                    aria-pressed={period === p.key}
+                    onClick={() => {
+                      // THE CHOSEN PERIOD IS CLEARED WITH THE SCALE. "2026-03"
+                      // is not a quarter, so keeping it would leave a chip
+                      // filtering on a value no row can match — the page would
+                      // empty and nothing on screen would say why.
+                      setPicked((q) => ({ ...q, month: undefined }));
+                      setPeriod(p.key);
+                    }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <LineChart data={trend} onPick={pick('month')} active={picked.month ?? null} />
+      </SectionCard>
+
+      <div style={{ height: 12 }} />
+
+      <SectionCard title={`Pareto — ${paretoAt.of}`}>
+        {/* WHERE YOU ARE AND WHAT IS LEFT. The chosen levels read as the path;
+            the open ones are buttons, so the next question is picked rather
+            than marched to. A drill-down with no path shown is a chart that has
+            quietly changed what it is counting. */}
+        <div className="ffr-chart-bar">
+          {paretoDone.map((l) => (
+            <span key={l.key} className="ffr-crumb-step">
+              <button type="button" className="chip ffr-crumb-done"
+                      title={`Drop this and rank ${l.of} again`}
+                      onClick={() => paretoDrop(l.key)}>
+                {l.label}: {picked[l.key]} <span aria-hidden>×</span>
+              </button>
+              <span className="ffr-crumb-sep" aria-hidden>›</span>
+            </span>
+          ))}
+          {paretoOpen.length > 1 && <span className="muted">Rank</span>}
+          {paretoOpen.map((l) => (
+            <button key={l.key} type="button"
+                    className={`chip ${l.key === paretoBy ? 'chip-on' : ''}`}
+                    aria-pressed={l.key === paretoBy}
+                    onClick={() => setParetoWant(l.key)}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+        <div className="muted" style={{ marginBottom: 10 }}>
+          Bars are the count, the line is the running share of all {paretoTotal} report
+          {paretoTotal === 1 ? '' : 's'}, and the dashes mark 80%. Everything left of where
+          the line crosses accounts for four-fifths of them — that is the shortlist, not a
+          verdict.
+          {paretoOpen.length > 1
+            ? <> Click a bar to fix that {paretoAt.label.toLowerCase()} and rank what is left within it.</>
+            : <> Nothing is left to drill into; clicking a bar just narrows the page to it.</>}
+          {paretoBlank > 0 && (
+            <> <b>{paretoBlank}</b> of them are <b>{BLANK}</b>, and that is kept in rather
+            than dropped: a gap this size in the record is itself the finding.</>
+          )}
+        </div>
+        <ParetoChart data={pareto.slice(0, 14)} onPick={pick(paretoBy)}
+                     active={picked[paretoBy] ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />
