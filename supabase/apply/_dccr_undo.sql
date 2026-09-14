@@ -110,6 +110,74 @@ order by sort, at nulls first, ucn;
 
 
 -- ===========================================================================
+-- THE OVERWRITTEN ONES, IN FULL — run this on its own.
+--
+-- Asked, 2026-09-14, of a report reading 28,120 created / 23 overwritten / 0
+-- FFRs: "What are those 23 Entries?"
+--
+-- They are the reviews that EXISTED BEFORE the upload and were written over.
+-- The 28,120 are safe to delete; these 23 are the ones where something was
+-- lost, and this says what can still be known about each.
+--
+-- WHAT THEY SAID BEFORE IS NOT RECOVERABLE. `call_reviews` has no history
+-- table, and the audit log records THAT a review was saved — the UCN, who, and
+-- when — and never the answers. So nothing anywhere holds the old values.
+--
+-- WHAT THE AUDIT LOG DOES ANSWER is the question that decides what to do:
+-- did a PERSON ever review this call in the app? A row with an audit entry is
+-- human work that has been overwritten and has to be re-done or re-loaded. A
+-- row with none was itself put there by an earlier upload, and re-loading the
+-- correct file restores it with no one having to remember anything.
+--
+-- AND RE-LOADING ONLY FIXES THE ONES THE CORRECT FILE CONTAINS. If the good
+-- file has no line for a UCN below, that review keeps the wrong answers until
+-- somebody re-enters it. The last column says which.
+-- ===========================================================================
+-- with w as (
+--   select timestamptz '2026-09-14 00:00:00+05:30' as win_from,
+--          timestamptz '2026-09-15 00:00:00+05:30' as win_to
+-- )
+-- select r.ucn,
+--        r.call_number,
+--        to_char(r.created_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY') as "review existed since",
+--        r.risk_to_patient      as "risk (now)",
+--        r.warranty_failure     as "warranty (now)",
+--        r.frequent_failure     as "frequent (now)",
+--        r.complaint_grouping   as "grouping (now)",
+--        r.root_cause_keyword   as "root cause (now)",
+--        r.review2_by           as "review 2 by (now)",
+--        r.review3_by           as "review 3 by (now)",
+--        -- Did a PERSON review this in the app, ever? This is the column that
+--        -- decides whether real work was lost.
+--        coalesce(a.n, 0)       as "times saved by a person",
+--        a.who                  as "last saved by",
+--        to_char(a.last_at at time zone 'Asia/Kolkata', 'DD-Mon-YYYY HH24:MI') as "last saved at",
+--        case when coalesce(a.n, 0) > 0
+--             then 'HUMAN WORK OVERWRITTEN — re-load the correct file, or re-enter it'
+--             else 'came from an earlier upload — re-loading the correct file restores it'
+--        end as "what to do"
+--   from public.call_reviews r
+--   cross join w
+--   left join lateral (
+--     select count(*) as n,
+--            max(l.at) as last_at,
+--            (array_agg(l.actor order by l.at desc))[1] as who
+--       from public.audit_log l
+--      where l.target = r.ucn
+--        and l.action in ('dccr.review', 'dccr.review.autosave', 'dccr.review.bulk')
+--        -- BEFORE THIS ROW WAS OVERWRITTEN, not merely before the window.
+--        -- The window is a day wide, so a person who reviewed the call at
+--        -- 10am and an upload that ran at 3pm are both inside it — testing
+--        -- against win_from would miss exactly the human work this column
+--        -- exists to find. Caught by testing rather than by reading.
+--        and l.at < r.updated_at
+--   ) a on true
+--  where r.updated_at >= w.win_from and r.updated_at < w.win_to
+--    and r.created_at <  w.win_from
+--  order by coalesce(a.n, 0) desc, r.ucn;
+
+
+-- ===========================================================================
 -- THE DELETE. Commented out on purpose. Read the report above first.
 --
 -- ONLY THE ROWS THE UPLOAD CREATED. The `created_at` test is what keeps this

@@ -50,6 +50,36 @@ version, deletes all three.
 `field_failure_reports` (0049) and `ffr_history` (0174). That asymmetry is worth
 a decision: the DCCR is a quality record too.
 
+### "What are those 23 Entries?"
+
+The live report came back **28,120 created · 23 overwritten · 0 FFRs raised**.
+The 23 are the reviews that existed before the upload and were written over —
+the only ones where anything was lost, and the reason the delete must not touch
+them.
+
+`_dccr_undo.sql` gained a second query for exactly them. **What they said before
+is not recoverable**: `call_reviews` has no history table, and the audit log
+records THAT a review was saved (the UCN, who, when) and never the answers.
+
+But the audit log answers the question that decides what to do — **did a person
+ever review this call in the app?** A row with an audit entry is human work
+overwritten, to be re-loaded or re-entered; a row with none came from an earlier
+upload and re-loading the correct file restores it with nobody having to
+remember anything. And re-loading only fixes the UCNs the good file actually
+contains, which the query says per row.
+
+⚠️ **Testing found a real bug in that query, not just in the fixture.** The audit
+join first read `l.at < win_from`, and the window is a day wide — so a person
+who reviewed a call at 10am and an upload that ran at 3pm are both inside it, and
+the entry proving human work would have been missed. It tests `l.at <
+r.updated_at` now: before THIS ROW was overwritten, which does not depend on the
+window's granularity at all.
+
+Also learned while testing: `audit_log.at` and `call_reviews.updated_at` are both
+stamped by triggers (`audit_biu`, `call_reviews_stamp`) and cannot be set by an
+insert or update. That is right — an audit entry should not be backdatable — and
+it is why the fixture had to be built around them rather than against them.
+
 ### It shipped unable to run where it is run
 
 Reported immediately: `ERROR: 42601: syntax error at or near "\"` on line 44.
