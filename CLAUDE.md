@@ -431,6 +431,19 @@ on testing the old shape. **When a migration replaces a definition, move the
   `npm run check:ui` enforces all three now. It did not, while `rbac.ts` claimed
   it did — nothing read `PERM_TREE` at all. **A comment claiming a check exists
   is worse than no comment, because it is the reason nobody looks.**
+- **A BLANK CELL USED TO BE INDISTINGUISHABLE FROM AN ABSENT COLUMN, and they
+  mean opposite things.** A heading the file does NOT carry must leave its
+  column alone; a heading it DOES carry with an empty cell must EMPTY it. Both
+  produced a payload with no such key, so an upload could only ever ADD a value
+  and never REMOVE one — a correction at source did nothing. Reported
+  2026-09-14: ORION-G 2410 showed contract MC5521, which belongs to the CPX CARE
+  that shares that serial; the master was corrected and re-uploading it left
+  MC5521 in place (proved against Postgres before it was fixed). `blanksClear`
+  on an `UploadDef` sends the empty value instead, and is **opt-in per
+  register** — right where the file is the WHOLE ROW (the Product Database's
+  master export carries all 32 headings), wrong where a partial file's tool
+  emits every heading whether or not it means to fill it. A **stamped** column
+  is never blanked, nor a **required** one (that row is held back instead).
 - **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
   Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
   User Master directory, and the MRN two-tab flattening. Do not add a table to

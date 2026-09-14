@@ -257,6 +257,67 @@ eq('the same serial on two models is two machines', prod.rows.length, 2);
 eq('the same model+serial twice is one', prod.rows.filter((x) => x.item_name === 'VEGA').length, 1);
 eq('...and the last one wins', prod.rows.find((x) => x.item_name === 'VEGA')?.party_name, 'C');
 
+console.log('\n-- a heading the file CARRIES, left empty, clears its column --');
+{
+  // REPORTED 2026-09-14 with the source master attached: ORION-G 2410 showed
+  // contract MC5521. Two machines share serial 2410 — a CPX CARE
+  // (PRD-007-W-220-G) and an ORION-G (PRD-009) — and MC5521 is the CPX CARE's.
+  // The user corrected the master at source; re-uploading it changed NOTHING,
+  // because every contract cell on the ORION-G row is blank and a blank was
+  // never written. Proved against Postgres before it was fixed: the upsert left
+  // MC5521 exactly where it was.
+  //
+  // The fault was that TWO CASES WERE INDISTINGUISHABLE downstream and they
+  // mean opposite things — a heading the file does not carry (leave it alone)
+  // and a heading it carries with an empty cell (empty it). Both produced a
+  // payload with no such key, so a correction could only ever ADD a value and
+  // never REMOVE one.
+  //
+  // These are the two REAL rows, headings and values verbatim.
+  const CPX = {
+    'Item Code': 'PRD-007-W-220-G', 'Item Name': 'CPX CARE', 'Item Serial Number': '2410',
+    'Warranty Number': 'SA7147', 'Warranty End Date': '03-September-2023', 'Warranty Status': 'INACTIVE',
+    'Contract Number': 'MC5521', 'Contract End Date': '31-October-2026',
+    'Contract Type': 'CMC', 'Contract Status': 'ACTIVE',
+  };
+  const ORION = {
+    'Item Code': 'PRD-009', 'Item Name': 'ORION-G', 'Item Serial Number': '2410',
+    'Warranty Number': 'SA9612', 'Warranty End Date': '03-July-2027', 'Warranty Status': 'ACTIVE',
+    'Contract Number': '', 'Contract End Date': '', 'Contract Type': '', 'Contract Status': 'INACTIVE',
+  };
+  const out = shapeUpload(def('products'), [CPX, ORION]);
+  eq('the shared serial is still TWO machines', out.rows.length, 2);
+  const cpx = out.rows.find((r) => r.item_name === 'CPX CARE') as Record<string, unknown>;
+  const org = out.rows.find((r) => r.item_name === 'ORION-G') as Record<string, unknown>;
+  // THE ONE THAT WAS BROKEN: an empty contract is now SENT as empty, so the
+  // upsert clears what is there instead of leaving it.
+  eq('the empty contract is sent as empty, not omitted',
+    ['contract_number', 'contract_type', 'contract_end'].map((k) => k in org), [true, true, true]);
+  eq('...and its values are the empty ones',
+    [org.contract_number, org.contract_type, org.contract_end], ['', '', null]);
+  // ...WITHOUT TOUCHING THE MACHINE IT BELONGS TO.
+  eq('the CPX CARE keeps its own contract', [cpx.contract_number, cpx.contract_type], ['MC5521', 'CMC']);
+  // ...and the warranty that IS on the row is untouched either way.
+  eq('each keeps its own warranty', [org.warranty_number, cpx.warranty_number], ['SA9612', 'SA7147']);
+
+  // THE SAFETY PROPERTY, and the whole reason this is opt-in per register: a
+  // heading the file does NOT carry must still leave its column ALONE. A
+  // partial file must not wipe what it does not talk about.
+  const partial = shapeUpload(def('products'),
+    [{ 'Item Name': 'ORION-G', 'Item Serial Number': '2410', 'Warranty Number': 'SA9612' }])
+    .rows[0] as Record<string, unknown>;
+  eq('a heading the file does not carry leaves the column alone',
+    Object.keys(partial).filter((k) => k.startsWith('contract')), []);
+
+  // A STAMPED COLUMN IS NEVER BLANKED — the register is the authority on it.
+  // Field Calls stamp call_type and are NOT a blanks-clear register, so this
+  // checks the guard rather than the flag.
+  eq('a register without the flag is unchanged',
+    'contract_number' in (shapeUpload(def('parties'), [{ 'Party Name': 'X', 'City': '' }]).rows[0] ?? {}), false);
+  eq('...and only the registers that opted in carry it',
+    UPLOADS.filter((u) => u.blanksClear).map((u) => u.key), ['products']);
+}
+
 console.log('\n-- the Product Database keeps every column of its export --');
 // A REAL ROW of the user's own v2_ProdMaster sample, headings and values
 // verbatim (2026-09-14). The ask was "Product Database has to retain all

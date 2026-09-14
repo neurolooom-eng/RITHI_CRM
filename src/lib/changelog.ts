@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.259',
+    date: '2026-09-14',
+    title: 'Correcting a master upload now actually removes the old value',
+    changes: [
+      'REPORTED: ORION-G 2410 showed contract MC5521 \u2014 which belongs to the CPX CARE that shares that serial number. The master was corrected at source, and re-uploading it changed nothing.',
+      'The reason: a blank cell was never sent to the database at all, so an upload could only ever ADD a value, never REMOVE one. A column you emptied in your file stayed exactly as it was.',
+      'A blank now means blank. If the Product Database file CARRIES a column and the cell is empty, that column is emptied \u2014 so re-uploading your corrected master fixes every affected machine at once, not just the one you noticed.',
+      'A column your file does NOT include is still left alone, so a partial upload cannot wipe anything it does not mention.',
+      'Serial numbers are shared by different products more often than you would think \u2014 2410 is both a CPX CARE and an ORION-G \u2014 and the two are kept apart by product AND serial together. That part was already right: each keeps its own warranty.',
+    ],
+  },
+  {
     version: '0.9.258',
     date: '2026-09-14',
     title: 'Lists longer than a thousand were being cut off silently',
