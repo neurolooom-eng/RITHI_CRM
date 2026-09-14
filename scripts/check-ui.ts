@@ -5008,6 +5008,58 @@ console.log('\n-- the Product Database and the Product Master are two registers 
     // only on an EMPTY permission set.
     eq('...by merging, never overwriting', /jsonb_agg\(distinct v\)/.test(mig), true);
   }
+
+  // -------------------------------------------------------------------------
+  // A COLUMN THE IMPORTER FILLS THAT NO SCREEN CAN READ IS NOT RETAINED.
+  //
+  // That is not a hypothetical: `Item Code` was a COLUMN ON THE PRODUCT
+  // DATABASE SCREEN and always came back blank, because nothing ever put it
+  // there — the importer had no `item_code` and `productRowToSheet` did not
+  // emit the heading. The user saw it as "discrepancies in Product Master".
+  // 0194 gave the twenty-one remaining export columns a column each; this is
+  // what stops the twenty-second from landing in the database and nowhere else.
+  // -------------------------------------------------------------------------
+  {
+    const db = UPLOADS.find((u) => u.key === 'products')!;
+    const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+    const body = sbSrc.slice(sbSrc.indexOf('export function productRowToSheet'));
+    const mapper = body.slice(0, body.indexOf('\n}'));
+    // `g('col')` takes the column as it is; `c('col', 'Heading')` prefers the
+    // column and falls back to the file's own word for it.
+    const emitted = new Set([...mapper.matchAll(/[gc]\('([a-z_]+)'/g)].map((m) => m[1]));
+    const orphan = db.cols.map((col) => col.to).filter((k) => !emitted.has(k));
+    eq('every column the Product Database importer fills is readable on a screen', orphan, []);
+    // THE FALLBACK ORDER IS THE POINT, and it is what lets this ship before the
+    // migration reaches the live project: the column is what this system holds
+    // and may have been corrected on screen, `extra` is what the FILE said.
+    eq('...column first, the file\u2019s own word second',
+      /v === undefined \|\| v === null \|\| v === '' \? \(ex\[heading\] \?\? ''\) : v/.test(mapper), true);
+
+    // ...AND THE SCREEN OFFERS THEM. The eleven default columns are what it
+    // OPENS with; the picker and the export must reach all 32, or "retain all
+    // columns" means retained where nobody can get at them.
+    const scr = readFileSync('src/modules/ProductMaster.tsx', 'utf8');
+    const listed = scr.slice(scr.indexOf('const ALL_FIELDS'), scr.indexOf('].map((k) =>'));
+    eq('the screen offers all 32 columns of the export',
+      (listed.match(/'/g) ?? []).length / 2, 32);
+    eq('...to the Columns picker', /allFields=\{ALL_FIELDS\}/.test(scr), true);
+    // The export carries ALL of them, not the eleven on screen: getting every
+    // column OUT of the register is the concrete meaning of retaining them.
+    eq('...and the export carries all of them, not the ones on screen',
+      /csvExport\('product-database\.csv', ALL_FIELDS,/.test(scr), true);
+    // THE COVER STATUSES ARE THE FILE'S WORDS, NOT THE COMPUTED STATE, and the
+    // `_keyed` suffix is what keeps the two from being mistaken for one
+    // another. This project already draws that distinction on the cover
+    // registers; losing it here would mean a register filtering on a value it
+    // computed while reporting the one the sheet typed.
+    eq('the export\u2019s own cover statuses keep their own names',
+      db.cols.some((c) => c.to === 'warranty_status_keyed')
+      && db.cols.some((c) => c.to === 'contract_status_keyed'), true);
+    // ...and the machine's own status no longer BORROWS one of them when a
+    // file has no `Item Status` of its own. OGP is not INACTIVE.
+    eq('...and the machine\u2019s status never borrows the warranty\u2019s',
+      db.cols.find((c) => c.to === 'item_status')?.from.includes('warranty status'), false);
+  }
   eq('the module list still reads the install base table',
     /path: '\/product-database'/.test(rbacSrc), true);
 

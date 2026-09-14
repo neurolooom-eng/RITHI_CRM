@@ -173,15 +173,53 @@ function isoDate(v: unknown): string | null {
 
 // Map a snake_case products row to the sheet-header shape the call forms expect
 // (productToCallPrefill reads these keys).
+//
+// ALL 32 HEADINGS OF THE EXPORT (the user, 2026-09-14: "Product Database has to
+// retain all Columns"), because retaining a value that no screen can show is
+// not retaining it. 0194 gave the twenty-one that had none a column of their
+// own; until then they were reachable only out of `extra`, under the file's
+// spelling — which is why `Item Code` was a column on the Product Database
+// screen and always came back BLANK: nothing ever put it there.
+//
+// COLUMN FIRST, `extra` SECOND, and the order is the whole point. The column is
+// what this system holds and may have been corrected on screen; `extra` is what
+// the FILE said, kept verbatim. Falling back to it means a project that has not
+// run 0194 yet still shows everything it showed yesterday, so this file does
+// not have to wait for that migration to reach the live database.
 export function productRowToSheet(r: Record<string, unknown>): Record<string, unknown> {
   const ex = (r.extra as Record<string, unknown>) ?? {};
   const g = (k: string) => r[k] ?? '';
+  // The column if it has anything, else the file's own word for it.
+  const c = (k: string, heading: string) => {
+    const v = r[k];
+    return v === undefined || v === null || v === '' ? (ex[heading] ?? '') : v;
+  };
   return {
-    'Party Name': g('party_name'), 'City': ex['City'] ?? '', 'State': ex['State'] ?? '',
+    'Party Name': g('party_name'),
+    'City': c('city', 'City'), 'State': c('state', 'State'), 'Address': c('address', 'Address'),
     'Item Name': g('item_name'), 'Item Serial Number': g('serial_number'), 'Item Status': g('item_status'),
+    'Item Code': c('item_code', 'Item Code'),
+    'Item Details Long': c('item_details_long', 'Item Details Long'),
+    'Item Details': c('item_details', 'Item Details'),
+    'Sold Through': c('sold_through', 'Sold Through'),
+    'PO No.': c('po_no', 'PO No.'), 'PO Date': c('po_date', 'PO Date'),
     'Warranty Number': g('warranty_number'), 'Warranty Start Date': g('warranty_start'), 'Warranty End Date': g('warranty_end'),
     'Contract Number': g('contract_number'), 'Contract Start Date': g('contract_start'), 'Contract End Date': g('contract_end'),
-    'Contract Type': g('contract_type'), 'Service Engineer': ex['Service Engineer'] ?? '',
+    'Contract Type': g('contract_type'),
+    // THE EXPORT'S OWN ACTIVE/INACTIVE, not the state computed from the dates
+    // above. Named apart in the database (`*_keyed`) for exactly that reason,
+    // and carried here under the heading the file uses.
+    'Warranty Status': c('warranty_status_keyed', 'Warranty Status'),
+    'Contract Status': c('contract_status_keyed', 'Contract Status'),
+    'PM Visits': c('pm_visits', 'PM Visits'),
+    'Other Details': c('other_details', 'Other Details'),
+    'Service Engineer': c('service_engineer', 'Service Engineer'),
+    'ProdFinal': c('prod_final', 'ProdFinal'),
+    'Installation Completed?': c('installation_completed', 'Installation Completed?'),
+    'INST Call': c('inst_call', 'INST Call'), 'INST Date': c('inst_date', 'INST Date'),
+    'INST Call Status': c('inst_call_status', 'INST Call Status'),
+    'Report': c('report', 'Report'),
+    'Associated Accessory': c('associated_accessory', 'Associated Accessory'),
   };
 }
 

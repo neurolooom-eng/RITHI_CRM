@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.256',
+    date: '2026-09-14',
+    title: 'The Product Database keeps every column of its file',
+    changes: [
+      'All 32 columns of the ProdMaster export are now held as columns of their own \u2014 Item Code, the address, the PO number and date, PM Visits, the installation fields, the associated accessory and the rest. Until now eleven of them had a column and the other twenty-one were stored in one block of text, which meant they were in the database but could not be searched, sorted or reported on.',
+      'Nothing needs re-uploading. Everything already loaded is read back out of what was kept, so the machines you have carry their new columns straight away.',
+      'Item Code was already a column on the screen and was always blank \u2014 nothing ever filled it. It fills now, and it is what links a machine to its line on the Product Master.',
+      'The Columns button (\u2699) offers all 32, and Export CSV gives you every one of them rather than only the ones on screen.',
+      'Warranty Status and Contract Status are kept as the FILE wrote them, separately from the Active / About to expire / Inactive this system works out from the dates \u2014 where the two disagree, that is worth seeing rather than hiding.',
+      'A cell we cannot read \u2014 an INST Date that says \u201cTo Check\u201d, a PM Visits that says \u201cthree\u201d \u2014 leaves the column empty but is kept exactly as the file wrote it, instead of being dropped. An unreadable value is the one you most need to look at.',
+    ],
+  },
+  {
     version: '0.9.255',
     date: '2026-09-14',
     title: 'Product Database and Product Master are now two registers',

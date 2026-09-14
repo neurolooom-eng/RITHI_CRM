@@ -235,6 +235,13 @@ typed into a form that reads it.
 - **Party Master** `/parties` — customers and dealers.
 - **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
+  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
+  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
+  screen when it opens; **⚙ Columns** offers the other twenty-one, and
+  **Export CSV** gives you every one of them whether or not it is on screen.
+  > **Warranty Status** and **Contract Status** here are the words the FILE
+  > used. They are not the Active / About to expire / Inactive the system works
+  > out from the dates, and the two can disagree — which is worth seeing.
 - **Product Master** `/product-master` — the list of **product lines**, one row
   per product code: type, category, short form, and whether it is still sold.
   Not the machines — those are the Product Database.
