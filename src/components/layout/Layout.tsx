@@ -188,6 +188,8 @@ export const NAV: NavGroup[] = [
       { to: '/exports/consumption', label: 'Consumption Report', icon: '🔩', perm: 'mod:/exports/consumption' },
       { to: '/exports/kpi', label: 'KPI Export', icon: '📈', perm: 'mod:/exports/kpi' },
       { to: '/exports/unused', label: 'Not Consumed Against this Call', icon: '🚩', perm: 'mod:/exports/unused' },
+      { to: '/exports/calls', label: 'Call Report', icon: '📞', perm: 'mod:/exports/calls' },
+      { to: '/exports/feedback', label: 'Customer Feedback Report', icon: '⭐', perm: 'mod:/exports/feedback' },
     ],
   },
   {

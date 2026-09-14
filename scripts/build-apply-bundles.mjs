@@ -410,7 +410,11 @@ const MODULES = {
       // names and for the same reason.
       '0160_product_party_names.sql',
       // Drops the duplicate index 0160 added. AFTER it, necessarily.
-      '0161_drop_duplicate_party_index.sql'],
+      '0161_drop_duplicate_party_index.sql',
+      // The Call and Customer Feedback reports, beside the consumption one and
+      // for the same reason: they read the `calls` view, `reports` and
+      // `feedback`, and this module runs after everything they need exists.
+      '0191_call_and_feedback_reports.sql'],
   },
   audit: {
     title: 'Audit Log',

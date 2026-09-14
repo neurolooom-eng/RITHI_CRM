@@ -559,3 +559,31 @@
 .ffr-crumb-sep { color: var(--text-muted); font-size: 13px; }
 .ffr-chart-bar .chip[disabled] { opacity: .45; cursor: not-allowed; }
 .ffr-crumb-done { background: var(--surface-alt); }
+
+/* --------------------------------------------------------------------------
+   THE PARETO AND ITS NUMBERS, SIDE BY SIDE. A Pareto is READ off the line and
+   ACTED on from the numbers; hovering fourteen bars to collect them is not
+   reading. Stacks below ~1000px, where two columns would leave the table
+   unreadable — which is the thing this was added to fix.
+   -------------------------------------------------------------------------- */
+.ffr-pareto-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ffr-pareto-chart { min-width: 0; }
+.ffr-pareto-table { min-width: 0; overflow-x: auto; }
+@media (max-width: 1000px) { .ffr-pareto-split { grid-template-columns: 1fr; } }
+
+.ffr-mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ffr-mini th, .ffr-mini td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.ffr-mini th { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+.ffr-mini .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ffr-mini .muted { color: var(--text-muted); }
+.ffr-mini tbody tr { cursor: pointer; }
+.ffr-mini tbody tr:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+/* The rows inside the 80% carry the weight, matching the solid bars on the
+   chart beside them — same rule, drawn twice, never a second colour. */
+.ffr-mini tbody tr.is-vital td { color: var(--text); font-weight: 600; }
+/* Chosen = INVERTED against the page, the project's standing rule. */
+.ffr-mini tbody tr.is-active td { background: var(--text); color: var(--surface); }
+.ffr-mini tfoot td { padding-top: 6px; font-weight: 700; border-bottom: 0; }
+.ffr-pareto-foot { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.ffr-pareto-foot .muted { font-size: 11.5px; line-height: 1.45; flex: 1; }

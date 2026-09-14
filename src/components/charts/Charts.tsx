@@ -1,3 +1,4 @@
+import { useState, type PointerEvent as ReactPointerEvent } from 'react';
 import './charts.css';
 
 // ===========================================================================
@@ -49,10 +50,73 @@ function markProps(d: Datum, { onPick, active }: Pickable) {
 const TONE_VARS = ['--primary', '--info', '--warning', '--success', '--danger', '--accent'];
 const toneAt = (i: number) => `var(${TONE_VARS[i % TONE_VARS.length]})`;
 
-export function BarChart({ data, unit = '', onPick, active }: { data: Datum[]; unit?: string } & Pickable) {
+/** How wide the label column is, remembered per chart. A width that suits root
+ *  causes ("SOLENOID BLOCK ASSEMBLY") does not suit covers ("WGP"), so each
+ *  chart keeps its own under its own key rather than one setting for all. */
+const BAR_LABEL_KEY = 'rithi.charts.barLabel';
+const readLabelWidth = (id: string, fallback: number): number => {
+  try {
+    const v = Number(JSON.parse(localStorage.getItem(`${BAR_LABEL_KEY}.${id}`) ?? 'null'));
+    return Number.isFinite(v) && v >= 60 ? v : fallback;
+  } catch { return fallback; }   // a remembered width is not worth an error
+};
+
+export function BarChart({
+  data, unit = '', onPick, active, labelWidth = 190, widthKey,
+}: { data: Datum[]; unit?: string;
+     /** Starting width of the label column, in px. */
+     labelWidth?: number;
+     /** Remember the reader's own width under this name. Without it the chart
+      *  is still draggable, it just forgets. */
+     widthKey?: string } & Pickable) {
   const max = Math.max(1, ...data.map((d) => d.value));
+  // ---------------------------------------------------------------------------
+  // LABEL, THEN TOTAL, THEN BAR — and the label column is DRAGGABLE.
+  //
+  // The user, 2026-09-14, of the Root Cause chart: "not able to read these -
+  // Make those Columns Adjustable , Move the Total next to the RootCause , the
+  // Bar can be the last Column."
+  //
+  // The order matters more than it looks. The two things a reader is comparing
+  // are the NAME and the NUMBER, and they had a bar between them — so reading
+  // "SOLENOID BLOCK AS… 3" meant crossing the whole width twice. Put together
+  // they read as a list, and the bar becomes what it actually is: the shape of
+  // the list, not a column to read across.
+  //
+  // AND THE NAMES ARE AS LONG AS SOMEBODY TYPED THEM. A fixed 130px truncated
+  // every root cause this register holds. A wider fixed column would only move
+  // the cut, because the right width depends on the chart — so it is the
+  // reader's to set, and remembered.
+  // ---------------------------------------------------------------------------
+  const [lw, setLw] = useState(() => (widthKey ? readLabelWidth(widthKey, labelWidth) : labelWidth));
+  const drag = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();                     // never let the handle pick a bar
+    const host = e.currentTarget.closest('.ch-bars') as HTMLElement | null;
+    if (!host) return;
+    const move = (ev: PointerEvent) => {
+      const r = host.getBoundingClientRect();
+      // Capped so the bar cannot be dragged out of existence: a chart with no
+      // bar left is a table, and the reader still has to see the shape.
+      setLw(Math.min(Math.max(ev.clientX - r.left, 60), Math.max(120, r.width - 160)));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      setLw((w) => {
+        if (widthKey) {
+          try { localStorage.setItem(`${BAR_LABEL_KEY}.${widthKey}`, JSON.stringify(w)); }
+          catch { /* as above */ }
+        }
+        return w;
+      });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
   return (
-    <div className="ch-bars">
+    <div className="ch-bars" style={{ ['--ch-label-w' as string]: `${lw}px` }}>
       {data.length === 0 && <div className="ch-empty">No data</div>}
       {data.map((d, i) => {
       const m = markProps(d, { onPick, active });
@@ -61,19 +125,28 @@ export function BarChart({ data, unit = '', onPick, active }: { data: Datum[]; u
           <span className="ch-bar-label" title={d.label}>
             {d.label}
           </span>
+          <span className="ch-bar-value">
+            {d.value}
+            {unit}
+          </span>
           <div className="ch-bar-track">
             <div
               className="ch-bar-fill"
               style={{ width: `${(d.value / max) * 100}%`, background: d.tone ?? toneAt(i) }}
             />
           </div>
-          <span className="ch-bar-value">
-            {d.value}
-            {unit}
-          </span>
         </div>
       );
       })}
+      {/* THE HANDLE SITS OVER THE COLUMN EDGE, once for the whole chart rather
+          than once per row — dragging is about the chart's layout, not about
+          any one bar. It is a real separator so a keyboard reader is told it
+          is there, and it must not fall through to the bar underneath. */}
+      {data.length > 0 && (
+        <div className="ch-bar-grip" role="separator" aria-orientation="vertical"
+             aria-label="Drag to widen the label column" title="Drag to widen the label column"
+             onPointerDown={drag} onClick={(e) => e.stopPropagation()} />
+      )}
     </div>
   );
 }
@@ -204,7 +277,12 @@ function niceMax(max: number): number {
   return Math.ceil(max / (pow / 2)) * (pow / 2);
 }
 
-export function LineChart({ data, unit = '', onPick, active }: { data: Datum[]; unit?: string } & Pickable) {
+export function LineChart({
+  data, unit = '', onPick, active, showLabels = false,
+}: { data: Datum[]; unit?: string;
+     /** Print each point's value above it. OFF by default: on a dense series
+      *  the numbers collide and read as noise, so it is the reader's call. */
+     showLabels?: boolean } & Pickable) {
   if (!data.length) return <div className="ch-empty">No data</div>;
   const top = niceMax(Math.max(1, ...data.map((d) => d.value)));
   const w = VB_W - PAD.l - PAD.r;
@@ -259,6 +337,20 @@ export function LineChart({ data, unit = '', onPick, active }: { data: Datum[]; 
               {labelled(i) && (
                 <text x={x(i)} y={VB_H - 8} textAnchor="middle"
                       className={`ch-axis${on ? ' is-active' : ''}`}>{d.label}</text>
+              )}
+              {/* THE VALUE, above its own point. Nudged INWARD at the two ends
+                  so the first and last numbers stay inside the drawing instead
+                  of being clipped by the viewBox — the one place a centred
+                  label cannot be centred. */}
+              {showLabels && (
+                <text
+                  x={x(i)}
+                  y={y(d.value) - 8}
+                  textAnchor={i === 0 ? 'start' : i === data.length - 1 ? 'end' : 'middle'}
+                  className={`ch-line-tag${on ? ' is-active' : ''}`}
+                >
+                  {d.value}{unit}
+                </text>
               )}
             </g>
           );

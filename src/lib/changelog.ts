@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.252',
+    version: '0.9.254',
     date: '2026-09-14',
     title: 'The 2016 history can be loaded from Bulk Uploads',
     changes: [
@@ -24,7 +24,7 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
-    version: '0.9.251',
+    version: '0.9.253',
     date: '2026-09-14',
     title: 'Product History \u2014 one machine, and everything that ever happened to it',
     changes: [
@@ -35,6 +35,31 @@ export const CHANGELOG: ChangeEntry[] = [
       'The 2016 history is READ-ONLY from here. Nothing in the application can change it, and nothing should \u2014 those records cannot be rebuilt.',
       'Until the archive is connected the screen shows the live registers only, and says so rather than looking like a machine with no past. The key is entered once per device under Settings \u2192 Archive (Product History).',
       'A machine that exists only in the archive \u2014 sold in 2016, retired years ago, never carried across \u2014 can still be found and read. Its row says it is archive-only, so nobody wonders why they cannot raise a call against it.',
+    ],
+  },
+  {
+    version: '0.9.252',
+    date: '2026-09-14',
+    title: 'Call Report and Customer Feedback Report',
+    changes: [
+      'Two new reports under Reports, working exactly like the Consumption Report: narrow it, choose the columns, take the file as Excel or CSV.',
+      'Call Report \u2014 ONE ROW PER CALL, not per visit, so a call attended four times appears once. Its latest visit, what was fitted, and the whole call record as optional columns.',
+      'Customer Feedback Report \u2014 one row per feedback with every question as its own column. A blank on a question means it was not asked of that kind of visit, and the file says so: installation visits and PM visits are asked different things.',
+      'The feedback report filters on the feedback\u2019s own date, never the day it was loaded \u2014 on a migrated row those are up to two years apart.',
+      'Both filter IN THE DATABASE, so the count on the button is the whole answer and not just the first page, and both files carry a second sheet saying what was filtered, what one row means and when it was taken.',
+      'Each is its own permission, so a role can be given one report without the others.',
+    ],
+  },
+  {
+    version: '0.9.251',
+    date: '2026-09-14',
+    title: 'The Insights charts can be read',
+    changes: [
+      'On every horizontal bar chart the total now sits next to the name and the bar comes last \u2014 the two things you are comparing were separated by the full width of the bar.',
+      'The name column is DRAGGABLE. Long root causes were cut off at a fixed width; drag the edge to whatever suits, and each chart remembers your setting.',
+      'The names are no longer shortened before they get to the chart either, so widening the column actually shows you more.',
+      'The trend line can print its values \u2014 a Data labels button turns them on and off. Off to begin with, because over twenty-odd months the numbers crowd each other.',
+      'The Pareto now shows its numbers beside the chart: reports, share, running total and cumulative %, with the row you are on highlighted. It says how each figure was worked out, and there is a Download that carries the same working in a second sheet \u2014 including what it did NOT draw, since the percentages are over everything.',
     ],
   },
   {

@@ -2252,7 +2252,10 @@ console.log('\n-- Reports: access one report at a time --');
   const hub = readFileSync('src/modules/ReportsHub.tsx', 'utf8');
   const paths = new Set(MODULES.map((m) => m.path));
 
-  for (const k of ['consumption', 'kpi', 'unused']) {
+  // EVERY report, not the three that were here first. A report added to the hub
+  // without its own module key is one nobody can be given or refused
+  // separately — the whole point of the per-report keys.
+  for (const k of ['consumption', 'kpi', 'unused', 'calls', 'feedback']) {
     eq(`/exports/${k} is a module of its own`, paths.has(`/exports/${k}`), true);
     eq(`...and the menu asks for that key, not the parent`,
       new RegExp(`to: '/exports/${k}'[^}]*perm: 'mod:/exports/${k}'`).test(lay), true);
@@ -2266,6 +2269,59 @@ console.log('\n-- Reports: access one report at a time --');
   eq('the tab strip renders only the permitted reports', /\{allowed\.map\(\(r\) => \(/.test(hub), true);
   eq('...and a link to a report the role may not open is redirected',
     /if \(!asked \|\| !permitted\) navigate/.test(hub), true);
+
+  // ONE SCREEN, THREE REPORTS. "Follow the Same concept of Consumption Report"
+  // is four properties — the filter runs in the DATABASE, the mandatory columns
+  // are shown ticked and locked, the column ORDER is the view's, and the file
+  // carries its own scope — and three copies of that would be three chances to
+  // lose one of them quietly.
+  {
+    const rb = readFileSync('src/modules/ReportBuilder.tsx', 'utf8');
+    for (const m of ['CallReport', 'FeedbackReport', 'ConsumptionReport']) {
+      const src = readFileSync(`src/modules/${m}.tsx`, 'utf8');
+      eq(`${m} is built by the shared builder`, /<ReportBuilder spec=\{spec\} \/>/.test(src), true);
+    }
+    // The filter must reach the database, or it narrows only what was already
+    // fetched — and these registers page, so it would report on the first
+    // thousand rows and call it the answer.
+    eq('the count comes from the database, not the page', /spec\.count\(filter\)/.test(rb), true);
+    eq('...and the rows are paged until the register is exhausted',
+      /if \(rows\.length < page\) return out;/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+    // Shown, ticked, DISABLED — a column absent from a picker reads as an
+    // oversight; one visibly locked reads as a rule.
+    eq('the mandatory columns are shown and locked',
+      /\{spec\.mandatory\.map\(\(c\) => \([\s\S]{0,260}checked disabled readOnly/.test(rb), true);
+    // A file whose columns move between downloads is one nobody can build a
+    // formula against.
+    eq('the column order is the view\'s, not the click order',
+      /\.\.\.CALL_REPORT_MANDATORY,\s*\n\s*\.\.\.CALL_REPORT_OPTIONAL\.filter/.test(
+        readFileSync('src/lib/reports.ts', 'utf8')), true);
+    // The scope travels WITH the file: these exist to be sent to people who
+    // were not there when they were made.
+    eq('the workbook carries its own scope',
+      /name: 'Filter'/.test(rb) && /Item: 'Filter applied', Value: spec\.describe\(filter\)/.test(rb)
+      && /Item: 'One row is', Value: spec\.rowMeaning/.test(rb), true);
+    // Switching report must not carry a filter across — a date typed for calls
+    // silently applied to feedback is a wrong file that looks right.
+    eq('...and switching report starts from a clean filter',
+      /setFilter\(spec\.emptyFilter\); setPicked\(new Set\(\)\)/.test(rb), true);
+
+    // THE FEEDBACK REPORT'S DATE IS THE FEEDBACK'S OWN (0190), never the day
+    // the row was loaded — on a migrated row the two differ by up to two years.
+    const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+    const fq = sb.split('function feedbackReportQuery')[1]?.split('export async function countFeedbackReport')[0] ?? '';
+    eq('the feedback report filters on the feedback\'s own date',
+      /q\.gte\('Date', f\.from\)/.test(fq) && /Loaded On/.test(code(fq)) === false, true);
+    // A blank on a question means it was not ASKED of that kind of visit. A
+    // reader sorting a spreadsheet cannot tell that from a missing answer
+    // unless the file says so.
+    eq('...and the file says a blank is not a missing answer',
+      /A BLANK IS NOT A MISSING ANSWER/.test(readFileSync('src/modules/FeedbackReport.tsx', 'utf8')), true);
+    // One row per CALL, never per visit — the thing a reader most often
+    // assumes wrongly about a call report.
+    eq('the call report says one row is one call',
+      /One row per CALL — not per visit/.test(readFileSync('src/modules/CallReport.tsx', 'utf8')), true);
+  }
 }
 
 console.log('\n-- Part Master upload: the category is normalised, not rejected --');
@@ -4904,10 +4960,40 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 }
 
 
+console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
+{
+  // THE SUPABASE SQL EDITOR IS NOT psql. Everything in `supabase/apply/`, and
+  // the two consolidated files at the repository root, is handed to the user as
+  // a link and pasted into that editor — where `\\set`, `\\echo` and `\\i` are
+  // not commands but a syntax error on the line they appear.
+  //
+  // Written after doing it: `_dccr_undo.sql` shipped with ten of them and came
+  // back as `ERROR: 42601: syntax error at or near "\\"` on line 44. Every
+  // other file in that folder was already plain SQL, so the convention existed
+  // and was simply not written down anywhere a check could see.
+  const files = [
+    ...readdirSync('supabase/apply').filter((f) => f.endsWith('.sql')).map((f) => `supabase/apply/${f}`),
+    ...readdirSync('.').filter((f) => /^(Spare|HandStock)_\w+\.sql$/.test(f)),
+  ];
+  eq('there are hand-run SQL files to check', files.length > 0, true);
+  const bad: string[] = [];
+  for (const f of files) {
+    const lines = readFileSync(f, 'utf8').split('\n');
+    lines.forEach((l, i) => {
+      // A meta-command is a backslash at the START of a line. A backslash
+      // inside a string or a regex (E'\\n', '~ ^\\d{4}$') is ordinary SQL and
+      // must not be flagged, which is most of what this pattern is for.
+      if (/^\s*\\[a-z]/.test(l)) bad.push(`${f}:${i + 1}  ${l.trim().slice(0, 40)}`);
+    });
+  }
+  eq('no hand-run SQL file uses a psql meta-command', bad, []);
+}
+
 console.log('\n-- the Insights tab can be interrogated --');
 {
   const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
   const charts = readFileSync('src/components/charts/Charts.tsx', 'utf8');
+  const css = readFileSync('src/components/charts/charts.css', 'utf8');
 
   // EVERY DIMENSION IS BOTH FILTERABLE AND CLICKABLE. A dimension listed in
   // DIMS but never wired to a chart is a chip nobody can raise; a chart wired
@@ -5035,6 +5121,90 @@ console.log('\n-- the Insights tab can be interrogated --');
   eq('the count of shown vs total is stated', /\{rows\.length\} of \{allRows\.length\}/.test(ins), true);
   eq('there is a clear-all', ins.includes('Clear all'), true);
 
+  // -------------------------------------------------------------------------
+  // THE HORIZONTAL BAR: LABEL, TOTAL, BAR — and an adjustable label column.
+  //
+  // "not able to read these - Make those Columns Adjustable , Move the Total
+  // next to the RootCause , the Bar can be the last Column. Follow the same
+  // Practice for all Horizontal Bar Charts in Insights."
+  //
+  // The two things being compared are the NAME and the NUMBER, and they had a
+  // bar between them — so reading "SOLENOID BLOCK AS… 3" meant crossing the
+  // whole width twice.
+  // -------------------------------------------------------------------------
+  eq('the bar row reads label, total, bar',
+    /grid-template-columns: var\(--ch-label-w, 190px\) 52px 1fr/.test(css), true);
+  // Order in the MARKUP too, not only in the grid: a row that is drawn in one
+  // order and read by a screen reader in another is only half fixed.
+  {
+    const row = charts.split('className={`ch-bar-row')[1]?.split('</div>')[0] ?? '';
+    eq('...in that order in the markup as well',
+      row.indexOf('ch-bar-label') < row.indexOf('ch-bar-value')
+      && row.indexOf('ch-bar-value') < row.indexOf('ch-bar-track'), true);
+  }
+  eq('the label column is draggable', /className="ch-bar-grip"/.test(charts)
+    && /cursor: col-resize/.test(css), true);
+  // Capped, or the bar can be dragged out of existence and the chart becomes a
+  // table — the reader still has to see the shape.
+  eq('...within limits that keep a bar on screen',
+    /Math\.min\(Math\.max\(ev\.clientX - r\.left, 60\), Math\.max\(120, r\.width - 160\)\)/.test(charts), true);
+  eq('...and remembered per chart', /localStorage\.setItem\(`\$\{BAR_LABEL_KEY\}\.\$\{widthKey\}`/.test(charts), true);
+  // The handle must not fall through and pick the bar underneath it.
+  eq('...without the handle picking a bar', /e\.stopPropagation\(\);\s*\/\/ never let the handle pick a bar/.test(charts), true);
+  // EVERY horizontal bar chart on Insights, which is what "the same practice"
+  // means — and none of them may pre-truncate the label, or widening the
+  // column would reveal a name that was already cut before it arrived.
+  eq('every Insights bar chart takes a remembered width',
+    (ins.match(/<BarChart /g) ?? []).length, (ins.match(/widthKey="/g) ?? []).length);
+  eq('...and none of them truncates the label first', /label\.slice\(0, 46\)/.test(code(ins)), false);
+
+  // -------------------------------------------------------------------------
+  // DATA LABELS ON THE TREND, and a toggle.
+  // -------------------------------------------------------------------------
+  eq('the trend can print its values', /showLabels\?: boolean/.test(charts)
+    && /showLabels && \(/.test(charts), true);
+  // OFF by default: over twenty-odd periods the numbers collide, and which it
+  // is depends on how many are on screen — so it is the reader's call.
+  eq('...off until asked for', /showLabels = false/.test(charts), true);
+  eq('...with a toggle that says which way it is',
+    /aria-pressed=\{trendLabels\}/.test(ins) && /setTrendLabels\(\(v\) => !v\)/.test(ins), true);
+  // The first and last labels must stay inside the drawing.
+  eq('...and the end labels are nudged inward rather than clipped',
+    /textAnchor=\{i === 0 \? 'start' : i === data\.length - 1 \? 'end' : 'middle'\}/.test(charts), true);
+
+  // -------------------------------------------------------------------------
+  // THE PARETO'S NUMBERS, BESIDE THE CHART AND DOWNLOADABLE.
+  //
+  // "Give me the Pareto Data right next to the Chart -- Provide a Provision to
+  // download the Data - Provide Clean Split Up and how that data point / % was
+  // arrived at."
+  // -------------------------------------------------------------------------
+  eq('the Pareto shows its numbers beside the chart', /ffr-pareto-split/.test(ins)
+    && /<table className="ffr-mini">/.test(ins), true);
+  // ONE ARRAY, DRAWN TWICE. A table built from its own pass over the same rows
+  // is a second implementation of the same arithmetic, and the two only have to
+  // disagree once to be worthless.
+  eq('...from the same array the chart draws',
+    /<ParetoChart data=\{paretoRows\.map\(\(r\) => \(\{ label: r\.label, value: r\.value \}\)\)\}/.test(ins), true);
+  eq('...showing the split-up per row',
+    /Reports<\/th>/.test(ins) && /Share<\/th>/.test(ins) && /Cum\. %<\/th>/.test(ins), true);
+  // HOW each figure was arrived at, not just what it is.
+  eq('...and how each figure was arrived at',
+    /Share = reports ÷ \{paretoTotal\}/.test(ins)
+    && /Cum\. % = the running total ÷ \{paretoTotal\}/.test(ins), true);
+  eq('the numbers can be taken away', /onClick=\{downloadPareto\}/.test(ins)
+    && /xlsxDownload\(`ffr-pareto-/.test(ins), true);
+  // The file carries the working, to the same standard as the Objective
+  // evidence pack: a number somebody may act on has to be checkable without
+  // this screen.
+  eq('...with the arithmetic beside it in the file',
+    /'Share worked out'/.test(ins) && /'Cumulative worked out'/.test(ins)
+    && /name: 'How this was worked out'/.test(ins), true);
+  // The percentages are over EVERYTHING, not over the fourteen drawn — so the
+  // file has to say what it left out or the reader will assume otherwise.
+  eq('...and says what it did not draw',
+    /Item: 'Not shown'/.test(ins), true);
+
   // Interaction is OPTIONAL on the shared charts, so every other dashboard
   // renders exactly as before.
   for (const c of ['BarChart', 'ColumnChart', 'DonutChart']) {
@@ -5043,7 +5213,6 @@ console.log('\n-- the Insights tab can be interrogated --');
   eq('a pickable mark is a real button', charts.includes("role: 'button'"), true);
   eq('...reachable by keyboard', charts.includes("e.key === 'Enter'"), true);
   // Selection is CONTRAST, not a tint (the project's rule).
-  const css = readFileSync('src/components/charts/charts.css', 'utf8');
   eq('the chosen mark inverts against the page',
     /\.ch-pick\.is-active\s*\{[^}]*background:\s*var\(--text\)[^}]*color:\s*var\(--surface\)/.test(css), true);
 }

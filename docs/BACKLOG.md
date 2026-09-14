@@ -176,6 +176,143 @@ file can be skipped, not a reason to skip it: without it every history lookup
 scans all three call tables. This is 0129 one table along — an expression index
 (`lower(serial)`) that PostgREST cannot express and therefore never uses.
 
+## 2026-09-14 — A wrong file in the DCCR register
+
+Asked: *"I uploaded a Wrong file in DCCR -- How to delete it?"*
+
+`supabase/apply/_dccr_undo.sql` — **diagnostic first, delete commented out.** The
+obvious answer (delete the rows) is right for some of them and destroys real work
+on the others, and **`call_reviews` has no history table** to undo that from.
+
+The DCCR upload is an UPSERT on the UC Number, so one file did two things:
+
+| | what happened | what to do |
+| --- | --- | --- |
+| `created_at` **inside** the window | the review did not exist before | safe to delete |
+| `created_at` **before**, `updated_at` inside | an existing review was **overwritten** | **do not delete** — load the correct file, which writes them back |
+
+Deleting an overwritten row throws the review away as well, and the previous
+answers are not recoverable from anywhere.
+
+**And the third thing, which nobody expects:** a review whose answers make *Any
+Potential Effect* YES **raises a Field Failure Report** by database trigger
+(0167). A wrong file can therefore have created FFRs, and deleting the reviews
+does not remove them. Section 3 lists them, identified by the rule they record on
+themselves (`extra->>'raised_by_rule'`). They are quality records and the file
+does not offer to delete them — an FFR that should not stand is *cancelled* on
+the register, which keeps the record and marks it.
+
+**Tested against a simulated bad upload** rather than reasoned about: one
+pre-existing review overwritten, two inserted, one FFR raised. The diagnostic
+separated all three; the delete removed exactly the two inserted rows and left
+the overwritten one and the FFR alone. Mutation-tested — dropping the
+`created_at` guard and keeping only `updated_at`, which is the obvious wrong
+version, deletes all three.
+
+⚠️ **`call_reviews` has no history and no delete block**, unlike
+`field_failure_reports` (0049) and `ffr_history` (0174). That asymmetry is worth
+a decision: the DCCR is a quality record too.
+
+### "What are those 23 Entries?"
+
+The live report came back **28,120 created · 23 overwritten · 0 FFRs raised**.
+The 23 are the reviews that existed before the upload and were written over —
+the only ones where anything was lost, and the reason the delete must not touch
+them.
+
+`_dccr_undo.sql` gained a second query for exactly them. **What they said before
+is not recoverable**: `call_reviews` has no history table, and the audit log
+records THAT a review was saved (the UCN, who, when) and never the answers.
+
+But the audit log answers the question that decides what to do — **did a person
+ever review this call in the app?** A row with an audit entry is human work
+overwritten, to be re-loaded or re-entered; a row with none came from an earlier
+upload and re-loading the correct file restores it with nobody having to
+remember anything. And re-loading only fixes the UCNs the good file actually
+contains, which the query says per row.
+
+⚠️ **Testing found a real bug in that query, not just in the fixture.** The audit
+join first read `l.at < win_from`, and the window is a day wide — so a person
+who reviewed a call at 10am and an upload that ran at 3pm are both inside it, and
+the entry proving human work would have been missed. It tests `l.at <
+r.updated_at` now: before THIS ROW was overwritten, which does not depend on the
+window's granularity at all.
+
+Also learned while testing: `audit_log.at` and `call_reviews.updated_at` are both
+stamped by triggers (`audit_biu`, `call_reviews_stamp`) and cannot be set by an
+insert or update. That is right — an audit entry should not be backdatable — and
+it is why the fixture had to be built around them rather than against them.
+
+### It shipped unable to run where it is run
+
+Reported immediately: `ERROR: 42601: syntax error at or near "\"` on line 44.
+The first version used psql's `\set` and `\echo`. **The Supabase SQL Editor is
+not psql** — and that editor is where every file in `supabase/apply/` is
+actually pasted, because it is the link the user is handed.
+
+Every other file in that folder was already plain SQL, so the convention existed
+and was simply not written down anywhere a check could see it. It is now: a
+`check:ui` guard refuses a psql meta-command in any hand-run SQL file
+(`supabase/apply/*.sql` plus the two consolidated files at the repository root).
+It matches a backslash at the START of a line only, so the regex backslashes
+inside ordinary SQL — `or_no ~ '^OR-\d\d/\d\d/'` in `_status.sql` — are not
+flagged; that false positive was checked for rather than hoped against.
+
+Rewritten as ONE statement returning a summary and all three sections in a single
+grid, which is what that editor shows.
+
+## 2026-09-14 — Call Report and Customer Feedback Report
+
+Asked for: *"Add Call Report , Customer Feedback Report -- Follow the Same
+concept of Consumption Report."*
+
+**"The same concept" is four properties, not a layout**, and each is a thing that
+has to stay true on every report rather than on the one somebody remembered:
+
+1. the filter runs in the **database** — every one of these registers pages, so a
+   browser-side filter reports on the first thousand rows and calls it the answer;
+2. the mandatory columns are shown **ticked and locked**, not hidden — a column
+   absent from a picker reads as an oversight, one visibly locked reads as a rule;
+3. the column order is the **view's**, not the click order — a file whose columns
+   move between downloads is one nobody can build a formula against;
+4. the file carries its **own scope** on a second sheet.
+
+So `ReportBuilder` holds all four and **the consumption screen was converted onto
+it too**. Three copies would have been three chances to lose one quietly, and the
+likeliest casualty is (1), because fetching and then narrowing *looks* the same
+until the register passes a thousand rows.
+
+`0191_call_and_feedback_reports.sql` adds both views, `security_invoker` on both
+— a report view running as its OWNER hands every call in the company to anybody
+who can open the screen, and this project has shipped that fault twice.
+
+**Call Report is ONE ROW PER CALL**, never per visit: a call with four visits is
+one call, and a report repeating it four times would have every count in it
+wrong. The latest visit is the latest ENTRY, matching `sync_call_last_visit()`.
+
+**The feedback questions are the export's own headings**, measured against the
+user's file rather than invented:
+
+| asked of | questions | rows |
+| --- | --- | --- |
+| every visit | Operating Feasibility, General Support | 24,748 |
+| a PM or field visit | four more | 23,759 |
+| an installation | four different ones | 1,009 |
+
+So **a blank is not a missing answer** — it means the question was not put — and
+the file says so, because a reader sorting a spreadsheet cannot tell otherwise.
+`Month`/`Year`/`Quater`/`Half-Yearly` are deliberately not carried: they are the
+date restated, and a period column that can disagree with the date beside it is a
+liability in a file somebody sorts.
+
+Each report is its own permission key inheriting from `mod:/exports`, so a role
+can be given one without the others.
+
+### To run on the live project
+
+[`performance.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/performance.sql)
+— `_status.sql` row 146 answers NO until it is in.
+
 ## 2026-09-14 — The feedback date, and a Pareto that drills
 
 ### Every uploaded feedback read as the day it was uploaded
