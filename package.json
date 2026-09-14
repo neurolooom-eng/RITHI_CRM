@@ -27,7 +27,8 @@
     "check:picklist": "node scripts/check-picklist.mjs",
     "check:status": "node scripts/check-status.mjs",
     "check:paging": "esbuild scripts/check-paging.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-paging.mjs --log-level=error && node node_modules/.cache/check-paging.mjs",
-    "inventory": "esbuild scripts/module-inventory.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/inventory.mjs --log-level=error && node node_modules/.cache/inventory.mjs"
+    "inventory": "esbuild scripts/module-inventory.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/inventory.mjs --log-level=error && node node_modules/.cache/inventory.mjs",
+    "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

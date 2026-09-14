@@ -41,7 +41,14 @@ const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\
 // ---- route -> component -> file -------------------------------------------
 const app = code(read('src/App.tsx'));
 const routeToComp = new Map<string, string>();
-for (const m of app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{<(\w+)/g)) routeToComp.set(m[1], m[2]);
+for (const m of app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{<(\w+)/g)) {
+  // `Navigate` IS NOT A SCREEN. It matched this pattern first, so `/users` was
+  // resolved to it, had no file, and was reported as unresolvable — while the
+  // redirect map right below held the answer. A component name that is really
+  // a control-flow element has to be excluded here or the redirect branch can
+  // never run.
+  if (m[2] !== 'Navigate') routeToComp.set(m[1], m[2]);
+}
 const redirects = new Map<string, string>();
 for (const m of app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{<Navigate\s+to="([^"]+)"/g)) redirects.set(m[1], m[2]);
 
@@ -49,16 +56,41 @@ const files = readdirSync('src/modules').filter((f) => f.endsWith('.tsx'));
 const compToFile = new Map<string, string>();
 for (const f of files) {
   const src = read(`src/modules/${f}`);
-  for (const m of src.matchAll(/export function (\w+)\s*\(/g)) {
+  // BOTH SHAPES. The first version looked only for `export function X(` and
+  // reported the Warranty and Contract registers as unresolvable — they are
+  // `export const X = () => <CoverRegister kind=... />`. Eight screens came
+  // back as findings and every one of them was this script being wrong, which
+  // is worse than no inventory: a gap that is not there sends somebody to
+  // cover something already covered.
+  for (const m of src.matchAll(/export (?:function|const) (\w+)\s*[=(]/g)) {
     if (!compToFile.has(m[1])) compToFile.set(m[1], `src/modules/${f}`);
   }
+}
+
+/** The component serving a path, following the two indirections App.tsx uses.
+ *  A screen is no less covered for being reached through a redirect or a
+ *  parameterised route, and reporting it as unresolved says the opposite. */
+function componentFor(path: string, seen = new Set<string>()): { comp: string; via: string } {
+  if (seen.has(path)) return { comp: '', via: '' };
+  seen.add(path);
+  const direct = routeToComp.get(path);
+  if (direct) return { comp: direct, via: '' };
+  const to = redirects.get(path);
+  if (to) { const r = componentFor(to, seen); return { comp: r.comp, via: `redirects to \`${to}\`` }; }
+  // `/exports/:tab` serves `/exports/consumption` and the rest.
+  for (const [pat, comp] of routeToComp) {
+    if (!pat.includes(':')) continue;
+    const re = new RegExp(`^${pat.replace(/:[^/]+/g, '[^/]+')}$`);
+    if (re.test(path)) return { comp, via: `served by \`${pat}\`` };
+  }
+  return { comp: '', via: '' };
 }
 
 // ---- menu group per route --------------------------------------------------
 const lay = code(read('src/components/layout/Layout.tsx'));
 const nav = lay.slice(lay.indexOf('title:'), lay.indexOf('\n];', lay.indexOf('title:')));
 const groupOf = new Map<string, string>();
-for (const g of nav.matchAll(/title: '([^']+)',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/g)) {
+for (const g of nav.matchAll(/title: '([^']+)',[^[]*?items: \[([\s\S]*?)\n\s*\],/g)) {
   for (const i of g[2].matchAll(/\{ to: '([^']+)'/g)) groupOf.set(i[1], g[1]);
 }
 
@@ -82,11 +114,11 @@ P('came from, because some are authoritative and one is a floor.');
 P();
 
 let noFile = 0; let noGroup = 0; let noTables = 0;
-const rows: { path: string; label: string; group: string; file: string; acts: string[];
+const rows: { path: string; label: string; group: string; file: string; via: string; acts: string[];
               gates: string[]; buttons: string[]; tables: string[]; admin: boolean }[] = [];
 
 for (const mod of MODULES) {
-  const comp = routeToComp.get(mod.path) ?? '';
+  const { comp, via } = componentFor(mod.path);
   const file = compToFile.get(comp) ?? '';
   const src = file ? code(read(file)) : '';
   if (!file) noFile++;
@@ -97,7 +129,7 @@ for (const mod of MODULES) {
     .map((m) => m[1].trim()).filter((b) => b && !/^\{/.test(b)))].slice(0, 14);
   const tables = [...new Set([...src.matchAll(/\.from\('([a-z_]+)'\)/g)].map((m) => m[1]))].sort();
   if (!tables.length) noTables++;
-  rows.push({ path: mod.path, label: mod.label, group, file, admin: !!mod.admin,
+  rows.push({ path: mod.path, label: mod.label, group, file, via, admin: !!mod.admin,
               acts: actionsOf.get(mod.path) ?? [], gates, buttons, tables });
 }
 
@@ -117,6 +149,13 @@ P('follow. The column is a **floor**, and saying so is the point: an inventory')
 P('that guessed would be read as a census.');
 P();
 
+// A PAGE CAN LEGITIMATELY HAVE NO MENU ENTRY, and calling that a gap would be
+// the same false finding as the eight this script produced on its first run.
+// `/exports` is the case: it is the PARENT key that grants every report, and
+// the menu lists the reports themselves rather than the hub.
+const childrenOnMenu = (p: string) =>
+  [...groupOf.keys()].filter((k) => k !== p && k.startsWith(`${p}/`));
+
 for (const g of [...new Set(rows.map((r) => r.group || 'Not on the menu'))]) {
   P(`## ${g}`);
   P();
@@ -124,7 +163,13 @@ for (const g of [...new Set(rows.map((r) => r.group || 'Not on the menu'))]) {
     P(`### ${r.label} \`${r.path}\``);
     P();
     P(`- **Opened by** \`${moduleAction(r.path)}\`${r.admin ? ' · administrator-only screen' : ''}`);
-    P(`- **Source** ${r.file ? `\`${r.file}\`` : '— not resolved from `App.tsx`'}`);
+    if (!r.group) {
+      const kids = childrenOnMenu(r.path);
+      P(kids.length
+        ? `- **Not on the menu itself** — it is the parent key, and the menu lists its ${kids.length} reports instead. Granting it grants all of them.`
+        : `- **Not on the menu** — reachable by URL or from another screen only.`);
+    }
+    P(`- **Source** ${r.file ? `\`${r.file}\`` : '— **not resolved from `App.tsx`**'}${r.via ? ` (${r.via})` : ''}`);
     if (r.acts.length) {
       P(`- **Actions an administrator can grant** (from the permission matrix):`);
       r.acts.forEach((a) => P(`  - \`${a}\` — ${actionLabel.get(a) ?? '*(no label in ACTIONS)*'}`));

@@ -5547,10 +5547,18 @@ console.log('\n-- the Roles & Permissions matrix follows the MENU, and every scr
   const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
   const nav = lay.slice(lay.indexOf('title:'), lay.indexOf('\n];', lay.indexOf('title:')));
   const menu: { title: string; items: { to: string; label: string }[] }[] = [];
-  for (const m of nav.matchAll(/title: '([^']+)',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/g)) {
+  for (const m of nav.matchAll(/title: '([^']+)',[^[]*?items: \[([\s\S]*?)\n\s*\],/g)) {
     menu.push({ title: m[1], items: [...m[2].matchAll(/\{ to: '([^']+)', label: '([^']+)'/g)].map((x) => ({ to: x[1], label: x[2] })) });
   }
-  eq('the menu parsed', menu.length > 5, true);
+  // EVERY GROUP, not "more than five". The first version trusted a floor and a
+  // whole group went missing without a word: `Knowledge Base` carries
+  // `flash: true` between its title and its items, the pattern required them
+  // adjacent, and the group was skipped — so Service Manuals and the two
+  // Knowledge Base pages were compared against nothing and PASSED. A parse that
+  // silently drops input makes every assertion built on it vacuous, which is a
+  // worse failure than the one this block was written to catch.
+  eq('every menu group parsed, not just most of them',
+    menu.length, (nav.match(/^\s*title: '/gm) ?? []).length);
 
   const headerOf = new Map<string, string>();      // matrix: path -> header
   const labelOf = new Map<string, string>();       // matrix: path -> label

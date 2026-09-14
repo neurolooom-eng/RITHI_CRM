@@ -13,8 +13,8 @@ came from, because some are authoritative and one is a floor.
 | | |
 | --- | --- |
 | Screens in `MODULES` | **54** |
-| …with a component this script could resolve | 46 |
-| …on the menu | 51 |
+| …with a component this script could resolve | 54 |
+| …on the menu | 52 |
 | …naming a table in their own source | 1 |
 | Redirects (not screens of their own) | 4 |
 
@@ -231,7 +231,7 @@ that guessed would be read as a census.
   - `masters.edit` — Edit masters
 - **Buttons** “⭳ Export CSV”
 
-## Not on the menu
+## Knowledge Base
 
 ### Service Manuals `/service-manuals`
 
@@ -240,18 +240,6 @@ that guessed would be read as a census.
 - **Actions an administrator can grant** (from the permission matrix):
   - `docs.manage` — Add / edit service manuals
 - **Buttons** “＋ Add document”, “Cancel”
-
-### Reports `/exports`
-
-- **Opened by** `mod:/exports`
-- **Source** `src/modules/ReportsHub.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
-
-### User Access `/users`
-
-- **Opened by** `mod:/users` · administrator-only screen
-- **Source** — not resolved from `App.tsx`
-- **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ## Documents
 
@@ -268,15 +256,18 @@ that guessed would be read as a census.
 ### Warranty Register `/warranties`
 
 - **Opened by** `mod:/warranties`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/CoverRegister.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `cover.edit` — Edit sales / warranties / contracts
+- **Buttons** “Remove”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
 
 ### Contract Register `/contracts`
 
 - **Opened by** `mod:/contracts`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/CoverRegister.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Also tested in the screen** (not offered under this page in the matrix): `cover.edit`
+- **Buttons** “Remove”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
 
 ### Ownership Transfer `/ownership-transfer`
 
@@ -435,36 +426,54 @@ that guessed would be read as a census.
   - `stock.transfer` — Transfer hand-stock between engineers
 - **Buttons** “＋ Add part”, “Cancel”, “＋ New Transfer”, “⭳ Export CSV”
 
+## Not on the menu
+
+### Reports `/exports`
+
+- **Opened by** `mod:/exports`
+- **Not on the menu itself** — it is the parent key, and the menu lists its 5 reports instead. Granting it grants all of them.
+- **Source** `src/modules/ReportsHub.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+
+### User Access `/users`
+
+- **Opened by** `mod:/users` · administrator-only screen
+- **Not on the menu** — reachable by URL or from another screen only.
+- **Source** `src/modules/UserMasterView.tsx` (redirects to `/user-master`)
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Also tested in the screen** (not offered under this page in the matrix): `users.manage`
+- **Buttons** “Cancel”, “✎ Edit”, “+ New User”, “⭳ Export CSV”, “Done”
+
 ## Reports
 
 ### Reports — Consumption Report `/exports/consumption`
 
 - **Opened by** `mod:/exports/consumption`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### Reports — KPI Export `/exports/kpi`
 
 - **Opened by** `mod:/exports/kpi`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### Reports — Not Consumed Against this Call `/exports/unused`
 
 - **Opened by** `mod:/exports/unused`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### Reports — Call Report `/exports/calls`
 
 - **Opened by** `mod:/exports/calls`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ### Reports — Customer Feedback Report `/exports/feedback`
 
 - **Opened by** `mod:/exports/feedback`
-- **Source** — not resolved from `App.tsx`
+- **Source** `src/modules/ReportsHub.tsx` (served by `/exports/:tab`)
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 
 ## Indoor Service
