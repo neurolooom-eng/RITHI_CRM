@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.246',
+    date: '2026-09-14',
+    title: 'Feedback loads, the FFR count works itself out, and the register has a year',
+    changes: [
+      'The feedback upload stopping at row 24,093 with \u201cYour role does not have permission\u201d is fixed. 24,092 rows had gone in and then one repeated a call that was already there \u2014 correcting a row needs a different permission from adding one, and nobody had it. Whoever may file a feedback may now correct one.',
+      'The Stock Transfer Register had exactly the same fault waiting. It would have stopped the same way on the first re-load; it will not now. The quantities were never affected \u2014 those are on the lines, which are added and never rewritten.',
+      '\u201cNo. of Field failures registered in FFR\u201d on the Objective page now works itself out: Re-Calculate fills it, and the figure can be opened like the others to see the reports behind it.',
+      'It counts REPORTS, not rows. One report can cover several machines, so the evidence sheet has more lines than the figure \u2014 the sheet says so on itself rather than leaving you to wonder.',
+      'A month with no field failures reads 0, not blank. Blank means nobody has measured it; nought means nothing happened.',
+      'The Field Failure Register has a YEAR, set to this year when you open it. It narrows the register, the table and the Insights tab together, so the three cannot disagree \u2014 and if the year you pick holds nothing, the screen says so instead of looking empty.',
+    ],
+  },
+  {
     version: '0.9.245',
     date: '2026-09-14',
     title: 'Customer Feedback can be loaded',

@@ -38,6 +38,10 @@ import './fieldcalls.css';
 
 type Row = Record<string, unknown> & { id: string };
 
+// "All years" reads as a year until you try to parse it, so it is a named
+// constant rather than a bare string repeated in three places.
+const ALL_YEARS = 'All years';
+
 const DATE_KEYS = new Set(['ffr_date', 'crn_date', 'installation_date', 'call_solved_at']);
 
 export function FieldFailureReport() {
@@ -94,13 +98,44 @@ export function FieldFailureReport() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loc.state]);
 
+  // ---------------------------------------------------------------------------
+  // THE YEAR. The user's ask, 2026-09-14: "Add Year Filter - Default it to the
+  // Current Year."
+  //
+  // A year is a REPORTING PERIOD, not an ad-hoc search, so it is the one filter
+  // that also narrows Insights — the question "how did we do in 2026" is a real
+  // one and the answer moves with the year by design. The search box and the
+  // status chips still do NOT reach Insights: an aggregate that shifts while
+  // somebody types is answering a different question from the one on screen.
+  //
+  // BY THE FFR DATE, the date on the report — the same date the Objective
+  // register counts by (0142), so the two agree. Not created_at: a 2025 report
+  // typed up in January is a 2025 failure.
+  const ffrYear = (r: Row) => String(r.ffr_date ?? '').slice(0, 4);
+  const thisYear = String(new Date().getFullYear());
+  const [year, setYear] = useState(thisYear);
+
+  // Every year the register actually holds, newest first, with the current one
+  // always offered even when it holds nothing yet — otherwise the default would
+  // not be selectable on an empty year and the control would look broken.
+  const years = useMemo(() => {
+    const seen = new Set(rows.map(ffrYear).filter((y) => /^\d{4}$/.test(y)));
+    seen.add(thisYear);
+    return [...seen].sort().reverse();
+  }, [rows, thisYear]);
+
+  const inYear = useMemo(
+    () => (year === ALL_YEARS ? rows : rows.filter((r) => ffrYear(r) === year)),
+    [rows, year],
+  );
+
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return rows.filter((r) =>
+    return inYear.filter((r) =>
       (!status || String(r.ffr_status ?? '') === status)
       && (!needle || ['ffr_no', 'ucn', 'customer_name', 'product_name', 'product_serial', 'problem_reported']
         .some((k) => String(r[k] ?? '').toLowerCase().includes(needle))));
-  }, [rows, q, status]);
+  }, [inYear, q, status]);
 
   // A UCN carries its call's colour wherever it appears — the standing rule.
   useCallStates(visible.map((r) => String(r.ucn ?? '')).filter(Boolean));
@@ -216,7 +251,7 @@ export function FieldFailureReport() {
         title="Field Failure Register"
         subtitle="Raised automatically when a call is answered YES for Any Potential Effect in the Daily Call Review. The format is the Field Failure Register sheet; the report is R-SER-03 Rev 02."
         icon="🧪"
-        count={tab === 'insights' ? rows.length : visible.length}
+        count={tab === 'insights' ? inYear.length : visible.length}
         countMore={false}
         onRefresh={() => void load()}
         refreshing={busy}
@@ -257,12 +292,38 @@ export function FieldFailureReport() {
         </div>
       )}
 
+      {/* A DEFAULT THAT LANDS ON AN EMPTY YEAR LOOKS LIKE A BROKEN REGISTER.
+          This page already learned that lesson once (the access banner above):
+          "there is nothing" and "there is nothing HERE" look identical and mean
+          different things. So say which, and offer the way out. */}
+      {!busy && !inYear.length && rows.length > 0 && year !== ALL_YEARS && (
+        <div className="sheet-banner sheet-banner-info">
+          <span>
+            No reports dated <b>{year}</b>. The register holds <b>{rows.length}</b> in other years.
+            {' '}
+            <button className="btn btn-sm" onClick={() => setYear(ALL_YEARS)}>Show all years</button>
+          </span>
+        </div>
+      )}
+
+      {/* THE YEAR SITS BESIDE THE TABS, not inside one of them, because it
+          narrows BOTH — a period chosen on the register that silently did not
+          apply to Insights would make the two disagree with no way to see why. */}
       <div className="stage-chips hs-tabs">
+        <label className="cr-year">
+          <span className="muted">Year</span>
+          <SelectPicker
+            value={year}
+            onChange={setYear}
+            options={[...years, ALL_YEARS]}
+            className="cr-year-pick"
+          />
+        </label>
         <button className={`chip ${tab === 'insights' ? 'chip-on' : ''}`} onClick={() => setTab('insights')}>
           📈 Insights
         </button>
         <button className={`chip ${tab === 'register' ? 'chip-on' : ''}`} onClick={() => setTab('register')}>
-          🧪 Register <b>{rows.length}</b>
+          🧪 Register <b>{inYear.length}</b>
         </button>
         {tab === 'register' && (
           <>
@@ -274,10 +335,12 @@ export function FieldFailureReport() {
       </div>
 
       {tab === 'insights' ? (
-        // OVER EVERY ROW LOADED, not the filtered set: an aggregate that moves
-        // when somebody types in a search box is a different question from the
-        // one the page appears to be answering.
-        <FieldFailureInsights rows={rows} />
+        // OVER EVERY ROW IN THE CHOSEN YEAR, and no further: an aggregate that
+        // moves when somebody types in a search box is a different question
+        // from the one the page appears to be answering, so the search and the
+        // status chips stop here. The YEAR does reach it — that is a reporting
+        // period, and it is shown beside the tabs so it is never invisible.
+        <FieldFailureInsights rows={inYear} />
       ) : view === 'desk' ? (
         <FieldFailureDesk
           rows={visible}

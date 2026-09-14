@@ -371,6 +371,19 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Verify an upsert target against a database, not by reading the SQL.**
   `npm run check:upserts -- "<psql args>"` rejects partial indexes, expression
   indexes and views. That class shipped six times by inspection alone.
+- **GIVING A TABLE A CONFLICT TARGET CHANGES WHICH POLICY THE IMPORTER NEEDS.**
+  An upsert that finds a collision stops being an INSERT and becomes an UPDATE,
+  so the table needs an **UPDATE policy** — and a table that has only ever been
+  inserted into usually has not got one. `feedback` had a read and an insert
+  from 0001, narrowed to rights by 0008, and no third; the moment 0186 gave it
+  a key the upload ran to row 24,092 and stopped with *"Your role does not have
+  permission for this action"*. It fails at the ONE moment an upsert earns its
+  keep — the re-load. `check:upserts` asks both questions now ("can PostgREST
+  infer the target?" AND "may the caller write the row it infers?"), and found
+  `stock_transfers` carrying the same hole unreported. Copy the audience from
+  the INSERT policy VERBATIM so nobody gains reach; say in the migration what
+  the UPDATE does and does not allow, because on a stock or quality record that
+  is the whole argument.
 - **`IF NOT EXISTS` GUARDS A NAME, NEVER A DEFINITION** — it makes a migration
   re-runnable, it does NOT make it corrective. `add column if not exists x ...
   generated always as (<new expr>)` is a silent no-op when the column exists:
