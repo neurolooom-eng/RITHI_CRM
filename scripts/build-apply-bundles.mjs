@@ -491,7 +491,10 @@ const MODULES = {
       // THE CATALOGUE OF PRODUCT LINES — the new Product Master (0193). Here
       // rather than with `products`, because it is a MASTER: a list somebody
       // maintains, not a register the work writes to.
-      '0193_product_master_lines.sql'],
+      '0193_product_master_lines.sql',
+      // Every column of the v2_ProdMaster export, read back out of `extra`.
+      // AFTER 0193 only for tidiness; it touches a different table.
+      '0194_product_database_all_columns.sql'],
   },
   reports: {
     title: 'Reports',

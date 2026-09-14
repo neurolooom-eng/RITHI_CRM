@@ -225,17 +225,29 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
       if (ignored.has(h)) return;
       const cols = bind.get(h);
       if (cols) {
-        let usedBy = 0;
+        let storedBy = 0;
         cols.forEach((col) => {
           const raw = String(v ?? '').trim();
           if (col.when && raw && !col.when(raw)) return;   // not this column's kind of value
-          usedBy += 1;
           const val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
           // Never let a blank cell overwrite a stamped constant.
-          if (val !== null && val !== '') out[col.to] = val;
+          if (val !== null && val !== '') { out[col.to] = val; storedBy += 1; }
         });
-        // Claimed by a column that refused it — keep it rather than lose it.
-        if (!usedBy && def.extraInto) {
+        // NOTHING KEPT IT — so `extraInto` does, exactly as if no column had
+        // claimed the heading. Two ways to land here and both need it:
+        //
+        //   a column REFUSED the value (`col.when` — not its kind), and
+        //   a TYPED column could not READ it: `15/13/24` is not a date,
+        //   `two` is not an integer, and `coerce` answers null for both.
+        //
+        // The second used to be dropped silently, which was backwards: an
+        // unreadable cell is the one somebody most needs to SEE, and it was the
+        // only one the row did not keep. Found while giving the Product
+        // Database its 21 remaining columns (0194) — the moment `PO Date`
+        // stopped being loose text and became a date, a malformed PO date
+        // would have vanished on the next upload having been safe in `extra`
+        // for a year. A blank cell is still nothing and stays nothing.
+        if (!storedBy && def.extraInto) {
           const t = String(v ?? '').trim();
           if (t) extra[h.trim()] = t;
         }
@@ -939,19 +951,56 @@ export const UPLOADS: UploadDef[] = [
   // lines below, which is a different thing entirely.
   { key: 'products', label: 'Product Database', group: 'Masters', table: 'products', extraInto: 'extra',
     conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
-    note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
+    note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. ALL 32 COLUMNS of the v2_ProdMaster export land in columns of their own (0194) — Item Code, the address, the PO, PM Visits, the installation fields and the rest — so they can be searched, sorted and reported on rather than sitting in a blob.',
     cols: [
       // `Item Serial Number` is what the AppSheet export calls it.
       { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial', 'product serial number'], required: true },
       { to: 'item_name', from: ['item name', 'product name', 'product', 'model'], required: true },
       TEXT('party_name', 'party name', 'customer'),
-      TEXT('item_status', 'item status', 'warranty status', 'contract status'),
+      // NO FALLBACK ONTO THE COVER STATUSES ANY MORE. Until 0194 this field
+      // read `warranty status`/`contract status` when the file had no `Item
+      // Status`, because they were the only status columns that existed. They
+      // have their own columns now, and borrowing one would file a warranty's
+      // INACTIVE as the MACHINE's status — in the sample the machine's own
+      // status is OGP, which is a different vocabulary entirely.
+      TEXT('item_status', 'item status'),
       TEXT('warranty_number', 'warranty number'),
       DATE('warranty_start', 'warranty start date', 'warranty start'),
       DATE('warranty_end', 'warranty end date', 'warranty end'),
       TEXT('contract_number', 'contract number'), TEXT('contract_type', 'contract type'),
       DATE('contract_start', 'contract start date', 'contract start'),
       DATE('contract_end', 'contract end date', 'contract end'),
+      // ---- THE OTHER TWENTY-ONE (0194). They were never lost — `extraInto`
+      // kept every one of them — but a value in a jsonb blob cannot be
+      // grouped, filtered or shown as a column, which is the same fault 0148
+      // fixed for the Part Master.
+      //
+      // THE CODE IS THE ONE THAT DOES WORK rather than display: it is how a
+      // machine reaches its line on the new Product Master (0193).
+      TEXT('item_code', 'item code'),
+      TEXT('item_details_long', 'item details long'),
+      TEXT('item_details', 'item details'),
+      TEXT('sold_through', 'sold through'),
+      TEXT('state'), TEXT('city'), TEXT('address'),
+      TEXT('po_no', 'po no.', 'po no', 'po number'),
+      DATE('po_date', 'po date'),
+      // THE EXPORT'S OWN WORDS, not the state this system computes from the
+      // dates. Named `_keyed` so the two can never be mistaken for each other;
+      // where they disagree, the disagreement is the thing worth seeing.
+      TEXT('warranty_status_keyed', 'warranty status'),
+      TEXT('contract_status_keyed', 'contract status'),
+      // Counted, so a blank stays NULL: "nobody said" and "none" are different
+      // answers about a service schedule.
+      { to: 'pm_visits', from: ['pm visits'], type: 'int' },
+      TEXT('other_details', 'other details'),
+      TEXT('service_engineer', 'service engineer'),
+      TEXT('prod_final', 'prodfinal', 'prod final'),
+      TEXT('installation_completed', 'installation completed?', 'installation completed'),
+      TEXT('inst_call', 'inst call'),
+      DATE('inst_date', 'inst date'),
+      TEXT('inst_call_status', 'inst call status'),
+      TEXT('report'),
+      TEXT('associated_accessory', 'associated accessory'),
     ] },
   // ---------------------------------------------------------------------------
   // THE PRODUCT MASTER — the catalogue of product LINES (0193), which is what

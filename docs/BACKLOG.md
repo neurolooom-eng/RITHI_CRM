@@ -59,19 +59,77 @@ table with thousands of rows. `check:replay` refused the bundle outright
 database before any migration creates the extension. Removed: Postgres scans 53
 rows whatever is on them, so it bought a dependency and nothing else.
 
-### Still to do
+### The third part — every column retained (0194, shipped)
 
-The Product Database does **not yet retain every column** of the v2_ProdMaster
-export — Item Details Long, Sold Through, Address, PO No./Date, PM Visits,
-Service Engineer, INST Call and the rest still ride in `extra` rather than
-having columns of their own. That was the third part of the same ask and is the
-next change.
+*"Product Database has to retain all Columns - Attached a Sample.
+[v2_ProdMaster (1).csv]".*
+
+Measured against that sample rather than guessed: **32 columns, eleven of which
+had a column here**. The other twenty-one were never lost — the importer is
+`extraInto: 'extra'`, which keeps every unnamed heading verbatim — but a value
+in a jsonb blob cannot be sorted, filtered, grouped or shown as a column. It was
+present and unusable, the same fault 0148 fixed for the Part Master.
+
+So the migration **backfills** as well as adding columns: every machine already
+loaded carries these values in `extra` right now, and nobody should have to
+upload again to reach what was already kept. `extra` is read, never written.
+
+Three are not simply text, and each was a decision:
+
+| column | why |
+| --- | --- |
+| `item_code` | The Product Database **had no product code at all**. It is what joins a machine to its line on the Product Master (0193) — the one that does work rather than display. |
+| `warranty_status_keyed` / `contract_status_keyed` | The export's OWN `ACTIVE`/`INACTIVE` words. **Not** the state this system computes from the dates; `_keyed` so the two can never be mistaken for one another. |
+| `pm_visits` | An integer, because it is counted. A blank stays NULL: on a service schedule *"nobody said"* and *"none"* are different answers. |
+
+**`Item Code` was already a column on the screen and always came back blank** —
+nothing ever filled it, because neither the importer nor `productRowToSheet`
+knew the heading. That is what the user saw as *"some discrepancies in Product
+Master but my Source is correct"*. `check:ui` now refuses any column the
+importer fills that no screen can read.
+
+⚠️ **A typed column silently ate what it could not read.** Found while doing
+this, not guessed: `shapeUpload` kept a value when NO column claimed the
+heading, and kept it when a column REFUSED it (`col.when`) — but dropped it when
+a typed column claimed it and `coerce` answered null. The sample's own
+`INST Date` says `To Check`. So the moment that heading stopped being loose text
+and became a date, a year of unreadable PO and INST dates would have vanished on
+the next upload, having been safe in `extra` all along. Backwards: an unreadable
+cell is the one somebody most needs to SEE. Fixed for every register, not only
+this one.
+
+The dates in the backfill are **guarded on their shape** (`02 Sep 23`) because
+`to_date('31 Febbb 24','DD Mon YY')` does not return null, it RAISES — one bad
+cell in twenty thousand would have failed the whole migration. Verified by
+asking Postgres rather than by reading the docs.
+
+### Found in passing, NOT fixed here — a test section that never runs
+
+`ownership_transfer_same_party_test.sql` **section 5** ("a chain loaded in date
+order still records each hop") stops at line 57 with *duplicate key value
+violates unique constraint "ownership_transfer_key_uniq"*, which is
+`(reference_no, serial_number)`. Both of its inserts omit `reference_no`, so the
+second one collides with the first on `('', 'OT-C')` — the section has never
+actually tested anything, and the error carries no `expect ERROR` label, which
+is how it went unnoticed.
+
+**It predates this change**: reproduced on `main` with these commits stashed,
+same line, same error. Left alone rather than fixed in a migration change that
+has nothing to do with it — the fix is to give the two rows their own OT
+numbers, which is a one-line edit in that suite. Recorded here so it is not
+found again from scratch.
 
 ### To run on the live project
 
 [`masters.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/masters.sql)
-and [`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
-— `_status.sql` row 147 answers NO until both are in.
+— `_status.sql` row 148 answers NO until it is in. (Row 147's `masters.sql` +
+[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
+were run by the user on 2026-09-14; `masters.sql` now carries 0194 as well, so
+running it again brings both.)
+
+**The application does not wait for it.** `productRowToSheet` reads the column
+first and falls back to `extra`, so every screen shows what it showed yesterday
+until the migration lands, and shows the columns afterwards.
 
 ## 2026-09-14 — Machine History: one machine, across every register
 
