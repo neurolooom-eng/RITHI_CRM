@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.247',
+    date: '2026-09-14',
+    title: 'Dates show in the form, and the filters do more',
+    changes: [
+      'The dates on a Contract or Warranty entry were always blank in the form even though the list showed them. The form was handing the date box a date written for reading (06-Sep-2025) when it only accepts the machine form \u2014 so it showed nothing, with no error anywhere. Nothing was ever lost: the value was still saved correctly, it just could not be seen or changed.',
+      'The Field Failure Register filters take SEVERAL values now \u2014 tick as many years as you like, and the list stays open while you tick.',
+      'A Product filter sits beside the Year one. It starts with nothing ticked, which means everything, so it costs you nothing until you use it. The products offered are the ones the years you chose actually hold.',
+      'Contract and Warranty Registers open on as many rows as the server will give, and each Load more fetches twice as much as the last.',
+    ],
+  },
+  {
     version: '0.9.246',
     date: '2026-09-14',
     title: 'Feedback loads, the FFR count works itself out, and the register has a year',
