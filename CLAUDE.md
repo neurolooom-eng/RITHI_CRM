@@ -56,6 +56,17 @@ npm run check:uploads        # the shaping behind each register upload
 npm run check:upserts -- "<psql args>"
 ```
 
+`npm run check:generated` needs no database either and belongs after ANY
+migration change: it regenerates the bundles into a temporary directory and
+fails if what is committed differs. The bundles are the files the user is sent a
+LINK to and asked to RUN, so a stale one is wrong SQL handed over as the thing
+to apply — and **no other check can see it**, because `check:replay` and
+`check:status` both build their database from the bundles, so a bundle and an
+`all.sql` stale in the same way agree with each other perfectly. It happened
+(2026-09-14): `0186_feedback_key.sql` was corrected to drop a partial unique
+index and committed without re-running the generator, and `data_integrity.sql`
+went on carrying the partial index while its raw link was being handed out.
+
 `check:uploads` is in this list because it was NOT, and drifted: two of its
 assertions had been failing on `main` unnoticed — one still looking for
 `Purchase Cost` in `extra` after 0148 gave `parts` a real column, one counting
@@ -82,7 +93,8 @@ on testing the old shape. **When a migration replaces a definition, move the
   are idempotent.
 - **Apply bundles** — `supabase/apply/*.sql` are GENERATED. Edit the migration,
   add it to the right module in `scripts/build-apply-bundles.mjs`, re-run
-  `node scripts/build-apply-bundles.mjs`, and commit the result. `_status.sql`
+  `node scripts/build-apply-bundles.mjs`, and commit the result.
+  `npm run check:generated` is what proves you did (see above). `_status.sql`
   is hand-maintained: add a row when a bundle gains a checkable object.
 - **User-visible change** → add a `CHANGELOG` entry in `src/lib/changelog.ts`
   (in-app Version History) and bump `package.json`. Write it in the user's

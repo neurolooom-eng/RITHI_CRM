@@ -4,14 +4,96 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-08 (the reliability template and the DCCR export; storage
-sized against the 500 MB cap)_
+_Last updated: 2026-09-14 (the sheet's thirty-day expiry band; the cover
+field-by-field comparison)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
 
 ---
+
+## 2026-09-14 — "About to expire" is thirty days, and the number lives in one place
+
+The formulas file the comparison was waiting on arrived, and it settles the one
+thing `0036_sales_contracts.sql` had to guess. All four sheets carrying a Status
+column state the same rule:
+
+    IF(end>=Today(), IF(end<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"), "INACTIVE")
+
+— `SaleEntry M2`, `WarrantySaleDetails V2`, `ContractEntry L2`,
+`ContractDetails W2`. **Thirty days, not sixty.**
+
+0036 chose 60 and said so in the file rather than pretending: the PDF describes
+these columns only as "a spreadsheet formula … emits values including ABOUT TO
+EXPIRE, ACTIVE, INACTIVE" — it names the outputs and withholds the rule. This is
+the guess being replaced by the fact, not a fix to a bug.
+
+**Not cosmetic.** The registers filter and count by this value, so a contract
+with 45 days to run was listed as about to expire and chased a month early, and
+the tile's count was a month too big.
+
+- `0187_cover_expiry_30_days.sql` — redefines `cover_state()`. The three views
+  call it by name, so nothing is rebuilt and no `security_invoker` is touched.
+- **The number was written down THREE times** — `cover_state()`, `coverStatus()`
+  in `coverspec.ts` (which nothing used), and a fourth hand-rolled `stateOf` in
+  `CoverRegister.tsx`. So the **Entries** tab and the **Machines** tab could have
+  labelled one contract two ways. The screen calls `coverStatus` now, and
+  `check:ui` reads the number back out of the BUNDLE and fails if the SQL and the
+  TypeScript disagree.
+- One deviation KEPT, and it is the sheet that is wrong: in Sheets a blank cell
+  compared with `>=Today()` is TRUE, so the sheet calls a machine with no end
+  date ACTIVE. That is a comparison artefact. A missing date is `NOT COVERED`.
+
+Three more things the file made concrete:
+
+- **`Monthly` was missing from Payment Schedule.** ContractEntry col 5 lists four
+  values and three had been transcribed; the field takes no free-text fallback,
+  so a monthly contract could not be keyed at all.
+- **Add Call fills itself** — `=if(LEN(U)<2,"WI-","RWI-")` where `U` is
+  *Already Sold TO*. Keyed on that field changing, so a hand-typed value is never
+  overwritten.
+- **Priority is confirmed as sheet row-ordering** — a constant per sheet (1, 2,
+  3, 1), blanked on an empty row. It sorts the four sheets against each other
+  when merged and says nothing about the record. That is what 0.9.243 removed.
+
+### `check:status` was passing on a report that did not run
+
+Found by accident while adding a row: the skipped-row count fell from 1 to 0
+and nothing failed, because `_status.sql` had a **syntax error**. `psql -f`
+exits 0 on a failed statement unless told otherwise, so the report came back
+empty, the "NO" filter matched nothing, and the script printed *every row reads
+yes*. **A checker that passes on no output is the worst kind** — loudest exactly
+when it knows least. It now runs with `ON_ERROR_STOP`, keeps stderr, and counts
+the rows the report produced against the checks the file declares.
+
+### A stale apply bundle had been handed out
+
+Noticed while regenerating: `0186_feedback_key.sql` was committed (f3fb9c4) with
+the corrected, NON-partial unique index, and `supabase/apply/data_integrity.sql`
+was **not regenerated in that commit**. So the raw link given for that bundle
+carried `create unique index … where ucn_key <> ''` — a partial index, which
+`check:upserts` exists to refuse because PostgREST cannot infer it as an upsert
+target. **Re-take the link; the bundle is correct now.**
+
+No check could see it: `check:replay` and `check:status` both build their
+database from the bundles, so a bundle and an `all.sql` stale in the same way
+agree with each other perfectly. `npm run check:generated` (new) regenerates into
+a temporary directory and fails on any difference — mutation-tested by putting
+the stale file back.
+
+### To run on the live project
+
+[`sales_contracts.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/sales_contracts.sql)
+— [read it here](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/sales_contracts.sql).
+`_status.sql` row 139 answers NO while the sixty-day band is still live, and it
+asks the function rather than reading it, because that is the only way to tell 30
+from 60 on a project that has run one bundle and not the other.
+
+And [`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)
+— [read it here](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/supabase/apply/data_integrity.sql)
+— which was already pending for 0186 (the Customer Feedback key) and whose
+earlier link carried the stale partial index described above.
 
 ## 2026-09-14 — Priority off four registers
 
@@ -37,11 +119,11 @@ nothing writes or shows them, and dropping a column is irreversible. Say the wor
 if they should go. `proposeRenewal` still copies the value on a contract renewal,
 which is harmless while the column exists.
 
-## 2026-09-13 — Queued: Contract / Warranty field-by-field comparison
+## 2026-09-13 — DONE (2026-09-14): Contract / Warranty field-by-field comparison
 
-**WAITING ON THE USER'S MARKDOWN FILE — do not start before it arrives.** The
-user is supplying a markdown file carrying **the formulas from each sheet**,
-which is the thing that makes this fixable rather than guessable.
+**The markdown file arrived** (`Appsheet - Forms.xlsx — Formula Reference`) and
+the comparison is in `docs/COVER_FIELD_COMPARISON.md`. What it changed is the
+section above dated 2026-09-14.
 
 **The ask:** produce the field tables for **Contract Entry**, **Contract
 Details**, **Warranty Sale Entry** and **Warranty Sale Details** (the parent and
@@ -64,8 +146,13 @@ What is already known and should be reused rather than re-derived:
   expression verbatim: years, EOMONTH end date, the two DIFFERENT PM rates,
   18% tax, the split and its rebuild.
 
-**Open decision, unanswered:** whether Contract Details gains a **Product
+**Open decision, STILL unanswered:** whether Contract Details gains a **Product
 Details picker** so a machine is chosen from Product Master rather than typed.
+The formula file settles what the string IS — `ContractDetails C2 = O2` proves
+`Item Details Long` and `Product Details` are the same `CODE|NAME|SERIAL` value —
+but not whether this register should pick one instead of typing three fields.
+Until it is answered, `deriveItem`'s `product_details` branch stays correct and
+unreachable: no field feeds it. It is tested, so it will not rot.
 
 ## 2026-09-13 — How to Use RITHI CRM is grouped in a sensible order
 

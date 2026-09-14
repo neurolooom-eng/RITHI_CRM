@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.244',
+    date: '2026-09-14',
+    title: 'About to expire means thirty days, as it always did on the sheet',
+    changes: [
+      'A warranty or contract is shown as About to expire in its last THIRTY days. It was sixty \u2014 a number this system picked because the AppSheet documentation named what the column could say and never printed the rule behind it. The formulas you sent print it, the same on all four sheets, and it is thirty.',
+      'So a contract with 45 days left is Active now, not About to expire. It was being listed for chasing a month early, and the tile\u2019s count was a month too big.',
+      'The number had been written down in three places \u2014 the database, the register screen and the shared arithmetic \u2014 so the Entries tab and the Machines tab could have labelled the same contract two different ways. There is one now.',
+      'Monthly can be chosen as a Payment Schedule on Contract Entry. The sheet offers four and only three had been carried across, so a monthly contract could not be keyed at all.',
+      'Add Call on a machine line fills itself: WI- for a machine nobody has owned before, RWI- where Already Sold To names somebody.',
+    ],
+  },
+  {
     version: '0.9.243',
     date: '2026-09-14',
     title: 'Priority is off the machine lines',

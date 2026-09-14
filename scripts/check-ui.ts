@@ -12,7 +12,8 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
-         splitProductDetails, itemDetailsLong, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
+         splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
+         ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
@@ -4580,7 +4581,7 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
       const fields = [...configFor(k).headerFields, ...configFor(k).itemFields].map((f) => f.name);
       const row: Record<string, unknown> = { rate: 1000, product_details: 'A|B|C', product_code: 'A',
         product_name: 'B', serial_number: 'C', warranty_months: 12, contract_months: 12,
-        warranty_start: '2024-01-15', contract_start: '2024-01-15' };
+        warranty_start: '2024-01-15', contract_start: '2024-01-15', already_sold_to: 'APOLLO' };
       for (const f of [...new Set([...fields, 'rate', 'product_details'])]) {
         for (const out of [deriveHeader(k, f, row), deriveItem(k, f, row)]) {
           for (const key of Object.keys(out)) {
@@ -4592,7 +4593,107 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
     eq('every derived field is a real column on the register', derivedKeys, []);
   }
 
+  // -------------------------------------------------------------------------
+  // THE EXPIRY BAND IS THIRTY DAYS, AND IT IS WRITTEN DOWN ONCE.
+  //
+  // It used to be sixty, in three places: this module, cover_state() in SQL,
+  // and a hand-rolled stateOf inside the register screen. 0036 said plainly
+  // that the number was a guess, because the supplied PDF printed the Status
+  // columns' OUTPUTS and withheld their formula. The formula export supplies
+  // it, the same on all four sheets:
+  //
+  //   IF(end>=Today(), IF(end<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"), "INACTIVE")
+  //
+  // Boundaries worked by hand off that expression, not read back off the
+  // implementation: end=today is ABOUT TO EXPIRE (>= is inclusive), end=+30 is
+  // ABOUT TO EXPIRE (<= is inclusive), end=+31 is ACTIVE, end=-1 is INACTIVE.
+  // -------------------------------------------------------------------------
+  {
+    const spec = readFileSync('docs/APPSHEET_ADMIN_APPDEF.md', 'utf8');
+    const day = (n: number) => {
+      const d = new Date(2026, 5, 15); d.setDate(d.getDate() + n);
+      return d.toISOString().slice(0, 10);
+    };
+    const on = (n: number) => coverStatus(day(n), new Date(2026, 5, 15));
+
+    eq('the band is the sheet\'s thirty days', ABOUT_TO_EXPIRE_DAYS, 30);
+    eq('an end date today is about to expire', on(0), 'ABOUT TO EXPIRE');
+    eq('...and so is the thirtieth day', on(30), 'ABOUT TO EXPIRE');
+    eq('...but the thirty-first is active', on(31), 'ACTIVE');
+    eq('yesterday is inactive', on(-1), 'INACTIVE');
+    // NOT the sheet's answer, deliberately: a blank cell compared with
+    // >=Today() is TRUE in Sheets, so the sheet calls an unknown ACTIVE.
+    eq('no end date is not covered', coverStatus(''), 'NOT COVERED');
+    eq('...and neither is a junk one', coverStatus('not a date'), 'NOT COVERED');
+    // THE DOCUMENT MUST CARRY THE FORMULA, not just the number. This
+    // assertion started life the other way round — asserting the spec did NOT
+    // print it, which was true of the PDF alone and became false the moment
+    // the formula export was recorded in §3.4a. It fired, which is the point:
+    // the guess and its justification are now both wrong, and the code and the
+    // standing reference have to move together or one of them lies.
+    eq('the spec records the sheet\'s status formula', spec.includes('Today()+30'), true);
+    eq('...on all four sheets that carry the column',
+      ['SaleEntry', 'WarrantySaleDetails', 'ContractEntry', 'ContractDetails']
+        .every((sheet) => new RegExp(`\`${sheet}\`\\s*\\|\\s*\`[A-Z]\\d+\`\\s*\\|[^\\n]*Today\\(\\)\\+30`).test(spec)), true);
+    eq('...and states the band this code implements',
+      new RegExp(`Today\\(\\)\\+${ABOUT_TO_EXPIRE_DAYS}\\)`).test(spec), true);
+
+    // ONE NUMBER, TWO LANGUAGES. The register's MACHINES tab reads
+    // cover_state() through the details views and its ENTRIES tab reads
+    // coverStatus, so the two disagreeing labels the same contract two ways.
+    // Read the LAST definition in the bundle — the bundle is what a rebuild
+    // applies, and an earlier definition in it is the one that got replaced.
+    const bundle = readFileSync('supabase/apply/sales_contracts.sql', 'utf8');
+    const defs = bundle.split('create or replace function public.cover_state');
+    eq('the bundle defines cover_state', defs.length > 1, true);
+    const last = defs[defs.length - 1].split('$$;')[0];
+    const sqlDays = /current_date \+ (\d+) then 'ABOUT TO EXPIRE'/.exec(last)?.[1];
+    eq('the SQL band is the same number as the TypeScript one',
+      Number(sqlDays), ABOUT_TO_EXPIRE_DAYS);
+    eq('...and the SQL calls a missing end date NOT COVERED too',
+      last.includes("when p_end is null then 'NOT COVERED'"), true);
+    eq('...and its inactive edge is the same', last.includes('p_end < current_date'), true);
+
+    // THE THIRD COPY IS GONE. The screen must not carry its own arithmetic.
+    const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+    eq('the register screen holds no band of its own',
+      /days\s*<=\s*\d+\s*\?/.test(reg), false);
+    eq('...it calls coverStatus', /stateOf\s*=\s*\(end: string\): string => coverStatus\(end\)/.test(reg), true);
+  }
+
+  // -------------------------------------------------------------------------
+  // THE THREE FORMULAS THE EXPORT ADDED, each worked from the expression.
+  // -------------------------------------------------------------------------
+  {
+    // WarrantySaleDetails col 4 `=J&"|"&L` and ContractDetails col 5
+    // `=Q&"|"&R` — both are Product Name | Serial, which is why it is one
+    // function. NOT the same string as Item Details LONG, which carries the
+    // code as well and is the Product Master key.
+    eq('Item Details is name and serial', itemDetails('Orion G', 'SN1'), 'Orion G|SN1');
+    eq('...and is NOT Item Details Long',
+      itemDetails('Orion G', 'SN1') === itemDetailsLong('ORION-G', 'Orion G', 'SN1'), false);
+
+    // WarrantySaleDetails col 31 `=if(LEN(U)<2,"WI-","RWI-")`, U = Already Sold TO.
+    eq('a machine nobody has owned takes a warranty installation', addCallPrefix(''), 'WI-');
+    eq('...and the sheet\'s LEN<2 is kept verbatim', addCallPrefix('X'), 'WI-');
+    eq('a machine already sold takes a RE-warranty installation', addCallPrefix('APOLLO'), 'RWI-');
+    eq('Add Call follows Already Sold To on a sale line',
+      deriveItem('sale', 'already_sold_to', { already_sold_to: 'APOLLO' }), { add_call: 'RWI-' });
+    eq('...and a contract line has no such column',
+      deriveItem('contract', 'already_sold_to', { already_sold_to: 'APOLLO' }), {});
+
+    // ContractEntry_Schema col 5 lists four values; three were transcribed, so
+    // a monthly contract could not be keyed at all (the field takes no
+    // free-text fallback).
+    const sched = configFor('contract').headerFields.find((f) => f.name === 'payment_schedule');
+    eq('every payment schedule on the sheet can be chosen',
+      sched?.options, ['', 'Yearly', 'Half Yearly', 'Quarterly', 'Monthly']);
+    eq('the spec lists Monthly',
+      readFileSync('docs/APPSHEET_ADMIN_APPDEF.md', 'utf8').includes('`Monthly`'), true);
+  }
+
 }
+
 
 console.log('\n-- the Insights tab can be interrogated --');
 {

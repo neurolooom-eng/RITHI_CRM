@@ -12,11 +12,20 @@
 // on ContractEntry column 9 and again on ContractDetails column 13, with the
 // same expression). Two transcriptions of one formula is how they drift.
 //
+// SECOND SOURCE, and it settles what the first could not: the SPREADSHEET
+// FORMULA EXPORT from `Appsheet - Forms.xlsx`. The PDF describes the sheet-side
+// columns only as "a spreadsheet formula ... emits values including ABOUT TO
+// EXPIRE, ACTIVE, INACTIVE" — it names the outputs and withholds the rule. The
+// export prints the rule. Where a function below cites a cell (`M2`, `V2`,
+// `AD2`) it is quoting that export; where it cites a column number it is
+// quoting the PDF. Both are named so a disagreement between them is findable.
+//
 // WHAT THIS FILE DOES NOT CLAIM: the spec's boundary note says the supplied PDF
 // "does not show detailed definitions for all 587 columns" and stops before the
 // views, format rules and actions. So there is no layout here to match, and
 // nothing below is inferred from a screen nobody has seen — only from the
-// column definitions the document actually shows.
+// column definitions the document actually shows and the formulas the export
+// actually prints.
 // ===========================================================================
 import { addPeriod } from './dates';
 
@@ -113,26 +122,68 @@ export function splitProductDetails(v: unknown): { code: string; name: string; s
 export const itemDetailsLong = (code: unknown, name: unknown, serial: unknown): string =>
   [code, name, serial].map((v) => String(v ?? '').trim()).join('|');
 
-/** ABOUT TO EXPIRE / ACTIVE / INACTIVE — the status column on all four tables
- *  (ContractEntry col 13, WarrantySale col 14, and both detail tables).
+/** ABOUT TO EXPIRE / ACTIVE / INACTIVE / NOT COVERED — the status column on
+ *  all four tables (ContractEntry col 13, WarrantySale col 14, and both detail
+ *  tables), and the STATE TILES the register filters by.
  *
- *  The sheet's own formula is a spreadsheet expression the PDF does not print
- *  in full, so the THRESHOLD is this application's, stated rather than
- *  pretended: within 60 days of the end date is "about to expire". Everything
- *  else follows from the dates themselves. A missing end date is NOT called
- *  inactive — it is unknown, and saying "inactive" would read as a decision
- *  somebody made. */
-export const ABOUT_TO_EXPIRE_DAYS = 60;
-export function coverStatus(endIso: string, today = new Date()): 'ACTIVE' | 'ABOUT TO EXPIRE' | 'INACTIVE' | '' {
+ *  THE THIRTY IS THE SHEET'S, no longer this application's guess. The supplied
+ *  documentation described these columns only as "a spreadsheet formula …
+ *  emits values including ABOUT TO EXPIRE, ACTIVE, INACTIVE" and never printed
+ *  the expression, so 0036 chose 60 and said so. The formula export
+ *  (Appsheet - Forms.xlsx) supplies it, identically on all four sheets:
+ *
+ *    SaleEntry           M2  =IF(I2>=Today(),IF(I2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")
+ *    WarrantySaleDetails V2  =IF(O2>=Today(),IF(O2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")
+ *    ContractEntry       L2  =IF(I2>=Today(),IF(I2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")
+ *    ContractDetails     W2  =IF(M2>=Today(),IF(M2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")
+ *
+ *  I / O / I / M there are the end-date column on each sheet.
+ *
+ *  ONE IMPLEMENTATION, THREE PLACES IT USED TO LIVE. The number was written
+ *  out three times — here, in `cover_state()` (the SQL the *_details views
+ *  read), and a fourth hand-rolled `stateOf` inside the register screen — so
+ *  the entries tab and the machines tab could disagree with each other and
+ *  with the sheet. The screen now calls this; the SQL is the same rule in the
+ *  one place a view can reach (0187), and check:ui refuses another copy of the
+ *  threshold in the module.
+ *
+ *  DELIBERATELY NOT THE SHEET'S ANSWER FOR A BLANK END DATE: in Sheets an
+ *  empty cell compared with `>=Today()` is TRUE, so the sheet calls a machine
+ *  with no end date ACTIVE. That is a comparison artefact, not a decision
+ *  anybody made, and "active" is the one wrong answer for an unknown — so a
+ *  missing or unparseable date is NOT COVERED, matching cover_state(). */
+export const ABOUT_TO_EXPIRE_DAYS = 30;
+export type CoverState = 'ACTIVE' | 'ABOUT TO EXPIRE' | 'INACTIVE' | 'NOT COVERED';
+export function coverStatus(endIso: unknown, today = new Date()): CoverState {
   const iso = String(endIso ?? '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return 'NOT COVERED';
   const end = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(end.getTime())) return 'NOT COVERED';
   const now = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (Number.isNaN(end.getTime())) return '';
   if (end < now) return 'INACTIVE';
-  const days = Math.floor((end.getTime() - now.getTime()) / 86400000);
+  const days = Math.round((end.getTime() - now.getTime()) / 86400000);
   return days <= ABOUT_TO_EXPIRE_DAYS ? 'ABOUT TO EXPIRE' : 'ACTIVE';
 }
+
+/** `=J&"|"&L` — WarrantySaleDetails col 4, and `=Q&"|"&R` — ContractDetails
+ *  col 5. Both are PRODUCT NAME | SERIAL NUMBER, and the two sheets agreeing
+ *  is what makes it one function rather than two.
+ *
+ *  NOT the same string as `itemDetailsLong` below, which carries the code as
+ *  well and is the key into the Product Master. Two strings, two jobs; they
+ *  are easy to confuse because the sheet names them four characters apart. */
+export const itemDetails = (name: unknown, serial: unknown): string =>
+  [name, serial].map((v) => String(v ?? '').trim()).join('|');
+
+/** `=if(LEN(U2:U17347)<2,"WI-","RWI-")` — WarrantySaleDetails col 31, Add Call,
+ *  where U is `Already Sold TO`.
+ *
+ *  A machine nobody has sold before gets a Warranty Installation; one that has
+ *  already been sold to somebody gets a RE-warranty installation. The `<2`
+ *  rather than `<1` is the sheet's and is kept verbatim — a one-character
+ *  party name is not a party name. */
+export const addCallPrefix = (alreadySoldTo: unknown): 'WI-' | 'RWI-' =>
+  String(alreadySoldTo ?? '').length < 2 ? 'WI-' : 'RWI-';
 
 /** The next number in a series.
  *
@@ -242,6 +293,13 @@ export function deriveItem(kind: 'sale' | 'contract', changed: string, row: Row)
   // The value is derivable from the three parts at any point it is needed
   // (itemDetailsLong is exported); storing it would take a migration and a
   // reason to store it.
+  // Add Call follows "Already Sold TO" and nothing else: a machine with a
+  // previous owner takes a RE-warranty installation. Keyed on that field
+  // CHANGING, so a value somebody typed by hand is never overwritten by a
+  // re-derivation they did not ask for.
+  if (kind === 'sale' && changed === 'already_sold_to') {
+    out.add_call = addCallPrefix(row.already_sold_to);
+  }
   if (kind === 'sale' && WARRANTY_DRIVERS.includes(changed)) {
     out.warranty_years = periodYears(row.warranty_months);
     out.warranty_end = periodEnd(String(row.warranty_start ?? ''), row.warranty_months);

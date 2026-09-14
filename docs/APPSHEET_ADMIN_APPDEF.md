@@ -6,7 +6,84 @@
 **App:** `Service2.0 Admin`  
 **Pages reviewed:** 1–150 (all pages in the supplied PDF)
 
+**Second source (added 2026-09-14):** `Appsheet - Forms.xlsx — Formula Reference`, the
+spreadsheet formula export behind the same app.
+
 > **Fidelity rule used for this file:** Only information visible in the supplied PDF is recorded. Nothing has been added from general AppSheet knowledge or inferred from missing context. Where a formula/value is not fully legible in the source image, it is not reconstructed.
+>
+> **The formula export is a SECOND source and is marked as such.** The PDF records
+> AppSheet's own column properties (types, App formulas, Initial values, valid-if).
+> It does NOT record the spreadsheet formulas sitting behind the sheet-side
+> columns — for those it says only "spreadsheet formula … emits values including
+> …", naming outputs and withholding rules. Section 3.4a below records what the
+> export prints. The same fidelity rule applies: quoted verbatim, nothing inferred.
+
+---
+
+## 3.4a Sheet-side formulas the PDF could not print
+
+From `Appsheet - Forms.xlsx — Formula Reference`. Sheet-column letters are the
+export's; the column numbers in brackets are this document's, from §3.5–3.8.
+
+### The four Status columns — all one rule, and it is THIRTY days
+
+| Sheet | Cell | Formula |
+|---|---|---|
+| `SaleEntry` | `M2` | `=IF(I2>=Today(),IF(I2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")` |
+| `WarrantySaleDetails` | `V2` | `=IF(O2>=Today(),IF(O2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")` |
+| `ContractEntry` | `L2` | `=IF(I2>=Today(),IF(I2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")` |
+| `ContractDetails` | `W2` | `=IF(M2>=Today(),IF(M2<=(Today()+30),"ABOUT TO EXPIRE","ACTIVE"),"INACTIVE")` |
+
+`I` / `O` / `I` / `M` are the end-date column on each sheet (Warranty End Date,
+Warranty End Date, Contract End Date, Contract End Date). Both comparisons are
+inclusive: an end date of today, and one exactly thirty days out, are both
+`ABOUT TO EXPIRE`; thirty-one days out is `ACTIVE`.
+
+This closed the one thing §3.5–3.8 left open. `0036_sales_contracts.sql` had to
+choose a threshold and chose sixty, saying so in the file rather than pretending
+otherwise; `0187_cover_expiry_30_days.sql` replaces it with the sheet's thirty.
+
+### The two "Item Details" strings, which are not the same string
+
+| Sheet | Cell | Formula | Meaning |
+|---|---|---|---|
+| `WarrantySaleDetails` | `C3` | `=J3&"\|"&L3` | Product Name **\|** Serial |
+| `ContractDetails` | `D2` | `=Q2&"\|"&R2` | Product Name **\|** Serial |
+| `ContractDetails` | `C2` | `=O2` | `Item Details Long` **is** `Product Details` — the `CODE\|NAME\|SERIAL` key into Product Master |
+
+So `Item Details` (Name\|Serial) and `Item Details Long` (Code\|Name\|Serial) are
+two different strings four characters apart in the name, and `C2 = O2` confirms
+the order the `INDEX(SPLIT(…),1..3)` formulas in §3.5 cols 17–19 imply.
+
+### Add Call
+
+| Sheet | Cell | Formula |
+|---|---|---|
+| `WarrantySaleDetails` | `AD2` | `=if(LEN(U2)<2,"WI-","RWI-")` |
+
+`U` is `Already Sold TO` (§3.8 col 22): a machine with no previous owner takes a
+**W**arranty **I**nstallation, one already sold takes a **R**e-**W**arranty
+**I**nstallation. The `<2` is the export's.
+
+### Priority is sheet row-ordering and nothing else
+
+| Sheet | Cell | Formula |
+|---|---|---|
+| `WarrantySaleDetails` | `A3` | `=IF(LEN(E3)<1,"",1)` |
+| `ContractDetails` | `B2` | `=IF(LEN(F2)<1,"",2)` |
+| `OwnershipTransfer` | `A2` | `=IF(LEN(E2)<1,"",3)` |
+| `AdditionalEntryDetails` | `A2` | `1` |
+
+A constant per sheet, blanked on an empty row — it sorts the four sheets against
+each other when they are merged, and carries no information about the record.
+This is what the columns were dropped on (0.9.243).
+
+### VLOOKUPs into PartyMaster
+
+`WarrantySaleDetails` `AA2`/`AB2`/`AC2` and `OwnershipTransfer` `AA2`/`AB2`/`AC2`
+look `STATE`, `CITY` and `ENGINEER` up from PartyMaster by party name. Here those
+three are columns on the header, inherited by each machine line unless pinned —
+the same answer reached by storing it once rather than looking it up per row.
 
 ---
 
