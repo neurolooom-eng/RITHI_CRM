@@ -127,6 +127,13 @@ on testing the old shape. **When a migration replaces a definition, move the
   `supabase/apply/` — they are the two numbered consolidated files handed round.
   A link to the wrong path 404'd once; `check:ui` now resolves every SQL path in
   the docs.
+  **THE SUPABASE SQL EDITOR IS NOT psql.** Everything in `supabase/apply/` is
+  pasted into that editor, so a psql meta-command (`\set`, `\echo`, `\i`) is
+  not a command there but a syntax error on its own line —
+  `_dccr_undo.sql` shipped with ten of them and came straight back as
+  `ERROR: 42601: syntax error at or near "\"`. Write one statement that returns
+  a report rather than several with `\echo` between them; that editor shows one
+  result grid. `check:ui` refuses a meta-command in any hand-run SQL file.
   **Always give the LINK, not just the file name** (user's ask, 2026-09-03):
   `https://github.com/neurolooom-eng/RITHI_CRM/blob/main/<path>` to read it,
   `https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/<path>` to

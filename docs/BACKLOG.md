@@ -50,6 +50,24 @@ version, deletes all three.
 `field_failure_reports` (0049) and `ffr_history` (0174). That asymmetry is worth
 a decision: the DCCR is a quality record too.
 
+### It shipped unable to run where it is run
+
+Reported immediately: `ERROR: 42601: syntax error at or near "\"` on line 44.
+The first version used psql's `\set` and `\echo`. **The Supabase SQL Editor is
+not psql** — and that editor is where every file in `supabase/apply/` is
+actually pasted, because it is the link the user is handed.
+
+Every other file in that folder was already plain SQL, so the convention existed
+and was simply not written down anywhere a check could see it. It is now: a
+`check:ui` guard refuses a psql meta-command in any hand-run SQL file
+(`supabase/apply/*.sql` plus the two consolidated files at the repository root).
+It matches a backslash at the START of a line only, so the regex backslashes
+inside ordinary SQL — `or_no ~ '^OR-\d\d/\d\d/'` in `_status.sql` — are not
+flagged; that false positive was checked for rather than hoped against.
+
+Rewritten as ONE statement returning a summary and all three sections in a single
+grid, which is what that editor shows.
+
 ## 2026-09-14 — Call Report and Customer Feedback Report
 
 Asked for: *"Add Call Report , Customer Feedback Report -- Follow the Same
