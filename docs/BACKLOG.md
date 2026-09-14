@@ -4,14 +4,134 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-14 (the sheet's thirty-day expiry band; the cover
-field-by-field comparison)_
+_Last updated: 2026-09-14 (Product History and the 2016 archive project)_
 
-_Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
-2026-09-02 (spare reconciliation shipped and applied; live project fully caught
-up)_
+_Previously: 2026-09-14 (the sheet's thirty-day expiry band; the cover
+field-by-field comparison) · 2026-09-06 (bundle replay safety; see the top of In
+progress) · 2026-09-02 (spare reconciliation shipped and applied; live project
+fully caught up)_
 
 ---
+
+## 2026-09-14 — Product History, and the 2016 archive it reads
+
+### The question the registers could not answer
+
+"Has this happened to this machine before?" is the oldest question on the
+service desk. Until now the answer stopped at the data migration: a ventilator
+sold in 2016 with nine years of faults behind it looked new, because everything
+before the cut-over is in a **different Supabase project**
+(`sxcccaghpvznllvdebcb`) that nothing in the application could reach.
+
+**`/product-history`** is one machine, one timeline: the calls, the visits, the
+parts fitted and the cover it was under, newest first, with the live registers
+and the archive in the same list.
+
+### Three things that decide whether it is right
+
+- **THE MACHINE IS THE MODEL AND THE SERIAL.** The picker is product-then-serial
+  and the merge is keyed on `machineKey`, never the serial alone — serials repeat
+  (eleven machines numbered "219"), and a history keyed on the number shows one
+  hospital's faults to another. The archive computes that key as a **generated
+  column** whose SQL mirrors `src/lib/headers.ts` `squash` step for step; the two
+  were diffed on twelve cases including punctuation, spacing and bracketed model
+  suffixes, and agree on all of them. If they ever stop agreeing, a machine's past
+  silently disappears — no error, an empty list, which reads as "nothing ever
+  happened to this machine".
+- **EVERY ROW SAYS WHICH DATABASE IT CAME FROM.** The two halves are not equally
+  trustworthy: a live call's state is derived from its latest visit under policies
+  that decide whether you may see it at all, while an archive call carries
+  whatever the old system was told when somebody closed it. One list without that
+  column would promise the same standard of evidence for both. For the same
+  reason a **UCN is coloured only on the live side** and renders plain on an
+  archive row — `useCallStates` is asked about live UCNs and no others, because a
+  wrong colour on a code people have learned to read is worse than no colour.
+- **NO DE-DUPLICATION BETWEEN THE HALVES.** A call in both is shown twice. The
+  cut-over date is a fact about the migration, not about the machine, so a
+  duplicate is information while a row dropped by a matching rule somebody
+  guessed is a call that vanished.
+
+### The access question, which does NOT carry across from the live project
+
+The live anon key is public by design: it identifies the project and grants
+nothing, because every policy tests the signed-in user. **That argument does not
+hold for the archive.** Your users exist in the LIVE project's auth, and a JWT
+signed there cannot be verified by another project — `auth.uid()` is null for
+everybody, and no cleverer policy can recover an identity that is not present.
+
+So the archive key **is** the credential, and the consequences are built in
+rather than written down:
+
+- **It is NOT baked into the repository and has no default.** It is pasted into
+  Settings → Archive (Product History) and stored per device. `src/lib/archive.ts`
+  has no fallback to fall back on.
+- **The archive is read-only twice over** — RLS with a SELECT policy and no
+  other, plus the write privileges revoked outright (TRUNCATE is a privilege
+  check only and RLS never sees it). A leaked key is then a disclosure, not a way
+  to destroy ten years of quality records.
+- **The app never writes there.** Loading is done in the SQL editor, by the
+  owner, through `history_load()`.
+- The signed-in user's token **is** forwarded, so if that project is ever
+  configured to trust the live project's JWTs the policies can start testing who
+  is asking with no code change. The first 401 stops it asking for the rest of
+  the session.
+
+⚠️ **If this posture is not good enough — and it may not be — the fix is to stop
+letting the browser talk to that project at all:** `postgres_fdw` foreign tables
+on the live project wrapped in `security_invoker` views gated by
+`has_perm('mod:/product-history')`, or an Edge Function on the live project that
+verifies the caller's JWT and queries the archive with a service key. Both are
+strictly better and both need a setup step nobody has taken yet.
+**`src/lib/archive.ts` is deliberately the ONLY file that knows how the archive
+is reached**, so that swap is one file and not a rewrite of the screen.
+
+### Loading the old data
+
+`history_load(target, source, mapping, label)` copies an imported CSV table into
+a history table, mapping your export's column names onto these. Everything you
+do not map is kept in `extra` — the archive's job is to lose nothing, and a
+column nobody wants today is one somebody wants in 2027, by which time the
+spreadsheet is gone.
+
+- **Dates are day-first, always.** `03/04/2016` is the third of April. Read the
+  other way it is not an error anybody ever sees — just a call that happened a
+  month early, for ever.
+- **A bad cell never abandons the load.** An unreadable date becomes null and the
+  row goes in; a null is visible afterwards, a rolled-back load is not.
+- **A mapped column the export does not have is a MISTAKE and refuses the whole
+  load.** Quietly loading the other nineteen is how a load "succeeds" and leaves
+  blanks nobody can explain three weeks later.
+- **It APPENDS; there is no upsert.** An upsert needs a key and the one thing a
+  ten-year-old export reliably lacks is a unique column — `feedback` is what a
+  guessed key costs. To redo a load, delete it by its `source_system` label.
+
+### Status — SQL still to run
+
+Numbered `ProdHistory_xx` rather than into `supabase/migrations/`: four of them
+belong to a **different database**, and `build-apply-bundles.mjs` refuses to
+build if it finds a migration it does not own. Renumber into the live sequence
+at merge time only if they ever move.
+
+| File | Run it on | What it does |
+| --- | --- | --- |
+| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
+| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
+| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
+| [`ProdHistory_04.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_04.sql) | **Live** `issxxmgsffszqbxugqis` | Grants `mod:/product-history` to every role holding `mod:/lookup` |
+| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** | `serial_key` on the three call tables, so the lookup is an indexed equality |
+
+**PENDING — none of these has been run on either live project.** All five were
+applied to a throwaway Postgres and re-applied to prove they are idempotent;
+`_status.sql` still reads 153 yes afterwards, `check:views` passes, and
+`public.calls` still carries `security_invoker` (05 deliberately does not touch
+that view — re-creating it is the statement that has twice cost every user sight
+of every call).
+
+`ProdHistory_05` is optional and the screen works without it — it falls back to
+an exact match on the serial through the `calls` view. That fallback is why the
+file can be skipped, not a reason to skip it: without it every history lookup
+scans all three call tables. This is 0129 one table along — an expression index
+(`lower(serial)`) that PostgREST cannot express and therefore never uses.
 
 ## 2026-09-14 — A key without an UPDATE policy, and the FFR count automated
 

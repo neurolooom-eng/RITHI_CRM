@@ -1,0 +1,34 @@
+/* ---------------------------------------------------------------------------
+   Product History — layout only.
+
+   DELIBERATELY NO COLOURS. The one colour language on this screen is the call
+   state carried by a UCN chip (src/lib/callstate.tsx), which is fixed, literal
+   and identical in both themes because people have learned to read it. A
+   second palette on the same rows would weaken the first, and any colour set
+   here would have to be restated for dark mode — which is the habit that made
+   the state colours drift in the first place. Spacing and grid only; every
+   surface, border and text colour comes from the tokens already in styles.css.
+--------------------------------------------------------------------------- */
+
+.ph-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.ph-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;           /* a long hospital name must wrap, not widen the row */
+}
+
+.ph-field > div { overflow-wrap: anywhere; }
+
+/* The line under the picker that says what was found in each database. It is
+   a sentence, not a status light — see the note in ProductHistory.tsx. */
+.ph-summary { margin: 12px 0 6px; }
+
+/* The archive is not connected. `--warning` is a TOKEN, so it is already right
+   in both themes; a hand-picked colour here would not be. */
+.ph-unset { color: var(--warning); }

@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.247',
+    date: '2026-09-14',
+    title: 'Product History \u2014 one machine, and everything that ever happened to it',
+    changes: [
+      'A new screen, Product History. Pick a product and a serial and you get that machine\u2019s whole life in one list, newest first: every call, every visit, every part fitted and every warranty or contract it was under.',
+      'Product FIRST, then serial. Serial numbers repeat across models \u2014 there are eleven machines numbered 219 on the register \u2014 so the number on its own can land on another hospital\u2019s machine. The serial box searches for you once a product is chosen.',
+      'It reads TWO databases at once: the registers in this application, and the separate project holding the service history from 2016 up to the cut-over. Every row says which one it came from, because they are not the same kind of record \u2014 a live call\u2019s status is worked out from its latest visit, while an archived one carries whatever the old system was told when somebody closed it.',
+      'A UCN is coloured for a live call and plain for an archived one. The archive cannot know a call\u2019s current state, and a wrong colour on a code people read is worse than no colour at all.',
+      'The 2016 history is READ-ONLY from here. Nothing in the application can change it, and nothing should \u2014 those records cannot be rebuilt.',
+      'Until the archive is connected the screen shows the live registers only, and says so rather than looking like a machine with no past. The key is entered once per device under Settings \u2192 Archive (Product History).',
+      'A machine that exists only in the archive \u2014 sold in 2016, retired years ago, never carried across \u2014 can still be found and read. Its row says it is archive-only, so nobody wonders why they cannot raise a call against it.',
+    ],
+  },
+  {
     version: '0.9.246',
     date: '2026-09-14',
     title: 'Feedback loads, the FFR count works itself out, and the register has a year',

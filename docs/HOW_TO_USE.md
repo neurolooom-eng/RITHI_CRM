@@ -46,6 +46,21 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
+- **Product History** `/product-history` — one machine, and everything that has
+  ever happened to it: the calls, the visits, the parts fitted and the cover it
+  was under, oldest to newest in one list. Pick the **product first, then the
+  serial** — serials repeat across models, so the number on its own can land on
+  another hospital's machine.
+  Every row says which database it came from. **Live** rows come from the
+  registers in this application. **Archive** rows come from the separate
+  project holding the history from 2016 up to the cut-over: closed records that
+  cannot be edited, carrying whatever the old system was told when the call was
+  closed. That is why a UCN is coloured for a live call and plain for an
+  archived one — the archive does not know the call's state, and a wrong colour
+  on a code people read is worse than none.
+  If the screen says **Archive not connected**, it is showing the live
+  registers only. Somebody with admin rights enters that project's key once per
+  device under Settings → Archive (Product History).
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.

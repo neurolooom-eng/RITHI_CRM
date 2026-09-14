@@ -48,6 +48,10 @@ export const NAV: NavGroup[] = [
       // here and not under Reports.
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
+      // DIRECTLY UNDER THE SEARCH IT CONTINUES. Product & Party Search finds
+      // the machine; this says what has happened to it. Same desk, same
+      // question one step further on.
+      { to: '/product-history', label: 'Product History', icon: '🕰️' },
       // DAILY CALL REVIEW MOVED TO QUALITY & ANALYTICS and CALL REVIEW TO
       // SERVICE CALLS (the user, 2026-09-12). Both sat here because they were
       // built here, not because this is where they belong: the DCCR is the

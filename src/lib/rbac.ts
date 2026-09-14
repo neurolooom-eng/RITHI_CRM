@@ -49,6 +49,12 @@ export const MODULES: ModuleDef[] = [
   { path: '/', label: 'Dashboard' },
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
+  // PRODUCT HISTORY — one machine's whole life, the live registers and the
+  // 2016 archive project in one timeline. Its own key rather than riding on
+  // Product & Party Search: that screen answers "whose machine is this", this
+  // one opens ten years of what went wrong with it, and a site that wants the
+  // first without the second must be able to say so.
+  { path: '/product-history', label: 'Product History' },
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/call-review', label: 'Call Review' },
   { path: '/parties', label: 'Party Master' },

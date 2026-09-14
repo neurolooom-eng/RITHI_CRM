@@ -10,6 +10,7 @@ import { ResetPassword } from './modules/ResetPassword';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
 import { Lookup } from './modules/Lookup';
+import { ProductHistory } from './modules/ProductHistory';
 import { PartyMaster } from './modules/PartyMaster';
 import { PartMaster } from './modules/PartMaster';
 import { AllMasters } from './modules/AllMasters';
@@ -136,6 +137,7 @@ function Shell() {
         <Route path="/pending-registrations" element={<PendingRegistrations />} />
         <Route path="/product-master" element={<ProductMaster />} />
         <Route path="/lookup" element={<Lookup />} />
+        <Route path="/product-history" element={<ProductHistory />} />
         <Route path="/user-master" element={<UserMasterView />} />
         <Route path="/pm-calls" element={<PMCalls />} />
         <Route path="/pending-calls" element={<PendingCalls />} />
