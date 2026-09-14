@@ -24,6 +24,14 @@
   border-color: color-mix(in srgb, var(--primary, #0ea5a4) 40%, transparent);
   background: color-mix(in srgb, var(--primary, #0ea5a4) 10%, var(--surface));
 }
+/* The fourth, added 2026-09-14 with the Machine History party warning. The
+   class name was in use with no rule behind it, so the banner rendered as a
+   plain one — a warning that does not look like a warning is not one. Built
+   from the same tokens as the three above, so it reads in either theme. */
+.sheet-banner-warn {
+  border-color: color-mix(in srgb, var(--warning, #c2700a) 45%, transparent);
+  background: color-mix(in srgb, var(--warning, #c2700a) 12%, var(--surface));
+}
 
 .conn-dot {
   font-size: 12px;

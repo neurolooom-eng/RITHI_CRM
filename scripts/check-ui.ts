@@ -4960,6 +4960,21 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 }
 
 
+console.log('\n-- every banner tone has a rule behind it --');
+{
+  // A class name in use with no CSS renders as a PLAIN banner, which for a
+  // warning is worse than not marking it at all. `sheet-banner-warn` shipped
+  // that way (2026-09-14) and was caught before it reached anybody.
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  const used = new Set<string>();
+  for (const f of readdirSync('src/modules').filter((x) => x.endsWith('.tsx'))) {
+    for (const m of readFileSync(`src/modules/${f}`, 'utf8').matchAll(/sheet-banner-([a-z]+)/g)) used.add(m[1]);
+  }
+  const missing = [...used].filter((tone) => !new RegExp(`\\.sheet-banner-${tone}\\s*\\{`).test(css));
+  eq('banners are actually used', used.size > 0, true);
+  eq('every banner tone a screen uses has a rule', missing, []);
+}
+
 console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');

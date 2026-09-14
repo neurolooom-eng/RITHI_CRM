@@ -3,7 +3,7 @@ import { PageHeader, SectionCard, Toolbar } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
-import { machineHistory, machineNow, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+import { machineHistory, machineNow, partyDiffers, type MachineEvent, type MachineNow } from '../lib/machineHistory';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
 import { csvExport, fmtLongDate } from '../lib/format';
@@ -35,7 +35,7 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const SOURCES: MachineEvent['source'][] = [
-  'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
+  'Product Master', 'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
   'Sale / warranty', 'Contract', 'Ownership', 'Additional entry', 'Workshop',
 ];
 
@@ -171,6 +171,27 @@ export function MachineHistory() {
                 ? `${now.contractType || 'Contract'} ${now.contractNumber} to ${fmtLongDate(now.contractEnd) || '—'}${now.contractState ? ` (${now.contractState})` : ''}`
                 : '—'} />
             </div>
+            {/* THE TWO PARTIES DISAGREEING IS THE FINDING, not a display fault.
+                Reported of ORION-G 2141: the master said one hospital and the
+                cover, the calls, the visit and the feedback all said another.
+                `products.party_name` is written only by the Product Master
+                upload and by an Ownership Transfer (0072); a CONTRACT moves the
+                cover and never the party. So a machine that moved on a contract
+                with no transfer filed keeps the old hospital on the master for
+                ever — and the master is what the call form and the request
+                cascade read, so the next call is offered the wrong one. */}
+            {partyDiffers(now) && (
+              <div className="sheet-banner sheet-banner-warn" style={{ marginTop: 10 }}>
+                <span>
+                  The <b>Product Master</b> says this machine is with <b>{now.party}</b>, but its
+                  cover — and the calls below — say <b>{now.coverParty}</b>. Go by where the calls
+                  are being raised. The master only moves when an <b>Ownership Transfer</b> is
+                  filed or the master is re-imported; a contract for a new hospital moves the
+                  cover and leaves the party behind. Until it is corrected, raising a call for
+                  this machine will offer the wrong hospital.
+                </span>
+              </div>
+            )}
             {/* A MACHINE WITH A HISTORY AND NO MASTER ROW IS A FINDING, not an
                 error: the registers know it and the Product Master does not. */}
             {!now.onMaster && (
