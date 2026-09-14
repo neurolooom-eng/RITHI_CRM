@@ -371,3 +371,17 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Verify an upsert target against a database, not by reading the SQL.**
   `npm run check:upserts -- "<psql args>"` rejects partial indexes, expression
   indexes and views. That class shipped six times by inspection alone.
+- **`IF NOT EXISTS` GUARDS A NAME, NEVER A DEFINITION** — it makes a migration
+  re-runnable, it does NOT make it corrective. `add column if not exists x ...
+  generated always as (<new expr>)` is a silent no-op when the column exists:
+  the expression is not compared. `create unique index if not exists <name>` is
+  a silent no-op when that NAME exists, whatever its definition. 0186 changed
+  both the generation expression and the index's predicate while reusing both
+  names, so a project that had run its first version kept the PARTIAL index for
+  ever and every later run of the corrected file confirmed it was fine — which
+  is exactly how the live project reported "no unique or exclusion constraint
+  matching the ON CONFLICT specification" after running the bundle. Anything
+  that CHANGES the shape of an object somebody may already have must INSPECT
+  and replace (`0188_feedback_key_repair.sql` is the pattern: find the index by
+  SHAPE, not by name, since PostgREST does not read names either). 0185 escaped
+  it only by naming its new index differently and dropping the old one by name.

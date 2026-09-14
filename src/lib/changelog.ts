@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.245',
+    date: '2026-09-14',
+    title: 'Customer Feedback can be loaded',
+    changes: [
+      'Loading the feedback export stopped with \u201cno unique or exclusion constraint matching the ON CONFLICT specification\u201d even after the database script had been run \u2014 because the script ran, reported success, and changed nothing.',
+      'The earlier version of that script had already put a key in place, and a script can only add what is missing: it cannot notice that what is already there is the wrong shape. So every re-run confirmed the wrong one.',
+      'There is now a repair that looks at what is actually there and replaces it. Run the Data Integrity script once more and the upload works; it is safe to run however many times.',
+      'Nothing is lost in the repair: feedback with no call number keeps its own row, and where one call had several feedbacks the latest is kept \u2014 which is what the key was for.',
+    ],
+  },
+  {
     version: '0.9.244',
     date: '2026-09-14',
     title: 'About to expire means thirty days, as it always did on the sheet',
