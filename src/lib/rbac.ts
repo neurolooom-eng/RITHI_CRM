@@ -109,6 +109,7 @@ export const MODULES: ModuleDef[] = [
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
+  { path: '/machine-history', label: 'Machine History' },
   { path: '/indoor', label: 'Indoor Service Register' },
   { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
@@ -397,6 +398,9 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/unused', label: '↳ Not Consumed Against this Call', actions: [] },
     { path: '/exports/calls', label: '↳ Call Report', actions: [] },
     { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: [] },
+  ] },
+  { title: 'Machine History', pages: [
+    { path: '/machine-history', label: 'Machine History', actions: [] },
   ] },
   { title: 'Indoor Service', pages: [
     { path: '/indoor', label: 'Indoor Service Register',

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.253',
+    date: '2026-09-14',
+    title: 'Machine History — one machine, everything that happened to it',
+    changes: [
+      'A new screen under Quality & Analytics. Pick the product, then its serial, and it shows where the machine is now and every transaction ever recorded against it.',
+      'Calls, visits, spares fitted, warranty, contract and ownership transfers \u2014 and four more you did not list but a machine has: Field Failure Reports, customer feedback, additional entries and workshop jobs.',
+      'Product FIRST, then serial. The same serial number belongs to several models, so a serial on its own would show you a different hospital\u2019s machine. Changing the product clears the serial.',
+      'Every row says which register it came from, and a UCN carries its call\u2019s colour as everywhere else. Filter by register, or export the lot.',
+      'If a machine is not on the Product Master the screen says so rather than looking empty \u2014 everything recorded against it is still listed.',
+      'The same thing is available as a SQL script for a one-off look, in supabase/apply/_machine_history.sql.',
+    ],
+  },
+  {
     version: '0.9.252',
     date: '2026-09-14',
     title: 'Call Report and Customer Feedback Report',
