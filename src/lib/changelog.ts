@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.254',
+    date: '2026-09-14',
+    title: 'Machine History moves to Overview, and says when the master is stale',
+    changes: [
+      'Machine History now sits under Overview beside Product & Party Search \u2014 that one answers \u201cwhich machines\u201d, this one answers \u201cwhat happened to this one\u201d.',
+      'The Product Master is a row in the list as well as the heading, so what it says can be read beside every other register rather than only above them.',
+      'When the Product Master names a different hospital from the machine\u2019s cover and its calls, the screen says so instead of leaving two lines quietly disagreeing. That happens when a machine moves on a CONTRACT and no Ownership Transfer is filed: the contract moves the cover, the master keeps the old customer \u2014 and the master is what the call form reads, so the next call would be offered the wrong hospital.',
+    ],
+  },
+  {
     version: '0.9.253',
     date: '2026-09-14',
     title: 'Machine History — one machine, everything that happened to it',
