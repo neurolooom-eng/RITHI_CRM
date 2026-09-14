@@ -3,10 +3,11 @@ import { SectionCard } from '../components/ui/ui';
 import { archiveConfigured, archiveLoads, getArchiveCreds, pingArchive, setArchiveCreds, type ArchiveLoad } from '../lib/archive';
 
 // ===========================================================================
-// SETTINGS → ARCHIVE (PRODUCT HISTORY).
+// SETTINGS → ARCHIVE (MACHINE HISTORY).
 //
 // The 2016 history lives in a second Supabase project, and this is where a
-// device is told how to read it. It looks like the Database Connection card
+// device is told how to read it. Machine History reads it alongside the
+// registers; without this card it shows the registers only and says so. It looks like the Database Connection card
 // above it and it is NOT the same thing, in one way that matters enough to be
 // printed on the card itself:
 //
@@ -24,7 +25,7 @@ import { archiveConfigured, archiveLoads, getArchiveCreds, pingArchive, setArchi
 // argues the whole trade-off and names the two better transports.
 //
 // WHAT IS LOADED, not just whether it answers. "Connected" and "has the history
-// in it" are different questions, and a Product History screen that is empty
+// in it" are different questions, and a Machine History screen that is empty
 // because nothing was ever loaded looks exactly like one that is empty because
 // the machine is new. The table below answers the second question from the
 // archive's own `history_loads` view.
@@ -39,7 +40,7 @@ export function ArchiveConnection({ readOnly = false }: { readOnly?: boolean }) 
   const [status, setStatus] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
     archiveConfigured()
       ? { tone: 'ok', text: 'An archive key is saved on this device. Test to confirm it still reads.' }
-      : { tone: 'info', text: 'No archive key on this device — Product History will show the live registers only.' },
+      : { tone: 'info', text: 'No archive key on this device — Machine History will show the registers only.' },
   );
 
   const refreshLoads = () => {
@@ -50,7 +51,7 @@ export function ArchiveConnection({ readOnly = false }: { readOnly?: boolean }) 
 
   const save = () => {
     setArchiveCreds(url, key);
-    setStatus({ tone: 'ok', text: 'Saved on this device. Test to confirm, then open Product History.' });
+    setStatus({ tone: 'ok', text: 'Saved on this device. Test to confirm, then open Machine History.' });
     refreshLoads();
   };
 
@@ -73,7 +74,7 @@ export function ArchiveConnection({ readOnly = false }: { readOnly?: boolean }) 
   };
 
   return (
-    <SectionCard title="Archive (Product History)">
+    <SectionCard title="Archive (Machine History)">
       <div className="muted" style={{ marginBottom: 12 }}>
         The service history from <b>2016 to the cut-over</b> lives in its own Supabase project and is
         read-only. Paste that project&apos;s <b>URL</b> and <b>publishable key</b>.

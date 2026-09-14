@@ -48,10 +48,11 @@ export const NAV: NavGroup[] = [
       // here and not under Reports.
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
-      // DIRECTLY UNDER THE SEARCH IT CONTINUES. Product & Party Search finds
-      // the machine; this says what has happened to it. Same desk, same
-      // question one step further on.
-      { to: '/product-history', label: 'Product History', icon: '🕰️' },
+      // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:
+      // "Add this to overview"). Product & Party Search answers "which
+      // machines"; this answers "what happened to THIS one". Not under
+      // Reports, where it first went: a report is a file you take away.
+      { to: '/machine-history', label: 'Machine History', icon: '🔬' },
       // DAILY CALL REVIEW MOVED TO QUALITY & ANALYTICS and CALL REVIEW TO
       // SERVICE CALLS (the user, 2026-09-12). Both sat here because they were
       // built here, not because this is where they belong: the DCCR is the
@@ -201,7 +202,10 @@ export const NAV: NavGroup[] = [
     title: 'Master',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/product-master', label: 'Product Master', icon: '🩺' },
+      { to: '/product-database', label: 'Product Database', icon: '🩺' },
+      // THE CATALOGUE, beside the register of machines it describes. One row
+      // per product LINE; the Database is one row per MACHINE.
+      { to: '/product-master', label: 'Product Master', icon: '📖' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },

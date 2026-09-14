@@ -261,6 +261,22 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **`create or replace view` can only APPEND columns.** Inserting one in the
   middle fails with "cannot change name of view column"; add at the end, or drop
   and recreate (and then everything depending on the view must be rebuilt too).
+- **POSTGREST CAPS A RESPONSE AT 1,000 ROWS HOWEVER LARGE THE `limit` SAYS, and
+  silently.** So `.limit(20000)` is not a bigger request — it is a line that
+  reads like a precaution and is the thing HIDING the truncation. Everything
+  register-sized goes through `allRows()` in `src/lib/paging.ts`, which pages
+  with `range()`. Reported from use (2026-09-14): Product & Party Search on
+  ORION-G — 2,547 machines, the serial picker offered 1,000, and a real serial
+  read as *"Nothing matches"*. It had been diagnosed ONCE for
+  `listCallRequests`, whose comment says exactly this, and the fix went into
+  **one of thirteen call sites**; the other twelve were reported a year later as
+  a new bug. `npm run check:ui` now refuses any `.limit(n > 1000)`, and
+  `npm run check:paging` tests the pager against a fake server that honours the
+  cap. **Every paged read must also name an ORDER** — without one the pages can
+  overlap and a row is doubled or dropped, which is worse than truncation
+  because the result looks complete. `paging.ts` is a module of its own for one
+  reason: `supabase.ts` reads `import.meta.env` and no node script can import
+  it, so nothing in it can be tested as behaviour.
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.
@@ -371,6 +387,63 @@ on testing the old shape. **When a migration replaces a definition, move the
   four date parsers and they had started to disagree. A wall-clock export time is
   LOCAL (`toIsoTimestamp(v, 'local')`, settled with the user); display of a
   non-ISO string is day-first too (`parseAnyDate`). Neither is a per-file habit.
+- **`products` IS THE INSTALL BASE; `product_master` IS THE CATALOGUE — and the
+  NAMES SWAPPED on 2026-09-14.** `public.products` is one row per MACHINE
+  (model + serial, customer, cover), ~20,000 rows, labelled **Product Database**
+  at `/product-database`. `public.product_master` (0193) is one row per PRODUCT
+  LINE — code, type, category, still-sold — 53 rows, labelled **Product Master**
+  at `/product-master`. The table names now read backwards against the labels,
+  which is the price of not renaming a table 24 views and a dozen functions
+  depend on; the labels are what the user reads.
+  **The permission had to move with the screen** (0192): the module key IS the
+  route, so leaving `mod:/product-master` where it was would have silently
+  swapped which screen every role could open. It merges `mod:/product-database`
+  into every role that held the old key.
+  **`active` stops exactly one thing: a NEW SALE ENTRY.** Contracts, calls,
+  visits, spares and feedback are untouched — a machine sold in 2014 is still
+  supported. Enforced on the FORM (`optionsFrom: 'sellable-*'` in `cover.ts`)
+  and NOT by a trigger, because a trigger would also refuse the historical sales
+  import: 30 of the 53 lines are retired and those sales really happened.
+  `product_line_sellable()` is the same rule in SQL; an UNKNOWN code is sellable,
+  since an incomplete catalogue must not refuse a real sale.
+- **A NEW SCREEN, OR A RE-ARRANGED ONE, IS NOT DONE UNTIL ROLES & PERMISSIONS
+  KNOWS** (the user's standing rule, 2026-09-14: *"Always when a New UI is
+  introduced or when a UI is re-arranged — this is often missed"*). It had been
+  missed four times. Three things must move together, and the third is the one
+  that bites:
+  1. `MODULES` and the menu in `Layout.tsx` — the screen and where it lives.
+  2. `PERM_TREE` in `rbac.ts` — the matrix an administrator edits. Its header
+     must be the screen's MENU GROUP and its position the menu's position; a
+     page filed under a header the screen no longer sits under is how somebody
+     grants the wrong thing believing they granted the right one. Machine
+     History moved to Overview and kept a header of its own for two days.
+  3. **A MIGRATION MERGING `mod:/<path>` INTO `app_roles`.** `permsForRole()` is
+     `if (stored && stored.length) return stored;` — the code defaults apply
+     ONLY to a role whose stored set is EMPTY, and on a project in use every
+     role has a tuned row. So a new module's key reaches NOBODY until a
+     migration puts it there: the screen ships, the menu entry exists, the
+     permission is ticked in `DEFAULT_PERMS`, and the page is invisible to all
+     twelve roles with no error anywhere. That is exactly what happened to
+     Machine History, the Call Report and the Customer Feedback Report; 0195 is
+     the repair and `0192`/`0195` are the pattern. **MERGE, never overwrite**,
+     and leave a role with ZERO permissions alone — an empty array means "not
+     configured" and writing one key into it turns the fallback off.
+  `npm run check:ui` enforces all three now. It did not, while `rbac.ts` claimed
+  it did — nothing read `PERM_TREE` at all. **A comment claiming a check exists
+  is worse than no comment, because it is the reason nobody looks.**
+- **A BLANK CELL USED TO BE INDISTINGUISHABLE FROM AN ABSENT COLUMN, and they
+  mean opposite things.** A heading the file does NOT carry must leave its
+  column alone; a heading it DOES carry with an empty cell must EMPTY it. Both
+  produced a payload with no such key, so an upload could only ever ADD a value
+  and never REMOVE one — a correction at source did nothing. Reported
+  2026-09-14: ORION-G 2410 showed contract MC5521, which belongs to the CPX CARE
+  that shares that serial; the master was corrected and re-uploading it left
+  MC5521 in place (proved against Postgres before it was fixed). `blanksClear`
+  on an `UploadDef` sends the empty value instead, and is **opt-in per
+  register** — right where the file is the WHOLE ROW (the Product Database's
+  master export carries all 32 headings), wrong where a partial file's tool
+  emits every heading whether or not it means to fill it. A **stamped** column
+  is never blanked, nor a **required** one (that row is held back instead).
 - **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
   Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
   User Master directory, and the MRN two-tab flattening. Do not add a table to

@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**66 tables · 25 views · 1606 columns · 126 policies · 42 foreign keys.**
+**72 tables · 29 views · 1844 columns · 141 policies · 48 foreign keys.**
 
 ## How to read this
 
@@ -38,6 +38,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [audit_log](#audit-log)
 - [audit_mode_changes](#audit-mode-changes)
 - [call_number_seq](#call-number-seq)
+- [call_report_reviews](#call-report-reviews)
 - [call_requests](#call-requests)
 - [call_reviews](#call-reviews)
 - [call_vigilance_changes](#call-vigilance-changes)
@@ -46,7 +47,10 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [contract_items](#contract-items)
 - [documents](#documents)
 - [feedback](#feedback)
+- [ffr_counters](#ffr-counters)
+- [ffr_history](#ffr-history)
 - [field_calls](#field-calls)
+- [field_failure_reports](#field-failure-reports)
 - [handstock_opening](#handstock-opening)
 - [handstock_period](#handstock-period)
 - [harness](#harness)
@@ -72,6 +76,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [pending_registrations](#pending-registrations)
 - [pm_calls](#pm-calls)
 - [product_additional_entries](#product-additional-entries)
+- [product_master](#product-master)
 - [products](#products)
 - [profiles](#profiles)
 - [quality_objectives](#quality-objectives)
@@ -97,6 +102,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [tracker_items](#tracker-items)
 - [ucn_counters](#ucn-counters)
 - [user_directory](#user-directory)
+- [user_signatures](#user-signatures)
 - [validation_results](#validation-results)
 
 Views are listed [after the tables](#views).
@@ -230,6 +236,34 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## call_report_reviews
+
+> Call Review (/call-review): has this solved call's report been reviewed. One row per UCN.
+
+**Primary key:** `ucn` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `ucn` | text | **no** |  |  |
+| 2 | `status` | text | **no** | `'Report Reviewed'::text` |  |
+| 3 | `remarks` | text | **no** | `''::text` |  |
+| 4 | `reviewed_by` | uuid | yes |  |  |
+| 5 | `reviewed_by_name` | text | **no** | `''::text` |  |
+| 6 | `reviewed_at` | timestamp with time zone | **no** | `now()` |  |
+| 7 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+
+**Triggers:** `zz_call_report_reviews_stamp` → `call_report_reviews_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `crr_write` | — | `(has_perm('callreview.mark'::text) AND (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_report_reviews.ucn))))` |
+| SELECT | `crr_read` | `(EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_report_reviews.ucn)))` | — |
+| UPDATE | `crr_update` | `(has_perm('callreview.mark'::text) AND (EXISTS ( SELECT 1    FROM calls c   WHERE (c.ucn = call_report_reviews.ucn))))` | `has_perm('callreview.mark'::text)` |
+
+---
+
 ## call_requests
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -282,7 +316,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | INSERT | `cr_insert` | — | `has_perm('request.create'::text)` |
-| SELECT | `cr_read` | `(can_view_all_calls() OR (created_by = auth.uid()) OR (lower(email) = lower(auth.email())) OR (lower(TRIM(BOTH FROM engineer)) IN ( SELECT lower(TRIM(BOTH FROM v.n)) AS lower    FR…` | — |
+| SELECT | `cr_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (lower(email) = lower(( SELECT auth.email() AS email))) OR (lower(btrim(engin…` | — |
 | UPDATE | `cr_update` | `(has_perm('calls.create'::text) OR has_perm('pending.register'::text) OR (created_by = auth.uid()))` | `(has_perm('calls.create'::text) OR has_perm('pending.register'::text) OR (created_by = auth.uid()))` |
 
 ---
@@ -313,12 +347,16 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 18 | `review2_done` | boolean _(generated)_ | yes |  |  |
 | 19 | `review3_done` | boolean _(generated)_ | yes |  |  |
 | 20 | `any_potential_effect` | text _(generated)_ | yes |  |  |
+| 21 | `review2_by_uid` | uuid | yes |  | → users(id) · WHO completed Review 2, from auth.uid() at the moment it was completed. The text column beside it is the display name; this is the identity. |
+| 22 | `review3_by_uid` | uuid | yes |  | → users(id) |
 
 **References:**
 
+- `review2_by_uid` → **users**(`id`) · on delete no action _(call_reviews_review2_by_uid_fkey)_
+- `review3_by_uid` → **users**(`id`) · on delete no action _(call_reviews_review3_by_uid_fkey)_
 - `updated_by` → **users**(`id`) · on delete no action _(call_reviews_updated_by_fkey)_
 
-**Triggers:** `call_reviews_stamp` → `call_review_stamp()`
+**Triggers:** `call_reviews_stamp` → `call_review_stamp()` · `zz_ffr_from_review` → `ffr_from_review()` · `zz_ffr_observation` → `ffr_observation_from_review()` · `zzz_call_review_reviewer` → `call_review_reviewer_stamp()`
 
 **Permissions**
 
@@ -521,6 +559,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ## feedback
 
+> Customer feedback, one row per call (ucn_key, 0186/0188). A second feedback for the same call REPLACES the first — that is what the key is for — so whoever may file one may correct one (fb_update, 0189). Without that policy the upload inserted until the first collision and then stopped, which is exactly when an upsert is supposed to work.
+
 **Primary key:** `id` · **Row-level security:** **on**
 
 | # | Column | Type | Null | Default | Allowed values / reference |
@@ -540,6 +580,11 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 13 | `visit_at` | timestamp with time zone | yes |  |  |
 | 14 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 15 | `created_by` | uuid | yes |  | → users(id) |
+| 16 | `ucn_key` | text _(generated)_ | yes |  |  |
+| 17 | `entry_at` | timestamp with time zone | **no** | `now()` | When the feedback was taken. For a migrated row this is the export's "Visit Entry Date"; for one recorded here it is when it was recorded. NOT created_at, which is when the ROW was written and reads as the upload date on every migrated feedback. |
+| 18 | `imported_from` | text | **no** | `''::text` | The file this feedback was loaded from; EMPTY means it was recorded in this system. Lets a figure drawn from both report the split. |
+
+**Unique:** `ucn_key` _(feedback_ucn_key_uniq)_
 
 **References:**
 
@@ -553,6 +598,52 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | INSERT | `fb_write` | — | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` |
 | SELECT | `fb_read` | `(has_perm('feedback.view'::text) OR has_perm('calls.report'::text))` | — |
+| UPDATE | `fb_update` | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` | `(has_perm('calls.report'::text) OR has_perm('feedback.view'::text))` |
+
+---
+
+## ffr_counters
+
+**Primary key:** `yr` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `yr` | smallint | **no** |  |  |
+| 2 | `last_no` | integer | **no** | `0` |  |
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
+## ffr_history
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('ffr_history_id_seq'::regclass)` |  |
+| 2 | `ffr_id` | bigint | **no** |  | → field_failure_reports(id) |
+| 3 | `ffr_no` | text | **no** | `''::text` |  |
+| 4 | `changed_at` | timestamp with time zone | **no** | `now()` |  |
+| 5 | `changed_by` | uuid | yes |  | → users(id) |
+| 6 | `changed_by_name` | text | **no** | `''::text` |  |
+| 7 | `action` | text | **no** | `'update'::text` |  |
+| 8 | `changes` | jsonb | **no** | `'{}'::jsonb` |  |
+
+**References:**
+
+- `changed_by` → **users**(`id`) · on delete no action _(ffr_history_changed_by_fkey)_
+- `ffr_id` → **field_failure_reports**(`id`) · on delete cascade _(ffr_history_ffr_id_fkey)_
+
+**Triggers:** `zz_no_delete` → `block_hard_delete()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `ffrh_read` | `(( SELECT has_perm('ffr.view'::text) AS has_perm) OR ( SELECT has_perm('ffr.manage'::text) AS has_perm) OR ( SELECT is_admin() AS is_admin))` | — |
 
 ---
 
@@ -632,6 +723,70 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | INSERT | `calls_insert` | — | `has_perm('calls.create'::text)` |
 | SELECT | `calls_scoped_read` | `(( SELECT has_perm('calls.view'::text) AS has_perm) AND (( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (actual_created_by = …` | — |
 | UPDATE | `calls_update` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` | `(( SELECT (has_perm('calls.edit'::text) OR has_perm('calls.report'::text) OR has_perm('calls.allot'::text) OR has_perm('calls.edit.complaint'::text) OR has_perm('calls.edit.custome…` |
+
+---
+
+## field_failure_reports
+
+> Field Failure Register (/failure-report). Format: Field_Failure_Register 2026 tab; report R-SER-03 Rev 02.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint | **no** | `nextval('field_failure_reports_id_seq'::regclass)` |  |
+| 2 | `ffr_no` | text | **no** |  |  |
+| 3 | `ffr_date` | date | **no** | `((now() AT TIME ZONE 'Asia/Kolkata'::text))::date` |  |
+| 4 | `source` | text | **no** | `'PC'::text` |  |
+| 5 | `ucn` | text | **no** | `''::text` |  |
+| 6 | `crn_date` | date | yes |  |  |
+| 7 | `customer_name` | text | **no** | `''::text` |  |
+| 8 | `place` | text | **no** | `''::text` |  |
+| 9 | `product_name` | text | **no** | `''::text` |  |
+| 10 | `cover` | text | **no** | `''::text` |  |
+| 11 | `item_code` | text | **no** | `''::text` |  |
+| 12 | `product_serial` | text | **no** | `''::text` |  |
+| 13 | `installation_date` | date | yes |  |  |
+| 14 | `problem_reported` | text | **no** | `''::text` |  |
+| 15 | `additional_problem` | text | **no** | `''::text` |  |
+| 16 | `service_observation` | text | **no** | `''::text` |  |
+| 17 | `problem_status` | text | **no** | `''::text` |  |
+| 18 | `capa_responsibility` | text | **no** | `''::text` |  |
+| 19 | `capa_no` | text | **no** | `'NA'::text` |  |
+| 20 | `capa_status` | text | **no** | `'Not required'::text` |  |
+| 21 | `verified_by` | text | **no** | `''::text` |  |
+| 22 | `remarks` | text | **no** | `''::text` |  |
+| 23 | `current_call_status` | text | **no** | `''::text` |  |
+| 24 | `call_solved_at` | timestamp with time zone | yes |  |  |
+| 25 | `visit_remarks` | text | **no** | `''::text` |  |
+| 26 | `spares_consumed` | text | **no** | `''::text` |  |
+| 27 | `call_type` | text | **no** | `''::text` |  |
+| 28 | `ffr_status` | text | **no** | `'Open'::text` |  |
+| 29 | `doc_url` | text | **no** | `''::text` |  |
+| 30 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 31 | `raised_by` | uuid | yes |  |  |
+| 32 | `raised_by_name` | text | **no** | `''::text` |  |
+| 33 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 34 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 35 | `attachment_url` | text | **no** | `''::text` |  |
+| 36 | `attachment_name` | text | **no** | `''::text` |  |
+| 37 | `reviewed_at` | date | yes |  | The weekly FFR review. NOT updated_at: any edit moves that, and the question is which reports have not been looked at. |
+| 38 | `reviewed_by_name` | text | **no** | `''::text` |  |
+| 39 | `imported_from` | text | **no** | `''::text` | The file this report was loaded from. EMPTY means this system raised it. Kept so a figure over the register can report the split (URS-037) — a 2016 sheet row and a report raised by the Daily Call Review are not the same kind of evidence. |
+
+**Unique:** `ffr_no, product_serial` _(ffr_no_machine_uniq)_
+
+**Referenced by:** `ffr_history.ffr_id`
+
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_ffr_history` → `ffr_history_write()` · `zz_ffr_history_created` → `ffr_history_created()` · `zz_ffr_stamp` → `ffr_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| INSERT | `ffr_write` | — | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` |
+| SELECT | `ffr_read` | `(( SELECT has_perm('ffr.view'::text) AS has_perm) OR ( SELECT can_view_all_calls() AS can_view_all_calls) OR (raised_by = ( SELECT auth.uid() AS uid)) OR (COALESCE(btrim(ucn), ''::…` | — |
+| UPDATE | `ffr_update` | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` | `( SELECT has_perm('ffr.manage'::text) AS has_perm)` |
 
 ---
 
@@ -1262,6 +1417,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 14 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 15 | `extra` | jsonb | **no** | `'{}'::jsonb` | Everything the source export carried that has no field of its own, kept as written. |
 
+**Unique:** `reference_no, serial_number` _(ownership_transfer_key_uniq)_
+
 **References:**
 
 - `recorded_by` → **users**(`id`) · on delete no action _(ownership_transfers_recorded_by_fkey)_
@@ -1525,8 +1682,10 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 17 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 18 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
 | 19 | `serial_key` | text _(generated)_ | yes |  |  |
+| 20 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 21 | `machine_key` | text _(generated)_ | yes |  |  |
 
-**Unique:** `serial_key` _(product_additional_entries_serial_key_uniq)_
+**Unique:** `machine_key` _(product_additional_entries_machine_key_uniq)_
 
 **References:**
 
@@ -1540,6 +1699,43 @@ _No policies, RLS off — reachable by anything with table privileges._
 | --- | --- | --- | --- |
 | ALL | `pae_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
 | SELECT | `pae_read` | `(auth.role() = 'authenticated'::text)` | — |
+
+---
+
+## product_master
+
+> The catalogue of PRODUCT LINES — one row per code, 53 today. Not the install base: that is public.products, labelled Product Database. `active` false means the line takes no NEW SALE ENTRY; contracts, calls and everything else are unaffected.
+
+**Primary key:** `product_code` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `product_code` | text | **no** |  |  |
+| 2 | `product_name` | text | **no** | `''::text` |  |
+| 3 | `item_detail` | text | **no** | `''::text` |  |
+| 4 | `item_type` | text | **no** | `''::text` |  |
+| 5 | `item_category` | text | **no** | `''::text` |  |
+| 6 | `short_form` | text | **no** | `''::text` |  |
+| 7 | `active` | boolean | **no** | `true` | Can this line still be SOLD? False stops a NEW sale entry only. Machines already sold stay supported — they take contracts, calls, visits, spares and feedback exactly as before. |
+| 8 | `added_on` | date | yes |  |  |
+| 9 | `added_by` | text | **no** | `''::text` |  |
+| 10 | `extra` | jsonb | **no** | `'{}'::jsonb` |  |
+| 11 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 12 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 13 | `created_by` | uuid | yes | `auth.uid()` | → users(id) |
+
+**References:**
+
+- `created_by` → **users**(`id`) · on delete no action _(product_master_created_by_fkey)_
+
+**Triggers:** `product_master_touch` → `product_master_touch()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `pm_write` | `has_perm('masters.edit'::text)` | `has_perm('masters.edit'::text)` |
+| SELECT | `pm_read` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
 
@@ -1566,6 +1762,27 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 15 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 16 | `machine_key` | text _(generated)_ | yes |  |  |
 | 17 | `serial_key` | text _(generated)_ | yes |  | lower(btrim(serial_number)), stored, so a client can look one machine up by serial as an EQUALITY on an indexed column. The expression index products_serial_key_idx (0037) cannot be reached through PostgREST; this can. |
+| 18 | `item_code` | text | **no** | `''::text` | The product CODE. Joins this machine to its line on public.product_master (0193) — the Product Database had none until 0194. |
+| 19 | `item_details_long` | text | **no** | `''::text` |  |
+| 20 | `item_details` | text | **no** | `''::text` |  |
+| 21 | `sold_through` | text | **no** | `''::text` |  |
+| 22 | `state` | text | **no** | `''::text` |  |
+| 23 | `city` | text | **no** | `''::text` |  |
+| 24 | `address` | text | **no** | `''::text` |  |
+| 25 | `po_no` | text | **no** | `''::text` |  |
+| 26 | `po_date` | date | yes |  |  |
+| 27 | `warranty_status_keyed` | text | **no** | `''::text` | The export's own ACTIVE/INACTIVE text. NOT the state this system computes from the dates; the two can disagree and the disagreement is worth seeing. |
+| 28 | `contract_status_keyed` | text | **no** | `''::text` | As warranty_status_keyed, for the contract. |
+| 29 | `pm_visits` | integer | yes |  | How many PM visits the cover carries. NULL means nobody said, which is not the same as none. |
+| 30 | `other_details` | text | **no** | `''::text` |  |
+| 31 | `service_engineer` | text | **no** | `''::text` |  |
+| 32 | `prod_final` | text | **no** | `''::text` |  |
+| 33 | `installation_completed` | text | **no** | `''::text` |  |
+| 34 | `inst_call` | text | **no** | `''::text` |  |
+| 35 | `inst_date` | date | yes |  |  |
+| 36 | `inst_call_status` | text | **no** | `''::text` |  |
+| 37 | `report` | text | **no** | `''::text` |  |
+| 38 | `associated_accessory` | text | **no** | `''::text` |  |
 
 **Unique:** `machine_key` _(products_machine_key_uniq)_
 
@@ -1645,7 +1862,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 24 | `notes` | text | **no** | `''::text` |  |
 | 25 | `updated_by` | uuid | yes |  |  |
 | 26 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
-| 27 | `calc_key` | text | **no** | `''::text` | Empty = the figure is typed and Re-Calc leaves it alone. Otherwise the name of what computes it: failure_rate_12m, open_rate_monthly. |
+| 27 | `calc_key` | text | **no** | `''::text` | Which calculation produces this objective's monthly figures, or '' when the figure is typed. failure_rate_12m = failures on a product in the trailing 12 months over the installed base; open_rate_monthly = calls of a family registered in the period that were not solved by the cut-off; attended_within_days = calls attended inside a day limit; ffr_count_monthly = how many Field Failure Reports were registered in the period, counted by FFR number. |
 | 28 | `calc_params` | jsonb | **no** | `'{}'::jsonb` |  |
 
 **Unique:** `year, lower(btrim(parameter))` _(quality_objectives_year_param_uniq)_
@@ -2377,6 +2594,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | --- | --- | --- | --- |
 | INSERT | `st_insert` | — | `has_perm('stock.transfer'::text)` |
 | SELECT | `st_read` | `(( SELECT can_view_all_calls() AS can_view_all_calls) OR (created_by = ( SELECT auth.uid() AS uid)) OR (lower(btrim(from_engineer)) IN ( SELECT lower(btrim(v.n)) AS lower    FROM v…` | — |
+| UPDATE | `st_update` | `has_perm('stock.transfer'::text)` | `has_perm('stock.transfer'::text)` |
 
 ---
 
@@ -2461,6 +2679,35 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## user_signatures
+
+**Primary key:** `user_id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `user_id` | uuid | **no** |  | → users(id) |
+| 2 | `signature` | text | **no** | `''::text` |  |
+| 3 | `name_line` | text | **no** | `''::text` |  |
+| 4 | `title_line` | text | **no** | `''::text` |  |
+| 5 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+
+**References:**
+
+- `user_id` → **users**(`id`) · on delete cascade _(user_signatures_user_id_fkey)_
+
+**Triggers:** `zz_user_signature_stamp` → `user_signature_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| DELETE | `usig_delete` | `(user_id = ( SELECT auth.uid() AS uid))` | — |
+| INSERT | `usig_insert` | — | `(user_id = ( SELECT auth.uid() AS uid))` |
+| SELECT | `usig_read` | `(user_id = ( SELECT auth.uid() AS uid))` | — |
+| UPDATE | `usig_update` | `(user_id = ( SELECT auth.uid() AS uid))` | `(user_id = ( SELECT auth.uid() AS uid))` |
+
+---
+
 ## validation_results
 
 **Primary key:** `test_id` · **Row-level security:** **on**
@@ -2500,6 +2747,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | View | security_invoker | Columns |
 | --- | --- | --- |
 | `app_user_names` | _not set_ | 2 |
+| `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
 | `calls` | **on** | 49 |
 | `consumption_report` | **on** | 39 |
@@ -2507,14 +2755,17 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `engineer_stock` | _not set_ | 3 |
 | `failure_modes_by_product` | **on** | 4 |
 | `failure_rate_by_product` | **on** | 6 |
+| `feedback_report` | **on** | 28 |
 | `field_call_review` | **on** | 54 |
 | `field_call_review_summary` | **on** | 11 |
+| `field_failure_register` | **on** | 55 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
 | `indoor_job_list` | **on** | 83 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 49 |
+| `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
 | `spare_pending_dispatch` | **on** | 31 |
 | `spare_pending_rm` | **on** | 24 |
@@ -2525,9 +2776,15 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `unused_spare_report` | **on** | 25 |
 | `warranty_sale_details` | **on** | 46 |
 
+**`call_report`** — One row per CALL — never per visit — with its latest visit and what was fitted. security_invoker, so it shows a reader exactly the calls they may see and no more.
+
 **`consumption_report`** — One row per spare booked, with its call and that call's latest visit around it. The first sixteen columns are the user's own report format, in their order; everything after is the rest of spare_consumption plus the call fields worth filtering on. `part` is split into code and description here so no consumer repeats it. security_invoker, so a reader sees only the calls their role allows.
 
-**`kpi_field_inst`** — The KPI workbook's Field_INST tab from the register: A-AB as the sheet has them, AC-AG computed by its own formulas, plus Pending Days for a call still open. Cancelled calls excluded entirely. Close is any Solved... status, report-pending included. A day count is NULL where the event has not happened, never 0.
+**`feedback_report`** — One row per customer feedback, with the export's own questions as named columns. A blank on a question is "not asked of that kind of visit", not a missing answer. security_invoker, so it shows a reader exactly the feedback they may see.
+
+**`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+
+**`product_party_names`** — Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).
 
 **`spare_pending_rm`** — Every spare line waiting for a Reporting Manager, with the REQUEST around it: the call, the customer, the product, the SERIAL, the cover, the complaint, the request type and when it was raised. Stage is computed rather than read, because `stage` is a cache and may be stale. security_invoker, so an RM sees only their own team's lines (0116, complaint added 0154).
 

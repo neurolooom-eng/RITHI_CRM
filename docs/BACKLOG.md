@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-14 (Product History; loading the archive from Bulk Uploads)_
+_Last updated: 2026-09-14 (the 2016 archive, folded into Machine History)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -12,169 +12,370 @@ up)_
 
 ---
 
-## 2026-09-14 — Product History, and the 2016 archive it reads
 
-### The question the registers could not answer
 
-"Has this happened to this machine before?" is the oldest question on the
-service desk. Until now the answer stopped at the data migration: a ventilator
-sold in 2016 with nine years of faults behind it looked new, because everything
-before the cut-over is in a **different Supabase project**
-(`sxcccaghpvznllvdebcb`) that nothing in the application could reach.
 
-**`/product-history`** is one machine, one timeline: the calls, the visits, the
-parts fitted and the cover it was under, newest first, with the live registers
-and the archive in the same list.
+## 2026-09-14 — A correction at source that the upload could not carry
 
-### Three things that decide whether it is right
+Reported with a screenshot of the app and of the SOURCE MASTER: **ORION-G 2410**
+showing contract **MC5521**, *"completely wrong"*.
 
-- **THE MACHINE IS THE MODEL AND THE SERIAL.** The picker is product-then-serial
-  and the merge is keyed on `machineKey`, never the serial alone — serials repeat
-  (eleven machines numbered "219"), and a history keyed on the number shows one
-  hospital's faults to another. The archive computes that key as a **generated
-  column** whose SQL mirrors `src/lib/headers.ts` `squash` step for step; the two
-  were diffed on twelve cases including punctuation, spacing and bracketed model
-  suffixes, and agree on all of them. If they ever stop agreeing, a machine's past
-  silently disappears — no error, an empty list, which reads as "nothing ever
-  happened to this machine".
-- **EVERY ROW SAYS WHICH DATABASE IT CAME FROM.** The two halves are not equally
-  trustworthy: a live call's state is derived from its latest visit under policies
-  that decide whether you may see it at all, while an archive call carries
-  whatever the old system was told when somebody closed it. One list without that
-  column would promise the same standard of evidence for both. For the same
-  reason a **UCN is coloured only on the live side** and renders plain on an
-  archive row — `useCallStates` is asked about live UCNs and no others, because a
-  wrong colour on a code people have learned to read is worse than no colour.
-- **NO DE-DUPLICATION BETWEEN THE HALVES.** A call in both is shown twice. The
-  cut-over date is a fact about the migration, not about the machine, so a
-  duplicate is information while a row dropped by a matching rule somebody
-  guessed is a call that vanished.
+**Two machines share serial 2410** — a CPX CARE (`PRD-007-W-220-G`) and an
+ORION-G (`PRD-009`) — and MC5521 with its CMC dates belongs to the CPX CARE.
+The user fixed the master at source. **Re-uploading it changed nothing**, and
+that is the defect.
 
-### The access question, which does NOT carry across from the live project
+### A blank cell was indistinguishable from an absent column
 
-The live anon key is public by design: it identifies the project and grants
-nothing, because every policy tests the signed-in user. **That argument does not
-hold for the archive.** Your users exist in the LIVE project's auth, and a JWT
-signed there cannot be verified by another project — `auth.uid()` is null for
-everybody, and no cleverer policy can recover an identity that is not present.
+The shaper wrote a column only when the cell had a value:
 
-So the archive key **is** the credential, and the consequences are built in
-rather than written down:
-
-- **It is NOT baked into the repository and has no default.** It is pasted into
-  Settings → Archive (Product History) and stored per device. `src/lib/archive.ts`
-  has no fallback to fall back on.
-- **The archive is read-only twice over** — RLS with a SELECT policy and no
-  other, plus the write privileges revoked outright (TRUNCATE is a privilege
-  check only and RLS never sees it). A leaked key is then a disclosure, not a way
-  to destroy ten years of quality records.
-- **The app never writes there.** Loading is done in the SQL editor, by the
-  owner, through `history_load()`.
-- The signed-in user's token **is** forwarded, so if that project is ever
-  configured to trust the live project's JWTs the policies can start testing who
-  is asking with no code change. The first 401 stops it asking for the rest of
-  the session.
-
-⚠️ **If this posture is not good enough — and it may not be — the fix is to stop
-letting the browser talk to that project at all:** `postgres_fdw` foreign tables
-on the live project wrapped in `security_invoker` views gated by
-`has_perm('mod:/product-history')`, or an Edge Function on the live project that
-verifies the caller's JWT and queries the archive with a service key. Both are
-strictly better and both need a setup step nobody has taken yet.
-**`src/lib/archive.ts` is deliberately the ONLY file that knows how the archive
-is reached**, so that swap is one file and not a rewrite of the screen.
-
-### Loading the old data
-
-`history_load(target, source, mapping, label)` copies an imported CSV table into
-a history table, mapping your export's column names onto these. Everything you
-do not map is kept in `extra` — the archive's job is to lose nothing, and a
-column nobody wants today is one somebody wants in 2027, by which time the
-spreadsheet is gone.
-
-- **Dates are day-first, always.** `03/04/2016` is the third of April. Read the
-  other way it is not an error anybody ever sees — just a call that happened a
-  month early, for ever.
-- **A bad cell never abandons the load.** An unreadable date becomes null and the
-  row goes in; a null is visible afterwards, a rolled-back load is not.
-- **A mapped column the export does not have is a MISTAKE and refuses the whole
-  load.** Quietly loading the other nineteen is how a load "succeeds" and leaves
-  blanks nobody can explain three weeks later.
-- **It APPENDS; there is no upsert.** An upsert needs a key and the one thing a
-  ten-year-old export reliably lacks is a unique column — `feedback` is what a
-  guessed key costs. To redo a load, delete it by its `source_system` label.
-
-### Loading it from the screen (ProdHistory_06)
-
-Asked for the same day: "How do i load the data into the Product History? add a
-provision to do that from the UI."
-
-`history_load()` in the SQL editor stays, and is still the right tool for a
-bulk cut-over. But ten exports loaded by hand is a job somebody does at a
-keyboard on a Tuesday, so the five archive tables are now **registers on Bulk
-Uploads**, under a `2016 Archive` heading.
-
-They are on that screen rather than in a loader of their own deliberately —
-"Bulk Uploads is the importer", and a second importer for one table is how a
-good file comes back as "0 rows". `UploadDef` gained `db: 'archive'`, which is
-read at write time and nowhere else, and the whole existing apparatus (header
-matching, day-first dates, `extraInto`, the preview of what is about to be
-written) came for free.
-
-⚠️ **This reopens part of ProdHistory_02's read-only posture, knowingly.**
-`ProdHistory_06.sql` grants INSERT and **nothing else** — no UPDATE policy, no
-DELETE policy, and both privileges stay revoked. So the property that matters
-survives: **nothing reachable from the browser can alter or destroy an existing
-archive row.** The worst a leaked key does is append rubbish NEXT TO the real
-data rather than over it, and that is recoverable. An UPDATE policy would not
-be: a value written over a 2016 record cannot be reconstructed from anywhere.
-
-**The label is the undo button, so the DATABASE requires it.** The insert
-policy's `with check` refuses a row whose `source_system` is blank. Bulk Uploads
-also refuses to send one, but a check that lives only in the browser is a check
-one curl request walks past. A batch loaded in error is then one line, run by
-the owner:
-
-```sql
-delete from public.history_calls where source_system = 'AppSheet calls 2016-2019';
+```ts
+if (val !== null && val !== '') out[col.to] = val;
 ```
 
-Verified as `anon` against the archive schema: an unlabelled insert is refused
-by the policy, a labelled one is accepted, UPDATE and DELETE are both refused,
-and rows shaped by the real register (day-first dates, both ORION spellings
-collapsing to one `machine_key`, unnamed columns kept in `extra`) load and then
-delete cleanly by label. `check:columns` now runs against either database and
-says which it checked, so the archive registers cannot silently pass by being
-skipped.
+So two cases produced the same payload — no such key — while meaning opposite
+things:
 
-### Status — SQL still to run
-
-Numbered `ProdHistory_xx` rather than into `supabase/migrations/`: four of them
-belong to a **different database**, and `build-apply-bundles.mjs` refuses to
-build if it finds a migration it does not own. Renumber into the live sequence
-at merge time only if they ever move.
-
-| File | Run it on | What it does |
+| the file | means | did |
 | --- | --- | --- |
-| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
-| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
-| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
-| [`ProdHistory_04.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_04.sql) | **Live** `issxxmgsffszqbxugqis` | Grants `mod:/product-history` to every role holding `mod:/lookup` |
-| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** | `serial_key` on the three call tables, so the lookup is an indexed equality |
-| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a row that carries its export label. Needed for the Bulk Uploads registers; without it the archive accepts no writes at all |
+| does not carry the heading | leave the column alone | leaves it alone ✓ |
+| carries it, cell empty | **empty the column** | leaves it alone ✗ |
 
-**PENDING — none of these has been run on either live project.** All five were
-applied to a throwaway Postgres and re-applied to prove they are idempotent;
-`_status.sql` still reads 153 yes afterwards, `check:views` passes, and
-`public.calls` still carries `security_invoker` (05 deliberately does not touch
-that view — re-creating it is the statement that has twice cost every user sight
-of every call).
+An upload could therefore only ever **add** a value, never **remove** one.
+Proved against Postgres before changing anything: seed the row as the screenshot
+shows it, apply the upsert the corrected file produces, and `MC5521` is still
+there afterwards.
 
-`ProdHistory_05` is optional and the screen works without it — it falls back to
-an exact match on the serial through the `calls` view. That fallback is why the
-file can be skipped, not a reason to skip it: without it every history lookup
-scans all three call tables. This is 0129 one table along — an expression index
-(`lower(serial)`) that PostgREST cannot express and therefore never uses.
+### The fix
+
+`blanksClear` on an `UploadDef` sends the empty value (`''`, or `null` for a
+typed column) when the file CARRIES the heading and the cell is blank.
+**Opt-in per register**, and `products` is the only one that has it: it is right
+where the file is the machine's WHOLE ROW — the v2_ProdMaster export carries all
+32 headings on every row — and wrong where somebody may load a partial file
+whose tool emits every heading regardless. A **stamped** column is never
+blanked, nor a **required** one (that row is held back, which is louder).
+
+End-to-end against Postgres: ORION-G's contract clears, **the CPX CARE's own row
+is untouched**, and each keeps its own warranty.
+
+⚠️ **A TDZ bug `tsc` could not see.** The guard needs `stamped`, which was
+declared BELOW the shaping loop in the same function — reading it from the loop
+would have thrown *Cannot access 'stamped' before initialization* at RUNTIME.
+`tsc --noEmit` passed. Moved above both readers.
+
+### What this means for the data
+
+**No repair SQL.** Re-uploading the corrected master now fixes every affected
+machine at once, not only the one that was noticed — which is the point of
+fixing the importer rather than patching one row.
+
+### Nothing to run on the live project
+
+Application code only — no migration.
+
+## 2026-09-14 — "Old bugs have surfaced": the 1,000-row cap, in twelve places
+
+Reported with a screenshot: **Product & Party Search, ORION-G (2547)**, serial
+box typing `2410` → *"Nothing matches"*, footer *"0 of 1000"*. The screenshot is
+the reproduction: 2,547 machines on the register, exactly 1,000 options offered.
+
+**PostgREST caps a response at 1,000 rows however large the `limit` says, and it
+says nothing when it trims.** `sbListProductSerials` asked `.limit(20000)` and
+got a thousand. The count beside the product name was RIGHT — it comes from a
+view that aggregates server-side — which is what made the picker look broken
+rather than short.
+
+### It had been diagnosed once, and fixed in one place out of thirteen
+
+`listCallRequests` carries a comment saying precisely this, written when the
+Request Registration register showed a thousand of four thousand requests. The
+fix went into that one function. The same `.limit(n)` stayed in twelve others
+and came back a year later as a new bug report.
+
+| paged now | what a cap did there |
+| --- | --- |
+| `sbListProductSerials` | **the reported one** — 1,000 of 2,547 serials |
+| `sbListPartyItems` | a hospital group's machines, cut at 1,000 |
+| `sbListPartyProducts` | which products a party owns |
+| `sbListProductNames` (fallback) | **wrong machine COUNTS**, not just a short list |
+| `listOwnershipTransfers` | transfers past the first 1,000 invisible |
+| `listAdditionalEntries` | same |
+| `sbFailureModes`, `sbSpareUsage`, `sbFailureRates` | aggregates behind the Insights charts — a trimmed total is a **wrong number on a chart** |
+| `unusedSpareEngineers` | engineers missing from a filter |
+| `user_directory` name check | **worst of the set**: it decides which uploaded Hand Stock rows are KEPT, so a name past the first 1,000 would have had that person's stock thrown away as "not a user" |
+
+### Two things the fix had to get right
+
+**Order is not optional when paging.** Without a deterministic order PostgREST
+may return page 2 overlapping page 1, and a row is then doubled or dropped —
+worse than truncation, because the result looks complete. Every paged read names
+one: the primary key where there is a table, the grouping columns where it is a
+view with no key. `listAdditionalEntries` ordered by `created_at` alone, which
+is not unique, so `id` was added beside it.
+
+**The pager had to be testable.** `supabase.ts` reads `import.meta.env` at load
+and **no node script can import it** — which is why every check in this repo
+reads it as TEXT. So `allRows()` lives in `src/lib/paging.ts`, with no Supabase
+in it, and `npm run check:paging` runs it against a fake server that HONOURS THE
+CAP. That test includes 2,547 rows by name, because that is the number in the
+report.
+
+Mutation-tested: five mutations of the pager (never stops early, only ever
+fetches one page, ignores the caller's cap, swallows a failing page, wrong page
+size) and all five caught; plus the `check:ui` guards against a new
+`.limit(n > 1000)` and against a paged read with no order.
+
+### Nothing to run on the live project
+
+Application code only — no migration.
+
+## 2026-09-14 — Roles & Permissions: the step that kept being missed
+
+Asked, as a standing rule: *"Update the Roles & Permissions - Always when a New
+UI is introduced or when a UI is re-arranged -- This is often missed."*
+
+It had been missed **four times**, and the audit found them by asking the code
+rather than by reading this file.
+
+### What was actually broken
+
+| | |
+| --- | --- |
+| `mod:/machine-history` | **no migration ever granted it.** No parent key either, so nothing stood in. |
+| `mod:/exports/calls` | no migration. Covered for a role holding `mod:/exports`, not otherwise. |
+| `mod:/exports/feedback` | as above. |
+| `/machine-history` in `PERM_TREE` | still under a header of its own after v0.9.254 moved the screen to **Overview** on the menu. |
+| header order | matrix had Reports before Indoor Service; the menu has them the other way round. |
+
+**Why a code default is not enough, and this is the heart of it.**
+`permsForRole()` is `if (stored && stored.length) return stored;` — the
+`DEFAULT_PERMS` fallback applies ONLY to a role whose `app_roles` row is EMPTY.
+On a project in use every role has a tuned row. So a new module's key reaches
+**nobody** until a migration puts it there: the screen ships, the menu entry
+exists in the code, the permission is ticked in `DEFAULT_PERMS`, and the page is
+invisible to all twelve roles **with no error anywhere**. `0195` is the repair.
+
+`0155` shows the second-order version: it gave `zoho_migration` the report
+sub-pages one by one (`consumption`, `kpi`, `unused`). A list written out in
+full is a list that goes stale, and the two reports added on 2026-09-14 are not
+in it.
+
+### ⚠️ A comment claiming a check exists is worse than no comment
+
+`rbac.ts` said *"check:ui compares the two on every run"*. **Nothing read
+`PERM_TREE` at all.** That sentence is why nobody looked, and it is why a screen
+could move groups and leave its permission entry behind for two days. The check
+exists now and enforces coverage both ways, the header each page sits under, the
+order of headers and of pages, the label, and whether a migration ever grants
+the key.
+
+Two things that came out of testing it rather than writing it:
+
+- **A false NO.** The first version looked only for `'mod:/x'` and reported
+  `mod:/call-review` ungranted; `0163` grants it inside a jsonb literal with
+  double quotes. Fixed before shipping — a row that answers NO when nothing is
+  missing is worse than no row, because somebody acts on it.
+- **A dead assertion, removed.** "Every module is held by some role in
+  `DEFAULT_PERMS`" could not fail: `DEFAULT_PERMS` is DERIVED from `MODULES`, so
+  every module is in the admin's list by construction. Deleted rather than left
+  green — a tick that can never go red is what let this area drift.
+
+Every live assertion was mutation-tested, including the guard that stops the
+menu-parsing regex from silently matching nothing and making the rest vacuous.
+
+### To run on the live project
+
+[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
+— `_status.sql` row 149 answers NO until it is in, and until then those three
+screens stay invisible.
+
+## 2026-09-14 — Product Database and Product Master: the names swap
+
+Asked: *"Rename Product Master to Product Database -- Deep dive and Rename all
+instances"* and *"Add a Separate Product Master - Which is the Actual List of
+Product Lines … All Inactive Products can never have a new Sale Entry, But can
+still have Contract or Calls or Basically everything other than New Sale Entry"*.
+
+| | table | one row per | label | route |
+| --- | --- | --- | --- | --- |
+| install base | `public.products` | MACHINE | **Product Database** | `/product-database` |
+| catalogue | `public.product_master` (0193) | PRODUCT LINE | **Product Master** | `/product-master` |
+
+**The table is not renamed.** `products` is referenced by 24 views, a dozen
+functions and every screen; the NAME the user reads is the module label, and
+renaming the table would be a day's work for nothing. The table names now read
+backwards against the labels — recorded in `CLAUDE.md` so the next reader is not
+caught by it.
+
+**The permission had to move with the screen** (0192). The module key *is* the
+route, so giving the catalogue `/product-master` without moving the audience
+would have left every role holding `mod:/product-master` silently losing the
+install base and gaining the catalogue — same key, different screen, nothing on
+screen to explain it. 0192 merges `mod:/product-database` into every role that
+had the old key; all 12 verified.
+
+**Keyed on the CODE, measured not assumed**: the user's ProductList export has
+53 rows, **53 distinct codes and 43 distinct names**. CPX CARE alone has nine
+codes and they disagree about being active, so a rule on the name would be wrong
+eight times on that product. Verified against the real file: by name CPX CARE is
+sellable (some code is), ORION is not (all inactive), ORION-G is.
+
+**The rule is on the FORM, not a trigger**, and that is a decision: a trigger
+would also refuse the historical sales import — 30 of the 53 lines are retired
+and those sales happened. Refusing them would make the register unloadable. The
+Sale Entry picker offers active lines only and says how many are retired;
+free text stays open, because a hand-maintained catalogue must not be able to
+stop a real sale. `product_line_sellable()` is the same rule in SQL and treats
+an UNKNOWN code as sellable.
+
+⚠️ **A trigram index written by habit.** The first draft put `gin_trgm_ops` on a
+53-row table — copying the party-cascade note in `CLAUDE.md`, which is about a
+table with thousands of rows. `check:replay` refused the bundle outright
+(`operator class "gin_trgm_ops" does not exist`), because `all.sql` builds its
+database before any migration creates the extension. Removed: Postgres scans 53
+rows whatever is on them, so it bought a dependency and nothing else.
+
+### The third part — every column retained (0194, shipped)
+
+*"Product Database has to retain all Columns - Attached a Sample.
+[v2_ProdMaster (1).csv]".*
+
+Measured against that sample rather than guessed: **32 columns, eleven of which
+had a column here**. The other twenty-one were never lost — the importer is
+`extraInto: 'extra'`, which keeps every unnamed heading verbatim — but a value
+in a jsonb blob cannot be sorted, filtered, grouped or shown as a column. It was
+present and unusable, the same fault 0148 fixed for the Part Master.
+
+So the migration **backfills** as well as adding columns: every machine already
+loaded carries these values in `extra` right now, and nobody should have to
+upload again to reach what was already kept. `extra` is read, never written.
+
+Three are not simply text, and each was a decision:
+
+| column | why |
+| --- | --- |
+| `item_code` | The Product Database **had no product code at all**. It is what joins a machine to its line on the Product Master (0193) — the one that does work rather than display. |
+| `warranty_status_keyed` / `contract_status_keyed` | The export's OWN `ACTIVE`/`INACTIVE` words. **Not** the state this system computes from the dates; `_keyed` so the two can never be mistaken for one another. |
+| `pm_visits` | An integer, because it is counted. A blank stays NULL: on a service schedule *"nobody said"* and *"none"* are different answers. |
+
+**`Item Code` was already a column on the screen and always came back blank** —
+nothing ever filled it, because neither the importer nor `productRowToSheet`
+knew the heading. That is what the user saw as *"some discrepancies in Product
+Master but my Source is correct"*. `check:ui` now refuses any column the
+importer fills that no screen can read.
+
+⚠️ **A typed column silently ate what it could not read.** Found while doing
+this, not guessed: `shapeUpload` kept a value when NO column claimed the
+heading, and kept it when a column REFUSED it (`col.when`) — but dropped it when
+a typed column claimed it and `coerce` answered null. The sample's own
+`INST Date` says `To Check`. So the moment that heading stopped being loose text
+and became a date, a year of unreadable PO and INST dates would have vanished on
+the next upload, having been safe in `extra` all along. Backwards: an unreadable
+cell is the one somebody most needs to SEE. Fixed for every register, not only
+this one.
+
+The dates in the backfill are **guarded on their shape** (`02 Sep 23`) because
+`to_date('31 Febbb 24','DD Mon YY')` does not return null, it RAISES — one bad
+cell in twenty thousand would have failed the whole migration. Verified by
+asking Postgres rather than by reading the docs.
+
+### Found in passing, NOT fixed here — a test section that never runs
+
+`ownership_transfer_same_party_test.sql` **section 5** ("a chain loaded in date
+order still records each hop") stops at line 57 with *duplicate key value
+violates unique constraint "ownership_transfer_key_uniq"*, which is
+`(reference_no, serial_number)`. Both of its inserts omit `reference_no`, so the
+second one collides with the first on `('', 'OT-C')` — the section has never
+actually tested anything, and the error carries no `expect ERROR` label, which
+is how it went unnoticed.
+
+**It predates this change**: reproduced on `main` with these commits stashed,
+same line, same error. Left alone rather than fixed in a migration change that
+has nothing to do with it — the fix is to give the two rows their own OT
+numbers, which is a one-line edit in that suite. Recorded here so it is not
+found again from scratch.
+
+### Verifying it landed — `_status.sql` row 148 is not enough
+
+Row 148 asks whether the twenty-one COLUMNS exist. **A column can exist and be
+empty on every one of twenty thousand machines**, and the backfill is the half
+that can silently do nothing — it fills only a column still EMPTY, it reads
+`extra` and never writes it, and the two dates are guarded on their shape. The
+Supabase SQL editor does not show a `raise notice`, so the migration's own
+"N machine(s) had their kept columns read back out of `extra`" is invisible
+there.
+
+[`_product_database_check.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/_product_database_check.sql)
+(read-only) asks the rows themselves: per column, how many machines have a value
+in the COLUMN, and how many have one in `extra` that did **not** reach it. Every
+text column should read **0** in that second number. Where `PO Date` or
+`INST Date` do not, those are cells the parser could not read — the sample's own
+`INST Date` says `To Check` — and they are not lost; the file's own words are
+still in `extra`.
+
+Proved both ways against a throwaway Postgres carrying rows in the pre-0194
+importer shape: before the backfill every value showed as "still only in extra"
+except the two corrected by hand; after it, **0** for every text column, 1 for
+`pm_visits` (`three`), 1 for `po_date` (`31 Febbb 24`) and 2 for `inst_date`
+(`To Check`) — exactly the cells the guards exist for.
+
+### To run on the live project
+
+`masters.sql` was run by the user on 2026-09-14, carrying 0194. Nothing is
+outstanding; confirm with `_status.sql` row 148 and the check above. (Row 147's `masters.sql` +
+[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
+were run by the user on 2026-09-14; `masters.sql` now carries 0194 as well, so
+running it again brings both.)
+
+**The application does not wait for it.** `productRowToSheet` reads the column
+first and falls back to `extra`, so every screen shows what it showed yesterday
+until the migration lands, and shows the columns afterwards.
+
+## 2026-09-14 — Machine History: one machine, across every register
+
+Asked: *"Analyse ORION-G - 2141 -- Where is the Product? Fetch all Transactions
+of this Product"*, then *"Build me in UI Also … Calls , Spares , Visits ,
+Warranty , Contract , Ownership Transfer -- If i am missing anything add"*.
+
+**Four were missing from that list** and a machine has all of them: **Field
+Failure Reports, customer feedback, additional entries and workshop (indoor)
+jobs**. Ten registers in total.
+
+Two ways in, both keyed the same:
+
+- `supabase/apply/_machine_history.sql` — one read-only statement for a one-off
+  look, pure SQL for the SQL Editor.
+- `/machine-history` — the screen, under Quality & Analytics. **Not** under
+  Reports: a report is a file you take away, this is a thing you look at.
+
+**PRODUCT FIRST, THEN SERIAL, and changing the product clears the serial.** The
+serial is what the database is queried on (it is indexed); the product is
+checked in the page afterwards, because no index can do that half. Both use
+`machineKey` from `src/lib/machine.ts` rather than a private comparison — the
+rule exists because an ORION-G 201 request was once offered an open call for a
+VEGA 201, and 3,794 serials appear on more than one model.
+
+Three decisions worth not undoing:
+
+- **Every row names its register.** They are filled by different people under
+  different policies; one undifferentiated list would promise the same standard
+  of evidence for all ten.
+- **A register that refuses does not empty the page.** They are read in
+  parallel and a reader may hold rights to some and not others, so a failure on
+  one drops that register's rows and keeps the rest.
+- **An undated row sorts last, not first.** Putting it at the top would read as
+  the most recent thing that happened to the machine.
+
+A machine the Product Master has never heard of still has a history, and the
+screen says so rather than looking empty — that gap is itself a finding.
+
+⚠️ **Overlaps [PR #328](https://github.com/neurolooom-eng/RITHI_CRM/pull/328)**,
+the draft Product History screen from another session, which covers calls,
+visits, parts and cover AND reaches the pre-2016 archive project. This one is
+live-data-only and covers ten registers. They will collide; #328 isolates its
+archive access in `src/lib/archive.ts`, so that half can be layered onto this
+screen rather than the two being merged. **The user's call.**
 
 ## 2026-09-14 — A wrong file in the DCCR register
 
@@ -3001,6 +3202,84 @@ data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 
 
 ---
+
+## 2026-09-14 — The 2016 archive, folded into Machine History
+
+### Two screens were being built for one question
+
+This branch started before `/machine-history` existed and grew its own
+`/product-history` doing the same job on the live registers. **#335 shipped the
+better one** — eleven registers against four, and `machineHistory.ts` names the
+gap this branch actually fills:
+
+> WHAT THIS CANNOT SEE: anything before the migration into this system. That
+> lives in a separate archive project and is not reachable from here.
+
+So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
+`prodhistory.css`, its route and its module key — and the archive is folded into
+Machine History instead. Two screens answering one question is a defect however
+good each one is, and the module key would have been a second thing to grant.
+
+`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
+already grants `mod:/machine-history` to every role.
+
+### What the archive adds
+
+A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
+from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
+it is reached — so moving to `postgres_fdw` or an Edge Function later is one
+file, not a rewrite.
+
+- **Keyed on `machineKey`, never the serial.** The archive computes it as a
+  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
+  the two were diffed on twelve cases and agree on all of them. A disagreement
+  raises no error — it empties the list.
+- **Every row says which database it came from**, and an archive UCN renders
+  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
+  asked about live UCNs only.
+- **No de-duplication between the halves.** The cut-over date is a fact about
+  the migration, not about the machine.
+
+### The access question, which does not carry across
+
+Your users exist in the LIVE project's auth, so a JWT signed there cannot be
+verified by the archive: `auth.uid()` is null for everybody and no policy can
+test who is asking. **The archive key IS the credential** — so it is not baked
+into the repository, has no default, and is pasted per device in Settings.
+
+⚠️ **The better fix is to stop letting the browser talk to that project at
+all**: `postgres_fdw` foreign tables on the live project wrapped in
+`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
+Function that verifies the caller's JWT. Both need a setup step nobody has
+taken.
+
+### Loading it (ProdHistory_06)
+
+Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
+screen rather than in a loader of their own because a second importer for one
+table is how a good file comes back as "0 rows".
+
+`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
+DELETE policy, both privileges revoked. The worst a leaked key does is append
+rubbish NEXT TO the real data rather than over it. The insert policy's
+`with check` **refuses a row whose `source_system` is blank**, because that
+label is the only way back out — these registers have no natural key, so a
+re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
+
+### Status — SQL still to run
+
+| File | Run it on | What it does |
+| --- | --- | --- |
+| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
+| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
+| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
+| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
+| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
+
+**PENDING — none has been run on either project.** All apply and re-apply
+idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
+database built from every migration, `check:views` passes, and `public.calls`
+still carries `security_invoker`.
 
 ## Review 2's frequent-failure rule — SETTLED, not yet built (2026-09-08)
 

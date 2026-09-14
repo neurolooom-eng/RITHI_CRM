@@ -49,16 +49,17 @@ export const MODULES: ModuleDef[] = [
   { path: '/', label: 'Dashboard' },
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
-  // PRODUCT HISTORY — one machine's whole life, the live registers and the
-  // 2016 archive project in one timeline. Its own key rather than riding on
-  // Product & Party Search: that screen answers "whose machine is this", this
-  // one opens ten years of what went wrong with it, and a site that wants the
-  // first without the second must be able to say so.
-  { path: '/product-history', label: 'Product History' },
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/call-review', label: 'Call Review' },
   { path: '/parties', label: 'Party Master' },
-  { path: '/product-master', label: 'Product Master' },
+  // RENAMED AND MOVED (2026-09-14). The install base is the PRODUCT DATABASE
+  // and its key moves with it — 0192 copies `mod:/product-master` into
+  // `mod:/product-database` for every role that had it, so nobody loses the
+  // screen. The old key now means the CATALOGUE below, which is a different
+  // screen: leaving it pointing at a new thing without moving the audience
+  // would have been a silent change of what a role can see.
+  { path: '/product-database', label: 'Product Database' },
+  { path: '/product-master', label: 'Product Master (product lines)' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
@@ -115,6 +116,7 @@ export const MODULES: ModuleDef[] = [
   // INDOOR SERVICE — the workshop register (procedure §4.5). Its own module,
   // because a DEMO unit has no call to hang off: the register stands alone and
   // the call is an optional link, not the other way round.
+  { path: '/machine-history', label: 'Machine History' },
   { path: '/indoor', label: 'Indoor Service Register' },
   { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
@@ -348,11 +350,26 @@ export const PERM_TREE: PermHeader[] = [
   // read next to the menu — "what can this role open?" is asked with the menu
   // in front of you — so a page filed here under a header it no longer sits
   // under is how an administrator grants the wrong thing and believes they
-  // granted the right one. check:ui compares the two on every run.
+  // granted the right one.
+  //
+  // `npm run check:ui` COMPARES THE TWO ON EVERY RUN — and from 2026-09-14 that
+  // is TRUE. This comment said it for two days while NOTHING read PERM_TREE,
+  // and in that time Machine History moved to Overview and kept a header of its
+  // own here. A comment claiming a check exists is worse than no comment: it is
+  // the reason nobody looked. The block is in check-ui.ts under "the Roles &
+  // Permissions matrix follows the MENU"; it compares coverage both ways, the
+  // header each page sits under, the order of headers and of pages, the label,
+  // and whether a migration ever grants the key.
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
+    // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while
+    // it sat under Reports; leaving that header behind after the screen moved
+    // is how an administrator looks for it under Overview, does not find it,
+    // and grants nothing. `check:ui` compares the two now, which is what the
+    // comment above claimed and nothing did.
+    { path: '/machine-history', label: 'Machine History', actions: [] },
   ] },
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
@@ -394,6 +411,10 @@ export const PERM_TREE: PermHeader[] = [
   // read next to the menu — "what can this role open?" is asked with the menu
   // in front of you — so a header here that no longer exists there makes the
   // page harder to trust than to use.
+  { title: 'Indoor Service', pages: [
+    { path: '/indoor', label: 'Indoor Service Register',
+      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
+  ] },
   { title: 'Reports', pages: [
     // The parent GRANTS ALL THREE below it, so a role that only needs one is
     // given that one and not this.
@@ -404,13 +425,10 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/exports/calls', label: '↳ Call Report', actions: [] },
     { path: '/exports/feedback', label: '↳ Customer Feedback Report', actions: [] },
   ] },
-  { title: 'Indoor Service', pages: [
-    { path: '/indoor', label: 'Indoor Service Register',
-      actions: ['indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch', 'indoor.condemn'] },
-  ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
-    { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
+    { path: '/product-database', label: 'Product Database', actions: ['masters.view', 'calls.create'] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.view', 'masters.edit'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
     // All Masters is just the overview screen; each value list is its own page

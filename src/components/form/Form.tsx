@@ -351,7 +351,7 @@ function FieldControl({
       // master entry that does not exist.
       const opts = resolveOptions(field);
       const cur = String(value ?? '');
-      // A prefilled value (e.g. mapped from Product Master) stays selectable
+      // A prefilled value (e.g. mapped from Product Database) stays selectable
       // even when it is not one of the configured options, or opening a record
       // would silently blank it.
       const hasCur = cur === '' || opts.some((o) => String(o.value) === cur);

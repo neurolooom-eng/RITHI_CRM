@@ -31,7 +31,7 @@ export function machineRowProblem(rows: RequestRow[], isInstall: boolean): strin
   const noParty = rows.findIndex((r) => r.serial.trim() !== '' && !String(r.party ?? '').trim());
   if (noParty >= 0) {
     return `Call ${noParty + 1}: that serial is not on the register, so no customer came with it. `
-         + 'Pick the machine from the list, or have it added to Product Master.';
+         + 'Pick the machine from the list, or have it added to Product Database.';
   }
 
   // ONE MACHINE CANNOT BE TWO CALLS on a request — its UniqueID is
@@ -63,7 +63,7 @@ export const PICK_A_PRODUCT = '— pick a product —';
 export function productPlaceholder(
   opts: { isInstall: boolean; isFirstCall: boolean; party: string; state: OwnedState; count: number },
 ): string {
-  if (opts.isInstall) return '— pick from Product Master —';
+  if (opts.isInstall) return '— pick from Product Database —';
   if (opts.isFirstCall || !opts.party.trim()) return PICK_A_PRODUCT;
   if (opts.state === 'loading') return `— loading ${opts.party}'s machines —`;
   if (opts.state === 'failed') return '— could not load this customer’s machines —';

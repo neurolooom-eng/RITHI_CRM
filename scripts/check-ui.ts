@@ -34,7 +34,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
-import { DEFAULT_PERMS, MODULES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
+import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
@@ -3695,8 +3695,10 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     machineRowProblem([{ ...ok, party: '' }], false) !== null, true);
   eq('and a whitespace customer is not a customer',
     machineRowProblem([{ ...ok, party: '   ' }], false) !== null, true);
+  // "Product Database" since 2026-09-14 — the install base's name. The
+  // Product Master is now the CATALOGUE of product lines, a different register.
   eq('the message says where to go next',
-    /Product Master/.test(machineRowProblem([{ ...ok, party: '' }], false) ?? ''), true);
+    /Product Database/.test(machineRowProblem([{ ...ok, party: '' }], false) ?? ''), true);
   // An INSTALLATION has no machine on the register — that is why it still asks.
   eq('an installation is exempt', machineRowProblem([{ ...ok, party: '' }], true), null);
   // One machine, one call — the check spans customers now.
@@ -3870,8 +3872,8 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // Call 1 is not narrowed, so it never carries a customer's name…
   eq('call 1 just says pick a product', P({ isFirstCall: true, count: 0 }), PICK_A_PRODUCT);
   eq('…and neither does a call with no customer yet', P({ party: '  ', count: 0 }), PICK_A_PRODUCT);
-  eq('an installation names the master it picks from',
-    /Product Master/.test(P({ isInstall: true, count: 0 })), true);
+  eq('an installation names the register it picks from',
+    /Product Database/.test(P({ isInstall: true, count: 0 })), true);
   eq('and the form asks the rule rather than restating it',
     /placeholder: productPlaceholder\(\{/.test(rq), true);
   // ONE MATCH RULE. The owned list and the serial search must agree, so both go
@@ -4960,6 +4962,175 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 }
 
 
+console.log('\n-- every banner tone has a rule behind it --');
+{
+  // A class name in use with no CSS renders as a PLAIN banner, which for a
+  // warning is worse than not marking it at all. `sheet-banner-warn` shipped
+  // that way (2026-09-14) and was caught before it reached anybody.
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  const used = new Set<string>();
+  for (const f of readdirSync('src/modules').filter((x) => x.endsWith('.tsx'))) {
+    for (const m of readFileSync(`src/modules/${f}`, 'utf8').matchAll(/sheet-banner-([a-z]+)/g)) used.add(m[1]);
+  }
+  const missing = [...used].filter((tone) => !new RegExp(`\\.sheet-banner-${tone}\\s*\\{`).test(css));
+  eq('banners are actually used', used.size > 0, true);
+  eq('every banner tone a screen uses has a rule', missing, []);
+}
+
+console.log('\n-- the Product Database and the Product Master are two registers --');
+{
+  // RENAMED 2026-09-14 and the names SWAPPED, which is the whole risk:
+  //   products        the INSTALL BASE — one row per MACHINE  → "Product Database"
+  //   product_master  the CATALOGUE    — one row per LINE     → "Product Master"
+  // A screen or a label that drifts back conflates twenty thousand machines
+  // with fifty-three product lines.
+  const rbacSrc = readFileSync('src/lib/rbac.ts', 'utf8');
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const paths = new Set(MODULES.map((m) => m.path));
+
+  eq('the install base has its own route', paths.has('/product-database'), true);
+  eq('...and the catalogue has its own', paths.has('/product-master'), true);
+  eq('the install base is named Product Database',
+    MODULES.find((m) => m.path === '/product-database')?.label, 'Product Database');
+  eq('...and the menu agrees',
+    /to: '\/product-database', label: 'Product Database'/.test(lay), true);
+  eq('the catalogue is named Product Master',
+    /^Product Master/.test(MODULES.find((m) => m.path === '/product-master')?.label ?? ''), true);
+  // THE PERMISSION HAD TO MOVE WITH THE SCREEN. The key IS the route, so
+  // without 0192 every role holding `mod:/product-master` would silently stop
+  // seeing the install base and start seeing the catalogue.
+  {
+    const mig = readFileSync('supabase/migrations/0192_product_database_rename.sql', 'utf8');
+    eq('the old audience is carried to the new key',
+      /select 'mod:\/product-database' as v/.test(mig)
+      && /where ar\.permissions \? 'mod:\/product-master'/.test(mig), true);
+    // MERGED, never overwritten — has_perm falls back to the engineer defaults
+    // only on an EMPTY permission set.
+    eq('...by merging, never overwriting', /jsonb_agg\(distinct v\)/.test(mig), true);
+  }
+
+  // -------------------------------------------------------------------------
+  // A COLUMN THE IMPORTER FILLS THAT NO SCREEN CAN READ IS NOT RETAINED.
+  //
+  // That is not a hypothetical: `Item Code` was a COLUMN ON THE PRODUCT
+  // DATABASE SCREEN and always came back blank, because nothing ever put it
+  // there — the importer had no `item_code` and `productRowToSheet` did not
+  // emit the heading. The user saw it as "discrepancies in Product Master".
+  // 0194 gave the twenty-one remaining export columns a column each; this is
+  // what stops the twenty-second from landing in the database and nowhere else.
+  // -------------------------------------------------------------------------
+  {
+    const db = UPLOADS.find((u) => u.key === 'products')!;
+    const sbSrc = readFileSync('src/lib/supabase.ts', 'utf8');
+    const body = sbSrc.slice(sbSrc.indexOf('export function productRowToSheet'));
+    const mapper = body.slice(0, body.indexOf('\n}'));
+    // `g('col')` takes the column as it is; `c('col', 'Heading')` prefers the
+    // column and falls back to the file's own word for it.
+    const emitted = new Set([...mapper.matchAll(/[gc]\('([a-z_]+)'/g)].map((m) => m[1]));
+    const orphan = db.cols.map((col) => col.to).filter((k) => !emitted.has(k));
+    eq('every column the Product Database importer fills is readable on a screen', orphan, []);
+    // THE FALLBACK ORDER IS THE POINT, and it is what lets this ship before the
+    // migration reaches the live project: the column is what this system holds
+    // and may have been corrected on screen, `extra` is what the FILE said.
+    eq('...column first, the file\u2019s own word second',
+      /v === undefined \|\| v === null \|\| v === '' \? \(ex\[heading\] \?\? ''\) : v/.test(mapper), true);
+
+    // ...AND THE SCREEN OFFERS THEM. The eleven default columns are what it
+    // OPENS with; the picker and the export must reach all 32, or "retain all
+    // columns" means retained where nobody can get at them.
+    const scr = readFileSync('src/modules/ProductMaster.tsx', 'utf8');
+    const listed = scr.slice(scr.indexOf('const ALL_FIELDS'), scr.indexOf('].map((k) =>'));
+    eq('the screen offers all 32 columns of the export',
+      (listed.match(/'/g) ?? []).length / 2, 32);
+    eq('...to the Columns picker', /allFields=\{ALL_FIELDS\}/.test(scr), true);
+    // The export carries ALL of them, not the eleven on screen: getting every
+    // column OUT of the register is the concrete meaning of retaining them.
+    eq('...and the export carries all of them, not the ones on screen',
+      /csvExport\('product-database\.csv', ALL_FIELDS,/.test(scr), true);
+    // THE COVER STATUSES ARE THE FILE'S WORDS, NOT THE COMPUTED STATE, and the
+    // `_keyed` suffix is what keeps the two from being mistaken for one
+    // another. This project already draws that distinction on the cover
+    // registers; losing it here would mean a register filtering on a value it
+    // computed while reporting the one the sheet typed.
+    eq('the export\u2019s own cover statuses keep their own names',
+      db.cols.some((c) => c.to === 'warranty_status_keyed')
+      && db.cols.some((c) => c.to === 'contract_status_keyed'), true);
+    // ...and the machine's own status no longer BORROWS one of them when a
+    // file has no `Item Status` of its own. OGP is not INACTIVE.
+    eq('...and the machine\u2019s status never borrows the warranty\u2019s',
+      db.cols.find((c) => c.to === 'item_status')?.from.includes('warranty status'), false);
+  }
+  eq('the module list still reads the install base table',
+    /path: '\/product-database'/.test(rbacSrc), true);
+
+  // THE RULE: an inactive line takes no NEW SALE ENTRY, and nothing else.
+  const cover = readFileSync('src/lib/cover.ts', 'utf8');
+  const saleBlock = cover.split('export const SALE')[1]?.split('export const CONTRACT')[0] ?? '';
+  const contractBlock = cover.split('export const CONTRACT')[1] ?? '';
+  eq('a new sale picks from the active lines',
+    /optionsFrom: 'sellable-code'/.test(saleBlock) && /optionsFrom: 'sellable-name'/.test(saleBlock), true);
+  // A CONTRACT MAY NAME A RETIRED LINE — the machine it covers was sold when
+  // the line was current, and refusing it would refuse the work, not the sale.
+  eq('...and a contract may still name a retired one',
+    /optionsFrom/.test(contractBlock), false);
+  // Free text stays ON: the catalogue is hand-maintained and may be incomplete
+  // or unreadable to this reader, and a Sale Entry that could not be typed at
+  // all would be a worse fault than the one this prevents.
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  eq('...and a line the catalogue has not got can still be typed',
+    /if \(field\.optionsFrom\) \{[\s\S]{0,400}allowFreeText/.test(reg), true);
+  eq('...with the reason a product is missing said out loud',
+    /retired line takes no new sale/.test(reg), true);
+}
+
+console.log('\n-- one machine, across every register --');
+{
+  const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
+  const lib = readFileSync('src/lib/machineHistory.ts', 'utf8');
+
+  // PRODUCT FIRST, THEN SERIAL — never the serial alone. Serials repeat across
+  // models, and this project wrote that rule down after an ORION-G 201 request
+  // was offered an open call for a VEGA 201.
+  eq('the serial list is filled from the chosen product',
+    /sbListProductSerials\(product\)/.test(mh), true);
+  // Changing the product must CLEAR the serial, or a serial belonging to
+  // another model stays in the box — the exact mistake the two-step prevents.
+  eq('...and changing the product clears the serial',
+    /setSerial\(''\); setSerials\(\[\]\); setEvents\(null\); setNow\(null\);/.test(mh), true);
+  // Every register is filtered on the serial in the DATABASE and then narrowed
+  // by product in the page, because no index can do the second half.
+  eq('every register is narrowed by the product too',
+    /const sameMachineRows =/.test(lib) && /machineKey\(s\(r\[productField\]\), serial\) === want/.test(lib), true);
+  eq('...using the project\'s own machine key, not a private one',
+    /from '\.\/machine'/.test(lib), true);
+
+  // THE FOUR THE USER'S OWN LIST DID NOT NAME. "If i am missing anything add."
+  for (const src of ['Field Failure', 'Feedback', 'Additional entry', 'Workshop']) {
+    eq(`${src} is in the history`, new RegExp(`source: '${src}'`).test(lib), true);
+  }
+  // ...and the six that were named.
+  for (const src of ['Call', 'Visit', 'Spare', 'Sale / warranty', 'Contract', 'Ownership']) {
+    eq(`${src} is in the history`, new RegExp(`source: '${src}'`).test(lib), true);
+  }
+
+  // One register refusing must not lose the other nine — they are read in
+  // parallel and a reader may hold rights to some and not others.
+  eq('a register that refuses does not empty the page',
+    /one register refusing must not lose the other nine/.test(lib), true);
+  // An undated row sorts LAST: putting it first would read as the most recent
+  // thing that happened.
+  eq('an undated row does not pose as the newest',
+    /\(b\.on \|\| ''\)\.localeCompare\(a\.on \|\| ''\)/.test(lib), true);
+  // A UCN carries its call's colour wherever it appears — the standing rule.
+  eq('a UCN is coloured here too', /<Ucn ucn=\{String\(r\.ucn\)\}/.test(mh), true);
+  // The counts are over whole registers read for one machine, not pages, so
+  // they are exact and take no "+".
+  eq('the counts are exact, so they take no plus', /countMore=\{false\}/.test(mh), true);
+  // A machine the Product Master has never heard of is a FINDING, not an error.
+  eq('a machine missing from the register says so',
+    /not on the Product Database/.test(mh), true);
+}
+
 console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
 {
   // THE SUPABASE SQL EDITOR IS NOT psql. Everything in `supabase/apply/`, and
@@ -5288,6 +5459,156 @@ console.log('\n-- the Insights tab can be interrogated --');
   const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
   eq('Insights reports the migrated split',
     /imported_from/.test(ins) && /label="Migrated"/.test(ins), true);
+}
+
+console.log('\n-- the Roles & Permissions matrix follows the MENU, and every screen can be granted --');
+{
+  // -------------------------------------------------------------------------
+  // THE USER'S STANDING RULE (2026-09-14): "Update the Roles & Permissions -
+  // Always when a New UI is introduced or when a UI is re-arranged -- This is
+  // often missed."
+  //
+  // It was missed, and `rbac.ts` said "check:ui compares the two on every run"
+  // while NOTHING read PERM_TREE. A comment claiming a check exists is worse
+  // than no comment: it is why nobody looked. This block is that check.
+  //
+  // What had drifted when it was written:
+  //   * Machine History moved to Overview in the menu (v0.9.254) and kept a
+  //     header of its own in the matrix — so an administrator looking for it
+  //     under Overview would not find it.
+  //   * The header ORDER had Reports and Indoor Service the other way round.
+  //   * THREE MODULE KEYS HAD NEVER BEEN GRANTED IN THE DATABASE AT ALL
+  //     (mod:/machine-history, mod:/exports/calls, mod:/exports/feedback) —
+  //     0195 is the repair, and the last assertion here is what stops a fourth.
+  // -------------------------------------------------------------------------
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const nav = lay.slice(lay.indexOf('title:'), lay.indexOf('\n];', lay.indexOf('title:')));
+  const menu: { title: string; items: { to: string; label: string }[] }[] = [];
+  for (const m of nav.matchAll(/title: '([^']+)',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/g)) {
+    menu.push({ title: m[1], items: [...m[2].matchAll(/\{ to: '([^']+)', label: '([^']+)'/g)].map((x) => ({ to: x[1], label: x[2] })) });
+  }
+  eq('the menu parsed', menu.length > 5, true);
+
+  const headerOf = new Map<string, string>();      // matrix: path -> header
+  const labelOf = new Map<string, string>();       // matrix: path -> label
+  PERM_TREE.forEach((h) => h.pages.forEach((pg) => {
+    if (pg.path) { headerOf.set(pg.path, h.title); labelOf.set(pg.path, pg.label); }
+  }));
+  const menuGroup = new Map<string, string>();
+  const menuLabel = new Map<string, string>();
+  menu.forEach((g) => g.items.forEach((i) => { menuGroup.set(i.to, g.title); menuLabel.set(i.to, i.label); }));
+
+  // 1. A NEW SCREEN THAT IS NOT IN THE MATRIX CANNOT BE GRANTED BY ANYBODY.
+  const modPaths = MODULES.map((m) => m.path).filter((x) => x !== '');
+  eq('every module can be granted from the matrix', modPaths.filter((x) => !headerOf.has(x)), []);
+  eq('...and the matrix invents no page that is not a module',
+    [...headerOf.keys()].filter((x) => !modPaths.includes(x)), []);
+
+  // 2. RE-ARRANGING THE MENU MOVES THE MATRIX ENTRY WITH IT. This is the half
+  //    the user named second, and the half that leaves no error behind.
+  const misfiled: string[] = [];
+  menuGroup.forEach((grp, path) => {
+    const h = headerOf.get(path);
+    if (h && h !== grp) misfiled.push(`${path}: menu "${grp}" vs matrix "${h}"`);
+  });
+  eq('every page is filed under the header the MENU puts it under', misfiled, []);
+
+  // 3. AND IN THE SAME ORDER — both of headers and of pages within one. The
+  //    matrix is read next to the menu; a different order is read as a
+  //    different thing.
+  const menuTitles = menu.map((g) => g.title);
+  const treeTitles = PERM_TREE.map((h) => h.title).filter((t) => menuTitles.includes(t));
+  eq('the headers are in the menu\u2019s order', treeTitles, menuTitles);
+  // "Across the system" is the one header with no menu group, and it is last:
+  // it holds the rights that belong to no page.
+  eq('...and the only header with no menu group is the last one',
+    PERM_TREE.filter((h) => !menuTitles.includes(h.title)).map((h) => h.title),
+    ['Across the system']);
+  const orderBad: string[] = [];
+  PERM_TREE.forEach((h) => {
+    const g = menu.find((x) => x.title === h.title);
+    if (!g) return;
+    const inTree = h.pages.map((pg) => pg.path).filter((pth) => menuLabel.has(pth));
+    const inMenu = g.items.map((i) => i.to).filter((pth) => inTree.includes(pth));
+    if (inTree.join(',') !== inMenu.join(',')) orderBad.push(h.title);
+  });
+  eq('...and the pages under each header too', orderBad, []);
+
+  // 4. A RENAME IN THE MENU REACHES THE MATRIX. Not equality: the matrix adds
+  //    clarifiers the menu has no room for ("\u21b3 Call Report", "Product Master
+  //    (product lines)"), which are deliberate. It must CONTAIN the menu's name,
+  //    so renaming the screen cannot leave the matrix calling it the old thing.
+  const named: string[] = [];
+  menuLabel.forEach((ml, path) => {
+    const tl = labelOf.get(path);
+    if (tl && !tl.includes(ml)) named.push(`${path}: menu "${ml}" vs matrix "${tl}"`);
+  });
+  eq('the matrix calls every screen what the menu calls it', named, []);
+
+  // NOT ASSERTED HERE: "every module is held by some role in DEFAULT_PERMS".
+  // It was, and it was DEAD — DEFAULT_PERMS is DERIVED from MODULES
+  // (`...ALL_MODULES` / `...NON_ADMIN_MODULES`), so every module is in at least
+  // the admin's list by construction and the assertion could not fail. It was
+  // removed rather than left green: a tick that can never go red is what let
+  // this whole area drift in the first place. The next one is the real question
+  // anyway, and it is the one that was actually failing.
+
+  // 5. ...AND THE CODE DEFAULT IS NOT ENOUGH. `permsForRole()` returns the
+  //    STORED set whenever it is non-empty, so on a project in use — where
+  //    every role has a tuned row — a key that no migration ever writes into
+  //    `app_roles` reaches NOBODY, however many roles hold it in DEFAULT_PERMS.
+  //    The screen ships, the menu entry exists, the permission is ticked in the
+  //    code, and the page is invisible to all twelve roles. That is exactly
+  //    what happened to Machine History and the two new reports.
+  //
+  //    A key inheriting from a granted parent is covered (parentAction makes
+  //    `mod:/exports` stand in for every `mod:/exports/*`).
+  const sqlAll = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(`supabase/migrations/${f}`, 'utf8')).join('\n');
+  // EITHER QUOTE. A migration writes the key as a SQL literal ('mod:/x') or
+  // inside a jsonb one ('["mod:/x"]'::jsonb) — 0163 grants Call Review the
+  // second way, and a check that only knew the first reported it missing when
+  // it was not. A row that answers NO when nothing is missing is worse than no
+  // row, because somebody acts on it.
+  const granted = (k: string) => sqlAll.includes(`'${k}'`) || sqlAll.includes(`"${k}"`);
+  eq('every module key is written into app_roles by some migration',
+    MODULES.map((m) => moduleAction(m.path))
+      .filter((k) => !granted(k))
+      .filter((k) => { const par = parentAction(k); return !par || !granted(par); }), []);
+}
+
+console.log('\n-- a request for more than a thousand rows is PAGED, or it is a lie --');
+{
+  // -------------------------------------------------------------------------
+  // POSTGREST CAPS A RESPONSE AT 1,000 ROWS HOWEVER LARGE THE `limit` SAYS, and
+  // silently. `.limit(20000)` therefore reads as a precaution and is the
+  // opposite: it is the line that makes the truncation invisible.
+  //
+  // Reported from use, 2026-09-14: Product & Party Search on ORION-G — 2,547
+  // machines, and the serial box said "0 of 1000" and could not find serial
+  // 2410. The count beside the product came from a VIEW and was right; the
+  // serials were `.limit(20000)` and were the first thousand.
+  //
+  // It had been diagnosed ONCE, for listCallRequests, whose comment says
+  // exactly this — and the same `.limit(n)` was left in twelve other places.
+  // A fix applied to one of thirteen call sites is a fix that will be reported
+  // again, which is what happened. `allRows()` is the shared one.
+  // -------------------------------------------------------------------------
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const over = [...sb.matchAll(/\.limit\((\d+)\)/g)].map((m) => Number(m[1])).filter((n) => n > 1000);
+  eq('no request asks for more rows than a single response can carry', over, []);
+  // THE HELPER LIVES IN ITS OWN MODULE so it can be imported and RUN — this
+  // file reads `import.meta.env` at load and no node script can import it.
+  // `npm run check:paging` tests the pager's behaviour against a fake server
+  // that honours the cap; this only checks it is still the thing being used.
+  eq('the pager is a module of its own, so it can be tested',
+    existsSync('src/lib/paging.ts') && /from '\.\/paging'/.test(sb), true);
+  // EVERY PAGED READ IS ORDERED. Without a deterministic order the pages can
+  // overlap, and a row is then doubled or dropped — worse than truncation,
+  // because the result looks complete.
+  const unordered = [...sb.matchAll(/allRows<[^>]*>\(\(a, b\) =>([\s\S]{0,400}?)\), \d+\)/g)]
+    .map((m) => m[1]).filter((body) => !/\.order\(/.test(body));
+  eq('...and every paged read names an order, so the pages cannot overlap', unordered.length, 0);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

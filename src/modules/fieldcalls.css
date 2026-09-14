@@ -24,6 +24,14 @@
   border-color: color-mix(in srgb, var(--primary, #0ea5a4) 40%, transparent);
   background: color-mix(in srgb, var(--primary, #0ea5a4) 10%, var(--surface));
 }
+/* The fourth, added 2026-09-14 with the Machine History party warning. The
+   class name was in use with no rule behind it, so the banner rendered as a
+   plain one — a warning that does not look like a warning is not one. Built
+   from the same tokens as the three above, so it reads in either theme. */
+.sheet-banner-warn {
+  border-color: color-mix(in srgb, var(--warning, #c2700a) 45%, transparent);
+  background: color-mix(in srgb, var(--warning, #c2700a) 12%, var(--surface));
+}
 
 .conn-dot {
   font-size: 12px;
@@ -51,7 +59,7 @@
   background: var(--surface-2, rgba(0, 0, 0, 0.03));
 }
 
-/* Product Master lookup panel inside the New Field Call drawer */
+/* Product Database lookup panel inside the New Field Call drawer */
 .prod-lookup {
   border: 1px solid color-mix(in srgb, var(--primary, #0ea5a4) 35%, var(--border));
   background: color-mix(in srgb, var(--primary, #0ea5a4) 7%, var(--surface));
@@ -76,7 +84,7 @@
 .prod-result:hover { border-color: var(--primary, #0ea5a4); background: color-mix(in srgb, var(--primary, #0ea5a4) 8%, var(--surface)); }
 .prod-result .muted { font-size: 11.5px; }
 
-/* Product Master explicit filter row */
+/* Product Database explicit filter row */
 .prod-filters {
   display: flex;
   gap: 8px;
@@ -587,3 +595,8 @@
 .ffr-mini tfoot td { padding-top: 6px; font-weight: 700; border-bottom: 0; }
 .ffr-pareto-foot { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
 .ffr-pareto-foot .muted { font-size: 11.5px; line-height: 1.45; flex: 1; }
+
+/* A retired product line. CONTRAST, not a tint — the project's standing rule —
+   so it reads in either theme without a hand-picked colour. */
+.pl-retired { background: var(--text); color: var(--surface); border-radius: 4px;
+  padding: 1px 7px; font-size: 11.5px; font-weight: 600; }

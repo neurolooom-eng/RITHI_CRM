@@ -24,6 +24,8 @@
 --   0093_lookup_module.sql
 --   0110_admin_reset_password.sql
 --   0120_role_table_views.sql
+--   0192_product_database_rename.sql
+--   0195_new_module_keys.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
 --   0145_technical_support_role.sql
@@ -1164,6 +1166,186 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.my_table_view(text) from public;
 grant execute on function public.my_table_view(text) to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0192_product_database_rename.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0192 — "PRODUCT MASTER" BECOMES "PRODUCT DATABASE", and the name is freed.
+--
+-- The user, 2026-09-14: "Rename Product Master to Product Database -- Deep dive
+-- and Rename all instances." and, in the same breath, "Add a Separate Product
+-- Master - Which is the Actual List of Product Lines".
+--
+-- So the two things swap names, and that is the whole difficulty:
+--
+--   `public.products`   the INSTALL BASE — one row per MACHINE, by model and
+--                       serial, with its customer and its cover. Now labelled
+--                       PRODUCT DATABASE, route /product-database.
+--   (next migration)    the CATALOGUE — one row per PRODUCT LINE, with its
+--                       code, type, category and whether it is still sold.
+--                       That is the new PRODUCT MASTER.
+--
+-- THE TABLE IS NOT RENAMED. `products` is referenced by 24 views, a dozen
+-- functions and every screen; renaming it would be a day's work with nothing
+-- gained, because the NAME the user reads comes from the module label and not
+-- from the table. What this file does is move the PERMISSION.
+--
+-- WHY THE PERMISSION HAS TO MOVE, and why it cannot simply be left alone:
+-- the module key IS the route (`mod:/product-master`). If the new catalogue
+-- took that route — which is the obvious thing to do, since it is now the
+-- Product Master — then every role holding that key would SILENTLY STOP seeing
+-- the install base and START seeing the catalogue. Same key, different screen,
+-- no error and nothing on screen to explain it.
+--
+-- So the install base moves to `mod:/product-database` and KEEPS ITS AUDIENCE:
+-- every role that could open it before can open it now. The catalogue's key is
+-- NEW and is granted deliberately below, to the roles that maintain masters —
+-- not inherited by accident from a key that used to mean something else.
+--
+-- MERGED, NEVER OVERWRITTEN (the standing rule): `has_perm` falls back to the
+-- engineer defaults only when a role's permissions are EMPTY, so writing one
+-- key into a role would turn that fallback off and leave it holding one thing.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- 1. THE INSTALL BASE KEEPS ITS AUDIENCE under the new key.
+-- ---------------------------------------------------------------------------
+update public.app_roles ar
+   set permissions = (
+         select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+           from (
+             select jsonb_array_elements_text(ar.permissions) as v
+             union
+             select 'mod:/product-database' as v
+           ) u
+       ),
+       updated_at = now()
+ where ar.permissions ? 'mod:/product-master'
+   and not (ar.permissions ? 'mod:/product-database');
+
+-- ---------------------------------------------------------------------------
+-- 2. THE OLD KEY IS LEFT IN PLACE, deliberately.
+--
+-- It now means the CATALOGUE, and section 3 decides who gets that. Removing it
+-- here would be the same silent change in the other direction — a role losing
+-- something between one deploy and the next with nothing said. An
+-- administrator who does not want a role reading the catalogue unticks it on
+-- Roles & Permissions, where the change is visible and theirs.
+--
+-- The ones that keep it are the roles that maintain masters, which is what the
+-- catalogue is. Every other role holding it will see a screen it did not have
+-- before, and that is the one consequence worth stating out loud rather than
+-- burying: the catalogue is a READ-ONLY LIST OF PRODUCT LINES. It carries no
+-- customer, no serial and no cover, so nothing confidential moves with it.
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 3. AND THE ROLES THAT MAINTAIN MASTERS GET THE CATALOGUE EXPLICITLY, so it
+--    is granted rather than merely left over.
+-- ---------------------------------------------------------------------------
+update public.app_roles ar
+   set permissions = (
+         select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+           from (
+             select jsonb_array_elements_text(ar.permissions) as v
+             union
+             select 'mod:/product-master' as v
+           ) u
+       ),
+       updated_at = now()
+ where ar.permissions ? 'masters.view'
+   and not (ar.permissions ? 'mod:/product-master');
+
+do $$
+declare n int;
+begin
+  select count(*) into n from public.app_roles where permissions ? 'mod:/product-database';
+  raise notice '0192: % role(s) can open the Product Database (the install base) under its new key', n;
+  select count(*) into n from public.app_roles where permissions ? 'mod:/product-master';
+  raise notice '0192: % role(s) can open the Product Master (the product lines)', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0195_new_module_keys.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- 0195 — THE MODULE KEYS THAT SHIPPED WITHOUT BEING GRANTED.
+--
+-- The user, 2026-09-14: "Update the Roles & Permissions - Always when a New UI
+-- is introduced or when a UI is re-arranged -- This is often missed."
+--
+-- It was missed, three times, and this file is the repair. Found by asking the
+-- code rather than by reading the backlog:
+--
+--   mod:/machine-history     0 migrations.  12 roles hold it in DEFAULT_PERMS.
+--   mod:/exports/calls       0 migrations.  12 roles hold it in DEFAULT_PERMS.
+--   mod:/exports/feedback    0 migrations.  12 roles hold it in DEFAULT_PERMS.
+--
+-- WHY A CODE DEFAULT IS NOT ENOUGH, and this is the whole point of the file.
+-- `permsForRole()` is
+--
+--     if (stored && stored.length) return stored;      // the app_roles row
+--     return DEFAULT_PERMS[role] ?? DEFAULT_PERMS.engineer;
+--
+-- so the defaults apply ONLY to a role whose stored set is EMPTY. On a project
+-- that has been in use every role has a tuned row, so a new module's key
+-- reaches nobody until a migration puts it there. The screen ships, the menu
+-- entry exists in the code, the permission is ticked in DEFAULT_PERMS — and the
+-- page is invisible to all twelve roles. That is the "a role that sees NOTHING"
+-- fault in CLAUDE.md arriving through the front door.
+--
+-- MACHINE HISTORY IS THE SEVERE ONE: it has no parent key, so nothing covered
+-- for it. The two reports were partly saved by `parentAction()`, which makes
+-- `mod:/exports` stand in for every `mod:/exports/*` — but only for a role
+-- holding the parent. 0155 gave `zoho_migration` the report sub-pages ONE BY
+-- ONE ('mod:/exports/consumption','mod:/exports/kpi','mod:/exports/unused'),
+-- and a list written out in full is a list that goes stale: the two reports
+-- added on 2026-09-14 are not in it, so that role's matrix shows them unticked.
+--
+-- GRANTED TO EXACTLY THE ROLES THAT HOLD THEM IN CODE — all twelve — so this
+-- widens nothing: it makes the database say what the application already says.
+--
+-- MERGED, NEVER OVERWRITTEN (CLAUDE.md): an administrator may have tuned the
+-- role, and overwriting would throw that away.
+--
+-- A ROLE WITH NO PERMISSIONS AT ALL IS LEFT ALONE, and deliberately: an empty
+-- array means "not configured" and the code falls back to the defaults, which
+-- already contain these keys. Writing one key into it would turn that fallback
+-- OFF and leave the role holding three permissions and nothing else. 0176 made
+-- the same decision for `ffr.view`, for the same reason.
+-- ===========================================================================
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array[
+                 'mod:/machine-history',
+                 'mod:/exports/calls',
+                 'mod:/exports/feedback'
+               ]) as v
+             ) u
+         ),
+         updated_at = now()
+   -- ONLY a role that is actually configured, and only one still missing at
+   -- least one of the three — so a re-run changes nothing.
+   where jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ?& array['mod:/machine-history',
+                                      'mod:/exports/calls',
+                                      'mod:/exports/feedback']);
+  get diagnostics n = row_count;
+  raise notice '0195: % role(s) given the module keys that shipped without them', n;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0087_spare_line_stub_rls.sql

@@ -46,30 +46,6 @@ different totals. An empty register usually means access, not emptiness.
 - **Product & Party Search** `/lookup` — find a machine or customer and see
   everything about it. The party list comes from the machines on record, so every
   customer offered has something to find.
-- **Product History** `/product-history` — one machine, and everything that has
-  ever happened to it: the calls, the visits, the parts fitted and the cover it
-  was under, oldest to newest in one list. Pick the **product first, then the
-  serial** — serials repeat across models, so the number on its own can land on
-  another hospital's machine.
-  Every row says which database it came from. **Live** rows come from the
-  registers in this application. **Archive** rows come from the separate
-  project holding the history from 2016 up to the cut-over: closed records that
-  cannot be edited, carrying whatever the old system was told when the call was
-  closed. That is why a UCN is coloured for a live call and plain for an
-  archived one — the archive does not know the call's state, and a wrong colour
-  on a code people read is worse than none.
-  If the screen says **Archive not connected**, it is showing the live
-  registers only. Somebody with admin rights enters that project's key once per
-  device under Settings → Archive (Product History).
-  **Loading the old data** is done on **Bulk Uploads**, under the heading
-  **2016 Archive** — five registers, one per kind of export (Machines, Calls,
-  Visits, Parts fitted, Cover). Each asks *which export is this?* before it will
-  upload, and writes that label on every row. That label matters: these
-  registers have no key to match on, so loading the same file twice **adds** the
-  rows a second time, and the label is the only way to take a batch back out
-  (which an administrator does in the database, not here). Nothing in the
-  application can change or delete an archive row once it is in — it can only
-  add.
 - **Spare Insights** `/spare-insights` — consumption over a window, five ways.
   Both ends of the window count; voided lines do not; an uncategorised part shows
   as Unclassified rather than guessed at.
@@ -257,8 +233,23 @@ What the rest of the application picks from. A value not on a master cannot be
 typed into a form that reads it.
 
 - **Party Master** `/parties` — customers and dealers.
-- **Product Master** `/product-master` — every machine by serial, with its
+- **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
+  It keeps **all 32 columns** of the ProdMaster file — Item Code, the address,
+  the PO, PM Visits, the installation fields and the rest. Eleven of them are on
+  screen when it opens; **⚙ Columns** offers the other twenty-one, and
+  **Export CSV** gives you every one of them whether or not it is on screen.
+  > **Warranty Status** and **Contract Status** here are the words the FILE
+  > used. They are not the Active / About to expire / Inactive the system works
+  > out from the dates, and the two can disagree — which is worth seeing.
+- **Product Master** `/product-master` — the list of **product lines**, one row
+  per product code: type, category, short form, and whether it is still sold.
+  Not the machines — those are the Product Database.
+  > **Inactive** means the line is no longer sold, so a **new Sale Entry**
+  > cannot name it. It changes nothing else: machines already sold still take
+  > contracts, calls, visits, spares and feedback. A line stops being sold long
+  > before it stops being serviced.
+  Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
 - **User Master** `/user-master` — people, roles and the reporting line. A
@@ -275,6 +266,35 @@ typed into a form that reads it.
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and
   spare use by cover, product and region.
+- **Machine History** `/machine-history` — one machine, its whole life. Pick the
+  **product first, then the serial**: the same serial number belongs to several
+  models, so a serial on its own would show you a different hospital's machine.
+  - **Where it is now** — whose it is, its status, where, which engineer, and the
+    warranty and contract it is under.
+  - **Everything recorded against it** — calls, visits, spares fitted, Field
+    Failure Reports, customer feedback, sale/warranty, contracts, ownership
+    transfers, additional entries and workshop jobs. Filter by register, or
+    export.
+  > A machine not on the Product Master still has a history, and the screen says
+  > so rather than looking empty.
+  - **The years before this system.** The service history from 2016 up to the
+    cut-over lives in a separate database, and the screen reads it alongside the
+    registers. Every row says which one it came from: **Live** rows carry the
+    call's real state, **Archive** rows carry whatever the old system was told
+    when somebody closed the call. That is why an archived UCN is not coloured —
+    its state cannot be known, and a wrong colour on a code people read is worse
+    than none. A machine that exists only in the archive can still be found.
+  - If it says **Archive not connected**, it is showing the registers only.
+    Somebody with admin rights enters that project's key once per device under
+    Settings → Archive (Machine History).
+  - **Loading the old data** is done on **Bulk Uploads**, under the heading
+    **2016 Archive** — five registers, one per kind of export (Machines, Calls,
+    Visits, Parts fitted, Cover). Each asks *which export is this?* before it
+    will upload and writes that label on every row: these registers have no key
+    to match on, so loading the same file twice **adds** the rows again, and the
+    label is the only way to take a batch back out (an administrator does that in
+    the database, not here). Nothing in the application can change or delete an
+    archive row once it is in.
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
@@ -332,6 +352,11 @@ typed into a form that reads it.
   > **If a role sees nothing** it is almost always a missing *action*, not a
   > missing page: a role with some permissions but not "View calls" sees an empty
   > register with everything apparently granted.
+  > **If a MENU ENTRY is missing entirely** — the screen exists, other people
+  > describe it, and it is simply not on your menu — that is the page
+  > permission, and it is the one thing that shows no error at all. Tick the
+  > page here for the role. The headings and their order match the menu exactly,
+  > so look for it under the group it sits in on the left.
 - **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
   or off needs a reason, and that history outlives the log.
 - **Admin Config** `/admin-config` — the settings the rules read: the

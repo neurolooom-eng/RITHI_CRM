@@ -34,6 +34,26 @@ const COLUMNS: Column<Row>[] = [
   { key: 'Service Engineer', header: 'Engineer', width: 150 },
 ];
 
+// EVERY COLUMN OF THE EXPORT, in the file's own order (the user, 2026-09-14:
+// "Product Database has to retain all Columns"). The eleven above are what the
+// screen OPENS with; these are what the ⚙ Columns picker offers and what the
+// export carries, so a value is reachable without being in everybody's way.
+//
+// WRITTEN OUT rather than harvested from the loaded rows, which is how the
+// other registers do it and is wrong for this one in two ways: the order would
+// be whatever the first row happened to have, and a heading absent from the
+// first forty machines would not be offered at all — `Sold Through` is blank
+// on most of this file.
+const ALL_FIELDS = [
+  'Item Details Long', 'Item Details', 'Party Name', 'Sold Through', 'State', 'City', 'Address',
+  'Item Code', 'Item Name', 'Item Serial Number', 'PO No.', 'PO Date',
+  'Warranty Number', 'Warranty Start Date', 'Warranty End Date', 'Warranty Status',
+  'Contract Number', 'Contract Start Date', 'Contract End Date', 'Contract Type', 'Contract Status',
+  'PM Visits', 'Other Details', 'Service Engineer', 'Item Status', 'ProdFinal',
+  'Installation Completed?', 'INST Call', 'INST Date', 'INST Call Status', 'Report',
+  'Associated Accessory',
+].map((k) => ({ key: k, header: k }));
+
 export function ProductMaster() {
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -46,7 +66,7 @@ export function ProductMaster() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Master.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Database.' },
   );
 
   const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
@@ -54,7 +74,7 @@ export function ProductMaster() {
   const run = async (filters: ProdFilters = f) => {
     if (!dataConfigured()) return;
     setBusy(true);
-    setMsg({ tone: 'info', text: 'Searching Product Master…' });
+    setMsg({ tone: 'info', text: 'Searching the Product Database…' });
     try {
       const r = await searchProducts(filters, PAGE, 0);
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
@@ -121,7 +141,7 @@ export function ProductMaster() {
         onRefresh={() => void run({})}
         refreshing={busy}
         syncedAt={lastSync}
-        title="Product Master"
+        title="Product Database"
         subtitle="Search the install base and register a call straight from a product."
         icon="🩺"
         count={rows.length}
@@ -148,6 +168,7 @@ export function ProductMaster() {
 
       <DataTable<Row>
         columns={can('calls.create') ? [...COLUMNS, actionsColumn] : COLUMNS}
+        allFields={ALL_FIELDS}
         rows={rows}
         getRowId={(r) => r.id}
         storageKey="productMaster"
@@ -163,7 +184,8 @@ export function ProductMaster() {
             {rows.length > 0 && (
               <button
                 className="btn btn-sm"
-                onClick={() => csvExport('product-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}
+                title="All 32 columns of the install base, not only the ones on screen"
+                onClick={() => csvExport('product-database.csv', ALL_FIELDS, rows as unknown as Record<string, unknown>[])}
               >
                 ⭳ Export CSV
               </button>

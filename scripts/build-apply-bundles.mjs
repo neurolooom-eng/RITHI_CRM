@@ -111,6 +111,14 @@ const MODULES = {
             '0069_nsm_service_manager.sql', '0093_lookup_module.sql',
             '0110_admin_reset_password.sql',
             '0120_role_table_views.sql',
+            // The Product Master / Product Database rename. It moves a MODULE
+            // KEY, so it belongs with the other role migrations and must run
+            // after 0005 creates app_roles.
+            '0192_product_database_rename.sql',
+            // The three module keys that shipped without ever being granted.
+            // Same reason as 0192: it writes MODULE KEYS into app_roles, so it
+            // belongs with the role migrations and must run after 0005.
+            '0195_new_module_keys.sql',
             // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
             // created by 0008 in THIS module and redefined by these two. While they
             // sat in spare_requests, replaying `rbac.sql` on its own put 0008's
@@ -483,7 +491,14 @@ const MODULES = {
             // AFTER 0079, which is where the products keys live. A stored serial
             // key so a client can match one machine by EQUALITY instead of a
             // substring scan — see the file for why that timed out.
-            '0129_product_serial_key.sql'],
+            '0129_product_serial_key.sql',
+      // THE CATALOGUE OF PRODUCT LINES — the new Product Master (0193). Here
+      // rather than with `products`, because it is a MASTER: a list somebody
+      // maintains, not a register the work writes to.
+      '0193_product_master_lines.sql',
+      // Every column of the v2_ProdMaster export, read back out of `extra`.
+      // AFTER 0193 only for tidiness; it touches a different table.
+      '0194_product_database_all_columns.sql'],
   },
   reports: {
     title: 'Reports',

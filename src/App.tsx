@@ -9,8 +9,8 @@ import { Login } from './modules/Login';
 import { ResetPassword } from './modules/ResetPassword';
 import { FieldCalls, InstallationCalls, PMCalls } from './modules/FieldCalls';
 import { ProductMaster } from './modules/ProductMaster';
+import { ProductLines } from './modules/ProductLines';
 import { Lookup } from './modules/Lookup';
-import { ProductHistory } from './modules/ProductHistory';
 import { PartyMaster } from './modules/PartyMaster';
 import { PartMaster } from './modules/PartMaster';
 import { AllMasters } from './modules/AllMasters';
@@ -40,6 +40,7 @@ import { CallReview } from './modules/CallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
+import { MachineHistory } from './modules/MachineHistory';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
 import { IndoorService } from './modules/IndoorService';
@@ -135,9 +136,9 @@ function Shell() {
         <Route path="/call-updation" element={<Navigate to="/field-calls" replace />} />
         <Route path="/request-registration" element={<RequestCallRegistration />} />
         <Route path="/pending-registrations" element={<PendingRegistrations />} />
-        <Route path="/product-master" element={<ProductMaster />} />
+        <Route path="/product-database" element={<ProductMaster />} />
+        <Route path="/product-master" element={<ProductLines />} />
         <Route path="/lookup" element={<Lookup />} />
-        <Route path="/product-history" element={<ProductHistory />} />
         <Route path="/user-master" element={<UserMasterView />} />
         <Route path="/pm-calls" element={<PMCalls />} />
         <Route path="/pending-calls" element={<PendingCalls />} />
@@ -157,6 +158,7 @@ function Shell() {
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
         <Route path="/spare-insights" element={<SpareInsights />} />
+        <Route path="/machine-history" element={<MachineHistory />} />
         <Route path="/exports" element={<ReportsHub />} />
         {/* One page, one tab per report — so the menu can name each report
             instead of hiding it behind a tab strip. */}

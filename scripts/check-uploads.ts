@@ -257,6 +257,129 @@ eq('the same serial on two models is two machines', prod.rows.length, 2);
 eq('the same model+serial twice is one', prod.rows.filter((x) => x.item_name === 'VEGA').length, 1);
 eq('...and the last one wins', prod.rows.find((x) => x.item_name === 'VEGA')?.party_name, 'C');
 
+console.log('\n-- a heading the file CARRIES, left empty, clears its column --');
+{
+  // REPORTED 2026-09-14 with the source master attached: ORION-G 2410 showed
+  // contract MC5521. Two machines share serial 2410 — a CPX CARE
+  // (PRD-007-W-220-G) and an ORION-G (PRD-009) — and MC5521 is the CPX CARE's.
+  // The user corrected the master at source; re-uploading it changed NOTHING,
+  // because every contract cell on the ORION-G row is blank and a blank was
+  // never written. Proved against Postgres before it was fixed: the upsert left
+  // MC5521 exactly where it was.
+  //
+  // The fault was that TWO CASES WERE INDISTINGUISHABLE downstream and they
+  // mean opposite things — a heading the file does not carry (leave it alone)
+  // and a heading it carries with an empty cell (empty it). Both produced a
+  // payload with no such key, so a correction could only ever ADD a value and
+  // never REMOVE one.
+  //
+  // These are the two REAL rows, headings and values verbatim.
+  const CPX = {
+    'Item Code': 'PRD-007-W-220-G', 'Item Name': 'CPX CARE', 'Item Serial Number': '2410',
+    'Warranty Number': 'SA7147', 'Warranty End Date': '03-September-2023', 'Warranty Status': 'INACTIVE',
+    'Contract Number': 'MC5521', 'Contract End Date': '31-October-2026',
+    'Contract Type': 'CMC', 'Contract Status': 'ACTIVE',
+  };
+  const ORION = {
+    'Item Code': 'PRD-009', 'Item Name': 'ORION-G', 'Item Serial Number': '2410',
+    'Warranty Number': 'SA9612', 'Warranty End Date': '03-July-2027', 'Warranty Status': 'ACTIVE',
+    'Contract Number': '', 'Contract End Date': '', 'Contract Type': '', 'Contract Status': 'INACTIVE',
+  };
+  const out = shapeUpload(def('products'), [CPX, ORION]);
+  eq('the shared serial is still TWO machines', out.rows.length, 2);
+  const cpx = out.rows.find((r) => r.item_name === 'CPX CARE') as Record<string, unknown>;
+  const org = out.rows.find((r) => r.item_name === 'ORION-G') as Record<string, unknown>;
+  // THE ONE THAT WAS BROKEN: an empty contract is now SENT as empty, so the
+  // upsert clears what is there instead of leaving it.
+  eq('the empty contract is sent as empty, not omitted',
+    ['contract_number', 'contract_type', 'contract_end'].map((k) => k in org), [true, true, true]);
+  eq('...and its values are the empty ones',
+    [org.contract_number, org.contract_type, org.contract_end], ['', '', null]);
+  // ...WITHOUT TOUCHING THE MACHINE IT BELONGS TO.
+  eq('the CPX CARE keeps its own contract', [cpx.contract_number, cpx.contract_type], ['MC5521', 'CMC']);
+  // ...and the warranty that IS on the row is untouched either way.
+  eq('each keeps its own warranty', [org.warranty_number, cpx.warranty_number], ['SA9612', 'SA7147']);
+
+  // THE SAFETY PROPERTY, and the whole reason this is opt-in per register: a
+  // heading the file does NOT carry must still leave its column ALONE. A
+  // partial file must not wipe what it does not talk about.
+  const partial = shapeUpload(def('products'),
+    [{ 'Item Name': 'ORION-G', 'Item Serial Number': '2410', 'Warranty Number': 'SA9612' }])
+    .rows[0] as Record<string, unknown>;
+  eq('a heading the file does not carry leaves the column alone',
+    Object.keys(partial).filter((k) => k.startsWith('contract')), []);
+
+  // A STAMPED COLUMN IS NEVER BLANKED — the register is the authority on it.
+  // Field Calls stamp call_type and are NOT a blanks-clear register, so this
+  // checks the guard rather than the flag.
+  eq('a register without the flag is unchanged',
+    'contract_number' in (shapeUpload(def('parties'), [{ 'Party Name': 'X', 'City': '' }]).rows[0] ?? {}), false);
+  eq('...and only the registers that opted in carry it',
+    UPLOADS.filter((u) => u.blanksClear).map((u) => u.key), ['products']);
+}
+
+console.log('\n-- the Product Database keeps every column of its export --');
+// A REAL ROW of the user's own v2_ProdMaster sample, headings and values
+// verbatim (2026-09-14). The ask was "Product Database has to retain all
+// Columns", so the test that matters is the one that reads the file as sent.
+const V2: Record<string, string> = {
+  'Item Details Long': 'KA006500|OSIRIS - 2|4523', 'Item Details': 'OSIRIS - 2|4523',
+  'Party Name': 'GVK EMERGENCY MANAGEMENT AND RESEARCH INSTITUTE-13741', 'Sold Through': '',
+  'State': 'GUJARAT', 'City': 'AHMEDABAD', 'Address': 'NARODA KATHWADA ROAD,,NARODA,',
+  'Item Code': 'KA006500', 'Item Name': 'OSIRIS - 2', 'Item Serial Number': '4523',
+  'PO No.': '011/1112', 'PO Date': '22 Apr 11',
+  'Warranty Number': 'SA5481', 'Warranty Start Date': '22 Apr 11', 'Warranty End Date': '21 Apr 14',
+  'Warranty Status': 'INACTIVE',
+  'Contract Number': 'MC1533', 'Contract Start Date': '20 Mar 18', 'Contract End Date': '19 Mar 19',
+  'Contract Type': 'AMC', 'Contract Status': 'INACTIVE',
+  'PM Visits': '3', 'Other Details': '', 'Service Engineer': 'DHRUV PATEL', 'Item Status': 'OGP',
+  'ProdFinal': '4523', 'Installation Completed?': 'Yes',
+  'INST Call': 'To Check', 'INST Date': 'To Check', 'INST Call Status': 'To Check',
+  'Report': 'To Check', 'Associated Accessory': 'To Link',
+};
+const v2 = shapeUpload(def('products'), [V2]);
+const v2r = v2.rows[0] as Record<string, unknown>;
+eq('the sample has the 32 columns the ask named', Object.keys(V2).length, 32);
+// THE HEADLINE. Not "most of them" — no heading in that file is left over.
+eq('...and not one heading is unclaimed', v2.unmatched, []);
+eq('the code that reaches the product line', v2r.item_code, 'KA006500');
+eq('where the machine is', [v2r.state, v2r.city, v2r.address],
+   ['GUJARAT', 'AHMEDABAD', 'NARODA KATHWADA ROAD,,NARODA,']);
+eq('what bought it', [v2r.po_no, v2r.po_date], ['011/1112', '2011-04-22']);
+// COUNTED, so it is a number and not the text '3'.
+eq('PM visits is a count', v2r.pm_visits, 3);
+// THE EXPORT'S OWN WORDS, kept apart from the state computed from the dates.
+eq("the file's own cover statuses, under their own names",
+   [v2r.warranty_status_keyed, v2r.contract_status_keyed], ['INACTIVE', 'INACTIVE']);
+// ...AND NOT BORROWED AS THE MACHINE'S STATUS. Before 0194 `item_status` fell
+// back to them; the machine's own status is OGP, a different vocabulary.
+eq('...and the machine keeps its own status', v2r.item_status, 'OGP');
+// The fallback only ever fired on a file with NO `Item Status`, so that is the
+// file that proves it gone. It used to file the WARRANTY's INACTIVE as the
+// machine's status; now the machine simply has none, which is the truth.
+{
+  const noStatus = { ...V2 } as Record<string, string>;
+  delete noStatus['Item Status'];
+  const r = shapeUpload(def('products'), [noStatus]).rows[0] as Record<string, unknown>;
+  eq('a file with no Item Status does not borrow the warranty\u2019s', r.item_status, undefined);
+  eq('...while the warranty\u2019s own column still has it', r.warranty_status_keyed, 'INACTIVE');
+}
+eq('the installation fields', [v2r.installation_completed, v2r.inst_call, v2r.inst_call_status],
+   ['Yes', 'To Check', 'To Check']);
+eq('what it is fitted to', v2r.associated_accessory, 'To Link');
+eq('and the two detail strings', [v2r.item_details_long, v2r.item_details],
+   ['KA006500|OSIRIS - 2|4523', 'OSIRIS - 2|4523']);
+// THE ROW THIS FILE MAKES ITS OWN CASE FOR. `INST Date` says "To Check" —
+// which is not a date, so the column stays empty. It is NOT dropped: the raw
+// word is kept, because an unreadable cell is the one somebody most needs to
+// see. It had been safe in `extra` while the heading was unmapped, and giving
+// it a typed column is exactly what would have lost it.
+eq('an unreadable date leaves the column empty', v2r.inst_date, undefined);
+eq('...and is kept verbatim rather than dropped',
+   (v2r.extra as Record<string, unknown>)['INST Date'], 'To Check');
+// A blank is still nothing — it does not become an `extra` entry either.
+eq('a blank cell stays nothing', 'Sold Through' in (v2r.extra as Record<string, unknown>), false);
+
 console.log('\n-- the spare request register: two files, joined by the OR number --');
 const sr = shapeUpload(def('spare_requests'), [
   { 'UID': 'S1-30793a25', 'OR NO': 'OR43016', 'Req Type': 'Call Based', 'ENGINEER NAME': 'MEGHANATH',
@@ -373,11 +496,22 @@ console.log('\n-- a column the register was told it does not want --');
   eq('the two lists do not overlap', ot.ignored.filter((h) => ot.unmatched.includes(h)), []);
 }
 
-// 31 live registers + the 5 that write to the 2016 archive project. This
-// number is checked because it has gone stale before: it read 30 while a 31st
-// existed, and a check nobody updates is a check that records what used to be
-// true. If you add a register, change it here on purpose.
-eq('registers defined', UPLOADS.length, 36);
+// 32 since the Product Master (the catalogue of product LINES) joined the
+// Product Database (the machines) — the two are different registers and this
+// number is what catches one being added without a test beside it.
+// 32 live registers + the 5 that write to the 2016 archive project.
+eq('registers defined', UPLOADS.length, 37);
+// THE TWO ARE NOT THE SAME REGISTER, and the names invite confusing them. One
+// is keyed on the MACHINE (model + serial), the other on the product CODE.
+{
+  const db = UPLOADS.find((u) => u.key === 'products')!;
+  const cat = UPLOADS.find((u) => u.key === 'product_master')!;
+  eq('the install base is labelled Product Database', db.label, 'Product Database');
+  eq('...and is keyed on the machine', db.conflict, 'machine_key');
+  eq('the catalogue is labelled Product Master', /^Product Master/.test(cat.label), true);
+  eq('...and is keyed on the product CODE, not the name', cat.conflict, 'product_code');
+  eq('...and they write different tables', db.table !== cat.table, true);
+}
 eq('...five of them write to the archive project, not the live one',
   UPLOADS.filter((d) => d.db === 'archive').length, 5);
 // EVERY ARCHIVE REGISTER MUST ASK FOR ITS LABEL. The archive's policy refuses a

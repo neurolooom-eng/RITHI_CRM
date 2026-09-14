@@ -64,6 +64,26 @@ export interface UploadDef {
    *  `conflictFrom` names the fields it is derived from, which is what the
    *  coherence check verifies instead. */
   conflictFrom?: string[];
+  /** A HEADING THE FILE CARRIES, WITH AN EMPTY CELL, MEANS "THIS IS EMPTY" —
+   *  so the column is CLEARED rather than left as it was.
+   *
+   *  Without this the two cases are indistinguishable downstream and they mean
+   *  opposite things: a heading the file does NOT carry must leave the column
+   *  alone, and a heading it DOES carry with a blank cell must empty it. Both
+   *  used to produce a payload with no such key, so a correction could only
+   *  ever ADD a value and never REMOVE one.
+   *
+   *  Reported 2026-09-14: ORION-G 2410 showed contract MC5521, which belongs to
+   *  the CPX CARE that shares that serial. The source master was corrected — the
+   *  ORION-G row has no contract at all — and re-uploading it changed nothing,
+   *  because every contract cell was blank and a blank was never written.
+   *
+   *  OPT-IN, PER REGISTER, and deliberately so: it is right where the file is
+   *  the WHOLE ROW (a master export), and wrong where somebody may load a
+   *  partial file whose tool emits every heading whether or not it means to
+   *  fill it. A STAMPED column is never cleared, and neither is a `required`
+   *  one — a row missing that is held back rather than blanked. */
+  blanksClear?: boolean;
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
@@ -208,6 +228,14 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); }
   });
 
+  // WHAT THE REGISTER STAMPS ITSELF. Needed in TWO places and therefore
+  // declared before EITHER: the shaping loop must not blank a stamped column,
+  // and the unrecognised-header report must not list one as unknown. It used to
+  // sit beside the report alone — below the loop — so reading it from the loop
+  // would have thrown `Cannot access 'stamped' before initialization` at
+  // RUNTIME, which `tsc --noEmit` does not catch.
+  const stamped = new Set(Object.keys(def.stamp ?? {}).map(norm));
+
   // WHICH WAY ROUND THIS FILE WRITES ITS DATES, decided ONCE PER COLUMN over
   // every row before any row is shaped. Day-first is the rule and the default;
   // a column is read the other way only where its own values PROVE it (a value
@@ -238,17 +266,36 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
       if (ignored.has(h)) return;
       const cols = bind.get(h);
       if (cols) {
-        let usedBy = 0;
+        let storedBy = 0;
         cols.forEach((col) => {
           const raw = String(v ?? '').trim();
           if (col.when && raw && !col.when(raw)) return;   // not this column's kind of value
-          usedBy += 1;
           const val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
           // Never let a blank cell overwrite a stamped constant.
-          if (val !== null && val !== '') out[col.to] = val;
+          if (val !== null && val !== '') { out[col.to] = val; storedBy += 1; }
+          // THE FILE CARRIES THIS HEADING AND LEFT IT EMPTY, so the register
+          // that asked for it is told EMPTY rather than told nothing. A stamped
+          // column keeps its constant, and a required one is never blanked —
+          // the row is held back instead, which is a louder answer.
+          else if (def.blanksClear && !raw && !stamped.has(norm(col.to)) && !col.required) {
+            out[col.to] = col.type && col.type !== 'text' ? null : '';
+          }
         });
-        // Claimed by a column that refused it — keep it rather than lose it.
-        if (!usedBy && def.extraInto) {
+        // NOTHING KEPT IT — so `extraInto` does, exactly as if no column had
+        // claimed the heading. Two ways to land here and both need it:
+        //
+        //   a column REFUSED the value (`col.when` — not its kind), and
+        //   a TYPED column could not READ it: `15/13/24` is not a date,
+        //   `two` is not an integer, and `coerce` answers null for both.
+        //
+        // The second used to be dropped silently, which was backwards: an
+        // unreadable cell is the one somebody most needs to SEE, and it was the
+        // only one the row did not keep. Found while giving the Product
+        // Database its 21 remaining columns (0194) — the moment `PO Date`
+        // stopped being loose text and became a date, a malformed PO date
+        // would have vanished on the next upload having been safe in `extra`
+        // for a year. A blank cell is still nothing and stays nothing.
+        if (!storedBy && def.extraInto) {
           const t = String(v ?? '').trim();
           if (t) extra[h.trim()] = t;
         }
@@ -294,7 +341,6 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // register, the list name on a master) is not unrecognised — it is
   // deliberately ignored, because the register is the authority on it. Listing
   // it as unknown made a correct load look wrong.
-  const stamped = new Set(Object.keys(def.stamp ?? {}).map(norm));
   return {
     rows: deduped,
     skipped,
@@ -958,21 +1004,96 @@ export const UPLOADS: UploadDef[] = [
       TEXT('party_type', 'type', 'profile'),
       TEXT('address', 'billing address'),
     ] },
-  { key: 'products', label: 'Product Master', group: 'Masters', table: 'products', extraInto: 'extra',
+  // RENAMED, NOT REPLACED (the user, 2026-09-14: "Rename Product Master to
+  // Product Database"). Same register, same table, same key — one row per
+  // MACHINE. The name "Product Master" now belongs to the CATALOGUE of product
+  // lines below, which is a different thing entirely.
+  { key: 'products', label: 'Product Database', group: 'Masters', table: 'products', extraInto: 'extra',
     conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
-    note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
+    // A BLANK CELL CLEARS ITS COLUMN HERE, because this file IS the machine's
+    // whole row — the master export carries all 32 headings on every row, so a
+    // blank means "no contract", not "no opinion". Reported 2026-09-14: ORION-G
+    // 2410 carried contract MC5521, which belongs to the CPX CARE that shares
+    // that serial; the master was corrected at source and re-uploading it
+    // changed nothing, because a blank was never written.
+    blanksClear: true,
+    note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. ALL 32 COLUMNS of the v2_ProdMaster export land in columns of their own (0194) — Item Code, the address, the PO, PM Visits, the installation fields and the rest — so they can be searched, sorted and reported on rather than sitting in a blob.',
     cols: [
       // `Item Serial Number` is what the AppSheet export calls it.
       { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial', 'product serial number'], required: true },
       { to: 'item_name', from: ['item name', 'product name', 'product', 'model'], required: true },
       TEXT('party_name', 'party name', 'customer'),
-      TEXT('item_status', 'item status', 'warranty status', 'contract status'),
+      // NO FALLBACK ONTO THE COVER STATUSES ANY MORE. Until 0194 this field
+      // read `warranty status`/`contract status` when the file had no `Item
+      // Status`, because they were the only status columns that existed. They
+      // have their own columns now, and borrowing one would file a warranty's
+      // INACTIVE as the MACHINE's status — in the sample the machine's own
+      // status is OGP, which is a different vocabulary entirely.
+      TEXT('item_status', 'item status'),
       TEXT('warranty_number', 'warranty number'),
       DATE('warranty_start', 'warranty start date', 'warranty start'),
       DATE('warranty_end', 'warranty end date', 'warranty end'),
       TEXT('contract_number', 'contract number'), TEXT('contract_type', 'contract type'),
       DATE('contract_start', 'contract start date', 'contract start'),
       DATE('contract_end', 'contract end date', 'contract end'),
+      // ---- THE OTHER TWENTY-ONE (0194). They were never lost — `extraInto`
+      // kept every one of them — but a value in a jsonb blob cannot be
+      // grouped, filtered or shown as a column, which is the same fault 0148
+      // fixed for the Part Master.
+      //
+      // THE CODE IS THE ONE THAT DOES WORK rather than display: it is how a
+      // machine reaches its line on the new Product Master (0193).
+      TEXT('item_code', 'item code'),
+      TEXT('item_details_long', 'item details long'),
+      TEXT('item_details', 'item details'),
+      TEXT('sold_through', 'sold through'),
+      TEXT('state'), TEXT('city'), TEXT('address'),
+      TEXT('po_no', 'po no.', 'po no', 'po number'),
+      DATE('po_date', 'po date'),
+      // THE EXPORT'S OWN WORDS, not the state this system computes from the
+      // dates. Named `_keyed` so the two can never be mistaken for each other;
+      // where they disagree, the disagreement is the thing worth seeing.
+      TEXT('warranty_status_keyed', 'warranty status'),
+      TEXT('contract_status_keyed', 'contract status'),
+      // Counted, so a blank stays NULL: "nobody said" and "none" are different
+      // answers about a service schedule.
+      { to: 'pm_visits', from: ['pm visits'], type: 'int' },
+      TEXT('other_details', 'other details'),
+      TEXT('service_engineer', 'service engineer'),
+      TEXT('prod_final', 'prodfinal', 'prod final'),
+      TEXT('installation_completed', 'installation completed?', 'installation completed'),
+      TEXT('inst_call', 'inst call'),
+      DATE('inst_date', 'inst date'),
+      TEXT('inst_call_status', 'inst call status'),
+      TEXT('report'),
+      TEXT('associated_accessory', 'associated accessory'),
+    ] },
+  // ---------------------------------------------------------------------------
+  // THE PRODUCT MASTER — the catalogue of product LINES (0193), which is what
+  // that name means from 2026-09-14 onwards. One row per PRODUCT CODE.
+  //
+  // KEYED ON THE CODE, measured against the user's own ProductList export
+  // rather than assumed: 53 rows, 53 distinct codes, 43 distinct NAMES. CPX
+  // CARE alone has nine codes and they do not agree about being active, so a
+  // file keyed on the name would collapse nine lines into one and pick an
+  // arbitrary one's answer.
+  // ---------------------------------------------------------------------------
+  { key: 'product_master', label: 'Product Master (product lines)', group: 'Masters',
+    table: 'product_master', extraInto: 'extra', conflict: 'product_code',
+    note: 'The list of product LINES — not the machines, which are the Product Database. One row per Product Code: the export has 53 rows and 53 distinct codes but only 43 distinct names, because CPX CARE has nine codes, EXTEND-XT two and HORUS two. ACTIVE?/Inactive is carried as given and decides one thing only — an inactive line takes no NEW SALE ENTRY. Contracts, calls, visits, spares and feedback on machines already sold are untouched, because those sales happened. Re-loading a corrected sheet updates those lines rather than adding them again.',
+    cols: [
+      { to: 'product_code', from: ['product code', 'item code', 'code'], required: true },
+      { to: 'product_name', from: ['product name', 'item name', 'name'], required: true },
+      TEXT('item_detail', 'item code | item name', 'item details', 'item detail'),
+      TEXT('item_type', 'item type', 'type'),
+      TEXT('item_category', 'item category', 'category'),
+      TEXT('short_form', 'short form', 'short name', 'abbreviation'),
+      // "Active"/"Inactive" in the export, which the shared bool reader takes —
+      // and anything it cannot read stays TRUE, because a line the file does
+      // not clearly retire is one still being sold.
+      { to: 'active', from: ['active?', 'active', 'active/inactive?', 'status'], type: 'bool' },
+      DATE('added_on', 'added on', 'date added'),
+      TEXT('added_by', 'added by'),
     ] },
   { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts', extraInto: 'extra',
     conflict: 'item_detail_key', conflictFrom: ['item_detail'],
@@ -1032,7 +1153,7 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
-    requires: 'Product Master', extraInto: 'extra', conflict: 'reference_no,serial_number',
+    requires: 'Product Database', extraInto: 'extra', conflict: 'reference_no,serial_number',
     // Asked for 2026-09-14: not wanted here. It is the AppSheet sheet's own row
     // ordering, not a fact about the hand-over.
     ignore: ['priority'],
@@ -1063,7 +1184,7 @@ export const UPLOADS: UploadDef[] = [
   },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
-    requires: 'Product Master', extraInto: 'extra', ignore: ['priority'],
+    requires: 'Product Database', extraInto: 'extra', ignore: ['priority'],
     note: 'Takes the AppSheet “AdditionalEntryDetails” export, for machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. MATCHED ON THE PRODUCT AND THE SERIAL, never the serial alone: serials repeat across models, and this export alone has 298 shared by more than one product. Anything the export carries beyond the fields below is kept on the row. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
     cols: [
       // "Product Serial Number" is what the export says, and its absence held
@@ -1183,7 +1304,7 @@ export const UPLOADS: UploadDef[] = [
   { key: 'history_parts', label: 'Archive — Parts fitted', group: '2016 Archive',
     table: 'history_parts', db: 'archive', extraInto: 'extra',
     askStamp: ARCHIVE_LABEL,
-    note: 'What was fitted, and when. This is the question the history screen is opened for most often — "has this board been changed before?" — and a part with no date cannot answer it, so load the date column if the export has one.',
+    note: 'What was fitted, and when. This is the question Machine History is opened for most often — "has this board been changed before?" — and a part with no date cannot answer it, so load the date column if the export has one.',
     cols: [
       { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
       { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },

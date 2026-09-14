@@ -310,7 +310,7 @@ export function BulkUploads() {
                    style={{ fontSize: 13, marginBottom: 8 }}>
                 {onArchive
                   ? 'These five write to the 2016 history project, not the live database. They can add rows and nothing here can alter or delete one — the export label is how a batch is taken back out.'
-                  : 'The archive is not connected on this device, so these cannot load. Settings → Archive (Product History), then reload this page. The archive project also needs ProdHistory_01, 02, 03 and 06 run on it.'}
+                  : 'The archive is not connected on this device, so these cannot load. Settings → Archive (Machine History), then reload this page. The archive project also needs ProdHistory_01, 02, 03 and 06 run on it.'}
               </div>
             )}
             {g.items.map((d) => (

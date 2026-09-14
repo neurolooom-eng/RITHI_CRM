@@ -33,6 +33,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { machineKey } from './machine';
 import { byColumnSet } from './uploads';
+import { allRows } from './paging';
 import { getSupabase } from './supabase';
 
 const URL_KEY = 'rithi.archive.url';
@@ -165,19 +166,27 @@ export interface ArchiveHistory {
   visits: ArchiveVisit[];
   parts: ArchivePart[];
   cover: ArchiveCover[];
-  // ONE OF THESE LISTS CAME BACK FULL, so what is on screen is a lower bound
-  // and every count taken from it has to say so with a "+". One machine with
-  // 2,000 archived calls should not exist — and a count that looks exact and is
-  // not is worse than no count, because somebody acts on it.
+  // A LIST REACHED THE 20,000-ROW SAFETY CEILING, so what is on screen is a
+  // lower bound and any count from it must say so with a "+". No real machine
+  // comes near it; it exists so a runaway query cannot page for ever.
   capped: boolean;
 }
 
 export const EMPTY_HISTORY: ArchiveHistory =
   { machine: null, calls: [], visits: [], parts: [], cover: [], capped: false };
 
-// How much of one machine's past is fetched in a single request. Generous
-// enough that no real machine reaches it, and checked rather than assumed.
-const PAGE = 2000;
+// A CAP THIS CODE USED TO SET ITSELF, WRONGLY. It asked for 2,000 rows and
+// checked whether 2,000 came back — but PostgREST caps a response at 1,000
+// HOWEVER LARGE the limit says, and silently. So the cap could never be
+// reached, the "capped" flag could never fire, and a machine with more than a
+// thousand archived rows would have shown the first thousand and reported
+// itself complete. Paged through `allRows` now, like every other register-sized
+// read (src/lib/paging.ts).
+//
+// ORDER IS NOT OPTIONAL WHEN PAGING: without one the pages can overlap and a
+// row is doubled or dropped, which looks complete and is worse than truncation.
+// Every read below orders by `id`, the primary key.
+const MAX_ROWS = 20000;
 
 const str = (v: unknown) => String(v ?? '').trim();
 const num = (v: unknown) => (v === null || v === undefined || v === '' ? 0 : Number(v));
@@ -206,31 +215,31 @@ export async function archiveHistory(product: string, serial: string):
     return { ok: false, reason: 'no-machine', history: EMPTY_HISTORY };
   }
 
-  const table = <T>(name: string, cols: string, order: string) =>
-    c.from(name).select(cols).eq('machine_key', key).order(order, { ascending: false, nullsFirst: false })
-      .limit(PAGE)
-      .then(({ data, error }) => {
-        if (error) throw new Error(error.message);
-        return (data ?? []) as unknown as T[];
-      });
+  const table = <T>(name: string, cols: string) =>
+    allRows<T>((from, to) =>
+      c.from(name).select(cols).eq('machine_key', key)
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as
+          PromiseLike<{ data: T[] | null; error: { message?: string; code?: string } | null }>,
+      MAX_ROWS);
 
   try {
     const [machines, calls, visits, parts, cover] = await Promise.all([
       table<Record<string, unknown>>('history_machines',
-        'product_name,serial,party_name,city,state,address,item_status,installed_on,source_system', 'installed_on'),
+        'product_name,serial,party_name,city,state,address,item_status,installed_on,source_system'),
       table<Record<string, unknown>>('history_calls',
         'ucn,call_number,reg_date,complaint_date,closed_date,party_name,city,product_name,serial,call_type,'
-        + 'standard_complaint,complaint_reported,allocated_to,status,closing_status,source_system', 'reg_date'),
+        + 'standard_complaint,complaint_reported,allocated_to,status,closing_status,source_system'),
       table<Record<string, unknown>>('history_visits',
-        'uid,ucn,visit_at,engineer,call_status,work_done,root_cause,product_name,serial,source_system', 'visit_at'),
+        'uid,ucn,visit_at,engineer,call_status,work_done,root_cause,product_name,serial,source_system'),
       table<Record<string, unknown>>('history_parts',
-        'ucn,part,part_name,qty,consumed_on,engineer,product_name,serial,source_system', 'consumed_on'),
+        'ucn,part,part_name,qty,consumed_on,engineer,product_name,serial,source_system'),
       table<Record<string, unknown>>('history_cover',
-        'cover_kind,cover_number,contract_type,cover_start,cover_end,status,party_name,source_system', 'cover_start'),
+        'cover_kind,cover_number,contract_type,cover_start,cover_end,status,party_name,source_system'),
     ]);
 
     const m = machines[0];
-    const capped = [calls, visits, parts, cover].some((rows) => rows.length >= PAGE);
+    const capped = [calls, visits, parts, cover].some((rows) => rows.length >= MAX_ROWS);
     return {
       ok: true,
       reason: '',
@@ -284,12 +293,14 @@ export async function archiveSearchMachines(product: string, query: string, limi
   const c = getArchive();
   if (!c) return [];
   const term = query.trim().replace(/[%_]/g, (m) => `\\${m}`);
+  // A SEARCH BOX, not a register read: `limit` here is how many rows the
+  // picker will show, chosen by the caller and well under PostgREST's cap.
   let q = c.from('history_machines')
     .select('product_name,serial,party_name,city,state,address,item_status,installed_on,source_system')
+    .order('serial', { ascending: true })
     .limit(limit);
   if (product.trim()) q = q.eq('product_name', product.trim());
   if (term) q = q.ilike('serial', `%${term}%`);
-  else q = q.order('serial');
   const { data, error } = await q;
   if (error) return [];
   return (data ?? []).map((r) => ({
