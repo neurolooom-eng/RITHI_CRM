@@ -12,6 +12,15 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.248',
+    date: '2026-09-14',
+    title: 'Contract and Warranty open on 2,000 rows',
+    changes: [
+      'The Contract and Warranty Registers now fetch two full pages before showing anything, so they open on 2,000 rows instead of 1,000. Each request stays at 1,000 \u2014 the most the database hands over at once \u2014 and the register simply makes two of them.',
+      'On the Objective page, asking to see the reports behind the Field Failure count now explains itself if you are not allowed to read that register: the figure is yours to see, the reports behind it are not, and it names the right to ask for. It used to show a bare error that read as a broken page \u2014 seven of the twelve roles that can open Objective would have hit it.',
+    ],
+  },
+  {
     version: '0.9.247',
     date: '2026-09-14',
     title: 'Dates show in the form, and the filters do more',

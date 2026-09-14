@@ -381,7 +381,23 @@ export function Objective() {
       logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`,
                  meta: isCount ? { reports, rows: calls.length } : { calls: calls.length, machines: machines.length } });
     } catch (e) {
-      setOMsg(`Could not read the evidence: ${e instanceof Error ? e.message : String(e)}`);
+      // AN ACCESS REFUSAL IS NOT A FAULT, and must not read as one.
+      //
+      // `objective_evidence` gates each objective on the register it counted
+      // from, so the FFR count (0142) asks for `ffr.view`. SEVEN of the twelve
+      // roles that can open this page do not hold it — commercial, engineer,
+      // spare_coordinator, stores_incharge, tally_coordinator, technical
+      // support and zoho_migration — and every one of them would have got a
+      // raw "RBAC: ..." string in a red banner, which reads as the page being
+      // broken rather than as the register being closed to them. The figure
+      // itself stays visible; it is the REPORTS BEHIND IT that are withheld,
+      // and that is the correct answer, said properly.
+      const raw = e instanceof Error ? e.message : String(e);
+      setOMsg(/^RBAC:/.test(raw)
+        ? `${raw.replace(/^RBAC:\s*/, '')} — the figure is yours to see, the reports behind it `
+          + 'are not. Ask an administrator for the register\u2019s own right under '
+          + 'Roles & Permissions.'
+        : `Could not read the evidence: ${raw}`);
     }
   };
 

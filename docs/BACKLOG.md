@@ -13,6 +13,30 @@ up)_
 
 ---
 
+## 2026-09-14 — Two pages on open, and a refusal that reads as one
+
+"paging - Keep it at 1000 then" … "But perform that action once more
+automatically". The REQUEST stays at 1,000 — what PostgREST will actually return
+— and the register makes **two** of them before showing anything, so it opens on
+2,000 rows. `more` and the `+` are judged against the whole OPENING request, not
+one page; otherwise a full 2,000-row open would read as the end of the register.
+
+### A refusal that read as a fault
+
+Found by checking my own work rather than reported: `objective_evidence` gates
+the FFR count (0142) on `ffr.view`, and **seven of the twelve roles that can open
+the Objective page do not hold it** — commercial, engineer, spare_coordinator,
+stores_incharge, tally_coordinator, technical_support, zoho_migration. Measured
+against `app_roles`, not guessed. Every one of them would have got a raw
+`RBAC: ...` string in a red banner, which reads as the page being broken rather
+than as the register being closed to them.
+
+The gate itself is right and stays: the evidence for a count of Field Failure
+Reports IS the reports, and somebody who may not open that register should not
+read it through a side door. What was wrong was the wording. The figure stays
+visible; the refusal now says so and names the right to ask for, in the same
+shape as the access banner on the Field Failure Register itself.
+
 ## 2026-09-14 — Blank date boxes, multi-select filters, and a bigger first page
 
 ### The dates were never in the form

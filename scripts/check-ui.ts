@@ -1555,6 +1555,16 @@ console.log('\n-- the evidence workbook --');
     // should load 2x". It opened at 200 entries / 500 machines.
     eq('the register opens on a full page from the server',
       /const PAGE: Record<Tab, number> = \{ entries: 1000, machines: 1000 \}/.test(cov), true);
+    // "paging - Keep it at 1000 then" ... "But perform that action once more
+    // automatically": the REQUEST stays at what the server will actually
+    // return, and the register makes two of them before showing anything.
+    eq('...twice over, before anything is shown',
+      /const OPEN_PAGES = 2/.test(cov)
+      && /const r = await fetchPages\(t, 0, OPEN_PAGES\)/.test(cov), true);
+    // The "+" and the Load more button must be judged against what was ASKED
+    // FOR, not one page — else a full 2,000-row open reads as the end.
+    eq('...and "more" is judged against the whole opening request',
+      /more: r\.length >= OPEN_PAGES \* PAGE\[t\]/.test(cov), true);
     eq('...and Load more doubles what it fetches',
       /step: feed\.step \* 2/.test(cov), true);
     // THE DOUBLING IS IN THE NUMBER OF REQUESTS, not the size of one. PostgREST
@@ -1641,6 +1651,17 @@ console.log('\n-- the evidence workbook --');
         /nothing ticked — showing everything/.test(mp), true);
     }
   }
+
+  // AN ACCESS REFUSAL IS NOT A FAULT, and must not read as one. The FFR count
+  // (0142) gates its evidence on `ffr.view`, and SEVEN of the twelve roles that
+  // can open the Objective page do not hold it — commercial, engineer,
+  // spare_coordinator, stores_incharge, tally_coordinator, technical support
+  // and zoho_migration. Every one of them would have got a raw "RBAC: ..."
+  // string in a red banner, which reads as the page being broken rather than as
+  // the register being closed to them. Measured against app_roles, not guessed.
+  eq('a refusal to show the rows behind a figure explains itself',
+    /\/\^RBAC:\/\.test\(raw\)/.test(readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8'))
+    && /the figure is yours to see, the reports behind it/.test(readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8')), true);
 
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   const objSb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
