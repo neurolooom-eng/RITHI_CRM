@@ -165,6 +165,16 @@ on testing the old shape. **When a migration replaces a definition, move the
   makes one of its statements untrue; where it and the code disagree, the code
   is the fact and the handbook is the bug.
   Shareable copy: <https://claude.ai/code/artifact/a6cb9ac1-cd68-47f7-9ce9-7e88eafc5908>
+- **`docs/COVER_FIELD_COMPARISON.md`** is the field-by-field comparison of the
+  WARRANTY and CONTRACT registers — all four AppSheet tables (`WarrantySale`,
+  `WarrantySaleDetails`, `ContractEntry`, `ContractDetails`) against what is
+  here, 108 columns, each with a verdict and the remaining gaps ranked. Read it
+  before changing either register. Its two sources are named in it and they are
+  not interchangeable: `Admin_AppDef.pdf` (AppSheet's column properties) and
+  `Appsheet - Forms.xlsx` (the SPREADSHEET formulas the PDF withholds — it
+  prints those columns' outputs and not their rules, which is why 0036 had to
+  guess the expiry band and 0187 could stop guessing).
+  Shareable copy: <https://claude.ai/code/artifact/09231279-fa36-41b1-ab7e-c24af8d3b7bb>
 - **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
   SERVICING PROCESS must do — 37 requirements (SR-001…SR-037) from ISO 13485
   §7.5.4 and the clauses it reaches into, each assessed against this system.
