@@ -252,6 +252,13 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
+  > **Editing a part.** Category, product family and cost are ordinary fields.
+  > The **code and description together are the part's identity** — every
+  > consumption line, hand-stock row, issue, dispatch, transfer and return names
+  > the part by `CODE|Description` — so changing either is a **rename**, and the
+  > rename moves all of those records with it. The screen tells you how many
+  > will move before you commit to it, and stock balances come out unchanged.
+  > A rename will not merge two parts: if the new name is taken, it is refused.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are

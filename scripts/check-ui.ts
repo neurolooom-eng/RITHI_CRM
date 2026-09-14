@@ -5368,7 +5368,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   // download the Data - Provide Clean Split Up and how that data point / % was
   // arrived at."
   // -------------------------------------------------------------------------
-  eq('the Pareto shows its numbers beside the chart', /ffr-pareto-split/.test(ins)
+  eq('the Pareto shows its numbers beside the chart', /ffr-split/.test(ins)
     && /<table className="ffr-mini">/.test(ins), true);
   // ONE ARRAY, DRAWN TWICE. A table built from its own pass over the same rows
   // is a second implementation of the same arithmetic, and the two only have to
@@ -5393,6 +5393,74 @@ console.log('\n-- the Insights tab can be interrogated --');
   // file has to say what it left out or the reader will assume otherwise.
   eq('...and says what it did not draw',
     /Item: 'Not shown'/.test(ins), true);
+
+  // -------------------------------------------------------------------------
+  // THE RAW ROWS, THE PARETO'S LABELS, AND THE TREND'S OWN TABLE.
+  //
+  // The user, 2026-09-14: "In the Download, i want the Raw data of how that
+  // Number was arrived at. Need Data Label option in Pareto. Same kinda Data
+  // table on the Side for 'Reports raised, month by month' -- Line Chart as
+  // well."
+  // -------------------------------------------------------------------------
+  // THE REPORTS THEMSELVES. A summary whose own arithmetic is consistent can
+  // still be counting the WRONG ROWS, and nothing in the file would show it.
+  eq('the download carries the reports behind the number',
+    /name: 'The reports behind it'/.test(ins) && /'FFR No'/.test(ins) && /UCN:/.test(ins), true);
+  // THE SAME ARRAY THE CHART COUNTED, named once and used twice — two calls to
+  // forDim() would be two arrays that only have to disagree once for the file
+  // to stop reconciling with its own summary.
+  eq('...from the same rows the chart counted',
+    /const paretoSrc = useMemo\(\(\) => forDim\(paretoBy\)/.test(ins)
+    && /tally\(paretoSrc, paretoBy\)/.test(ins)
+    && /rawSheet\(paretoSrc, paretoBy, paretoAt\.label\)/.test(ins), true);
+  eq('...and the trend the same way',
+    /const trendSrc = useMemo\(\(\) => forDim\('month'\)/.test(ins)
+    && /byPeriod\(trendSrc, period\)/.test(ins)
+    && /rawSheet\(trendSrc, 'ffr_date'/.test(ins), true);
+  // A row counted under a blank is still a row, and the raw sheet must say so
+  // rather than leave the cell empty — an empty cell reads as a missing export.
+  eq('...with a blank bucket named, not left empty',
+    /\[bucketLabel\]: s\(r, bucketKey\) \|\| BLANK/.test(ins), true);
+
+  // DATA LABELS ON THE PARETO, off by default as the trend's are.
+  eq('the Pareto can show its data labels',
+    /const \[paretoLabels, setParetoLabels\] = useState\(false\)/.test(ins)
+    && /showLabels=\{paretoLabels\}/.test(ins)
+    && /setParetoLabels\(\(v\) => !v\)/.test(ins), true);
+  // TWO SCALES, TWO LABELS, each against its own mark — the count on the bar,
+  // the cumulative percentage on the line. One label for both would be read
+  // against whichever scale the eye landed on.
+  eq('...the count on the bar and the percentage on the line',
+    /className=\{`ch-line-tag\$\{on \? ' is-active' : ''\}`\}>\s*\{d\.value\}/.test(charts)
+    && /className="ch-pareto-tag"/.test(charts), true);
+  // BOTH CLAMPED INSIDE THE DRAWING. The tallest bar reaches the top of the
+  // plot and the line ends at 100% in the corner; an unclamped label at either
+  // is cut off by the viewBox.
+  eq('...and both stay inside the drawing',
+    /Math\.max\(PAD2\.t \+ 9, y\(d\.value\) - 5\)/.test(charts)
+    && /Math\.min\(PAD2\.t \+ h - 3, yPct\(pc\) \+ 13\)/.test(charts), true);
+
+  // THE TREND'S NUMBERS, beside its line, from the same array.
+  eq('the trend shows its numbers beside the line',
+    /<LineChart data=\{trend\} showLabels=\{trendLabels\}/.test(ins)
+    && /\{trendRows\.map\(\(r\) => \(/.test(ins), true);
+  eq('...with the change on the period before it',
+    /Change<\/th>/.test(ins) && /r\.change === null \? '—'/.test(ins), true);
+  // A DASH, NOT A ZERO, on the first row: "no period before it" and "no change"
+  // are different answers and a zero states the wrong one.
+  eq('...and the first period reads a dash rather than no change',
+    /change: prev === null \? null : d\.value - prev/.test(ins), true);
+  eq('...and can be taken away too',
+    /onClick=\{downloadTrend\}/.test(ins) && /xlsxDownload\(`ffr-trend-/.test(ins), true);
+
+  // THE LAYOUT CLASS IS NAMED FOR THE LAYOUT, not for the Pareto — the trend
+  // uses it now, and a class called `ffr-pareto-split` on a line chart is the
+  // kind of small lie that makes the next reader distrust the rest.
+  {
+    const fc = readFileSync('src/modules/fieldcalls.css', 'utf8');
+    eq('the split layout is not named after one chart',
+      /\.ffr-split \{/.test(fc) && !/\.ffr-pareto-split \{/.test(fc), true);
+  }
 
   // Interaction is OPTIONAL on the shared charts, so every other dashboard
   // renders exactly as before.
@@ -5609,6 +5677,70 @@ console.log('\n-- a request for more than a thousand rows is PAGED, or it is a l
   const unordered = [...sb.matchAll(/allRows<[^>]*>\(\(a, b\) =>([\s\S]{0,400}?)\), \d+\)/g)]
     .map((m) => m[1]).filter((body) => !/\.order\(/.test(body));
   eq('...and every paged read names an order, so the pages cannot overlap', unordered.length, 0);
+}
+
+console.log('\n-- a part can be renamed, and the rename carries its history --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-14: "I need to be able to Edit Part Master", and — asked
+  // before building, because the readings are very different work — the
+  // decision: "Rename carries the history".
+  //
+  // A part's identity is the STRING `CODE|Description`, and NOTHING HAS A
+  // FOREIGN KEY TO `parts`: nine tables carry that string as a value, and HAND
+  // STOCK IS DERIVED from them. So the screen must not offer a plain edit of
+  // those two fields — that would silently change an engineer's balance.
+  // -------------------------------------------------------------------------
+  const pm = code(readFileSync('src/modules/PartMaster.tsx', 'utf8'));
+  const sbp = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+
+  eq('the screen can edit a part at all', /const \[edit, setEdit\] = useState<EditForm \| null>/.test(pm)
+    && /\u270e Edit/.test(pm), true);
+  // THE CODE AND DESCRIPTION GO THROUGH THE RENAME, never through a column
+  // update. This is the assertion that stops the whole feature becoming a
+  // stock bug: `updatePart` must not be able to write either of them.
+  eq('the identity is never written as a plain column update',
+    /export async function updatePart\(\s*id: number, patch: \{ category\?: string; product\?: string; purchase_cost\?: number \| null \}/.test(sbp), true);
+  eq('...it goes through rename_part instead',
+    /rpc\('rename_part'/.test(sbp) && /await renamePart\(edit\.id, edit\.code, edit\.description\)/.test(pm), true);
+
+  // WHAT WOULD MOVE, SHOWN BEFORE IT MOVES. A count afterwards is a report; a
+  // count beforehand is a decision.
+  eq('what the rename will move is shown first',
+    /rpc\('part_rename_impact'/.test(sbp) && /\{renaming && \(/.test(pm)
+    && /record\(s\) will be renamed with it/.test(pm), true);
+  // ...AND THE BUTTON WAITS FOR IT. Offering "Rename" while the count is still
+  // loading is offering a decision without the fact it turns on.
+  eq('...and the button waits for that count',
+    /disabled=\{saving \|\| !!editProblem\(\) \|\| \(renaming && impact === null\)\}/.test(pm), true);
+  // "NOTHING ELSE NAMES THIS" IS AN ANSWER, not a reason to say nothing: it is
+  // what makes a rename easy, and hiding it leaves the reader assuming the worst.
+  eq('...including when nothing references the part',
+    /Nothing else names this part yet/.test(pm), true);
+
+  // THE MIGRATION'S OWN SHAPE. The exemption that lets the rename touch a
+  // consumption line must be a CAPABILITY, not a flag: `set_config` is callable
+  // by anybody, so the first version was forgeable by exactly the person the
+  // guard exists to stop.
+  const mig = readFileSync('supabase/migrations/0196_rename_part.sql', 'utf8');
+  eq('the rename exemption is a ticket, not a set_config flag',
+    /create table if not exists public\.part_rename_ticket/.test(mig)
+    && /from public\.part_rename_ticket t/.test(mig)
+    && !/current_setting\('app\.part_rename'/.test(mig), true);
+  eq('...with RLS on and no policy, so nobody can write one',
+    /alter table public\.part_rename_ticket enable row level security/.test(mig)
+    && !/create policy [a-z_]+ on public\.part_rename_ticket/.test(mig), true);
+  // ALL NINE TABLES OR NONE. Hand stock is derived; a rename that misses one
+  // changes a balance.
+  for (const t of ['spare_consumption', 'spare_consumption_history', 'spare_issue_history',
+                   'handstock_opening', 'spare_request_lines', 'spare_dispatch_lines',
+                   'stock_transfer_lines', 'material_returns', 'indoor_job_parts']) {
+    eq(`...and it moves ${t}`, new RegExp(`update ${t}\\s+set part`).test(mig), true);
+  }
+  // A RENAME IS NOT A MERGE: two parts means two sets of stock, which is not a
+  // decision a rename should make silently.
+  eq('a rename refuses to merge two parts',
+    /a rename cannot merge two parts/.test(mig), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
