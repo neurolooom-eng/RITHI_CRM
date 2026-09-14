@@ -13,6 +13,30 @@ up)_
 
 ---
 
+## 2026-09-14 — Priority off four registers
+
+Asked for: "I don't need the column Priority in warranty sale details, Contract
+Details, additional entry details, ownership transfer details." It landed two
+different ways.
+
+- **Warranty Sale Details / Contract Details** — `priority` was a form field AND
+  a database column. The field is removed.
+- **Additional Entry Details / Ownership Transfer** — there is **no column and no
+  field**. Priority arrived from the AppSheet export and `extraInto` kept it on
+  the row, so it was carried, exported and listed on every load. Dropped now.
+- `UploadDef.ignore` added for that: headers matched through the shared matcher
+  and dropped, reported as **ignored** rather than unrecognised — "we discarded
+  this on purpose" and "nobody has named this yet" are different messages to
+  somebody deciding what to name next, and the screen shows them apart.
+- **The first version filtered the REPORTING only**, so the screen said "not
+  kept" while the value was still on every row. check:uploads caught it; the set
+  is resolved before shaping now.
+
+**The database columns on `sale_items` and `contract_items` are NOT dropped** —
+nothing writes or shows them, and dropping a column is irreversible. Say the word
+if they should go. `proposeRenewal` still copies the value on a contract renewal,
+which is harmless while the column exists.
+
 ## 2026-09-13 — Queued: Contract / Warranty field-by-field comparison
 
 **WAITING ON THE USER'S MARKDOWN FILE — do not start before it arrives.** The

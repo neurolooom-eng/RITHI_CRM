@@ -355,6 +355,24 @@ UPLOADS.forEach((d) => {
 });
 // 31 since the Field Failure Register (any year) was added. The count is here
 // so a register cannot appear or vanish unnoticed.
+console.log('\n-- a column the register was told it does not want --');
+{
+  // Asked for 2026-09-14: Priority is not wanted on these registers. It is the
+  // AppSheet sheet's own row ordering, not a fact about the record.
+  for (const k of ['ownership_transfers', 'product_additional_entries']) {
+    eq(`${k} drops Priority`, (def(k).ignore ?? []).includes('priority'), true);
+  }
+  const ot = shapeUpload(def('ownership_transfers'), [{
+    'Serial Number': 'SN-1', 'To Party': 'HOSP', 'OT Number': 'OT-1', 'Priority': '3', 'Keep Me': 'x',
+  }]);
+  eq('it is reported as dropped on purpose', ot.ignored, ['Priority']);
+  eq('...and NOT as unrecognised', ot.unmatched, ['Keep Me']);
+  eq('...and it does not reach the row', Object.keys(ot.rows[0].extra as object), ['Keep Me']);
+  // The distinction is the point: "we discarded this deliberately" and "nobody
+  // has named this yet" are different messages to somebody deciding what to add.
+  eq('the two lists do not overlap', ot.ignored.filter((h) => ot.unmatched.includes(h)), []);
+}
+
 eq('registers defined', UPLOADS.length, 31);
 
 console.log('\n-- call registration requests --');

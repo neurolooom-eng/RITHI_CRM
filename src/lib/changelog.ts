@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.243',
+    date: '2026-09-14',
+    title: 'Priority is off the machine lines',
+    changes: [
+      'The Priority column is gone from the machine lines on Warranty Sale Details and Contract Details.',
+      'On Additional Entry Details and Ownership Transfer it was never a field \u2014 it arrived from the AppSheet export and was being kept on the row. It is now dropped on loading instead.',
+      'The upload screen says which columns were dropped on purpose, separately from the ones it simply does not recognise \u2014 those mean different things to somebody deciding what to name next.',
+    ],
+  },
+  {
     version: '0.9.242',
     date: '2026-09-13',
     title: 'How to Use is in a sensible order',
