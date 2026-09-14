@@ -66,6 +66,15 @@ export interface UploadDef {
   conflictFrom?: string[];
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
+  /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
+   *  recognise, which is right for a column nobody has named yet and wrong for
+   *  one the register has been told it does not want: kept on the row it is
+   *  still carried, still exported and still listed on screen every load.
+   *  Matched through the shared header matcher, so a spelling variant is caught
+   *  too, and reported as IGNORED rather than as unrecognised — a reader
+   *  should be able to tell "we discarded this on purpose" from "we did not
+   *  know what this was". */
+  ignore?: string[];
   /** A last look at the whole shaped row: return why it cannot be loaded, or ''.
    *  For rules that span COLUMNS, which a per-column check cannot see — a stock
    *  transfer from an engineer to themselves is refused by the database, and one
@@ -136,6 +145,10 @@ export interface ShapeResult {
   /** Headers in the file that no column claimed — shown so a mis-picked
    *  register is obvious BEFORE anything is written. */
   unmatched: string[];
+  /** Headers dropped on purpose, because the register was told it does not want
+   *  them. Reported apart from `unmatched`, which means “nobody has named this
+   *  yet”. */
+  ignored: string[];
   /** Columns read MONTH-FIRST because their own values proved it. Surfaced so
    *  a date convention is never applied silently. */
   monthFirst: string[];
@@ -155,6 +168,7 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
         ? [{ row: 0, why: `${raw.length - out.length} row(s) without the key this register needs, or duplicated within the file` }]
         : [],
       unmatched: [],
+      ignored: [],
       monthFirst: [],
     };
   }
@@ -194,11 +208,21 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     if (isMonthFirst(raw.map((r) => r[h]))) monthFirst.add(h);
   });
 
+  // A header the register has been told it does not want. Resolved BEFORE the
+  // rows are shaped, not only for the report: the first version filtered the
+  // reporting alone, so the screen said "not kept" while the value was on every
+  // row. Neither reported as unrecognised nor carried.
+  const ignored = new Set((def.ignore ?? []).flatMap((a) => {
+    const h = findHeaderFor(headers, [a]);
+    return h ? [h] : [];
+  }));
+
   raw.forEach((r, i) => {
     const out: Record<string, unknown> = { ...(def.stamp ?? {}) };
     const extra: Record<string, unknown> = {};
 
     Object.entries(r).forEach(([h, v]) => {
+      if (ignored.has(h)) return;
       const cols = bind.get(h);
       if (cols) {
         let usedBy = 0;
@@ -261,9 +285,10 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   return {
     rows: deduped,
     skipped,
-    unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h))),
+    unmatched: headers.filter((h) => !claimed.has(h) && !stamped.has(norm(h)) && !ignored.has(h)),
     monthFirst: [...monthFirst],
     stamped: headers.filter((h) => !claimed.has(h) && stamped.has(norm(h))),
+    ignored: [...ignored],
   };
 }
 
@@ -972,6 +997,9 @@ export const UPLOADS: UploadDef[] = [
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
     requires: 'Product Master', extraInto: 'extra', conflict: 'reference_no,serial_number',
+    // Asked for 2026-09-14: not wanted here. It is the AppSheet sheet's own row
+    // ordering, not a fact about the hand-over.
+    ignore: ['priority'],
     note: 'One row per hand-over. Leave "From Party" blank and it is filled in from who holds the machine now — which is what makes a historical list loadable in date order. The machine follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Everything else the export carries (the SA and warranty context, engineer, city) is kept on the row. MATCHED ON THE OT NUMBER AND THE MACHINE, so a corrected export \u2014 a changed warranty period, say \u2014 updates those hand-overs rather than adding them again; one OT covering several machines keeps a row per machine. A row with no OT number is not loaded: without it a re-run cannot correct the row, only add it.',
     cols: [
       { to: 'serial_number', from: ['item serial number', 'serial number', 'serial no', 'serial'], required: true },
@@ -999,7 +1027,7 @@ export const UPLOADS: UploadDef[] = [
   },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
-    requires: 'Product Master', extraInto: 'extra',
+    requires: 'Product Master', extraInto: 'extra', ignore: ['priority'],
     note: 'Takes the AppSheet “AdditionalEntryDetails” export, for machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. MATCHED ON THE PRODUCT AND THE SERIAL, never the serial alone: serials repeat across models, and this export alone has 298 shared by more than one product. Anything the export carries beyond the fields below is kept on the row. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
     cols: [
       // "Product Serial Number" is what the export says, and its absence held

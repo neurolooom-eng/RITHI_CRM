@@ -157,6 +157,17 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
               day-first as usual.
             </p>
           )}
+          {/* DROPPED ON PURPOSE, and said so. A column the register has been told
+              it does not want must not be reported as “kept” — a reader
+              looking at the kept list is deciding what to name next, and a
+              column nobody wants does not belong on that list. */}
+          {s.ignored.length > 0 && (
+            <p style={{ margin: '4px 0' }}>
+              <b>Not kept ({s.ignored.length}):</b> {s.ignored.join(', ')}.{' '}
+              This register was told it does not want these, so they are dropped rather than
+              carried on the row.
+            </p>
+          )}
           {s.unmatched.length > 0 && (
             <p style={{ margin: '4px 0' }}>
               {def.extraInto ? (
