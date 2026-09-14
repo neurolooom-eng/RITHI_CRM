@@ -907,7 +907,10 @@ with checks(sort_order, bundle, provides, present) as (
          or (exists (select 1 from information_schema.columns
                       where table_schema='public' and table_name='feedback' and column_name='entry_at')
          and exists (select 1 from information_schema.columns
-                      where table_schema='public' and table_name='feedback' and column_name='imported_from'))))
+                      where table_schema='public' and table_name='feedback' and column_name='imported_from')))),
+    (146, 'Reports: the Call Report and the Customer Feedback Report', 'call_report + feedback_report, both security_invoker (0191). The user: "Add Call Report , Customer Feedback Report -- Follow the Same concept of Consumption Report." One row per CALL on the first -- never per visit, or every count in the file would be wrong -- with the LATEST ENTRY''''s visit beside it, which is sync_call_last_visit()''''s ordering and not the latest visit date. One row per FEEDBACK on the second, with the export''''s own questions as named columns, measured against the user''''s v2Feedback file rather than invented: two are asked of every visit (24,748 of 24,749), four of a PM or field visit (23,759), four of an installation (1,009) -- so a BLANK on a question means it was not put, and the file says so. BOTH ARE security_invoker, which is the whole of their access story: a report view running as its OWNER hands every call in the company to anybody who can open the screen, and this project has shipped that fault twice. NO means the two report screens have nothing to read and will error rather than show an empty file. Restore: performance.sql',
+        (to_regclass('public.call_report') is not null
+     and to_regclass('public.feedback_report') is not null))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

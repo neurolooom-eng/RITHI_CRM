@@ -268,6 +268,15 @@ typed into a form that reads it.
     machines is undefined and stays blank.
 - **Reports — Consumption Report** `/exports/consumption` — one row per spare
   booked, with its call and that call's latest visit.
+- **Reports — Call Report** `/exports/calls` — **one row per call**, never per
+  visit, with its latest visit and what was fitted. Narrow it, tick the extra
+  columns you want, take Excel or CSV.
+- **Reports — Customer Feedback Report** `/exports/feedback` — one row per
+  feedback, each question its own column.
+  > A **blank on a question means it was not asked** of that kind of visit — an
+  > installation and a PM visit are asked different things. It is not a missing
+  > answer, and the file says so.
+  > The date it filters on is the **feedback's own**, not the day it was loaded.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`
   where none was booked, `SHORT` where less was booked than sent. Refused and
   dropped lines are excluded.

@@ -91,6 +91,8 @@ export const CONSUMPTION_COLUMNS: ReportColumn[] = [
 // What the user has narrowed to. Every field is optional; an empty filter is
 // "the whole register", which is the honest default for a report.
 export interface ConsumptionFilter {
+  /** So the shared ReportBuilder can hold it — see CallReportFilter below. */
+  [k: string]: string;
   from: string;          // call date, inclusive
   to: string;            // call date, inclusive
   product: string;       // contains
@@ -185,3 +187,200 @@ export function describeUnusedFilter(f: UnusedSpareFilter): string {
   if (f.part) bits.push(`Part code contains "${f.part}"`);
   return bits.length ? bits.join(' · ') : 'every flagged line — no filter set';
 }
+
+// ---------------------------------------------------------------------------
+// THE CALL REPORT AND THE CUSTOMER FEEDBACK REPORT (the user, 2026-09-14: "Add
+// Call Report , Customer Feedback Report -- Follow the Same concept of
+// Consumption Report").
+//
+// SAME CONCEPT, which means the same three properties rather than the same
+// columns: a mandatory core that is shown ticked and disabled, the rest
+// optional and off, and a filter that runs in the DATABASE so the count on the
+// button is what is about to be exported and not what happens to be loaded.
+//
+// THE KEYS ARE THE VIEW'S COLUMN NAMES, quoted in 0191 to be the headings too.
+// There is no second spelling to keep in step.
+// ---------------------------------------------------------------------------
+
+// One row per CALL — never per visit. A call with four visits is one call, and
+// a report that repeated it four times would have every count in it wrong.
+export const CALL_REPORT_MANDATORY: string[] = [
+  'UC Number',
+  'Call Number',
+  'Call Type',
+  'Call Date',
+  'Customer',
+  'City',
+  'State',
+  'Product',
+  'Serial No',
+  'Complaint',
+  'Allocated To',
+  'Call Status',
+  'Last Visit Date',
+  'Visits',
+];
+
+export const CALL_REPORT_OPTIONAL: string[] = [
+  'Complaint Date',
+  'Last Visit Entry Date',
+  'Last Visit Engineer',
+  'Last Visit Status',
+  'Last Pending Reason',
+  'Spare Lines',
+  'Spare Qty',
+  'Spares Used',
+  'Nature of Complaint',
+  'Item Status',
+  'Warranty No',
+  'Warranty Start',
+  'Warranty End',
+  'Contract No',
+  'Contract Start',
+  'Contract End',
+  'Contract Type',
+  'Mode of Reporting',
+  'Person Calling',
+  'Contact Name',
+  'Contact Number',
+  'Contact Designation',
+  'Contact Email',
+  'Breakdown Date',
+  'Public Health Threat',
+  'Death',
+  'Serious Incident',
+  'Engineer Email',
+  'Status (as keyed)',
+  'Last Status',
+  'Registered At',
+  'Added On',
+  'Reopened At',
+  'Reopen Count',
+  'Cancelled At',
+  'Cancel Reason',
+  'Created At',
+];
+
+export interface CallReportFilter {
+  /** So the shared ReportBuilder can hold it. Declared HERE rather than
+   *  loosening the builder to Record<string, string>, which would lose every
+   *  key name at the call site — the filter fields are checked against these
+   *  names and that is most of what makes the spec safe to write. */
+  [k: string]: string;
+  from: string;          // call date, inclusive
+  to: string;            // call date, inclusive
+  product: string;       // contains
+  party: string;         // contains
+  city: string;          // contains
+  engineer: string;      // contains — the person the call is ALLOTTED to
+  callType: string;      // exact family
+  status: string;        // exact open_state
+  ucn: string;           // contains
+}
+export const EMPTY_CALL_REPORT_FILTER: CallReportFilter = {
+  from: '', to: '', product: '', party: '', city: '', engineer: '',
+  callType: '', status: '', ucn: '',
+};
+
+export function describeCallFilter(f: CallReportFilter): string {
+  const bits: string[] = [];
+  if (f.from || f.to) bits.push(`Call date ${f.from || '…'} to ${f.to || '…'}`);
+  if (f.product) bits.push(`Product contains "${f.product}"`);
+  if (f.party) bits.push(`Customer contains "${f.party}"`);
+  if (f.city) bits.push(`City contains "${f.city}"`);
+  if (f.engineer) bits.push(`Allotted to contains "${f.engineer}"`);
+  if (f.callType) bits.push(`Call type = ${f.callType}`);
+  if (f.status) bits.push(`Call status = ${f.status}`);
+  if (f.ucn) bits.push(`UCN contains "${f.ucn}"`);
+  return bits.length ? bits.join(' · ') : 'the whole register — no filter set';
+}
+
+export const callReportColumns = (picked: Set<string>): string[] => [
+  ...CALL_REPORT_MANDATORY,
+  ...CALL_REPORT_OPTIONAL.filter((c) => picked.has(c)),
+];
+
+// ---------------------------------------------------------------------------
+// CUSTOMER FEEDBACK. The questions are the export's own, verbatim (0191).
+//
+// The four PM/FIELD questions and the four INSTALLATION ones are MANDATORY
+// TOGETHER even though no single feedback answers both sets: which questions
+// were asked is a fact about the visit, and a file that carried only the ones
+// this batch happened to answer would change shape between downloads.
+// ---------------------------------------------------------------------------
+export const FEEDBACK_REPORT_MANDATORY: string[] = [
+  'UC Number',
+  'Date',
+  'Visit Date',
+  'Call Number',
+  'Call Type',
+  'Customer',
+  'State',
+  'Product',
+  'Serial No',
+  'Visiting Service Engineer',
+  'Operating Feasibility',
+  'General Support',
+  'Product Meets Requirement',
+  'Reliability of Product',
+  'Reliability of Service',
+  'Promptness for Service Calls',
+];
+
+export const FEEDBACK_REPORT_OPTIONAL: string[] = [
+  'Complaint',
+  'Startup, Training and Handover',
+  'Packing and Forwarding',
+  'Delivery Adherence',
+  'Warranty Start Date?',
+  'Advance PM Done?',
+  'Remarks',
+  'Engineer Email',
+  'Source',
+  'Loaded From',
+  'Loaded On',
+  'All Answers',
+];
+
+export interface FeedbackReportFilter {
+  /** So the shared ReportBuilder can hold it. Declared HERE rather than
+   *  loosening the builder to Record<string, string>, which would lose every
+   *  key name at the call site — the filter fields are checked against these
+   *  names and that is most of what makes the spec safe to write. */
+  [k: string]: string;
+  from: string;          // the feedback's own date, inclusive
+  to: string;
+  product: string;       // contains
+  party: string;         // contains
+  state: string;         // contains
+  engineer: string;      // contains
+  callType: string;      // exact family
+  source: string;        // 'Uploaded' | 'Entered here'
+  ucn: string;           // contains
+}
+export const EMPTY_FEEDBACK_REPORT_FILTER: FeedbackReportFilter = {
+  from: '', to: '', product: '', party: '', state: '', engineer: '',
+  callType: '', source: '', ucn: '',
+};
+
+export function describeFeedbackFilter(f: FeedbackReportFilter): string {
+  const bits: string[] = [];
+  // THE FEEDBACK'S OWN DATE, not when the row was loaded (0190). Saying which
+  // matters here more than anywhere: the two differ by up to two years on a
+  // migrated row, and a reader filtering "2025" wants the year the customer
+  // spoke.
+  if (f.from || f.to) bits.push(`Feedback date ${f.from || '…'} to ${f.to || '…'}`);
+  if (f.product) bits.push(`Product contains "${f.product}"`);
+  if (f.party) bits.push(`Customer contains "${f.party}"`);
+  if (f.state) bits.push(`State contains "${f.state}"`);
+  if (f.engineer) bits.push(`Engineer contains "${f.engineer}"`);
+  if (f.callType) bits.push(`Call type = ${f.callType}`);
+  if (f.source) bits.push(`Source = ${f.source}`);
+  if (f.ucn) bits.push(`UCN contains "${f.ucn}"`);
+  return bits.length ? bits.join(' · ') : 'the whole register — no filter set';
+}
+
+export const feedbackReportColumns = (picked: Set<string>): string[] => [
+  ...FEEDBACK_REPORT_MANDATORY,
+  ...FEEDBACK_REPORT_OPTIONAL.filter((c) => picked.has(c)),
+];

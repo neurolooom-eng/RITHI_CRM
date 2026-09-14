@@ -4,6 +4,8 @@ import { PageHeader } from '../components/ui/ui';
 import { ConsumptionReport } from './ConsumptionReport';
 import { KpiExport } from './KpiExport';
 import { UnusedSpareReport } from './UnusedSpareReport';
+import { CallReport } from './CallReport';
+import { FeedbackReport } from './FeedbackReport';
 import { useAuth } from '../lib/auth';
 import './dccr.css';
 
@@ -36,7 +38,7 @@ import './dccr.css';
 // permission, it is a suggestion.
 // ===========================================================================
 
-type Tab = 'consumption' | 'kpi' | 'unused';
+type Tab = 'consumption' | 'kpi' | 'unused' | 'calls' | 'feedback';
 
 const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
   { key: 'consumption', label: 'Consumption Report', icon: '🔩',
@@ -45,6 +47,10 @@ const REPORTS: { key: Tab; label: string; icon: string; blurb: string }[] = [
     blurb: 'The KPI workbook’s Field_INST tab, in its own columns and order.' },
   { key: 'unused', label: 'Not Consumed Against this Call', icon: '🚩',
     blurb: 'Spares that reached the engineer and were never booked against the call they were sent for.' },
+  { key: 'calls', label: 'Call Report', icon: '📞',
+    blurb: 'One row per call, with its latest visit and what was fitted — filtered, with the columns you choose.' },
+  { key: 'feedback', label: 'Customer Feedback Report', icon: '⭐',
+    blurb: 'One row per feedback, with each question as its own column.' },
 ];
 
 const isTab = (v: string | undefined): v is Tab => REPORTS.some((r) => r.key === v);
@@ -110,6 +116,8 @@ export function ReportsHub() {
       </div>
       {tab === 'consumption' ? <ConsumptionReport />
         : tab === 'kpi' ? <KpiExport />
+        : tab === 'calls' ? <CallReport />
+        : tab === 'feedback' ? <FeedbackReport />
         : <UnusedSpareReport />}
     </div>
   );

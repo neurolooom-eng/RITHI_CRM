@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.252',
+    date: '2026-09-14',
+    title: 'Call Report and Customer Feedback Report',
+    changes: [
+      'Two new reports under Reports, working exactly like the Consumption Report: narrow it, choose the columns, take the file as Excel or CSV.',
+      'Call Report \u2014 ONE ROW PER CALL, not per visit, so a call attended four times appears once. Its latest visit, what was fitted, and the whole call record as optional columns.',
+      'Customer Feedback Report \u2014 one row per feedback with every question as its own column. A blank on a question means it was not asked of that kind of visit, and the file says so: installation visits and PM visits are asked different things.',
+      'The feedback report filters on the feedback\u2019s own date, never the day it was loaded \u2014 on a migrated row those are up to two years apart.',
+      'Both filter IN THE DATABASE, so the count on the button is the whole answer and not just the first page, and both files carry a second sheet saying what was filtered, what one row means and when it was taken.',
+      'Each is its own permission, so a role can be given one report without the others.',
+    ],
+  },
+  {
     version: '0.9.251',
     date: '2026-09-14',
     title: 'The Insights charts can be read',

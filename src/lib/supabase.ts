@@ -4261,3 +4261,109 @@ export async function updateFfr(id: number, patch: Record<string, unknown>): Pro
     .update(ffrWritable(patch)).eq('id', id);
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
+
+// ---------------------------------------------------------------------------
+// THE CALL REPORT AND THE CUSTOMER FEEDBACK REPORT (0191) — the same shape as
+// the consumption report above, and for the same reasons.
+//
+// THE FILTER RUNS IN THE DATABASE. It would be easier to fetch and then narrow,
+// and it would be wrong: both registers page, so a browser-side filter reports
+// on the first thousand rows and calls it the answer. The count is EXACT and
+// comes from the database, so the button says what it is ABOUT to export.
+// ---------------------------------------------------------------------------
+
+export interface CallReportQuery {
+  from?: string; to?: string; product?: string; party?: string; city?: string;
+  engineer?: string; callType?: string; status?: string; ucn?: string;
+}
+
+function callReportQuery(f: CallReportQuery, opts?: { count: 'exact'; head: true }) {
+  let q = opts
+    ? must().from('call_report').select('*', opts)
+    : must().from('call_report').select('*');
+  if (f.from) q = q.gte('Call Date', f.from);
+  if (f.to) q = q.lte('Call Date', f.to);
+  if (f.product) q = q.ilike('Product', `%${f.product}%`);
+  if (f.party) q = q.ilike('Customer', `%${f.party}%`);
+  if (f.city) q = q.ilike('City', `%${f.city}%`);
+  if (f.engineer) q = q.ilike('Allocated To', `%${f.engineer}%`);
+  if (f.callType) q = q.ilike('Call Type', `%${f.callType}%`);
+  // EXACT on the status: "Solved" and "Solved - Report Pending" are different
+  // answers, and a contains-match would fold the second into the first — which
+  // is the distinction `open_state` exists to keep (0032).
+  if (f.status) q = q.eq('Call Status', f.status);
+  if (f.ucn) q = q.ilike('UC Number', `%${f.ucn}%`);
+  return q;
+}
+
+export async function countCallReport(f: CallReportQuery): Promise<number> {
+  const { count, error } = await callReportQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+export async function listCallReport(
+  f: CallReportQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await callReportQuery(f)
+      .order('Call Date', { ascending: false })
+      .order('UC Number', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}
+
+export interface FeedbackReportQuery {
+  from?: string; to?: string; product?: string; party?: string; state?: string;
+  engineer?: string; callType?: string; source?: string; ucn?: string;
+}
+
+function feedbackReportQuery(f: FeedbackReportQuery, opts?: { count: 'exact'; head: true }) {
+  let q = opts
+    ? must().from('feedback_report').select('*', opts)
+    : must().from('feedback_report').select('*');
+  // THE FEEDBACK'S OWN DATE (0190), never "Loaded On". On a migrated row the
+  // two differ by up to two years, and somebody filtering for 2025 wants the
+  // year the customer spoke — which is the whole point of that column existing.
+  if (f.from) q = q.gte('Date', f.from);
+  if (f.to) q = q.lte('Date', `${f.to} 23:59:59.999`);
+  if (f.product) q = q.ilike('Product', `%${f.product}%`);
+  if (f.party) q = q.ilike('Customer', `%${f.party}%`);
+  if (f.state) q = q.ilike('State', `%${f.state}%`);
+  if (f.engineer) q = q.ilike('Visiting Service Engineer', `%${f.engineer}%`);
+  if (f.callType) q = q.ilike('Call Type', `%${f.callType}%`);
+  if (f.source) q = q.eq('Source', f.source);
+  if (f.ucn) q = q.ilike('UC Number', `%${f.ucn}%`);
+  return q;
+}
+
+export async function countFeedbackReport(f: FeedbackReportQuery): Promise<number> {
+  const { count, error } = await feedbackReportQuery(f, { count: 'exact', head: true });
+  if (error) throw new Error(errMsg(error));
+  return count ?? 0;
+}
+
+export async function listFeedbackReport(
+  f: FeedbackReportQuery, onProgress?: (n: number) => void,
+): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  const page = 1000;
+  for (let offset = 0; ; offset += page) {
+    const { data, error } = await feedbackReportQuery(f)
+      .order('Date', { ascending: false })
+      .order('UC Number', { ascending: false })
+      .range(offset, offset + page - 1);
+    if (error) throw new Error(errMsg(error));
+    const rows = (data ?? []) as Record<string, unknown>[];
+    out.push(...rows);
+    onProgress?.(out.length);
+    if (rows.length < page) return out;
+  }
+}

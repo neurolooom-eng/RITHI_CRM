@@ -2252,7 +2252,10 @@ console.log('\n-- Reports: access one report at a time --');
   const hub = readFileSync('src/modules/ReportsHub.tsx', 'utf8');
   const paths = new Set(MODULES.map((m) => m.path));
 
-  for (const k of ['consumption', 'kpi', 'unused']) {
+  // EVERY report, not the three that were here first. A report added to the hub
+  // without its own module key is one nobody can be given or refused
+  // separately — the whole point of the per-report keys.
+  for (const k of ['consumption', 'kpi', 'unused', 'calls', 'feedback']) {
     eq(`/exports/${k} is a module of its own`, paths.has(`/exports/${k}`), true);
     eq(`...and the menu asks for that key, not the parent`,
       new RegExp(`to: '/exports/${k}'[^}]*perm: 'mod:/exports/${k}'`).test(lay), true);
@@ -2266,6 +2269,59 @@ console.log('\n-- Reports: access one report at a time --');
   eq('the tab strip renders only the permitted reports', /\{allowed\.map\(\(r\) => \(/.test(hub), true);
   eq('...and a link to a report the role may not open is redirected',
     /if \(!asked \|\| !permitted\) navigate/.test(hub), true);
+
+  // ONE SCREEN, THREE REPORTS. "Follow the Same concept of Consumption Report"
+  // is four properties — the filter runs in the DATABASE, the mandatory columns
+  // are shown ticked and locked, the column ORDER is the view's, and the file
+  // carries its own scope — and three copies of that would be three chances to
+  // lose one of them quietly.
+  {
+    const rb = readFileSync('src/modules/ReportBuilder.tsx', 'utf8');
+    for (const m of ['CallReport', 'FeedbackReport', 'ConsumptionReport']) {
+      const src = readFileSync(`src/modules/${m}.tsx`, 'utf8');
+      eq(`${m} is built by the shared builder`, /<ReportBuilder spec=\{spec\} \/>/.test(src), true);
+    }
+    // The filter must reach the database, or it narrows only what was already
+    // fetched — and these registers page, so it would report on the first
+    // thousand rows and call it the answer.
+    eq('the count comes from the database, not the page', /spec\.count\(filter\)/.test(rb), true);
+    eq('...and the rows are paged until the register is exhausted',
+      /if \(rows\.length < page\) return out;/.test(readFileSync('src/lib/supabase.ts', 'utf8')), true);
+    // Shown, ticked, DISABLED — a column absent from a picker reads as an
+    // oversight; one visibly locked reads as a rule.
+    eq('the mandatory columns are shown and locked',
+      /\{spec\.mandatory\.map\(\(c\) => \([\s\S]{0,260}checked disabled readOnly/.test(rb), true);
+    // A file whose columns move between downloads is one nobody can build a
+    // formula against.
+    eq('the column order is the view\'s, not the click order',
+      /\.\.\.CALL_REPORT_MANDATORY,\s*\n\s*\.\.\.CALL_REPORT_OPTIONAL\.filter/.test(
+        readFileSync('src/lib/reports.ts', 'utf8')), true);
+    // The scope travels WITH the file: these exist to be sent to people who
+    // were not there when they were made.
+    eq('the workbook carries its own scope',
+      /name: 'Filter'/.test(rb) && /Item: 'Filter applied', Value: spec\.describe\(filter\)/.test(rb)
+      && /Item: 'One row is', Value: spec\.rowMeaning/.test(rb), true);
+    // Switching report must not carry a filter across — a date typed for calls
+    // silently applied to feedback is a wrong file that looks right.
+    eq('...and switching report starts from a clean filter',
+      /setFilter\(spec\.emptyFilter\); setPicked\(new Set\(\)\)/.test(rb), true);
+
+    // THE FEEDBACK REPORT'S DATE IS THE FEEDBACK'S OWN (0190), never the day
+    // the row was loaded — on a migrated row the two differ by up to two years.
+    const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+    const fq = sb.split('function feedbackReportQuery')[1]?.split('export async function countFeedbackReport')[0] ?? '';
+    eq('the feedback report filters on the feedback\'s own date',
+      /q\.gte\('Date', f\.from\)/.test(fq) && /Loaded On/.test(code(fq)) === false, true);
+    // A blank on a question means it was not ASKED of that kind of visit. A
+    // reader sorting a spreadsheet cannot tell that from a missing answer
+    // unless the file says so.
+    eq('...and the file says a blank is not a missing answer',
+      /A BLANK IS NOT A MISSING ANSWER/.test(readFileSync('src/modules/FeedbackReport.tsx', 'utf8')), true);
+    // One row per CALL, never per visit — the thing a reader most often
+    // assumes wrongly about a call report.
+    eq('the call report says one row is one call',
+      /One row per CALL — not per visit/.test(readFileSync('src/modules/CallReport.tsx', 'utf8')), true);
+  }
 }
 
 console.log('\n-- Part Master upload: the category is normalised, not rejected --');
