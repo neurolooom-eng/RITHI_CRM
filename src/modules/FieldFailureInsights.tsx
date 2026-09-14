@@ -179,6 +179,11 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Picked>({});
   const [period, setPeriod] = useState<Period>('month');
   const [trendLabels, setTrendLabels] = useState(false);
+  // OFF BY DEFAULT, like the trend's. A Pareto carries two numbers per bar —
+  // the count and the running percentage — so at fourteen categories the labels
+  // are dense, and whether that is useful or noise depends on how many bars are
+  // on screen. The reader's call.
+  const [paretoLabels, setParetoLabels] = useState(false);
 
   /** Clicking the chosen mark again clears it — the same gesture both ways, so
    *  nobody has to find a separate control to undo what a click did. */
@@ -225,7 +230,81 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const byRootCause = useMemo(() => tally(forDim('live_root_cause_keyword'), 'live_root_cause_keyword'), [allRows, picked]);
   const byGrouping = useMemo(() => tally(forDim('live_complaint_grouping'), 'live_complaint_grouping'), [allRows, picked]);
   const byCustomer = useMemo(() => tally(forDim('customer_name'), 'customer_name'), [allRows, picked]);
-  const trend = useMemo(() => byPeriod(forDim('month'), period), [allRows, picked, period]);
+  const trendSrc = useMemo(() => forDim('month'), [allRows, picked, period]);
+  const trend = useMemo(() => byPeriod(trendSrc, period), [trendSrc, period]);
+
+  // THE TREND'S NUMBERS, computed ONCE and drawn twice — the same rule the
+  // Pareto table follows. `change` is against the period ABOVE it in the table,
+  // which is the previous one because byPeriod() sorts ascending by key.
+  const trendTotal = trend.reduce((n, d) => n + d.value, 0);
+  const trendRows = useMemo(() => {
+    let run = 0;
+    return trend.map((d, i) => {
+      run += d.value;
+      const prev = i > 0 ? trend[i - 1].value : null;
+      return {
+        label: d.label, value: d.value,
+        // NULL, not 0, for the first period: "no previous period" and "no
+        // change" are different answers and a dash says so.
+        change: prev === null ? null : d.value - prev,
+        share: trendTotal ? d.value / trendTotal : 0,
+        running: run,
+      };
+    });
+  }, [trend, trendTotal]);
+
+  const downloadTrend = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const scope = DIMS.filter((d) => picked[d.key]).map((d) => `${d.label}: ${picked[d.key]}`)
+      .join(' · ') || 'the whole register';
+    const per = PERIODS.find((x) => x.key === period)!.label;
+    xlsxDownload(`ffr-trend-${period}-${when}.xlsx`, [
+      {
+        name: 'Reports by period',
+        columns: [per, 'Reports', 'Change on the one before', 'Share', 'Share worked out',
+                  'Running total'],
+        rows: trendRows.map((r) => ({
+          [per]: r.label,
+          Reports: r.value,
+          'Change on the one before': r.change === null ? '—'
+            : r.change > 0 ? `+${r.change}` : String(r.change),
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${trendTotal}`,
+          'Running total': r.running,
+        })),
+      },
+      rawSheet(trendSrc, 'ffr_date', 'FFR date (the period comes from this)'),
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Counted by', Value: per },
+          { Item: 'Narrowed to', Value: scope },
+          { Item: 'Reports counted', Value: trendTotal },
+          { Item: 'Periods shown', Value: trendRows.length },
+          { Item: '', Value: '' },
+          { Item: 'Which date decides the period',
+            Value: 'ffr_date — when the report was RAISED, not when the call came in and not '
+              + 'when it was last edited.' },
+          { Item: 'A period with no reports',
+            Value: 'is not a row. The chart joins the periods that exist; a gap is a gap in the '
+              + 'register, not a zero somebody recorded.' },
+          { Item: 'Change on the one before',
+            Value: 'this period’s reports minus the previous ROW’S — the previous row, which is '
+              + 'the previous period only where the register has one. The first row has none.' },
+          { Item: 'Share', Value: 'this period’s reports ÷ the reports counted' },
+          { Item: '', Value: '' },
+          { Item: 'What a report is',
+            Value: 'ONE FIELD FAILURE REPORT. A machine that failed twice appears twice; '
+              + 'a report covering several machines is still one report.' },
+          { Item: '', Value: '' },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'ffr.trend.download', target: `${period} ${when}`,
+               meta: { rows: trendRows.length, total: trendTotal, scope } });
+  };
 
   // WHAT IS STILL OPEN TO RANK: every level whose dimension has not been chosen.
   // With nothing chosen that is all three; choose a machine and it is grouping
@@ -242,7 +321,11 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const paretoDone = PARETO_LEVELS.filter((l) => picked[l.key]);
   // A cross-filtered tally like the rest — so it ranks groupings WITHIN the
   // chosen machine without this file doing any filtering of its own.
-  const pareto = useMemo(() => tally(forDim(paretoBy), paretoBy), [allRows, picked, period, paretoBy]);
+  // NAMED ONCE AND USED TWICE — by the tally that draws the chart and by the
+  // raw sheet in the download. Two calls to forDim() would be two arrays that
+  // only have to disagree once for the file to stop reconciling.
+  const paretoSrc = useMemo(() => forDim(paretoBy), [allRows, picked, period, paretoBy]);
+  const pareto = useMemo(() => tally(paretoSrc, paretoBy), [paretoSrc, paretoBy]);
   const paretoTotal = pareto.reduce((n, d) => n + d.value, 0);
   const paretoBlank = pareto.find((d) => d.label === BLANK)?.value ?? 0;
 
@@ -269,6 +352,47 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const paretoCrossing = paretoRows.findIndex((r) => r.cum >= 0.8);
   paretoRows.forEach((r, i) => { r.vital = paretoCrossing >= 0 && i <= paretoCrossing; });
 
+  /** THE REPORTS THEMSELVES — one line per Field Failure Report, so a reader
+   *  can add them up and land on the chart's number.
+   *
+   *  The user's ask, 2026-09-14: "In the Download, i want the Raw data of how
+   *  that Number was arrived at". The summary says a root cause has four
+   *  reports; this says WHICH four. Without it the file is checkable only in
+   *  the sense that its own arithmetic is consistent — it can still be counting
+   *  the wrong rows, and nothing in the file would show that.
+   *
+   *  `bucket` is the value the row was COUNTED UNDER, put first, so sorting on
+   *  it in the spreadsheet reproduces the chart exactly. It is the row's own
+   *  value for the ranked dimension — not re-derived here, which would be a
+   *  second implementation of the tally and could disagree with it.
+   */
+  const rawSheet = (src: Row[], bucketKey: string, bucketLabel: string) => ({
+    name: 'The reports behind it',
+    columns: [bucketLabel, 'FFR No', 'FFR date', 'UCN', 'Machine', 'Serial', 'Customer',
+              'Cover', 'Complaint grouping', 'Root cause', 'Problem reported',
+              'FFR status', 'Call status', 'CAPA status', 'Raised by', 'Origin'],
+    rows: src.map((r) => ({
+      [bucketLabel]: s(r, bucketKey) || BLANK,
+      'FFR No': s(r, 'ffr_no'),
+      'FFR date': s(r, 'ffr_date'),
+      UCN: s(r, 'ucn'),
+      Machine: s(r, 'product_name'),
+      Serial: s(r, 'product_serial'),
+      Customer: s(r, 'customer_name'),
+      Cover: s(r, 'cover'),
+      'Complaint grouping': s(r, 'live_complaint_grouping'),
+      'Root cause': s(r, 'live_root_cause_keyword'),
+      'Problem reported': s(r, 'problem_reported'),
+      'FFR status': s(r, 'ffr_status'),
+      'Call status': s(r, 'live_call_status') || s(r, 'current_call_status'),
+      'CAPA status': s(r, 'capa_status'),
+      'Raised by': s(r, 'raised_by_name'),
+      // MIGRATED OR RAISED HERE — the same split URS-037 asks every figure on
+      // this page to report. A blank means this system raised it.
+      Origin: s(r, 'imported_from') || 'Raised here',
+    })),
+  });
+
   /** The split-up as a file, with the arithmetic beside it rather than behind
    *  it — the same standard the Objective evidence pack is held to: a number
    *  somebody may act on has to be checkable without this screen. */
@@ -293,6 +417,10 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
           'Inside 80%?': r.vital ? 'yes' : 'no',
         })),
       },
+      // THE SAME ROWS THE CHART COUNTED, not a fresh query: `paretoSrc` IS the
+      // array `tally()` was given, so the lines here add up to the totals above
+      // by construction rather than by coincidence.
+      rawSheet(paretoSrc, paretoBy, paretoAt.label),
       {
         name: 'How this was worked out',
         columns: ['Item', 'Value'],
@@ -461,8 +589,60 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
             {trendLabels ? '✓ ' : ''}Data labels
           </button>
         </div>
-        <LineChart data={trend} showLabels={trendLabels}
-                   onPick={pick('month')} active={picked.month ?? null} />
+        {/* THE NUMBERS BESIDE THE LINE, as they are beside the Pareto (the
+            user's ask, 2026-09-14: "Same kinda Data table on the Side for
+            'Reports raised, month by month'"). A trend is read for its SHAPE
+            and acted on from its figures, and reading a value off a line by
+            eye is how a rise of two gets reported as a rise of five. Same
+            array the chart draws, so the two cannot disagree. */}
+        <div className="ffr-split">
+          <div className="ffr-split-chart">
+            <LineChart data={trend} showLabels={trendLabels}
+                       onPick={pick('month')} active={picked.month ?? null} />
+          </div>
+          <div className="ffr-split-table">
+            <table className="ffr-mini">
+              <thead>
+                <tr>
+                  <th>{PERIODS.find((x) => x.key === period)!.label}</th>
+                  <th className="num">Reports</th><th className="num">Change</th>
+                  <th className="num">Share</th><th className="num">Running</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trendRows.map((r) => (
+                  <tr key={r.label}
+                      className={picked.month === r.label ? 'is-active' : ''}
+                      onClick={() => pick('month')(r.label)}
+                      title={`${r.value} of ${trendTotal} = ${(r.share * 100).toFixed(1)}%`}>
+                    <td>{r.label}</td>
+                    <td className="num">{r.value}</td>
+                    {/* A DASH FOR THE FIRST ROW. There is no period before it,
+                        which is not the same as no change. */}
+                    <td className={`num ${r.change === null ? 'muted' : r.change > 0 ? 'ffr-up' : r.change < 0 ? 'ffr-down' : 'muted'}`}>
+                      {r.change === null ? '—' : r.change > 0 ? `+${r.change}` : r.change}
+                    </td>
+                    <td className="num">{(r.share * 100).toFixed(1)}%</td>
+                    <td className="num muted">{r.running}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td>Total</td>
+                  <td className="num">{trendTotal}</td>
+                  <td /><td className="num">100.0%</td><td />
+                </tr>
+              </tfoot>
+            </table>
+            <div className="ffr-split-foot">
+              <span className="muted">
+                Share = reports ÷ {trendTotal}. Change is on the period above.
+              </span>
+              <button className="btn btn-sm" onClick={downloadTrend}>⬳ Download</button>
+            </div>
+          </div>
+        </div>
       </SectionCard>
 
       <div style={{ height: 12 }} />
@@ -492,6 +672,15 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
               {l.label}
             </button>
           ))}
+          {/* VIEWING OPTIONS ON THE RIGHT, filters on the left (the user's
+              standing arrangement, 2026-09-14). The level buttons above CHANGE
+              WHAT IS COUNTED; this only changes how it is drawn. */}
+          <div className="spacer" />
+          <button type="button" className={`chip ${paretoLabels ? 'chip-on' : ''}`}
+                  aria-pressed={paretoLabels}
+                  onClick={() => setParetoLabels((v) => !v)}>
+            {paretoLabels ? '✓ ' : ''}Data labels
+          </button>
         </div>
         <div className="muted" style={{ marginBottom: 10 }}>
           Bars are the count, the line is the running share of all {paretoTotal} report
@@ -512,12 +701,13 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
             A Pareto is READ off the line and ACTED on from the numbers, and
             hovering fourteen bars to collect them is not reading. The table is
             the same array the chart draws, so the two cannot disagree. */}
-        <div className="ffr-pareto-split">
-          <div className="ffr-pareto-chart">
+        <div className="ffr-split">
+          <div className="ffr-split-chart">
             <ParetoChart data={paretoRows.map((r) => ({ label: r.label, value: r.value }))}
+                         showLabels={paretoLabels}
                          onPick={pick(paretoBy)} active={picked[paretoBy] ?? null} />
           </div>
-          <div className="ffr-pareto-table">
+          <div className="ffr-split-table">
             <table className="ffr-mini">
               <thead>
                 <tr>
@@ -551,7 +741,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
                 </tr>
               </tfoot>
             </table>
-            <div className="ffr-pareto-foot">
+            <div className="ffr-split-foot">
               <span className="muted">
                 Share = reports ÷ {paretoTotal}. Cum. % = the running total ÷ {paretoTotal}.
                 {paretoCrossing >= 0

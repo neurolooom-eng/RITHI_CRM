@@ -229,3 +229,11 @@
   font-variant-numeric: tabular-nums; paint-order: stroke;
   stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
 .ch-line-tag.is-active { fill: var(--text); }
+/* THE CUMULATIVE PERCENTAGE, in the LINE'S OWN COLOUR rather than the page's
+   text colour. A Pareto draws two series against two scales, and a reader has
+   to be able to tell at a glance which number belongs to which — the count on
+   the bar reads as text, the percentage reads as the line. Same halo, so both
+   stay legible where they cross a bar. */
+.ch-pareto-tag { fill: var(--warning); font-size: 9.5px; font-weight: 650;
+  font-variant-numeric: tabular-nums; paint-order: stroke;
+  stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }

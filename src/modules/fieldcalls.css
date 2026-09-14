@@ -574,10 +574,14 @@
    reading. Stacks below ~1000px, where two columns would leave the table
    unreadable — which is the thing this was added to fix.
    -------------------------------------------------------------------------- */
-.ffr-pareto-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.ffr-pareto-chart { min-width: 0; }
-.ffr-pareto-table { min-width: 0; overflow-x: auto; }
-@media (max-width: 1000px) { .ffr-pareto-split { grid-template-columns: 1fr; } }
+/* CHART BESIDE ITS NUMBERS. Named for the LAYOUT rather than for the Pareto,
+   because the trend uses it too — a class called `ffr-pareto-split` on a line
+   chart is the kind of small lie that makes the next reader distrust the rest.
+   The table scrolls on its own so the page never scrolls sideways. */
+.ffr-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ffr-split-chart { min-width: 0; }
+.ffr-split-table { min-width: 0; overflow-x: auto; }
+@media (max-width: 1000px) { .ffr-split { grid-template-columns: 1fr; } }
 
 .ffr-mini { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .ffr-mini th, .ffr-mini td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; }
@@ -593,10 +597,17 @@
 /* Chosen = INVERTED against the page, the project's standing rule. */
 .ffr-mini tbody tr.is-active td { background: var(--text); color: var(--surface); }
 .ffr-mini tfoot td { padding-top: 6px; font-weight: 700; border-bottom: 0; }
-.ffr-pareto-foot { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
-.ffr-pareto-foot .muted { font-size: 11.5px; line-height: 1.45; flex: 1; }
+.ffr-split-foot { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.ffr-split-foot .muted { font-size: 11.5px; line-height: 1.45; flex: 1; }
 
 /* A retired product line. CONTRAST, not a tint — the project's standing rule —
    so it reads in either theme without a hand-picked colour. */
 .pl-retired { background: var(--text); color: var(--surface); border-radius: 4px;
   padding: 1px 7px; font-size: 11.5px; font-weight: 600; }
+
+/* A RISE AND A FALL on the trend table. The state colours, not a hand-picked
+   pair, so both read in either theme. Neither is "good": more Field Failure
+   Reports can mean a worse month or a better-kept register, which is why the
+   colour marks the DIRECTION and the screen says nothing about the merit. */
+.ffr-mini td.ffr-up { color: var(--danger); font-weight: 650; }
+.ffr-mini td.ffr-down { color: var(--success); font-weight: 650; }
