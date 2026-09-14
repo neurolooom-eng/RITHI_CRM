@@ -186,6 +186,35 @@ export function Objective() {
   ];
   const baseRow = (r: Record<string, unknown>) =>
     Object.fromEntries(BASE_COLUMNS.map(([head, key]) => [head, r[key]]));
+
+  // SHEET 1 FOR A COUNT IS A DIFFERENT REGISTER, so it gets different headings.
+  // `objective_evidence` returns one shape for every objective — twenty columns
+  // named for the CALL register they were built for — and handing an FFR sheet
+  // out under those names would label the FFR number "call_number" and the
+  // person who raised it "allocated_to". The rows are right; the headings have
+  // to follow the register the figure was counted from.
+  const FFR_COLUMNS: [string, string][] = [
+    ['FFR No.', 'call_number'], ['FFR date', 'reg_date'], ['UCN', 'ucn'],
+    ['Product', 'product_name'], ['Serial', 'serial'], ['Customer', 'party_name'],
+    ['Call type', 'call_type'], ['FFR status', 'status'], ['Raised by', 'allocated_to'],
+    ['Cover', 'contract_type'], ['CRN date', 'closure_date'], ['Entered on', 'closure_recorded_on'],
+  ];
+  const ffrRow = (r: Record<string, unknown>) => {
+    const d = (r.details ?? {}) as Record<string, unknown>;
+    return {
+      ...Object.fromEntries(FFR_COLUMNS.map(([head, key]) => [head, r[key]])),
+      // The report's own words, which is what makes the sheet reviewable rather
+      // than merely countable.
+      'Problem reported': d['Problem Reported'] ?? '',
+      'Service observation': d['Service Observation'] ?? '',
+      'Problem status': d['Problem Status'] ?? '',
+      'CAPA No.': d['CAPA No'] ?? '', 'CAPA status': d['CAPA Status'] ?? '',
+      'Item code': d['Item Code'] ?? '', Place: d['Place'] ?? '', Source: d['Source'] ?? '',
+    };
+  };
+  const FFR_HEADINGS = [...FFR_COLUMNS.map(([head]) => head),
+    'Problem reported', 'Service observation', 'Problem status',
+    'CAPA No.', 'CAPA status', 'Item code', 'Place', 'Source'];
   const downloadEvidence = async (o: QualityObjective, monthIndex: number) => {
     try {
       const [rows, notes, period] = await Promise.all([
@@ -212,9 +241,19 @@ export function Objective() {
 
       const isRate = o.calc_key === 'failure_rate_12m';
       const isAttended = o.calc_key === 'attended_within_days';
+      // A COUNT, NOT A RATIO — and the whole sheet below assumes a ratio.
+      // Objective 1 (Field failures registered in FFR) is the first figure here
+      // that is a plain count, and a Calculation sheet reading "12 ÷ 12 = 1"
+      // would be arithmetic nobody performed, on a page whose entire purpose is
+      // that a figure can be checked. It gets its own shape further down.
+      const isCount = o.calc_key === 'ffr_count_monthly';
       const numerator = isRate ? calls.length
         : calls.filter((r) => role(r) === (isAttended ? 'attended' : 'open')).length;
       const denominator = isRate ? machines.length : calls.length;
+      // The figure counts REPORTS; the sheet lists MACHINES, because one report
+      // covers several (0181). So the two differ by design and the sheet says
+      // so rather than leaving a reader to find it.
+      const reports = new Set(calls.map((r) => String(r.call_number ?? '').trim() || `row-${String(r.ucn ?? '')}`)).size;
       // The period, not "the month" — on a quarterly objective these rows are
       // a whole quarter and a sheet that said "month" would be wrong.
       const over = period?.label || `${YEAR} ${MONTHS[monthIndex]}`;
@@ -225,7 +264,8 @@ export function Objective() {
       // field objective gets. A PM or Installation objective reads a different
       // register, and calling its rows field calls would be plainly wrong.
       const fam = String((o.calc_params as Record<string, unknown> | null)?.family ?? '').toLowerCase();
-      const sheet1Name = fam === 'pm' ? 'List of PM Calls'
+      const sheet1Name = isCount ? 'Field Failure Reports'
+        : fam === 'pm' ? 'List of PM Calls'
         : fam.startsWith('install') ? 'List of Installation Calls'
         : 'List of Field Calls';
       const numeratorLabel = isRate ? 'Failures (Sheet 1)'
@@ -233,37 +273,59 @@ export function Objective() {
         : `Still open at the end of ${over} (Sheet 1)`;
       const denominatorLabel = isRate ? 'Machines in the field (Sheet 2)'
         : `Calls registered in ${over} (Sheet 1)`;
-      const computed = denominator ? numerator / denominator : null;
+      // A count IS its own result. A rate is numerator over denominator, and
+      // dividing a count by anything would invent a figure.
+      const computed = isCount ? reports : (denominator ? numerator / denominator : null);
       const stored = o[MONTH_KEYS[monthIndex]];
 
-      const calc: Record<string, unknown>[] = [
+      const heading: Record<string, unknown>[] = [
         { Item: 'Objective', Value: o.parameter },
         { Item: 'Reported in', Value: `${YEAR} ${MONTHS[monthIndex]}` },
         { Item: 'Measured over', Value: period?.label || `${YEAR} ${MONTHS[monthIndex]}` },
-        { Item: 'Calls registered', Value: period ? `${period.period_start} to ${period.period_end}` : '' },
-        { Item: 'Solved by (cut-off)', Value: period?.cutoff_note || '' },
+        { Item: isCount ? 'Reports dated' : 'Calls registered',
+          Value: period ? `${period.period_start} to ${period.period_end}` : '' },
+        // A count has no cut-off to apply: nothing here waits to be solved.
+        ...(isCount ? [] : [{ Item: 'Solved by (cut-off)', Value: period?.cutoff_note || '' }]),
         { Item: 'Monitoring frequency', Value: o.frequency },
         { Item: 'Yearly target', Value: o.yearly_target },
         { Item: 'Worked out by', Value: o.calc_key || 'not computed — this figure is typed' },
         { Item: 'Parameters', Value: JSON.stringify(o.calc_params ?? {}) },
         { Item: '', Value: '' },
-        { Item: numeratorLabel, Value: numerator },
-        { Item: denominatorLabel, Value: denominator },
-        { Item: 'Calculation', Value: `${numerator} ÷ ${denominator}` },
-        ...(lateSolves > 0
-          ? [{ Item: 'of which SOLVED AFTER THE CUT-OFF',
-               Value: `${lateSolves} — counted as open. Sheet 1 marks each one; `
-                 + 'they were solved, just not in time for this figure.' }]
-          : []),
-        { Item: 'Result', Value: computed == null ? '' : computed },
-        { Item: 'Result (%)', Value: computed == null ? '' : `${(computed * 100).toFixed(2)}%` },
+      ];
+
+      const working: Record<string, unknown>[] = isCount
+        ? [
+            { Item: `Field Failure Reports dated in ${over}`, Value: reports },
+            { Item: 'Machine rows behind them (Sheet 1)', Value: calls.length },
+            { Item: 'Counted as', Value: 'ONE PER REPORT NUMBER. A report can cover several '
+                + 'machines and the register stores a row for each, so Sheet 1 has more rows '
+                + 'than the figure — that is not a disagreement.' },
+            { Item: 'Result', Value: reports },
+          ]
+        : [
+            { Item: numeratorLabel, Value: numerator },
+            { Item: denominatorLabel, Value: denominator },
+            { Item: 'Calculation', Value: `${numerator} ÷ ${denominator}` },
+            ...(lateSolves > 0
+              ? [{ Item: 'of which SOLVED AFTER THE CUT-OFF',
+                   Value: `${lateSolves} — counted as open. Sheet 1 marks each one; `
+                     + 'they were solved, just not in time for this figure.' }]
+              : []),
+            { Item: 'Result', Value: computed == null ? '' : computed },
+            { Item: 'Result (%)', Value: computed == null ? '' : `${(computed * 100).toFixed(2)}%` },
+          ];
+
+      const calc: Record<string, unknown>[] = [
+        ...heading,
+        ...working,
         { Item: '', Value: '' },
         { Item: 'Figure on the Objective page', Value: stored == null ? '(blank)' : Number(stored) },
         { Item: 'Agrees with this file?',
           Value: stored == null || computed == null
             ? 'no figure recorded'
             : (Math.abs(Number(stored) - computed) < 1e-6
-                ? 'yes' : 'NO — re-calculate; the calls have changed since the figure was written') },
+                ? 'yes'
+                : `NO — re-calculate; the ${isCount ? 'reports' : 'calls'} have changed since the figure was written`) },
         { Item: '', Value: '' },
         { Item: 'Measured as at', Value: 'the end of that month, never later than today' },
       ];
@@ -292,7 +354,9 @@ export function Objective() {
 
       const safe = o.parameter.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       xlsxDownload(`evidence-${safe}-${YEAR}-${MONTHS[monthIndex]}.xlsx`, [
-        { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
+        isCount
+          ? { name: sheet1Name, columns: FFR_HEADINGS, rows: calls.map(ffrRow) }
+          : { name: sheet1Name, columns: ['role', ...CALL_COLUMNS], rows: calls },
         {
           name: 'Installation Base',
           columns: filterRow ? BASE_COLUMNS.map(([head]) => head) : ['Note'],
@@ -301,15 +365,21 @@ export function Objective() {
           // even if it selected nothing, which is itself worth seeing.
           rows: filterRow
             ? [baseRow(filterRow), ...machines.map(baseRow)]
-            : [{ Note: 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
+            : [{ Note: isCount
+                  ? 'This objective is a COUNT — it has no denominator and no installed base. '
+                    + 'Every report behind the figure is on Sheet 1.'
+                  : 'This objective is calls over calls — it has no installed base. The denominator is on Sheet 1.' }],
         },
         { name: 'Calculation', columns: ['Item', 'Value'], rows: calc },
       ]);
       setOMsg(`Downloaded the evidence for ${o.parameter} — ${MONTHS[monthIndex]}: `
-        + `${calls.length} call${calls.length === 1 ? '' : 's'}`
-        + (machines.length ? ` and ${machines.length} machines` : '') + '.');
+        + (isCount
+            ? `${reports} report${reports === 1 ? '' : 's'} over `
+              + `${calls.length} machine row${calls.length === 1 ? '' : 's'}`
+            : `${calls.length} call${calls.length === 1 ? '' : 's'}`
+              + (machines.length ? ` and ${machines.length} machines` : '')) + '.');
       logAudit({ action: 'objective.evidence', target: `${o.parameter} ${YEAR}-${monthIndex + 1}`,
-                 meta: { calls: calls.length, machines: machines.length } });
+                 meta: isCount ? { reports, rows: calls.length } : { calls: calls.length, machines: machines.length } });
     } catch (e) {
       setOMsg(`Could not read the evidence: ${e instanceof Error ? e.message : String(e)}`);
     }

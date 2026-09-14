@@ -13,6 +13,79 @@ up)_
 
 ---
 
+## 2026-09-14 — A key without an UPDATE policy, and the FFR count automated
+
+### The feedback upload stopped at row 24,093
+
+Reported the moment the key from 0186/0188 went live:
+
+> Your role does not have permission for this action. (row ~24093)
+> (24092 written before it stopped.)
+
+24,092 rows inserted, then one **collided**, the upsert became an UPDATE, and
+`public.feedback` had **no UPDATE policy at all** — 0001 gave it a read and an
+insert, 0008 narrowed those two to rights, and nothing ever updated a feedback
+row until the key existed.
+
+**GIVING A TABLE A CONFLICT TARGET CHANGES WHICH POLICY THE IMPORTER NEEDS**, and
+the gap shows only at the one moment an upsert earns its keep: the re-load.
+`0189_feedback_update_policy.sql` copies `fb_write`'s audience **verbatim** —
+whoever may file a feedback may correct one, which is the rule 0186 wrote down.
+Reproduced before fixing: without it the test raises *"new row violates
+row-level security policy (USING expression)"*, which is what the app surfaces
+as the reported message.
+
+`check:upserts` asked only whether PostgREST could INFER a conflict target. It
+now also asks whether the caller may WRITE the row it infers — and that found
+**`stock_transfers` carrying the same hole**, unreported because nobody has
+re-loaded that register yet (`0123_stock_transfer_update_policy.sql`). The
+quantities are untouched: they live in `stock_transfer_lines`, which declares no
+conflict target at all.
+
+### Objective 1 calculates itself
+
+Asked for: "Automate / Calculate -> No.of Field failures registered in FFR ;
+Logic = No of FFRs registered for the Month". It was the last SERVICE objective
+still typed. `0142_objective_ffr_count.sql` adds `ffr_count_monthly`.
+
+- **It counts REPORTS, not rows.** 0181 made the register one row per MACHINE
+  because one report covers several — measured at eight FFR numbers over twelve
+  machines — so counting rows would report twelve failures where four reports
+  exist. The evidence lists every machine row and says why it out-numbers the
+  figure.
+- **Zero is an answer.** The first COUNT on a page of RATES: a rate over no
+  machines is undefined and stays blank, a count over nothing is nought, and on
+  a "To Monitor" objective that distinction IS the finding.
+- **The evidence workbook was built around `numerator ÷ denominator`.** A
+  Calculation sheet reading "12 ÷ 12 = 1" would be arithmetic nobody performed,
+  on a page whose whole purpose is that a figure can be checked. A count now
+  gets its own layout, and Sheet 1 gets FFR headings rather than the call
+  register's.
+- The first draft carried a fallback to `created_at` for a missing FFR date,
+  and a note in the evidence pack explaining it. **Both were dead**: 0165
+  declares `ffr_date date not null default …`. The test found it by inserting a
+  null, and keeps that insert so the question returns if the column is ever
+  relaxed. A note describing a rule that can never fire is worse than no note
+  in a record somebody signs.
+
+### The Field Failure Register has a year
+
+Asked for: "Add Year Filter - Default it to the Current Year." By the **FFR
+date** — the same date 0142 counts by, so the register and the objective cannot
+report different years for one report. It narrows the register, the table **and
+Insights** together: a year is a reporting period, unlike the search box and the
+status chips, which still stop at the register. The current year is always
+offered even when empty, and an empty year says so rather than looking like an
+empty register.
+
+### To run on the live project
+
+[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql) ·
+[`stock_transfer.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/stock_transfer.sql) ·
+[`objective.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/objective.sql)
+
+`_status.sql` rows 142, 143 and 144 answer NO until each is in.
+
 ## 2026-09-14 — The feedback key could not be repaired by re-running the file
 
 Reported from use, AFTER running the corrected bundle:

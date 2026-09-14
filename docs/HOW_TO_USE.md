@@ -137,6 +137,11 @@ against the call it was fitted to.
   restarting each year.
   - **A report raises itself** when the Daily Call Review answers any of Risk to
     Patient, Warranty Failure or Frequent Failure as *Yes*.
+  - **The Year, set to this year when you open it.** It narrows the register,
+    the table and Insights together, so the three cannot disagree about the
+    period. Pick *All years* to see everything. If the year you pick holds
+    nothing, the screen says so — an empty year and an empty register look
+    identical and mean different things.
   - **Register → Desk**: reports left, the report centre, the call's visits and
     spares right.
   - **Print** the R-SER-03 page or download **Word**. Your saved signature prints
@@ -225,6 +230,13 @@ typed into a form that reads it.
   - A quarterly objective reports in its quarter's last month; the others read NA,
     not zero.
   - It shows its working on three tabs, the third counted from the first two.
+  - **No. of Field failures registered in FFR** works itself out too. It counts
+    the Field Failure **Reports** dated in the month — by report, not by row, so
+    one report covering three machines counts once while the evidence sheet
+    lists all three, and says why it has more lines than the figure.
+  - **A month with none reads 0, not blank.** Blank means nobody has measured
+    it. That is the opposite of the rate objectives, where a rate over no
+    machines is undefined and stays blank.
 - **Reports — Consumption Report** `/exports/consumption` — one row per spare
   booked, with its call and that call's latest visit.
 - **Reports — Not Consumed Against this Call** `/exports/unused` — `NOT USED`

@@ -540,3 +540,10 @@
   overflow-wrap: anywhere;
 }
 .req-machine-party b { font-weight: 650; }
+
+/* The Field Failure Register's year picker, sat in the tab row: a label and a
+   narrow box, so the period is readable at a glance rather than hidden in a
+   control the width of the tabs beside it. */
+.cr-year { display: inline-flex; align-items: center; gap: 8px; margin-right: 6px; }
+.cr-year > span { font-size: 12px; }
+.cr-year .cr-year-pick { min-width: 116px; }

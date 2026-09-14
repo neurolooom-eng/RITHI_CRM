@@ -1518,16 +1518,48 @@ console.log('\n-- the evidence workbook --');
   eq('CALL PENDING REASON is filled, not blank',
     /pending_reason: r\.pending_reason/.test(dccrSrc), true);
 
+  // -------------------------------------------------------------------------
+  // THE FIELD FAILURE REGISTER'S YEAR FILTER (user's ask, 2026-09-14).
+  // -------------------------------------------------------------------------
+  {
+    const ffr = readFileSync(`${process.cwd()}/src/modules/FieldFailureReport.tsx`, 'utf8');
+    eq('the register filters by year and defaults to the current one',
+      /const thisYear = String\(new Date\(\)\.getFullYear\(\)\)/.test(ffr)
+      && /useState\(thisYear\)/.test(ffr), true);
+    // By the FFR DATE, the same date the Objective register counts by (0142),
+    // so the two cannot report different years for one report.
+    eq('...by the FFR date, not the date it was typed',
+      /const ffrYear = \(r: Row\) => String\(r\.ffr_date \?\? ''\)\.slice\(0, 4\)/.test(ffr), true);
+    // The current year has to be offered even when it holds nothing, or the
+    // default is not selectable and the control reads as broken.
+    eq('the current year is always on the list', /seen\.add\(thisYear\)/.test(ffr), true);
+    // A default landing on an empty year looks like an empty register. This
+    // page already carries that lesson for access; the same applies here.
+    eq('an empty year says so rather than looking empty',
+      /No reports dated/.test(ffr) && /Show all years/.test(ffr), true);
+    // A YEAR is a reporting period, so it reaches Insights — unlike the search
+    // box and the status chips, which deliberately do not.
+    eq('Insights follows the year', /<FieldFailureInsights rows=\{inYear\}/.test(ffr), true);
+    eq('...and not the search box', /<FieldFailureInsights rows=\{visible\}/.test(ffr), false);
+    // Every dropdown is type-search-and-select — the standing rule.
+    eq('the year picker is a PickList, not a <select>',
+      /<SelectPicker[\s\S]{0,200}options=\{\[\.\.\.years, ALL_YEARS\]\}/.test(ffr), true);
+  }
+
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   const objSb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');
   // Sheet 1 is named for the register the objective actually read — the user's
   // shape ("List of Field Calls") for a field objective, and the truth for a PM
   // or Installation one, which is a different register and not field calls.
   eq('the three sheets are the ones asked for',
-    /sheet1Name = fam === 'pm' \? 'List of PM Calls'/.test(obj)
+    /: fam === 'pm' \? 'List of PM Calls'/.test(obj)
     && /: 'List of Field Calls'/.test(obj)
     && /name: 'Installation Base'/.test(obj)
     && /name: 'Calculation'/.test(obj), true);
+  // ...and sheet 1 is named for the register a COUNT read, which is not a call
+  // register at all. Objective 1 counts Field Failure Reports (0142).
+  eq('a count names its own register on sheet 1',
+    /isCount \? 'Field Failure Reports'/.test(obj), true);
   // The user asked for the assumptions and the hard stops IN the sheet, and for
   // them to be told apart: an assumption is a choice somebody may want changed,
   // a hard stop is what the number means.
@@ -1576,7 +1608,26 @@ console.log('\n-- the evidence workbook --');
     && /const denominator = isRate \? machines\.length/.test(obj), true);
   // ...and it says so when the page disagrees, rather than hiding it.
   eq('...and it flags a figure that no longer agrees',
-    /re-calculate; the calls have changed since the figure was written/.test(obj), true);
+    /re-calculate; the \$\{isCount \? 'reports' : 'calls'\} have changed since the figure was written/.test(obj), true);
+
+  // A COUNT IS NOT A RATIO, and the whole sheet was built for a ratio. Objective
+  // 1 (Field failures registered in FFR) is the first plain count here, and a
+  // Calculation sheet reading "12 ÷ 12 = 1" would be arithmetic nobody
+  // performed — on a page whose entire purpose is that a figure can be checked.
+  eq('a count is laid out as a count, not as a division',
+    /const isCount = o\.calc_key === 'ffr_count_monthly'/.test(obj)
+    && /const computed = isCount \? reports :/.test(obj)
+    && /Machine rows behind them \(Sheet 1\)/.test(obj), true);
+  // The figure counts REPORTS and the sheet lists MACHINES, because one report
+  // covers several (0181). The two differ by design, so the file says so rather
+  // than leaving a reader to find it.
+  eq('...and it explains why the sheet out-numbers the figure',
+    /ONE PER REPORT NUMBER/.test(obj), true);
+  // The evidence rows come back in the CALL register's column names, so an FFR
+  // sheet under those headings would label the FFR number "call_number" and the
+  // person who raised it "allocated_to".
+  eq('an FFR sheet carries FFR headings, not call ones',
+    /\['FFR No\.', 'call_number'\]/.test(obj) && /\['Raised by', 'allocated_to'\]/.test(obj), true);
   // An empty tab reads as a bug; the open rate has no install base and says so.
   eq('an objective with no install base says so on the tab',
     /it has no installed base/.test(obj), true);

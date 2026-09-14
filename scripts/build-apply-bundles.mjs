@@ -328,7 +328,13 @@ const MODULES = {
              '0138_objective_cutoff_visit_date.sql',
              '0139_objective_cutoffs_per_month.sql',
              '0140_evidence_product_details.sql',
-             '0141_reliability_template.sql'],
+             '0141_reliability_template.sql',
+             // LAST in this module. It re-states objective_value,
+             // objective_evidence and objective_notes IN FULL, so it has to be
+             // the module's final word on all three -- five earlier files in
+             // here define objective_value alone, and the bundles replay one at
+             // a time.
+             '0142_objective_ffr_count.sql'],
   },
   validation: {
     title: 'Software Validation',
@@ -363,7 +369,11 @@ const MODULES = {
             // LAST, and immediately after 0186: `if not exists` guards a NAME,
             // never a DEFINITION, so 0186 cannot correct a project that ran its
             // first version. 0188 inspects and replaces.
-            '0188_feedback_key_repair.sql'],
+            '0188_feedback_key_repair.sql',
+            // The UPDATE policy the key made necessary. Its audience is copied
+            // from `fb_write` (0008, rbac) but it is a DIFFERENT policy, so
+            // replaying rbac.sql alone cannot undo it.
+            '0189_feedback_update_policy.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',
@@ -556,6 +566,10 @@ const MODULES = {
             'from what each engineer was dispatched and has consumed.'],
     needs: ['spareTables', 'rbac', 'visibleEngineers'],
     files: ['0020_stock_transfer.sql',
+      // The UPDATE policy the register's conflict target needs. Without it the
+      // Stock Transfer Register loads once and refuses every re-load at the
+      // first repeated transfer number.
+      '0123_stock_transfer_update_policy.sql',
       // LAST: re-asserts `engineer_stock`, `st_read` and the transfer stock
       // guard, all owned by handstock. Without it a replay of this bundle put
       // the SHEET-ERA engineer_stock back, silently.
