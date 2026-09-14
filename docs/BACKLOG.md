@@ -13,6 +13,51 @@ up)_
 
 ---
 
+## 2026-09-14 — Machine History: one machine, across every register
+
+Asked: *"Analyse ORION-G - 2141 -- Where is the Product? Fetch all Transactions
+of this Product"*, then *"Build me in UI Also … Calls , Spares , Visits ,
+Warranty , Contract , Ownership Transfer -- If i am missing anything add"*.
+
+**Four were missing from that list** and a machine has all of them: **Field
+Failure Reports, customer feedback, additional entries and workshop (indoor)
+jobs**. Ten registers in total.
+
+Two ways in, both keyed the same:
+
+- `supabase/apply/_machine_history.sql` — one read-only statement for a one-off
+  look, pure SQL for the SQL Editor.
+- `/machine-history` — the screen, under Quality & Analytics. **Not** under
+  Reports: a report is a file you take away, this is a thing you look at.
+
+**PRODUCT FIRST, THEN SERIAL, and changing the product clears the serial.** The
+serial is what the database is queried on (it is indexed); the product is
+checked in the page afterwards, because no index can do that half. Both use
+`machineKey` from `src/lib/machine.ts` rather than a private comparison — the
+rule exists because an ORION-G 201 request was once offered an open call for a
+VEGA 201, and 3,794 serials appear on more than one model.
+
+Three decisions worth not undoing:
+
+- **Every row names its register.** They are filled by different people under
+  different policies; one undifferentiated list would promise the same standard
+  of evidence for all ten.
+- **A register that refuses does not empty the page.** They are read in
+  parallel and a reader may hold rights to some and not others, so a failure on
+  one drops that register's rows and keeps the rest.
+- **An undated row sorts last, not first.** Putting it at the top would read as
+  the most recent thing that happened to the machine.
+
+A machine the Product Master has never heard of still has a history, and the
+screen says so rather than looking empty — that gap is itself a finding.
+
+⚠️ **Overlaps [PR #328](https://github.com/neurolooom-eng/RITHI_CRM/pull/328)**,
+the draft Product History screen from another session, which covers calls,
+visits, parts and cover AND reaches the pre-2016 archive project. This one is
+live-data-only and covers ten registers. They will collide; #328 isolates its
+archive access in `src/lib/archive.ts`, so that half can be layered onto this
+screen rather than the two being merged. **The user's call.**
+
 ## 2026-09-14 — A wrong file in the DCCR register
 
 Asked: *"I uploaded a Wrong file in DCCR -- How to delete it?"*

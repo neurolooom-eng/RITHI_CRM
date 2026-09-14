@@ -69,6 +69,10 @@ export const NAV: NavGroup[] = [
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
       { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
+      // ONE MACHINE ACROSS EVERY REGISTER, which is the question the screens
+      // above it answer one aggregate at a time. Not under Reports: a report is
+      // a file you take away, and this is a thing you look at.
+      { to: '/machine-history', label: 'Machine History', icon: '🔎' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
     ],
   },

@@ -251,6 +251,17 @@ typed into a form that reads it.
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and
   spare use by cover, product and region.
+- **Machine History** `/machine-history` — one machine, its whole life. Pick the
+  **product first, then the serial**: the same serial number belongs to several
+  models, so a serial on its own would show you a different hospital's machine.
+  - **Where it is now** — whose it is, its status, where, which engineer, and the
+    warranty and contract it is under.
+  - **Everything recorded against it** — calls, visits, spares fitted, Field
+    Failure Reports, customer feedback, sale/warranty, contracts, ownership
+    transfers, additional entries and workshop jobs. Filter by register, or
+    export.
+  > A machine not on the Product Master still has a history, and the screen says
+  > so rather than looking empty. Nothing from before the migration is here.
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with

@@ -4960,6 +4960,54 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 }
 
 
+console.log('\n-- one machine, across every register --');
+{
+  const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
+  const lib = readFileSync('src/lib/machineHistory.ts', 'utf8');
+
+  // PRODUCT FIRST, THEN SERIAL — never the serial alone. Serials repeat across
+  // models, and this project wrote that rule down after an ORION-G 201 request
+  // was offered an open call for a VEGA 201.
+  eq('the serial list is filled from the chosen product',
+    /sbListProductSerials\(product\)/.test(mh), true);
+  // Changing the product must CLEAR the serial, or a serial belonging to
+  // another model stays in the box — the exact mistake the two-step prevents.
+  eq('...and changing the product clears the serial',
+    /setSerial\(''\); setSerials\(\[\]\); setEvents\(null\); setNow\(null\);/.test(mh), true);
+  // Every register is filtered on the serial in the DATABASE and then narrowed
+  // by product in the page, because no index can do the second half.
+  eq('every register is narrowed by the product too',
+    /const sameMachineRows =/.test(lib) && /machineKey\(s\(r\[productField\]\), serial\) === want/.test(lib), true);
+  eq('...using the project\'s own machine key, not a private one',
+    /from '\.\/machine'/.test(lib), true);
+
+  // THE FOUR THE USER'S OWN LIST DID NOT NAME. "If i am missing anything add."
+  for (const src of ['Field Failure', 'Feedback', 'Additional entry', 'Workshop']) {
+    eq(`${src} is in the history`, new RegExp(`source: '${src}'`).test(lib), true);
+  }
+  // ...and the six that were named.
+  for (const src of ['Call', 'Visit', 'Spare', 'Sale / warranty', 'Contract', 'Ownership']) {
+    eq(`${src} is in the history`, new RegExp(`source: '${src}'`).test(lib), true);
+  }
+
+  // One register refusing must not lose the other nine — they are read in
+  // parallel and a reader may hold rights to some and not others.
+  eq('a register that refuses does not empty the page',
+    /one register refusing must not lose the other nine/.test(lib), true);
+  // An undated row sorts LAST: putting it first would read as the most recent
+  // thing that happened.
+  eq('an undated row does not pose as the newest',
+    /\(b\.on \|\| ''\)\.localeCompare\(a\.on \|\| ''\)/.test(lib), true);
+  // A UCN carries its call's colour wherever it appears — the standing rule.
+  eq('a UCN is coloured here too', /<Ucn ucn=\{String\(r\.ucn\)\}/.test(mh), true);
+  // The counts are over whole registers read for one machine, not pages, so
+  // they are exact and take no "+".
+  eq('the counts are exact, so they take no plus', /countMore=\{false\}/.test(mh), true);
+  // A machine the Product Master has never heard of is a FINDING, not an error.
+  eq('a machine missing from the master says so',
+    /not on the Product Master/.test(mh), true);
+}
+
 console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
 {
   // THE SUPABASE SQL EDITOR IS NOT psql. Everything in `supabase/apply/`, and

@@ -39,6 +39,7 @@ import { CallReview } from './modules/CallReview';
 import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
+import { MachineHistory } from './modules/MachineHistory';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
 import { IndoorService } from './modules/IndoorService';
@@ -155,6 +156,7 @@ function Shell() {
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
         <Route path="/spare-insights" element={<SpareInsights />} />
+        <Route path="/machine-history" element={<MachineHistory />} />
         <Route path="/exports" element={<ReportsHub />} />
         {/* One page, one tab per report — so the menu can name each report
             instead of hiding it behind a tab strip. */}
