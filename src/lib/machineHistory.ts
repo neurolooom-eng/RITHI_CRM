@@ -32,7 +32,7 @@ export interface MachineEvent {
   /** yyyy-mm-dd, or '' where the register holds no date for it. */
   on: string;
   /** Which register. Also the group heading on screen. */
-  source: 'Call' | 'Visit' | 'Spare' | 'Field Failure' | 'Feedback'
+  source: 'Product Master' | 'Call' | 'Visit' | 'Spare' | 'Field Failure' | 'Feedback'
         | 'Sale / warranty' | 'Contract' | 'Ownership' | 'Additional entry' | 'Workshop';
   /** What happened, in a word or two. */
   what: string;
@@ -64,6 +64,12 @@ const sameMachineRows = <T extends Record<string, unknown>>(
 
 export interface MachineNow {
   product: string; serial: string; party: string; itemStatus: string;
+  /** The party the COVER names — the contract's, falling back to the sale's.
+   *  Kept apart from `party` above (the Product Master's) because the two
+   *  disagree whenever a machine moved on a contract without an Ownership
+   *  Transfer being filed, and that disagreement is a finding rather than
+   *  something to resolve silently. See `partyDiffers`. */
+  coverParty: string;
   warrantyNumber: string; warrantyEnd: string; warrantyState: string;
   contractNumber: string; contractType: string; contractEnd: string; contractState: string;
   state: string; city: string; engineer: string;
@@ -94,6 +100,7 @@ export async function machineNow(product: string, serial: string): Promise<Machi
     product: s(p?.item_name ?? v?.product_name ?? product),
     serial: ser,
     party: s(p?.party_name ?? v?.party_name),
+    coverParty: s(v?.party_name),
     itemStatus: s(p?.item_status ?? v?.item_status),
     warrantyNumber: s(p?.warranty_number), warrantyEnd: day(p?.warranty_end),
     warrantyState: s(v?.warranty_state),
@@ -103,6 +110,35 @@ export async function machineNow(product: string, serial: string): Promise<Machi
     onMaster: !!p,
   };
 }
+
+// ---------------------------------------------------------------------------
+// THE TWO PARTIES, AND WHY THEY DISAGREE.
+//
+// Reported 2026-09-14 of ORION-G 2141: "Why is Product Master alone showing
+// differently?" — the master said GOVT.THIRUVALLUR MEDICAL COLLEGE while the
+// cover, every call, the visit and the feedback all said RIVER NIMS HOSPITAL.
+//
+// It is not a display fault. `products.party_name` is written by exactly two
+// things: the Product Master upload, and `ownership_transfer_apply` (0072),
+// which sets it to the transfer's `to_party`. `sync_product_cover` (0036)
+// updates the cover columns and `item_status` and DOES NOT TOUCH THE PARTY.
+// `machine_cover.party_name` meanwhile is `coalesce(contract.party, sale.party)`.
+//
+// So a machine that moved hospital on a CONTRACT, with no Ownership Transfer
+// filed, keeps the old party on the master for ever. The cover, the calls and
+// the feedback all follow the machine; the master does not.
+//
+// WHICH IS RIGHT: wherever the calls are being raised. The master is the one
+// that has gone stale, and it matters because the call form and the request
+// cascade read the master — so the next call for this machine is offered the
+// wrong hospital until somebody files the transfer or re-imports the master.
+// ---------------------------------------------------------------------------
+const squashed = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]+/g, '');
+
+/** Do the Product Master and the cover name different parties? Blank on either
+ *  side is not a disagreement — it is one of them simply not knowing. */
+export const partyDiffers = (n: MachineNow | null): boolean =>
+  !!n && !!n.party && !!n.coverParty && squashed(n.party) !== squashed(n.coverParty);
 
 /** Every transaction, newest first. One request per register, in parallel —
  *  a machine's life is a handful of rows in each, so this is one round trip's
@@ -131,7 +167,13 @@ export async function machineHistory(product: string, serial: string): Promise<M
     });
   }
 
-  const [visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor] = await Promise.all([
+  const [master, visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor] = await Promise.all([
+    // THE MASTER IS A ROW IN THE LIST TOO (the user, 2026-09-14: "in the list
+    // add Product Master also"), not only the heading. It is a register like
+    // the others — somebody put the machine on it, and what it says about the
+    // party can disagree with every other row, which is exactly why it belongs
+    // where it can be read beside them rather than only above them.
+    c.from('products').select('item_name,serial_number,party_name,item_status,warranty_number,contract_number,contract_type,active,created_at').eq('serial_number', ser).limit(50),
     ucns.length ? c.from('reports').select('ucn,call_status,engineer,visit_at,updated_at,pending_reason').in('ucn', ucns).limit(500)
       : Promise.resolve({ data: [], error: null }),
     ucns.length ? c.from('spare_consumption').select('ucn,part,qty,engineer,created_at,remarks').in('ucn', ucns).limit(500)
@@ -147,6 +189,14 @@ export async function machineHistory(product: string, serial: string): Promise<M
 
   const rows = <T extends Record<string, unknown>>(r: { data: T[] | null; error: unknown }) =>
     (r.error ? [] : (r.data ?? []));   // one register refusing must not lose the other nine
+
+  for (const r of sameMachineRows(rows(master), 'item_name', product, ser)) out.push({
+    on: day(r.created_at), source: 'Product Master', what: s(r.item_status) || 'On the master',
+    ref: s(r.serial_number), ucn: '', party: s(r.party_name),
+    detail: [s(r.warranty_number) && `warranty ${s(r.warranty_number)}`,
+             s(r.contract_number) && `${s(r.contract_type) || 'contract'} ${s(r.contract_number)}`,
+             r.active === false && 'MARKED INACTIVE'].filter(Boolean).join(' · '),
+  });
 
   for (const r of rows(visits)) out.push({
     on: day(r.visit_at) || day(r.updated_at), source: 'Visit',

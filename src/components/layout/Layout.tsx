@@ -48,6 +48,11 @@ export const NAV: NavGroup[] = [
       // here and not under Reports.
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
+      // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:
+      // "Add this to overview"). Product & Party Search answers "which
+      // machines"; this answers "what happened to THIS one". Not under
+      // Reports, where it first went: a report is a file you take away.
+      { to: '/machine-history', label: 'Machine History', icon: '🔬' },
       // DAILY CALL REVIEW MOVED TO QUALITY & ANALYTICS and CALL REVIEW TO
       // SERVICE CALLS (the user, 2026-09-12). Both sat here because they were
       // built here, not because this is where they belong: the DCCR is the
@@ -69,10 +74,6 @@ export const NAV: NavGroup[] = [
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
       { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
-      // ONE MACHINE ACROSS EVERY REGISTER, which is the question the screens
-      // above it answer one aggregate at a time. Not under Reports: a report is
-      // a file you take away, and this is a thing you look at.
-      { to: '/machine-history', label: 'Machine History', icon: '🔎' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
     ],
   },
