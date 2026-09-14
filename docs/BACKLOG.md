@@ -14,6 +14,63 @@ up)_
 ---
 
 
+
+## 2026-09-14 — "Old bugs have surfaced": the 1,000-row cap, in twelve places
+
+Reported with a screenshot: **Product & Party Search, ORION-G (2547)**, serial
+box typing `2410` → *"Nothing matches"*, footer *"0 of 1000"*. The screenshot is
+the reproduction: 2,547 machines on the register, exactly 1,000 options offered.
+
+**PostgREST caps a response at 1,000 rows however large the `limit` says, and it
+says nothing when it trims.** `sbListProductSerials` asked `.limit(20000)` and
+got a thousand. The count beside the product name was RIGHT — it comes from a
+view that aggregates server-side — which is what made the picker look broken
+rather than short.
+
+### It had been diagnosed once, and fixed in one place out of thirteen
+
+`listCallRequests` carries a comment saying precisely this, written when the
+Request Registration register showed a thousand of four thousand requests. The
+fix went into that one function. The same `.limit(n)` stayed in twelve others
+and came back a year later as a new bug report.
+
+| paged now | what a cap did there |
+| --- | --- |
+| `sbListProductSerials` | **the reported one** — 1,000 of 2,547 serials |
+| `sbListPartyItems` | a hospital group's machines, cut at 1,000 |
+| `sbListPartyProducts` | which products a party owns |
+| `sbListProductNames` (fallback) | **wrong machine COUNTS**, not just a short list |
+| `listOwnershipTransfers` | transfers past the first 1,000 invisible |
+| `listAdditionalEntries` | same |
+| `sbFailureModes`, `sbSpareUsage`, `sbFailureRates` | aggregates behind the Insights charts — a trimmed total is a **wrong number on a chart** |
+| `unusedSpareEngineers` | engineers missing from a filter |
+| `user_directory` name check | **worst of the set**: it decides which uploaded Hand Stock rows are KEPT, so a name past the first 1,000 would have had that person's stock thrown away as "not a user" |
+
+### Two things the fix had to get right
+
+**Order is not optional when paging.** Without a deterministic order PostgREST
+may return page 2 overlapping page 1, and a row is then doubled or dropped —
+worse than truncation, because the result looks complete. Every paged read names
+one: the primary key where there is a table, the grouping columns where it is a
+view with no key. `listAdditionalEntries` ordered by `created_at` alone, which
+is not unique, so `id` was added beside it.
+
+**The pager had to be testable.** `supabase.ts` reads `import.meta.env` at load
+and **no node script can import it** — which is why every check in this repo
+reads it as TEXT. So `allRows()` lives in `src/lib/paging.ts`, with no Supabase
+in it, and `npm run check:paging` runs it against a fake server that HONOURS THE
+CAP. That test includes 2,547 rows by name, because that is the number in the
+report.
+
+Mutation-tested: five mutations of the pager (never stops early, only ever
+fetches one page, ignores the caller's cap, swallows a failing page, wrong page
+size) and all five caught; plus the `check:ui` guards against a new
+`.limit(n > 1000)` and against a paged read with no order.
+
+### Nothing to run on the live project
+
+Application code only — no migration.
+
 ## 2026-09-14 — Roles & Permissions: the step that kept being missed
 
 Asked, as a standing rule: *"Update the Roles & Permissions - Always when a New

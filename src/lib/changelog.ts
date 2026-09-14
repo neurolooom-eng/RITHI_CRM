@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.258',
+    date: '2026-09-14',
+    title: 'Lists longer than a thousand were being cut off silently',
+    changes: [
+      'REPORTED: Product & Party Search on ORION-G \u2014 2,547 machines on the register, and the serial box offered 1,000 of them, so typing a real serial like 2410 came back "Nothing matches". Every serial is offered now.',
+      'The database returns at most 1,000 rows in one go, whatever is asked of it, and it says nothing when it trims. Twelve places in the application asked for more and quietly got a thousand. All twelve now read the whole list, a thousand at a time.',
+      'The ones you would have noticed: the serials of a product, everything a hospital owns, the list of products with their machine counts, Ownership Transfers, Additional Entries, and the failure-rate and spare-usage figures behind the Insights charts \u2014 a trimmed total there is a wrong NUMBER on a chart, not just a short list.',
+      'Also: loading Hand Stock checked uploaded rows against the User Master, and that list was trimmed too \u2014 so somebody past the first thousand names could have had their stock rejected as "not a user".',
+      'This had been found once before and fixed in one place out of thirteen. It is one shared piece of code now, with a test of its own, so the next list cannot be written the old way.',
+    ],
+  },
+  {
     version: '0.9.257',
     date: '2026-09-14',
     title: 'Three screens nobody could open \u2014 and the check that stops a fourth',
