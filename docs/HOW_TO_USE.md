@@ -162,6 +162,12 @@ against the call it was fitted to.
       bar fixes that level and ranks what is left inside it; the path above the
       chart shows what is fixed and what is still open, and any step can be
       dropped on its own.
+      Its **numbers sit beside it** — reports, share, running total, cumulative %
+      — with **Download** for the same split-up plus a sheet saying how each
+      figure was arrived at and what it left off the chart.
+    - On every **horizontal bar chart** the total sits next to the name and the
+      bar comes last. **Drag the edge of the name column** to whatever width
+      suits; each chart remembers yours.
   - Filters sit on the left of the bar, the view buttons on the right.
   - Every change is recorded — only the fields that differed, with who and when.
   > If the review later says *No*, the report still stands and shows as

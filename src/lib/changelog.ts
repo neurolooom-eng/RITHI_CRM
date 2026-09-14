@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.251',
+    date: '2026-09-14',
+    title: 'The Insights charts can be read',
+    changes: [
+      'On every horizontal bar chart the total now sits next to the name and the bar comes last \u2014 the two things you are comparing were separated by the full width of the bar.',
+      'The name column is DRAGGABLE. Long root causes were cut off at a fixed width; drag the edge to whatever suits, and each chart remembers your setting.',
+      'The names are no longer shortened before they get to the chart either, so widening the column actually shows you more.',
+      'The trend line can print its values \u2014 a Data labels button turns them on and off. Off to begin with, because over twenty-odd months the numbers crowd each other.',
+      'The Pareto now shows its numbers beside the chart: reports, share, running total and cumulative %, with the row you are on highlighted. It says how each figure was worked out, and there is a Download that carries the same working in a second sheet \u2014 including what it did NOT draw, since the percentages are over everything.',
+    ],
+  },
+  {
     version: '0.9.250',
     date: '2026-09-14',
     title: 'Customer Feedback carries its own date',
