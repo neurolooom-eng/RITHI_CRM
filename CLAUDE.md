@@ -390,6 +390,31 @@ on testing the old shape. **When a migration replaces a definition, move the
   import: 30 of the 53 lines are retired and those sales really happened.
   `product_line_sellable()` is the same rule in SQL; an UNKNOWN code is sellable,
   since an incomplete catalogue must not refuse a real sale.
+- **A NEW SCREEN, OR A RE-ARRANGED ONE, IS NOT DONE UNTIL ROLES & PERMISSIONS
+  KNOWS** (the user's standing rule, 2026-09-14: *"Always when a New UI is
+  introduced or when a UI is re-arranged — this is often missed"*). It had been
+  missed four times. Three things must move together, and the third is the one
+  that bites:
+  1. `MODULES` and the menu in `Layout.tsx` — the screen and where it lives.
+  2. `PERM_TREE` in `rbac.ts` — the matrix an administrator edits. Its header
+     must be the screen's MENU GROUP and its position the menu's position; a
+     page filed under a header the screen no longer sits under is how somebody
+     grants the wrong thing believing they granted the right one. Machine
+     History moved to Overview and kept a header of its own for two days.
+  3. **A MIGRATION MERGING `mod:/<path>` INTO `app_roles`.** `permsForRole()` is
+     `if (stored && stored.length) return stored;` — the code defaults apply
+     ONLY to a role whose stored set is EMPTY, and on a project in use every
+     role has a tuned row. So a new module's key reaches NOBODY until a
+     migration puts it there: the screen ships, the menu entry exists, the
+     permission is ticked in `DEFAULT_PERMS`, and the page is invisible to all
+     twelve roles with no error anywhere. That is exactly what happened to
+     Machine History, the Call Report and the Customer Feedback Report; 0195 is
+     the repair and `0192`/`0195` are the pattern. **MERGE, never overwrite**,
+     and leave a role with ZERO permissions alone — an empty array means "not
+     configured" and writing one key into it turns the fallback off.
+  `npm run check:ui` enforces all three now. It did not, while `rbac.ts` claimed
+  it did — nothing read `PERM_TREE` at all. **A comment claiming a check exists
+  is worse than no comment, because it is the reason nobody looks.**
 - **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
   Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
   User Master directory, and the MRN two-tab flattening. Do not add a table to

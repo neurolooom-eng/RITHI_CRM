@@ -34,7 +34,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
-import { DEFAULT_PERMS, MODULES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
+import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
@@ -5454,6 +5454,122 @@ console.log('\n-- the Insights tab can be interrogated --');
   const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
   eq('Insights reports the migrated split',
     /imported_from/.test(ins) && /label="Migrated"/.test(ins), true);
+}
+
+console.log('\n-- the Roles & Permissions matrix follows the MENU, and every screen can be granted --');
+{
+  // -------------------------------------------------------------------------
+  // THE USER'S STANDING RULE (2026-09-14): "Update the Roles & Permissions -
+  // Always when a New UI is introduced or when a UI is re-arranged -- This is
+  // often missed."
+  //
+  // It was missed, and `rbac.ts` said "check:ui compares the two on every run"
+  // while NOTHING read PERM_TREE. A comment claiming a check exists is worse
+  // than no comment: it is why nobody looked. This block is that check.
+  //
+  // What had drifted when it was written:
+  //   * Machine History moved to Overview in the menu (v0.9.254) and kept a
+  //     header of its own in the matrix — so an administrator looking for it
+  //     under Overview would not find it.
+  //   * The header ORDER had Reports and Indoor Service the other way round.
+  //   * THREE MODULE KEYS HAD NEVER BEEN GRANTED IN THE DATABASE AT ALL
+  //     (mod:/machine-history, mod:/exports/calls, mod:/exports/feedback) —
+  //     0195 is the repair, and the last assertion here is what stops a fourth.
+  // -------------------------------------------------------------------------
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const nav = lay.slice(lay.indexOf('title:'), lay.indexOf('\n];', lay.indexOf('title:')));
+  const menu: { title: string; items: { to: string; label: string }[] }[] = [];
+  for (const m of nav.matchAll(/title: '([^']+)',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/g)) {
+    menu.push({ title: m[1], items: [...m[2].matchAll(/\{ to: '([^']+)', label: '([^']+)'/g)].map((x) => ({ to: x[1], label: x[2] })) });
+  }
+  eq('the menu parsed', menu.length > 5, true);
+
+  const headerOf = new Map<string, string>();      // matrix: path -> header
+  const labelOf = new Map<string, string>();       // matrix: path -> label
+  PERM_TREE.forEach((h) => h.pages.forEach((pg) => {
+    if (pg.path) { headerOf.set(pg.path, h.title); labelOf.set(pg.path, pg.label); }
+  }));
+  const menuGroup = new Map<string, string>();
+  const menuLabel = new Map<string, string>();
+  menu.forEach((g) => g.items.forEach((i) => { menuGroup.set(i.to, g.title); menuLabel.set(i.to, i.label); }));
+
+  // 1. A NEW SCREEN THAT IS NOT IN THE MATRIX CANNOT BE GRANTED BY ANYBODY.
+  const modPaths = MODULES.map((m) => m.path).filter((x) => x !== '');
+  eq('every module can be granted from the matrix', modPaths.filter((x) => !headerOf.has(x)), []);
+  eq('...and the matrix invents no page that is not a module',
+    [...headerOf.keys()].filter((x) => !modPaths.includes(x)), []);
+
+  // 2. RE-ARRANGING THE MENU MOVES THE MATRIX ENTRY WITH IT. This is the half
+  //    the user named second, and the half that leaves no error behind.
+  const misfiled: string[] = [];
+  menuGroup.forEach((grp, path) => {
+    const h = headerOf.get(path);
+    if (h && h !== grp) misfiled.push(`${path}: menu "${grp}" vs matrix "${h}"`);
+  });
+  eq('every page is filed under the header the MENU puts it under', misfiled, []);
+
+  // 3. AND IN THE SAME ORDER — both of headers and of pages within one. The
+  //    matrix is read next to the menu; a different order is read as a
+  //    different thing.
+  const menuTitles = menu.map((g) => g.title);
+  const treeTitles = PERM_TREE.map((h) => h.title).filter((t) => menuTitles.includes(t));
+  eq('the headers are in the menu\u2019s order', treeTitles, menuTitles);
+  // "Across the system" is the one header with no menu group, and it is last:
+  // it holds the rights that belong to no page.
+  eq('...and the only header with no menu group is the last one',
+    PERM_TREE.filter((h) => !menuTitles.includes(h.title)).map((h) => h.title),
+    ['Across the system']);
+  const orderBad: string[] = [];
+  PERM_TREE.forEach((h) => {
+    const g = menu.find((x) => x.title === h.title);
+    if (!g) return;
+    const inTree = h.pages.map((pg) => pg.path).filter((pth) => menuLabel.has(pth));
+    const inMenu = g.items.map((i) => i.to).filter((pth) => inTree.includes(pth));
+    if (inTree.join(',') !== inMenu.join(',')) orderBad.push(h.title);
+  });
+  eq('...and the pages under each header too', orderBad, []);
+
+  // 4. A RENAME IN THE MENU REACHES THE MATRIX. Not equality: the matrix adds
+  //    clarifiers the menu has no room for ("\u21b3 Call Report", "Product Master
+  //    (product lines)"), which are deliberate. It must CONTAIN the menu's name,
+  //    so renaming the screen cannot leave the matrix calling it the old thing.
+  const named: string[] = [];
+  menuLabel.forEach((ml, path) => {
+    const tl = labelOf.get(path);
+    if (tl && !tl.includes(ml)) named.push(`${path}: menu "${ml}" vs matrix "${tl}"`);
+  });
+  eq('the matrix calls every screen what the menu calls it', named, []);
+
+  // NOT ASSERTED HERE: "every module is held by some role in DEFAULT_PERMS".
+  // It was, and it was DEAD — DEFAULT_PERMS is DERIVED from MODULES
+  // (`...ALL_MODULES` / `...NON_ADMIN_MODULES`), so every module is in at least
+  // the admin's list by construction and the assertion could not fail. It was
+  // removed rather than left green: a tick that can never go red is what let
+  // this whole area drift in the first place. The next one is the real question
+  // anyway, and it is the one that was actually failing.
+
+  // 5. ...AND THE CODE DEFAULT IS NOT ENOUGH. `permsForRole()` returns the
+  //    STORED set whenever it is non-empty, so on a project in use — where
+  //    every role has a tuned row — a key that no migration ever writes into
+  //    `app_roles` reaches NOBODY, however many roles hold it in DEFAULT_PERMS.
+  //    The screen ships, the menu entry exists, the permission is ticked in the
+  //    code, and the page is invisible to all twelve roles. That is exactly
+  //    what happened to Machine History and the two new reports.
+  //
+  //    A key inheriting from a granted parent is covered (parentAction makes
+  //    `mod:/exports` stand in for every `mod:/exports/*`).
+  const sqlAll = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql'))
+    .map((f) => readFileSync(`supabase/migrations/${f}`, 'utf8')).join('\n');
+  // EITHER QUOTE. A migration writes the key as a SQL literal ('mod:/x') or
+  // inside a jsonb one ('["mod:/x"]'::jsonb) — 0163 grants Call Review the
+  // second way, and a check that only knew the first reported it missing when
+  // it was not. A row that answers NO when nothing is missing is worse than no
+  // row, because somebody acts on it.
+  const granted = (k: string) => sqlAll.includes(`'${k}'`) || sqlAll.includes(`"${k}"`);
+  eq('every module key is written into app_roles by some migration',
+    MODULES.map((m) => moduleAction(m.path))
+      .filter((k) => !granted(k))
+      .filter((k) => { const par = parentAction(k); return !par || !granted(par); }), []);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
