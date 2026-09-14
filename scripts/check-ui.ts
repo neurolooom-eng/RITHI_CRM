@@ -5363,7 +5363,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   // download the Data - Provide Clean Split Up and how that data point / % was
   // arrived at."
   // -------------------------------------------------------------------------
-  eq('the Pareto shows its numbers beside the chart', /ffr-pareto-split/.test(ins)
+  eq('the Pareto shows its numbers beside the chart', /ffr-split/.test(ins)
     && /<table className="ffr-mini">/.test(ins), true);
   // ONE ARRAY, DRAWN TWICE. A table built from its own pass over the same rows
   // is a second implementation of the same arithmetic, and the two only have to
@@ -5388,6 +5388,74 @@ console.log('\n-- the Insights tab can be interrogated --');
   // file has to say what it left out or the reader will assume otherwise.
   eq('...and says what it did not draw',
     /Item: 'Not shown'/.test(ins), true);
+
+  // -------------------------------------------------------------------------
+  // THE RAW ROWS, THE PARETO'S LABELS, AND THE TREND'S OWN TABLE.
+  //
+  // The user, 2026-09-14: "In the Download, i want the Raw data of how that
+  // Number was arrived at. Need Data Label option in Pareto. Same kinda Data
+  // table on the Side for 'Reports raised, month by month' -- Line Chart as
+  // well."
+  // -------------------------------------------------------------------------
+  // THE REPORTS THEMSELVES. A summary whose own arithmetic is consistent can
+  // still be counting the WRONG ROWS, and nothing in the file would show it.
+  eq('the download carries the reports behind the number',
+    /name: 'The reports behind it'/.test(ins) && /'FFR No'/.test(ins) && /UCN:/.test(ins), true);
+  // THE SAME ARRAY THE CHART COUNTED, named once and used twice — two calls to
+  // forDim() would be two arrays that only have to disagree once for the file
+  // to stop reconciling with its own summary.
+  eq('...from the same rows the chart counted',
+    /const paretoSrc = useMemo\(\(\) => forDim\(paretoBy\)/.test(ins)
+    && /tally\(paretoSrc, paretoBy\)/.test(ins)
+    && /rawSheet\(paretoSrc, paretoBy, paretoAt\.label\)/.test(ins), true);
+  eq('...and the trend the same way',
+    /const trendSrc = useMemo\(\(\) => forDim\('month'\)/.test(ins)
+    && /byPeriod\(trendSrc, period\)/.test(ins)
+    && /rawSheet\(trendSrc, 'ffr_date'/.test(ins), true);
+  // A row counted under a blank is still a row, and the raw sheet must say so
+  // rather than leave the cell empty — an empty cell reads as a missing export.
+  eq('...with a blank bucket named, not left empty',
+    /\[bucketLabel\]: s\(r, bucketKey\) \|\| BLANK/.test(ins), true);
+
+  // DATA LABELS ON THE PARETO, off by default as the trend's are.
+  eq('the Pareto can show its data labels',
+    /const \[paretoLabels, setParetoLabels\] = useState\(false\)/.test(ins)
+    && /showLabels=\{paretoLabels\}/.test(ins)
+    && /setParetoLabels\(\(v\) => !v\)/.test(ins), true);
+  // TWO SCALES, TWO LABELS, each against its own mark — the count on the bar,
+  // the cumulative percentage on the line. One label for both would be read
+  // against whichever scale the eye landed on.
+  eq('...the count on the bar and the percentage on the line',
+    /className=\{`ch-line-tag\$\{on \? ' is-active' : ''\}`\}>\s*\{d\.value\}/.test(charts)
+    && /className="ch-pareto-tag"/.test(charts), true);
+  // BOTH CLAMPED INSIDE THE DRAWING. The tallest bar reaches the top of the
+  // plot and the line ends at 100% in the corner; an unclamped label at either
+  // is cut off by the viewBox.
+  eq('...and both stay inside the drawing',
+    /Math\.max\(PAD2\.t \+ 9, y\(d\.value\) - 5\)/.test(charts)
+    && /Math\.min\(PAD2\.t \+ h - 3, yPct\(pc\) \+ 13\)/.test(charts), true);
+
+  // THE TREND'S NUMBERS, beside its line, from the same array.
+  eq('the trend shows its numbers beside the line',
+    /<LineChart data=\{trend\} showLabels=\{trendLabels\}/.test(ins)
+    && /\{trendRows\.map\(\(r\) => \(/.test(ins), true);
+  eq('...with the change on the period before it',
+    /Change<\/th>/.test(ins) && /r\.change === null \? '—'/.test(ins), true);
+  // A DASH, NOT A ZERO, on the first row: "no period before it" and "no change"
+  // are different answers and a zero states the wrong one.
+  eq('...and the first period reads a dash rather than no change',
+    /change: prev === null \? null : d\.value - prev/.test(ins), true);
+  eq('...and can be taken away too',
+    /onClick=\{downloadTrend\}/.test(ins) && /xlsxDownload\(`ffr-trend-/.test(ins), true);
+
+  // THE LAYOUT CLASS IS NAMED FOR THE LAYOUT, not for the Pareto — the trend
+  // uses it now, and a class called `ffr-pareto-split` on a line chart is the
+  // kind of small lie that makes the next reader distrust the rest.
+  {
+    const fc = readFileSync('src/modules/fieldcalls.css', 'utf8');
+    eq('the split layout is not named after one chart',
+      /\.ffr-split \{/.test(fc) && !/\.ffr-pareto-split \{/.test(fc), true);
+  }
 
   // Interaction is OPTIONAL on the shared charts, so every other dashboard
   // renders exactly as before.

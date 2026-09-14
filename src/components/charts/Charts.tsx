@@ -368,7 +368,8 @@ export function LineChart({
  *  Nothing here decides that for the reader — the crossing is MARKED rather
  *  than the bars being recoloured, because "vital few" is a judgement about
  *  the process and this chart only reports the arithmetic. */
-export function ParetoChart({ data, onPick, active }: { data: Datum[] } & Pickable) {
+export function ParetoChart({ data, onPick, active, showLabels = false }:
+  { data: Datum[]; showLabels?: boolean } & Pickable) {
   if (!data.length) return <div className="ch-empty">No data</div>;
   const sorted = [...data].sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
   const total = sorted.reduce((s2, d) => s2 + d.value, 0) || 1;
@@ -420,12 +421,35 @@ export function ParetoChart({ data, onPick, active }: { data: Datum[] } & Pickab
                     } : {})}>
                 <title>{`${d.label}: ${d.value} — ${cum[i].toFixed(0)}% cumulative`}</title>
               </rect>
+              {/* THE COUNT, above its own bar. A Pareto carries TWO scales, so
+                  each label sits against the mark it belongs to and nowhere
+                  else: the count on the bar, the percentage on the dot below.
+                  Clamped INSIDE the drawing — the tallest bar reaches the top
+                  of the plot and a label eight units above it would be cut off
+                  by the viewBox. */}
+              {showLabels && (
+                <text x={bx(i) + band / 2} y={Math.max(PAD2.t + 9, y(d.value) - 5)}
+                      textAnchor="middle" className={`ch-line-tag${on ? ' is-active' : ''}`}>
+                  {d.value}
+                </text>
+              )}
             </g>
           );
         })}
         <polyline className="ch-pareto-line" points={line} />
         {cum.map((p, i) => (
           <circle key={i} cx={bx(i) + band / 2} cy={yPct(p)} r={2.5} className="ch-pareto-dot" />
+        ))}
+        {/* THE CUMULATIVE PERCENTAGE, under its own dot — under, not over,
+            because the line climbs to the top right and a label above the last
+            few points would leave the drawing. Whole numbers: the line is read
+            for where it crosses 80, not to one decimal place. */}
+        {showLabels && cum.map((pc, i) => (
+          <text key={`c${i}`} x={bx(i) + band / 2} y={Math.min(PAD2.t + h - 3, yPct(pc) + 13)}
+                textAnchor={i === 0 ? 'start' : i === cum.length - 1 ? 'end' : 'middle'}
+                className="ch-pareto-tag">
+            {pc.toFixed(0)}%
+          </text>
         ))}
       </svg>
       {/* THE LABELS ARE BELOW THE DRAWING, NOT INSIDE IT. A category name is
