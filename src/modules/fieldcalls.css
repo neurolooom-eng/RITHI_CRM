@@ -548,3 +548,14 @@
 .cr-year > span { font-size: 12px; }
 .cr-year .cr-year-pick { min-width: 128px; }
 .cr-year .cr-prod-pick { min-width: 168px; }
+
+/* The little control strip above a chart that can be read several ways — the
+   FFR trend's Monthly/Quarterly/Yearly and the Pareto's dimension. Sits with
+   the chart rather than in the page's filter bar, because it changes how ONE
+   chart is drawn and not what the page is counting. */
+.ffr-chart-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ffr-chart-bar > .muted { font-size: 12px; margin-right: 2px; }
+.ffr-crumb-step { display: inline-flex; align-items: center; gap: 6px; }
+.ffr-crumb-sep { color: var(--text-muted); font-size: 13px; }
+.ffr-chart-bar .chip[disabled] { opacity: .45; cursor: not-allowed; }
+.ffr-crumb-done { background: var(--surface-alt); }

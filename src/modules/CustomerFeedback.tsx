@@ -21,14 +21,36 @@ const g = (r: Record<string, unknown>, k: string) => String(r[k] ?? '');
 
 // Base columns; the per-question feedback columns (fb::<q>) are discovered from
 // the data and appended, so every field the engineer filled is its own column.
+// THE DATE IS THE FEEDBACK'S OWN, NOT THE ROW'S.
+//
+// Reported 2026-09-14: "I think the Date is taken as 14Sep2026 for all Uploads,
+// I wanted the Actual Dates as per the CSV not the Upload date -- It creates a
+// Complaint issue." This column read `created_at`, which is when the ROW was
+// written — so twenty-four thousand feedbacks collected over two years all read
+// as one afternoon in September 2026. On a complaint record the date a customer
+// complained is part of the record, not a detail of the storage.
+//
+// `entry_at` is the export's own "Visit Entry Date" on a migrated row and the
+// moment of recording on a new one (0190), so the column means one thing on
+// every row. `created_at` is still here under the name it deserves — WHEN IT
+// WAS LOADED — because that is a real and separate fact, and hiding it would
+// make the correction unverifiable.
 const BASE_COLS = [
-  { key: 'created_at', header: 'Date' },
+  { key: 'entry_at', header: 'Date' },
+  { key: 'visit_at', header: 'Visit Date' },
   { key: 'call_number', header: 'Call Number' },
   { key: 'ucn', header: 'UCN', width: 130, wrap: false, render: (r: Record<string, unknown>) => <Ucn ucn={r.ucn} state={callStateFor(r.ucn)} /> },
   { key: 'party_name', header: 'Party' },
   { key: 'product_name', header: 'Product' },
   { key: 'engineer', header: 'Engineer' },
+  { key: 'origin', header: 'Source' },
+  { key: 'created_at', header: 'Loaded on' },
 ];
+/** Where a feedback came from, in a word. Empty `imported_from` means nobody
+ *  loaded it — it was recorded here. */
+const originOf = (r: Record<string, unknown>) =>
+  (String(r.imported_from ?? '').trim() ? 'Uploaded' : 'Entered here');
+const ORIGINS = ['Uploaded', 'Entered here'] as const;
 // Turn a fb::<question> key into a readable header.
 const fbHeader = (k: string) => {
   const q = k.replace(/^fb::/, '').replace(/[-_]+/g, ' ').trim();
@@ -42,6 +64,10 @@ export function CustomerFeedback() {
   const PAGE = 1000;
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
+  // "Can I segregate the Uploaded ones and the Ones that were entered in the
+  // new CRM?" (the user, 2026-09-14). Empty = both, so the filter costs
+  // nothing until it is used.
+  const [origin, setOrigin] = useState<'' | (typeof ORIGINS)[number]>('');
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   const [offset, setOffset] = useState(cached?.rows.length ?? 0);
@@ -96,9 +122,10 @@ export function CustomerFeedback() {
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return scoped;
-    return scoped.filter((r) => allCols.some((c) => g(r, c.key).toLowerCase().includes(q)) || g(r, 'complaint').toLowerCase().includes(q));
-  }, [scoped, search, allCols]);
+    const byOrigin = origin ? scoped.filter((r) => originOf(r) === origin) : scoped;
+    if (!q) return byOrigin;
+    return byOrigin.filter((r) => allCols.some((c) => g(r, c.key).toLowerCase().includes(q)) || g(r, 'complaint').toLowerCase().includes(q));
+  }, [scoped, search, allCols, origin]);
 
   // The UCNs on screen, coloured by their calls' status (the standing rule,
   // 2026-09-06). This register does not carry the state — a spare line knows
@@ -107,11 +134,13 @@ export function CustomerFeedback() {
   // or that this reader may not see, stays uncoloured rather than guessed.
   useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
 
+  const DATE_COLS = new Set(['entry_at', 'visit_at', 'created_at']);
   const columns: Column<Row>[] = allCols.map((c) => ({
     key: c.key, header: c.header,
-    width: c.key === 'created_at' ? 170 : c.key.startsWith('fb::') ? 160 : 140,
+    width: DATE_COLS.has(c.key) ? 170 : c.key.startsWith('fb::') ? 160 : 140,
     wrap: c.key.startsWith('fb::'),
-    ...(c.key === 'created_at' ? { render: (r: Row) => fmtLongDate(r[c.key]) } : {}),
+    ...(DATE_COLS.has(c.key) ? { render: (r: Row) => fmtLongDate(r[c.key]) } : {}),
+    ...(c.key === 'origin' ? { render: (r: Row) => originOf(r) } : {}),
   }));
   const allFields = allCols.map((c) => ({ key: c.key, header: c.header }));
 
@@ -143,6 +172,21 @@ export function CustomerFeedback() {
         toolbar={
           <Toolbar>
             <SearchBox value={search} onChange={setSearch} placeholder="Call, party, engineer, feedback…" />
+            {/* UPLOADED vs ENTERED HERE. The count on each chip is over the
+                SCOPED rows, not the filtered ones, so the two always add up to
+                the register and a chip never reads zero because the other one
+                is on. */}
+            <button type="button" className={`chip ${origin === '' ? 'chip-on' : ''}`}
+                    aria-pressed={origin === ''} onClick={() => setOrigin('')}>
+              All <b>{scoped.length}</b>
+            </button>
+            {ORIGINS.map((o) => (
+              <button key={o} type="button" className={`chip ${origin === o ? 'chip-on' : ''}`}
+                      aria-pressed={origin === o}
+                      onClick={() => setOrigin((c) => (c === o ? '' : o))}>
+                {o} <b>{scoped.filter((r) => originOf(r) === o).length}</b>
+              </button>
+            ))}
             <div className="spacer" />
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('customer-feedback.csv', columns.map((c) => ({ key: c.key, header: c.header })), visible as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
