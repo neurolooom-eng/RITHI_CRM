@@ -5572,5 +5572,39 @@ console.log('\n-- the Roles & Permissions matrix follows the MENU, and every scr
       .filter((k) => { const par = parentAction(k); return !par || !granted(par); }), []);
 }
 
+console.log('\n-- a request for more than a thousand rows is PAGED, or it is a lie --');
+{
+  // -------------------------------------------------------------------------
+  // POSTGREST CAPS A RESPONSE AT 1,000 ROWS HOWEVER LARGE THE `limit` SAYS, and
+  // silently. `.limit(20000)` therefore reads as a precaution and is the
+  // opposite: it is the line that makes the truncation invisible.
+  //
+  // Reported from use, 2026-09-14: Product & Party Search on ORION-G — 2,547
+  // machines, and the serial box said "0 of 1000" and could not find serial
+  // 2410. The count beside the product came from a VIEW and was right; the
+  // serials were `.limit(20000)` and were the first thousand.
+  //
+  // It had been diagnosed ONCE, for listCallRequests, whose comment says
+  // exactly this — and the same `.limit(n)` was left in twelve other places.
+  // A fix applied to one of thirteen call sites is a fix that will be reported
+  // again, which is what happened. `allRows()` is the shared one.
+  // -------------------------------------------------------------------------
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const over = [...sb.matchAll(/\.limit\((\d+)\)/g)].map((m) => Number(m[1])).filter((n) => n > 1000);
+  eq('no request asks for more rows than a single response can carry', over, []);
+  // THE HELPER LIVES IN ITS OWN MODULE so it can be imported and RUN — this
+  // file reads `import.meta.env` at load and no node script can import it.
+  // `npm run check:paging` tests the pager's behaviour against a fake server
+  // that honours the cap; this only checks it is still the thing being used.
+  eq('the pager is a module of its own, so it can be tested',
+    existsSync('src/lib/paging.ts') && /from '\.\/paging'/.test(sb), true);
+  // EVERY PAGED READ IS ORDERED. Without a deterministic order the pages can
+  // overlap, and a row is then doubled or dropped — worse than truncation,
+  // because the result looks complete.
+  const unordered = [...sb.matchAll(/allRows<[^>]*>\(\(a, b\) =>([\s\S]{0,400}?)\), \d+\)/g)]
+    .map((m) => m[1]).filter((body) => !/\.order\(/.test(body));
+  eq('...and every paged read names an order, so the pages cannot overlap', unordered.length, 0);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

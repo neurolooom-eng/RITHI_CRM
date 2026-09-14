@@ -66,6 +66,12 @@ export function supabaseConfigured(): boolean {
 // Postgres rejects a write blocked by Row-Level Security with a terse
 // "new row violates row-level security policy" (code 42501), and the RBAC
 // triggers raise "RBAC: <reason>". Turn both into something a user can read.
+// The pager lives in ./paging — it is pure logic with no Supabase in it, which
+// is the only way it can be TESTED: this file reads `import.meta.env` at load
+// and cannot be imported by a node script at all.
+import { allRows, PG_PAGE } from './paging';
+export { allRows, PG_PAGE };
+
 export function errMsg(e: { message?: string; code?: string } | null | undefined): string {
   const m = String(e?.message ?? 'Unknown error');
   if (m.startsWith('RBAC: ')) return m.slice(6).replace(/^./, (c) => c.toUpperCase()) + '.';
@@ -623,10 +629,15 @@ export async function countUnusedSpares(f: UnusedSpareQuery): Promise<number> {
  *  contains-match. */
 export async function unusedSpareEngineers(): Promise<string[]> {
   const c = getSupabase(); if (!c) return [];
-  const { data, error } = await c.from('unused_spare_report').select('Engineer').limit(5000);
-  if (error) return [];
+  // PAGED, ordered by the report's own key. The result is a list of ENGINEER
+  // NAMES for a filter, so a cap would quietly hide engineers rather than rows.
+  let data: Record<string, unknown>[];
+  try {
+    data = await allRows<Record<string, unknown>>((a, b) =>
+      c.from('unused_spare_report').select('Engineer').order('ucn').range(a, b), 20000);
+  } catch { return []; }
   const names = new Set<string>();
-  (data ?? []).forEach((r) => {
+  data.forEach((r) => {
     String((r as Record<string, unknown>).Engineer ?? '')
       .split(',')
       .map((n) => n.trim())
@@ -969,11 +980,13 @@ const partyKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
 const partyLike = (party: string) => party.trim().replace(/[%_]/g, '_');
 
 export async function sbListPartyProducts(party: string): Promise<string[]> {
-  const { data, error } = await must().from('products')
-    .select('item_name,party_name').ilike('party_name', partyLike(party)).limit(5000);
-  if (error) throw new Error(errMsg(error));
+  // PAGED: `allRows` throws on the first failing page, so there is no error to
+  // unpack here.
+  const data = await allRows<{ item_name: string | null; party_name: string | null }>((a, b) =>
+    must().from('products')
+      .select('item_name,party_name').ilike('party_name', partyLike(party)).order('id').range(a, b), 20000);
   const want = partyKey(party);
-  return [...new Set((data ?? [])
+  return [...new Set(data
     .filter((r) => partyKey(r.party_name) === want)
     .map((r) => String(r.item_name)).filter(Boolean))];
 }
@@ -1111,20 +1124,25 @@ export interface SpareUsage {
   cover: string; region: string; product: string;
   lines: number; qty: number; calls: number; parts: number; engineers: number;
 }
+// One row per PRODUCT, so about fifty today — paged anyway, because the number
+// of products is not a promise and "it is small now" is how the other twelve
+// were written.
 export async function sbFailureRates(): Promise<FailureRate[]> {
-  const { data, error } = await must().from('failure_rate_by_product').select('*').limit(2000);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as unknown as FailureRate[];
+  return allRows<FailureRate>((a, b) => must().from('failure_rate_by_product').select('*')
+    .order('product').range(a, b), 20000);
 }
+// PAGED. Both are one row per COMBINATION — product x complaint, and cover x
+// region x product — so they pass a thousand long before the register does, and
+// a truncated aggregate is a wrong NUMBER on a chart rather than a short list.
+// Ordered by the grouping columns, which are what make a row unique here: a
+// view has no primary key to fall back on.
 export async function sbFailureModes(): Promise<FailureMode[]> {
-  const { data, error } = await must().from('failure_modes_by_product').select('*').limit(20000);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as unknown as FailureMode[];
+  return allRows<FailureMode>((a, b) => must().from('failure_modes_by_product').select('*')
+    .order('product').order('complaint').range(a, b), 20000);
 }
 export async function sbSpareUsage(): Promise<SpareUsage[]> {
-  const { data, error } = await must().from('spare_usage_rollup').select('*').limit(20000);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as unknown as SpareUsage[];
+  return allRows<SpareUsage>((a, b) => must().from('spare_usage_rollup').select('*')
+    .order('cover').order('region').order('product').range(a, b), 20000);
 }
 
 // ---- Moving a spare request to a different engineer ------------------------
@@ -1167,10 +1185,13 @@ export async function sbListProductNames(): Promise<ProductName[]> {
   if (!error) {
     return (data ?? []).map((r) => ({ name: String(r.item_name ?? ''), machines: Number(r.machines ?? 0) })).filter((p) => p.name);
   }
-  const { data: raw, error: e2 } = await c.from('products').select('item_name').limit(100000);
-  if (e2) throw new Error(errMsg(e2));
+  // PAGED, and it matters most HERE: this fallback counts the machines behind
+  // every product name, so a thousand-row cap would not merely shorten the list
+  // but print WRONG COUNTS beside the names that survived.
+  const raw = await allRows<{ item_name: string | null }>((a, b) =>
+    c.from('products').select('item_name').order('id').range(a, b), 100000);
   const counts = new Map<string, number>();
-  (raw ?? []).forEach((r) => {
+  raw.forEach((r) => {
     const n = String(r.item_name ?? '').trim();
     if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
   });
@@ -1179,20 +1200,25 @@ export async function sbListProductNames(): Promise<ProductName[]> {
 
 // The serials of one product — an equality filter, so 0052's btree serves it.
 export async function sbListProductSerials(product: string): Promise<string[]> {
-  const { data, error } = await must().from('products')
-    .select('serial_number').eq('item_name', product).limit(20000);
-  if (error) throw new Error(errMsg(error));
-  return [...new Set((data ?? []).map((r) => String(r.serial_number ?? '').trim()).filter(Boolean))]
+  // PAGED. This is the one that was reported: ORION-G has 2,547 machines and
+  // the picker offered 1,000 of them, so a real serial read as "Nothing
+  // matches". Ordered by `id` so the pages cannot overlap.
+  const data = await allRows<{ serial_number: string | null }>((a, b) => must().from('products')
+    .select('serial_number').eq('item_name', product).order('id').range(a, b), 20000);
+  return [...new Set(data.map((r) => String(r.serial_number ?? '').trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 }
 
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
-  let q = must().from('products').select('*').ilike('party_name', partyLike(party)).limit(2000);
-  if (product) q = q.eq('item_name', product);
-  const { data, error } = await q;
-  if (error) throw new Error(errMsg(error));
+  // PAGED: a hospital group can hold more than a thousand machines, and the
+  // screen that lists "everything they have" is the last place to stop at one.
+  const data = await allRows<Record<string, unknown>>((a, b) => {
+    let q = must().from('products').select('*').ilike('party_name', partyLike(party));
+    if (product) q = q.eq('item_name', product);
+    return q.order('id').range(a, b);
+  }, 20000);
   const want = partyKey(party);
-  return (data ?? []).filter((r) => partyKey(r.party_name) === want).map(productRowToSheet);
+  return data.filter((r) => partyKey(r.party_name) === want).map(productRowToSheet);
 }
 // ONE MACHINE, BY ITS SERIAL. An EQUALITY on the stored `serial_key` (0129),
 // which is indexed — not `ILIKE '%serial%'`, which is a leading-wildcard scan
@@ -3233,11 +3259,15 @@ export interface OwnershipTransfer {
 }
 export async function listOwnershipTransfers(serial = ''): Promise<OwnershipTransfer[]> {
   const c = getSupabase(); if (!c) return [];
-  let q = c.from('ownership_transfers').select('*').order('transfer_date', { ascending: false, nullsFirst: false }).order('id', { ascending: false }).limit(2000);
-  if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
-  const { data, error } = await q;
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as OwnershipTransfer[];
+  // PAGED. The order already ends in `id desc`, which makes the pages
+  // deterministic; the cap alone was the fault.
+  const data = await allRows<OwnershipTransfer>((a, b) => {
+    let q = c.from('ownership_transfers').select('*')
+      .order('transfer_date', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
+    if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
+    return q.range(a, b);
+  }, 20000);
+  return data;
 }
 export async function addOwnershipTransfer(t: Partial<OwnershipTransfer>): Promise<{ ok: boolean; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
@@ -3253,11 +3283,15 @@ export interface AdditionalEntry {
 }
 export async function listAdditionalEntries(serial = ''): Promise<AdditionalEntry[]> {
   const c = getSupabase(); if (!c) return [];
-  let q = c.from('product_additional_entries').select('*').order('created_at', { ascending: false }).limit(2000);
-  if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
-  const { data, error } = await q;
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []) as AdditionalEntry[];
+  // PAGED, with `id` added to the order: `created_at` alone is not unique, and
+  // two rows sharing a timestamp either side of a page boundary is how a row
+  // gets shown twice and another not at all.
+  return allRows<AdditionalEntry>((a, b) => {
+    let q = c.from('product_additional_entries').select('*')
+      .order('created_at', { ascending: false }).order('id', { ascending: false });
+    if (serial.trim()) q = q.ilike('serial_number', `%${serial.trim()}%`);
+    return q.range(a, b);
+  }, 20000);
 }
 // Upserts on the machine: a second entry for a serial is a CORRECTION of the
 // first, not another record.
@@ -3318,9 +3352,14 @@ export async function prepareUpload(
   // the same either way, and in a file somebody typed it catches the typo that
   // would otherwise open a balance for an engineer who does not exist.
   if (kind === 'handstock-engineers') {
-    const { data, error } = await c.from('user_directory').select('name').eq('validity', true).limit(5000);
-    if (error) return { ok: false, error: `Could not read the User Master: ${errMsg(error)}` };
-    const active = new Set((data ?? []).map((r) => String(r.name ?? '').trim().toLowerCase()).filter(Boolean));
+    // PAGED. This set decides which uploaded rows are KEPT, so a name missing
+    // because of the cap would throw that person's stock away as "not a user".
+    let dir: { name: string | null }[];
+    try {
+      dir = await allRows<{ name: string | null }>((a, b) =>
+        c.from('user_directory').select('name').eq('validity', true).order('id').range(a, b), 20000);
+    } catch (e) { return { ok: false, error: `Could not read the User Master: ${e instanceof Error ? e.message : String(e)}` }; }
+    const active = new Set(dir.map((r) => String(r.name ?? '').trim().toLowerCase()).filter(Boolean));
     // An EMPTY directory would drop every row and read as "the file was wrong".
     // Refuse instead: the User Master not being loaded is the fault, not the file.
     if (!active.size) {

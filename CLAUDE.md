@@ -261,6 +261,22 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **`create or replace view` can only APPEND columns.** Inserting one in the
   middle fails with "cannot change name of view column"; add at the end, or drop
   and recreate (and then everything depending on the view must be rebuilt too).
+- **POSTGREST CAPS A RESPONSE AT 1,000 ROWS HOWEVER LARGE THE `limit` SAYS, and
+  silently.** So `.limit(20000)` is not a bigger request — it is a line that
+  reads like a precaution and is the thing HIDING the truncation. Everything
+  register-sized goes through `allRows()` in `src/lib/paging.ts`, which pages
+  with `range()`. Reported from use (2026-09-14): Product & Party Search on
+  ORION-G — 2,547 machines, the serial picker offered 1,000, and a real serial
+  read as *"Nothing matches"*. It had been diagnosed ONCE for
+  `listCallRequests`, whose comment says exactly this, and the fix went into
+  **one of thirteen call sites**; the other twelve were reported a year later as
+  a new bug. `npm run check:ui` now refuses any `.limit(n > 1000)`, and
+  `npm run check:paging` tests the pager against a fake server that honours the
+  cap. **Every paged read must also name an ORDER** — without one the pages can
+  overlap and a row is doubled or dropped, which is worse than truncation
+  because the result looks complete. `paging.ts` is a module of its own for one
+  reason: `supabase.ts` reads `import.meta.env` and no node script can import
+  it, so nothing in it can be tested as behaviour.
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.
