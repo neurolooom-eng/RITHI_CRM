@@ -148,3 +148,47 @@
 .ch-pick.is-active .ch-legend-label,
 .ch-pick.is-active .ch-legend-val { color: var(--surface); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .ch-pick { transition: none; } }
+
+/* --------------------------------------------------------------------------
+   LINE AND PARETO.
+   Colours come from theme tokens only: a hand-picked hue reads in one theme
+   and not the other, which is the project's standing rule about highlighting.
+   -------------------------------------------------------------------------- */
+.ch-line, .ch-pareto { width: 100%; }
+.ch-line-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+.ch-grid { stroke: var(--border); stroke-width: 1; }
+.ch-axis { fill: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.ch-axis.is-active { fill: var(--text); font-weight: 600; }
+
+.ch-line-path { fill: none; stroke: var(--primary); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round; }
+.ch-line-area { fill: var(--primary); opacity: .10; stroke: none; }
+.ch-line-dot { fill: var(--surface); stroke: var(--primary); stroke-width: 2; }
+/* Chosen = INVERTED against the page, never a tint — the same rule the bars
+   and slices follow, so a selection reads the same wherever it is made. */
+.ch-line-dot.is-active { fill: var(--text); stroke: var(--text); }
+.ch-line-dot.is-dimmed { opacity: .35; }
+.ch-hit { cursor: pointer; }
+.ch-hit:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+.ch-pareto-bar { fill: var(--primary); opacity: .45; cursor: pointer; }
+/* The categories up to the 80% crossing. Solid rather than a second hue: the
+   chart says "these few account for most of it" by weight, not by colour. */
+.ch-pareto-bar.is-vital { opacity: .9; }
+.ch-pareto-bar.is-active { fill: var(--text); opacity: 1; }
+.ch-pareto-bar.is-dimmed { opacity: .18; }
+.ch-pareto-bar:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.ch-pareto-line { fill: none; stroke: var(--warning); stroke-width: 2;
+  stroke-linejoin: round; stroke-linecap: round; }
+.ch-pareto-dot { fill: var(--warning); }
+.ch-pareto-80 { stroke: var(--warning); stroke-width: 1; stroke-dasharray: 4 3; opacity: .7; }
+
+/* One column per category, so a key sits under its own bar. `min-width: 0`
+   lets a long name ellipsize instead of pushing the grid wider than the
+   drawing above it — which would misalign every key from its bar. */
+.ch-pareto-keys { display: grid; gap: 2px; margin-top: 4px; }
+.ch-pareto-key { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; text-align: center; font-size: 10px; color: var(--text-muted); }
+.ch-pareto-key.is-vital { color: var(--text); }
+.ch-pareto-key.is-active { background: var(--text); color: var(--surface); border-radius: 3px; }

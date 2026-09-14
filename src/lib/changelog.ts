@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.249',
+    date: '2026-09-14',
+    title: 'A Pareto and a trend line on FFR Insights',
+    changes: [
+      '\u201cReports raised\u201d is a LINE now, and you choose how to read it \u2014 Monthly, Quarterly or Yearly. Clicking a point still narrows the whole page, and switching the scale clears the point you had chosen rather than leaving a filter that matches nothing.',
+      'A Pareto chart: the bars are the count, the line is the running share, and the dashes mark 80%. Everything left of where the line crosses accounts for four-fifths of the reports \u2014 that is the shortlist to work on. Read it by Machine, Root cause, Grouping or Customer.',
+      'Where the record does not say (a root cause never filled in, say) it is kept on the chart and called out rather than quietly dropped \u2014 a gap that size is itself worth seeing.',
+      'On the Field Failure Register the filters are all on the left now and the view buttons all on the right; Insights and Register used to sit among the filters.',
+    ],
+  },
+  {
     version: '0.9.248',
     date: '2026-09-14',
     title: 'Contract and Warranty open on 2,000 rows',

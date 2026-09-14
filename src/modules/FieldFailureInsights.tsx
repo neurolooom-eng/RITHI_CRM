@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { BarChart, ColumnChart, DonutChart } from '../components/charts/Charts';
+import { BarChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { ffrDueForReview, ffrEffectWithdrawn } from '../lib/ffr';
 
 type Row = Record<string, unknown>;
@@ -42,17 +42,51 @@ function tally(rows: Row[], key: string, blankLabel = '(not stated)'): { label: 
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
-/** Reports per month of their FFR date, oldest first — a trend reads left to
+// ---------------------------------------------------------------------------
+// THE PERIOD THE TREND IS READ AT (the user's ask, 2026-09-14: "Allow me to
+// adjust it [Monthly , Quarterly , Yearly]").
+//
+// ONE FUNCTION TURNS A DATE INTO A BUCKET, and it is the SAME one the
+// cross-filter uses. That matters more than it looks: the trend's marks are
+// clickable, so a bucket key is also a FILTER VALUE. If the chart grouped by
+// quarter while `dimValue` still answered in months, clicking 2026-Q1 would
+// filter on a value no row has and the page would silently empty.
+// ---------------------------------------------------------------------------
+export type Period = 'month' | 'quarter' | 'year';
+export const PERIODS: { key: Period; label: string }[] = [
+  { key: 'month', label: 'Monthly' },
+  { key: 'quarter', label: 'Quarterly' },
+  { key: 'year', label: 'Yearly' },
+];
+
+/** The bucket a report falls in, from its FFR DATE. Empty for an unparseable
+ *  date — counted nowhere rather than in the wrong period. */
+export function periodKey(iso: string, p: Period): string {
+  const d = iso.slice(0, 7);
+  if (!/^\d{4}-\d{2}$/.test(d)) return '';
+  const [y, mo] = d.split('-');
+  if (p === 'year') return y;
+  if (p === 'quarter') return `${y}-Q${Math.floor((Number(mo) - 1) / 3) + 1}`;
+  return d;
+}
+
+/** What the axis reads. A month is shown YY-MM so twelve fit across; a quarter
+ *  and a year are short enough already, and shortening a YEAR to two digits
+ *  would be actively worse — "25" beside "26" is a month to most readers. */
+const periodLabel = (key: string, p: Period): string =>
+  (p === 'month' ? key.slice(2) : key);
+
+/** Reports per period of their FFR date, oldest first — a trend reads left to
  *  right in time, not in size. */
-function byMonth(rows: Row[]): { label: string; value: number }[] {
+function byPeriod(rows: Row[], p: Period): { label: string; value: number }[] {
   const m = new Map<string, number>();
   for (const r of rows) {
-    const d = s(r, 'ffr_date').slice(0, 7);          // YYYY-MM
-    if (!/^\d{4}-\d{2}$/.test(d)) continue;          // undated: counted nowhere rather than in the wrong month
-    m.set(d, (m.get(d) ?? 0) + 1);
+    const k = periodKey(s(r, 'ffr_date'), p);
+    if (!k) continue;
+    m.set(k, (m.get(k) ?? 0) + 1);
   }
   return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([label, value]) => ({ label: label.slice(2), value }));   // YY-MM, so 12 fit
+    .map(([label, value]) => ({ label: periodLabel(label, p), value }));
 }
 
 // ---------------------------------------------------------------------------
@@ -79,9 +113,16 @@ type Picked = Partial<Record<DimKey, string>>;
 const BLANK = '(not stated)';
 /** The value a row has for a dimension, matching what `tally` put on the chart
  *  — including the blank label, so clicking "(not stated)" selects exactly the
- *  rows that bar counted. */
-const dimValue = (r: Row, k: DimKey) =>
-  (k === 'month' ? s(r, 'ffr_date').slice(0, 7) || '(no date)' : s(r, k)) || BLANK;
+ *  rows that bar counted.
+ *
+ *  THE PERIOD IS PASSED IN, not read from a module variable: the trend's marks
+ *  are filter values, so this must bucket a date exactly as the chart did or a
+ *  click selects nothing. It is also why the axis LABEL and the filter VALUE
+ *  are kept apart — the chart shows `26-03`, the filter holds `2026-03`. */
+const dimValue = (r: Row, k: DimKey, p: Period) =>
+  (k === 'month'
+    ? periodLabel(periodKey(s(r, 'ffr_date'), p), p) || '(no date)'
+    : s(r, k)) || BLANK;
 
 /** Rows matching every chosen dimension EXCEPT the ones named in `except`.
  *
@@ -90,21 +131,40 @@ const dimValue = (r: Row, k: DimKey) =>
  *  and it collapses to the single bar you already knew about. Every OTHER chart
  *  narrows, which is the question being asked — "for this machine, what else is
  *  true?" */
-function applyPicks(rows: Row[], picked: Picked, except?: DimKey): Row[] {
+function applyPicks(rows: Row[], picked: Picked, p: Period, except?: DimKey): Row[] {
   const keys = (Object.keys(picked) as DimKey[]).filter((k) => k !== except && picked[k]);
   if (!keys.length) return rows;
-  return rows.filter((r) => keys.every((k) => dimValue(r, k) === picked[k]));
+  return rows.filter((r) => keys.every((k) => dimValue(r, k, p) === picked[k]));
 }
+
+/** The dimensions a Pareto is worth drawing over. Not every one of them: a
+ *  Pareto ranks CONTRIBUTORS to a total, so it says something about machines,
+ *  causes and customers, and nothing at all about a period (which is a
+ *  sequence) or a status (which is an outcome, not a contributor). */
+const PARETO_DIMS = [
+  { key: 'product_name', label: 'Machine' },
+  { key: 'live_root_cause_keyword', label: 'Root cause' },
+  { key: 'live_complaint_grouping', label: 'Grouping' },
+  { key: 'customer_name', label: 'Customer' },
+] as const;
+type ParetoKey = (typeof PARETO_DIMS)[number]['key'];
 
 export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Picked>({});
+  const [period, setPeriod] = useState<Period>('month');
+  // MACHINE, not root cause, and the choice is measured rather than assumed:
+  // `product_name` is NOT NULL on every report, while the root cause comes from
+  // the Daily Call Review and is blank on anything migrated from the sheet. A
+  // Pareto whose tallest bar is "(not stated)" ranks nothing — it is a finding
+  // about the register, and it belongs on a chart somebody chose to look at.
+  const [paretoBy, setParetoBy] = useState<ParetoKey>('product_name');
 
   /** Clicking the chosen mark again clears it — the same gesture both ways, so
    *  nobody has to find a separate control to undo what a click did. */
   const pick = (k: DimKey) => (label: string) =>
     setPicked((p) => (p[k] === label ? { ...p, [k]: undefined } : { ...p, [k]: label }));
 
-  const rows = useMemo(() => applyPicks(allRows, picked), [allRows, picked]);
+  const rows = useMemo(() => applyPicks(allRows, picked, period), [allRows, picked, period]);
   const active = (Object.keys(picked) as DimKey[]).filter((k) => picked[k]);
 
   const stats = useMemo(() => {
@@ -136,7 +196,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   }, [rows]);
 
   // Each chart counts the rows left by EVERY OTHER choice — see applyPicks.
-  const forDim = (k: DimKey) => applyPicks(allRows, picked, k);
+  const forDim = (k: DimKey) => applyPicks(allRows, picked, period, k);
   const byProduct = useMemo(() => tally(forDim('product_name'), 'product_name'), [allRows, picked]);
   const byCover = useMemo(() => tally(forDim('cover'), 'cover'), [allRows, picked]);
   const byStatus = useMemo(() => tally(forDim('ffr_status'), 'ffr_status'), [allRows, picked]);
@@ -144,7 +204,12 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const byRootCause = useMemo(() => tally(forDim('live_root_cause_keyword'), 'live_root_cause_keyword'), [allRows, picked]);
   const byGrouping = useMemo(() => tally(forDim('live_complaint_grouping'), 'live_complaint_grouping'), [allRows, picked]);
   const byCustomer = useMemo(() => tally(forDim('customer_name'), 'customer_name'), [allRows, picked]);
-  const months = useMemo(() => byMonth(forDim('month')), [allRows, picked]);
+  const trend = useMemo(() => byPeriod(forDim('month'), period), [allRows, picked, period]);
+  // The Pareto is a cross-filtered tally like the rest, over whichever
+  // dimension is chosen — so clicking a bar on it narrows every other chart.
+  const pareto = useMemo(() => tally(forDim(paretoBy), paretoBy), [allRows, picked, period, paretoBy]);
+  const paretoTotal = pareto.reduce((n, d) => n + d.value, 0);
+  const paretoBlank = pareto.find((d) => d.label === BLANK)?.value ?? 0;
 
   if (!allRows.length) {
     return (
@@ -174,7 +239,12 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
               <button key={k} type="button" className="ffr-chip"
                       title="Remove this"
                       onClick={() => setPicked((p) => ({ ...p, [k]: undefined }))}>
-                {DIMS.find((d) => d.key === k)!.label}: {picked[k]} <span aria-hidden>×</span>
+                {/* The period dimension is named for what it currently HOLDS.
+                    A chip reading "Month: 2026-Q1" would be plainly wrong, and
+                    it is the one label on this page that moves. */}
+                {k === 'month'
+                  ? (period === 'year' ? 'Year' : period === 'quarter' ? 'Quarter' : 'Month')
+                  : DIMS.find((d) => d.key === k)!.label}: {picked[k]} <span aria-hidden>×</span>
               </button>
             ))}
             <button type="button" className="ffr-chip ffr-chip-clear" onClick={() => setPicked({})}>
@@ -229,8 +299,55 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
 
       <div style={{ height: 12 }} />
 
-      <SectionCard title="Reports raised, month by month">
-        <ColumnChart data={months} onPick={pick('month')} active={picked.month ?? null} />
+      <SectionCard title={`Reports raised, ${period === 'year' ? 'year by year'
+        : period === 'quarter' ? 'quarter by quarter' : 'month by month'}`}>
+        <div className="ffr-chart-bar">
+          <span className="muted">Read it</span>
+          {PERIODS.map((p) => (
+            <button key={p.key} type="button"
+                    className={`chip ${period === p.key ? 'chip-on' : ''}`}
+                    aria-pressed={period === p.key}
+                    onClick={() => {
+                      // THE CHOSEN PERIOD IS CLEARED WITH THE SCALE. "2026-03"
+                      // is not a quarter, so keeping it would leave a chip
+                      // filtering on a value no row can match — the page would
+                      // empty and nothing on screen would say why.
+                      setPicked((q) => ({ ...q, month: undefined }));
+                      setPeriod(p.key);
+                    }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <LineChart data={trend} onPick={pick('month')} active={picked.month ?? null} />
+      </SectionCard>
+
+      <div style={{ height: 12 }} />
+
+      <SectionCard title="Pareto — the few that account for most">
+        <div className="ffr-chart-bar">
+          <span className="muted">By</span>
+          {PARETO_DIMS.map((d) => (
+            <button key={d.key} type="button"
+                    className={`chip ${paretoBy === d.key ? 'chip-on' : ''}`}
+                    aria-pressed={paretoBy === d.key}
+                    onClick={() => setParetoBy(d.key)}>
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="muted" style={{ marginBottom: 10 }}>
+          Bars are the count, the line is the running share of all {paretoTotal} report
+          {paretoTotal === 1 ? '' : 's'}, and the dashes mark 80%. Everything left of where
+          the line crosses accounts for four-fifths of them — that is the shortlist, not a
+          verdict.
+          {paretoBlank > 0 && (
+            <> <b>{paretoBlank}</b> of them are <b>{BLANK}</b>, and that is kept in rather
+            than dropped: a gap this size in the record is itself the finding.</>
+          )}
+        </div>
+        <ParetoChart data={pareto.slice(0, 14)} onPick={pick(paretoBy)}
+                     active={picked[paretoBy] ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />

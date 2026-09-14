@@ -12,6 +12,7 @@ import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
 import { localIsoDate } from '../src/lib/dates';
+import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
@@ -20,6 +21,7 @@ import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/li
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
 import { buildFfrDocx, ffrDocName } from '../src/lib/ffrdoc';
 import { localIsoDate } from '../src/lib/dates';
+import { periodKey } from '../src/modules/FieldFailureInsights';
 import { trail } from '../src/lib/spareflow';
 import { generatePassword, PASSWORD_ALPHABET } from '../src/lib/password';
 import { yearStartISO } from '../src/lib/dccr';
@@ -4871,7 +4873,16 @@ console.log('\n-- the Insights tab can be interrogated --');
   // EVERY DIMENSION IS BOTH FILTERABLE AND CLICKABLE. A dimension listed in
   // DIMS but never wired to a chart is a chip nobody can raise; a chart wired
   // to a key that is not in DIMS filters by something the chip bar cannot name.
-  const dims = [...ins.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
+  // SCRAPED FROM THE `DIMS` ARRAY ALONE, not from the whole file. This used to
+  // match every `{ key: …, label: … }` anywhere in the module, which was fine
+  // while DIMS was the only such list — and broke the moment the page grew a
+  // period selector and a Pareto dimension list, reporting 'quarter' as an
+  // unwired dimension and 'product_name' as a duplicate. A guard that reads
+  // more of a file than it means to fails on unrelated work, which is how one
+  // gets weakened.
+  const dimsBlock = ins.split('const DIMS = [')[1]?.split('] as const;')[0] ?? '';
+  eq('the DIMS array is where the check thinks it is', dimsBlock.length > 0, true);
+  const dims = [...dimsBlock.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
   eq('every dimension is declared once', dims.length, new Set(dims).size);
   for (const d of dims) {
     eq(`${d} is wired to a chart`, ins.includes(`pick('${d}')`), true);
@@ -4883,9 +4894,78 @@ console.log('\n-- the Insights tab can be interrogated --');
   // THE CROSS-FILTER RULE. Each chart must count the rows left by every OTHER
   // choice — filtering a chart by its own dimension collapses it to the single
   // bar that was just clicked, which answers nothing.
-  eq('a chart excludes its own dimension', /applyPicks\(rows, picked, except\?: DimKey\)|except\?: DimKey/.test(ins), true);
+  eq('a chart excludes its own dimension', /except\?: DimKey/.test(ins), true);
   eq('...and the charts go through forDim', ins.includes("tally(forDim('product_name'), 'product_name')"), true);
-  eq('the KPIs read the FULLY filtered rows', /const rows = useMemo\(\(\) => applyPicks\(allRows, picked\)/.test(ins), true);
+  eq('the KPIs read the FULLY filtered rows',
+    /const rows = useMemo\(\(\) => applyPicks\(allRows, picked, period\)/.test(ins), true);
+
+  // -------------------------------------------------------------------------
+  // THE TREND'S PERIOD (the user's ask: "Allow me to adjust it [Monthly,
+  // Quarterly, Yearly]").
+  //
+  // The marks on that chart are CLICKABLE, so a bucket key is also a FILTER
+  // VALUE — which makes the period a correctness question, not a display one.
+  // -------------------------------------------------------------------------
+  eq('the trend is a line chart', /<LineChart data=\{trend\}/.test(ins), true);
+  eq('...readable three ways', /'month' \| 'quarter' \| 'year'/.test(ins)
+    && /label: 'Monthly'/.test(ins) && /label: 'Quarterly'/.test(ins)
+    && /label: 'Yearly'/.test(ins), true);
+  // ONE function buckets a date, and the cross-filter uses the SAME one. If the
+  // chart grouped by quarter while dimValue still answered in months, clicking
+  // 2026-Q1 would filter on a value no row has and the page would empty.
+  eq('the cross-filter buckets dates the way the chart does',
+    /const dimValue = \(r: Row, k: DimKey, p: Period\)/.test(ins)
+    && /periodLabel\(periodKey\(s\(r, 'ffr_date'\), p\), p\)/.test(ins), true);
+  // Changing the scale must CLEAR the chosen bucket: "2026-03" is not a
+  // quarter, so keeping it leaves a chip filtering on nothing.
+  eq('...and changing the scale clears a chosen bucket',
+    /setPicked\(\(q\) => \(\{ \.\.\.q, month: undefined \}\)\);\s*\n\s*setPeriod\(p\.key\);/.test(ins), true);
+  // The chip must not read "Month: 2026-Q1".
+  eq('...and the chip is named for what it holds',
+    /period === 'year' \? 'Year' : period === 'quarter' \? 'Quarter' : 'Month'/.test(ins), true);
+
+  // The bucketing itself, worked by hand rather than read off the code.
+  eq('a month bucket is the month', periodKey('2026-03-14', 'month'), '2026-03');
+  eq('March is Q1', periodKey('2026-03-14', 'quarter'), '2026-Q1');
+  eq('...April is Q2', periodKey('2026-04-01', 'quarter'), '2026-Q2');
+  eq('...and December is Q4', periodKey('2026-12-31', 'quarter'), '2026-Q4');
+  eq('a year bucket is the year', periodKey('2026-03-14', 'year'), '2026');
+  // An unparseable date is counted NOWHERE rather than in the wrong period.
+  eq('a junk date falls in no bucket at all', periodKey('', 'month'), '');
+  eq('...however it is malformed', periodKey('not a date', 'quarter'), '');
+
+  // -------------------------------------------------------------------------
+  // THE PARETO.
+  // -------------------------------------------------------------------------
+  eq('there is a Pareto', /<ParetoChart data=\{pareto/.test(ins), true);
+  // Every dimension it can be drawn over must be a REAL dimension, or clicking
+  // a bar filters by a key the chip bar cannot name and cannot clear.
+  const paretoBlock = ins.split('const PARETO_DIMS = [')[1]?.split('] as const;')[0] ?? '';
+  const pDims = [...paretoBlock.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
+  eq('the Pareto offers something to rank', pDims.length > 0, true);
+  for (const d of pDims) eq(`Pareto by ${d} is a declared dimension`, dims.includes(d), true);
+  // NOT over a period or a status: a Pareto ranks CONTRIBUTORS to a total, and
+  // a period is a sequence while a status is an outcome.
+  eq('...and not over a period', pDims.includes('month'), false);
+  // It defaults to the one dimension that is never blank. The root cause comes
+  // from the Daily Call Review and is empty on anything migrated, so a Pareto
+  // opening on it would rank "(not stated)" first and say nothing.
+  eq('it opens on the dimension that is always filled',
+    /useState<ParetoKey>\('product_name'\)/.test(ins), true);
+  // Blanks are KEPT and CALLED OUT, matching the page's existing rule that a
+  // chart which quietly adds up to less than the total is worse than one that
+  // admits the gap.
+  eq('a gap in the record is stated, not dropped', /paretoBlank > 0 &&/.test(ins), true);
+  eq('...and the 80% line is drawn and explained',
+    /ch-pareto-80/.test(charts) && /the dashes mark 80%/.test(ins), true);
+
+  // Both new charts follow the shared contract.
+  for (const c of ['LineChart', 'ParetoChart']) {
+    eq(`${c} takes the interaction as optional`, new RegExp(`export function ${c}\\([^)]*Pickable`).test(charts), true);
+  }
+  // An SVG that fills its width by stretching shears every glyph in it.
+  eq('the new charts scale proportionally, never stretched',
+    /preserveAspectRatio="none"/.test(code(charts)), false);
   // The empty state must test the WHOLE register, not the filtered set —
   // otherwise narrowing to nothing reads as "no reports on the register".
   eq('"nothing on the register" tests the whole register', ins.includes('if (!allRows.length)'), true);

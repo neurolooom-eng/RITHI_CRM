@@ -149,7 +149,16 @@ against the call it was fitted to.
     spares right.
   - **Print** the R-SER-03 page or download **Word**. Your saved signature prints
     only where the form names you.
-  - **Insights**: click any bar, slice or column and every figure narrows to it.
+  - **Insights**: click any bar, slice, point or column and every figure narrows
+    to it.
+    - **Reports raised** is a trend line, readable **Monthly, Quarterly or
+      Yearly**. Changing the scale clears the point you had chosen — a month is
+      not a quarter, and keeping it would filter on nothing.
+    - **Pareto** — bars are the count, the line is the running share, the dashes
+      mark 80%. What sits left of the crossing accounts for four-fifths of the
+      reports: the shortlist, not a verdict. Read it by Machine, Root cause,
+      Grouping or Customer.
+  - Filters sit on the left of the bar, the view buttons on the right.
   - Every change is recorded — only the fields that differed, with who and when.
   > If the review later says *No*, the report still stands and shows as
   > **withdrawn**. The withdrawal is itself the thing worth seeing.
