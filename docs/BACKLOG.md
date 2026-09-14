@@ -95,9 +95,21 @@ rather than silently inserting.
 
 ### To run on the live project
 
-[`handstock.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/handstock.sql)
+[`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)
 — `_status.sql` row 150 answers NO until it is in, and the Edit button will fail
 on any part that has history.
+
+⚠️ **AT THE REPOSITORY ROOT, not `supabase/apply/`.** The handstock module is
+written out as `HandStock_X.sql`, one of the two numbered consolidated files
+handed round. This entry first linked it under the apply folder with the module's
+own name, which does not exist there — the identical 404 CLAUDE.md already
+records, made again by somebody who had read the note. `check:ui` caught it
+before the user ran it; the wrong link had already gone out in the pull request
+body for #346, and was corrected in the chat.
+
+(The bad path is described rather than quoted here on purpose: that check reads
+TEXT, not intent, so a note naming the broken link would fail on itself for
+ever — which is how a check ends up being switched off.)
 
 ## 2026-09-14 — A correction at source that the upload could not carry
 
