@@ -15,6 +15,66 @@ up)_
 
 
 
+
+## 2026-09-14 — A correction at source that the upload could not carry
+
+Reported with a screenshot of the app and of the SOURCE MASTER: **ORION-G 2410**
+showing contract **MC5521**, *"completely wrong"*.
+
+**Two machines share serial 2410** — a CPX CARE (`PRD-007-W-220-G`) and an
+ORION-G (`PRD-009`) — and MC5521 with its CMC dates belongs to the CPX CARE.
+The user fixed the master at source. **Re-uploading it changed nothing**, and
+that is the defect.
+
+### A blank cell was indistinguishable from an absent column
+
+The shaper wrote a column only when the cell had a value:
+
+```ts
+if (val !== null && val !== '') out[col.to] = val;
+```
+
+So two cases produced the same payload — no such key — while meaning opposite
+things:
+
+| the file | means | did |
+| --- | --- | --- |
+| does not carry the heading | leave the column alone | leaves it alone ✓ |
+| carries it, cell empty | **empty the column** | leaves it alone ✗ |
+
+An upload could therefore only ever **add** a value, never **remove** one.
+Proved against Postgres before changing anything: seed the row as the screenshot
+shows it, apply the upsert the corrected file produces, and `MC5521` is still
+there afterwards.
+
+### The fix
+
+`blanksClear` on an `UploadDef` sends the empty value (`''`, or `null` for a
+typed column) when the file CARRIES the heading and the cell is blank.
+**Opt-in per register**, and `products` is the only one that has it: it is right
+where the file is the machine's WHOLE ROW — the v2_ProdMaster export carries all
+32 headings on every row — and wrong where somebody may load a partial file
+whose tool emits every heading regardless. A **stamped** column is never
+blanked, nor a **required** one (that row is held back, which is louder).
+
+End-to-end against Postgres: ORION-G's contract clears, **the CPX CARE's own row
+is untouched**, and each keeps its own warranty.
+
+⚠️ **A TDZ bug `tsc` could not see.** The guard needs `stamped`, which was
+declared BELOW the shaping loop in the same function — reading it from the loop
+would have thrown *Cannot access 'stamped' before initialization* at RUNTIME.
+`tsc --noEmit` passed. Moved above both readers.
+
+### What this means for the data
+
+**No repair SQL.** Re-uploading the corrected master now fixes every affected
+machine at once, not only the one that was noticed — which is the point of
+fixing the importer rather than patching one row.
+
+### Nothing to run on the live project
+
+Application code only — no migration.
+
 ## 2026-09-14 — "Old bugs have surfaced": the 1,000-row cap, in twelve places
 
 Reported with a screenshot: **Product & Party Search, ORION-G (2547)**, serial

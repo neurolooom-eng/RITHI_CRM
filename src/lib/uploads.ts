@@ -64,6 +64,26 @@ export interface UploadDef {
    *  `conflictFrom` names the fields it is derived from, which is what the
    *  coherence check verifies instead. */
   conflictFrom?: string[];
+  /** A HEADING THE FILE CARRIES, WITH AN EMPTY CELL, MEANS "THIS IS EMPTY" —
+   *  so the column is CLEARED rather than left as it was.
+   *
+   *  Without this the two cases are indistinguishable downstream and they mean
+   *  opposite things: a heading the file does NOT carry must leave the column
+   *  alone, and a heading it DOES carry with a blank cell must empty it. Both
+   *  used to produce a payload with no such key, so a correction could only
+   *  ever ADD a value and never REMOVE one.
+   *
+   *  Reported 2026-09-14: ORION-G 2410 showed contract MC5521, which belongs to
+   *  the CPX CARE that shares that serial. The source master was corrected — the
+   *  ORION-G row has no contract at all — and re-uploading it changed nothing,
+   *  because every contract cell was blank and a blank was never written.
+   *
+   *  OPT-IN, PER REGISTER, and deliberately so: it is right where the file is
+   *  the WHOLE ROW (a master export), and wrong where somebody may load a
+   *  partial file whose tool emits every heading whether or not it means to
+   *  fill it. A STAMPED column is never cleared, and neither is a `required`
+   *  one — a row missing that is held back rather than blanked. */
+  blanksClear?: boolean;
   /** jsonb column that catches every header not named above. */
   extraInto?: string;
   /** Headers to DROP rather than keep. `extraInto` keeps everything it does not
@@ -195,6 +215,14 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
     if (h) { bind.set(h, [...(bind.get(h) ?? []), c]); claimed.add(h); }
   });
 
+  // WHAT THE REGISTER STAMPS ITSELF. Needed in TWO places and therefore
+  // declared before EITHER: the shaping loop must not blank a stamped column,
+  // and the unrecognised-header report must not list one as unknown. It used to
+  // sit beside the report alone — below the loop — so reading it from the loop
+  // would have thrown `Cannot access 'stamped' before initialization` at
+  // RUNTIME, which `tsc --noEmit` does not catch.
+  const stamped = new Set(Object.keys(def.stamp ?? {}).map(norm));
+
   // WHICH WAY ROUND THIS FILE WRITES ITS DATES, decided ONCE PER COLUMN over
   // every row before any row is shaped. Day-first is the rule and the default;
   // a column is read the other way only where its own values PROVE it (a value
@@ -232,6 +260,13 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
           const val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
           // Never let a blank cell overwrite a stamped constant.
           if (val !== null && val !== '') { out[col.to] = val; storedBy += 1; }
+          // THE FILE CARRIES THIS HEADING AND LEFT IT EMPTY, so the register
+          // that asked for it is told EMPTY rather than told nothing. A stamped
+          // column keeps its constant, and a required one is never blanked —
+          // the row is held back instead, which is a louder answer.
+          else if (def.blanksClear && !raw && !stamped.has(norm(col.to)) && !col.required) {
+            out[col.to] = col.type && col.type !== 'text' ? null : '';
+          }
         });
         // NOTHING KEPT IT — so `extraInto` does, exactly as if no column had
         // claimed the heading. Two ways to land here and both need it:
@@ -293,7 +328,6 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
   // register, the list name on a master) is not unrecognised — it is
   // deliberately ignored, because the register is the authority on it. Listing
   // it as unknown made a correct load look wrong.
-  const stamped = new Set(Object.keys(def.stamp ?? {}).map(norm));
   return {
     rows: deduped,
     skipped,
@@ -951,6 +985,13 @@ export const UPLOADS: UploadDef[] = [
   // lines below, which is a different thing entirely.
   { key: 'products', label: 'Product Database', group: 'Masters', table: 'products', extraInto: 'extra',
     conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
+    // A BLANK CELL CLEARS ITS COLUMN HERE, because this file IS the machine's
+    // whole row — the master export carries all 32 headings on every row, so a
+    // blank means "no contract", not "no opinion". Reported 2026-09-14: ORION-G
+    // 2410 carried contract MC5521, which belongs to the CPX CARE that shares
+    // that serial; the master was corrected at source and re-uploading it
+    // changed nothing, because a blank was never written.
+    blanksClear: true,
     note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. ALL 32 COLUMNS of the v2_ProdMaster export land in columns of their own (0194) — Item Code, the address, the PO, PM Visits, the installation fields and the rest — so they can be searched, sorted and reported on rather than sitting in a blob.',
     cols: [
       // `Item Serial Number` is what the AppSheet export calls it.
