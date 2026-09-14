@@ -53,6 +53,17 @@ select * from (
            case when p.contract_number is not null and p.contract_number <> ''
                 then coalesce(p.contract_type, 'contract') || ' ' || p.contract_number
                      || ' to ' || coalesce(p.contract_end::text, '—') end,
+           -- WHAT THE FILE ITSELF SAID (0194). Asked, 2026-09-14: a machine
+           -- under warranty showing BOTH a warranty and a contract. Nothing on
+           -- the Product Database is computed — no trigger, no generated
+           -- column beyond the two matching keys — so if both appear, the
+           -- upload carried both. These two are the export's OWN
+           -- ACTIVE/INACTIVE words, printed beside the numbers so you can see
+           -- whether the FILE already called the contract dead.
+           case when coalesce(p.warranty_status_keyed, '') <> ''
+                then 'file says warranty ' || p.warranty_status_keyed end,
+           case when coalesce(p.contract_status_keyed, '') <> ''
+                then 'file says contract ' || p.contract_status_keyed end,
            case when p.active is false then 'MARKED INACTIVE' end) as detail
     from public.products p, m
    where p.item_name ilike m.model and upper(btrim(coalesce(p.serial_number, ''))) = m.serial
