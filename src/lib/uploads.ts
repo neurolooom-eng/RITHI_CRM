@@ -933,7 +933,11 @@ export const UPLOADS: UploadDef[] = [
       TEXT('party_type', 'type', 'profile'),
       TEXT('address', 'billing address'),
     ] },
-  { key: 'products', label: 'Product Master', group: 'Masters', table: 'products', extraInto: 'extra',
+  // RENAMED, NOT REPLACED (the user, 2026-09-14: "Rename Product Master to
+  // Product Database"). Same register, same table, same key — one row per
+  // MACHINE. The name "Product Master" now belongs to the CATALOGUE of product
+  // lines below, which is a different thing entirely.
+  { key: 'products', label: 'Product Database', group: 'Masters', table: 'products', extraInto: 'extra',
     conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
     note: 'A machine is its MODEL plus its SERIAL, not the serial alone — in the real export 3,794 serials repeat (there are eleven machines called “219”). Matched on the two together, so re-loading a corrected sheet updates those machines rather than adding them again. The install base — one row per machine. City, State, Address, PO and the rest are kept on the row; the table has no column for them.',
     cols: [
@@ -948,6 +952,33 @@ export const UPLOADS: UploadDef[] = [
       TEXT('contract_number', 'contract number'), TEXT('contract_type', 'contract type'),
       DATE('contract_start', 'contract start date', 'contract start'),
       DATE('contract_end', 'contract end date', 'contract end'),
+    ] },
+  // ---------------------------------------------------------------------------
+  // THE PRODUCT MASTER — the catalogue of product LINES (0193), which is what
+  // that name means from 2026-09-14 onwards. One row per PRODUCT CODE.
+  //
+  // KEYED ON THE CODE, measured against the user's own ProductList export
+  // rather than assumed: 53 rows, 53 distinct codes, 43 distinct NAMES. CPX
+  // CARE alone has nine codes and they do not agree about being active, so a
+  // file keyed on the name would collapse nine lines into one and pick an
+  // arbitrary one's answer.
+  // ---------------------------------------------------------------------------
+  { key: 'product_master', label: 'Product Master (product lines)', group: 'Masters',
+    table: 'product_master', extraInto: 'extra', conflict: 'product_code',
+    note: 'The list of product LINES — not the machines, which are the Product Database. One row per Product Code: the export has 53 rows and 53 distinct codes but only 43 distinct names, because CPX CARE has nine codes, EXTEND-XT two and HORUS two. ACTIVE?/Inactive is carried as given and decides one thing only — an inactive line takes no NEW SALE ENTRY. Contracts, calls, visits, spares and feedback on machines already sold are untouched, because those sales happened. Re-loading a corrected sheet updates those lines rather than adding them again.',
+    cols: [
+      { to: 'product_code', from: ['product code', 'item code', 'code'], required: true },
+      { to: 'product_name', from: ['product name', 'item name', 'name'], required: true },
+      TEXT('item_detail', 'item code | item name', 'item details', 'item detail'),
+      TEXT('item_type', 'item type', 'type'),
+      TEXT('item_category', 'item category', 'category'),
+      TEXT('short_form', 'short form', 'short name', 'abbreviation'),
+      // "Active"/"Inactive" in the export, which the shared bool reader takes —
+      // and anything it cannot read stays TRUE, because a line the file does
+      // not clearly retire is one still being sold.
+      { to: 'active', from: ['active?', 'active', 'active/inactive?', 'status'], type: 'bool' },
+      DATE('added_on', 'added on', 'date added'),
+      TEXT('added_by', 'added by'),
     ] },
   { key: 'parts', label: 'Part Master', group: 'Masters', table: 'parts', extraInto: 'extra',
     conflict: 'item_detail_key', conflictFrom: ['item_detail'],
@@ -1007,7 +1038,7 @@ export const UPLOADS: UploadDef[] = [
 
   // ---- ownership & recovered cover
   { key: 'ownership_transfers', label: 'Ownership Transfer', group: 'Cover', table: 'ownership_transfers',
-    requires: 'Product Master', extraInto: 'extra', conflict: 'reference_no,serial_number',
+    requires: 'Product Database', extraInto: 'extra', conflict: 'reference_no,serial_number',
     // Asked for 2026-09-14: not wanted here. It is the AppSheet sheet's own row
     // ordering, not a fact about the hand-over.
     ignore: ['priority'],
@@ -1038,7 +1069,7 @@ export const UPLOADS: UploadDef[] = [
   },
   { key: 'product_additional_entries', label: 'Additional Entry Details (recovered warranty)', group: 'Cover',
     table: 'product_additional_entries', conflict: 'machine_key', conflictFrom: ['item_name', 'serial_number'],
-    requires: 'Product Master', extraInto: 'extra', ignore: ['priority'],
+    requires: 'Product Database', extraInto: 'extra', ignore: ['priority'],
     note: 'Takes the AppSheet “AdditionalEntryDetails” export, for machines whose Sale Entry was lost. Used only where the Sale / Contract registers are silent — load the real paperwork later and it wins automatically. MATCHED ON THE PRODUCT AND THE SERIAL, never the serial alone: serials repeat across models, and this export alone has 298 shared by more than one product. Anything the export carries beyond the fields below is kept on the row. Record where the detail came from in Source Note; a recovered date with no provenance is an assertion, not evidence.',
     cols: [
       // "Product Serial Number" is what the export says, and its absence held

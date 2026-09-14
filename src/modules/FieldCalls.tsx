@@ -59,9 +59,9 @@ const CALL_ALL_FIELDS = [
   { key: 'actualCreatedBy', header: 'Actually Registered By' },
 ];
 
-// Warranty/contract fields freeze (read-only) once loaded from Product Master.
+// Warranty/contract fields freeze (read-only) once loaded from Product Database.
 // Item Status comes from the machine, like its warranty and contract, so it is
-// filled from Product Master and locked rather than chosen on the call.
+// filled from Product Database and locked rather than chosen on the call.
 export const FREEZE_KEYS = ['itemStatus', 'warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
   // Call Number is never typed: a call registered from a request carries the
@@ -75,7 +75,7 @@ export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
   return FIELD_CALL_FIELDS.map((f) => {
     if (f.name === 'callNumber') return callNumberField(f);
     if (prefill && FREEZE_KEYS.includes(f.name) && String(prefill[f.name] ?? '') !== '')
-      return { ...f, readOnly: true, help: 'From Product Master (locked)' };
+      return { ...f, readOnly: true, help: 'From Product Database (locked)' };
     return f;
   });
 }
@@ -273,7 +273,7 @@ export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>)
     try {
       const p = await listPartyProducts(val);
       setProducts(p);
-      if (p.length === 0) setErr('No products found for this party in Product Master.');
+      if (p.length === 0) setErr('No products found for this party in Product Database.');
     } catch (e) {
       setErr(`Products lookup failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally { setBusy(''); }
@@ -299,7 +299,7 @@ export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>)
 
   return (
     <div className="prod-lookup">
-      <div className="prod-lookup-head">🔎 Fetch from Product Master &nbsp;<span className="muted">Party → Product → Serial</span></div>
+      <div className="prod-lookup-head">🔎 Fetch from Product Database &nbsp;<span className="muted">Party → Product → Serial</span></div>
 
       <div className="cascade-grid">
         <label className="cascade-field">
@@ -669,7 +669,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [srch, onDb, loadLimit]);
 
-  // Arriving with a prefill (Product Master / pending) opens the create drawer;
+  // Arriving with a prefill (Product Database / pending) opens the create drawer;
   // arriving with editUcn opens the existing call in edit mode.
   useEffect(() => {
     const st = location.state as { prefill?: Record<string, unknown>; pendingRow?: number; editUcn?: string; search?: Partial<typeof srch> } | null;

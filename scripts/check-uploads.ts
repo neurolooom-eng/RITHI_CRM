@@ -373,7 +373,21 @@ console.log('\n-- a column the register was told it does not want --');
   eq('the two lists do not overlap', ot.ignored.filter((h) => ot.unmatched.includes(h)), []);
 }
 
-eq('registers defined', UPLOADS.length, 31);
+// 32 since the Product Master (the catalogue of product LINES) joined the
+// Product Database (the machines) — the two are different registers and this
+// number is what catches one being added without a test beside it.
+eq('registers defined', UPLOADS.length, 32);
+// THE TWO ARE NOT THE SAME REGISTER, and the names invite confusing them. One
+// is keyed on the MACHINE (model + serial), the other on the product CODE.
+{
+  const db = UPLOADS.find((u) => u.key === 'products')!;
+  const cat = UPLOADS.find((u) => u.key === 'product_master')!;
+  eq('the install base is labelled Product Database', db.label, 'Product Database');
+  eq('...and is keyed on the machine', db.conflict, 'machine_key');
+  eq('the catalogue is labelled Product Master', /^Product Master/.test(cat.label), true);
+  eq('...and is keyed on the product CODE, not the name', cat.conflict, 'product_code');
+  eq('...and they write different tables', db.table !== cat.table, true);
+}
 
 console.log('\n-- call registration requests --');
 const cr = shapeUpload(def('call_requests'), [

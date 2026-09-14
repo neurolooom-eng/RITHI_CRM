@@ -202,7 +202,10 @@ export const NAV: NavGroup[] = [
     title: 'Master',
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
-      { to: '/product-master', label: 'Product Master', icon: '🩺' },
+      { to: '/product-database', label: 'Product Database', icon: '🩺' },
+      // THE CATALOGUE, beside the register of machines it describes. One row
+      // per product LINE; the Database is one row per MACHINE.
+      { to: '/product-master', label: 'Product Master', icon: '📖' },
       { to: '/user-master', label: 'User Master', icon: '👤' },
       { to: '/parts', label: 'Part Master', icon: '🔩' },
       { to: '/masters', label: 'All Masters', icon: '🗂️' },

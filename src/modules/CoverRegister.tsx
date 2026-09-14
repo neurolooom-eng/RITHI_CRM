@@ -3,6 +3,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
+import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
 import { PageHeader, Toolbar, SearchBox, Drawer } from '../components/ui/ui';
 import { csvExport, fmtDate, statusBadge, timeAgo } from '../lib/format';
 import { localIsoDate } from '../lib/dates';
@@ -100,12 +101,30 @@ const fromDb = (field: CoverField, v: unknown): string =>
     : field.type === 'date' ? dateVal(v) : str(v);
 
 function FieldInput({
-  field, value, onChange, placeholder, disabled,
-}: { field: CoverField; value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean }) {
+  field, value, onChange, placeholder, disabled, runtimeOptions,
+}: { field: CoverField; value: string; onChange: (v: string) => void; placeholder?: string;
+     disabled?: boolean;
+     /** Options the SCREEN loaded — today, the Product Master's active lines. */
+     runtimeOptions?: string[] }) {
   const common = { className: 'input', value, disabled, onChange: (e: { target: { value: string } }) => onChange(e.target.value) };
   if (field.type === 'bool') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
                          options={['Yes', 'No']} />;
+  }
+  // A RETIRED PRODUCT LINE IS NOT OFFERED ON A NEW SALE (the user's rule,
+  // 2026-09-14). The list is the Product Master's ACTIVE lines.
+  //
+  // `allowFreeText` stays ON, and that is the careful part rather than a
+  // loophole: the catalogue is maintained by hand and may be incomplete or
+  // unreadable to this reader, and a Sale Entry that could not be typed at all
+  // because a list failed to load would be a worse fault than the one this
+  // prevents. The list is the guidance; the empty hint says what it is.
+  if (field.optionsFrom) {
+    return <SelectPicker value={value} onChange={onChange} disabled={disabled}
+                         placeholder="— choose the product —"
+                         options={(runtimeOptions ?? []).filter(Boolean)}
+                         allowFreeText
+                         emptyHint="Only lines marked Active on the Product Master are offered — a retired line cannot take a new sale." />;
   }
   if (field.type === 'select') {
     return <SelectPicker value={value} onChange={onChange} disabled={disabled} placeholder="—"
@@ -117,10 +136,12 @@ function FieldInput({
 
 // One machine under a header, all its fields, with inheritance made visible.
 function ItemCard({
-  cfg, kind, item, header, canEdit, onSaved, onDeleted,
+  cfg, kind, item, header, canEdit, onSaved, onDeleted, lines,
 }: {
   cfg: ReturnType<typeof configFor>; kind: CoverKind; item: Row; header: Row; canEdit: boolean;
   onSaved: (r: Row) => void; onDeleted: (id: number) => void;
+  /** The Product Master's lines, loaded once by the screen. */
+  lines: ProductLine[];
 }) {
   const [open, setOpen] = useState(!item.id);
   const [draft, setDraft] = useState<Row>(item);
@@ -194,6 +215,8 @@ function ItemCard({
                     value={fromDb(f, draft[f.name])}
                     placeholder={headerText || undefined}
                     disabled={!canEdit}
+                    runtimeOptions={f.optionsFrom === 'sellable-name' ? sellableNames(lines)
+                      : f.optionsFrom === 'sellable-code' ? sellableCodes(lines) : undefined}
                     onChange={(v) => set(f, v)}
                   />
                 </label>
@@ -381,6 +404,11 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const [items, setItems] = useState<Row[]>([]);
   const [draft, setDraft] = useState<Row>({});
   const [saving, setSaving] = useState(false);
+  // THE PRODUCT MASTER, loaded once and shared by every machine card. Only the
+  // SALE uses it (a contract may name a retired line), and a failure to read it
+  // leaves an empty list with free text still open rather than a stuck form.
+  const [lines, setLines] = useState<ProductLine[]>([]);
+  useEffect(() => { if (live) void listProductLines().then(setLines).catch(() => setLines([])); }, [live]);
 
   // One page of a tab, from the server.
   const fetchPage = (t: Tab, offset: number): Promise<Row[]> =>
@@ -655,9 +683,23 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
           )}
 
           <h3 style={{ margin: '14px 0 8px' }}>Machines ({items.length})</h3>
+          {/* WHY A PRODUCT MAY BE MISSING FROM THE LIST, said here rather than
+              left to be inferred from an absence. A reader who cannot find
+              ORION on a new sale should learn that it is retired, not conclude
+              the master is incomplete and type it in anyway. Sale only: a
+              contract may name a retired line. */}
+          {kind === 'sale' && retiredNames(lines).length > 0 && (
+            <div className="muted" style={{ marginBottom: 8, fontSize: 12.5 }}>
+              {retiredNames(lines).length} product line
+              {retiredNames(lines).length === 1 ? ' is' : 's are'} marked <b>Inactive</b> on the
+              Product Master and {retiredNames(lines).length === 1 ? 'is' : 'are'} not offered
+              here — a retired line takes no new sale. It can still take a contract, a call and
+              everything else.
+            </div>
+          )}
           {!open.id && <div className="muted" style={{ marginBottom: 8 }}>Save the entry first, then add machines to it.</div>}
           {items.map((it) => (
-            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit}
+            <ItemCard key={str(it.id)} cfg={cfg} kind={kind} item={it} header={draft} canEdit={canEdit} lines={lines}
               onSaved={(r) => setItems((cur) => cur.map((x) => (x.id === r.id ? r : x)))}
               onDeleted={(id) => setItems((cur) => cur.filter((x) => x.id !== id))} />
           ))}

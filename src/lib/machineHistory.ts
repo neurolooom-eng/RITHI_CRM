@@ -32,7 +32,7 @@ export interface MachineEvent {
   /** yyyy-mm-dd, or '' where the register holds no date for it. */
   on: string;
   /** Which register. Also the group heading on screen. */
-  source: 'Product Master' | 'Call' | 'Visit' | 'Spare' | 'Field Failure' | 'Feedback'
+  source: 'Product Database' | 'Call' | 'Visit' | 'Spare' | 'Field Failure' | 'Feedback'
         | 'Sale / warranty' | 'Contract' | 'Ownership' | 'Additional entry' | 'Workshop';
   /** What happened, in a word or two. */
   what: string;
@@ -65,7 +65,7 @@ const sameMachineRows = <T extends Record<string, unknown>>(
 export interface MachineNow {
   product: string; serial: string; party: string; itemStatus: string;
   /** The party the COVER names — the contract's, falling back to the sale's.
-   *  Kept apart from `party` above (the Product Master's) because the two
+   *  Kept apart from `party` above (the Product Database's) because the two
    *  disagree whenever a machine moved on a contract without an Ownership
    *  Transfer being filed, and that disagreement is a finding rather than
    *  something to resolve silently. See `partyDiffers`. */
@@ -73,11 +73,11 @@ export interface MachineNow {
   warrantyNumber: string; warrantyEnd: string; warrantyState: string;
   contractNumber: string; contractType: string; contractEnd: string; contractState: string;
   state: string; city: string; engineer: string;
-  /** False when the Product Master has never heard of this machine. */
+  /** False when the Product Database has never heard of this machine. */
   onMaster: boolean;
 }
 
-/** WHERE IT IS NOW. The Product Master answers "whose is it"; machine_cover
+/** WHERE IT IS NOW. The Product Database answers "whose is it"; machine_cover
  *  answers "what is it under today", and the two can disagree — which is worth
  *  showing rather than resolving silently. */
 export async function machineNow(product: string, serial: string): Promise<MachineNow | null> {
@@ -114,12 +114,12 @@ export async function machineNow(product: string, serial: string): Promise<Machi
 // ---------------------------------------------------------------------------
 // THE TWO PARTIES, AND WHY THEY DISAGREE.
 //
-// Reported 2026-09-14 of ORION-G 2141: "Why is Product Master alone showing
+// Reported 2026-09-14 of ORION-G 2141: "Why is Product Database alone showing
 // differently?" — the master said GOVT.THIRUVALLUR MEDICAL COLLEGE while the
 // cover, every call, the visit and the feedback all said RIVER NIMS HOSPITAL.
 //
 // It is not a display fault. `products.party_name` is written by exactly two
-// things: the Product Master upload, and `ownership_transfer_apply` (0072),
+// things: the Product Database upload, and `ownership_transfer_apply` (0072),
 // which sets it to the transfer's `to_party`. `sync_product_cover` (0036)
 // updates the cover columns and `item_status` and DOES NOT TOUCH THE PARTY.
 // `machine_cover.party_name` meanwhile is `coalesce(contract.party, sale.party)`.
@@ -135,7 +135,7 @@ export async function machineNow(product: string, serial: string): Promise<Machi
 // ---------------------------------------------------------------------------
 const squashed = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]+/g, '');
 
-/** Do the Product Master and the cover name different parties? Blank on either
+/** Do the Product Database and the cover name different parties? Blank on either
  *  side is not a disagreement — it is one of them simply not knowing. */
 export const partyDiffers = (n: MachineNow | null): boolean =>
   !!n && !!n.party && !!n.coverParty && squashed(n.party) !== squashed(n.coverParty);
@@ -169,7 +169,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
 
   const [master, visits, spares, ffrs, feedback, sale, contract, owner, extra, indoor] = await Promise.all([
     // THE MASTER IS A ROW IN THE LIST TOO (the user, 2026-09-14: "in the list
-    // add Product Master also"), not only the heading. It is a register like
+    // add Product Database also"), not only the heading. It is a register like
     // the others — somebody put the machine on it, and what it says about the
     // party can disagree with every other row, which is exactly why it belongs
     // where it can be read beside them rather than only above them.
@@ -191,7 +191,7 @@ export async function machineHistory(product: string, serial: string): Promise<M
     (r.error ? [] : (r.data ?? []));   // one register refusing must not lose the other nine
 
   for (const r of sameMachineRows(rows(master), 'item_name', product, ser)) out.push({
-    on: day(r.created_at), source: 'Product Master', what: s(r.item_status) || 'On the master',
+    on: day(r.created_at), source: 'Product Database', what: s(r.item_status) || 'On the master',
     ref: s(r.serial_number), ucn: '', party: s(r.party_name),
     detail: [s(r.warranty_number) && `warranty ${s(r.warranty_number)}`,
              s(r.contract_number) && `${s(r.contract_type) || 'contract'} ${s(r.contract_number)}`,

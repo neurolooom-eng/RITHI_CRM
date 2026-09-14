@@ -712,7 +712,7 @@ export async function saveObjectiveCell(
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }
 
-// ---- Product Master (cascade + search) -------------------------------------
+// ---- Product Database (cascade + search) -------------------------------------
 // Page through a single column past PostgREST's 1000-row response cap and return
 // the distinct, sorted values. Used for the party / product / spare pick-lists,
 // which have thousands of rows.
@@ -1163,7 +1163,7 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
 // `serial_key` is `lower(btrim(serial_number))`, so this matches however the
 // serial was typed or spaced, and it matches ONE row rather than "the first 25
 // that contain it" — a serial another 25 serials happen to contain used to come
-// back as not in Product Master at all.
+// back as not in Product Database at all.
 export async function sbProductBySerial(serial: string): Promise<Record<string, unknown> | null> {
   const key = String(serial ?? '').trim().toLowerCase();
   if (!key) return null;

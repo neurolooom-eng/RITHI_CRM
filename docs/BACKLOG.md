@@ -13,6 +13,66 @@ up)_
 
 ---
 
+## 2026-09-14 — Product Database and Product Master: the names swap
+
+Asked: *"Rename Product Master to Product Database -- Deep dive and Rename all
+instances"* and *"Add a Separate Product Master - Which is the Actual List of
+Product Lines … All Inactive Products can never have a new Sale Entry, But can
+still have Contract or Calls or Basically everything other than New Sale Entry"*.
+
+| | table | one row per | label | route |
+| --- | --- | --- | --- | --- |
+| install base | `public.products` | MACHINE | **Product Database** | `/product-database` |
+| catalogue | `public.product_master` (0193) | PRODUCT LINE | **Product Master** | `/product-master` |
+
+**The table is not renamed.** `products` is referenced by 24 views, a dozen
+functions and every screen; the NAME the user reads is the module label, and
+renaming the table would be a day's work for nothing. The table names now read
+backwards against the labels — recorded in `CLAUDE.md` so the next reader is not
+caught by it.
+
+**The permission had to move with the screen** (0192). The module key *is* the
+route, so giving the catalogue `/product-master` without moving the audience
+would have left every role holding `mod:/product-master` silently losing the
+install base and gaining the catalogue — same key, different screen, nothing on
+screen to explain it. 0192 merges `mod:/product-database` into every role that
+had the old key; all 12 verified.
+
+**Keyed on the CODE, measured not assumed**: the user's ProductList export has
+53 rows, **53 distinct codes and 43 distinct names**. CPX CARE alone has nine
+codes and they disagree about being active, so a rule on the name would be wrong
+eight times on that product. Verified against the real file: by name CPX CARE is
+sellable (some code is), ORION is not (all inactive), ORION-G is.
+
+**The rule is on the FORM, not a trigger**, and that is a decision: a trigger
+would also refuse the historical sales import — 30 of the 53 lines are retired
+and those sales happened. Refusing them would make the register unloadable. The
+Sale Entry picker offers active lines only and says how many are retired;
+free text stays open, because a hand-maintained catalogue must not be able to
+stop a real sale. `product_line_sellable()` is the same rule in SQL and treats
+an UNKNOWN code as sellable.
+
+⚠️ **A trigram index written by habit.** The first draft put `gin_trgm_ops` on a
+53-row table — copying the party-cascade note in `CLAUDE.md`, which is about a
+table with thousands of rows. `check:replay` refused the bundle outright
+(`operator class "gin_trgm_ops" does not exist`), because `all.sql` builds its
+database before any migration creates the extension. Removed: Postgres scans 53
+rows whatever is on them, so it bought a dependency and nothing else.
+
+### Still to do
+
+The Product Database does **not yet retain every column** of the v2_ProdMaster
+export — Item Details Long, Sold Through, Address, PO No./Date, PM Visits,
+Service Engineer, INST Call and the rest still ride in `extra` rather than
+having columns of their own. That was the third part of the same ask and is the
+next change.
+
+### To run on the live project
+
+[`masters.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/masters.sql)
+and [`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
+— `_status.sql` row 147 answers NO until both are in.
+
 ## 2026-09-14 — Machine History: one machine, across every register
 
 Asked: *"Analyse ORION-G - 2141 -- Where is the Product? Fetch all Transactions

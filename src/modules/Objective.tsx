@@ -330,7 +330,7 @@ export function Objective() {
         { Item: 'Measured as at', Value: 'the end of that month, never later than today' },
       ];
       if (filterRow) calc.push(
-        { Item: 'Installation base from', Value: 'Product Master (Product Register)' },
+        { Item: 'Installation base from', Value: 'Product Database (Product Register)' },
         { Item: 'Product filter', Value: filterRow.product_name },
         { Item: 'Serial filter', Value: filterRow.serial },
       );

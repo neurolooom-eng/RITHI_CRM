@@ -35,7 +35,7 @@ import './fieldcalls.css';
 // ===========================================================================
 
 const SOURCES: MachineEvent['source'][] = [
-  'Product Master', 'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
+  'Product Database', 'Call', 'Visit', 'Spare', 'Field Failure', 'Feedback',
   'Sale / warranty', 'Contract', 'Ownership', 'Additional entry', 'Workshop',
 ];
 
@@ -140,7 +140,7 @@ export function MachineHistory() {
             <SelectPicker value={serial} onChange={setSerial} options={serials}
                           disabled={!product}
                           placeholder={product ? '— choose the serial —' : 'pick a product first'}
-                          emptyHint="Serials come from the Product Master. A machine that is not on it has none here."
+                          emptyHint="Serials come from the Product Database. A machine that is not on it has none here."
                           // A serial the master has never heard of is still worth
                           // looking up: calls and reports can name a machine the
                           // master is missing, and that gap is itself a finding.
@@ -174,7 +174,7 @@ export function MachineHistory() {
             {/* THE TWO PARTIES DISAGREEING IS THE FINDING, not a display fault.
                 Reported of ORION-G 2141: the master said one hospital and the
                 cover, the calls, the visit and the feedback all said another.
-                `products.party_name` is written only by the Product Master
+                `products.party_name` is written only by the Product Database
                 upload and by an Ownership Transfer (0072); a CONTRACT moves the
                 cover and never the party. So a machine that moved on a contract
                 with no transfer filed keeps the old hospital on the master for
@@ -183,7 +183,7 @@ export function MachineHistory() {
             {partyDiffers(now) && (
               <div className="sheet-banner sheet-banner-warn" style={{ marginTop: 10 }}>
                 <span>
-                  The <b>Product Master</b> says this machine is with <b>{now.party}</b>, but its
+                  The <b>Product Database</b> says this machine is with <b>{now.party}</b>, but its
                   cover — and the calls below — say <b>{now.coverParty}</b>. Go by where the calls
                   are being raised. The master only moves when an <b>Ownership Transfer</b> is
                   filed or the master is re-imported; a contract for a new hospital moves the
@@ -193,11 +193,11 @@ export function MachineHistory() {
               </div>
             )}
             {/* A MACHINE WITH A HISTORY AND NO MASTER ROW IS A FINDING, not an
-                error: the registers know it and the Product Master does not. */}
+                error: the registers know it and the Product Database does not. */}
             {!now.onMaster && (
               <div className="sheet-banner sheet-banner-info" style={{ marginTop: 10 }}>
                 <span>
-                  This machine is <b>not on the Product Master</b> — what you see above is worked
+                  This machine is <b>not on the Product Database</b> — what you see above is worked
                   out from its cover. Everything below still happened to it.
                 </span>
               </div>

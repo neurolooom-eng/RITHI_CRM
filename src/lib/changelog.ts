@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.255',
+    date: '2026-09-14',
+    title: 'Product Database and Product Master are now two registers',
+    changes: [
+      'What was called the Product Master \u2014 every MACHINE by model and serial, with its customer and cover \u2014 is now the PRODUCT DATABASE, at its own place on the menu. Nothing about it changed but the name, and nobody loses access: every role that could open it still can.',
+      'PRODUCT MASTER now means the list of PRODUCT LINES: one row per product code, with its type, category, short form and whether it is still sold. 53 lines, 23 Active and 30 Inactive in the file you sent.',
+      'Load it under Bulk Uploads \u2192 Product Master (product lines). Matched on the Product Code, not the name \u2014 CPX CARE has nine codes and they do not agree about being active, so keying on the name would have collapsed nine lines into one.',
+      'An INACTIVE line cannot be named on a NEW Sale Entry \u2014 the product box offers active lines only, and the form says how many are retired so a missing product reads as retired rather than as a gap in the list.',
+      'Everything else is untouched, deliberately: a machine already sold still takes contracts, calls, visits, spares and feedback whatever its line says. A line stops being sold long before it stops being serviced.',
+    ],
+  },
+  {
     version: '0.9.254',
     date: '2026-09-14',
     title: 'Machine History moves to Overview, and says when the master is stale',

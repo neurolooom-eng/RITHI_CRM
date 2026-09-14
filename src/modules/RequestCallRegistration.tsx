@@ -462,13 +462,13 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
     // UniqueID reads REQID-Product-NA, every downstream lookup matches the
     // wrong unit or none, and the call has to be corrected by hand afterwards.
     // On an installation it is typed (the machine is new); everywhere else it
-    // comes from the Product Master, so an empty one is a MASTER to fix, not a
+    // comes from the Product Database, so an empty one is a MASTER to fix, not a
     // field to skip.
     const noSerial = filled.findIndex((it) => !it.serial.trim());
     if (noSerial >= 0)
       return isInstall
         ? `Call ${noSerial + 1}: Serial No is required — type the serial of the machine being installed.`
-        : `Call ${noSerial + 1}: Serial No is required. If the serial is not on the list, the machine is missing from Product Master — have it added there.`;
+        : `Call ${noSerial + 1}: Serial No is required. If the serial is not on the list, the machine is missing from Product Database — have it added there.`;
     // AND THE MACHINE MUST HAVE NAMED A CUSTOMER. On a field or PM call the
     // customer is not typed, so a row without one means the serial matched no
     // machine — which would file the call against nobody. The rule is in
@@ -725,7 +725,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                   <div className="req-machine-party">
                     {it.party
                       ? <>Customer: <b>{it.party}</b>{i > 0 ? <span className="muted"> · from call 1</span> : null}</>
-                      : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Master.</span>}
+                      : <span className="muted">This serial is not on the register, so no customer came with it — check it, or have the machine added to Product Database.</span>}
                   </div>
                 )}
                 {/* THE SITE, PER CALL (the user's ask, 2026-09-12). It used to

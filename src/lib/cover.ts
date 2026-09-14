@@ -23,6 +23,12 @@ export interface CoverField {
   label: string;
   type?: 'text' | 'date' | 'number' | 'select' | 'textarea' | 'bool';
   options?: string[];
+  /** Options this form loads at run time rather than declaring here.
+   *  `sellable-name` / `sellable-code` are the Product Master's ACTIVE lines —
+   *  the user's rule (2026-09-14): an inactive line takes no NEW SALE ENTRY.
+   *  Only the SALE carries these; a contract may name a retired line, because
+   *  the machine it covers was sold when the line was current. */
+  optionsFrom?: 'sellable-name' | 'sellable-code';
   section: string;
   /** On an item: this field inherits from the header unless it is pinned. */
   inherits?: boolean;
@@ -88,8 +94,12 @@ export const SALE: CoverConfig = {
     { name: 'tax', label: 'TAX', section: 'Tax' },
   ],
   itemFields: [
-    { name: 'product_code', label: 'Product Code', section: 'Machine' },
-    { name: 'product_name', label: 'Product Name', section: 'Machine' },
+    // THE ONLY TWO FIELDS IN THE APPLICATION THAT REFUSE A RETIRED PRODUCT
+    // LINE. A new sale may not name one (the user's rule, 2026-09-14); a
+    // contract, a call, a visit, a spare and a feedback all may, because the
+    // machine they are about was sold when the line was current.
+    { name: 'product_code', label: 'Product Code', section: 'Machine', optionsFrom: 'sellable-code' },
+    { name: 'product_name', label: 'Product Name', section: 'Machine', optionsFrom: 'sellable-name' },
     { name: 'serial_number', label: 'Serial Number', section: 'Machine' },
     { name: 'warranty_start', label: 'Warranty Start Date', type: 'date', section: 'Warranty', inherits: true },
     { name: 'warranty_end', label: 'Warranty End Date', type: 'date', section: 'Warranty', inherits: true },

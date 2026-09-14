@@ -11,7 +11,7 @@ import {
 // ===========================================================================
 // OWNERSHIP TRANSFER — where a machine has been, and who has it now.
 //
-// Product Master carries ONE party per serial: the current owner. A machine
+// Product Database carries ONE party per serial: the current owner. A machine
 // that changes hands used to simply overwrite it, which left "who owned this
 // when that call was raised" unanswerable — a traceability gap on a medical
 // device, not an inconvenience.
@@ -67,7 +67,7 @@ export function OwnershipTransfer() {
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not record the transfer.' }); return; }
     setMoveForm(null);
-    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Master now shows the new owner.` });
+    setMsg({ tone: 'ok', text: `${moveForm.serial_number} moved to ${moveForm.to_party}. Product Database now shows the new owner.` });
     await load();
   };
 
@@ -78,7 +78,7 @@ export function OwnershipTransfer() {
     setBusy(false);
     if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not save the entry.' }); return; }
     setEntryForm(null);
-    setMsg({ tone: 'ok', text: `Recorded for ${entryForm.serial_number}. It shows in Product Master unless a real Sale Entry exists for that machine.` });
+    setMsg({ tone: 'ok', text: `Recorded for ${entryForm.serial_number}. It shows in Product Database unless a real Sale Entry exists for that machine.` });
     await load();
   };
 
@@ -148,7 +148,7 @@ export function OwnershipTransfer() {
       <SectionCard title={tab === 'transfers' ? 'Ownership movements' : 'Recovered warranty / contract details'}>
         <p className="muted" style={{ marginTop: 0 }}>
           {tab === 'transfers'
-            ? 'Leave “From” blank and it is filled in from whoever holds the machine now — which is what makes a historical list loadable in date order. Product Master follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Calls already raised keep the party they were raised under: they happened under the old owner.'
+            ? 'Leave “From” blank and it is filled in from whoever holds the machine now — which is what makes a historical list loadable in date order. Product Database follows the LATEST transfer, so a back-dated row loaded afterwards does not undo a later one. Calls already raised keep the party they were raised under: they happened under the old owner.'
             : 'For a machine whose Sale Entry was lost. These details are used only where the Sale and Contract registers are silent — load the real paperwork later and it wins automatically, while this stays on record. Say where the detail came from: a recovered date with no provenance is an assertion, not evidence.'}
         </p>
 

@@ -120,7 +120,7 @@ export function makeLocalUcn(callType: string, when: Date, existing: string[]): 
   return prefix + String(max + 1).padStart(4, '0');
 }
 
-// Map a Product Master row (keyed by its own headers) onto the Field Call
+// Map a Product Database row (keyed by its own headers) onto the Field Call
 // form fields, so registering a call auto-fills customer / product / warranty
 // / contract from the selected item.
 export function productToCallPrefill(p: Record<string, unknown>): Record<string, unknown> {
