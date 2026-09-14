@@ -11,6 +11,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
+import { localIsoDate } from '../src/lib/dates';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
          ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
@@ -26,7 +27,7 @@ import { manualMatchesCall, docTags } from '../src/lib/docmatch';
 import { visitDateProblem } from '../src/lib/visitdate';
 import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callreview';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { timeAgo } from '../src/lib/format';
+import { timeAgo, fmtLongDate } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
@@ -38,6 +39,18 @@ import { drivePreviewUrl } from '../src/lib/drive';
 import { callAging, agingTone } from '../src/lib/aging';
 
 let fail = 0;
+// CODE ONLY, COMMENTS STRIPPED.
+//
+// Written after the same mistake twice in one session: an assertion that a
+// module no longer calls `fmtLongDate` matched the COMMENT above the fix
+// explaining what had been wrong, and an assertion that a picker contains no
+// `<select>` matched the comment explaining why it must not. Both would have
+// been "fixed" by rewording a comment, which is how a guard quietly stops
+// guarding. Search `code(src)` when the question is about what the module DOES;
+// search the raw source when the question is about what it SAYS.
+const code = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+
 const eq = (label: string, got: unknown, want: unknown) => {
   const g = JSON.stringify(got), w = JSON.stringify(want);
   if (g === w) { console.log(`  ✓ ${label}`); return; }
@@ -1519,13 +1532,94 @@ console.log('\n-- the evidence workbook --');
     /pending_reason: r\.pending_reason/.test(dccrSrc), true);
 
   // -------------------------------------------------------------------------
+  // A DATE INPUT TAKES A VALUE, NOT A RENDERING.
+  //
+  // Reported 2026-09-14: "Why the Dates are not loaded in the Form even though
+  // the information is very much available?" The Contract Register listed
+  // START 06-Sep-2025 and END 05-Sep-2031 while the drawer showed three blank
+  // `dd --- yyyy` boxes. `fromDb` was running every date field through
+  // `fmtLongDate`, and `<input type="date">` accepts ONLY `yyyy-MM-dd` --
+  // anything else renders EMPTY, with no error in the console and none on the
+  // page. The value was there the whole time and was saved correctly; it was
+  // simply never visible, which is the worst shape a bug can take on a form
+  // somebody is about to edit.
+  //
+  // Asserted two ways: the CONVERSION (which this check can run) and the CALL
+  // SITE (which it can only read), because either alone would pass while the
+  // screen stayed blank.
+  // -------------------------------------------------------------------------
+  {
+    const cov = readFileSync(`${process.cwd()}/src/modules/CoverRegister.tsx`, 'utf8');
+    // ---- the register opens on as much as the server will give -------------
+    // The user, 2026-09-14: "Make the Default Load Row to Max And Load More
+    // should load 2x". It opened at 200 entries / 500 machines.
+    eq('the register opens on a full page from the server',
+      /const PAGE: Record<Tab, number> = \{ entries: 1000, machines: 1000 \}/.test(cov), true);
+    // "paging - Keep it at 1000 then" ... "But perform that action once more
+    // automatically": the REQUEST stays at what the server will actually
+    // return, and the register makes two of them before showing anything.
+    eq('...twice over, before anything is shown',
+      /const OPEN_PAGES = 2/.test(cov)
+      && /const r = await fetchPages\(t, 0, OPEN_PAGES\)/.test(cov), true);
+    // The "+" and the Load more button must be judged against what was ASKED
+    // FOR, not one page — else a full 2,000-row open reads as the end.
+    eq('...and "more" is judged against the whole opening request',
+      /more: r\.length >= OPEN_PAGES \* PAGE\[t\]/.test(cov), true);
+    eq('...and Load more doubles what it fetches',
+      /step: feed\.step \* 2/.test(cov), true);
+    // THE DOUBLING IS IN THE NUMBER OF REQUESTS, not the size of one. PostgREST
+    // caps a response (db-max-rows), so asking for 4,000 returns 1,000 and the
+    // page would conclude there was nothing more — a register that looks
+    // complete and is not.
+    eq('...as more requests, never as a bigger one a server would truncate',
+      /const r = await fetchPages\(tab, feed\.offset, feed\.step\)/.test(cov)
+      && /if \(r\.length < PAGE\[t\]\) break;/.test(cov), true);
+    eq('the cover form feeds its date inputs an ISO value',
+      /const dateVal = \(v: unknown\) => localIsoDate\(v\) \?\? ''/.test(cov), true);
+    // The formatter must be GONE from the value path, not merely joined by the
+    // converter: the first fix for a fault like this is usually an addition.
+    // Tested on the IMPORT rather than on a call, because the first version of
+    // this assertion searched the whole file for `fmtLongDate(` and matched the
+    // COMMENT above the fix explaining what had been wrong. A check that a
+    // comment can fail is a check that will be edited until it stops failing.
+    eq('...and no display formatter is left in it',
+      /field\.type === 'date' \? dateVal\(v\)/.test(cov)
+      && /fmtLongDate/.test(code(cov)) === false, true);
+
+    // The conversion itself, over the two shapes these columns actually hold:
+    // `contract_start` is a DATE and `entry_at` is a TIMESTAMPTZ.
+    eq('a plain date column passes straight through', localIsoDate('2025-09-06'), '2025-09-06');
+    eq('...and a timestamptz becomes the reader\'s own day',
+      localIsoDate(new Date(2026, 8, 11, 16, 33).toISOString()), '2026-09-11');
+    // The shape that was being handed to the input. It must NOT come back out
+    // as an ISO date by accident — if a display string round-tripped, the bug
+    // would be invisible again.
+    eq('a rendered date is not a valid input value', /^\d{4}-\d{2}-\d{2}$/.test(fmtLongDate('2025-09-06')), false);
+    eq('...though it is still what a reader should SEE', fmtLongDate('2025-09-06'), '06-Sep-2025');
+    eq('nothing at all is empty, never today', localIsoDate(null) ?? '', '');
+  }
+
+  // -------------------------------------------------------------------------
   // THE FIELD FAILURE REGISTER'S YEAR FILTER (user's ask, 2026-09-14).
   // -------------------------------------------------------------------------
   {
     const ffr = readFileSync(`${process.cwd()}/src/modules/FieldFailureReport.tsx`, 'utf8');
     eq('the register filters by year and defaults to the current one',
       /const thisYear = String\(new Date\(\)\.getFullYear\(\)\)/.test(ffr)
-      && /useState\(thisYear\)/.test(ffr), true);
+      && /useState<string\[\]>\(\[thisYear\]\)/.test(ffr), true);
+    // MULTI-SELECT, both filters (the user's second ask on this screen). An
+    // EMPTY selection means ALL, which is what lets the Product filter sit
+    // beside the Year one costing nothing: it starts ticking nothing and
+    // therefore hides nothing. A control that opened with everything unticked
+    // AND showed nothing would read as a broken screen.
+    eq('both filters take several values at once',
+      /<MultiPick values=\{years\}/.test(ffr) && /<MultiPick values=\{products\}/.test(ffr), true);
+    eq('...and the product filter starts empty, so it hides nothing',
+      /const \[products, setProducts\] = useState<string\[\]>\(\[\]\)/.test(ffr), true);
+    // The products offered are the ones the CHOSEN YEARS hold: listing a model
+    // with nothing behind it offers a click that can only empty the screen.
+    eq('the products offered are the ones the chosen years hold',
+      /const pool = years\.length \? rows\.filter\(\(r\) => years\.includes\(ffrYear\(r\)\)\) : rows/.test(ffr), true);
     // By the FFR DATE, the same date the Objective register counts by (0142),
     // so the two cannot report different years for one report.
     eq('...by the FFR date, not the date it was typed',
@@ -1535,16 +1629,39 @@ console.log('\n-- the evidence workbook --');
     eq('the current year is always on the list', /seen\.add\(thisYear\)/.test(ffr), true);
     // A default landing on an empty year looks like an empty register. This
     // page already carries that lesson for access; the same applies here.
-    eq('an empty year says so rather than looking empty',
-      /No reports dated/.test(ffr) && /Show all years/.test(ffr), true);
+    eq('an empty result says so rather than looking empty',
+      /Nothing matches/.test(ffr) && /Clear the filters/.test(ffr), true);
     // A YEAR is a reporting period, so it reaches Insights — unlike the search
     // box and the status chips, which deliberately do not.
     eq('Insights follows the year', /<FieldFailureInsights rows=\{inYear\}/.test(ffr), true);
     eq('...and not the search box', /<FieldFailureInsights rows=\{visible\}/.test(ffr), false);
-    // Every dropdown is type-search-and-select — the standing rule.
-    eq('the year picker is a PickList, not a <select>',
-      /<SelectPicker[\s\S]{0,200}options=\{\[\.\.\.years, ALL_YEARS\]\}/.test(ffr), true);
+    // Every dropdown is type-search-and-select — the standing rule, which a
+    // multi-select must keep: a native `<select multiple>` picks on the first
+    // keystroke exactly as a single one does.
+    {
+      const mp = readFileSync(`${process.cwd()}/src/components/ui/MultiPick.tsx`, 'utf8');
+      eq('the multi-picker filters on typing and never selects on it',
+        /placeholder="Type to narrow…"/.test(mp) && /<select/.test(code(mp)) === false, true);
+      // The one behaviour that separates it from PickList, and the reason it is
+      // a separate component rather than a flag: picking must NOT close.
+      eq('...and ticking leaves the list open',
+        /\/\/ THE MENU STAYS OPEN\. That is the whole difference from PickList\./.test(mp), true);
+      // Empty is ALL, in the control as well as in the screen that uses it.
+      eq('...and an empty selection means everything',
+        /nothing ticked — showing everything/.test(mp), true);
+    }
   }
+
+  // AN ACCESS REFUSAL IS NOT A FAULT, and must not read as one. The FFR count
+  // (0142) gates its evidence on `ffr.view`, and SEVEN of the twelve roles that
+  // can open the Objective page do not hold it — commercial, engineer,
+  // spare_coordinator, stores_incharge, tally_coordinator, technical support
+  // and zoho_migration. Every one of them would have got a raw "RBAC: ..."
+  // string in a red banner, which reads as the page being broken rather than as
+  // the register being closed to them. Measured against app_roles, not guessed.
+  eq('a refusal to show the rows behind a figure explains itself',
+    /\/\^RBAC:\/\.test\(raw\)/.test(readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8'))
+    && /the figure is yours to see, the reports behind it/.test(readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8')), true);
 
   const obj = readFileSync(`${process.cwd()}/src/modules/Objective.tsx`, 'utf8');
   const objSb = readFileSync(`${process.cwd()}/src/lib/supabase.ts`, 'utf8');

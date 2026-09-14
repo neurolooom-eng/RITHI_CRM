@@ -6,10 +6,10 @@ tracks what's **done**, **in progress**, and **queued**.
 
 _Last updated: 2026-09-14 (Product History and the 2016 archive project)_
 
-_Previously: 2026-09-14 (the sheet's thirty-day expiry band; the cover
-field-by-field comparison) · 2026-09-06 (bundle replay safety; see the top of In
-progress) · 2026-09-02 (spare reconciliation shipped and applied; live project
-fully caught up)_
+_Previously: 2026-09-14 (two pages on open; the sheet's thirty-day expiry band) ·
+2026-09-06 (bundle replay safety; see the top of In progress) ·
+2026-09-02 (spare reconciliation shipped and applied; live project fully caught
+up)_
 
 ---
 
@@ -132,6 +132,82 @@ an exact match on the serial through the `calls` view. That fallback is why the
 file can be skipped, not a reason to skip it: without it every history lookup
 scans all three call tables. This is 0129 one table along — an expression index
 (`lower(serial)`) that PostgREST cannot express and therefore never uses.
+
+## 2026-09-14 — Two pages on open, and a refusal that reads as one
+
+"paging - Keep it at 1000 then" … "But perform that action once more
+automatically". The REQUEST stays at 1,000 — what PostgREST will actually return
+— and the register makes **two** of them before showing anything, so it opens on
+2,000 rows. `more` and the `+` are judged against the whole OPENING request, not
+one page; otherwise a full 2,000-row open would read as the end of the register.
+
+### A refusal that read as a fault
+
+Found by checking my own work rather than reported: `objective_evidence` gates
+the FFR count (0142) on `ffr.view`, and **seven of the twelve roles that can open
+the Objective page do not hold it** — commercial, engineer, spare_coordinator,
+stores_incharge, tally_coordinator, technical_support, zoho_migration. Measured
+against `app_roles`, not guessed. Every one of them would have got a raw
+`RBAC: ...` string in a red banner, which reads as the page being broken rather
+than as the register being closed to them.
+
+The gate itself is right and stays: the evidence for a count of Field Failure
+Reports IS the reports, and somebody who may not open that register should not
+read it through a side door. What was wrong was the wording. The figure stays
+visible; the refusal now says so and names the right to ask for, in the same
+shape as the access banner on the Field Failure Register itself.
+
+## 2026-09-14 — Blank date boxes, multi-select filters, and a bigger first page
+
+### The dates were never in the form
+
+Reported: *"Why the Dates are not loaded in the Form even though the information
+is very much available?"* — the Contract Register listed START 06-Sep-2025 and
+END 05-Sep-2031 while the drawer showed three blank `dd --- yyyy` boxes.
+
+`fromDb` ran every date field through **`fmtLongDate`**, which produces
+`06-Sep-2025`. **`<input type="date">` accepts ONLY `yyyy-MM-dd`** and renders
+anything else as EMPTY — no console error, nothing on the page. The distinction
+was already understood in that file (an existing comment reads *"that is a
+VALUE, not a rendering"*) and applied the wrong way round.
+
+**Nothing was lost.** The draft holds the raw database value until somebody
+edits a field, so a save preserved the dates; they simply could not be seen or
+changed. `localIsoDate` rather than a slice, because `entry_at` is a
+TIMESTAMPTZ and slicing gives the UTC day — already tomorrow in IST after 18:30.
+
+### Multi-select on the Field Failure Register, and a Product filter
+
+Asked for: *"In the Filter in FFR , I need Multi Select Option. Add Product
+Filter as a Default Filter along with the Year Filter."*
+
+`MultiPick` is new — a **sibling of PickList, not a mode inside it**. PickList is
+on every form here and its contract is "one value, and choosing closes the
+list"; multi-select inverts both halves. Threading that through would put an
+`if (multi)` in each of its branches, on the control the Daily Call Review's
+Auto Save depends on.
+
+**Empty means ALL**, which is what lets the Product filter sit beside the Year
+one costing nothing. The products offered are the ones the CHOSEN YEARS hold: a
+filter listing a model with nothing behind it offers a click that can only empty
+the screen.
+
+### Contract / Warranty open on a full page
+
+Asked for: *"Make the Default Load Row to Max And Load More should load 2x"*.
+200/500 → 1000/1000, and each Load more doubles. **The doubling is in the NUMBER
+OF REQUESTS, not the size of one**: PostgREST caps a response (`db-max-rows`), so
+asking for 4,000 returns 1,000 and the page would conclude there was nothing
+more — a register that looks complete and is not.
+
+### Two guards that matched their own comments
+
+Twice in one session an assertion searched a whole module for a string and
+matched the COMMENT explaining what had been wrong — once for `fmtLongDate`,
+once for `<select>`. Both would have been "fixed" by rewording a comment, which
+is how a guard quietly stops guarding. `check:ui` now has `code(src)`, which
+strips comments: search it when the question is what a module DOES, the raw
+source when the question is what it SAYS.
 
 ## 2026-09-14 — A key without an UPDATE policy, and the FFR count automated
 

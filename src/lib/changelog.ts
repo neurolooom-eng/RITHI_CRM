@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.247',
+    version: '0.9.249',
     date: '2026-09-14',
     title: 'Product History \u2014 one machine, and everything that ever happened to it',
     changes: [
@@ -23,6 +23,26 @@ export const CHANGELOG: ChangeEntry[] = [
       'The 2016 history is READ-ONLY from here. Nothing in the application can change it, and nothing should \u2014 those records cannot be rebuilt.',
       'Until the archive is connected the screen shows the live registers only, and says so rather than looking like a machine with no past. The key is entered once per device under Settings \u2192 Archive (Product History).',
       'A machine that exists only in the archive \u2014 sold in 2016, retired years ago, never carried across \u2014 can still be found and read. Its row says it is archive-only, so nobody wonders why they cannot raise a call against it.',
+    ],
+  },
+  {
+    version: '0.9.248',
+    date: '2026-09-14',
+    title: 'Contract and Warranty open on 2,000 rows',
+    changes: [
+      'The Contract and Warranty Registers now fetch two full pages before showing anything, so they open on 2,000 rows instead of 1,000. Each request stays at 1,000 \u2014 the most the database hands over at once \u2014 and the register simply makes two of them.',
+      'On the Objective page, asking to see the reports behind the Field Failure count now explains itself if you are not allowed to read that register: the figure is yours to see, the reports behind it are not, and it names the right to ask for. It used to show a bare error that read as a broken page \u2014 seven of the twelve roles that can open Objective would have hit it.',
+    ],
+  },
+  {
+    version: '0.9.247',
+    date: '2026-09-14',
+    title: 'Dates show in the form, and the filters do more',
+    changes: [
+      'The dates on a Contract or Warranty entry were always blank in the form even though the list showed them. The form was handing the date box a date written for reading (06-Sep-2025) when it only accepts the machine form \u2014 so it showed nothing, with no error anywhere. Nothing was ever lost: the value was still saved correctly, it just could not be seen or changed.',
+      'The Field Failure Register filters take SEVERAL values now \u2014 tick as many years as you like, and the list stays open while you tick.',
+      'A Product filter sits beside the Year one. It starts with nothing ticked, which means everything, so it costs you nothing until you use it. The products offered are the ones the years you chose actually hold.',
+      'Contract and Warranty Registers open on as many rows as the server will give, and each Load more fetches twice as much as the last.',
     ],
   },
   {

@@ -152,11 +152,14 @@ against the call it was fitted to.
   restarting each year.
   - **A report raises itself** when the Daily Call Review answers any of Risk to
     Patient, Warranty Failure or Frequent Failure as *Yes*.
-  - **The Year, set to this year when you open it.** It narrows the register,
-    the table and Insights together, so the three cannot disagree about the
-    period. Pick *All years* to see everything. If the year you pick holds
-    nothing, the screen says so — an empty year and an empty register look
-    identical and mean different things.
+  - **Year and Product, both taking several values.** Tick as many as you like;
+    the list stays open while you tick, and nothing ticked means everything.
+    Year opens on this year; Product opens on all, so it costs nothing until you
+    use it. The products offered are the ones the years you chose actually hold.
+  - They narrow the register, the table and Insights together, so the three
+    cannot disagree about the period. If the filters match nothing, the screen
+    says so and offers to clear them — an empty result and an empty register
+    look identical and mean different things.
   - **Register → Desk**: reports left, the report centre, the call's visits and
     spares right.
   - **Print** the R-SER-03 page or download **Word**. Your saved signature prints
@@ -175,7 +178,9 @@ against the call it was fitted to.
   covered.
 
 Both work the same way. Two views: **Entries** (the deal and its machines) and
-**Machines** (per serial, with Active / About to expire / Inactive tiles).
+**Machines** (per serial, with Active / About to expire / Inactive tiles). Each
+opens on **2,000 rows** — two full requests of the 1,000 the database hands over
+at once — and every **Load more** fetches twice as much as the one before.
 **"+ New entry" arrives with its number already in it** — offered, not reserved,
 so two people starting at once get the same number and the second is refused on
 saving.
