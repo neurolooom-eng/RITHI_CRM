@@ -52,7 +52,14 @@ export const MODULES: ModuleDef[] = [
   { path: '/daily-review', label: 'Daily Call Review' },
   { path: '/call-review', label: 'Call Review' },
   { path: '/parties', label: 'Party Master' },
-  { path: '/product-master', label: 'Product Master' },
+  // RENAMED AND MOVED (2026-09-14). The install base is the PRODUCT DATABASE
+  // and its key moves with it — 0192 copies `mod:/product-master` into
+  // `mod:/product-database` for every role that had it, so nobody loses the
+  // screen. The old key now means the CATALOGUE below, which is a different
+  // screen: leaving it pointing at a new thing without moving the audience
+  // would have been a silent change of what a role can see.
+  { path: '/product-database', label: 'Product Database' },
+  { path: '/product-master', label: 'Product Master (product lines)' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
@@ -408,7 +415,8 @@ export const PERM_TREE: PermHeader[] = [
   ] },
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
-    { path: '/product-master', label: 'Product Master', actions: ['masters.view', 'calls.create'] },
+    { path: '/product-database', label: 'Product Database', actions: ['masters.view', 'calls.create'] },
+    { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.view', 'masters.edit'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },
     // All Masters is just the overview screen; each value list is its own page

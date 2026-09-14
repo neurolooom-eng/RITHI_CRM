@@ -233,8 +233,16 @@ What the rest of the application picks from. A value not on a master cannot be
 typed into a form that reads it.
 
 - **Party Master** `/parties` — customers and dealers.
-- **Product Master** `/product-master` — every machine by serial, with its
+- **Product Database** `/product-database` — every machine by serial, with its
   warranty, contract and current owner. This is where a call reads cover from.
+- **Product Master** `/product-master` — the list of **product lines**, one row
+  per product code: type, category, short form, and whether it is still sold.
+  Not the machines — those are the Product Database.
+  > **Inactive** means the line is no longer sold, so a **new Sale Entry**
+  > cannot name it. It changes nothing else: machines already sold still take
+  > contracts, calls, visits, spares and feedback. A line stops being sold long
+  > before it stops being serviced.
+  Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
 - **User Master** `/user-master` — people, roles and the reporting line. A

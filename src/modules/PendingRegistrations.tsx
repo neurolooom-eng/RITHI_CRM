@@ -29,13 +29,13 @@ import './fieldcalls.css';
 // (Unattended / Unsolved / Report pending).
 //
 // On the register form, Party / Product / Serial come from the REQUEST
-// (authoritative); Product Master only fills warranty/contract/status on an
+// (authoritative); Product Database only fills warranty/contract/status on an
 // EXACT serial match, so nothing is overwritten with a wrong item.
 // ===========================================================================
 
 type Row = Record<string, unknown> & { id: string };
 
-// Fields Product Master may fill on a validated (exact) serial — never the
+// Fields Product Database may fill on a validated (exact) serial — never the
 // identifying party/product/serial, which stay from the request.
 const PRODMASTER_FILL = ['itemStatus', 'warrantyNumber', 'warrantyStart', 'warrantyEnd', 'contractNumber', 'contractStart', 'contractEnd', 'contractType'];
 const g = (r: Record<string, unknown>, ...keys: string[]) => { for (const k of keys) { const v = r[k]; if (v != null && String(v).trim() !== '') return String(v); } return ''; };
@@ -200,11 +200,11 @@ export function PendingRegistrations() {
 
   const register = async (row: Row) => {
     setBusy(true);
-    setMsg({ tone: 'info', text: 'Checking Product Master…' });
+    setMsg({ tone: 'info', text: 'Checking Product Database…' });
     try {
       const serial = g(row, 'SERIAL NO', 'SERIAL NO (1)', 'Serial', 'Product Serial Number').trim();
 
-      // (a) Validate against Product Master by EXACT serial. Only fill
+      // (a) Validate against Product Database by EXACT serial. Only fill
       //     warranty/contract/status — never overwrite party/product/serial.
       const prodFill: Record<string, unknown> = {};
       let validated = false;
@@ -222,12 +222,12 @@ export function PendingRegistrations() {
         }
       }
       if (serial && !validated) {
-        setMsg({ tone: 'info', text: `Serial ${serial} not found in Product Master — warranty/contract not auto-filled. Verify on the right.` });
+        setMsg({ tone: 'info', text: `Serial ${serial} not found in Product Database — warranty/contract not auto-filled. Verify on the right.` });
       } else {
         setMsg(null);
       }
 
-      // Identifying fields come from the REQUEST; warranty/contract from Product Master.
+      // Identifying fields come from the REQUEST; warranty/contract from Product Database.
       const prefill: FormValues = {
         callNumber: g(row, 'UNIQUE ID', 'ID', 'REQID'),
         partyName: g(row, 'PARTY NAME', 'Party Name'),
@@ -750,7 +750,7 @@ function RegisterPanel({
           </div>
           <div className="reg-split-body">
             {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
-            <div className="detail-hint">Party / Product / Serial are from the request. Use the picker only to correct them from Product Master.</div>
+            <div className="detail-hint">Party / Product / Serial are from the request. Use the picker only to correct them from Product Database.</div>
             <ProductLookup onPick={(p) => { setPf((cur) => ({ ...cur, ...productToCallPrefill(p) })); setPfKey((k) => k + 1); }} />
             <SchemaForm
               key={pfKey}

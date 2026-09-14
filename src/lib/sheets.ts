@@ -191,7 +191,7 @@ export async function addFieldCall(record: Record<string, unknown>, tab = ''): P
   return { ok: true, ucn: String(r.ucn ?? ''), record: rowToRecord((r.row as Record<string, unknown>) ?? {}) };
 }
 
-// ---- Product Master lookup (cascade: Party -> Product -> Serial) ----------
+// ---- Product Database lookup (cascade: Party -> Product -> Serial) ----------
 export async function listParties(): Promise<string[]> {
   if (sb.supabaseConfigured()) return sb.sbListParties();
   const r = await getJson({ action: 'parties' });
@@ -225,7 +225,7 @@ export interface ProdFilters {
   status?: string;  // exact Item Status (WGP/OGP/CMC/AMC)
 }
 
-// Product Master search. Explicit fields + optional global q; empty = browse.
+// Product Database search. Explicit fields + optional global q; empty = browse.
 // ONE MACHINE, BY ITS SERIAL — an equality, not a substring scan (0129).
 //
 // On Supabase this is an indexed match on the stored `serial_key`. On the sheet

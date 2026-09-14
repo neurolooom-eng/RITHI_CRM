@@ -371,6 +371,25 @@ on testing the old shape. **When a migration replaces a definition, move the
   four date parsers and they had started to disagree. A wall-clock export time is
   LOCAL (`toIsoTimestamp(v, 'local')`, settled with the user); display of a
   non-ISO string is day-first too (`parseAnyDate`). Neither is a per-file habit.
+- **`products` IS THE INSTALL BASE; `product_master` IS THE CATALOGUE — and the
+  NAMES SWAPPED on 2026-09-14.** `public.products` is one row per MACHINE
+  (model + serial, customer, cover), ~20,000 rows, labelled **Product Database**
+  at `/product-database`. `public.product_master` (0193) is one row per PRODUCT
+  LINE — code, type, category, still-sold — 53 rows, labelled **Product Master**
+  at `/product-master`. The table names now read backwards against the labels,
+  which is the price of not renaming a table 24 views and a dozen functions
+  depend on; the labels are what the user reads.
+  **The permission had to move with the screen** (0192): the module key IS the
+  route, so leaving `mod:/product-master` where it was would have silently
+  swapped which screen every role could open. It merges `mod:/product-database`
+  into every role that held the old key.
+  **`active` stops exactly one thing: a NEW SALE ENTRY.** Contracts, calls,
+  visits, spares and feedback are untouched — a machine sold in 2014 is still
+  supported. Enforced on the FORM (`optionsFrom: 'sellable-*'` in `cover.ts`)
+  and NOT by a trigger, because a trigger would also refuse the historical sales
+  import: 30 of the 53 lines are retired and those sales really happened.
+  `product_line_sellable()` is the same rule in SQL; an UNKNOWN code is sellable,
+  since an incomplete catalogue must not refuse a real sale.
 - **Bulk Uploads is the importer.** The legacy Data Import panel keeps only what
   Bulk Uploads does not do: the four AppSheet cover exports (+ Normalise), the
   User Master directory, and the MRN two-tab flattening. Do not add a table to

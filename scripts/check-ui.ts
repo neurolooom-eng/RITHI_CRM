@@ -3695,8 +3695,10 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     machineRowProblem([{ ...ok, party: '' }], false) !== null, true);
   eq('and a whitespace customer is not a customer',
     machineRowProblem([{ ...ok, party: '   ' }], false) !== null, true);
+  // "Product Database" since 2026-09-14 — the install base's name. The
+  // Product Master is now the CATALOGUE of product lines, a different register.
   eq('the message says where to go next',
-    /Product Master/.test(machineRowProblem([{ ...ok, party: '' }], false) ?? ''), true);
+    /Product Database/.test(machineRowProblem([{ ...ok, party: '' }], false) ?? ''), true);
   // An INSTALLATION has no machine on the register — that is why it still asks.
   eq('an installation is exempt', machineRowProblem([{ ...ok, party: '' }], true), null);
   // One machine, one call — the check spans customers now.
@@ -3870,8 +3872,8 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
   // Call 1 is not narrowed, so it never carries a customer's name…
   eq('call 1 just says pick a product', P({ isFirstCall: true, count: 0 }), PICK_A_PRODUCT);
   eq('…and neither does a call with no customer yet', P({ party: '  ', count: 0 }), PICK_A_PRODUCT);
-  eq('an installation names the master it picks from',
-    /Product Master/.test(P({ isInstall: true, count: 0 })), true);
+  eq('an installation names the register it picks from',
+    /Product Database/.test(P({ isInstall: true, count: 0 })), true);
   eq('and the form asks the rule rather than restating it',
     /placeholder: productPlaceholder\(\{/.test(rq), true);
   // ONE MATCH RULE. The owned list and the serial search must agree, so both go
@@ -4975,6 +4977,60 @@ console.log('\n-- every banner tone has a rule behind it --');
   eq('every banner tone a screen uses has a rule', missing, []);
 }
 
+console.log('\n-- the Product Database and the Product Master are two registers --');
+{
+  // RENAMED 2026-09-14 and the names SWAPPED, which is the whole risk:
+  //   products        the INSTALL BASE — one row per MACHINE  → "Product Database"
+  //   product_master  the CATALOGUE    — one row per LINE     → "Product Master"
+  // A screen or a label that drifts back conflates twenty thousand machines
+  // with fifty-three product lines.
+  const rbacSrc = readFileSync('src/lib/rbac.ts', 'utf8');
+  const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+  const paths = new Set(MODULES.map((m) => m.path));
+
+  eq('the install base has its own route', paths.has('/product-database'), true);
+  eq('...and the catalogue has its own', paths.has('/product-master'), true);
+  eq('the install base is named Product Database',
+    MODULES.find((m) => m.path === '/product-database')?.label, 'Product Database');
+  eq('...and the menu agrees',
+    /to: '\/product-database', label: 'Product Database'/.test(lay), true);
+  eq('the catalogue is named Product Master',
+    /^Product Master/.test(MODULES.find((m) => m.path === '/product-master')?.label ?? ''), true);
+  // THE PERMISSION HAD TO MOVE WITH THE SCREEN. The key IS the route, so
+  // without 0192 every role holding `mod:/product-master` would silently stop
+  // seeing the install base and start seeing the catalogue.
+  {
+    const mig = readFileSync('supabase/migrations/0192_product_database_rename.sql', 'utf8');
+    eq('the old audience is carried to the new key',
+      /select 'mod:\/product-database' as v/.test(mig)
+      && /where ar\.permissions \? 'mod:\/product-master'/.test(mig), true);
+    // MERGED, never overwritten — has_perm falls back to the engineer defaults
+    // only on an EMPTY permission set.
+    eq('...by merging, never overwriting', /jsonb_agg\(distinct v\)/.test(mig), true);
+  }
+  eq('the module list still reads the install base table',
+    /path: '\/product-database'/.test(rbacSrc), true);
+
+  // THE RULE: an inactive line takes no NEW SALE ENTRY, and nothing else.
+  const cover = readFileSync('src/lib/cover.ts', 'utf8');
+  const saleBlock = cover.split('export const SALE')[1]?.split('export const CONTRACT')[0] ?? '';
+  const contractBlock = cover.split('export const CONTRACT')[1] ?? '';
+  eq('a new sale picks from the active lines',
+    /optionsFrom: 'sellable-code'/.test(saleBlock) && /optionsFrom: 'sellable-name'/.test(saleBlock), true);
+  // A CONTRACT MAY NAME A RETIRED LINE — the machine it covers was sold when
+  // the line was current, and refusing it would refuse the work, not the sale.
+  eq('...and a contract may still name a retired one',
+    /optionsFrom/.test(contractBlock), false);
+  // Free text stays ON: the catalogue is hand-maintained and may be incomplete
+  // or unreadable to this reader, and a Sale Entry that could not be typed at
+  // all would be a worse fault than the one this prevents.
+  const reg = readFileSync('src/modules/CoverRegister.tsx', 'utf8');
+  eq('...and a line the catalogue has not got can still be typed',
+    /if \(field\.optionsFrom\) \{[\s\S]{0,400}allowFreeText/.test(reg), true);
+  eq('...with the reason a product is missing said out loud',
+    /retired line takes no new sale/.test(reg), true);
+}
+
 console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
@@ -5019,8 +5075,8 @@ console.log('\n-- one machine, across every register --');
   // they are exact and take no "+".
   eq('the counts are exact, so they take no plus', /countMore=\{false\}/.test(mh), true);
   // A machine the Product Master has never heard of is a FINDING, not an error.
-  eq('a machine missing from the master says so',
-    /not on the Product Master/.test(mh), true);
+  eq('a machine missing from the register says so',
+    /not on the Product Database/.test(mh), true);
 }
 
 console.log('\n-- every hand-run SQL file runs where it is actually pasted --');

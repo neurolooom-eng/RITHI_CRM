@@ -46,7 +46,7 @@ export function ProductMaster() {
   const [more, setMore] = useState((cached?.rows.length ?? 0) >= PAGE);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(
-    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Master.' },
+    dataConfigured() ? null : { tone: 'info', text: 'Connect the database in Settings to search the Product Database.' },
   );
 
   const set = (k: keyof ProdFilters, v: string) => setF((cur) => ({ ...cur, [k]: v }));
@@ -54,7 +54,7 @@ export function ProductMaster() {
   const run = async (filters: ProdFilters = f) => {
     if (!dataConfigured()) return;
     setBusy(true);
-    setMsg({ tone: 'info', text: 'Searching Product Master…' });
+    setMsg({ tone: 'info', text: 'Searching the Product Database…' });
     try {
       const r = await searchProducts(filters, PAGE, 0);
       const mapped = r.map((p, i) => ({ ...p, id: `${String(p['Item Serial Number'] ?? '')}-${i}` }));
@@ -121,7 +121,7 @@ export function ProductMaster() {
         onRefresh={() => void run({})}
         refreshing={busy}
         syncedAt={lastSync}
-        title="Product Master"
+        title="Product Database"
         subtitle="Search the install base and register a call straight from a product."
         icon="🩺"
         count={rows.length}

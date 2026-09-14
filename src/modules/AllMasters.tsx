@@ -34,7 +34,7 @@ const CACHE_KEY = 'allMasters.v2';
 // database-only).
 const REGISTERS: { key: string; label: string; table: string; icon: string; route: string; sheetKey?: string }[] = [
   { key: 'party', label: 'Party Master', table: 'parties', icon: '🏥', route: '/parties', sheetKey: 'party' },
-  { key: 'product', label: 'Product Master', table: 'products', icon: '🩺', route: '/product-master', sheetKey: 'product' },
+  { key: 'product', label: 'Product Database', table: 'products', icon: '🩺', route: '/product-database', sheetKey: 'product' },
   { key: 'spare', label: 'Part Master (ITEM Master)', table: 'parts', icon: '🔩', route: '/parts', sheetKey: 'spare' },
   { key: 'user', label: 'User Master', table: 'user_directory', icon: '👤', route: '/user-master' },
 ];
