@@ -4960,6 +4960,35 @@ console.log('\n-- the cover registers carry the AppSheet arithmetic --');
 }
 
 
+console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
+{
+  // THE SUPABASE SQL EDITOR IS NOT psql. Everything in `supabase/apply/`, and
+  // the two consolidated files at the repository root, is handed to the user as
+  // a link and pasted into that editor — where `\\set`, `\\echo` and `\\i` are
+  // not commands but a syntax error on the line they appear.
+  //
+  // Written after doing it: `_dccr_undo.sql` shipped with ten of them and came
+  // back as `ERROR: 42601: syntax error at or near "\\"` on line 44. Every
+  // other file in that folder was already plain SQL, so the convention existed
+  // and was simply not written down anywhere a check could see.
+  const files = [
+    ...readdirSync('supabase/apply').filter((f) => f.endsWith('.sql')).map((f) => `supabase/apply/${f}`),
+    ...readdirSync('.').filter((f) => /^(Spare|HandStock)_\w+\.sql$/.test(f)),
+  ];
+  eq('there are hand-run SQL files to check', files.length > 0, true);
+  const bad: string[] = [];
+  for (const f of files) {
+    const lines = readFileSync(f, 'utf8').split('\n');
+    lines.forEach((l, i) => {
+      // A meta-command is a backslash at the START of a line. A backslash
+      // inside a string or a regex (E'\\n', '~ ^\\d{4}$') is ordinary SQL and
+      // must not be flagged, which is most of what this pattern is for.
+      if (/^\s*\\[a-z]/.test(l)) bad.push(`${f}:${i + 1}  ${l.trim().slice(0, 40)}`);
+    });
+  }
+  eq('no hand-run SQL file uses a psql meta-command', bad, []);
+}
+
 console.log('\n-- the Insights tab can be interrogated --');
 {
   const ins = readFileSync('src/modules/FieldFailureInsights.tsx', 'utf8');
