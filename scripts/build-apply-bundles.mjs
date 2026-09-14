@@ -115,6 +115,10 @@ const MODULES = {
             // KEY, so it belongs with the other role migrations and must run
             // after 0005 creates app_roles.
             '0192_product_database_rename.sql',
+            // The three module keys that shipped without ever being granted.
+            // Same reason as 0192: it writes MODULE KEYS into app_roles, so it
+            // belongs with the role migrations and must run after 0005.
+            '0195_new_module_keys.sql',
             // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
             // created by 0008 in THIS module and redefined by these two. While they
             // sat in spare_requests, replaying `rbac.sql` on its own put 0008's

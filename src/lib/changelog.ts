@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.257',
+    date: '2026-09-14',
+    title: 'Three screens nobody could open \u2014 and the check that stops a fourth',
+    changes: [
+      'MACHINE HISTORY, THE CALL REPORT AND THE CUSTOMER FEEDBACK REPORT WERE INVISIBLE to every role. The screens were built and the menu entries were there, but the permission behind each one had never been written into your roles \u2014 so the entry simply did not appear, with no error to explain it. All three are now granted to every role that was always meant to have them. Nobody gains anything they were not already supposed to have.',
+      'Machine History has moved to Overview on the Roles & Permissions screen, where it sits on the menu. It had been left under a heading of its own after the menu moved it, so anyone looking for it under Overview would not have found it.',
+      'The headings on Roles & Permissions are now in the same order as the menu, so the two can be read side by side.',
+      'And the reason this kept happening: the code claimed a check compared the two, and no such check existed. It does now \u2014 a new or moved screen cannot be released until its place on Roles & Permissions and the permission behind it are both in order.',
+    ],
+  },
+  {
     version: '0.9.256',
     date: '2026-09-14',
     title: 'The Product Database keeps every column of its file',

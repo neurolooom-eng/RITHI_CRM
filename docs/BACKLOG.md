@@ -13,6 +13,67 @@ up)_
 
 ---
 
+
+## 2026-09-14 — Roles & Permissions: the step that kept being missed
+
+Asked, as a standing rule: *"Update the Roles & Permissions - Always when a New
+UI is introduced or when a UI is re-arranged -- This is often missed."*
+
+It had been missed **four times**, and the audit found them by asking the code
+rather than by reading this file.
+
+### What was actually broken
+
+| | |
+| --- | --- |
+| `mod:/machine-history` | **no migration ever granted it.** No parent key either, so nothing stood in. |
+| `mod:/exports/calls` | no migration. Covered for a role holding `mod:/exports`, not otherwise. |
+| `mod:/exports/feedback` | as above. |
+| `/machine-history` in `PERM_TREE` | still under a header of its own after v0.9.254 moved the screen to **Overview** on the menu. |
+| header order | matrix had Reports before Indoor Service; the menu has them the other way round. |
+
+**Why a code default is not enough, and this is the heart of it.**
+`permsForRole()` is `if (stored && stored.length) return stored;` — the
+`DEFAULT_PERMS` fallback applies ONLY to a role whose `app_roles` row is EMPTY.
+On a project in use every role has a tuned row. So a new module's key reaches
+**nobody** until a migration puts it there: the screen ships, the menu entry
+exists in the code, the permission is ticked in `DEFAULT_PERMS`, and the page is
+invisible to all twelve roles **with no error anywhere**. `0195` is the repair.
+
+`0155` shows the second-order version: it gave `zoho_migration` the report
+sub-pages one by one (`consumption`, `kpi`, `unused`). A list written out in
+full is a list that goes stale, and the two reports added on 2026-09-14 are not
+in it.
+
+### ⚠️ A comment claiming a check exists is worse than no comment
+
+`rbac.ts` said *"check:ui compares the two on every run"*. **Nothing read
+`PERM_TREE` at all.** That sentence is why nobody looked, and it is why a screen
+could move groups and leave its permission entry behind for two days. The check
+exists now and enforces coverage both ways, the header each page sits under, the
+order of headers and of pages, the label, and whether a migration ever grants
+the key.
+
+Two things that came out of testing it rather than writing it:
+
+- **A false NO.** The first version looked only for `'mod:/x'` and reported
+  `mod:/call-review` ungranted; `0163` grants it inside a jsonb literal with
+  double quotes. Fixed before shipping — a row that answers NO when nothing is
+  missing is worse than no row, because somebody acts on it.
+- **A dead assertion, removed.** "Every module is held by some role in
+  `DEFAULT_PERMS`" could not fail: `DEFAULT_PERMS` is DERIVED from `MODULES`, so
+  every module is in the admin's list by construction. Deleted rather than left
+  green — a tick that can never go red is what let this area drift.
+
+Every live assertion was mutation-tested, including the guard that stops the
+menu-parsing regex from silently matching nothing and making the rest vacuous.
+
+### To run on the live project
+
+[`rbac.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/rbac.sql)
+— `_status.sql` row 149 answers NO until it is in, and until then those three
+screens stay invisible.
+
 ## 2026-09-14 — Product Database and Product Master: the names swap
 
 Asked: *"Rename Product Master to Product Database -- Deep dive and Rename all

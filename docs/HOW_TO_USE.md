@@ -334,6 +334,11 @@ typed into a form that reads it.
   > **If a role sees nothing** it is almost always a missing *action*, not a
   > missing page: a role with some permissions but not "View calls" sees an empty
   > register with everything apparently granted.
+  > **If a MENU ENTRY is missing entirely** — the screen exists, other people
+  > describe it, and it is simply not on your menu — that is the page
+  > permission, and it is the one thing that shows no error at all. Tick the
+  > page here for the role. The headings and their order match the menu exactly,
+  > so look for it under the group it sits in on the left.
 - **Audit Log** `/audit` — what was recorded while audit mode was on. Turning it on
   or off needs a reason, and that history outlives the log.
 - **Admin Config** `/admin-config` — the settings the rules read: the

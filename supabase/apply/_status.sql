@@ -920,7 +920,14 @@ with checks(sort_order, bundle, provides, present) as (
          or exists (select 1 from information_schema.columns
                      where table_schema='public' and table_name='products'
                        and column_name in ('item_code','pm_visits','warranty_status_keyed')
-                    group by table_name having count(*) = 3)))
+                    group by table_name having count(*) = 3))),
+    (149, 'Machine History and the two new Reports can be SEEN', 'mod:/machine-history, mod:/exports/calls and mod:/exports/feedback merged into every configured role (0195). The user: "Update the Roles & Permissions - Always when a New UI is introduced or when a UI is re-arranged -- This is often missed." Three screens shipped whose module key NO MIGRATION EVER GRANTED. A code default is not enough and that is the whole point of this row: permsForRole() returns the STORED set whenever it is non-empty, so DEFAULT_PERMS applies only to a role whose app_roles row is EMPTY -- and on a project in use every role has a tuned row. The screen ships, the menu entry exists, the permission is ticked in the code, and the page is invisible to all twelve roles with no error anywhere. Machine History is the severe one: it has no parent key, so nothing stood in for it. The two reports were partly covered by parentAction() making mod:/exports stand in for every mod:/exports/* -- but 0155 gave zoho_migration the report sub-pages ONE BY ONE, and a list written out in full goes stale. MERGED, never overwritten, and a role with ZERO permissions is left alone so its code fallback stays live. Tested on the machine-history key, which is the one with no parent to mask a failure. NO means those three screens are still invisible to everyone. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or not exists (select 1 from public.app_roles
+                         where jsonb_array_length(permissions) > 0)
+         or not exists (select 1 from public.app_roles
+                         where jsonb_array_length(permissions) > 0
+                           and not (permissions ? 'mod:/machine-history'))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is
