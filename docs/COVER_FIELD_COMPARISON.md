@@ -16,6 +16,8 @@ the sheet-side columns; for those the PDF says only *"spreadsheet formula …
 emits values including …"*. `Appsheet - Forms.xlsx — Formula Reference` prints
 those, and §3.4a of that document now records the ones that matter here.
 
+Shareable copy: <https://claude.ai/code/artifact/09231279-fa36-41b1-ab7e-c24af8d3b7bb>
+
 **How to read the verdict column.**
 
 | | |
