@@ -137,27 +137,45 @@ function applyPicks(rows: Row[], picked: Picked, p: Period, except?: DimKey): Ro
   return rows.filter((r) => keys.every((k) => dimValue(r, k, p) === picked[k]));
 }
 
-/** The dimensions a Pareto is worth drawing over. Not every one of them: a
- *  Pareto ranks CONTRIBUTORS to a total, so it says something about machines,
- *  causes and customers, and nothing at all about a period (which is a
- *  sequence) or a status (which is an outcome, not a contributor). */
-const PARETO_DIMS = [
-  { key: 'product_name', label: 'Machine' },
-  { key: 'live_root_cause_keyword', label: 'Root cause' },
-  { key: 'live_complaint_grouping', label: 'Grouping' },
-  { key: 'customer_name', label: 'Customer' },
+// ---------------------------------------------------------------------------
+// THE PARETO DRILLS DOWN THREE LEVELS.
+//
+// The user, 2026-09-14: "I want for the Product at a Root Cause / Complaint
+// Grouping Level as well. Not just at the Product Level -- I need 3 Levels of
+// Drill Down , Product , Complaint Grouping , Root Cause Key Word".
+//
+// A CHAIN, NOT A CHOICE. The first version of this offered a "rank by" selector
+// — four dimensions, pick one — and that answers a different question. "Which
+// machines fail most" and "which root causes are behind them" are not two
+// charts you switch between; the second is asked OF the first. So clicking a
+// bar goes DOWN a level rather than swapping the chart.
+//
+// AND THE ORDER OF THE LAST TWO IS THE READER'S (the user, 2026-09-14: "The 2nd
+// and the 3rd are interchangeable or can be skipped"). Machine first, because
+// that is the thing being analysed; after that, whether you ask "which
+// groupings, then which causes" or "which causes, then which groupings" is a
+// question about the investigation, not about the data. Either can also be
+// stepped over: with a grouping chosen you may go straight past causes, and
+// with neither chosen you may start at causes. So the chart shows the levels
+// still OPEN and lets one be chosen, rather than marching through three.
+//
+// THE LEVEL IS DERIVED FROM THE FILTERS, never held in its own state. Drilling
+// sets the same `picked` the rest of the page reads, so the Pareto cannot show
+// a level the page is not filtered to — and picking a machine on the bar chart
+// above advances this chart too, which is the same question asked from the
+// other end. Two sources of truth for "where am I" is how a drill-down starts
+// showing one thing and claiming another.
+// ---------------------------------------------------------------------------
+const PARETO_LEVELS = [
+  { key: 'product_name', label: 'Machine', of: 'machines' },
+  { key: 'live_complaint_grouping', label: 'Complaint grouping', of: 'groupings' },
+  { key: 'live_root_cause_keyword', label: 'Root cause', of: 'root causes' },
 ] as const;
-type ParetoKey = (typeof PARETO_DIMS)[number]['key'];
+type ParetoKey = (typeof PARETO_LEVELS)[number]['key'];
 
 export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const [picked, setPicked] = useState<Picked>({});
   const [period, setPeriod] = useState<Period>('month');
-  // MACHINE, not root cause, and the choice is measured rather than assumed:
-  // `product_name` is NOT NULL on every report, while the root cause comes from
-  // the Daily Call Review and is blank on anything migrated from the sheet. A
-  // Pareto whose tallest bar is "(not stated)" ranks nothing — it is a finding
-  // about the register, and it belongs on a chart somebody chose to look at.
-  const [paretoBy, setParetoBy] = useState<ParetoKey>('product_name');
 
   /** Clicking the chosen mark again clears it — the same gesture both ways, so
    *  nobody has to find a separate control to undo what a click did. */
@@ -205,11 +223,30 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
   const byGrouping = useMemo(() => tally(forDim('live_complaint_grouping'), 'live_complaint_grouping'), [allRows, picked]);
   const byCustomer = useMemo(() => tally(forDim('customer_name'), 'customer_name'), [allRows, picked]);
   const trend = useMemo(() => byPeriod(forDim('month'), period), [allRows, picked, period]);
-  // The Pareto is a cross-filtered tally like the rest, over whichever
-  // dimension is chosen — so clicking a bar on it narrows every other chart.
+
+  // WHAT IS STILL OPEN TO RANK: every level whose dimension has not been chosen.
+  // With nothing chosen that is all three; choose a machine and it is grouping
+  // and root cause, in either order or neither.
+  const paretoOpen = PARETO_LEVELS.filter((l) => !picked[l.key]);
+  // WHICH ONE IS ON SCREEN. The reader's pick if it is still open, else the
+  // first open level — so drilling advances on its own, and a step back that
+  // re-opens a level does not leave the chart pointing at a closed one.
+  const [paretoWant, setParetoWant] = useState<ParetoKey | ''>('');
+  const paretoBy: ParetoKey =
+    (paretoWant && paretoOpen.some((l) => l.key === paretoWant) ? paretoWant : paretoOpen[0]?.key)
+    ?? PARETO_LEVELS[PARETO_LEVELS.length - 1].key;
+  const paretoAt = PARETO_LEVELS.find((l) => l.key === paretoBy)!;
+  const paretoDone = PARETO_LEVELS.filter((l) => picked[l.key]);
+  // A cross-filtered tally like the rest — so it ranks groupings WITHIN the
+  // chosen machine without this file doing any filtering of its own.
   const pareto = useMemo(() => tally(forDim(paretoBy), paretoBy), [allRows, picked, period, paretoBy]);
   const paretoTotal = pareto.reduce((n, d) => n + d.value, 0);
   const paretoBlank = pareto.find((d) => d.label === BLANK)?.value ?? 0;
+  /** Drop ONE level's choice. Not "and everything under it": with the order
+   *  free there is no "under" — dropping the grouping while keeping the machine
+   *  and the cause is a coherent question, and the chart simply re-opens that
+   *  level to rank. */
+  const paretoDrop = (k: ParetoKey) => { setPicked((q) => ({ ...q, [k]: undefined })); setParetoWant(k); };
 
   if (!allRows.length) {
     return (
@@ -324,15 +361,29 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
 
       <div style={{ height: 12 }} />
 
-      <SectionCard title="Pareto — the few that account for most">
+      <SectionCard title={`Pareto — ${paretoAt.of}`}>
+        {/* WHERE YOU ARE AND WHAT IS LEFT. The chosen levels read as the path;
+            the open ones are buttons, so the next question is picked rather
+            than marched to. A drill-down with no path shown is a chart that has
+            quietly changed what it is counting. */}
         <div className="ffr-chart-bar">
-          <span className="muted">By</span>
-          {PARETO_DIMS.map((d) => (
-            <button key={d.key} type="button"
-                    className={`chip ${paretoBy === d.key ? 'chip-on' : ''}`}
-                    aria-pressed={paretoBy === d.key}
-                    onClick={() => setParetoBy(d.key)}>
-              {d.label}
+          {paretoDone.map((l) => (
+            <span key={l.key} className="ffr-crumb-step">
+              <button type="button" className="chip ffr-crumb-done"
+                      title={`Drop this and rank ${l.of} again`}
+                      onClick={() => paretoDrop(l.key)}>
+                {l.label}: {picked[l.key]} <span aria-hidden>×</span>
+              </button>
+              <span className="ffr-crumb-sep" aria-hidden>›</span>
+            </span>
+          ))}
+          {paretoOpen.length > 1 && <span className="muted">Rank</span>}
+          {paretoOpen.map((l) => (
+            <button key={l.key} type="button"
+                    className={`chip ${l.key === paretoBy ? 'chip-on' : ''}`}
+                    aria-pressed={l.key === paretoBy}
+                    onClick={() => setParetoWant(l.key)}>
+              {l.label}
             </button>
           ))}
         </div>
@@ -341,6 +392,9 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
           {paretoTotal === 1 ? '' : 's'}, and the dashes mark 80%. Everything left of where
           the line crosses accounts for four-fifths of them — that is the shortlist, not a
           verdict.
+          {paretoOpen.length > 1
+            ? <> Click a bar to fix that {paretoAt.label.toLowerCase()} and rank what is left within it.</>
+            : <> Nothing is left to drill into; clicking a bar just narrows the page to it.</>}
           {paretoBlank > 0 && (
             <> <b>{paretoBlank}</b> of them are <b>{BLANK}</b>, and that is kept in rather
             than dropped: a gap this size in the record is itself the finding.</>

@@ -1602,6 +1602,45 @@ console.log('\n-- the evidence workbook --');
   }
 
   // -------------------------------------------------------------------------
+  // THE DATE ON A FEEDBACK IS THE FEEDBACK'S, NOT THE ROW'S.
+  //
+  // Reported 2026-09-14: "the Date is taken as 14Sep2026 for all Uploads ... It
+  // creates a Complaint issue." The column read `created_at` — when the ROW was
+  // written — so every feedback in a 24,749-row export read as the afternoon it
+  // was loaded.
+  // -------------------------------------------------------------------------
+  {
+    const fb = readFileSync(`${process.cwd()}/src/modules/CustomerFeedback.tsx`, 'utf8');
+    eq('the Date column is the feedback\'s own date',
+      /\{ key: 'entry_at', header: 'Date' \}/.test(fb), true);
+    // `created_at` is NOT hidden — it is a real and separate fact, and hiding
+    // it would make the correction unverifiable.
+    eq('...and when it was loaded is still shown, under that name',
+      /\{ key: 'created_at', header: 'Loaded on' \}/.test(fb), true);
+    eq('...and the upload date is no longer called "Date"',
+      /\{ key: 'created_at', header: 'Date' \}/.test(code(fb)), false);
+    eq('every date column is rendered as a date',
+      /const DATE_COLS = new Set\(\['entry_at', 'visit_at', 'created_at'\]\)/.test(fb), true);
+    // "Can I segregate the Uploaded ones and the Ones that were entered in the
+    // new CRM?" — empty `imported_from` means nobody loaded it.
+    eq('uploaded and entered-here can be told apart',
+      /const originOf = \(r: Record<string, unknown>\) =>/.test(fb)
+      && /String\(r\.imported_from \?\? ''\)\.trim\(\) \? 'Uploaded' : 'Entered here'/.test(fb), true);
+    eq('...and filtered on', /setOrigin\(\(c\) => \(c === o \? '' : o\)\)/.test(fb), true);
+    // The chip counts are over the SCOPED rows, so the two always add up to the
+    // register and neither reads zero because the other one is on.
+    eq('...with counts that add up to the register',
+      /scoped\.filter\(\(r\) => originOf\(r\) === o\)\.length/.test(fb), true);
+    // The importer has to fill the column, or 0190 backfills history and every
+    // NEW upload starts the problem again.
+    const up = readFileSync(`${process.cwd()}/src/lib/uploads.ts`, 'utf8');
+    eq('the importer maps the export\'s own date',
+      /TS\('entry_at', 'visit entry date'/.test(up), true);
+    eq('...and stamps where the row came from',
+      /stamp: \{ imported_from: 'v2Feedback export' \}/.test(up), true);
+  }
+
+  // -------------------------------------------------------------------------
   // THE FIELD FAILURE REGISTER'S YEAR FILTER (user's ask, 2026-09-14).
   // -------------------------------------------------------------------------
   {
@@ -4938,20 +4977,39 @@ console.log('\n-- the Insights tab can be interrogated --');
   // THE PARETO.
   // -------------------------------------------------------------------------
   eq('there is a Pareto', /<ParetoChart data=\{pareto/.test(ins), true);
-  // Every dimension it can be drawn over must be a REAL dimension, or clicking
-  // a bar filters by a key the chip bar cannot name and cannot clear.
-  const paretoBlock = ins.split('const PARETO_DIMS = [')[1]?.split('] as const;')[0] ?? '';
+  // THREE LEVELS, and every one of them a REAL dimension — or clicking a bar
+  // filters by a key the chip bar cannot name and cannot clear.
+  const paretoBlock = ins.split('const PARETO_LEVELS = [')[1]?.split('] as const;')[0] ?? '';
   const pDims = [...paretoBlock.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
-  eq('the Pareto offers something to rank', pDims.length > 0, true);
+  eq('the Pareto drills three levels', pDims.length, 3);
+  eq('...machine, grouping, root cause', pDims,
+    ['product_name', 'live_complaint_grouping', 'live_root_cause_keyword']);
   for (const d of pDims) eq(`Pareto by ${d} is a declared dimension`, dims.includes(d), true);
   // NOT over a period or a status: a Pareto ranks CONTRIBUTORS to a total, and
   // a period is a sequence while a status is an outcome.
   eq('...and not over a period', pDims.includes('month'), false);
-  // It defaults to the one dimension that is never blank. The root cause comes
-  // from the Daily Call Review and is empty on anything migrated, so a Pareto
-  // opening on it would rank "(not stated)" first and say nothing.
-  eq('it opens on the dimension that is always filled',
-    /useState<ParetoKey>\('product_name'\)/.test(ins), true);
+
+  // THE LEVEL IS DERIVED FROM THE FILTERS, never held separately. Two sources
+  // of truth for "where am I" is how a drill-down shows one thing and claims
+  // another — and it is also what lets picking a machine on the bar chart ABOVE
+  // advance this chart, which is the same question asked from the other end.
+  eq('the level follows the filters',
+    /const paretoOpen = PARETO_LEVELS\.filter\(\(l\) => !picked\[l\.key\]\)/.test(ins), true);
+  // "The 2nd and the 3rd are interchangeable or can be skipped": the open
+  // levels are OFFERED, so the reader picks the next question rather than being
+  // marched through a fixed order.
+  eq('...and the remaining levels can be taken in any order',
+    /paretoOpen\.map\(\(l\) => \(/.test(ins)
+    && /onClick=\{\(\) => setParetoWant\(l\.key\)\}/.test(ins), true);
+  // Dropping ONE level must not drop the others: with the order free there is
+  // no "under", and keeping the machine while re-asking the grouping is a
+  // coherent question.
+  eq('...and dropping one level keeps the rest',
+    /const paretoDrop = \(k: ParetoKey\) => \{ setPicked\(\(q\) => \(\{ \.\.\.q, \[k\]: undefined \}\)\)/.test(ins), true);
+  // A chosen level that is re-opened must not leave the chart pointing at a
+  // closed one.
+  eq('...and the chart never ranks a level that is already chosen',
+    /paretoWant && paretoOpen\.some\(\(l\) => l\.key === paretoWant\) \? paretoWant : paretoOpen\[0\]\?\.key/.test(ins), true);
   // Blanks are KEPT and CALLED OUT, matching the page's existing rule that a
   // chart which quietly adds up to less than the total is worse than one that
   // admits the gap.

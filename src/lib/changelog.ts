@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.250',
+    date: '2026-09-14',
+    title: 'Customer Feedback carries its own date',
+    changes: [
+      'Every uploaded feedback was showing 14-Sep-2026 \u2014 the day it was loaded \u2014 instead of its real date. The Date column was reading when the ROW was written, not when the feedback was taken. On a complaint record that date is part of the record.',
+      'Nothing was lost and you do not need to load the file again. The upload had been keeping every column it did not recognise, so the export\u2019s own \u201cVisit Entry Date\u201d was on all 24,748 rows all along \u2014 the database script reads it back out.',
+      'The register now shows the feedback\u2019s Date and the Visit Date, and keeps \u201cLoaded on\u201d as its own column so you can still see when a row arrived.',
+      'Uploaded and Entered here are told apart, with a chip for each. New feedback taken in this system is marked as such automatically.',
+      'On FFR Insights the Pareto drills down: Machine, then Complaint grouping and Root cause in whichever order you want, or straight past either. The path shows what you have fixed and what is left to rank.',
+    ],
+  },
+  {
     version: '0.9.249',
     date: '2026-09-14',
     title: 'A Pareto and a trend line on FFR Insights',

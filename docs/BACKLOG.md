@@ -13,6 +13,73 @@ up)_
 
 ---
 
+## 2026-09-14 — The feedback date, and a Pareto that drills
+
+### Every uploaded feedback read as the day it was uploaded
+
+Reported from use: *"I think the Date is taken as 14Sep2026 for all Uploads, I
+wanted the Actual Dates as per the CSV not the Upload date — It creates a
+Complaint issue."*
+
+Right, and worse than a display fault. The register's Date column read
+`created_at` — when the ROW was written — so 24,749 feedbacks collected over two
+years all read as one afternoon. **On a complaint record the date a customer
+complained is part of the record.**
+
+**The values were never lost**, which is what made this fixable without asking
+for the file again. The importer is `extraInto: 'answers'`, which keeps every
+unmapped column under its ORIGINAL SPREADSHEET HEADING. Measured against the
+user's own `v2Feedback - Merge.csv` (24,749 rows):
+
+| heading | filled | example |
+| --- | --- | --- |
+| `Visit Entry Date` | 24,748 | `02-Jan-2025 11:18:59` |
+| `Visit Date & Time` | 24,748 | `01 January 2025` |
+
+`0190_feedback_dates_and_origin.sql` adds `entry_at` and backfills it out of
+`answers`. **Proved against the real file, not a fixture**: 400 rows loaded in
+the shape the importer leaves them, all reading `2026-09-14` before and **48
+distinct dates from Jan-2025 to Jul-2026** after.
+
+`entry_at` **defaults to `now()`**, so the column means "when this feedback was
+taken" on every row — a column correct only for imported rows would move the
+problem. The parse is **guarded on the shape**, because
+`to_timestamp('rubbish','DD-Mon-YYYY')` RAISES rather than returning null: one
+bad cell would otherwise fail all 24,749.
+
+`imported_from` answers the other half of the same question — *"Can I segregate
+the Uploaded ones and the Ones that were entered in the new CRM?"* — in the shape
+the Field Failure Register already uses (0179).
+
+### And the answer to the DCCR question
+
+*"For DCCR — Can I add Old Data? Like FFR?"* — **yes, already.** `DCCR Register`
+is an existing Bulk Upload, keyed on `ucn`, requiring Field Calls first. Review
+Status, Any Potential Effect, Action Taken and the "Review N Completed" flags are
+DERIVED and ignored from the file; everything else belonging to the call and its
+visits is ignored too, because it belongs to the call.
+
+### The Pareto drills, in the reader's order
+
+*"I need 3 Levels of Drill Down, Product, Complaint Grouping, Root Cause Key
+Word"* and then *"The 2nd and the 3rd are interchangeable or can be skipped"*.
+
+A chain, not a "rank by" selector — "which machines fail most" and "which root
+causes are behind them" are not two charts you switch between; the second is
+asked OF the first. But after the machine, the order is the investigation's, so
+the chart OFFERS the levels still open rather than marching through three.
+
+**The level is derived from the filters**, never held separately: drilling sets
+the same `picked` the rest of the page reads, so picking a machine on the bar
+chart above advances this chart too. Two sources of truth for "where am I" is how
+a drill-down shows one thing and claims another.
+
+### To run on the live project
+
+[`data_integrity.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/data_integrity.sql)
+— `_status.sql` row 145 answers NO until it is in. It backfills; nothing needs
+re-uploading.
+
 ## 2026-09-14 — Two pages on open, and a refusal that reads as one
 
 "paging - Keep it at 1000 then" … "But perform that action once more

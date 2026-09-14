@@ -555,3 +555,7 @@
    chart is drawn and not what the page is counting. */
 .ffr-chart-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .ffr-chart-bar > .muted { font-size: 12px; margin-right: 2px; }
+.ffr-crumb-step { display: inline-flex; align-items: center; gap: 6px; }
+.ffr-crumb-sep { color: var(--text-muted); font-size: 13px; }
+.ffr-chart-bar .chip[disabled] { opacity: .45; cursor: not-allowed; }
+.ffr-crumb-done { background: var(--surface-alt); }
