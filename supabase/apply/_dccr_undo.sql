@@ -178,6 +178,67 @@ order by sort, at nulls first, ucn;
 
 
 -- ===========================================================================
+-- KEEP ONLY 2026 — "Delete all UCN which is not starting with 26 in DCCR".
+--
+-- Asked, 2026-09-14, as a ONE-OFF after the wrong file went in.
+--
+-- The UCN is `<YY><MonthLetter><DD><TypeLetter><Seq4>` (0001), so the first two
+-- characters ARE the year: `26%` is 2026 and everything else is older. `ucn` is
+-- the primary key and NOT NULL, so there is no blank case to reason about.
+--
+-- THIS IS WIDER THAN "UNDO THE UPLOAD", and that is the one thing worth knowing
+-- before running it. It removes every pre-2026 review, including any that were
+-- there before the file and have nothing to do with it — the 23 overwritten
+-- ones among them. Section A says how many of each, so the number is seen
+-- rather than discovered.
+--
+-- Run section A. Then, if it says what you expect, run section B.
+-- ===========================================================================
+
+-- ---- A. WHAT WOULD GO, by year and by where it came from -------------------
+-- Run this on its own first.
+-- select
+--   left(r.ucn, 2)                                     as "year",
+--   count(*)                                           as "reviews",
+--   count(*) filter (where r.created_at >= timestamptz '2026-09-14 00:00:00+05:30')
+--                                                      as "created by the upload",
+--   count(*) filter (where r.created_at <  timestamptz '2026-09-14 00:00:00+05:30')
+--                                                      as "existed before it",
+--   count(*) filter (where a.n > 0)                    as "ever saved by a person",
+--   count(*) filter (where f.n > 0)                    as "has a Field Failure Report"
+--   from public.call_reviews r
+--   left join lateral (
+--     select count(*) as n from public.audit_log l
+--      where l.target = r.ucn
+--        and l.action in ('dccr.review', 'dccr.review.autosave', 'dccr.review.bulk')
+--   ) a on true
+--   left join lateral (
+--     select count(*) as n from public.field_failure_reports x where x.ucn = r.ucn
+--   ) f on true
+--  where r.ucn not like '26%'
+--  group by 1
+--  order by 1;
+
+-- ---- B. THE DELETE ---------------------------------------------------------
+-- A REVIEW IS DELETED; ITS FIELD FAILURE REPORT IS NOT. Nothing cascades from
+-- call_reviews, so an FFR raised from a review being removed here stays on the
+-- register with its UCN intact — which is right (a quality record is cancelled,
+-- never deleted) but means the two registers will disagree about whether a
+-- review exists. Section A's last column says how many that is.
+--
+-- Rolls back as written. Change the last line to `commit;` when the counts in
+-- section A are the ones you mean.
+-- begin;
+--
+-- delete from public.call_reviews where ucn not like '26%';
+--
+-- select count(*) as "reviews left", count(*) filter (where ucn not like '26%') as "pre-2026 left"
+--   from public.call_reviews;
+--
+-- rollback;   -- <<< change to `commit;` to keep it
+
+
+-- ===========================================================================
 -- THE DELETE. Commented out on purpose. Read the report above first.
 --
 -- ONLY THE ROWS THE UPLOAD CREATED. The `created_at` test is what keeps this
