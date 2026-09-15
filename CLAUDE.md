@@ -139,6 +139,24 @@ on testing the old shape. **When a migration replaces a definition, move the
   `https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/<path>` to
   copy it. Same for a snippet pasted into chat — say which file it came from
   and link that file.
+- **`docs/REQUIREMENTS.md` is GENERATED — never hand-edit it.** ONE document,
+  grouped by module: every user requirement, the system requirements
+  implementing it, and the tests proving those. `npm run docs:reqs` assembles it
+  from where each is MAINTAINED — `src/lib/validation.ts` (URS/FRS/tests),
+  `docs/CALL_REQUEST_REQUIREMENTS.md` (CR) and `docs/ISO13485_SERVICING.md`
+  (SR) — because a hand-kept fifth copy is the one that goes stale while reading
+  as authoritative. **The module is DERIVED from the requirement's own words**
+  (its route, or every distinctive word of its label), so the grouping is
+  evidence rather than opinion and moves when the text does; a requirement
+  naming several modules appears under each, and one naming none is listed apart
+  rather than forced somewhere. That match is strict because it decides where a
+  requirement is FILED — **do not invert it to claim a screen is uncovered**: it
+  was, for one run, and reported 31 of 54 screens as unnamed including the Field
+  Call Register, which URS-003 plainly governs without using the word "field".
+  `REQUIREMENT_COVERAGE.md` answers that question against the whole package.
+  Re-run it after changing any requirement. It caught the first stale count it
+  was pointed at: CLAUDE.md said the servicing reference had 37 requirements
+  and it defines 44.
 - **`docs/DATABASE_SCHEMA.md` is GENERATED — never hand-edit it.** 61 tables,
   24 views, 1,400+ columns, 117 policies. `npm run schema:doc -- "<psql args>"`
   introspects a database built from the migrations and writes the whole thing:
@@ -183,7 +201,7 @@ on testing the old shape. **When a migration replaces a definition, move the
   guess the expiry band and 0187 could stop guessing).
   Shareable copy: <https://claude.ai/code/artifact/09231279-fa36-41b1-ab7e-c24af8d3b7bb>
 - **`docs/ISO13485_SERVICING.md`** is the standing reference for what the
-  SERVICING PROCESS must do — 37 requirements (SR-001…SR-037) from ISO 13485
+  SERVICING PROCESS must do — 44 requirements (SR-001…SR-044) from ISO 13485
   §7.5.4 and the clauses it reaches into, each assessed against this system.
   **Read it before building anything in the servicing path**, and update the
   requirement's status line in the same change that closes it. Two things it is
