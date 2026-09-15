@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.266',
+    date: '2026-09-15',
+    title: 'Frequent failure: a second rule, for the same fault across different machines',
+    changes: [
+      'RULE 2: the same complaint on DIFFERENT serial numbers of one product within 30 days. That is the fault rule 1 could never see — each of those calls is a first failure on its own machine, so nothing looked repeated even when a whole batch was failing the same way.',
+      'It counts SERIALS, not calls. Five visits to one machine are rule 1’s finding and do not read as a fleet problem; two different machines with the same complaint do.',
+      'A call meeting EITHER rule is a frequent failure, and the review screen now says WHICH one — because the action is completely different: one machine to sort out, or a batch to investigate.',
+      'Both rules are yours to tune in Admin Config. Rule 2 has its own window in DAYS (30 to start) and its own threshold in serials (2), and can be switched off entirely.',
+      'Answers already recorded are untouched, as before — they are quality records, and the new rule applies to what is reviewed from here on.',
+    ],
+  },
+  {
     version: '0.9.265',
     date: '2026-09-15',
     title: 'Part Master: Spare / Consumable is a list, and a part can name several products',

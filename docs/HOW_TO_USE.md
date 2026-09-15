@@ -121,6 +121,13 @@ against the call it was fitted to.
 ## Quality
 
 - **Daily Call Review** `/daily-review` — Review 1 is the vigilance answer taken
+  > **Frequent failure has two rules.** **Rule 1** — this machine failing again
+  > (same product and serial) within the window. **Rule 2** — the same complaint
+  > on **different serial numbers** of one product within 30 days, which is a
+  > batch or component problem rather than one unit. It counts serials, not
+  > calls, so several visits to one machine stay rule 1's finding. Either rule
+  > makes it a frequent failure, and the screen says which. Both are tuned in
+  > Admin Config.
   > **Change product?** (Review 2). Where what actually failed is an **accessory**
   > logged against the machine it is fitted to — a CPX CARE failure raised on an
   > EXTEND-XT — name the real product here. The failure is then counted against

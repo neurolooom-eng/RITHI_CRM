@@ -19,6 +19,61 @@ up)_
 
 
 
+
+## 2026-09-15 — Frequent failure gains a second rule
+
+Asked: *"For frequent failure - Add more rule. Rule 2, Same Complaint across
+same product, but multiple serial nos in the last 30 days."*
+
+### The two rules answer different questions
+
+| | |
+| --- | --- |
+| **Rule 1** | one **machine** repeating — same product AND serial, on the same complaint or the same part refitted |
+| **Rule 2** | one **model** failing the same way on **different units** |
+
+Rule 2 is the fault rule 1 can never see: each of those calls is a *first*
+failure on its own machine, so nothing looks repeated even while a whole batch
+fails identically.
+
+**It counts DISTINCT SERIALS, not calls.** That is the load-bearing choice —
+five visits to one machine are rule 1's finding and must not read as a batch
+problem. The same complaint five times on one serial does **not** fire rule 2;
+on two serials it does.
+
+**Thirty days, in days.** Rule 1's window is in months because the procedure
+says a month; the ask here was thirty days, and those are different lengths in
+February. Held as its own setting so changing one cannot move the other.
+
+`is_frequent` is now **either** rule — a rule that did not change the verdict
+would be a report — and the verdict says which fired, because the action differs
+completely: a unit to sort out, or a batch to investigate.
+
+### ⚠️ A regression caught by comparing, not by reading
+
+`0198` replaces `frequent_failure_rule()` whole. The first draft rewrote
+`equipment_needs_complaint`'s truthiness test as `in ('true','t','yes','1')`
+while **the stored value is `on`** — so the key silently read FALSE, the
+equipment path stopped requiring a matching complaint, and **rule 1 would have
+flagged more calls than it does today**. A rule nobody asked to change, changed
+by rewriting a line that was only being carried past.
+
+Found by running the function before and after and comparing the output, not by
+reading the SQL. The test now asserts it, and `check:ui` refuses the rewrite.
+
+### Also worth recording
+
+The suite failed twice on a database I had hand-seeded earlier — ORION-G 2410
+already had a call, so rule 1 fired where the test expected it not to. **That is
+why `npm run validate` gives every suite its own copy**, and it is the same
+lesson the harness was built on.
+
+### To run on the live project
+
+[`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
+— `_status.sql` row 152 answers NO until it is in, and the screen answers on
+rule 1 alone.
+
 ## 2026-09-15 — DCCR Review 2: "Change product?"
 
 Asked: *"Accessory Issues are also Logged in the Main Product - Like CPX Care
