@@ -1810,11 +1810,13 @@ export async function adjustConsumptionQty(
 
 // Every spare actually issued, one row each, with how long Stores took from the
 // last approval. Backed by the spare_stock_out_lines view.
-export async function listStockOutLines(limit = 5000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_stock_out_lines')
-    .select('*').order('dispatched_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return data ?? [];
+export async function listStockOutLines(cap = 5000): Promise<Record<string, unknown>[]> {
+  // PAGED. `.limit(5000)` was not a bigger request: PostgREST caps a response
+  // at 1,000 however large the number says, silently, so this returned the
+  // first thousand dispatched lines and nothing said otherwise.
+  return allRows<Record<string, unknown>>((from, to) => must().from('spare_stock_out_lines')
+    .select('*').order('dispatched_at', { ascending: false }).order('id', { ascending: false })
+    .range(from, to), cap);
 }
 
 // ---- pending registrations -------------------------------------------------
@@ -1874,10 +1876,13 @@ const dirRow = (r: Record<string, unknown>): DirectoryRow => ({
   phone: String(r.phone ?? ''),
 });
 
-export async function listDirectory(limit = 5000): Promise<DirectoryRow[]> {
-  const { data, error } = await must().from('user_directory').select('*').order('name').limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map(dirRow);
+export async function listDirectory(cap = 5000): Promise<DirectoryRow[]> {
+  // PAGED (see listStockOutLines). The User Master is the list every "Call
+  // Allocated To" box is built from, so a silent cut at a thousand would drop
+  // engineers off the end of the alphabet and out of every picker at once.
+  const rows = await allRows<Record<string, unknown>>((from, to) =>
+    must().from('user_directory').select('*').order('name').order('id').range(from, to), cap);
+  return rows.map(dirRow);
 }
 
 // Add a person, or save an edit. `id` null adds.
@@ -2354,10 +2359,13 @@ export async function listMasterLists(): Promise<MasterList[]> {
 }
 
 // Every row of one list, as the list's own table.
-export async function listMasterItems(key: string, limit = 5000): Promise<MasterItem[]> {
+export async function listMasterItems(key: string, cap = 5000): Promise<MasterItem[]> {
   const names = key === 'complaint' ? ['complaint', 'standardComplaint'] : [key];
-  const { data, error } = await must().from('masters').select('*').in('name', names).order('value').limit(limit);
-  if (error) throw new Error(errMsg(error));
+  // PAGED (see listStockOutLines). A value list longer than a thousand — the
+  // complaint list is the one that grows — lost its tail, and a picker fed from
+  // it then refuses a value that IS on the master.
+  const data = await allRows<Record<string, unknown>>((from, to) => must().from('masters')
+    .select('*').in('name', names).order('value').order('id').range(from, to), cap);
   return (data ?? []).map((r) => ({
     id: Number(r.id), name: String(r.name), value: String(r.value ?? ''),
     extra: (r.extra ?? {}) as Record<string, string>,
@@ -2605,11 +2613,13 @@ export async function listEngineerStock(engineer: string): Promise<StockRow[]> {
 }
 
 // Every engineer's holding, for the stock-on-hand view.
-export async function listAllStock(limit = 5000): Promise<StockRow[]> {
-  const { data, error } = await must().from('engineer_stock')
-    .select('*').gt('qty', 0).order('engineer').limit(limit);
-  if (error) throw new Error(errMsg(error));
-  return (data ?? []).map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
+export async function listAllStock(cap = 5000): Promise<StockRow[]> {
+  // PAGED (see listStockOutLines). Hand stock across every engineer is well
+  // over a thousand lines, so this was reporting a part of the field's holding
+  // as all of it.
+  const data = await allRows<Record<string, unknown>>((from, to) => must().from('engineer_stock')
+    .select('*').gt('qty', 0).order('engineer').order('part').range(from, to), cap);
+  return data.map((r) => ({ engineer: String(r.engineer), part: String(r.part), qty: Number(r.qty) }));
 }
 
 export async function addStockTransfer(
@@ -2638,12 +2648,13 @@ export async function addStockTransfer(
 // been booked out yet, with the engineer it is going to. The view is
 // security_invoker, so this returns exactly the lines the caller may already
 // see in the register (0027_spare_dispatch.sql).
-export async function listPendingDispatch(limit = 2000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_pending_dispatch').select('*')
+export async function listPendingDispatch(cap = 2000): Promise<Record<string, unknown>[]> {
+  // PAGED. `.range(0, 1999)` is not a bigger request either — the cap is on the
+  // RESPONSE, not on the span asked for — so the dispatch queue stopped at a
+  // thousand lines with no Load more and nothing to say work was hidden.
+  return allRows<Record<string, unknown>>((from, to) => must().from('spare_pending_dispatch').select('*')
     .order('engineer', { ascending: true }).order('or_no', { ascending: true })
-    .order('row_no', { ascending: true }).range(0, limit - 1);
-  if (error) throw new Error(errMsg(error));
-  return data ?? [];
+    .order('row_no', { ascending: true }).range(from, to), cap);
 }
 
 // Book a batch out. One round trip: the database generates the stock-out and
@@ -2692,12 +2703,11 @@ export async function decideSpareLines(
 // may give it. `may_approve` is on the row rather than filtered out, so a spare
 // somebody cannot approve is shown greyed rather than missing: "why is my spare
 // not in the queue" then has an answer on the screen.
-export async function listPendingRmApproval(limit = 2000): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('spare_pending_rm').select('*')
+export async function listPendingRmApproval(cap = 2000): Promise<Record<string, unknown>[]> {
+  // PAGED (see listPendingDispatch). Same shape, same queue-hiding fault.
+  return allRows<Record<string, unknown>>((from, to) => must().from('spare_pending_rm').select('*')
     .order('engineer', { ascending: true }).order('or_no', { ascending: true })
-    .order('row_no', { ascending: true }).range(0, limit - 1);
-  if (error) throw new Error(errMsg(error));
-  return data ?? [];
+    .order('row_no', { ascending: true }).range(from, to), cap);
 }
 
 // ---------------------------------------------------------------------------

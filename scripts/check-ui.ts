@@ -5675,6 +5675,38 @@ console.log('\n-- a request for more than a thousand rows is PAGED, or it is a l
   const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
   const over = [...sb.matchAll(/\.limit\((\d+)\)/g)].map((m) => Number(m[1])).filter((n) => n > 1000);
   eq('no request asks for more rows than a single response can carry', over, []);
+
+  // A LITERAL WAS NOT WHERE IT WAS HIDING. The check above reads `.limit(5000)`
+  // and finds nothing, because the number is a PARAMETER: `listAllStock(limit =
+  // 5000)` then writes `.limit(limit)`, and `listPendingDispatch(limit = 2000)`
+  // writes `.range(0, limit - 1)` — which is not a bigger request either, since
+  // the cap is on the RESPONSE and not on the span asked for.
+  //
+  // SIX FUNCTIONS SAT IN THAT HOLE, found while building a page that counts
+  // from them: the dispatch queue and the RM approval queue (both stopping at a
+  // thousand lines with no Load more), every dispatched stock-out line, all
+  // hand stock across the field, the whole User Master — which is the list every
+  // "Call Allocated To" box is built from — and any master value list past a
+  // thousand entries, whose picker then refuses a value that IS on the master.
+  //
+  // So the rule is about the DEFAULT, not the call: a function in this file
+  // whose row budget starts above a single response must PAGE. The parameter is
+  // named `cap` on the ones that do, which is what `allRows` calls it.
+  const budgets = [...sb.matchAll(/export async function (\w+)\(([^)]*)\)[\s\S]{0,700}?\n\}/g)]
+    .filter((m) => /\b(limit|cap)\s*=\s*(\d{4,})/.test(m[2]))
+    .filter((m) => Number(/\b(?:limit|cap)\s*=\s*(\d{4,})/.exec(m[2])?.[1] ?? 0) > 1000)
+    .filter((m) => !/allRows/.test(m[0]))
+    // A hand-rolled 1,000-row loop is paging too — several predate `allRows`.
+    .filter((m) => !/PAGE\s*=\s*1000|for \(let from = 0/.test(m[0]))
+    // A FUNCTION THAT MAKES NO REQUEST CANNOT TRUNCATE ONE. `listMasterValues-
+    // ForProduct` passes its budget to `listMasterItems` and filters what comes
+    // back; it has no `.from()` of its own, so the cap applies where the query
+    // is, and that function is checked on its own terms. Without this the guard
+    // named it — a FALSE FINDING on a function that was already correct, which
+    // is the one outcome worse than not checking at all.
+    .filter((m) => /\.from\(/.test(m[0]))
+    .map((m) => m[1]);
+  eq('a function whose row budget exceeds one response pages for it', budgets, []);
   // THE HELPER LIVES IN ITS OWN MODULE so it can be imported and RUN — this
   // file reads `import.meta.env` at load and no node script can import it.
   // `npm run check:paging` tests the pager's behaviour against a fake server

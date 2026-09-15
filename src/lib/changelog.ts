@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.274',
+    date: '2026-09-15',
+    title: 'Six lists were stopping at a thousand rows without saying so',
+    changes: [
+      'PENDING DISPATCH and RM APPROVAL were showing at most 1,000 lines with no “Load more” and nothing to say work was hidden. On a busy queue that is work nobody can see.',
+      'The same fault in four more places: every dispatched stock-out line, all hand stock across the field, THE WHOLE USER MASTER — which is the list every “Call Allocated To” box is built from — and any value list past a thousand entries, whose picker would then refuse a value that IS on the master.',
+      'All six now read every row, a thousand at a time.',
+      'Found while building the Workload page, because it counts from those same lists — a count over a truncated list would have been wrong on a screen made of counts.',
+    ],
+  },
+  {
     version: '0.9.273',
     date: '2026-09-15',
     title: 'The Validation Package carries the requirements, grouped by module',
