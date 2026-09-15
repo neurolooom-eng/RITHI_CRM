@@ -298,6 +298,12 @@ const MODULES = {
             // Redefines ffr_stamp(), which 0165 creates in THIS module and 0168
             // last redefined — so it belongs here and after both.
             '0179_ffr_import.sql',
+            // Review 2 may correct which product failed, and the register's
+            // view is rebuilt to expose the effective one. In `daily_review`
+            // with the rest of the review, and AFTER 0179 which last defined
+            // that view — a module replaying an older definition would drop
+            // the column and every count would go back to the call's product.
+            '0197_review_actual_product.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
             '0181_ffr_one_row_per_machine.sql'],

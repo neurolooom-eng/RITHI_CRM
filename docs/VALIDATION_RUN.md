@@ -4,16 +4,16 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-15T03:52:38.779Z
-- **Took** 66s
-- **Commit** `67f60cf` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.262
+- **Run at** 2026-09-15T04:12:14.542Z
+- **Took** 73s
+- **Commit** `c2596e8` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.263
 
 ## Result
 
 | | Passed | Total |
 | --- | --- | --- |
-| Database suites | 77 | 77 |
+| Database suites | 78 | 78 |
 | Automated checks | 13 | 13 |
 | Labelled `expect ERROR` outcomes matched | 155 | 155 |
 
@@ -29,7 +29,7 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `219 migrations applied to a fresh database` | ✅ pass |  |
+| `220 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
@@ -43,7 +43,7 @@ stopped working produces a suite that runs clean.
 | `check:picklist` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (22) replays with no change to the schema |
 | `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 184 functions |
-| `check:status` | ✅ pass | every one of the 159 _status.sql rows reads yes on a fully-applied database (1 skipped) |
+| `check:status` | ✅ pass | every one of the 160 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
 | `check:upserts` | ✅ pass | every upsert target is inferable, and its table accepts the update |
@@ -51,7 +51,7 @@ stopped working produces a suite that runs clean.
 
 ## Database suites
 
-### ✅ 77 suite(s) clean
+### ✅ 78 suite(s) clean
 
-`additional_entry_machine_key` · `admin_reset_password` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel` · `call_creator` · `call_edit_sections` · `call_registrant` · `call_reopen` · `call_requests` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_report` · `cover_expiry` · `daily_call_review` · `documents` · `engineer_address` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure` · `handstock_opening` · `handstock` · `indoor_service` · `kpi_field_inst` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `product_serial_key` · `quality_objectives` · `reliability_wrr` · `rename_part` · `retention` · `role_table_views` · `sales_contracts` · `spare_approval_forms` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_import_exemption` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `technical_support` · `tracker` · `ucn_daily_reset` · `unused_spare_report` · `user_directory_role` · `user_signatures` · `visible_engineers` · `visit_date` · `zoho_migration_role` · `zoho_readonly`
+`additional_entry_machine_key` · `admin_reset_password` · `app_user_names` · `audit_mode` · `auto_review2` · `bulk_review2` · `call_allot_permission` · `call_cancel` · `call_creator` · `call_edit_sections` · `call_registrant` · `call_reopen` · `call_requests` · `clear_notifications` · `close_call` · `complaint_suggestions` · `complaint_text` · `consumption_report` · `cover_expiry` · `daily_call_review` · `documents` · `engineer_address` · `feedback_dates` · `feedback_key_repair` · `feedback_key` · `feedback_upsert_policy` · `ffr_call_context` · `ffr_import` · `ffr_multi_machine` · `ffr_reviewer_history` · `ffr_reviewer_nsm` · `ffr_view_right` · `frequent_failure` · `handstock_opening` · `handstock` · `indoor_service` · `kpi_field_inst` · `master_list_permissions` · `material_returns` · `objective_ffr_count` · `objective_periods` · `objective_recalc` · `ownership_transfer_same_party` · `product_serial_key` · `quality_objectives` · `reliability_wrr` · `rename_part` · `retention` · `review_actual_product` · `role_table_views` · `sales_contracts` · `spare_approval_forms` · `spare_bulk_approval` · `spare_bulk_decisions` · `spare_dispatch` · `spare_import_exemption` · `spare_insights` · `spare_issue_history` · `spare_line_approvals` · `spare_line_stub_rls` · `spare_line_uid` · `spare_or_no_key` · `spare_or_number` · `spare_request_reassign` · `spare_rm_scope` · `spare_stock_scope` · `spare_workflow` · `stock_transfer` · `technical_support` · `tracker` · `ucn_daily_reset` · `unused_spare_report` · `user_directory_role` · `user_signatures` · `visible_engineers` · `visit_date` · `zoho_migration_role` · `zoho_readonly`
 
