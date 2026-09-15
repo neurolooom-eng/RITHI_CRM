@@ -4,8 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-15 (User Master role vs sign-in role; the frequent-failure
-second rule)_
+_Last updated: 2026-09-15 (rows 150-153 all applied: the Part Master rename,
+Change product?, frequent-failure rule 2 and the User Master role sync)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -159,11 +159,11 @@ already had a call, so rule 1 fired where the test expected it not to. **That is
 why `npm run validate` gives every suite its own copy**, and it is the same
 lesson the harness was built on.
 
-### To run on the live project
+### Applied — 2026-09-15
 
 [`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
-— `_status.sql` row 152 answers NO until it is in, and the screen answers on
-rule 1 alone.
+run on the live project, so `_status.sql` row 152 reads yes and rule 2 is
+answering alongside rule 1.
 
 ## 2026-09-15 — DCCR Review 2: "Change product?"
 
@@ -211,11 +211,11 @@ own, precisely so a judgement corrected later reads corrected everywhere.
 accessory no longer sold, and refusing to record it would lose the finding
 rather than the sale.
 
-### To run on the live project
+### Applied — 2026-09-15
 
 [`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
-— `_status.sql` row 151 answers NO until it is in, and Change product? will save
-while nothing moves.
+run on the live project, so `_status.sql` row 151 reads yes: Change product?
+now moves the failure, rather than saving while nothing moves.
 
 ## 2026-09-15 — The validation run goes green, and what was wrong was the tests
 
@@ -341,11 +341,11 @@ on a matching part, but a changed description creates a second part rather than
 renaming the first. The importer should recognise a probable rename and say so
 rather than silently inserting.
 
-### To run on the live project
+### Applied — 2026-09-15
 
 [`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)
-— `_status.sql` row 150 answers NO until it is in, and the Edit button will fail
-on any part that has history.
+run on the live project, so `_status.sql` row 150 reads yes and Edit works on a
+part that has history.
 
 ⚠️ **AT THE REPOSITORY ROOT, not `supabase/apply/`.** The handstock module is
 written out as `HandStock_X.sql`, one of the two numbered consolidated files
