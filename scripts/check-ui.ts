@@ -6346,5 +6346,52 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
     /done\.current === location\.key/.test(arrive), true);
 }
 
+console.log('\n-- DCCR Insights: product failure, with the four things asked for --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Idea is to focus on the product failure analysis in
+  // this new page.. so stick to Pareto, failures per cover.. give data table,
+  // download option, data label toggle."
+  //
+  // They were asked for TOGETHER and are checked together: a chart is read, a
+  // table is CHECKED, labels are what make a chart quotable, and a download is
+  // what makes it arguable with somebody who was not at the screen. One block
+  // carries all four, so a dimension added later cannot arrive with three.
+  // -------------------------------------------------------------------------
+  const di = code(readFileSync('src/modules/DccrInsights.tsx', 'utf8'));
+
+  eq('one block carries chart, labels, table and download',
+    /function ParetoBlock\(/.test(di), true);
+  ['ParetoChart', 'Data labels', 'assoc-table', 'xlsxDownload']
+    .forEach((x) => eq(`...and it has the ${x}`, di.includes(x), true));
+
+  // FAILURES PER COVER was named explicitly.
+  eq('failures per cover is on the page', /title="Failures per cover"/.test(di), true);
+  // AND THE PRODUCT IS THE CORRECTED ONE, or the page undoes 0197 on the screen
+  // built to see it.
+  eq('products are counted under the corrected one',
+    /rows=\{byProduct\}[\s\S]{0,80}dim="live_product_name"/.test(di), true);
+
+  // THE DOWNLOAD CARRIES THE ROWS, not only the ranking. A ranked list is an
+  // assertion; the rows are the evidence (the user's ask on FFR Insights).
+  eq('the download carries the reviews behind the number',
+    /name: 'The reviews counted'/.test(di), true);
+  eq('...and how the number was worked out',
+    /name: 'How this was worked out'/.test(di), true);
+
+  // AN ORDINAL DIMENSION IS NOT RANKED. Sorting the age bands by count destroys
+  // the one thing that chart is for — early life against late.
+  eq('age at failure keeps its own order', /rank=\{false\}/.test(di), true);
+  eq('...and a non-ranked block shows no cumulative share',
+    /\{rank && <th style=\{\{ textAlign: 'right' \}\}>Cumulative<\/th>\}/.test(di), true);
+
+  // THE CLASSES EXIST. A row that filters must look pressable, and a chosen one
+  // must look chosen — by INVERSION, not a tint (the user's standing rule).
+  const css = readFileSync('src/modules/dccrinsights.css', 'utf8');
+  eq('.linkish has a rule of its own', /\.linkish[\s,{:]/.test(css), true);
+  eq('the chosen row INVERTS rather than tints',
+    /tr\.row-on > td \{ background: var\(--text\); color: var\(--surface\); \}/.test(css), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

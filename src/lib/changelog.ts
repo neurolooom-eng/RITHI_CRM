@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.278',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights is now a product failure analysis',
+    changes: [
+      'Focused on what fails and why. The process and people charts are gone — who answered a review, how long it took, why a call is still open — and every remaining one is a PARETO with the same four things on it.',
+      'EVERY CHART NOW CARRIES: the ranked picture, a DATA TABLE beside it with share and cumulative share, a DATA LABEL toggle, and a DOWNLOAD.',
+      'The download carries THE REVIEWS THEMSELVES, not only the ranking — UCN, both products, cover, complaint, root cause, spare, software version, age, and every Review 2 answer — plus a sheet saying how the number was worked out. A ranked list is an assertion; the rows are the evidence.',
+      'FAILURES PER COVER is on the page: a product failing mostly INSIDE warranty is a manufacturing question, one failing mostly outside it is a wear question.',
+      'AGE AT FAILURE KEEPS ITS OWN ORDER and is not ranked by count — whether failures cluster early or late in a machine’s life is the whole point of that chart, and sorting it by count would erase it. It shows no cumulative share for the same reason.',
+      'Click a bar OR a table row to narrow everything below it.',
+    ],
+  },
+  {
     version: '0.9.277',
     date: '2026-09-15',
     title: 'Daily Call Review Insights — what the reviews are saying',

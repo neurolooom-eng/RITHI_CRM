@@ -24,7 +24,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SectionCard, PageHeader } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { BarChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
+import { BarChart, LineChart, ParetoChart } from '../components/charts/Charts';
+import { xlsxDownload } from '../lib/xlsx';
+import { logAudit } from '../lib/audit';
+import './dccrinsights.css';
 // ONE DEFINITION of the period buckets, shared with FFR Insights: the trend's
 // marks are clickable, so a bucket key is also a filter value — two functions
 // that drifted would make a click filter on a value no row has, and the page
@@ -48,54 +51,220 @@ function tally(rows: Row[], key: string, blankLabel = '(not answered)'): { label
     .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
 }
 
-/** Days between two ISO dates, or null when either is missing or unreadable —
- *  counted nowhere rather than as zero, which would read as "same day". */
-function daysBetween(from: string, to: string): number | null {
-  const a = Date.parse(from), b = Date.parse(to);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.max(0, Math.round((b - a) / 86_400_000));
-}
+// ---------------------------------------------------------------------------
+// ONE BLOCK, USED FOR EVERY DIMENSION.
+//
+// The user, 2026-09-15: "focus on the product failure analysis ... stick to
+// Pareto, failures per cover.. give data table, download option, data label
+// toggle." So every analysis on this page carries the same four things, and
+// carries them because they were asked for TOGETHER: a chart is read, a table
+// is CHECKED, labels are what make a chart quotable, and a download is what
+// makes it arguable with somebody who was not at the screen.
+//
+// RANKED OR NOT, and the flag is not cosmetic. A Pareto ranks by count so the
+// running share means something — "four causes are 80% of the failures". An
+// ORDINAL dimension must not be re-ordered: sorting the age bands by how many
+// failures each holds destroys the one thing the chart is for, which is whether
+// failures cluster EARLY or LATE in a machine's life. Those keep their own
+// order and show no cumulative line, because a running total across an
+// arbitrary order says nothing.
+// ---------------------------------------------------------------------------
+interface Cut { label: string; value: number }
 
-/** The bands a turnaround is reported in. Bands rather than an average,
- *  because an average hides the tail and the tail is the finding: twenty
- *  reviews answered same-day and one left ninety days average to four. */
-const TURNAROUND_BANDS: { label: string; max: number }[] = [
-  { label: 'Same day', max: 0 },
-  { label: '1–2 days', max: 2 },
-  { label: '3–7 days', max: 7 },
-  { label: '8–30 days', max: 30 },
-  { label: 'Over 30 days', max: Infinity },
-];
-const bandFor = (d: number) => TURNAROUND_BANDS.find((b) => d <= b.max)!.label;
+function ParetoBlock({
+  title, note, rows, total, dim, picked, onPick, rank = true, raw, rawDateKey, rawDateLabel,
+}: {
+  title: string;
+  note?: string;
+  rows: Cut[];
+  total: number;
+  dim: string;
+  picked: Record<string, string>;
+  onPick: (dim: string) => (label: string) => void;
+  rank?: boolean;
+  /** The reviews behind these numbers, so the download can carry them. */
+  raw: Row[];
+  rawDateKey: string;
+  rawDateLabel: string;
+}) {
+  const [labels, setLabels] = useState(false);
+  const shown = rank ? rows.slice(0, 15) : rows;
+  let run = 0;
+  const table = shown.map((r, i) => {
+    run += r.value;
+    return {
+      rank: i + 1,
+      label: r.label,
+      value: r.value,
+      share: total ? r.value / total : 0,
+      running: run,
+      cumulative: total ? run / total : 0,
+    };
+  });
+
+  const download = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const scope = Object.entries(picked).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'the whole register';
+    const name = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    xlsxDownload(`dccr-${name}-${when}.xlsx`, [
+      {
+        name: 'Ranked',
+        columns: rank
+          ? ['Rank', title, 'Failures', 'Share', 'Share worked out', 'Running total', 'Cumulative share']
+          : [title, 'Failures', 'Share', 'Share worked out'],
+        rows: table.map((r) => (rank ? {
+          Rank: r.rank,
+          [title]: r.label,
+          Failures: r.value,
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${total}`,
+          'Running total': r.running,
+          'Cumulative share': `${(r.cumulative * 100).toFixed(1)}%`,
+        } : {
+          [title]: r.label,
+          Failures: r.value,
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${total}`,
+        })),
+      },
+      // THE RAW DATA BEHIND THE NUMBER (the user's ask on FFR Insights,
+      // 2026-09-14: "In the Download, i want the Raw data of how that Number was
+      // arrived at"). A ranked list is an assertion; the rows are the evidence.
+      {
+        name: 'The reviews counted',
+        columns: ['UCN', 'Call number', rawDateLabel, 'Product (as called)', 'Product (as reviewed)',
+                  'Cover', 'Customer', 'Standard complaint', 'Complaint grouping', 'Root cause',
+                  'Spare category', 'Software version', 'Age at failure', 'Risk to patient',
+                  'Warranty failure', 'Frequent failure', 'Any potential effect', 'Review status'],
+        rows: raw.map((r) => ({
+          UCN: s(r, 'ucn'),
+          'Call number': s(r, 'call_number'),
+          [rawDateLabel]: s(r, rawDateKey),
+          'Product (as called)': s(r, 'product_name'),
+          'Product (as reviewed)': s(r, 'live_product_name'),
+          Cover: s(r, 'item_status'),
+          Customer: s(r, 'party_name'),
+          'Standard complaint': s(r, 'standard_complaint'),
+          'Complaint grouping': s(r, 'complaint_grouping'),
+          'Root cause': s(r, 'root_cause_keyword'),
+          'Spare category': s(r, 'spare_category'),
+          'Software version': s(r, 'sw_version'),
+          'Age at failure': s(r, 'age_group'),
+          'Risk to patient': s(r, 'risk_to_patient'),
+          'Warranty failure': s(r, 'warranty_failure'),
+          'Frequent failure': s(r, 'frequent_failure'),
+          'Any potential effect': s(r, 'any_potential_effect'),
+          'Review status': s(r, 'review_status'),
+        })),
+      },
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Counted by', Value: title },
+          { Item: 'Narrowed to', Value: scope },
+          { Item: 'Failures counted', Value: total },
+          { Item: 'Rows shown on the chart', Value: shown.length },
+          { Item: '', Value: '' },
+          { Item: 'What one failure is',
+            Value: 'ONE REVIEWED CALL. A machine that failed twice is two calls and counts twice.' },
+          { Item: 'Which product it counts under',
+            Value: 'the product REVIEW 2 says actually failed, where somebody changed it — so a '
+              + 'fault moved to an accessory counts against the accessory and not against the '
+              + 'machine it was logged on. Both are in the raw sheet, side by side.' },
+          { Item: 'A blank answer',
+            Value: 'is gathered as "(not answered)" and counted, never dropped. Dropping it would '
+              + 'make the chart add up to less than the total with nothing saying why.' },
+          ...(rank ? [{
+            Item: 'Why it is ranked',
+            Value: 'a Pareto ranks by count so the running share means something — how few causes '
+              + 'account for most of the failures.',
+          }] : [{
+            Item: 'Why it is NOT ranked',
+            Value: 'this is an ordinal scale and its own order is the finding — whether failures '
+              + 'cluster EARLY or LATE. Sorting it by count would destroy that, so there is no '
+              + 'cumulative share either: a running total across an arbitrary order says nothing.',
+          }]),
+          { Item: '', Value: '' },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'dccr.insights.download', target: title, meta: { rows: shown.length, total, scope } });
+  };
+
+  if (!rows.length) {
+    return (
+      <SectionCard title={title}>
+        <div className="muted">Nothing to count here yet.</div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title={title}>
+      {note && <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>{note}</p>}
+      <div className="stage-chips">
+        <button className={`chip ${labels ? 'chip-on' : ''}`} onClick={() => setLabels((v) => !v)}>
+          {labels ? '✓ ' : ''}Data labels
+        </button>
+        <button className="chip" onClick={download}>⭳ Download</button>
+      </div>
+      {rank
+        ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
+        : <BarChart data={shown} widthKey={`dccr.${dim}`} onPick={onPick(dim)} active={picked[dim] ?? null} />}
+      {/* THE NUMBERS BESIDE THE PICTURE. A chart is read; a table is checked. */}
+      <div className="assoc-scroll" style={{ marginTop: 10 }}>
+        <table className="assoc-table">
+          <thead>
+            <tr>
+              {rank && <th style={{ width: 48 }}>#</th>}
+              <th>{title}</th>
+              <th style={{ textAlign: 'right' }}>Failures</th>
+              <th style={{ textAlign: 'right' }}>Share</th>
+              {rank && <th style={{ textAlign: 'right' }}>Cumulative</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {table.map((r) => (
+              <tr key={r.label} className={picked[dim] === r.label ? 'row-on' : undefined}>
+                {rank && <td>{r.rank}</td>}
+                <td>
+                  <button className="linkish" onClick={() => onPick(dim)(r.label)}
+                    title={picked[dim] === r.label ? 'Drop this filter' : 'Narrow every chart to this'}>
+                    {r.label}
+                  </button>
+                </td>
+                <td style={{ textAlign: 'right' }}>{r.value.toLocaleString()}</td>
+                <td style={{ textAlign: 'right' }}>{(r.share * 100).toFixed(1)}%</td>
+                {rank && <td style={{ textAlign: 'right' }}>{(r.cumulative * 100).toFixed(1)}%</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+}
 
 export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
   const [period, setPeriod] = useState<Period>('month');
   const [trendLabels, setTrendLabels] = useState(false);
-  // CROSS-FILTER. Clicking a bar narrows every other chart, so a question like
-  // "what is the root cause on ORION-G, under contract?" is two clicks rather
-  // than a query nobody can write.
+  // CROSS-FILTER. Clicking a bar, or a row of any table, narrows every other
+  // chart — so "what is the root cause on ORION-G, under contract?" is two
+  // clicks rather than a query nobody can write.
   const [picked, setPicked] = useState<Record<string, string>>({});
   const pick = (dim: string) => (label: string) =>
     setPicked((cur) => (cur[dim] === label ? (({ [dim]: _drop, ...rest }) => rest)(cur) : { ...cur, [dim]: label }));
 
-  const dimValue = (r: Row, dim: string): string => {
-    if (dim === 'period') return periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period);
-    if (dim === 'turnaround') {
-      const d = daysBetween(s(r, 'reg_date'), s(r, 'review2_at'));
-      return d === null ? '' : bandFor(d);
-    }
-    return s(r, dim);
-  };
+  const dimValue = (r: Row, dim: string): string =>
+    (dim === 'period' ? periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period) : s(r, dim));
 
   const rows = useMemo(() => {
     const dims = Object.entries(picked);
     if (!dims.length) return allRows;
-    return allRows.filter((r) => dims.every(([dim, label]) => {
-      const v = dimValue(r, dim);
-      // A blank matches the gathered "(not answered)" bucket, so clicking it
-      // narrows to the rows the chart actually counted there.
-      return (v || '(not answered)') === label;
-    }));
+    return allRows.filter((r) => dims.every(([dim, label]) =>
+      (dimValue(r, dim) || '(not answered)') === label));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allRows, picked, period]);
 
@@ -103,34 +272,28 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
   const plus = more ? '+' : '';
   const countIf = (fn: (r: Row) => boolean) => rows.filter(fn).length;
 
-  const byStatus = useMemo(() => tally(rows, 'review_status'), [rows]);
+  const byProduct = useMemo(() => tally(rows, 'live_product_name', '(no product)'), [rows]);
+  const byCover = useMemo(() => tally(rows, 'item_status', '(no cover recorded)'), [rows]);
   const byRootCause = useMemo(() => tally(rows, 'root_cause_keyword'), [rows]);
   const byGrouping = useMemo(() => tally(rows, 'complaint_grouping'), [rows]);
-  const byProduct = useMemo(() => tally(rows, 'live_product_name'), [rows]);
-  const byCover = useMemo(() => tally(rows, 'item_status', '(no cover recorded)'), [rows]);
-  const bySpareCat = useMemo(() => tally(rows, 'spare_category'), [rows]);
-  const byState = useMemo(() => tally(rows, 'state', '(no state)'), [rows]);
-  const byParty = useMemo(() => tally(rows, 'party_name', '(no customer)'), [rows]);
-  const byReviewer = useMemo(() => tally(rows, 'review2_by', '(nobody recorded)'), [rows]);
-  const bySw = useMemo(() => tally(rows, 'sw_version', '(not captured)'), [rows]);
-  const byAge = useMemo(() => tally(rows, 'age_group', '(age unknown)'), [rows]);
-  const byPending = useMemo(() => tally(rows, 'pending_reason', '(none given)'), [rows]);
   const byComplaint = useMemo(() => tally(rows, 'standard_complaint'), [rows]);
+  const bySpareCat = useMemo(() => tally(rows, 'spare_category'), [rows]);
+  const bySw = useMemo(() => tally(rows, 'sw_version', '(not captured)'), [rows]);
 
-  // TURNAROUND: registration to Review 2 answered. A review nobody has answered
-  // has no turnaround yet and is counted nowhere here — not as zero, which
-  // would read as "answered same day" and flatter the figure.
-  const byTurnaround = useMemo(() => {
-    const m = new Map<string, number>();
-    TURNAROUND_BANDS.forEach((b) => m.set(b.label, 0));
-    rows.forEach((r) => {
-      const d = daysBetween(s(r, 'reg_date'), s(r, 'review2_at'));
-      if (d === null) return;
-      m.set(bandFor(d), (m.get(bandFor(d)) ?? 0) + 1);
+  // AGE KEEPS ITS OWN ORDER (see ParetoBlock): whether failures cluster early
+  // or late in a machine's life is the finding, and ranking by count erases it.
+  const byAge = useMemo(() => {
+    const t = tally(rows, 'age_group', '(age unknown)');
+    const order = new Map<string, number>();
+    allRows.forEach((r) => {
+      const g = s(r, 'age_group') || '(age unknown)';
+      const d = Number(r.age_days);
+      if (!order.has(g) || (Number.isFinite(d) && d < (order.get(g) ?? Infinity))) {
+        order.set(g, Number.isFinite(d) ? d : Infinity);
+      }
     });
-    return [...m.entries()].map(([label, value]) => ({ label, value }));
-  }, [rows]);
-  const answered = byTurnaround.reduce((t, b) => t + b.value, 0);
+    return [...t].sort((a, b) => (order.get(a.label) ?? Infinity) - (order.get(b.label) ?? Infinity));
+  }, [rows, allRows]);
 
   const trend = useMemo(() => {
     const m = new Map<string, number>();
@@ -143,12 +306,50 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
   }, [rows, period]);
   const trendTotal = trend.reduce((t, x) => t + x.value, 0);
 
+  const downloadTrend = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const per = PERIODS.find((x) => x.key === period)!.label;
+    let run = 0;
+    xlsxDownload(`dccr-trend-${period}-${when}.xlsx`, [
+      {
+        name: 'Failures by period',
+        columns: [per, 'Failures', 'Share', 'Running total'],
+        rows: trend.map((t) => {
+          run += t.value;
+          return {
+            [per]: t.label,
+            Failures: t.value,
+            Share: `${trendTotal ? ((t.value / trendTotal) * 100).toFixed(1) : '0.0'}%`,
+            'Running total': run,
+          };
+        }),
+      },
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Counted by', Value: per },
+          { Item: 'Which date decides the period',
+            Value: 'the date Review 2 was answered, falling back to the call’s registration '
+              + 'date where it has not been answered yet.' },
+          { Item: 'A period with no failures',
+            Value: 'is not a row. A gap is a gap in the register, not a zero somebody recorded.' },
+          { Item: 'Failures counted', Value: trendTotal },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'dccr.trend.download', target: period, meta: { total: trendTotal } });
+  };
+
   const effects = countIf((r) => yes(s(r, 'any_potential_effect')));
   const risk = countIf((r) => yes(s(r, 'risk_to_patient')));
   const warrantyFail = countIf((r) => yes(s(r, 'warranty_failure')));
   const frequent = countIf((r) => yes(s(r, 'frequent_failure')));
   const moved = countIf((r) => s(r, 'live_product_changed') === 'true' || r.live_product_changed === true);
-  const auto = countIf((r) => /^auto/i.test(s(r, 'review2_by')));
+
+  const RAW_DATE = 'review2_at';
+  const RAW_DATE_LABEL = 'Review 2 answered on';
 
   return (
     <div>
@@ -164,14 +365,14 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
             <button className="chip" onClick={() => setPicked({})}>Clear all</button>
           </div>
           <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
-            {n.toLocaleString()}{plus} of {allRows.length.toLocaleString()}{plus} reviews.
+            {n.toLocaleString()}{plus} of {allRows.length.toLocaleString()}{plus} reviewed calls.
           </div>
         </SectionCard>
       )}
 
       <KpiGrid min={190}>
-        <KpiCard label="Calls reviewed" value={`${n.toLocaleString()}${plus}`} tone="primary" icon="📋"
-          sub="on the register" />
+        <KpiCard label="Failures reviewed" value={`${n.toLocaleString()}${plus}`} tone="primary" icon="📋"
+          sub="one per reviewed call" />
         <KpiCard label="Any potential effect" value={`${effects.toLocaleString()}${plus}`} icon="⚠️"
           tone={effects ? 'danger' : 'neutral'} sub="an FFR is raised from each" />
         <KpiCard label="Risk to patient" value={`${risk.toLocaleString()}${plus}`} icon="🚨"
@@ -181,63 +382,62 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
         <KpiCard label="Frequent failure" value={`${frequent.toLocaleString()}${plus}`} icon="🔁"
           tone={frequent ? 'warning' : 'neutral'} sub="flagged by either rule" />
         <KpiCard label="Product corrected" value={`${moved.toLocaleString()}${plus}`} icon="🔀"
-          tone="info" sub="moved to the accessory that failed" />
-        <KpiCard label="Answered by the 9:15 rule" value={`${auto.toLocaleString()}${plus}`} icon="🕘"
-          tone={auto ? 'warning' : 'neutral'} sub="Review 2, not by a person" />
+          tone="info" sub="counted under the accessory that failed" />
       </KpiGrid>
 
-      <SectionCard title="Where the reviews stand">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          A call is at Review 1 until the three vigilance questions are answered, then Review 2
-          for the failure questions, then Review 3.
-        </p>
-        <DonutChart data={byStatus} onPick={pick('review_status')} active={picked.review_status ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="Which products fail"
+        note="Counted under the product Review 2 says actually failed, so a fault moved to an
+              accessory counts there and not against the machine it was logged on."
+        rows={byProduct} total={n} dim="live_product_name" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="Root cause — where the few causes are">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Ranked, with the running share beside it: the point of a Pareto is to show how few causes
-          account for most of the failures.
-        </p>
-        <ParetoChart data={byRootCause.slice(0, 15)} onPick={pick('root_cause_keyword')}
-          active={picked.root_cause_keyword ?? null} showLabels />
-      </SectionCard>
+      <ParetoBlock
+        title="Failures per cover"
+        note="Warranty, contract or out of cover. A product failing mostly INSIDE warranty is a
+              manufacturing question; one failing mostly outside it is a wear question."
+        rows={byCover} total={n} dim="item_status" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="Complaint grouping">
-        <BarChart data={byGrouping.slice(0, 12)} widthKey="dccr.grouping"
-          onPick={pick('complaint_grouping')} active={picked.complaint_grouping ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="Root cause"
+        note="The few causes behind most of the failures — which is what the running share is for."
+        rows={byRootCause} total={n} dim="root_cause_keyword" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="Which products fail">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Counted under the product Review 2 says actually failed, so a fault moved to an accessory
-          is counted there and not against the machine it was logged on.
-        </p>
-        <BarChart data={byProduct.slice(0, 12)} widthKey="dccr.product"
-          onPick={pick('live_product_name')} active={picked.live_product_name ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="Complaint grouping"
+        rows={byGrouping} total={n} dim="complaint_grouping" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="What they were reported as">
-        <BarChart data={byComplaint.slice(0, 12)} widthKey="dccr.complaint"
-          onPick={pick('standard_complaint')} active={picked.standard_complaint ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="What it was reported as"
+        note="The complaint the customer gave, before anybody looked. Where this and the root cause
+              disagree is where the fault is hard to describe from the outside."
+        rows={byComplaint} total={n} dim="standard_complaint" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="Under what cover">
-        <DonutChart data={byCover} onPick={pick('item_status')} active={picked.item_status ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="Which spares were implicated"
+        rows={bySpareCat} total={n} dim="spare_category" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title="How long until Review 2 was answered">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          Registration to the day Review 2 was completed, in bands rather than an average — an
-          average hides the tail, and the tail is the finding. {answered.toLocaleString()}{plus} of{' '}
-          {n.toLocaleString()}{plus} have been answered; the rest are still pending and are counted
-          nowhere here rather than as nought days.
-        </p>
-        <BarChart data={byTurnaround} widthKey="dccr.turnaround"
-          onPick={pick('turnaround')} active={picked.turnaround ?? null} />
-      </SectionCard>
+      <ParetoBlock
+        title="Software version"
+        note="From the latest visit report. A fault clustering on one version is the kind of finding
+              that reaches manufacturing."
+        rows={bySw} total={n} dim="sw_version" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
-      <SectionCard title={`Reviews completed, ${period === 'year' ? 'year by year'
+      <ParetoBlock
+        title="Age at failure"
+        note="In its own order, NOT ranked by count: whether failures cluster early or late in a
+              machine's life is the finding, and sorting by count would erase it."
+        rank={false}
+        rows={byAge} total={n} dim="age_group" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+
+      <SectionCard title={`Failures, ${period === 'year' ? 'year by year'
         : period === 'quarter' ? 'quarter by quarter' : 'month by month'}`}>
         <div className="stage-chips">
           {PERIODS.map((p) => (
@@ -247,19 +447,20 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
           <button className={`chip ${trendLabels ? 'chip-on' : ''}`} onClick={() => setTrendLabels((v) => !v)}>
             {trendLabels ? '✓ ' : ''}Data labels
           </button>
+          <button className="chip" onClick={downloadTrend}>⭳ Download</button>
         </div>
         <LineChart data={trend} showLabels={trendLabels}
           onPick={pick('period')} active={picked.period ?? null} />
-        {/* THE NUMBERS BESIDE THE PICTURE (the user's ask on FFR Insights,
-            2026-09-14). A chart is read; a table is checked. */}
         <div className="assoc-scroll" style={{ marginTop: 10 }}>
           <table className="assoc-table">
-            <thead><tr><th>Period</th><th style={{ textAlign: 'right' }}>Reviews</th>
+            <thead><tr><th>Period</th><th style={{ textAlign: 'right' }}>Failures</th>
               <th style={{ textAlign: 'right' }}>Share</th></tr></thead>
             <tbody>
               {trend.map((t) => (
-                <tr key={t.label}>
-                  <td>{t.label}</td>
+                <tr key={t.label} className={picked.period === t.label ? 'row-on' : undefined}>
+                  <td>
+                    <button className="linkish" onClick={() => pick('period')(t.label)}>{t.label}</button>
+                  </td>
                   <td style={{ textAlign: 'right' }}>{t.value.toLocaleString()}</td>
                   <td style={{ textAlign: 'right' }}>
                     {trendTotal ? ((t.value / trendTotal) * 100).toFixed(1) : '0.0'}%
@@ -269,49 +470,6 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
             </tbody>
           </table>
         </div>
-      </SectionCard>
-
-      <SectionCard title="Who answered Review 2">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          <b>“Auto (9:15 am)”</b> is the rule answering for a call nobody looked at the next morning.
-          Its share is the honest measure of how much of this review is being done, and by whom.
-        </p>
-        <BarChart data={byReviewer.slice(0, 12)} widthKey="dccr.reviewer"
-          onPick={pick('review2_by')} active={picked.review2_by ?? null} />
-      </SectionCard>
-
-      <SectionCard title="Which spares were implicated">
-        <BarChart data={bySpareCat.slice(0, 12)} widthKey="dccr.sparecat"
-          onPick={pick('spare_category')} active={picked.spare_category ?? null} />
-      </SectionCard>
-
-      <SectionCard title="How old the machine was when it failed">
-        <BarChart data={byAge} widthKey="dccr.age"
-          onPick={pick('age_group')} active={picked.age_group ?? null} />
-      </SectionCard>
-
-      <SectionCard title="Software version on the machine">
-        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
-          From the latest visit report. A fault clustering on one version is the kind of finding
-          that reaches manufacturing.
-        </p>
-        <BarChart data={bySw.slice(0, 12)} widthKey="dccr.sw"
-          onPick={pick('sw_version')} active={picked.sw_version ?? null} />
-      </SectionCard>
-
-      <SectionCard title="Why a call is still open">
-        <BarChart data={byPending.slice(0, 12)} widthKey="dccr.pending"
-          onPick={pick('pending_reason')} active={picked.pending_reason ?? null} />
-      </SectionCard>
-
-      <SectionCard title="Where they happen">
-        <BarChart data={byState.slice(0, 12)} widthKey="dccr.state"
-          onPick={pick('state')} active={picked.state ?? null} />
-      </SectionCard>
-
-      <SectionCard title="Which customers">
-        <BarChart data={byParty.slice(0, 12)} widthKey="dccr.party"
-          onPick={pick('party_name')} active={picked.party_name ?? null} />
       </SectionCard>
     </div>
   );
