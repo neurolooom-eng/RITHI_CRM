@@ -29,7 +29,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SectionCard, PageHeader } from '../components/ui/ui';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
-import { BarChart, LineChart, ParetoChart } from '../components/charts/Charts';
+import { ColumnChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
 import './productfailure.css';
@@ -77,7 +77,7 @@ function tally(rows: Row[], key: string, blankLabel = '(not answered)'): { label
 interface Cut { label: string; value: number }
 
 function ParetoBlock({
-  title, note, rows, total, dim, picked, onPick, rank = true, raw, rawDateKey, rawDateLabel,
+  title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
 }: {
   title: string;
   note?: string;
@@ -86,13 +86,28 @@ function ParetoBlock({
   dim: string;
   picked: Record<string, string>;
   onPick: (dim: string) => (label: string) => void;
-  rank?: boolean;
+  /** THE FORM FOLLOWS THE QUESTION, not the page's habit.
+   *
+   *  `pareto`   many categories, and the question is "which few account for
+   *             most of it" — root cause, product, complaint. The cumulative
+   *             line is the whole point and it is why the rows are RANKED.
+   *  `share`    a handful of categories that add up to the whole, and the
+   *             question is composition — cover, spare category. A Pareto over
+   *             four slices with a running total is theatre: it says "these
+   *             four are 100% of the four".
+   *  `ordered`  an ORDINAL scale whose own order is the finding — age at
+   *             failure, software version. Ranking by count destroys exactly
+   *             what the chart is for, so it keeps its order, shows no
+   *             cumulative share, and is drawn as columns because that is what
+   *             a distribution across a scale looks like. */
+  form?: 'pareto' | 'share' | 'ordered';
   /** The reviews behind these numbers, so the download can carry them. */
   raw: Row[];
   rawDateKey: string;
   rawDateLabel: string;
 }) {
   const [labels, setLabels] = useState(false);
+  const rank = form === 'pareto';
   const shown = rank ? rows.slice(0, 15) : rows;
   let run = 0;
   const table = shown.map((r, i) => {
@@ -180,10 +195,15 @@ function ParetoBlock({
           { Item: 'A blank answer',
             Value: 'is gathered as "(not answered)" and counted, never dropped. Dropping it would '
               + 'make the chart add up to less than the total with nothing saying why.' },
-          ...(rank ? [{
-            Item: 'Why it is ranked',
-            Value: 'a Pareto ranks by count so the running share means something — how few causes '
-              + 'account for most of the failures.',
+          ...(form === 'pareto' ? [{
+            Item: 'Why it is a Pareto',
+            Value: 'many categories, and the question is which FEW account for most of it. Ranking '
+              + 'is what makes the running share mean anything.',
+          }] : form === 'share' ? [{
+            Item: 'Why it is a share, not a Pareto',
+            Value: 'a handful of categories that add up to the whole, so the question is '
+              + 'COMPOSITION. A Pareto over four slices with a running total says only "these four '
+              + 'are 100% of the four".',
           }] : [{
             Item: 'Why it is NOT ranked',
             Value: 'this is an ordinal scale and its own order is the finding — whether failures '
@@ -215,9 +235,11 @@ function ParetoBlock({
         </button>
         <button className="chip" onClick={download}>⭳ Download</button>
       </div>
-      {rank
+      {form === 'pareto'
         ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
-        : <BarChart data={shown} widthKey={`pfa.${dim}`} onPick={onPick(dim)} active={picked[dim] ?? null} />}
+        : form === 'share'
+          ? <DonutChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />
+          : <ColumnChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />}
       {/* THE NUMBERS BESIDE THE PICTURE. A chart is read; a table is checked. */}
       <div className="assoc-scroll" style={{ marginTop: 10 }}>
         <table className="assoc-table">
@@ -262,8 +284,17 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   const pick = (dim: string) => (label: string) =>
     setPicked((cur) => (cur[dim] === label ? (({ [dim]: _drop, ...rest }) => rest)(cur) : { ...cur, [dim]: label }));
 
-  const dimValue = (r: Row, dim: string): string =>
-    (dim === 'period' ? periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period) : s(r, dim));
+  const dimValue = (r: Row, dim: string): string => {
+    if (dim === 'period') return periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period);
+    // A COMPOSED KEY IS NOT A COLUMN. The machine chart counts model + serial,
+    // so clicking one has to be matched the same way it was counted — reading
+    // `r['__machine']` would find nothing and the page would silently empty.
+    if (dim === '__machine') {
+      const serial = s(r, 'serial');
+      return serial ? `${s(r, 'live_product_name') || '(no product)'} · ${serial}` : '';
+    }
+    return s(r, dim);
+  };
 
   const rows = useMemo(() => {
     const dims = Object.entries(picked);
@@ -283,7 +314,50 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   const byGrouping = useMemo(() => tally(rows, 'complaint_grouping'), [rows]);
   const byComplaint = useMemo(() => tally(rows, 'standard_complaint'), [rows]);
   const bySpareCat = useMemo(() => tally(rows, 'spare_category'), [rows]);
+  // REPEAT OFFENDERS — the individual MACHINE, not the model.
+  //
+  // Every other chart here answers "which product line fails". This answers
+  // "which UNIT keeps failing", which is a different question and often the
+  // more actionable one: a model with 400 failures across 2,000 machines is a
+  // fleet; one machine with nine is a machine to go and look at.
+  //
+  // KEYED ON MODEL PLUS SERIAL, never the serial alone — the rule this codebase
+  // already carries (`src/lib/machine.ts`): 3,794 serials repeat across models,
+  // and counting by serial would merge an ORION-G 219 with an EXTEND-XT 219.
+  const byMachine = useMemo(() => {
+    const m = new Map<string, number>();
+    rows.forEach((r) => {
+      const serial = s(r, 'serial');
+      if (!serial) return;   // a failure with no serial names no machine
+      const k = `${s(r, 'live_product_name') || '(no product)'} · ${serial}`;
+      m.set(k, (m.get(k) ?? 0) + 1);
+    });
+    return [...m.entries()].map(([label, value]) => ({ label, value }))
+      .filter((x) => x.value > 1)   // one failure is not a repeat
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+  }, [rows]);
+  const repeatTotal = byMachine.reduce((t, x) => t + x.value, 0);
+
   const bySw = useMemo(() => tally(rows, 'sw_version', '(not captured)'), [rows]);
+  // VERSION ORDER, not count order. "2.10" is newer than "2.9" and a plain
+  // string sort puts it earlier, so each dotted part is compared as a NUMBER —
+  // otherwise the chart would claim the release order is something it is not,
+  // which on a version axis is the whole finding. Anything unparseable sorts
+  // last rather than pretending to a position.
+  const bySwOrdered = useMemo(() => {
+    const parts = (v: string) => v.split(/[^0-9]+/).filter(Boolean).map(Number);
+    return [...bySw].sort((a, b) => {
+      const pa = parts(a.label), pb = parts(b.label);
+      if (!pa.length && !pb.length) return a.label.localeCompare(b.label);
+      if (!pa.length) return 1;
+      if (!pb.length) return -1;
+      for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+        if (d) return d;
+      }
+      return 0;
+    });
+  }, [bySw]);
 
   // AGE KEEPS ITS OWN ORDER (see ParetoBlock): whether failures cluster early
   // or late in a machine's life is the finding, and ranking by count erases it.
@@ -399,8 +473,11 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
 
       <ParetoBlock
         title="Failures per cover"
-        note="Warranty, contract or out of cover. A product failing mostly INSIDE warranty is a
-              manufacturing question; one failing mostly outside it is a wear question."
+        note="Warranty, contract or out of cover — four categories that add up to the whole, so this
+              is a SHARE and not a Pareto. A product failing mostly INSIDE warranty is a
+              manufacturing question; one failing mostly outside it is a wear question. Pick a
+              product above and this narrows to it, which is the cross-tab worth having."
+        form="share"
         rows={byCover} total={n} dim="item_status" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
@@ -424,21 +501,35 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
 
       <ParetoBlock
         title="Which spares were implicated"
+        note="A short closed list, so it is read as a share of the failures rather than ranked."
+        form="share"
         rows={bySpareCat} total={n} dim="spare_category" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
       <ParetoBlock
+        title="Machines that failed more than once"
+        note={`The individual UNIT, not the model — a model with four hundred failures across two
+              thousand machines is a fleet; one machine with nine is a machine to go and look at.
+              Keyed on model AND serial, because the same serial number belongs to several models.
+              ${repeatTotal.toLocaleString()} of ${n.toLocaleString()} failures are on a machine
+              that has failed before.`}
+        rows={byMachine} total={repeatTotal} dim="__machine" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+
+      <ParetoBlock
         title="Software version"
-        note="From the latest visit report. A fault clustering on one version is the kind of finding
-              that reaches manufacturing."
-        rows={bySw} total={n} dim="sw_version" picked={picked} onPick={pick}
+        note="In VERSION ORDER, not ranked by count: the question is whether a newer release is
+              failing more than the one before it, and sorting by count hides exactly that. From the
+              latest visit report."
+        form="ordered"
+        rows={bySwOrdered} total={n} dim="sw_version" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
       <ParetoBlock
         title="Age at failure"
         note="In its own order, NOT ranked by count: whether failures cluster early or late in a
               machine's life is the finding, and sorting by count would erase it."
-        rank={false}
+        form="ordered"
         rows={byAge} total={n} dim="age_group" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
