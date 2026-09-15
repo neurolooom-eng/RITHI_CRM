@@ -4,8 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-14 (the sheet's thirty-day expiry band; the cover
-field-by-field comparison)_
+_Last updated: 2026-09-15 (User Master role vs sign-in role; the frequent-failure
+second rule)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -19,6 +19,53 @@ up)_
 
 
 
+
+## 2026-09-15 — Why somebody's chip reads "Engineer" when User Master says otherwise
+
+Reported: *"For a few engineers, it shows a question mark in the profile. This
+is user Dipika / Depika - Zoho Migration"*, then *"Why is it showing as engineer
+and not Zoho Migration."* Her User Master row reads **Role: Zoho Migration,
+Signed in: Yes**.
+
+### Two values answer to the name "role"
+
+| | |
+| --- | --- |
+| `user_directory.role` | what **User Master** shows. Edited there. |
+| `profiles.role` | what the **sign-in** runs on — the menu-bar chip, `has_perm()`, every policy |
+
+`ensure_my_profile()` copies the first into the second **only when it creates
+the row** (`if found then return p; end if;`). The only other thing that copies
+it is SAVING that person's row in User Master while the email matches
+(`UserMasterView.tsx` → `updateProfile(signedIn.id, { role: row.role })`).
+
+So a role changed in User Master **after** somebody first signed in stays in
+User Master. The chip is not mislabelling her access — it is reporting it
+correctly, and **her access really is the engineer's**, which is why every tile
+on her dashboard read 0. User Master is the screen that is out of date.
+
+### The diagnostic could not see its own case
+
+`supabase/apply/_profile_names_check.sql` ended in
+`where p.id is null or full_name = ''` — a profile that exists, has a name, and
+differs only in its **role** was filtered out. It came back *"Success. No rows
+returned"* on a project where the drift was real, which reads as "nothing is
+wrong". Rewritten to filter nothing: every `auth.users` row, worst first, with
+five verdicts — no profile row / no name (the "?" avatar) / **role drift** / not
+in User Master / fine. All five proved to fire against a database.
+
+Section B1 is the bulk repair: copy the User Master role onto the sign-in for
+everyone reading ROLE DRIFT. It `join`s `app_roles`, so a typo'd directory role
+is refused rather than stranding somebody on a key nothing grants — proved.
+
+### Still open
+
+The sync itself. Nothing re-applies a User Master role change to an existing
+sign-in; a trigger on `user_directory` would, and has not been built. Until it
+is, changing somebody's role in User Master means **saving that row** (or
+setting it in User Access), and they sign out and back in.
+
+---
 
 ## 2026-09-15 — Frequent failure gains a second rule
 
