@@ -20,6 +20,41 @@ up)_
 
 
 
+## 2026-09-15 — The one NO on `_status.sql`, and looking before deleting
+
+The status report came back with **161 rows yes and one NO**: row 55, *"handstock:
+opening stock is ENGINEERS only"*. It is one of the few rows that tests DATA
+rather than an object, so a NO there is not a bundle to run — it means opening
+hand-stock rows are filed under names that are not active User Master users.
+
+`_handstock_opening_engineers.sql` is the repair, and it **deleted on the first
+run and reported afterwards** — the wrong way round for a removal: by the time
+the Messages tab named what went, it had gone.
+
+### A name reaches that list three ways and only one is a dealer
+
+| | |
+| --- | --- |
+| not in User Master at all | the WinMax dealers and customers — what the file is for |
+| in User Master, **deactivated** | a real engineer; this would delete their opening balance |
+| in User Master, **different spelling** | a rename, a middle initial, a double space — the same person, and the MATCH is what is broken |
+
+Proved rather than argued: seeded all three beside an exactly-matching active
+engineer, and the removal took the deactivated engineer and the double-spaced
+name away with the two dealers, leaving only the exact match.
+
+So the file now **looks first**. Section A is one read-only statement naming
+every pool that would go **and why it is on the list**; the removal is section
+B, commented out, saying in terms that it does not read the reason and that the
+second and third rows must be fixed in User Master before it is run. The match
+itself is unchanged — `lower(btrim(name))`, which is `handstock_key()`, the key
+the balance is grouped on.
+
+Row 55 proved both ways against a database: NO with those rows present, yes once
+only the active engineer remained.
+
+---
+
 ## 2026-09-15 — Why somebody's chip reads "Engineer" when User Master says otherwise
 
 Reported: *"For a few engineers, it shows a question mark in the profile. This
