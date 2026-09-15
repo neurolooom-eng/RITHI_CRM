@@ -277,7 +277,17 @@ typed into a form that reads it.
   > rename moves all of those records with it. The screen tells you how many
   > will move before you commit to it, and stock balances come out unchanged.
   > A rename will not merge two parts: if the new name is taken, it is refused.
-- **Party Master** `/parties` — your customers, and **who looks after each one**.
+- **Party Master** `/parties` — your customers, **who looks after each one**, and
+  their **KYC**.
+  > **KYC starts as Pending on every customer** — nobody has been verified yet,
+  > so the count tells you what is outstanding. Marking one **Verified** records
+  > who did it and when; sending it back to Pending clears that, because a
+  > customer who is no longer verified was not verified by anybody.
+  > **GSTIN and PAN come out of the Tax columns you already had**, however they
+  > were typed. A GSTIN contains a PAN, so giving one gives both — and anything
+  > you type in yourself is never overwritten by a re-upload.
+  > The customer has **two contact blocks**: where the machine is, and where the
+  > bill goes. They are separate columns now; the billing one used to be lost.
   > The **Serviceman** on a party is what fills *Call Allocated To* on a new
   > call when the machine itself has no Service Engineer — which is every
   > **installation**, because the machine does not exist here yet. The machine

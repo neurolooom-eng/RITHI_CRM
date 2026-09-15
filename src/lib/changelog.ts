@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.269',
+    date: '2026-09-15',
+    title: 'Party Master: the customer’s own columns, and somewhere to record KYC',
+    changes: [
+      'The Party Master keeps the customer’s details in columns you can search, sort and report on, instead of a blob: PROFILE (Private / Government), the territory, and TWO SEPARATE CONTACT BLOCKS — one for the installation address, one for billing.',
+      'That second block used to vanish. Your export names Tel 1, Tel 2, Fax and Email ID twice over — once per address — and the second of each was reaching nothing at all, not even the kept-as-is fields.',
+      'Profile was being thrown away too: it shared a slot with Type, and Type always won.',
+      'KYC: every party now carries a status, and all of them start PENDING — so you can see how many customers still need doing and who has been done. Marking one Verified records WHO did it and WHEN, from the sign-in; sending it back to Pending clears that again, because a party that is no longer verified was not verified by anybody.',
+      'GSTIN and PAN are picked out of the Tax columns you already have, whatever way they were typed (“PAN NO:…”, “GST NO:…”, “GSTIN: …”). A GSTIN contains a PAN, so giving one gives both. A number you type in is never overwritten by a spreadsheet.',
+      'THE REST OF THE KYC FORM IS STILL TO COME — send the format and the fields go in as real columns. Nothing has been guessed.',
+      'Needs the Masters SQL (masters.sql) to be run.',
+    ],
+  },
+  {
     version: '0.9.268',
     date: '2026-09-15',
     title: 'The Party Master says who looks after the customer — and the call knows it',
