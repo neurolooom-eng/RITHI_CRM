@@ -279,6 +279,17 @@ typed into a form that reads it.
   > A rename will not merge two parts: if the new name is taken, it is refused.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **The role on this screen IS their access.** Change it here and it applies
+  > to their sign-in straight away; they see it the next time they load the app.
+  > Set it before they ever sign in and they arrive with it. **Access** on a row
+  > is the same role plus anything extra that one person needs on top.
+  > Two things it will not do. You cannot change your own role — ask another
+  > administrator, and the save is refused rather than half-applied. And a role
+  > that is not on **Roles & Permissions** grants nothing: if you mean a new
+  > role, add it there first.
+  > **One person, one row.** Where two rows share an email the role still
+  > applies, but the name stops following, because there is no way to tell which
+  > of the two is theirs.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
   > A value in use is **deactivated**, not deleted, so records that used it keep

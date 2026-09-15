@@ -58,12 +58,52 @@ Section B1 is the bulk repair: copy the User Master role onto the sign-in for
 everyone reading ROLE DRIFT. It `join`s `app_roles`, so a typo'd directory role
 is refused rather than stranding somebody on a key nothing grants — proved.
 
+### The fix: User Master IS the master (0199)
+
+The user's rule when the diagnosis landed: *"The intent and the fact has to
+match 100% — the user master is the only place I can map and configure."*
+
+`user_directory_profile_sync` applies a directory role to the sign-in as it is
+written — for **every** path that writes a row, not only the browser's Save.
+The drift banner that shipped on 2026-09-11 was a repair for a problem still
+being created; **a button that repairs drift is not the same as not drifting**,
+because somebody has to open the right screen and notice it, and in between the
+application enforces a role nobody chose.
+
+What it deliberately does not do:
+
+- **It never invents a role.** A blank one leaves the sign-in alone, and one the
+  matrix does not know is ignored — a typo must grant nothing, not something
+  unintended. Same rule `ensure_my_profile()` already used.
+- **It weakens no guard.** `profiles_role_guard` (0008) still fires, so changing
+  the role on your OWN User Master row is refused and the save rolls back whole
+  — the only way the two screens stay honest. Granting `admin` still needs an
+  administrator, and a `users.manage` holder who is not an admin still cannot
+  reach the directory at all (the address guard). Both proved running as
+  `authenticated`, not as the owner.
+- **It will not follow a name while two rows share one login.**
+  `service.almsind@gmail.com` has two (eBizWiz Admin, WRITE OFF), so "the" name
+  for that sign-in has no answer and "WRITE OFF" would have become somebody's
+  display name. The role still applies — the duplicates agree about it, and a
+  wrong role is *enforced* where a wrong name is only *shown*.
+
+The **Access** drawer now writes the role to the User Master row too, instead of
+to `profiles`, so the list and the sign-in cannot end up showing different
+things from that side either.
+
+`user_master_sync_test.sql` — 11 sections, mutation-tested by dropping the
+trigger (4 sections go wrong and the `expect ERROR` in section 9 stops
+arriving). `_status.sql` row 153 tests the TRIGGER, not the function: a function
+nothing fires syncs nothing, which is the failure a definition check would miss.
+
 ### Still open
 
-The sync itself. Nothing re-applies a User Master role change to an existing
-sign-in; a trigger on `user_directory` would, and has not been built. Until it
-is, changing somebody's role in User Master means **saving that row** (or
-setting it in User Access), and they sign out and back in.
+Two name mismatches worth a decision, both pre-dating the trigger and both
+harmless (a name is shown, never enforced): `ajay.g-sc` signs in as *INDOOR
+SERVICE* where User Master says *AJAY G*, and `devika.m` as *Devika M* where it
+says *DEVIKA*. Saving either row now corrects it. The third,
+`service.almsind@gmail.com`, needs its **duplicate directory row** removed
+first.
 
 ---
 

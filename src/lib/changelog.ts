@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.267',
+    date: '2026-09-15',
+    title: 'The role you set in User Master is the role they actually get',
+    changes: [
+      'A role set on a User Master row now reaches that person’s sign-in by itself. Until now it was copied only when they FIRST signed in — so a role changed afterwards stayed on this screen, and the application went on giving them the old one with nothing anywhere saying so.',
+      'Reported as “Why is it showing as engineer and not Zoho Migration”: the screen said Zoho Migration, every permission said engineer, and her dashboard was empty because that was genuinely her access.',
+      'It applies to every way a row is written — the screen, a bulk import, an administrator’s own SQL — not only to pressing Save on that one row.',
+      'The Access drawer now sets the role on the User Master row too, so the list and the sign-in cannot end up showing different things.',
+      'Nothing is invented: a blank role leaves the sign-in alone, and a role that is not on Roles & Permissions (a typo, a role since deleted) grants nothing rather than something unintended.',
+      'The guards are untouched. Nobody can move their own role, and granting Administrator still needs an administrator — if you change the role on your own row the save is refused, rather than the two screens quietly disagreeing.',
+      'Where two User Master rows share one login the role still applies but the NAME is left alone: “the” name for that sign-in has no answer until the duplicate is removed.',
+      'Needs the Roles & Permissions SQL (rbac.sql) to be run.',
+    ],
+  },
+  {
     version: '0.9.266',
     date: '2026-09-15',
     title: 'Frequent failure: a second rule, for the same fault across different machines',

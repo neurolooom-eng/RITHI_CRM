@@ -102,6 +102,29 @@ export function UserMasterView() {
   const profileFor = (r: DirectoryRow): User | undefined =>
     userByEmail.get((r.email || '').toLowerCase()) ?? userByEmail.get((r.gmail || '').toLowerCase());
 
+  // THE DIRECTORY ROW BEHIND A SIGN-IN — which is where its role must be set.
+  //
+  // 0199 makes User Master the master: a role written to `user_directory` is
+  // applied to that person's sign-in by the database. So the Access drawer sets
+  // the role THERE and lets it flow down, instead of writing `profiles` and
+  // leaving this list showing the role the person no longer has. That was the
+  // one remaining way the two could disagree.
+  //
+  // `null` means "no single row": either nobody matched, or TWO directory rows
+  // claim the same login and "the" row for it is not a question with an answer.
+  // Then the role is written to the profile as before — a change the next save
+  // of whichever row wins would undo, which is a reason to fix the duplicate,
+  // not to guess between them.
+  const dirIdForProfile = useMemo(() => {
+    const m = new Map<string, number | null>();
+    dir.forEach((r) => {
+      const p = userByEmail.get((r.email || '').toLowerCase()) ?? userByEmail.get((r.gmail || '').toLowerCase());
+      if (!p) return;
+      m.set(p.id, m.has(p.id) ? null : r.id);
+    });
+    return m;
+  }, [dir, userByEmail]);
+
   const [accessFor, setAccessFor] = useState<User | null>(null);   // role + extra permissions
   const [dataFor, setDataFor] = useState<User | null>(null);       // everything this user entered
   const [viewRow, setViewRow] = useState<DirectoryRow | null>(null); // click a row → full record + actions
@@ -588,8 +611,9 @@ export function UserMasterView() {
       {accessFor && (
         <AccessDrawer
           user={accessFor}
+          dirId={dirIdForProfile.get(accessFor.id) ?? null}
           onClose={() => setAccessFor(null)}
-          onSaved={async (text) => { setAccessFor(null); setMsg({ tone: 'ok', text }); await reloadUsers(); }}
+          onSaved={async (text) => { setAccessFor(null); setMsg({ tone: 'ok', text }); await reloadUsers(); await load(); }}
           onError={(text) => setMsg({ tone: 'error', text })}
         />
       )}
@@ -683,8 +707,8 @@ export function UserMasterView() {
 }
 
 // ---- Access: role + extra per-user permissions (folds in the old User Access)
-function AccessDrawer({ user, onClose, onSaved, onError }: {
-  user: User; onClose: () => void; onSaved: (t: string) => void; onError: (t: string) => void;
+function AccessDrawer({ user, dirId, onClose, onSaved, onError }: {
+  user: User; dirId: number | null; onClose: () => void; onSaved: (t: string) => void; onError: (t: string) => void;
 }) {
   const { rolePerms } = useAuth();
   const roleOptions = useMemo(
@@ -704,7 +728,21 @@ function AccessDrawer({ user, onClose, onSaved, onError }: {
   const save = async () => {
     setBusy(true);
     const extras = [...extra].filter((k) => !roleGrants.has(k));
-    const res = await updateProfile(user.id, { role, extra_permissions: extras });
+    // THE ROLE GOES TO USER MASTER, the extras to the sign-in.
+    //
+    // They are different things and only one of them is on this list: the role
+    // is what the User Master row says this person IS, and 0199 applies it to
+    // their sign-in in the database. Writing it straight to `profiles` here —
+    // which is what this did — left the list showing the old role and the
+    // person running on the new one, until the next save of that row put the
+    // old one back. Extra permissions have no directory column, so they are a
+    // profile write and always were.
+    const roleRes = dirId != null && role !== (user.rbacRole || '')
+      ? await saveDirectoryRow(dirId, { role })
+      : { ok: true as const };
+    const res = roleRes.ok
+      ? await updateProfile(user.id, dirId != null ? { extra_permissions: extras } : { role, extra_permissions: extras })
+      : roleRes;
     logAudit({ action: 'user.access.save', target: user.email, status: res.ok ? 'ok' : 'error', error: res.ok ? undefined : res.error, meta: { role, extras: extras.length } });
     setBusy(false);
     if (res.ok) onSaved(`Saved ${user.fullName || user.email}: ${roleLabel(role)}${extras.length ? ` + ${extras.length} extra` : ''}.`);
