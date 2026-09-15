@@ -977,6 +977,17 @@ with checks(sort_order, bundle, provides, present) as (
          or not exists (select 1 from public.app_roles
                          where jsonb_array_length(permissions) > 0
                            and not (permissions ? 'mod:/workload'))))
+,
+    (157, 'DCCR Insights counts under the CORRECTED product', 'field_call_review carries actual_product / live_product_name / live_product_changed (0203), and mod:/dccr-insights is merged into every configured role (0204). The user: "Add one more analytics page to analyse all the data that is part of the daily call review." 0197 gave Review 2 a "Change product?" and taught field_failure_register to count under it; FIELD_CALL_REVIEW NEVER LEARNED. It is the view the register reads and the one the new page groups by, so every "which product fails" chart would have counted under the MAIN product and the correction would have changed nothing on the one screen built to see it -- the failure still reading as EXTEND-XT''s when somebody had said it was the CPX CARE''s. ONE EFFECTIVE VALUE, exactly as 0197 argued: live_product_name is the corrected product where one was chosen and the call''s where none was, so a failure is counted ONCE under whatever that is; two columns would let a count include it twice or neither, and a Pareto that double-counts is worse than one merely wrong. THE WHOLE VIEW IS RESTATED rather than appended to: the first version wrote `select fcr.* from field_call_review fcr` -- appending by selecting from ITSELF -- which Postgres accepts at creation and then answers with "infinite recursion detected in rules for relation". And security_invoker is re-asserted, because create-or-replace drops it and a view without it reads as its OWNER, which this project has shipped three times. THE ROW TESTS THE COLUMN AND THE KEY: a view nobody can open analyses nothing. NO means the page counts under the uncorrected product, or is invisible. Restore: daily_review.sql, then rbac.sql',
+        (to_regclass('public.field_call_review') is null
+         or (exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='field_call_review'
+                        and column_name = 'live_product_name')
+         and (to_regclass('public.app_roles') is null
+           or not exists (select 1 from public.app_roles where jsonb_array_length(permissions) > 0)
+           or not exists (select 1 from public.app_roles
+                           where jsonb_array_length(permissions) > 0
+                             and not (permissions ? 'mod:/dccr-insights'))))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

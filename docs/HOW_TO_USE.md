@@ -326,6 +326,15 @@ typed into a form that reads it.
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
 
+- **Daily Call Review Insights** `/dccr-insights` — what the reviews are
+  **saying**, across the whole register. The register is a worklist; this is the
+  question it cannot answer.
+  > **Click any bar and every chart below it narrows.** Click it again to let go.
+  > Products are counted under the one **Review 2 says actually failed**, so a
+  > fault moved to an accessory counts there and not against the machine it was
+  > logged on.
+  > **“Auto (9:15 am)”** on *Who answered Review 2* is the rule answering for a
+  > call nobody looked at the next morning. A large share there is worth knowing.
 - **My Workload** `/workload` — everything waiting on you, across the registers
   you can open. **Click a card and you get the list behind it.**
   > A card with nothing to open stays a plain figure — there is no list of an
