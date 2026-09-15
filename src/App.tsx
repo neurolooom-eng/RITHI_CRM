@@ -43,6 +43,7 @@ import { Objective } from './modules/Objective';
 import { MachineHistory } from './modules/MachineHistory';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
+import { Workload } from './modules/Workload';
 import { IndoorService } from './modules/IndoorService';
 import { Tracker } from './modules/Tracker';
 // User Access folded into User Master; /users now redirects there.
@@ -157,6 +158,7 @@ function Shell() {
         <Route path="/failure-report" element={<FieldFailureReport />} />
         <Route path="/kpi" element={<KpiAnalytics />} />
         <Route path="/objective" element={<Objective />} />
+        <Route path="/workload" element={<Workload />} />
         <Route path="/spare-insights" element={<SpareInsights />} />
         <Route path="/machine-history" element={<MachineHistory />} />
         <Route path="/exports" element={<ReportsHub />} />

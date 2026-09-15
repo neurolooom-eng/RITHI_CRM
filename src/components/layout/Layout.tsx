@@ -46,6 +46,10 @@ export const NAV: NavGroup[] = [
       // RIGHT BELOW DASHBOARD, where it was asked for (2026-09-08). It is a
       // dashboard in its own right rather than an export, which is why it sits
       // here and not under Reports.
+      // RIGHT UNDER THE DASHBOARD. It answers "what is waiting on me?" where
+      // the Dashboard answers "how is the company doing?" — the first question
+      // somebody asks when they sign in, so it is the first thing under it.
+      { to: '/workload', label: 'My Workload', icon: '⚡' },
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:

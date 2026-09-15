@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.270',
+    version: '0.9.277',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,94 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.276',
+    date: '2026-09-15',
+    title: 'My Workload cards now open the right list, not just the right page',
+    changes: [
+      'Clicking “Review 2 Pending” opens THOSE calls; “Awaiting me” opens the requests you can action; “Short” opens the hand-stock lines taken without a stock out.',
+      'They were landing on the right register with the WHOLE list showing — the click looked answered and was not, which is worse than a card that plainly does nothing.',
+      'Two cards were pointing at addresses that do not exist (Hand Stock and Material Returns), so those sections would not have shown at all.',
+      'The filter is applied once, on arrival, so it never fights a change you make afterwards.',
+    ],
+  },
+  {
+    version: '0.9.275',
+    date: '2026-09-15',
+    title: 'My Workload — the queues moved off the registers, and now open',
+    changes: [
+      'A new MY WORKLOAD page, under Overview, right below the Dashboard: everything waiting on you across the registers you can open — Spare Requests, RM Approval, Pending Dispatch, Daily Call Review, Hand Stock, Material Returns and Stock Transfer.',
+      'CLICK A CARD AND YOU GET THE LIST. “Awaiting me” opens the requests you can action; “Review 2 Pending” opens those calls; “Short” opens the hand-stock lines that were taken without a stock out.',
+      'A card with nothing to open does not pretend otherwise. There is no list of an ageing of four days, or of 1,200 units in the field, so those stay plain figures.',
+      'The registers themselves lose the card strip at the top — that was the ask. On Spare Requests it was duplicating the chips right beneath it, which already filtered.',
+      'ALL MASTERS KEEPS ITS CARDS: there the cards ARE the register, one per value list, rather than a header above a list of something else.',
+      'The counts are the registers’ own, not worked out a second time — a number that disagreed with the list it opens would be worse than no number.',
+      'You only see a section for a register you can already open, and a queue you may not read is never counted at you.',
+      'Needs the Roles & Permissions SQL (rbac.sql) to be run, or the page is invisible to everyone.',
+    ],
+  },
+  {
+    version: '0.9.274',
+    date: '2026-09-15',
+    title: 'Six lists were stopping at a thousand rows without saying so',
+    changes: [
+      'PENDING DISPATCH and RM APPROVAL were showing at most 1,000 lines with no “Load more” and nothing to say work was hidden. On a busy queue that is work nobody can see.',
+      'The same fault in four more places: every dispatched stock-out line, all hand stock across the field, THE WHOLE USER MASTER — which is the list every “Call Allocated To” box is built from — and any value list past a thousand entries, whose picker would then refuse a value that IS on the master.',
+      'All six now read every row, a thousand at a time.',
+      'Found while building the Workload page, because it counts from those same lists — a count over a truncated list would have been wrong on a screen made of counts.',
+    ],
+  },
+  {
+    version: '0.9.273',
+    date: '2026-09-15',
+    title: 'The Validation Package carries the requirements, grouped by module',
+    changes: [
+      'A new REQUIREMENTS BY MODULE tab: every user requirement under the screen it governs, the system requirements that implement it beneath, and the tests that prove those beneath them. One screen carries the whole argument — what was asked for, how it was built, and what shows it works.',
+      'It is the same document as docs/REQUIREMENTS.md, from the same rule — not a second copy. A document that says different things in two places is worse than either alone.',
+      'The module is worked out from each requirement’s own words, so the grouping follows the text rather than somebody’s filing. One that names several modules appears under each; the 28 that name none — access control, audit, retention — are listed apart rather than forced under a screen.',
+      'Gaps are stated: needs nothing implements, mechanisms nothing proves, requirements nothing tests. All three read zero today.',
+      'The two flat lists (User Requirements, System Requirements) are unchanged, for looking one up by number.',
+    ],
+  },
+  {
+    version: '0.9.272',
+    date: '2026-09-15',
+    title: 'Party Master: change one engineer’s name everywhere it appears',
+    changes: [
+      '“✎ Change engineer” on the Party Master corrects one spelling across every customer that names it, in one go.',
+      'IT IS WORTH DOING because a call is allotted by NAME. A Serviceman spelled one way here and another way in the User Master fills the box with somebody who does not exist — and nobody gets the “Call allotted to you” notice. In your own file, 32 of the 49 spellings match no User Master name, and 328 customers share the worst one.',
+      'The list tells you which ones those are: a spelling the User Master does not hold is marked on the spot, so you are not comparing two screens.',
+      'IT SHOWS HOW MANY CUSTOMERS WILL CHANGE BEFORE IT CHANGES THEM. A count afterwards is a report; a count beforehand is a decision.',
+      'The new name is picked from the User Master and cannot be typed — typing one is how the problem started. If the engineer has left, there is a tick-box to leave nobody.',
+      'It matches the spelling exactly. A different one — a stray capital, an extra space — is left alone and listed separately, so nothing is swept up that you did not choose.',
+      'Calls already registered keep the engineer they were allotted to. This changes who the CUSTOMER is looked after by, not history.',
+      'Needs “Edit masters”.',
+    ],
+  },
+  {
+    version: '0.9.271',
+    date: '2026-09-15',
+    title: 'The filter chips above a register can be put away',
+    changes: [
+      'Every row of filter chips now has a heading you can click to fold it away — Engineer on the call registers and Spare Requests, Status / Activity / Kind on Indoor Service, Product / Region on KPI.',
+      'A LONG ROW STARTS FOLDED, a short one starts open. A row is crowded exactly when it has more names than fit, so that is what decides it — and it follows the data rather than being set once.',
+      'Whatever you choose is remembered, per screen, on your own device. Indoor Service stacks three rows; put away the two you never use and they stay away.',
+      'FOLDING THE CHIPS NEVER FOLDS AWAY THE FILTER. If one is applied it stays on screen with its count, and one click clears it — otherwise you would be looking at 90 rows out of 3,850 with nothing saying why.',
+    ],
+  },
+  {
+    version: '0.9.270',
+    date: '2026-09-15',
+    title: 'Party Master shows the new columns — and lets you fill them in',
+    changes: [
+      'The Party Master was still showing six columns after the new ones shipped. They were in the database and in the ⚙ Columns picker, but not on the screen — so nobody saw them. Serviceman, Profile, Pincode, Phone, Email, KYC, GSTIN and PAN are now on the register as it opens; everything else is still one tick away in the picker.',
+      'CLICK A PARTY TO EDIT IT (needs “Edit masters”). Its contact details, the two addresses, the Serviceman, and the KYC.',
+      'KYC is captured here: GSTIN, PAN, status and notes. Marking one Verified records who did it and when, from your sign-in.',
+      'The party NAME is deliberately not editable — every machine, call and contract names the customer by it.',
+      'The count at the top read a flat “1,000” while there are 4,752 parties. It now reads 1,000+ until the rest are loaded, because a number that looks exact and is not is the one somebody quotes.',
+      'The ⚙ picker offered raw column names like “billing_phone_2”. It reads “Billing Phone 2”.',
     ],
   },
   {

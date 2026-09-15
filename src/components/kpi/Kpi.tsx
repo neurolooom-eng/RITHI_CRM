@@ -17,9 +17,44 @@ export interface KpiCardProps {
   icon?: ReactNode;
   tone?: KpiTone;
   spark?: number[];
+  // WHAT THIS CARD OPENS. Given one, the card becomes a button: it looks
+  // pressable, takes keyboard focus and says where it goes.
+  //
+  // A CARD WITHOUT ONE IS NOT A DEAD BUTTON, it is a figure. Half of these
+  // count units, engineers or days — there is no list of 12 "units in the
+  // field" to open — and a card that looked clickable and did nothing would be
+  // worse than one that plainly does not. So the two are told apart by how they
+  // LOOK, not only by whether the click lands.
+  onOpen?: () => void;
+  // Where it goes, for the title and for anyone reading with a screen reader.
+  // Required alongside `onOpen`: "opens something" is not a destination.
+  opens?: string;
 }
 
-export function KpiCard({ label, value, sub, delta, icon, tone = 'primary', spark }: KpiCardProps) {
+export function KpiCard({ label, value, sub, delta, icon, tone = 'primary', spark, onOpen, opens }: KpiCardProps) {
+  const inner = (
+    <>
+      <div className="kpi-top">
+        <span className="kpi-label">{label}</span>
+        {icon && <span className="kpi-icon">{icon}</span>}
+      </div>
+      <div className="kpi-value">{value}</div>
+      <div className="kpi-bottom">
+        {delta && <DeltaBadge {...delta} />}
+        {sub && <span className="kpi-sub">{sub}</span>}
+      </div>
+      {spark && spark.length > 1 && <Sparkline data={spark} />}
+    </>
+  );
+  if (onOpen) {
+    return (
+      <button type="button" className={`kpi kpi-${tone} kpi-open`} onClick={onOpen}
+        title={opens ? `Open ${opens}` : undefined}>
+        {inner}
+        <span className="kpi-go" aria-hidden="true">›</span>
+      </button>
+    );
+  }
   return (
     <div className={`kpi kpi-${tone}`}>
       <div className="kpi-top">

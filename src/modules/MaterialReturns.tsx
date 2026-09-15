@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import {
   addMaterialReturn, listMaterialReturns, handstockForEngineer, supabaseConfigured,
@@ -130,12 +129,6 @@ export function MaterialReturns() {
     });
   }, [rows, search, engineerFilter]);
 
-  const totals = useMemo(() => {
-    const notes = new Set(rows.map((r) => g(r, 'uid')));
-    const good = rows.reduce((n, r) => n + num(r.good_qty), 0);
-    const defective = rows.reduce((n, r) => n + num(r.defective_qty), 0);
-    return { notes: notes.size, lines: rows.length, good, defective };
-  }, [rows]);
 
   const detailRows = useMemo(() => rows.filter((r) => g(r, 'uid') === detail), [rows, detail]);
 
@@ -158,12 +151,6 @@ export function MaterialReturns() {
         </div>
       )}
 
-      <KpiGrid>
-        <KpiCard label="Returns" value={totals.notes} icon="↩️" tone="primary" sub="MRNs raised" />
-        <KpiCard label="Items returned" value={totals.lines} icon="🔩" tone="info" sub="lines across every MRN" />
-        <KpiCard label="Good" value={totals.good} icon="✅" tone="success" sub="back to Stores, usable" />
-        <KpiCard label="Defective" value={totals.defective} icon="⚠️" tone={totals.defective ? 'warning' : 'neutral'} sub="back to Stores, faulty" />
-      </KpiGrid>
 
       <DataTable<Row>
         columns={COLUMNS}

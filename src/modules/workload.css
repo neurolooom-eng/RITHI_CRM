@@ -1,0 +1,9 @@
+/* MY WORKLOAD — one block per register, so a reader can find the queue they
+   live in without reading the others. The heading carries the way OUT to the
+   whole register, beside the cards that open one slice of it. */
+.wl-section { margin: 0 0 22px; }
+.wl-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.wl-head h3 { margin: 0; font-size: 15.5px; }
+/* Said while the rest are still being counted, so a page that is not finished
+   does not read as a page with nothing else on it. */
+.wl-busy { padding: 8px 2px 18px; font-size: 13px; }

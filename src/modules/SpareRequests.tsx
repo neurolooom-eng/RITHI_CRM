@@ -4,8 +4,8 @@ import { PickList } from '../components/ui/PickList';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
+import { useArrivingFilter } from '../lib/arriveWith';
 import { toIsoDate } from '../lib/dates';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
@@ -505,6 +505,8 @@ export function SpareRequests() {
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | typeof MINE | ''>('');
+  // ARRIVING FROM MY WORKLOAD with the stage that was clicked (0202's page).
+  useArrivingFilter<Stage | typeof MINE | ''>('stageFilter', setStageFilter);
   // ---- approval in bulk (0116) ---------------------------------------------
   // The ask (2026-09-06): NSM / Admin / Super Admin tick boxes and approve, at
   // EVERY stage. The register is the right place for it because the selection
@@ -910,14 +912,6 @@ export function SpareRequests() {
 
       {onDb && (
         <>
-          <KpiGrid>
-            <KpiCard label="Awaiting me" value={counts[MINE]} icon="⚡" tone="primary" sub="requests you can action" />
-            <KpiCard label="In approval" value={counts['RM Approval'] + counts.Commercial + counts.NSM} icon="🕒" tone="warning" sub="RM · Commercial · NSM" />
-            <KpiCard label="Awaiting dispatch" value={counts.Stores} icon="📦" tone="info" sub="cleared, with Stores" />
-            <KpiCard label="Dispatched" value={counts.Dispatched} icon="🚚" tone="info" sub="in transit to the field" />
-            <KpiCard label="Received" value={counts.Received} icon="✅" tone="success" sub="acknowledged by the engineer" />
-            <KpiCard label="Rejected" value={counts.Rejected} icon="✕" tone="danger" sub="closed without dispatch" />
-          </KpiGrid>
 
           <div className="stage-chips">
             {/* Counted over what has LOADED, so each is a lower bound while more
@@ -936,6 +930,8 @@ export function SpareRequests() {
             onChange={setEngineerFilter}
             allLabel="All engineers"
             blankLabel="— no engineer —"
+            title="Engineer"
+            storeKey="spares.engineer"
             more={onDb && more}
           />
         </>

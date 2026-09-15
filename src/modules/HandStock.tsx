@@ -3,8 +3,8 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
+import { useArrivingFilter } from '../lib/arriveWith';
 import {
   listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured,
 } from '../lib/supabase';
@@ -140,6 +140,8 @@ export function HandStock() {
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [holding, setHolding] = useState<Holding>('held');
+  // ARRIVING FROM MY WORKLOAD — the Short card opens the short lines.
+  useArrivingFilter<Holding>('holding', setHolding);
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   // The balance is paged, like the call registers. `loaded` is how many rows
@@ -328,15 +330,6 @@ export function HandStock() {
         </div>
       )}
 
-      <KpiGrid>
-        <KpiCard label="Units in the field" value={totals.onHand} icon="🎒" tone="primary" sub="held across every engineer" />
-        <KpiCard label="Engineers holding" value={totals.engineers} icon="👤" tone="info" sub="with at least one spare in hand" />
-        <KpiCard label="Spares held" value={totals.partCodes} icon="🔩" tone="info" sub="distinct part codes" />
-        <KpiCard label="Stock out" value={totals.stockOut} icon="📤" tone="success" sub="issued by Stores on a DC" />
-        <KpiCard label="Consumed" value={totals.consumed} icon="🧾" tone="neutral" sub="used on calls" />
-        <KpiCard label="Returned" value={totals.returned} icon="↩️" tone="info" sub="sent back on an MRN" />
-        <KpiCard label="Short" value={totals.shortLines} icon="⚠️" tone={totals.shortLines ? 'danger' : 'neutral'} sub="taken without a stock out" />
-      </KpiGrid>
 
       {/* Tabs: the level, and the ledger it is made of. */}
       <div className="stage-chips hs-tabs">

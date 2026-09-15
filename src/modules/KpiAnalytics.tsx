@@ -180,8 +180,10 @@ export function KpiAnalytics() {
       {/* `more={false}` deliberately: these are not a page of rows. The database
           computes the whole aggregate (0101's KPI views), so every count here is
           the complete figure and a "+" would be a lie in the other direction. */}
-      <FacetChips options={productChips} value={product} onChange={setProduct} allLabel="All products" max={10} more={false} />
-      <FacetChips options={regionChips} value={region} onChange={setRegion} allLabel="All regions" max={10} more={false} />
+      <FacetChips options={productChips} value={product} onChange={setProduct} allLabel="All products"
+        title="Product" storeKey="kpi.product" max={10} more={false} />
+      <FacetChips options={regionChips} value={region} onChange={setRegion} allLabel="All regions"
+        title="Region" storeKey="kpi.region" max={10} more={false} />
 
       <div className="dash-grid">
         <SectionCard title="Spare use by cover">

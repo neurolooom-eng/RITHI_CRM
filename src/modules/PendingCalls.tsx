@@ -218,6 +218,8 @@ export function PendingCalls() {
         onChange={setEngineerFilter}
         allLabel="All engineers"
         blankLabel="— not allotted —"
+        title="Engineer"
+        storeKey="pending.engineer"
         more={moreAvailable}
       />
 

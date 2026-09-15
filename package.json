@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.270",
+  "version": "0.9.277",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "docs:reqs": "esbuild scripts/requirements-doc.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/requirements-doc.mjs --log-level=error && node node_modules/.cache/requirements-doc.mjs > docs/REQUIREMENTS.md",
     "check:mapping": "esbuild scripts/check-report-mapping.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-report-mapping.mjs --log-level=error && node node_modules/.cache/check-report-mapping.mjs",
     "check:uploads": "esbuild scripts/check-uploads.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-uploads.mjs --log-level=error && node node_modules/.cache/check-uploads.mjs",
     "check:upserts": "node scripts/check-upsert-targets.mjs",

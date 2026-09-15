@@ -19,6 +19,251 @@ up)_
 
 
 
+## 2026-09-15 — The cards were opening the right page and the wrong list
+
+Caught by checking my own claim rather than leaving it for the user: I had told
+them the click-through was the part I most wanted their eyes on. It did not work.
+
+**None of the three registers read `location.state` at all.** The cards passed
+`stageFilter`, `status` and `holding`; nothing consumed any of them. So every
+card navigated to the right register showing the WHOLE list — **the click looks
+answered**, and the reader believes the list in front of them is the one they
+asked for. That is worse than a card that plainly does nothing.
+
+**And two cards pointed at addresses that do not exist**: `/hand-stock` (the
+route is `/handstock`) and `/material-returns` (`/mrn`). The same strings were
+the permission keys, so those two sections would never have appeared for anyone.
+
+### What now holds it
+
+`useArrivingFilter` — one reader, so three registers cannot disagree about how
+an arriving filter is applied, and **applied once on arrival**: re-reading
+`location.state` would fight every change the reader makes afterwards, and the
+screen would appear stuck.
+
+`check:ui` resolves each card's path through `App.tsx` to the module serving it
+and proves that module reads the key the card sends. Mutation-tested.
+
+**The first version of that check silently covered two registers of three** —
+its `(\w+):` missed the shorthand `state: { status }`, which is how the Daily
+Call Review passes it, and the register it skipped was the one most likely to be
+wrong. It now asserts the PAIR COUNT first, so a check that stops seeing one
+fails instead of passing quietly.
+
+---
+
+## 2026-09-15 — My Workload: the queues left the registers, and now open
+
+Asked: *"Remove such cards in Main Views. Move those to a Separate KPI Cards
+Page where ever applicable. It should be interactive - Say if i click on
+Pending, it should give me the List."* Which cards: **every card off every
+register.** What to call it: **My Workload, under Overview.**
+
+### Two facts that shaped it, both from reading before building
+
+**Nothing was clickable.** `KpiCard` had no `onClick` at all — 67 cards across
+12 screens. So the interactivity was a new capability, not a wiring-up, and it
+belongs in the card: every screen that grows one gets it.
+
+**On Spare Requests the cards duplicated the chips beneath them.** The same six
+counts, and the chips already filtered. That row cost vertical space for nothing.
+
+### The cards are two different things
+
+A **queue** has a list behind it and opens the register with that filter. A
+**figure** counts units, engineers or days — there is no list of an ageing of
+four days — so it opens nothing **and does not look as though it would**. Told
+apart by whether `onOpen` is given; an openable card is a real button.
+
+### All Masters keeps its cards
+
+Not an oversight. There the cards **are** the register — one per value list,
+which is what the screen is for — rather than a header above a list of something
+else. Removing them would leave the page with nothing on it. Guarded, so nobody
+"finishes the job" later.
+
+### What the page will not do
+
+- **Count a queue the reader cannot open.** The permission is checked *before*
+  the load, so the request is never made. "Spares waiting 240" would otherwise
+  tell somebody the size of a queue the register itself would refuse them.
+- **Re-derive a count.** Every section uses the register's own helper
+  (`summarise`, `deriveStage`, `countCallReviews`). A count that disagreed with
+  the list it opens is worse than no count: somebody opens it, finds a different
+  number, and stops trusting both.
+- **Hide that it is still reading.** Sections load independently — one slow
+  register must not hold up six fast ones — and a section that has not read
+  everything shows its counts as a lower bound. The Daily Call Review is the
+  exception and takes no `+`: `countCallReviews` counts in the DATABASE, so
+  "3,850+" would be wrong in the other direction.
+
+### The third thing, which is the one that bites
+
+`check:ui` failed on the first build with *"every module key is written into
+app_roles by some migration"* — exactly what it exists for. `permsForRole()`
+returns the stored set whenever it is non-empty, so a code default reaches only
+a role whose row is empty; without **0202** the page would have been invisible
+to every role with no error anywhere. Proved against a database: merged into a
+tuned role, skipped one that already had it, left an unconfigured role alone.
+`_status.sql` row 156, proved both ways.
+
+### Also
+
+Five computations were left with no reader once the cards went, and were
+removed rather than left running.
+
+---
+
+## 2026-09-15 — One Serviceman, changed everywhere it appears
+
+Asked: *"In Party Master - Give me an Option to Change the Engineer Name in one
+go - Like Ctrl H."*
+
+This is the repair for the fault measured when the export first arrived, and
+left open in the 0200 entry: **32 of the 49 Servicemen match no User Master
+name**, and `allocated_to` on a call is a NAME that `notify_call_allotted()`
+resolves through `user_directory`. So a spelling nobody holds prefills the box
+with somebody who does not exist and notifies no one — **328 customers** on the
+worst one (`SIVA KUMAR R.` against `SIVAKUMAR`). Opening 328 parties is not a
+repair anybody performs.
+
+### The decisions worth recording
+
+- **ONE STATEMENT.** Every party moves together or none does. A row at a time
+  is 328 requests and a half-finished rename if one fails.
+- **MATCHED EXACTLY**, never trimmed or case-folded. A rename that quietly
+  caught a second spelling would be one nobody asked for — `siva kumar r.` is a
+  different spelling and appears on the list in its own right.
+- **THE COUNT COMES FIRST.** A count afterwards is a report; a count beforehand
+  is a decision. Same rule as renaming a part (0196).
+- **THE NEW NAME COMES FROM THE USER MASTER, with no free text.** Letting
+  somebody type one recreates exactly the fault being repaired. Clearing it is
+  its own tick-box, because `SelectPicker` FILTERS OUT a blank-valued option —
+  PickList has its own "— none —" and two of them read as a bug — so an entry
+  for it would silently not be there.
+- **THE LIST SAYS WHICH SPELLINGS ARE THE PROBLEM**, marked on the spot, rather
+  than leaving somebody to compare two screens.
+- **COUNTED OVER EVERY PARTY**, through `allRows`. There are 4,752 and PostgREST
+  caps a response at a thousand: counting the first page reports 49 names as 20
+  and says nothing.
+
+### No migration
+
+It is a plain update through a policy that already exists (`parties_write` is
+`has_perm('masters.edit')`), so there is no SQL for the user to run — which
+also means the button must be gated in the UI, or it offers something the
+database will refuse.
+
+### Proved
+
+Sections 11-13 of `party_kyc_test.sql`: three parties move, the one already
+correct is untouched, the differently-cased one is left alone, **a Verified KYC
+keeps its stamp** (the rename must not disturb it), and clearing works.
+82/82 suites, 13/13 checks.
+
+`.ind-toggle` was nearly borrowed for the tick-box — it lives in a stylesheet
+this screen does not import, the same implicit-CSS trap as `kb-form` the day
+before. `.kb-check` has a rule of its own.
+
+---
+
+## 2026-09-15 — The filter chips fold away, and never fold the filter away with them
+
+Asked: *"The Grouping at the top ... Seems to be very Congested for a Few but
+Useful for a Few — Is it possible to Expand and Collapse it? or Enable /
+Disable?"*
+
+Both, and they turn out to be the same control: a row that folds and REMEMBERS
+is a row that is disabled for whoever wants it disabled.
+
+### The default is a fact about the row, not a guess about the screen
+
+**A row is congested exactly when it has more options than fit** — three
+statuses are useful, ninety engineers are a wall. So a long row starts folded
+and a short one starts open, and it follows the data rather than being decided
+once per screen. Once somebody touches it their choice wins and is kept, because
+a default that cannot be overruled is a preference imposed.
+
+`FacetChips` already had **＋N more / Show fewer** for the overflow past twelve.
+That hides the tail; it never made the row smaller than twelve chips, which is
+the shape the complaint was about.
+
+### The one rule that matters
+
+**Folding the chips must not fold away the FILTER.** A shut row quietly holding
+a selection shows 90 rows where there are 3,850 with nothing on screen saying
+why — and the reader concludes the register is broken, not filtered. So the
+chosen chip stays out, keeps its count, and clears in one click.
+
+Mutation-tested: removing it fails two `check:ui` assertions.
+
+### Where they are
+
+| Screen | Rows |
+| --- | --- |
+| Field / Installation / PM calls | Engineer (per call type) |
+| Pending Calls, Spare Requests | Engineer |
+| Indoor Service | Status, Activity, Kind — **three stacked**, the congested case even though each is short |
+| KPI & Failure Analysis | Product, Region |
+
+### Two checks written wrong before they were written right
+
+- `code()` strips comments, so asserting the private-window `catch` by its
+  comment matched nothing. Asserted structurally instead — and it now covers
+  BOTH accesses, the read at mount as well as the write.
+- Counting `storeKey=` to count facet rows measured the wrong thing: **Drawer
+  takes that prop too**, so Indoor Service failed a check on a file that was
+  correct. Counted by the keys themselves.
+
+---
+
+## 2026-09-15 — A column in the table is not a column on the screen
+
+Reported with a screenshot the moment the Party Master was opened: *"Why is the
+party Master not showing any of the Columns?"*
+
+**They were in the database and in the ⚙ picker.** The screen has a CURATED
+list — `COLUMNS` in `PartyMaster.tsx` — which is what a reader sees without
+asking; everything else on the row is addable but hidden. Adding a column to
+`parties` and to the importer put the value in the row and nowhere a person
+would look.
+
+**A field nobody can see is a field nobody fills in**, and on KYC that is the
+whole feature. `check:ui` now compares the columns 0200 and 0201 added against
+the SCREEN, not against the schema.
+
+### And it could not be captured at all
+
+The register was READ-ONLY, so "provision to capture the KYC details" had no
+provision. A party can now be opened and edited by whoever holds `masters.edit`:
+its contact blocks, the Serviceman, and the KYC.
+
+Two things the form deliberately cannot do, and both are guarded:
+
+- **The party NAME.** Every machine, call and contract names the customer by
+  that string and there is no foreign key to `parties` — the same shape as a
+  part's identity (0196), which needs a carry-the-history function rather than a
+  text box.
+- **Who verified the KYC.** The database stamps it; a form that could set it
+  could sign somebody else's name to a verification.
+
+### Two more the screenshot showed
+
+- **The count read a flat "1,000"** over 4,752 parties. This register pages a
+  thousand at a time, so the badge was a lower bound presented as exact — the
+  project's own rule, broken on its own screen. `countMore` now adds the `+`.
+- **The picker offered `billing_phone_2`.** `allFields` was passing the raw
+  column name as the header, which beats DataTable's own `humanize()`. Dropping
+  it gives "Billing Phone 2".
+
+### Also
+
+`kb-form` and `kb-form-actions` reached this screen only because another module
+happens to import `knowledgebase.css`. Imported here too: a form that loses its
+layout when somebody code-splits the app is a bug waiting for a build change.
+
+---
+
 ## 2026-09-15 — The Party Master's own columns, and somewhere for KYC
 
 Asked: *"Additionally add provision to capture the KYC details of the customer.

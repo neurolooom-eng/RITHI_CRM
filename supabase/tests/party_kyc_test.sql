@@ -130,3 +130,38 @@ select party_name, pincode,
   from public.parties where party_name like '%PINCODE%' order by party_name;
 \echo '    BOTH  -> the bare one becomes billing. ONE ONLY -> left alone,'
 \echo '    because nothing on that row says it is a billing address.'
+
+\echo ''
+\echo '=== 11. ONE SPELLING, EVERY CUSTOMER THAT NAMES IT ======================'
+-- The user: "Give me an Option to Change the Engineer Name in one go - Like
+-- Ctrl H." 32 of the 49 Servicemen on the supplied export match no User Master
+-- name, and `allocated_to` on a call is a NAME -- so those prefill a box with
+-- somebody who does not exist and notify nobody. 328 customers share the worst
+-- spelling, which is not a repair anybody performs one party at a time.
+insert into public.parties (party_name, service_engineer) values
+  ('SWAP A','SIVA KUMAR R.'), ('SWAP B','SIVA KUMAR R.'), ('SWAP C','SIVA KUMAR R.'),
+  ('SWAP KEEP','SIVAKUMAR'),
+  ('SWAP CASE','siva kumar r.');
+-- Verified KYC on one of them, to prove a rename does not disturb it.
+update public.parties set kyc_status = 'Verified' where party_name = 'SWAP A';
+
+update public.parties set service_engineer = 'SIVAKUMAR' where service_engineer = 'SIVA KUMAR R.';
+select service_engineer, count(*) as parties
+  from public.parties where party_name like 'SWAP%' group by 1 order by 1;
+\echo '    Three moved. SWAP KEEP was already right. SWAP CASE is a DIFFERENT'
+\echo '    spelling and is left alone -- matched exactly, never case-folded,'
+\echo '    because a rename that quietly caught a second spelling is one'
+\echo '    nobody asked for. It appears on the list in its own right.'
+
+\echo ''
+\echo '=== 12. ...and a verified KYC is not disturbed by it ===================='
+select party_name, kyc_status,
+       case when kyc_verified_at is not null then 'STILL STAMPED (correct)' else 'lost the stamp' end as stamp
+  from public.parties where party_name = 'SWAP A';
+
+\echo ''
+\echo '=== 13. clearing it is a rename to nobody =============================='
+update public.parties set service_engineer = '' where service_engineer = 'SIVAKUMAR';
+select count(*) as should_be_zero
+  from public.parties where party_name like 'SWAP%' and coalesce(btrim(service_engineer),'') <> ''
+    and service_engineer <> 'siva kumar r.';

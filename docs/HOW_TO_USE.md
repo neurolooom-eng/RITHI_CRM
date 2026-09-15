@@ -288,6 +288,16 @@ typed into a form that reads it.
   > you type in yourself is never overwritten by a re-upload.
   > The customer has **two contact blocks**: where the machine is, and where the
   > bill goes. They are separate columns now; the billing one used to be lost.
+  > **Click a party to edit it** — contact details, both addresses, the
+  > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
+  > editable: every machine, call and contract names the customer by it.
+  > **✎ Change engineer** corrects one Serviceman across every customer that
+  > names them, in one go. Do this when a spelling here does not match the User
+  > Master — a call is allotted by NAME, so a name nobody holds fills the box
+  > with somebody who does not exist and notifies no one. It tells you how many
+  > customers will change before it changes them, and calls already registered
+  > keep the engineer they were allotted to.
+  > Not every column is shown at first — **⚙ Columns** offers the rest.
   > The **Serviceman** on a party is what fills *Call Allocated To* on a new
   > call when the machine itself has no Service Engineer — which is every
   > **installation**, because the machine does not exist here yet. The machine
@@ -315,6 +325,23 @@ typed into a form that reads it.
 - **Service Manuals** `/service-manuals` — indexed by product, so a call shows the
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
+
+- **My Workload** `/workload` — everything waiting on you, across the registers
+  you can open. **Click a card and you get the list behind it.**
+  > A card with nothing to open stays a plain figure — there is no list of an
+  > *ageing of four days*. You see a section only for a register you can already
+  > open, so nothing here grants you anything you did not have.
+  > The counts are the registers' own, so a card and the list it opens agree.
+
+## Across every register
+
+- **The filter chips above a list fold away.** Click the heading — *Engineer*,
+  *Status*, *Product* — to hide the row, and again to bring it back. A long row
+  starts folded and a short one starts open, and whatever you choose is
+  remembered on your device for that screen.
+  > **Folding the chips never removes the filter.** If one is applied it stays
+  > on screen with its count and one click clears it — otherwise you would be
+  > looking at part of a register with nothing saying why.
 
 ## Analysis & reports
 

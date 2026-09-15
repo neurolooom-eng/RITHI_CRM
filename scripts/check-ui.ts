@@ -5680,6 +5680,38 @@ console.log('\n-- a request for more than a thousand rows is PAGED, or it is a l
   const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
   const over = [...sb.matchAll(/\.limit\((\d+)\)/g)].map((m) => Number(m[1])).filter((n) => n > 1000);
   eq('no request asks for more rows than a single response can carry', over, []);
+
+  // A LITERAL WAS NOT WHERE IT WAS HIDING. The check above reads `.limit(5000)`
+  // and finds nothing, because the number is a PARAMETER: `listAllStock(limit =
+  // 5000)` then writes `.limit(limit)`, and `listPendingDispatch(limit = 2000)`
+  // writes `.range(0, limit - 1)` — which is not a bigger request either, since
+  // the cap is on the RESPONSE and not on the span asked for.
+  //
+  // SIX FUNCTIONS SAT IN THAT HOLE, found while building a page that counts
+  // from them: the dispatch queue and the RM approval queue (both stopping at a
+  // thousand lines with no Load more), every dispatched stock-out line, all
+  // hand stock across the field, the whole User Master — which is the list every
+  // "Call Allocated To" box is built from — and any master value list past a
+  // thousand entries, whose picker then refuses a value that IS on the master.
+  //
+  // So the rule is about the DEFAULT, not the call: a function in this file
+  // whose row budget starts above a single response must PAGE. The parameter is
+  // named `cap` on the ones that do, which is what `allRows` calls it.
+  const budgets = [...sb.matchAll(/export async function (\w+)\(([^)]*)\)[\s\S]{0,700}?\n\}/g)]
+    .filter((m) => /\b(limit|cap)\s*=\s*(\d{4,})/.test(m[2]))
+    .filter((m) => Number(/\b(?:limit|cap)\s*=\s*(\d{4,})/.exec(m[2])?.[1] ?? 0) > 1000)
+    .filter((m) => !/allRows/.test(m[0]))
+    // A hand-rolled 1,000-row loop is paging too — several predate `allRows`.
+    .filter((m) => !/PAGE\s*=\s*1000|for \(let from = 0/.test(m[0]))
+    // A FUNCTION THAT MAKES NO REQUEST CANNOT TRUNCATE ONE. `listMasterValues-
+    // ForProduct` passes its budget to `listMasterItems` and filters what comes
+    // back; it has no `.from()` of its own, so the cap applies where the query
+    // is, and that function is checked on its own terms. Without this the guard
+    // named it — a FALSE FINDING on a function that was already correct, which
+    // is the one outcome worse than not checking at all.
+    .filter((m) => /\.from\(/.test(m[0]))
+    .map((m) => m[1]);
+  eq('a function whose row budget exceeds one response pages for it', budgets, []);
   // THE HELPER LIVES IN ITS OWN MODULE so it can be imported and RUN — this
   // file reads `import.meta.env` at load and no node script can import it.
   // `npm run check:paging` tests the pager's behaviour against a fake server
@@ -6020,6 +6052,303 @@ console.log('\n-- the Party Master\'s columns, and its KYC (0201) --');
   // heading and party_type would come out holding "GOVERNMENT".
   eq('Profile is its own column and no longer an alias of party_type',
     /TEXT\('party_type', 'type'\),/.test(up) && /TEXT\('profile'\),/.test(up), true);
+}
+
+console.log('\n-- a new column reaches the Party Master screen, not just the table --');
+{
+  // -------------------------------------------------------------------------
+  // Reported the day after 0200/0201 shipped: "Why is the party Master not
+  // showing any of the Columns?" They were in the database AND in the ⚙ picker,
+  // and the screen still showed six — because the CURATED list is what a reader
+  // sees without asking, and nobody had added them to it.
+  //
+  // A FIELD NOBODY CAN SEE IS A FIELD NOBODY FILLS IN, which on KYC is the
+  // whole feature. So the columns the two migrations added are checked here
+  // against the screen, not against the schema.
+  // -------------------------------------------------------------------------
+  const pm = code(readFileSync('src/modules/PartyMaster.tsx', 'utf8'));
+  ['service_engineer', 'profile', 'pincode', 'phone', 'email', 'kyc_status', 'gstin', 'pan']
+    .forEach((k) => eq(`the register shows ${k} without being asked`,
+      new RegExp(`key: '${k}'`).test(pm), true));
+
+  // A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND AND MUST SAY SO. This
+  // register pages a thousand at a time over 4,752 parties, and the badge read
+  // a flat "1,000" — a number that looks exact, is not, and is the one somebody
+  // quotes.
+  eq('...and the count says it is a lower bound', /count=\{rows\.length\} countMore=\{more\}/.test(pm), true);
+
+  // KYC HAS TO BE CAPTURABLE, or the columns are a report on an empty table.
+  eq('a party can be edited, by whoever may edit masters',
+    /can\('masters\.edit'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
+  // THE PARTY NAME IS NOT EDITABLE. Every machine, call and contract names the
+  // customer by that string and there is no foreign key to `parties`.
+  eq('...but never its NAME, which everything else points at by string',
+    !/setEditField\('party_name'/.test(pm), true);
+  // NOR THE VERIFICATION STAMP: the database sets it, or this form could sign
+  // somebody else's name to a verification.
+  eq('...nor who verified it, which the database stamps',
+    !/setEditField\('kyc_verified_by'/.test(pm), true);
+  // THREE OPTIONS, SO NO SEARCH BOX — the PickList rule for a short list.
+  eq('the KYC status is a picker over the closed list',
+    /options=\{KYC_STATUSES\}/.test(pm), true);
+}
+
+console.log('\n-- a facet row can be put away, and never hides a live filter --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "The Grouping at the top ... Seems to be very
+  // Congested for a Few but Useful for a Few — Is it possible to Expand and
+  // Collapse it? or Enable / Disable?"
+  //
+  // THE ONE RULE THAT MATTERS HERE is what a SHUT row does with a filter that
+  // is still applied. Putting the chips away must not put the FILTER away: a
+  // reader who sees 90 rows where there are 3,850, with nothing on screen
+  // saying why, concludes the register is broken. So the chosen chip stays out
+  // and stays clickable.
+  // -------------------------------------------------------------------------
+  const ui = code(readFileSync('src/components/ui/ui.tsx', 'utf8'));
+
+  eq('a shut row still shows the chip that is filtering',
+    /if \(!isOpen\) \{[\s\S]*?picked[\s\S]*?chip-on/.test(ui), true);
+  eq('...and clearing it is one click from there',
+    /className="chip chip-on" onClick=\{\(\) => onChange\(''\)\}/.test(ui), true);
+
+  // THE DEFAULT IS A FACT ABOUT THE ROW, not a guess about the screen: a row is
+  // congested exactly when it has more options than fit, and that changes as
+  // the data does.
+  eq('long rows start shut, short rows start open',
+    /const isOpen = open \?\? sorted\.length <= max;/.test(ui), true);
+  // ...AND THE PERSON'S OWN CHOICE OVERRULES IT, or the default is a preference
+  // imposed rather than offered.
+  eq('...and a choice once made is remembered',
+    /localStorage\.setItem\(lsKey, next \? '1' : '0'\)/.test(ui), true);
+  // A private window throws on localStorage, and BOTH accesses are wrapped —
+  // reading at mount as well as writing. A filter row is not worth a blank
+  // screen. Asserted structurally: `code()` strips comments, so the sentence
+  // that says so is not there to match.
+  eq('...without a private window taking the row down',
+    /localStorage\.getItem\(lsKey\)[\s\S]{0,60}catch/.test(ui)
+    && /localStorage\.setItem\(lsKey[\s\S]{0,40}catch/.test(ui), true);
+
+  // EVERY ROW NEEDS A NAME TO BE PUT AWAY UNDER. A bare caret says only that
+  // something is hidden; "Engineer 90" says what. Counted by the KEYS
+  // themselves, not by `storeKey=` — Drawer takes that prop too, so counting
+  // the attribute measured the wrong thing and the check failed on a file that
+  // was correct.
+  const FACETS: [string, number, string[]][] = [
+    ['src/modules/FieldCalls.tsx', 1, ['engineer']],
+    ['src/modules/PendingCalls.tsx', 1, ['pending.engineer']],
+    ['src/modules/SpareRequests.tsx', 1, ['spares.engineer']],
+    ['src/modules/IndoorService.tsx', 3, ['indoor.status', 'indoor.activity', 'indoor.kind']],
+    ['src/modules/KpiAnalytics.tsx', 2, ['kpi.product', 'kpi.region']],
+  ];
+  FACETS.forEach(([f, n, keys]) => {
+    const src = code(readFileSync(f, 'utf8'));
+    eq(`${f.split('/').pop()} still has its ${n} facet row(s)`,
+      (src.match(/<FacetChips/g) ?? []).length, n);
+    eq('...each one named', (src.match(/title="/g) ?? []).length >= n, true);
+    keys.forEach((k) => eq(`...and remembered under ${k}`, src.includes(k), true));
+  });
+
+  // THE CLASSES EXIST. A class with no CSS rule is the wart this project keeps
+  // finding; a collapsed row styled by nothing reads as a broken one.
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  ['facet-head', 'facet-caret', 'facet-shut', 'facet-all']
+    .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
+}
+
+console.log('\n-- one Serviceman, changed everywhere it appears --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "In Party Master - Give me an Option to Change the
+  // Engineer Name in one go - Like Ctrl H."
+  //
+  // It is the repair for a measured fault: 32 of the 49 Servicemen on the
+  // supplied export match no User Master name, and `allocated_to` on a call is
+  // a NAME that `notify_call_allotted()` resolves through `user_directory`. So
+  // a spelling nobody holds prefills the box with somebody who does not exist
+  // and notifies no one — 328 customers on the worst one.
+  // -------------------------------------------------------------------------
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const pm = code(readFileSync('src/modules/PartyMaster.tsx', 'utf8'));
+
+  // ONE STATEMENT, so every party moves together or none does. A row at a time
+  // is 328 requests and a half-finished rename if one fails.
+  eq('the rename is one statement, not one per party',
+    /\.update\(\{ service_engineer: to \}, \{ count: 'exact' \}\)\s*\.eq\('service_engineer', from\)/.test(sb), true);
+  // MATCHED EXACTLY. A rename that quietly caught a second spelling would be
+  // one nobody asked for.
+  eq('...matched exactly, never trimmed or case-folded',
+    !/ilike\('service_engineer'/.test(sb), true);
+  // THE LIST IS READ IN PAGES. There are 4,752 parties and PostgREST caps a
+  // response at a thousand: counting the first page reports 49 names as 20 and
+  // says nothing.
+  eq('the spellings are counted over EVERY party, not the first thousand',
+    /allRows<\{ service_engineer: string \| null \}>/.test(sb), true);
+
+  // THE SIZE OF WHAT MOVES, BEFORE it moves — the rule renaming a part already
+  // follows (0196). A count afterwards is a report; a count beforehand is a
+  // decision.
+  eq('the number of customers is shown before it is applied',
+    /customer\{\(chosen\?\.count \?\? 0\) === 1 \? '' : 's'\} name/.test(pm), true);
+  // THE NEW NAME COMES FROM THE USER MASTER, with no free text: letting
+  // somebody type one recreates exactly the fault being repaired.
+  eq('the new name comes from the User Master, not a text box',
+    /options=\{dirNames\}/.test(pm) && !/allowFreeText/.test(pm), true);
+  // AND THE LIST SAYS WHICH SPELLINGS ARE THE PROBLEM, rather than leaving it
+  // to be worked out against another screen.
+  eq('...and a spelling the directory lacks is flagged on the list',
+    /not in User Master/.test(pm), true);
+  // GATED. `parties_write` is has_perm('masters.edit'); the button must not be
+  // offered to somebody the database will refuse.
+  eq('only somebody who may edit masters is offered it',
+    /\{mayEdit && \([\s\S]{0,200}openSwap/.test(pm), true);
+}
+
+console.log('\n-- the requirements document and the requirements PAGE are one document --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Add this Requirements Page to the Validation
+  // Package." It is the same set of requirements in two places, and A DOCUMENT
+  // THAT SAYS DIFFERENT THINGS IN TWO PLACES IS WORSE THAN EITHER ALONE. So
+  // what is checked here is not that both exist — it is that neither carries
+  // its own copy of the rule that decides what they say.
+  // -------------------------------------------------------------------------
+  const lib = code(readFileSync('src/lib/requirements.ts', 'utf8'));
+  const doc = code(readFileSync('scripts/requirements-doc.ts', 'utf8'));
+  const page = code(readFileSync('src/modules/SoftwareValidation.tsx', 'utf8'));
+
+  eq('the matcher has ONE definition', /export function modulesNamedBy/.test(lib), true);
+  eq('...and the document imports it rather than repeating it',
+    /from '\.\.\/src\/lib\/requirements'/.test(doc) && !/const named = /.test(doc), true);
+  eq('...and so does the page',
+    /from '\.\.\/lib\/requirements'/.test(page), true);
+
+  // `/` MUST BE EXCLUDED or the Dashboard claims every requirement written:
+  // every route contains it.
+  eq('the root route cannot claim every requirement',
+    /m\.path !== '\/' && t\.includes\(m\.path\.toLowerCase\(\)\)/.test(lib), true);
+
+  // A TEST MAY NAME THE USER REQUIREMENT OR THE SYSTEM REQUIREMENT that
+  // implements it. Counting only one of the two reported requirements as
+  // unproved that a whole OQ case covers.
+  eq('a requirement is proved through its FRS as well as directly',
+    /const ids = new Set<string>\(\[req\.id, \.\.\.frs\.map\(\(f\) => f\.id\)\]\);/.test(lib), true);
+
+  // AND THE STRICT MATCH IS NOT INVERTED to claim a screen is uncovered —
+  // 31 of 54 false positives, including the Field Call Register.
+  eq('neither reader claims a screen is uncovered from this match',
+    !/no requirement names/i.test(doc) || /REQUIREMENT_COVERAGE/.test(doc), true);
+
+  // THE TAB EXISTS AND IS REACHABLE. A page nothing lists is a page nobody
+  // opens.
+  eq('the Validation Package lists it as a tab',
+    /\{ key: 'bymodule', label: 'Requirements by Module' \}/.test(page), true);
+
+  // CLASSES WITH RULES. A block styled by nothing reads as a broken one.
+  const css = readFileSync('src/modules/softwarevalidation.css', 'utf8');
+  ['sv-group', 'sv-module', 'sv-module-head', 'sv-req', 'sv-req-text', 'sv-req-proof']
+    .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
+}
+
+console.log('\n-- My Workload: the queues left the registers, and open what they count --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Remove such cards in Main Views. Move those to a
+  // Separate KPI Cards Page where ever applicable. It should be interactive."
+  // Asked which cards: every card off every register. Asked what to call it:
+  // My Workload, under Overview.
+  // -------------------------------------------------------------------------
+  const REGISTERS = [
+    'SpareRequests', 'SpareRmApproval', 'SpareDispatch', 'MaterialReturns',
+    'StockTransfer', 'HandStock', 'DailyCallReview',
+  ];
+  REGISTERS.forEach((m) => {
+    const src = code(readFileSync(`src/modules/${m}.tsx`, 'utf8'));
+    eq(`${m} no longer carries a card header`, /<KpiCard/.test(src), false);
+  });
+  // ALL MASTERS KEEPS ITS CARDS, and that is a decision rather than an
+  // oversight: there the cards ARE the register — one per master list, which is
+  // what the screen is for — not a header above a list of something else.
+  eq('All Masters keeps its cards, because there they ARE the register',
+    /<KpiCard/.test(code(readFileSync('src/modules/AllMasters.tsx', 'utf8'))), true);
+
+  const wl = code(readFileSync('src/lib/workload.ts', 'utf8'));
+  const page = code(readFileSync('src/modules/Workload.tsx', 'utf8'));
+
+  // THE COUNTS USE THE REGISTER'S OWN HELPERS. A count that disagrees with the
+  // register it links to is worse than no count: somebody opens the list, finds
+  // a different number, and stops trusting both.
+  eq('the counts are the registers\' own, not re-derived',
+    /from '\.\/spareflow'/.test(wl) && /from '\.\/sparedispatch'/.test(wl)
+    && /from '\.\/handstock'/.test(wl) && /countCallReviews/.test(wl), true);
+
+  // A SECTION THE READER CANNOT OPEN IS NEVER REQUESTED. Counting a queue for
+  // somebody who may not read it is a number they cannot act on and a leak:
+  // "Spares waiting 240" is the size of a queue the register would refuse them.
+  eq('a register the reader cannot open is not even counted',
+    /\.filter\(\(j\) => can\(j\.needs\)\)/.test(page), true);
+
+  // EVERY COUNT IS OVER WHAT LOADED, so a section still reading says so — the
+  // rule this project applies everywhere and would be easiest to drop on a
+  // screen made of counts.
+  eq('a partly-read section shows its counts as a lower bound',
+    /\$\{s\.more \? '\+' : ''\}/.test(page), true);
+  // ...AND THE ONE EXACT SECTION DOES NOT. countCallReviews walks every page in
+  // the database, so "3,850+" would be wrong in the other direction.
+  eq('...and the Daily Call Review, counted in the database, does not',
+    /key: 'review'[\s\S]{0,200}more: false/.test(wl), true);
+
+  // A FIGURE OPENS NOTHING. There is no list of an ageing of 4 days.
+  eq('a card with no list behind it is not given one',
+    /onOpen=\{c\.to \? \(\) => navigate/.test(page), true);
+
+  // THE THREE THINGS A NEW SCREEN NEEDS, and the third is the one that bites.
+  const rbac = code(readFileSync('src/lib/rbac.ts', 'utf8'));
+  const layout = code(readFileSync('src/components/layout/Layout.tsx', 'utf8'));
+  eq('it is a module, on the menu, and in the matrix',
+    /path: '\/workload', label: 'My Workload'/.test(rbac)
+    && /to: '\/workload'/.test(layout), true);
+  eq('...and a migration writes the key into app_roles',
+    existsSync('supabase/migrations/0202_workload_module_key.sql'), true);
+
+  // -------------------------------------------------------------------------
+  // EVERY FILTER A CARD SENDS IS READ BY THE REGISTER IT SENDS IT TO.
+  //
+  // This is the failure the feature is most likely to have and least likely to
+  // show: the card navigates, the right page opens, and the list is the WHOLE
+  // register. The click looks answered. It shipped that way for one build —
+  // three registers were handed `stageFilter`, `status` and `holding` and NONE
+  // of them read `location.state` at all — and nothing anywhere would have said
+  // so; the reader would simply have believed the list in front of them was the
+  // one they asked for. A half-kept promise is worse than a card that plainly
+  // does nothing.
+  // -------------------------------------------------------------------------
+  const app = code(readFileSync('src/App.tsx', 'utf8'));
+  const routeOf = new Map<string, string>();
+  [...app.matchAll(/<Route path="([^"]+)" element=\{<(\w+)/g)].forEach((m) => routeOf.set(m[1], m[2]));
+  // `(\w+):` MISSED THE SHORTHAND. `state: { status }` is how the Daily Call
+  // Review's helper passes it, so the first version of this check silently
+  // covered two of the three registers — and the one it skipped was the one
+  // most likely to be wrong. A check that looks like it covers everything and
+  // covers two thirds is the shape this project keeps finding.
+  const sent = [...wl.matchAll(/path: '([^']+)', state: \{ (\w+)/g)]
+    .map((m) => ({ path: m[1], key: m[2] }));
+  const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
+  eq('every register a card filters is covered here', pairs.size, 3);
+  sent.forEach(({ path, key }) => {
+    const mod = routeOf.get(path);
+    const src = mod && existsSync(`src/modules/${mod}.tsx`)
+      ? code(readFileSync(`src/modules/${mod}.tsx`, 'utf8')) : '';
+    eq(`${path} reads the '${key}' it is sent`,
+      !!src && new RegExp(`useArrivingFilter<[^>]*>\\('${key}'`).test(src), true);
+  });
+  // APPLIED ONCE, ON ARRIVAL. Re-reading `location.state` would fight every
+  // filter change the reader makes afterwards — they clear the stage, the
+  // effect puts it back, and the screen appears stuck.
+  const arrive = code(readFileSync('src/lib/arriveWith.ts', 'utf8'));
+  eq('...and applies it once, so it cannot fight the reader',
+    /done\.current === location\.key/.test(arrive), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

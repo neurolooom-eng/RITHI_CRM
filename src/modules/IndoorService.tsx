@@ -193,12 +193,15 @@ export function IndoorService() {
       ) : null}
 
       <div className="ind-filters">
+        {/* THREE ROWS STACKED, which is the congested case even though each is
+            short. Each shuts on its own and remembers, so a workshop that only
+            ever filters by status puts the other two away once. */}
         <FacetChips options={facet((j) => j.status)} value={status} onChange={setStatus}
-          allLabel="Every status" more={false} />
+          allLabel="Every status" title="Status" storeKey="indoor.status" more={false} />
         <FacetChips options={facet((j) => j.activity)} value={activity} onChange={setActivity}
-          allLabel="Every activity" more={false} />
+          allLabel="Every activity" title="Activity" storeKey="indoor.activity" more={false} />
         <FacetChips options={facet((j) => j.kind)} value={kind} onChange={setKind}
-          allLabel="Both kinds" more={false} />
+          allLabel="Both kinds" title="Kind" storeKey="indoor.kind" more={false} />
         <label className="ind-toggle">
           <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
           Show dispatched, closed and condemned
