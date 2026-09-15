@@ -2,8 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
+import { SelectPicker } from '../components/ui/SelectPicker';
 import { csvExport, timeAgo } from '../lib/format';
-import { queryParties, updateParty, getParty, supabaseConfigured, type PartyFilter, type PartyPatch } from '../lib/supabase';
+import {
+  queryParties, updateParty, getParty, supabaseConfigured,
+  partyServiceEngineerCounts, renamePartyServiceEngineer, sbDirectoryNames,
+  type PartyFilter, type PartyPatch,
+} from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { useAuth } from '../lib/auth';
 // `kb-form` / `kb-form-actions` live here. Imported rather than relied on:
@@ -107,6 +112,42 @@ export function PartyMaster() {
   const mayEdit = can('masters.edit') && supabaseConfigured();
   const [edit, setEdit] = useState<Row | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // ---- Change engineer: one spelling, every customer that names it ---------
+  // 32 of the 49 Servicemen on the supplied export match no User Master name,
+  // and `allocated_to` on a call is a NAME — so those prefill a box with
+  // somebody who does not exist and notify nobody. 328 customers share the
+  // worst one. Correcting that by opening 328 parties is not a repair anybody
+  // performs, which is why this exists.
+  const [swap, setSwap] = useState<{ from: string; to: string; cleared?: boolean } | null>(null);
+  const [svcCounts, setSvcCounts] = useState<{ key: string; count: number }[] | null>(null);
+  const [dirNames, setDirNames] = useState<string[]>([]);
+
+  const openSwap = async () => {
+    setSwap({ from: '', to: '' });
+    setSvcCounts(null);
+    try {
+      const [counts, names] = await Promise.all([partyServiceEngineerCounts(), sbDirectoryNames()]);
+      setSvcCounts(counts);
+      setDirNames(names);
+    } catch (e) {
+      setMsg({ tone: 'error', text: `Could not read the servicemen: ${e instanceof Error ? e.message : String(e)}` });
+      setSwap(null);
+    }
+  };
+
+  const applySwap = async () => {
+    if (!swap) return;
+    setSaving(true);
+    const res = await renamePartyServiceEngineer(swap.from, swap.to);
+    setSaving(false);
+    if (!res.ok) { setMsg({ tone: 'error', text: res.error ?? 'Could not change it.' }); return; }
+    setSwap(null);
+    setMsg({ tone: 'ok', text: res.changed
+      ? `${res.changed} customer${res.changed === 1 ? '' : 's'} now read ${swap.to || '— nobody —'}.`
+      : 'Nothing named that spelling, so nothing changed.' });
+    await refresh();
+  };
   const set = (k: keyof PartyFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
   const setEditField = (k: string, v: string) => setEdit((r) => r && ({ ...r, [k]: v }));
 
@@ -255,12 +296,101 @@ export function PartyMaster() {
               <input className="input" placeholder="Type" value={filter.type} onChange={(e) => set('type', e.target.value)} />
             </div>
             <div className="spacer" />
+            {mayEdit && (
+              <button className="btn btn-sm" onClick={() => void openSwap()} title="Change one Serviceman everywhere it appears">
+                ✎ Change engineer
+              </button>
+            )}
             {rows.length > 0 && (
               <button className="btn btn-sm" onClick={() => csvExport('party-master.csv', COLUMNS.map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
             )}
           </Toolbar>
         }
       />
+
+      {swap && (() => {
+        const chosen = svcCounts?.find((o) => o.key === swap.from);
+        const known = new Set(dirNames.map((n) => n.toLowerCase()));
+        // WHICH SPELLINGS ARE THE PROBLEM, said on the list itself rather than
+        // left to be worked out. A name the User Master does not hold is the
+        // one worth changing; one it does hold is probably fine.
+        const fromOptions = (svcCounts ?? []).map((o) => ({
+          value: o.key,
+          label: `${o.key} · ${o.count}${known.has(o.key.toLowerCase()) ? '' : '  ⚠ not in User Master'}`,
+        }));
+        return (
+          <Drawer open title="Change engineer" onClose={() => setSwap(null)} width={560} storeKey="partySwap">
+            <div className="kb-form">
+              <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+                Changes one Serviceman everywhere it appears on the Party Master, in one go.
+                It is worth doing when a spelling here does not match the <b>User Master</b>:
+                a call is allotted by NAME, so a name nobody holds fills the box with somebody
+                who does not exist and notifies no one.
+              </p>
+
+              <div className="field">
+                <label className="field-label">Change this</label>
+                {svcCounts === null
+                  ? <span className="muted">Reading every party…</span>
+                  : (
+                    <SelectPicker
+                      value={swap.from}
+                      options={fromOptions}
+                      onChange={(v) => setSwap((w) => w && ({ ...w, from: v }))}
+                      placeholder="Pick the spelling to correct…"
+                    />
+                  )}
+              </div>
+
+              <div className="field">
+                <label className="field-label">To this</label>
+                {/* FROM THE USER MASTER, AND NO FREE TEXT. The whole reason to
+                    do this is that the name must MATCH; letting somebody type
+                    one recreates exactly the fault being repaired.
+                    CLEARING IS ITS OWN CONTROL rather than an empty option:
+                    SelectPicker drops a blank-valued option (PickList has its
+                    own "— none —" and two of them read as a bug), so an entry
+                    for it would silently not be there. */}
+                <label className="kb-check" style={{ marginBottom: 6 }}>
+                  <input type="checkbox" checked={swap.to === '' && swap.cleared}
+                    onChange={(e) => setSwap((w) => w && ({ ...w, to: '', cleared: e.target.checked }))} />
+                  Leave nobody — this engineer has gone
+                </label>
+                <SelectPicker
+                  value={swap.to}
+                  disabled={swap.cleared}
+                  options={dirNames}
+                  onChange={(v) => setSwap((w) => w && ({ ...w, to: v, cleared: false }))}
+                  placeholder="Pick the User Master name…"
+                />
+              </div>
+
+              {/* THE SIZE OF WHAT IS ABOUT TO MOVE, BEFORE it moves. A count
+                  afterwards is a report; a count beforehand is a decision.
+                  Same rule as renaming a part (0196). */}
+              {swap.from && (
+                <div className={`sheet-banner ${(chosen?.count ?? 0) > 50 ? 'sheet-banner-warn' : 'sheet-banner-info'}`}>
+                  <span>
+                    <b>{chosen?.count ?? 0}</b> customer{(chosen?.count ?? 0) === 1 ? '' : 's'} name
+                    {' '}<b>{swap.from}</b> and will read{' '}
+                    <b>{swap.to || '— nobody —'}</b> instead.
+                    {' '}Calls already registered keep the engineer they were allotted to.
+                  </span>
+                </div>
+              )}
+
+              <div className="kb-form-actions">
+                <button className="btn btn-primary"
+                  disabled={saving || !swap.from || swap.from === swap.to || (!swap.to && !swap.cleared)}
+                  onClick={() => void applySwap()}>
+                  {saving ? 'Changing…' : `Change ${chosen?.count ?? 0} customer${(chosen?.count ?? 0) === 1 ? '' : 's'}`}
+                </button>
+                <button className="btn" disabled={saving} onClick={() => setSwap(null)}>Cancel</button>
+              </div>
+            </div>
+          </Drawer>
+        );
+      })()}
 
       {edit && (
         <Drawer open title={String(edit.party_name ?? 'Party')} onClose={() => setEdit(null)} width={620} storeKey="partyEdit">

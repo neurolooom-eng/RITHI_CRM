@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.272',
+    date: '2026-09-15',
+    title: 'Party Master: change one engineer’s name everywhere it appears',
+    changes: [
+      '“✎ Change engineer” on the Party Master corrects one spelling across every customer that names it, in one go.',
+      'IT IS WORTH DOING because a call is allotted by NAME. A Serviceman spelled one way here and another way in the User Master fills the box with somebody who does not exist — and nobody gets the “Call allotted to you” notice. In your own file, 32 of the 49 spellings match no User Master name, and 328 customers share the worst one.',
+      'The list tells you which ones those are: a spelling the User Master does not hold is marked on the spot, so you are not comparing two screens.',
+      'IT SHOWS HOW MANY CUSTOMERS WILL CHANGE BEFORE IT CHANGES THEM. A count afterwards is a report; a count beforehand is a decision.',
+      'The new name is picked from the User Master and cannot be typed — typing one is how the problem started. If the engineer has left, there is a tick-box to leave nobody.',
+      'It matches the spelling exactly. A different one — a stray capital, an extra space — is left alone and listed separately, so nothing is swept up that you did not choose.',
+      'Calls already registered keep the engineer they were allotted to. This changes who the CUSTOMER is looked after by, not history.',
+      'Needs “Edit masters”.',
+    ],
+  },
+  {
     version: '0.9.271',
     date: '2026-09-15',
     title: 'The filter chips above a register can be put away',

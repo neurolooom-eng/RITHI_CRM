@@ -6120,5 +6120,53 @@ console.log('\n-- a facet row can be put away, and never hides a live filter --'
     .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
 }
 
+console.log('\n-- one Serviceman, changed everywhere it appears --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "In Party Master - Give me an Option to Change the
+  // Engineer Name in one go - Like Ctrl H."
+  //
+  // It is the repair for a measured fault: 32 of the 49 Servicemen on the
+  // supplied export match no User Master name, and `allocated_to` on a call is
+  // a NAME that `notify_call_allotted()` resolves through `user_directory`. So
+  // a spelling nobody holds prefills the box with somebody who does not exist
+  // and notifies no one — 328 customers on the worst one.
+  // -------------------------------------------------------------------------
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  const pm = code(readFileSync('src/modules/PartyMaster.tsx', 'utf8'));
+
+  // ONE STATEMENT, so every party moves together or none does. A row at a time
+  // is 328 requests and a half-finished rename if one fails.
+  eq('the rename is one statement, not one per party',
+    /\.update\(\{ service_engineer: to \}, \{ count: 'exact' \}\)\s*\.eq\('service_engineer', from\)/.test(sb), true);
+  // MATCHED EXACTLY. A rename that quietly caught a second spelling would be
+  // one nobody asked for.
+  eq('...matched exactly, never trimmed or case-folded',
+    !/ilike\('service_engineer'/.test(sb), true);
+  // THE LIST IS READ IN PAGES. There are 4,752 parties and PostgREST caps a
+  // response at a thousand: counting the first page reports 49 names as 20 and
+  // says nothing.
+  eq('the spellings are counted over EVERY party, not the first thousand',
+    /allRows<\{ service_engineer: string \| null \}>/.test(sb), true);
+
+  // THE SIZE OF WHAT MOVES, BEFORE it moves — the rule renaming a part already
+  // follows (0196). A count afterwards is a report; a count beforehand is a
+  // decision.
+  eq('the number of customers is shown before it is applied',
+    /customer\{\(chosen\?\.count \?\? 0\) === 1 \? '' : 's'\} name/.test(pm), true);
+  // THE NEW NAME COMES FROM THE USER MASTER, with no free text: letting
+  // somebody type one recreates exactly the fault being repaired.
+  eq('the new name comes from the User Master, not a text box',
+    /options=\{dirNames\}/.test(pm) && !/allowFreeText/.test(pm), true);
+  // AND THE LIST SAYS WHICH SPELLINGS ARE THE PROBLEM, rather than leaving it
+  // to be worked out against another screen.
+  eq('...and a spelling the directory lacks is flagged on the list',
+    /not in User Master/.test(pm), true);
+  // GATED. `parties_write` is has_perm('masters.edit'); the button must not be
+  // offered to somebody the database will refuse.
+  eq('only somebody who may edit masters is offered it',
+    /\{mayEdit && \([\s\S]{0,200}openSwap/.test(pm), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
