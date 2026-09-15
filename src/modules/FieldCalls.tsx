@@ -28,7 +28,8 @@ import {
   dataConfigured,
   updateFieldCall,
 } from '../lib/sheets';
-import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, closeCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, type CallServiceReport } from '../lib/supabase';
+import { formatDay } from '../lib/dates';
+import { supabaseConfigured, searchCalls, reopenCall, closeReopenedCall, cancelCall, restoreCall, reallocateCalls, sbLogComplaintSuggestion, serviceReportForCall, type CallServiceReport } from '../lib/supabase';
 import { useCallFieldMasters } from './callFields';
 import { StateBadge, Ucn } from '../lib/callstate';
 import { useUserNames, nameForUserId } from '../lib/userNames';
@@ -81,6 +82,30 @@ export function buildCreateFields(prefill: FormValues | undefined): FieldDef[] {
     return f;
   });
 }
+
+// ---------------------------------------------------------------------------
+// WHAT A REGISTERED CALL SHOWS — three fields fewer than the form that creates
+// it (the user, 2026-09-15: "Created by and actually created by are not
+// required in this view ... don't show complaint date. Minimize the no of
+// rows").
+//
+// NOTHING IS LOST, and that is the test each one had to pass:
+//
+//   Complaint Date          still a COLUMN of the register, still required to
+//                           register a call, and still what the DCCR and the
+//                           analytics date a failure by. It is captured at
+//                           registration and then read from the list, not from
+//                           the drawer.
+//   Created By              both are still STAMPED, still in the audit trail,
+//   Actually Registered By  and still the vigilance finding when they differ.
+//                           They are read-only facts about the filing rather
+//                           than facts about the call, and they cost two rows
+//                           at the top of the screen — above the customer.
+//
+// They are removed from the VIEW, not from the record. The create form still
+// carries the complaint date, because that is where it is answered.
+const VIEW_HIDDEN = ['complaintDate', 'registeredBy', 'actuallyRegisteredBy'];
+const viewFields = () => FIELD_CALL_FIELDS.filter((f) => !VIEW_HIDDEN.includes(f.name));
 
 // ===========================================================================
 // FIELD CALL REGISTER — operational.
@@ -453,10 +478,26 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
   const canEditRow = (row: Rec) => can('calls.edit') && !isSolved(row) && !isCancelled(row);
   // A closed call takes no visit entry and no spare request until re-opened.
   const canWorkRow = (row: Rec) => !isSolved(row) && !isCancelled(row);
-  // Only an OPEN call: a re-opened one has "Close again", which gives the
-  // re-open count back, and the two must never both be offered.
-  const canClose = (row: Rec) => !isSolved(row) && !isReopened(row) && !isCancelled(row)
-    && !row._pending && (can('pending.register') || can('calls.create'));
+  // "CLOSE CALL" IS GONE (the user, 2026-09-15: "Remove the Close call option
+  // doesn't make sense"). It closed a call without a visit entry, which left a
+  // closed call whose record says nobody ever went — and the honest ways to end
+  // a call already exist: enter the visit, or cancel it as a call that should
+  // not have been raised. "Close again" stays and is a different act: it
+  // WITHDRAWS a re-open, giving the count back, on a call that was already
+  // closed by a real visit.
+  //
+  // CANCELLING IS FOR A CALL THAT SHOULD NOT EXIST, so it is offered only while
+  // the call is still waiting on somebody (the user's rule, same day: "Cancel
+  // call option should not be shown on a solved call. Only if it's pending
+  // [Unsolved, Unattended]"). Once an engineer has closed it, the visit
+  // happened; erasing it is not a correction but a deletion of what was done,
+  // and quality records are not deleted here.
+  //
+  // A RE-OPENED call is excluded too, and for the same reason rather than a
+  // different one: it is re-opened, so it has already been worked and closed
+  // once.
+  const OPEN_STATES = ['', 'Unattended', 'Unsolved'];
+  const canCancelRow = (row: Rec) => !isCancelled(row) && OPEN_STATES.includes(String(row.callState ?? ''));
   const canReopen = (row: Rec) => isSolved(row) && !isCancelled(row) && !row._pending && (can('pending.register') || can('calls.create'));
   // A call re-opened only to correct it is closed again by withdrawing the
   // re-open — entering a visit that never happened is not the way back.
@@ -965,24 +1006,14 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     void refresh();
   };
 
-  // CLOSE AN OPEN CALL WITHOUT A VISIT. Calls also end for operational reasons
-  // — the customer sorted it, the machine moved, the job was done on another
-  // call — and the alternatives were to leave it open for ever or to file a
-  // visit nobody made. It is NOT recorded differently: the call reads Solved
-  // like any other, and no visit is invented. Enter a visit later and it takes
-  // over as usual, re-opening the call if that visit says Unsolved.
-  const close = async (row: Rec) => {
-    const ucn = String(row.ucn ?? '');
-    if (!ucn) return;
-    if (!confirm(`Close ${ucn} without a visit entry?\n\nIt reads as Solved, like any other closed call, and no visit is added to its history. If a visit is entered later it takes over — including re-opening the call if that visit is unsolved.`)) return;
-    const t0 = performance.now();
-    const res = await closeCall(ucn);
-    logAudit({ action: 'calls.close', target: ucn, status: res.ok ? 'ok' : 'error', error: res.error, duration_ms: Math.round(performance.now() - t0) });
-    if (!res.ok) { setBanner({ tone: 'error', text: `Could not close ${ucn}: ${res.error}` }); return; }
-    setBanner({ tone: 'ok', text: `${ucn} closed.` });
-    setDrawer(null);
-    void refresh();
-  };
+  // "CLOSE CALL" WAS HERE AND IS GONE (the user, 2026-09-15: "Remove the Close
+  // call option doesn't make sense"). It closed a call without a visit entry,
+  // for the operational endings — the customer sorted it, the machine moved —
+  // and read as Solved like any other closed call. What it produced was a call
+  // whose own history says nobody ever went, indistinguishable afterwards from
+  // one that was actually attended. The honest endings are both still here:
+  // enter the visit that happened, or cancel a call that should not have been
+  // raised. `closeCall` in `supabase.ts` is left in place; nothing calls it.
 
   // Withdraw a re-open: the call goes back to what its last visit said.
   const closeReopen = async (row: Rec) => {
@@ -1066,9 +1097,6 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
     { key: 'reco', icon: '🧾', label: 'Reco', title: 'Reconcile — book spares consumed on this call',
       show: mayReco && !row._pending,
       run: () => gotoReco(row) },
-    { key: 'close', icon: '✅', label: 'Close call', title: 'Close this call without a visit entry — it ended for operational reasons',
-      show: canClose(row),
-      run: () => void close(row) },
     { key: 'reopen', icon: '↻', label: 'Re-open call', title: 'Put this closed call back on the open list',
       show: canReopen(row),
       run: () => void reopen(row) },
@@ -1076,7 +1104,7 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
       show: canCloseReopen(row),
       run: () => void closeReopen(row) },
     { key: 'cancel', icon: '🚫', label: 'Cancel call', title: 'Cancel this call — it should not exist',
-      show: mayCancel && !row._pending && !isCancelled(row),
+      show: mayCancel && !row._pending && canCancelRow(row),
       run: () => void cancel(row) },
     { key: 'restore', icon: '♻️', label: 'Restore call', title: `Cancelled${row.cancelReason ? ` — ${row.cancelReason}` : ''}. Click to restore it.`,
       show: mayCancel && isCancelled(row),
@@ -1328,14 +1356,38 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
               key={drawer.mode === 'create' ? `create-${prefillKey}` : String(drawer.row?.id)}
               sectionOrderKey="callform"
               emphasisSections={[VIGILANCE_SECTION]}
-              fields={lockByRight(injectMasters(drawer.mode === 'create' ? buildCreateFields(prefill) : FIELD_CALL_FIELDS))}
+              // THREE COLUMNS (the user, 2026-09-15: "Make it 3 columns ...
+              // Minimize the no of rows"). The drawer was two fields wide and
+              // ran to a phone-screen-and-a-half of scrolling for a record
+              // somebody wants to take in at a glance; a third column removes
+              // about a third of the rows without shrinking anything.
+              columns={3}
+              fields={lockByRight(injectMasters(
+                drawer.mode === 'create' ? buildCreateFields(prefill) : viewFields(),
+                // Suggestions belong to the act of registering. See the note in
+                // `callFields.tsx`.
+                { suggest: drawer.mode === 'create' },
+              ))}
               initial={drawer.mode === 'create'
                 ? { complaintDate: todayISO(), breakdownDate: todayISO(), ...(prefill ?? {}) }
-                // The row carries the UUID; the form shows the person. A call
-                // loaded before the stamp existed has none, and says so rather
-                // than showing a blank box.
                 : ({
                   ...drawer.row,
+                  // DAY-FIRST, THROUGH THE ONE FORMATTER, and only where the
+                  // form cannot be submitted. A native date input renders in
+                  // the BROWSER'S locale, so this drawer showed a registration
+                  // date as `2026-09-12` beside a complaint date as
+                  // `09/11/2026` — and 09/11 is either 9 November or 11
+                  // September depending on who is reading it. On an edit the
+                  // value stays as the input expects it, because a formatted
+                  // string in a field that can be saved is a corrupted date.
+                  ...(drawer.mode === 'view' ? {
+                    regDate: formatDay(drawer.row?.regDate),
+                    complaintDate: formatDay(drawer.row?.complaintDate),
+                    breakdownDate: formatDay(drawer.row?.breakdownDate),
+                  } : {}),
+                  // The row carries the UUID; the form shows the person. A call
+                  // loaded before the stamp existed has none, and says so
+                  // rather than showing a blank box.
                   registeredBy: drawer.row?.createdBy
                     ? nameForUserId(String(drawer.row.createdBy), userNameMap)
                     : '— not recorded (registered before this was kept) —',

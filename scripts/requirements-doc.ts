@@ -37,7 +37,7 @@
 // ===========================================================================
 import { readFileSync } from 'node:fs';
 import { MODULES, PERM_TREE, moduleAction } from '../src/lib/rbac';
-import { URS, FRS, TESTS, NON_AUDITABLE } from '../src/lib/validation';
+import { URS, FRS, TESTS, NON_AUDITABLE, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
 // ONE DEFINITION OF THE GROUPING, shared with the Requirements tab of the
 // in-app Validation Package. They are the same document in two places, and a
 // document that says different things in two places is worse than either.
@@ -45,7 +45,10 @@ import { URS, FRS, TESTS, NON_AUDITABLE } from '../src/lib/validation';
 // what this document says. The rendering differs legitimately: the document
 // folds in the two hand-maintained references (CR, SR) and the in-app tab links
 // out to them instead.
-import { modulesNamedBy, frsFor, testsFor } from '../src/lib/requirements';
+import {
+  modulesNamedBy, modulesFor, frsFor, testsFor,
+  traceabilityMatrix, traceabilitySummary, modulesWithNoRequirement,
+} from '../src/lib/requirements';
 
 const P = (s = '') => console.log(s);
 
@@ -73,8 +76,15 @@ const CR = readExternal('docs/CALL_REQUEST_REQUIREMENTS.md', 'CR');
 const SR = readExternal('docs/ISO13485_SERVICING.md', 'SR');
 
 type Item = { kind: 'URS' | 'CR' | 'SR'; id: string; title: string; text?: string; risk?: string; doc?: string };
-const items: { it: Item; mods: string[] }[] = [
-  ...URS.map((r) => ({ it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk }, mods: modulesNamedBy(`${r.title} ${r.text}`) })),
+const items: { it: Item; mods: string[]; how?: Record<string, string> }[] = [
+  ...URS.map((r) => ({
+    it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk },
+    mods: modulesFor(r).map((m) => m.path),
+    // WHICH OF THE TWO FILED IT, carried through to the page so a reader can
+    // tell "the text says so" from "somebody said so". They are different
+    // kinds of claim and an auditor is entitled to tell them apart.
+    how: Object.fromEntries(modulesFor(r).map((m) => [m.path, m.how])),
+  })),
   ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title).length ? modulesNamedBy(r.title) : ['/call-requests'] })),
   ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
 ];
@@ -105,12 +115,22 @@ P('each URS below sit the FRS entries that implement it, and under those the');
 P('tests that prove them. Read downwards and you have the whole argument for one');
 P('requirement: what was asked for, how it was built, and what shows it works.');
 P();
-P('**The module is derived from the words, not declared.** Nothing on a');
-P('requirement says which screen it belongs to. One is filed under a module when');
-P('its own text names that module — its route, or every distinctive word of its');
-P('label. So the grouping is evidence rather than opinion, and it moves when the');
-P('text does. A requirement naming several modules appears under each: "a manager');
-P('sees their team’s calls" really is a requirement of every call register.');
+P('**Derived by default, declared by exception — and each entry says which.**');
+P('A requirement is filed under a module when its own text names that module —');
+P('its route, or every distinctive word of its label — so the grouping is');
+P('evidence rather than opinion and it moves when the text does. Where the words');
+P('name no screen, the requirement may DECLARE the modules it governs, and those');
+P('are marked *declared* below.');
+P();
+P('That exception exists because derivation alone left **34 of 56 screens** with');
+P('no requirement section, the **Field Call Register** among them: URS-003 says');
+P('"register a customer call" and never says "field", so the one requirement that');
+P('plainly governs the register was filed under "not tied to one screen". The two');
+P('are UNIONED rather than one replacing the other, so a requirement that later');
+P('gains the words keeps being filed by them.');
+P();
+P('A requirement naming several modules appears under each: "a manager sees their');
+P('team’s calls" really is a requirement of every call register.');
 P();
 P('**A requirement that names no screen is not forced into one.** Those are');
 P('gathered at the end. Most are system-wide — access control, audit, retention —');
@@ -147,10 +167,18 @@ for (const header of PERM_TREE) {
     if (ursHere.length) {
       for (const { it } of ursHere) {
         seen.add(it.id); withModule += 1;
+        const how = (mine.find((x) => x.it.id === it.id)?.how ?? {})[m.path];
         P();
         P(`### ${it.id} — ${it.title}`);
         P();
-        P(`*Risk: ${it.risk}.* ${it.text}`);
+        // FILED BY THE TEXT, OR FILED BY A DECLARATION. Said on every entry
+        // rather than only on the exceptions, because a reader cannot tell
+        // which kind of claim they are looking at from an absence.
+        P(`*Risk: ${it.risk}. Filed here because its own words name this screen.*`
+          .replace('its own words name this screen',
+            how === 'declared' ? 'the requirement declares this screen' : 'its own words name this screen'));
+        P();
+        P(it.text);
         const impl = frsFor(it.id);
         P();
         if (!impl.length) {
@@ -231,15 +259,94 @@ if (frsNoTest.length) { P('**Unproved:** ' + frsNoTest.map((f) => f.id).join(', 
 // `REQUIREMENT_COVERAGE.md` asks that question properly, against the whole
 // package — requirements, design, risks, tests and the checklist — and reports
 // 0 of 54. A false finding is worse than none, because somebody acts on it.
-P('**Is every screen covered?** That question is answered in');
-P('[`REQUIREMENT_COVERAGE.md`](REQUIREMENT_COVERAGE.md), which searches the whole');
-P('package rather than requirement text alone. It is not answered here: the match');
-P('used for FILING above is strict on purpose, and inverting a strict match to');
-P('claim an absence reports every near-miss as a gap.');
+P('**Is every screen covered by the wider package?** That is answered in');
+P('[`REQUIREMENT_COVERAGE.md`](REQUIREMENT_COVERAGE.md), which searches');
+P('requirements, design, risks, tests and the checklist rather than requirement');
+P('text alone.');
 P();
+
+// ---- screens with nothing filed under them ---------------------------------
+// THIS QUESTION CAN NOW BE ASKED. It could not be asked of derivation alone —
+// inverting a strict text match reports every near-miss as a gap, and it did:
+// 31 of 54 screens, including the Field Call Register. Asked of the FILED set,
+// which declarations complete, a screen with nothing under it is a real hole
+// rather than a word the author happened not to use.
+const ungoverned = modulesWithNoRequirement();
+P('## Screens no user requirement governs');
+P();
+P(`**${ungoverned.length} of ${MODULES.filter((m) => m.path).length}.** Each is written down with its reason in`);
+P('`src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision');
+P('somebody made rather than a drift nobody saw — and `check:ui` fails when a');
+P('screen joins this list without one. Neither is a defect on its own; both are');
+P('questions for a person.');
+P();
+if (ungoverned.length) {
+  P('| Screen | Why nothing is filed here |');
+  P('| --- | --- |');
+  ungoverned.forEach((m) => P(`| **${m.label}** \`${m.path}\` | ${MODULES_WITHOUT_REQUIREMENT[m.path] ?? '_no reason recorded — this is the gap_'} |`));
+  P();
+}
 P('---');
 P();
 P(`**${URS.length}** user requirements · **${FRS.length}** system requirements · `
   + `**${CR.length}** call-request · **${SR.length}** servicing · **${TESTS.length}** tests · `
   + `**${NON_AUDITABLE.length}** recorded as non-auditable · `
-  + `**${withModule}** of ${URS.length} user requirements tied to a module by their own words.`);
+  + `**${withModule}** of ${URS.length} user requirements tied to a module.`);
+
+// ===========================================================================
+// THE TRACEABILITY MATRIX.
+//
+// The user, 2026-09-15: "I want the REquirements like Traceability. Column1 URS
+// ID, Column 2 URS Details, Column 3 FRS ID, Column 4 FRS Details, Column 5
+// Test Case ID, Column 6 Test Case Details."
+//
+// Six columns, exactly. It is the same content as everything above, turned
+// through ninety degrees: the sections read DOWN one requirement, this reads
+// ACROSS the chain.
+// ===========================================================================
+const trace = traceabilityMatrix();
+const sum = traceabilitySummary(trace);
+const cell = (v: string) => v.replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim();
+
+P();
+P('---');
+P();
+P('# Traceability matrix');
+P();
+P('**One row per LINK, not per requirement.** A user requirement implemented by');
+P('two system requirements, each proved by two tests, is four rows — because what');
+P('is being traced is the link: *this need is met by this mechanism, and that is');
+P('shown by this test*. Collapsing them into one row with three lists hands the');
+P('reader back the very question the matrix exists to answer.');
+P();
+P('The URS and FRS cells are **left blank on a row that continues the one above**,');
+P('so the eye follows a requirement down its own block. Nothing is missing there:');
+P('the identifier is the one at the top of the block.');
+P();
+P('A requirement with no system requirement, or a mechanism with no test, **still');
+P('gets a row**, with the gap named in the empty column. Leaving it out would make');
+P('this table answer "everything here is traced" by omitting everything that is');
+P('not.');
+P();
+P('| URS ID | URS Details | FRS ID | FRS Details | Test Case ID | Test Case Details |');
+P('| --- | --- | --- | --- | --- | --- |');
+trace.forEach((r) => {
+  P(`| ${r.ursRepeat ? '' : `**${r.ursId}**`} `
+    + `| ${r.ursRepeat ? '' : `**${cell(r.ursTitle)}** — ${cell(r.ursText)} _(Risk: ${r.risk}.)_`} `
+    + `| ${r.frsRepeat ? '' : (r.frsId ? `**${r.frsId}**` : '')} `
+    + `| ${r.frsRepeat ? '' : cell(r.frsText)} `
+    + `| ${r.testId ? `**${r.testId}**` : ''} `
+    + `| ${cell(r.testText)} |`);
+});
+P();
+P(`**${sum.rows}** links · **${sum.urs}** user requirements · **${sum.frs}** system `
+  + `requirements · **${sum.tests}** tests · **${sum.fullyTraced}** requirements traced `
+  + `end to end, **${sum.partlyTraced}** in part, **${sum.untraced}** not yet.`);
+if (sum.outside.length) {
+  P();
+  // A TEST IN NO ROW IS NAMED. A matrix whose test count is lower than the
+  // suite's and does not say why reads as a matrix that dropped something.
+  P(`**Outside this matrix:** ${sum.outside.join(', ')} — ${sum.outside.length === 1 ? 'it proves' : 'they prove'} a`);
+  P('requirement recorded as NON-AUDITABLE, which sits outside the');
+  P('URS → FRS → test chain by design rather than by omission.');
+}

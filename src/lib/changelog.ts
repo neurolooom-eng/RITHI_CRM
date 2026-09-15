@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.283',
+    version: '0.9.284',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,24 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.283',
+    date: '2026-09-15',
+    title: 'Cover is one word, the drawer is three columns, and the requirements name every screen',
+    changes: [
+      'WARRANTY IS WGP — everywhere. Failures per cover was showing WGP and WARRANTY as two slices of one pie; they are the same cover spelled two ways by whatever loaded it, and on a chart that is a group-by, a second spelling does not read as a small error, it quietly splits the total. Cover is now normalised to WGP / OGP / CMC / AMC the moment it is written, whichever screen or file it comes from, and the values already stored have been corrected. Anything the rule does not recognise is left exactly as it is, never guessed into a bucket.',
+      'THE FIELD CALL DRAWER is three columns instead of two, and drops three things a registered call does not need on screen: the complaint date, Created By and Actually Registered By. All three are still captured, still stamped and still in the register — they have left the view, not the record.',
+      'The suggestions under Standard Complaint and Complaint Reported now appear only while a call is being REGISTERED. On a call that already exists they were inviting somebody to change a complaint that had been reviewed, and costing four rows to do it.',
+      'DATES READ THE SAME WAY EVERYWHERE — 12-Sep-2026, day first, with the month named so nobody can read it the other way round. The drawer had been showing one date as 2026-09-12 and another as 09/11/2026, which is either 9 November or 11 September depending on who is looking.',
+      '“Close call” is gone. It closed a call with no visit entry, leaving a closed call whose own history says nobody ever went. Enter the visit, or cancel a call that should not have been raised. (“Close again”, which withdraws a re-open, is unaffected.)',
+      'CANCEL is offered only while a call is still waiting on somebody — Unattended or Unsolved. Once an engineer has closed it the visit happened, and erasing it is not a correction.',
+      'PRODUCT FAILURE ANALYSIS AND SPARE INSIGHTS have moved from Overview into Quality & Analytics, beside the register and the KPIs they analyse.',
+      'The data table now sits BESIDE its chart rather than underneath it, so the numbers are next to the bar they describe instead of a screen-width away.',
+      'VP Technical and R&D Engineer could open both analytics pages and see nothing on them: the page key opens a screen, the read rules decide the rows, and those two roles passed neither. They can now read the data they analyse — read only, and no other role was touched.',
+      'THE REQUIREMENTS DOCUMENT NOW NAMES EVERY SCREEN. Registering a field call was specified and tested all along, but the document filed it under “not tied to one screen”, because it groups requirements by the words they use and URS-003 says “register a customer call” without ever saying “field”. 34 of 56 screens had no section at all. A requirement can now state which screens it governs where its own words do not, and each entry says which of the two put it there. Two screens are left with nothing filed under them, each with its reason written down.',
+      'And there is a TRACEABILITY MATRIX — URS, its details, the system requirement, its details, the test and what the test does — in the document and in the Validation Package, one row per link rather than per requirement.',
     ],
   },
   {

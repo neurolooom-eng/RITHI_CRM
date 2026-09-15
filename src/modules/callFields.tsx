@@ -31,7 +31,7 @@ import { ComplaintTextHelp } from '../components/form/ComplaintTextHelp';
 // ===========================================================================
 
 export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
-  inject: (fs: FieldDef[]) => FieldDef[];
+  inject: (fs: FieldDef[], o?: { suggest?: boolean }) => FieldDef[];
   offered: MutableRefObject<ComplaintSuggestion[]>;
 } {
   const { user, users } = useAuth();
@@ -184,11 +184,22 @@ export function useCallFieldMasters(opts: { newPartyAllowed?: boolean } = {}): {
       : 'Type to search customers who own a machine. The products and serials below are looked up by this name.',
   });
 
-  const inject = (fs: FieldDef[]) =>
+  // SUGGESTIONS ARE FOR THE MOMENT OF REGISTRATION, and nowhere else (the
+  // user, 2026-09-15: "Once a call us created don't show the suggestions
+  // anymore.. suggestions are required only during call creation").
+  //
+  // "Chosen on 85 similar calls" is help for somebody deciding what to type. On
+  // a call already registered it is neither help nor record: it invites a
+  // reader to change a complaint that has already been reviewed, and it takes
+  // four rows of the drawer to do it. The MASTER list stays either way — what
+  // goes is the row of past-calls chips underneath.
+  const inject = (fs: FieldDef[], o: { suggest?: boolean } = {}) =>
     fs.map((f) =>
       f.name === 'partyName' ? partyField(f)
-        : f.name === 'standardComplaint' ? complaintField(f)
-          : f.name === 'complaintReported' ? { ...f, below: reportedHelp }
+        : f.name === 'standardComplaint'
+          ? (o.suggest === false ? { ...complaintField(f), below: undefined } : complaintField(f))
+          : f.name === 'complaintReported'
+            ? (o.suggest === false ? f : { ...f, below: reportedHelp })
             : f.name === 'allocatedTo' ? { ...f, options: engineerNames }
               // No desk resolved (nobody pinned one and there is not exactly
               // one hotline profile) means the database will file the call to

@@ -37,6 +37,8 @@ import { buildXlsx } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
 import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
+import { URS, FRS, TESTS, MODULES_WITHOUT_REQUIREMENT } from '../src/lib/validation';
+import { modulesWithNoRequirement, badDeclarations, traceabilityMatrix } from '../src/lib/requirements';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
 import { drivePreviewUrl } from '../src/lib/drive';
@@ -253,16 +255,61 @@ console.log('\n-- every screen rendering the call form injects its lists --');
   const dir = `${process.cwd()}/src/modules/`;
   const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'));
   const uses: string[] = [];
+  const strays: string[] = [];
+  // SCANNED PER STATEMENT, NOT PER LINE. The line-based version failed the
+  // moment the `fields={...}` prop was wrapped across three lines to take a
+  // second argument: the schema was named on one line and `inject` sat on
+  // another, so a working screen reported as an uninjected one. A check that
+  // goes red when the formatting changes gets weakened or ignored, and this one
+  // guards a failure with NO error behind it — a bare text box and an empty
+  // "Allocated To".
+  const statements = (src: string): { text: string; from: number; to: number }[] => {
+    const out: { text: string; from: number; to: number }[] = [];
+    // Everything from `fields={` to the newline-and-dedent that ends the prop:
+    // close enough to a statement, and it cannot swallow the next prop because
+    // it stops at the first line that starts a new `foo={` at the same depth.
+    const re = /fields=\{[\s\S]*?\n\s{0,14}[a-zA-Z]+[={]/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(src))) {
+      // The LINE SPAN too, so the per-line sweep below can skip what has
+      // already been judged as a whole. Without it the sweep re-reports the
+      // inside of a multi-line prop it just passed.
+      const from = src.slice(0, m.index).split('\n').length;
+      out.push({ text: m[0], from, to: from + m[0].split('\n').length - 1 });
+    }
+    return out;
+  };
   files.forEach((f) => {
     const src = readFileSync(dir + f, 'utf8');
-    src.split('\n').forEach((line, i) => {
-      if (!/FIELD_CALL_FIELDS|buildCreateFields/.test(line)) return;
-      // The definitions and the imports themselves are not renders.
-      if (/^\s*(import|export)\b/.test(line) || /return FIELD_CALL_FIELDS/.test(line)) return;
-      uses.push(`${f}:${i + 1}`);
-      eq(`${f}:${i + 1} injects the masters`, /inject/i.test(line), true);
+    // 1. Every RENDER of the schema — a `fields={...}` prop naming it.
+    const stmts = statements(src);
+    stmts.forEach((st, n) => {
+      if (!/FIELD_CALL_FIELDS|buildCreateFields|viewFields/.test(st.text)) return;
+      uses.push(`${f}#${n + 1}`);
+      eq(`${f}: the call form at render ${n + 1} injects the masters`, /inject/i.test(st.text), true);
     });
+    // 2. ...AND NO OTHER USE SLIPS BY. A helper that DERIVES a field list from
+    //    the schema is legitimate (`viewFields()` drops three fields for the
+    //    view); it is not a render, and it is still fed through `inject` at the
+    //    render above. Anything else naming the schema outside a `fields` prop
+    //    is named here so it has to be looked at.
+    const stray = src.split('\n')
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => /FIELD_CALL_FIELDS|buildCreateFields/.test(line))
+      // Already judged as part of a `fields={...}` prop above.
+      .filter(({ i }) => !stmts.some((st) => i + 1 >= st.from && i + 1 <= st.to))
+      .filter(({ line }) => !/^\s*(import|export)\b/.test(line)
+        && !/return FIELD_CALL_FIELDS/.test(line)
+        && !/inject/i.test(line)
+        // a derivation, not a render
+        && !/^\s*const \w+ = \(\) => FIELD_CALL_FIELDS/.test(line))
+      .map(({ i }) => `${f}:${i + 1}`);
+    strays.push(...stray);
   });
+  // ONE ASSERTION ACROSS EVERY FILE, not one per file: sixty green ticks for
+  // sixty files that never mention the call form is noise, and noise is how a
+  // red one goes unread.
+  eq('nothing renders the call schema outside an injected fields prop', strays, []);
   eq('the call schema is still rendered somewhere', uses.length > 0, true);
 }
 
@@ -6499,6 +6546,218 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // role's old key stopped opening anything the moment the route moved.
   eq('...and a migration grants the renamed key',
     existsSync('supabase/migrations/0205_product_failure_module_key.sql'), true);
+
+  // -------------------------------------------------------------------------
+  // THE DATA TABLE SITS BESIDE THE CHART, NEVER UNDER IT (the user's standing
+  // rule, 2026-09-15: "Always position the Data table on the Side Right or Left
+  // Depending on the Asthetics of the look").
+  //
+  // Underneath, the table took the chart's full width and the counts ended up a
+  // screenshot's width from the bar they describe. This is the kind of layout
+  // that reverts silently when the next chart is added by copying the one above
+  // it, so the rule is checked rather than remembered.
+  // -------------------------------------------------------------------------
+  eq('the chart and its data table share one row',
+    /className=\{`chart-with-table\$\{tableSide === 'left' \? ' table-first' : ''\}`\}/.test(di), true);
+  eq('...and which side it sits on is a prop, not a rewrite',
+    /tableSide\?: 'right' \| 'left';/.test(di), true);
+  const fcss = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  eq('...and the grid it needs has a rule of its own', /\.chart-with-table \{/.test(fcss), true);
+  // A GRID ITEM'S DEFAULT `min-width: auto` IS WHAT TURNS A SIDE-BY-SIDE CHART
+  // INTO A HORIZONTAL PAGE SCROLL: an SVG refuses to shrink below its content
+  // and pushes the whole track wider. Easy to leave out and invisible until a
+  // narrow window.
+  eq('...and the chart cannot push the page sideways',
+    /\.chart-with-table > \* \{ min-width: 0; \}/.test(fcss), true);
+  eq('...and the two stack rather than squeeze on a narrow screen',
+    /@media \(max-width: 880px\)[\s\S]{0,400}\.chart-with-table/.test(fcss), true);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // ONE VOCABULARY FOR COVER, IN TWO PLACES THAT MUST AGREE.
+  //
+  // The user, 2026-09-15: "What is this Warranty? It has to be Normalized --
+  // Warranty is WGP -- Where ever this DAta is feeding - Fix that as well."
+  //
+  // The DATABASE is the enforcement (`public.cover_code`, 0208, with a trigger
+  // on every table that stores a cover); `coverCode` in `fieldcall.ts` is the
+  // same rule on the client so an import PREVIEW shows the value that will
+  // actually be stored. Two copies of one rule drift — that is what this is
+  // for. A synonym added to one and not the other means the preview and the
+  // stored row disagree, which is worse than no preview at all.
+  // -------------------------------------------------------------------------
+  const fc = readFileSync('src/lib/fieldcall.ts', 'utf8');
+  const sql = readFileSync('supabase/migrations/0208_cover_code_normalised.sql', 'utf8');
+
+  const tsPairs = [...fc.matchAll(/(\w+): '(WGP|OGP|CMC|AMC)'/g)].map((m) => `${m[1]}=${m[2]}`).sort();
+  const sqlPairs = [...sql.matchAll(/\('([a-z0-9]+)',\s*'(WGP|OGP|CMC|AMC)'\)/g)].map((m) => `${m[1]}=${m[2]}`).sort();
+  eq('the client and the database know the same cover synonyms', tsPairs, sqlPairs);
+  // The parse is asserted too: a regex that matched nothing would make the
+  // comparison above pass by agreeing that neither side has any rule at all.
+  eq('...and that list is not empty', tsPairs.length > 12, true);
+
+  // THE TRAP, ASSERTED IN BOTH: "out of warranty" contains the word "warranty",
+  // so a substring rule turns one cover into its opposite. Both match on the
+  // WHOLE squashed string, and both are checked here because getting this wrong
+  // is worse than the split it was written to fix.
+  eq('OUT OF WARRANTY is OGP on the client', tsPairs.includes('outofwarranty=OGP'), true);
+  eq('...and on the database', sqlPairs.includes('outofwarranty=OGP'), true);
+
+  // AN UNRECOGNISED VALUE IS RETURNED UNCHANGED, never guessed into a bucket: a
+  // wrong cover on a failure answers "manufacturing or wear?" wrongly.
+  eq('an unknown cover is left alone, not bucketed',
+    /\?\? raw;/.test(fc), true);
+
+  // EVERY IMPORTER THAT CARRIES A COVER READS IT THROUGH THAT RULE. One of them
+  // not doing so is how "WARRANTY" and "WGP" became two slices of one pie.
+  const up = readFileSync('src/lib/uploads.ts', 'utf8');
+  eq('the bulk uploader normalises cover', /COVER\('item_status'/.test(up), true);
+  eq('...and no register still takes it as plain text',
+    /TEXT\('item_status'/.test(up), false);
+  eq('the PM importer normalises cover',
+    /col === 'item_status' \? coverCode\(val\)/.test(readFileSync('src/lib/pmImport.ts', 'utf8')), true);
+  eq('the AppSheet cover export normalises its own spelling of it',
+    /present_item_status: coverCode\(/.test(readFileSync('src/lib/coverImport.ts', 'utf8')), true);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // EVERY SCREEN HAS A REQUIREMENT FILED UNDER IT, OR A WRITTEN REASON WHY NOT.
+  //
+  // The user asked why registering a field call was not "called out loud" in the
+  // requirements. It was — URS-003 — but the document filed it under "not tied
+  // to one screen", because the grouping was DERIVED from the requirement's
+  // words and URS-003 says "register a customer call" and never says "field".
+  // 34 of 56 screens had no requirement section at all.
+  //
+  // The repair is `Req.modules`: derived by default, DECLARED by exception.
+  // This block is what stops the gap re-opening one screen at a time.
+  //
+  // IT IS THE FORWARD DIRECTION THAT WAS MISSING. The inverse — "claim a screen
+  // is uncovered" — was guarded, loudly, and that guard is why nobody looked at
+  // this one: a comment saying a check exists is worse than no comment.
+  // -------------------------------------------------------------------------
+  const ungoverned = modulesWithNoRequirement();
+  const recorded = Object.keys(MODULES_WITHOUT_REQUIREMENT);
+  eq('every screen with no requirement has a written reason',
+    ungoverned.map((m) => m.path).filter((p) => !recorded.includes(p)), []);
+  // ...AND A REASON LEFT BEHIND IS REMOVED. A screen that has since gained a
+  // requirement must not keep an entry saying it has none — the record would
+  // then be describing a state of affairs that no longer holds, which is the
+  // way every stale document in this project started.
+  eq('...and no reason outlives the gap it explains',
+    recorded.filter((p) => !ungoverned.some((m) => m.path === p)), []);
+
+  // A DECLARATION POINTING AT A ROUTE THAT DOES NOT EXIST files the requirement
+  // NOWHERE while reading as though it files it somewhere — the exact failure
+  // this mechanism was added to fix, reintroduced by a typo.
+  eq('every declared module is a real route', badDeclarations(), []);
+
+  // THE PROVENANCE IS CARRIED, not dropped at the last step: "the text says so"
+  // and "somebody said so" are different kinds of claim.
+  const svx = readFileSync('src/modules/SoftwareValidation.tsx', 'utf8');
+  eq('the in-app tab says which of the two filed each requirement',
+    /filed here because \{e\.how === 'declared'/.test(svx), true);
+  const rdoc = readFileSync('scripts/requirements-doc.ts', 'utf8');
+  eq('...and so does the generated document',
+    /the requirement declares this screen/.test(rdoc), true);
+
+  // -------------------------------------------------------------------------
+  // THE TRACEABILITY MATRIX — six columns, in the order asked for (the user,
+  // 2026-09-15). Both readers render it, so both are checked: a matrix in the
+  // document and not in the app is the same document saying two things.
+  // -------------------------------------------------------------------------
+  const cols = ['URS ID', 'URS Details', 'FRS ID', 'FRS Details', 'Test Case ID', 'Test Case Details'];
+  cols.forEach((c) => eq(`the document's matrix has a "${c}" column`, rdoc.includes(c), true));
+  cols.forEach((c) => eq(`...and so does the app's`, svx.includes(`>${c}</th>`), true));
+
+  const trace = traceabilityMatrix();
+  // ONE ROW PER LINK. A requirement with two mechanisms is at least two rows —
+  // if this ever equals the requirement count, the matrix has been collapsed
+  // back into lists and stopped answering which test proves which mechanism.
+  eq('the matrix is one row per LINK, not per requirement', trace.length > URS.length, true);
+  // A GAP STILL GETS A ROW. Dropping the untraced rows would make the matrix
+  // answer "everything here is traced" by leaving out everything that is not.
+  const noTest = URS.filter((r) => !TESTS.some((t) => t.reqs.includes(r.id)
+    || FRS.filter((f) => f.urs.includes(r.id)).some((f) => t.reqs.includes(f.id))));
+  eq('...and a requirement nothing proves still appears in it',
+    noTest.every((r) => trace.some((x) => x.ursId === r.id)), true);
+  // EVERY REQUIREMENT IS IN IT. A matrix missing one is worse than no matrix.
+  eq('every user requirement has at least one row',
+    URS.filter((r) => !trace.some((x) => x.ursId === r.id)), []);
+  // NO LINK APPEARS TWICE. The link is the TRIPLE, and only the triple: one
+  // test legitimately proves several mechanisms of one requirement (OQ-51 does
+  // it for three), so a repeated URS+test pair is two real links and not a
+  // duplicate. Asserting on the pair FAILED here with 98 against 90, and the
+  // eight it named were all of that kind — the check was wrong, not the matrix.
+  const links = trace.map((r) => `${r.ursId}|${r.frsId}|${r.testId}`);
+  eq('no link appears twice', links.length, new Set(links).size);
+  // THE DUPLICATE THAT IS REAL: a test naming BOTH a requirement and its own
+  // system requirement (`OQ-58 { reqs: ['URS-065','FRS-077'] }` — most of them)
+  // put one piece of evidence on two rows of the same block, once against the
+  // FRS and once against nothing, and read as two.
+  const onBoth = trace.filter((r) => r.testId && !r.frsId)
+    .filter((r) => trace.some((x) => x.ursId === r.ursId && x.testId === r.testId && x.frsId));
+  eq('...and no test sits both against a requirement and against its mechanism', onBoth, []);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // THE FIELD CALL DRAWER — four rules from one report (the user, 2026-09-15).
+  // Each of them is the kind that reverts by being copied from an older screen.
+  // -------------------------------------------------------------------------
+  const fc = readFileSync('src/modules/FieldCalls.tsx', 'utf8');
+
+  // 1. "Remove the Close call option doesn't make sense." It closed a call
+  //    without a visit entry, producing a closed call whose own history says
+  //    nobody went. "Close AGAIN" is a different act and stays: it withdraws a
+  //    re-open on a call already closed by a real visit.
+  eq('there is no Close call action', /label: 'Close call'/.test(fc), false);
+  eq('...and nothing still calls closeCall()', /\bcloseCall\(/.test(fc), false);
+  eq('...but Close again, which withdraws a re-open, is untouched',
+    /label: 'Close again'/.test(fc), true);
+
+  // 2. "Cancel call option should not be shown on a solved call. Only if it's
+  //    pending [Unsolved, Unattended]." Cancelling says the call should not
+  //    exist; once an engineer has closed it, the visit happened.
+  eq('cancelling is offered only while the call is still open',
+    /const OPEN_STATES = \['', 'Unattended', 'Unsolved'\];/.test(fc), true);
+  eq('...and the Cancel action asks that question',
+    /show: mayCancel && !row\._pending && canCancelRow\(row\)/.test(fc), true);
+
+  // 3. "Make it 3 columns ... Minimize the no of rows", and three fields that
+  //    are not needed on a registered call. Each is still STAMPED and still in
+  //    the register — removed from the view, not from the record.
+  eq('the call drawer is three columns', /columns=\{3\}/.test(fc), true);
+  eq('...and the view drops the two registrant fields and the complaint date',
+    /const VIEW_HIDDEN = \['complaintDate', 'registeredBy', 'actuallyRegisteredBy'\];/.test(fc), true);
+  // THE RECORD IS UNCHANGED. If the create form ever lost the complaint date,
+  // the register would stop capturing what the DCCR dates a failure by — which
+  // is a different and much worse change than hiding it on a view.
+  eq('...and the complaint date is still captured when a call is registered',
+    /\{ name: 'complaintDate'[^}]*required: true/.test(fc), true);
+
+  // 4. "Once a call us created don't show the suggestions anymore."
+  eq('suggestions are passed only on create',
+    /\{ suggest: drawer\.mode === 'create' \}/.test(fc), true);
+  const cfx = readFileSync('src/modules/callFields.tsx', 'utf8');
+  eq('...and inject honours that by dropping the chips, not the master',
+    /o\.suggest === false \? \{ \.\.\.complaintField\(f\), below: undefined \}/.test(cfx), true);
+
+  // 5. ONE DATE FORMATTER, beside the one parser. A native date input renders
+  //    in the BROWSER'S locale, so the drawer showed `2026-09-12` beside
+  //    `09/11/2026` — and 09/11 is either 9 November or 11 September depending
+  //    on who reads it. There used to be four date PARSERS here and they had
+  //    started to disagree; a second formatter is the same mistake.
+  eq('the day-first formatter lives in dates.ts',
+    /export function formatDay/.test(readFileSync('src/lib/dates.ts', 'utf8')), true);
+  eq('...and visitdate.ts uses it rather than keeping a copy',
+    /const fmt = formatDay;/.test(readFileSync('src/lib/visitdate.ts', 'utf8')), true);
+  // FORMATTED ONLY WHERE IT CANNOT BE SAVED. A formatted string in a field the
+  // form can submit is a corrupted date.
+  eq('...and a date is reformatted for the VIEW only',
+    /drawer\.mode === 'view' \? \{\s*\n\s*regDate: formatDay/.test(fc), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

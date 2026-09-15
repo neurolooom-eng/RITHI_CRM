@@ -145,15 +145,24 @@ on testing the old shape. **When a migration replaces a definition, move the
   from where each is MAINTAINED — `src/lib/validation.ts` (URS/FRS/tests),
   `docs/CALL_REQUEST_REQUIREMENTS.md` (CR) and `docs/ISO13485_SERVICING.md`
   (SR) — because a hand-kept fifth copy is the one that goes stale while reading
-  as authoritative. **The module is DERIVED from the requirement's own words**
-  (its route, or every distinctive word of its label), so the grouping is
-  evidence rather than opinion and moves when the text does; a requirement
-  naming several modules appears under each, and one naming none is listed apart
-  rather than forced somewhere. That match is strict because it decides where a
-  requirement is FILED — **do not invert it to claim a screen is uncovered**: it
-  was, for one run, and reported 31 of 54 screens as unnamed including the Field
-  Call Register, which URS-003 plainly governs without using the word "field".
-  `REQUIREMENT_COVERAGE.md` answers that question against the whole package.
+  as authoritative. **DERIVED BY DEFAULT, DECLARED BY EXCEPTION**,
+  unioned rather than one replacing the other, and every entry says which of the
+  two filed it. Derived: the requirement's own words name the module — its
+  route, or every distinctive word of its label — so the grouping is evidence
+  rather than opinion and moves when the text does. Declared: `Req.modules` in
+  `validation.ts`, with a written reason, for the ones whose words name nothing.
+  **Derivation alone left 34 of 56 screens with no requirement section**,
+  including the Field Call Register — URS-003 says "register a customer call"
+  and never says "field" — which is what the user found. It is 2 of 56 now, both
+  listed with their reason in `MODULES_WITHOUT_REQUIREMENT`, and `check:ui`
+  fails on a third appearing without one, or on a declaration naming a route
+  that does not exist. **Do not invert the DERIVED match to claim a screen is
+  uncovered**: it was, for one run, and reported 31 of 54 as unnamed. Ask it of
+  the FILED set (`modulesWithNoRequirement()`), which is a different question,
+  or `REQUIREMENT_COVERAGE.md` for the whole package.
+  The document also carries the **traceability matrix** — URS / FRS / test in
+  six columns, ONE ROW PER LINK, so a test proving two mechanisms is two rows
+  and a requirement nothing proves still gets one with the gap named.
   Re-run it after changing any requirement. It caught the first stale count it
   was pointed at: CLAUDE.md said the servicing reference had 37 requirements
   and it defines 44.
@@ -413,13 +422,39 @@ on testing the old shape. **When a migration replaces a definition, move the
   the other direction. That screen wants an exact count AND a Load more button,
   so `PageHeader` separates them: `countMore` adds the `+`, `moreAvailable`
   shows the button, and it defaults to `countMore` where the two coincide.
-- **One parser, one matcher.** Every importer reads dates through
-  `src/lib/dates.ts` (day-first, always) and headers through
+- **One parser, one FORMATTER, one matcher.** Every importer reads dates through
+  `src/lib/dates.ts` (day-first, always) and every screen DISPLAYS one through
+  `formatDay()` in the same file — `dd-MMM-yyyy`, the month NAMED so it cannot
+  be read the other way round. A native `<input type="date">` renders in the
+  BROWSER'S locale, which is how the Field Call drawer came to show
+  `2026-09-12` beside `09/11/2026`; format for display only where the form
+  CANNOT be submitted, since a formatted string in a savable field is a
+  corrupted date. Headers go through
   `src/lib/headers.ts` (strict → loose → squash); CSV through `csv.ts`. Do not
   add a private `toDate` or header normaliser to a module — there used to be
   four date parsers and they had started to disagree. A wall-clock export time is
   LOCAL (`toIsoTimestamp(v, 'local')`, settled with the user); display of a
   non-ISO string is day-first too (`parseAnyDate`). Neither is a per-file habit.
+- **THE MODULE KEY OPENS A SCREEN; THE READ POLICIES DECIDE THE ROWS.** Granting
+  `mod:/x` correctly and seeing an empty page is not a fault in the grant — it is
+  the other half, and the standing rule about Roles & Permissions does not cover
+  it. Product Failure Analysis reads `field_call_review`, which is built FROM
+  `field_calls`, so it is bounded by the CALL policies (`has_perm('calls.view')
+  AND <visibility>`) however open `call_reviews_read` is; Spare Insights reads
+  `spare_consumption`, whose `cons_read` is `can_view_all_calls() OR mine OR my
+  team's`. A role that is not an office role and has no reporting team passes
+  nothing. `data.view_all` is the per-role grant built for exactly that (0035),
+  and it is needed AS WELL AS the `has_perm` gate, never instead of it.
+- **COVER IS ONE VOCABULARY: WGP / OGP / CMC / AMC**, enforced by
+  `public.cover_code()` + triggers (0208), with `coverCode()` in `fieldcall.ts`
+  as the client copy (`check:ui` compares them). "WARRANTY" is WGP. A second
+  spelling does not read as a small error on this dimension — every count is a
+  `group by`, so it SPLITS the total silently and the reader believes both
+  halves. Two rules that look fussy and are not: **"OUT OF WARRANTY" matches on
+  the WHOLE squashed string**, or a substring rule turns one cover into its
+  opposite; and **an unrecognised value is returned unchanged**, never bucketed,
+  because a guess written into a quality record is worse than a value that reads
+  as odd — the odd one gets reported, which is how this was found.
 - **`products` IS THE INSTALL BASE; `product_master` IS THE CATALOGUE — and the
   NAMES SWAPPED on 2026-09-14.** `public.products` is one row per MACHINE
   (model + serial, customer, cover), ~20,000 rows, labelled **Product Database**

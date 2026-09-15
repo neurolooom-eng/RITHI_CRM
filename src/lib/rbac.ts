@@ -51,13 +51,13 @@ export const MODULES: ModuleDef[] = [
   // register (the user, 2026-09-15). Beside the Dashboard because it answers
   // the same question at a glance, for one person rather than the company.
   { path: '/workload', label: 'My Workload' },
-  // What FAILS and why, from every reviewed call — the question the worklist
-  // itself cannot answer. Named for what it analyses rather than for where the
-  // data comes from.
-  { path: '/product-failure', label: 'Product Failure Analysis' },
-  { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
+  // WHAT FAILS AND WHY, from every reviewed call — and what is consumed
+  // fixing it. Both moved out of Overview into Quality & Analytics (the user,
+  // 2026-09-15); the ROUTE is unchanged, so no permission moves with them.
+  { path: '/product-failure', label: 'Product Failure Analysis' },
+  { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/call-review', label: 'Call Review' },
   { path: '/parties', label: 'Party Master' },
   // RENAMED AND MOVED (2026-09-14). The install base is the PRODUCT DATABASE
@@ -375,10 +375,6 @@ export const PERM_TREE: PermHeader[] = [
     // authority it needs is entirely theirs — granting `mod:/workload` adds
     // reach to nothing.
     { path: '/workload', label: 'My Workload', actions: [] },
-    // READ-ONLY, and it holds no action of its own: it analyses the review
-    // register, which `call_reviews_read` already opens to any signed-in user.
-    { path: '/product-failure', label: 'Product Failure Analysis', actions: [] },
-    { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while
     // it sat under Reports; leaving that header behind after the screen moved
@@ -390,7 +386,16 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Quality & Analytics', pages: [
     { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
+    // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
+    // header follows the menu because that is where an administrator looks
+    // for the screen; the ROUTE did not change, so `mod:/product-failure` and
+    // `mod:/spare-insights` still mean the same pages and no migration is
+    // needed — unlike a rename, where the key IS the route and must move.
+    // READ-ONLY, and it holds no action of its own: it analyses the review
+    // register, which `call_reviews_read` already opens to any signed-in user.
+    { path: '/product-failure', label: 'Product Failure Analysis', actions: [] },
     { path: '/kpi', label: 'KPI & Failure Analysis', actions: [] },
+    { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/objective', label: 'Objective', actions: [] },
   ] },
   { title: 'Documents', pages: [

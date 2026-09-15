@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import { shapeCoverRows, type CoverTable } from './coverImport';
+import { coverCode } from './fieldcall';
 import { toIsoDate, toIsoTimestamp, parseAnyDate, isMonthFirst, type DateOpts } from './dates';
 import { loose, findHeaderFor } from './headers';
 
@@ -47,6 +48,19 @@ export interface Col {
    *  register has to combine rather than choose (WinMax holds good stock and
    *  defective stock in two columns, and an engineer holds both). */
   always?: boolean;
+  /** A CONTROLLED VOCABULARY, applied to whatever the file spelled.
+   *
+   *  Not the same job as `when`: `when` decides whether this column takes the
+   *  value at all, `clean` decides what the value IS once it has. Cover is the
+   *  case it was added for — a file saying "WARRANTY" means WGP, and storing
+   *  both spellings SPLITS every count on that dimension without saying so.
+   *
+   *  It runs after `coerce`, so a typed column is cleaned as text and written
+   *  back as text; only `text` columns should use it. Anything the rule does
+   *  not recognise must come back UNCHANGED rather than guessed — the database
+   *  holds the same rule (`public.cover_code`, 0208) and is the enforcement;
+   *  this is so the preview shows what will actually be stored. */
+  clean?: (v: string) => string;
 }
 
 export interface UploadDef {
@@ -270,7 +284,11 @@ export function shapeUpload(def: UploadDef, raw: Record<string, unknown>[]): Sha
         cols.forEach((col) => {
           const raw = String(v ?? '').trim();
           if (col.when && raw && !col.when(raw)) return;   // not this column's kind of value
-          const val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
+          let val = coerce(v, col.type, { monthFirst: monthFirst.has(h) });
+          // A CONTROLLED VOCABULARY, applied to what the file spelled — so the
+          // preview shows the value that will be stored rather than the one
+          // the database will quietly correct a moment later.
+          if (col.clean && typeof val === 'string') val = col.clean(val);
           // Never let a blank cell overwrite a stamped constant.
           if (val !== null && val !== '') { out[col.to] = val; storedBy += 1; }
           // THE FILE CARRIES THIS HEADING AND LEFT IT EMPTY, so the register
@@ -417,6 +435,10 @@ function dedupe(rows: Record<string, unknown>[], keys: string[]): Record<string,
 // ---- the registers --------------------------------------------------------
 
 const TEXT = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from] });
+// WGP / OGP / CMC / AMC, however the file spelled it. Every register that
+// carries a cover uses this rather than TEXT — one of them not doing so is how
+// "WARRANTY" and "WGP" ended up as two slices of one pie.
+const COVER = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], clean: coverCode });
 const DATE = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'date' });
 const TS = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'ts' });
 const NUM = (to: string, ...from: string[]): Col => ({ to, from: [to, ...from], type: 'num' });
@@ -433,7 +455,7 @@ const CALL_COLS: Col[] = [
   TEXT('city'), TEXT('state'),
   TEXT('product_name', 'product name', 'product', 'model'),
   TEXT('serial', 'product serial number', 'item serial number', 'serial no', 'serial number', 'sr no'),
-  TEXT('item_status', 'item status'),
+  COVER('item_status', 'item status'),
   // The "(F)" columns are the FORMULA-maintained ones and are what the register
   // currently holds, so they are listed FIRST and win where a file has both. On
   // the PM export the two agree for complaint and call type, but `Call
@@ -592,7 +614,7 @@ export const UPLOADS: UploadDef[] = [
       TEXT('ucn', 'uc number', 'ucn'), TEXT('call_number', 'call number'),
       TEXT('party_name', 'party name'), TEXT('product_name', 'product name'),
       TEXT('serial', 'product serial number', 'serial no', 'serial'),
-      TEXT('complaint', 'complaint reported', 'complaint'), TEXT('item_status', 'item status'),
+      TEXT('complaint', 'complaint reported', 'complaint'), COVER('item_status', 'item status'),
       TEXT('handstock_reason', 'reason for handstock request', 'handstock reason'),
       TEXT('remarks', 'additional remarks', 'remarks'), TEXT('status'), TEXT('stage'),
       TS('created_at', 'raised on', 'created at'),
@@ -1086,7 +1108,7 @@ export const UPLOADS: UploadDef[] = [
       // have their own columns now, and borrowing one would file a warranty's
       // INACTIVE as the MACHINE's status — in the sample the machine's own
       // status is OGP, which is a different vocabulary entirely.
-      TEXT('item_status', 'item status'),
+      COVER('item_status', 'item status'),
       TEXT('warranty_number', 'warranty number'),
       DATE('warranty_start', 'warranty start date', 'warranty start'),
       DATE('warranty_end', 'warranty end date', 'warranty end'),
@@ -1312,7 +1334,11 @@ export const UPLOADS: UploadDef[] = [
       TEXT('city', 'location'),
       TEXT('state'),
       TEXT('address', 'site address'),
-      TEXT('item_status', 'status', 'machine status'),
+      // THROUGH THE COVER RULE, like every other register that carries one.
+      // The archive is the likeliest source of the split it exists to stop: the
+      // old system wrote "WARRANTY" where this one writes "WGP", and Machine
+      // History shows the two side by side on one machine's timeline.
+      COVER('item_status', 'status', 'machine status'),
       DATE('installed_on', 'install date', 'installation date', 'date of installation', 'commissioning date'),
     ] },
 
@@ -1331,7 +1357,7 @@ export const UPLOADS: UploadDef[] = [
       TEXT('party_name', 'customer name', 'party name', 'hospital'),
       TEXT('city', 'location'),
       TEXT('state'),
-      TEXT('item_status'),
+      COVER('item_status'),
       TEXT('call_type', 'type of call', 'service type'),
       TEXT('standard_complaint', 'standard complaint', 'complaint type', 'fault'),
       TEXT('complaint_reported', 'complaint', 'problem reported', 'complaint reported', 'nature of complaint'),
@@ -1382,6 +1408,10 @@ export const UPLOADS: UploadDef[] = [
       { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
       { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
       TEXT('party_name', 'customer name', 'party name', 'hospital'),
+      // NOT through the cover rule, and this is the one place that matters:
+      // `cover_kind` says WARRANTY or CONTRACT — a KIND, not a code — and
+      // coverCode maps "warranty" to WGP. Normalising here would turn the kind
+      // into one of the codes it is supposed to contain.
       TEXT('cover_kind', 'cover type', 'type', 'warranty or contract'),
       TEXT('cover_number', 'warranty number', 'mc number', 'contract number', 'cover no'),
       TEXT('contract_type', 'cmc amc', 'amc cmc'),

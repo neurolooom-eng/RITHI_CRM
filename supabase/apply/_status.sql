@@ -998,6 +998,31 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_trigger
                       where tgrelid = 'public.saved_charts'::regclass
                         and tgname = 'saved_charts_stamp' and not tgisinternal))))
+,
+    (159, 'The two analysis roles can read the data they analyse', 'data.view_all + the read gates merged into vptechnical and rndengg (0207). Reported from use: "Spare Insights is blank for VPTechnical Role", then "Product Failure Analysis is also Blank for VpTechnical." Both pages were in the menu, both opened, both showed zeros. THE MODULE KEY OPENS A SCREEN; IT DOES NOT SHOW THE ROWS, and that is the whole bug -- the failure mode the standing rule about Roles & Permissions does not cover, because the screen WAS granted correctly and the database still answered with nothing. Product Failure Analysis reads field_call_review, which is built FROM field_calls, so what a reader sees is bounded by the CALL policies (has_perm(''calls.view'') AND visibility); Spare Insights reads spare_consumption, whose cons_read is can_view_all_calls() OR mine OR my team''s, and an analysis role raises no consumption and has no reporting team, so every branch is false. can_view_all_calls() names the OFFICE roles literally and neither of these is one, so the per-role grant built for exactly this case -- data.view_all -- is what they are given, together with the has_perm gates each read path tests FIRST: a role that sees nothing is usually the gate rather than the scope, and here it was both. READ ONLY: not one key granted here writes anything. ONLY THOSE TWO ROLES ARE TOUCHED (the user: "Never Touch those Roles & Permissions. Modify only the VPTechnical and RnDEngg Role") -- rgm, rm and engineer cannot match either pattern the migration uses. NO means the analytics pages are blank for whoever analyses them. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or not exists (select 1 from public.app_roles
+                         where regexp_replace(lower(coalesce(role, '')), '[^a-z0-9]', '', 'g')
+                               in ('vptechnical', 'rndengg', 'rndengineer')
+                           and jsonb_array_length(permissions) > 0)
+         or not exists (select 1 from public.app_roles
+                         where regexp_replace(lower(coalesce(role, '')), '[^a-z0-9]', '', 'g')
+                               in ('vptechnical', 'rndengg', 'rndengineer')
+                           and jsonb_array_length(permissions) > 0
+                           and not (permissions ? 'data.view_all' and permissions ? 'calls.view'
+                                and permissions ? 'consumption.view'))))
+,
+    (160, 'Cover is one word, and WARRANTY is WGP', 'cover_code() + the stamp triggers and the backfill (0208). Reported from use, looking at Failures per cover: "What is this Warranty? It has to be Normalized -- Warranty is WGP -- Where ever this DAta is feeding - Fix that as well." The chart read CMC 880, OGP 374, WGP 56, AMC 3 and WARRANTY 1 -- not a fifth kind of cover, one cover spelled differently by whatever loaded it. A SECOND SPELLING IS WORSE THAN A WRONG ONE on this dimension: every count and share is a GROUP BY, so two spellings do not read as a small error, they SPLIT the total silently and the reader believes both halves. One row was the visible edge; the same load could have carried a thousand. NORMALISED AT THE DATABASE, NOT IN THE CHART -- rewriting the label where it is drawn leaves the stored value wrong for the DCCR grid, the exports and the spare-approval rule that asks whether an item is AMC or OGP, and the next screen shows the split again. THE TRAP, and the reason the match is on the whole squashed string: "OUT OF WARRANTY" contains the word, so a substring rule turns one cover into its OPPOSITE, which is a worse answer than the split it was fixing. AN UNRECOGNISED VALUE IS LEFT EXACTLY AS IT IS, never guessed into a bucket: a wrong cover on a failure answers "manufacturing question or wear question" wrongly, and a spelling nobody anticipated staying visible as itself is how this one was found. THE ROW TESTS THE FUNCTION AND THE TRIGGERS: the function alone corrects history and lets the next import undo it. NO means the covers can split again. Restore: data_integrity.sql',
+        (to_regclass('public.field_calls') is null
+         or (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                      where n.nspname = 'public' and p.proname = 'cover_code')
+         and (select count(*) from pg_trigger
+               where tgname in ('field_calls_cover_code', 'installation_calls_cover_code',
+                                'pm_calls_cover_code', 'products_cover_code',
+                                'spare_requests_cover_code', 'contract_items_cover_code')
+                 and not tgisinternal) = 6
+         and not exists (select 1 from public.field_calls
+                          where item_status is distinct from public.cover_code(item_status)))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

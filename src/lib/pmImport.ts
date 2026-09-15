@@ -1,3 +1,4 @@
+import { coverCode } from './fieldcall';
 import { toIsoDate as toDate } from './dates';
 
 // ===========================================================================
@@ -88,7 +89,12 @@ export function shapePmRows(
         const v = byNorm[n];
         if (v != null && String(v).trim() !== '') {
           const val = String(v).trim();
-          out[col] = DATE_COLS.has(col) ? toDate(val) : val;
+          // Cover reads through the SAME rule as every other importer. A PM
+          // sheet saying "warranty status: WARRANTY" means WGP, and a second
+          // spelling splits every count on that dimension without saying so.
+          out[col] = DATE_COLS.has(col) ? toDate(val)
+                   : col === 'item_status' ? coverCode(val)
+                   : val;
           used.add(n);
           break;
         }

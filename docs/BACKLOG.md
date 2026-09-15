@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-15 (the 2016 archive, folded into Machine History)_
+_Last updated: 2026-09-15 (the 2016 archive, folded into Machine History)_status.sql` rows 159 and 160 name them; rows 150-153 all applied)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -12,9 +12,164 @@ up)_
 
 ---
 
+## 2026-09-14 — The 2016 archive, folded into Machine History
+
+### Two screens were being built for one question
+
+This branch started before `/machine-history` existed and grew its own
+`/product-history` doing the same job on the live registers. **#335 shipped the
+better one** — eleven registers against four, and `machineHistory.ts` names the
+gap this branch actually fills:
+
+> WHAT THIS CANNOT SEE: anything before the migration into this system. That
+> lives in a separate archive project and is not reachable from here.
+
+So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
+`prodhistory.css`, its route and its module key — and the archive is folded into
+Machine History instead. Two screens answering one question is a defect however
+good each one is, and the module key would have been a second thing to grant.
+
+`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
+already grants `mod:/machine-history` to every role.
+
+### What the archive adds
+
+A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
+from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
+it is reached — so moving to `postgres_fdw` or an Edge Function later is one
+file, not a rewrite.
+
+- **Keyed on `machineKey`, never the serial.** The archive computes it as a
+  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
+  the two were diffed on twelve cases and agree on all of them. A disagreement
+  raises no error — it empties the list.
+- **Every row says which database it came from**, and an archive UCN renders
+  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
+  asked about live UCNs only.
+- **No de-duplication between the halves.** The cut-over date is a fact about
+  the migration, not about the machine.
+
+### The access question, which does not carry across
+
+Your users exist in the LIVE project's auth, so a JWT signed there cannot be
+verified by the archive: `auth.uid()` is null for everybody and no policy can
+test who is asking. **The archive key IS the credential** — so it is not baked
+into the repository, has no default, and is pasted per device in Settings.
+
+⚠️ **The better fix is to stop letting the browser talk to that project at
+all**: `postgres_fdw` foreign tables on the live project wrapped in
+`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
+Function that verifies the caller's JWT. Both need a setup step nobody has
+taken.
+
+### Loading it (ProdHistory_06)
+
+Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
+screen rather than in a loader of their own because a second importer for one
+table is how a good file comes back as "0 rows".
+
+`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
+DELETE policy, both privileges revoked. The worst a leaked key does is append
+rubbish NEXT TO the real data rather than over it. The insert policy's
+`with check` **refuses a row whose `source_system` is blank**, because that
+label is the only way back out — these registers have no natural key, so a
+re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
+
+### Status — SQL still to run
+
+| File | Run it on | What it does |
+| --- | --- | --- |
+| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
+| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
+| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
+| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
+| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
+
+**PENDING — none has been run on either project.** All apply and re-apply
+idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
+database built from every migration, `check:views` passes, and `public.calls`
+still carries `security_invoker`.
 
 
 
+## 2026-09-15 — Two spellings of one cover, and a page that opened onto nothing
+
+Two reports from use in one sitting, and they are the same shape: something that
+LOOKS answered.
+
+**"What is this Warranty?"** Failures per cover read CMC 880, OGP 374, WGP 56,
+AMC 3 and **WARRANTY 1**. Not a fifth kind of cover — WGP, spelled differently by
+whatever loaded it. On this dimension every number is a `group by`, so a second
+spelling does not read as a small error: it **splits the total silently and the
+reader believes both halves**. One row was the visible edge of it; the same load
+could have carried a thousand.
+
+`public.cover_code()` (0208) is now the one rule, with a trigger on all six
+tables that store a cover, and the stored values corrected. Two decisions in it
+are the whole design:
+
+- **"OUT OF WARRANTY" must not become WGP.** It contains the word, so a
+  substring rule turns one cover into its *opposite* — a worse answer than the
+  split it was fixing. The match is on the whole squashed string.
+- **An unrecognised value is left exactly as it is.** Forcing it into OGP writes
+  a guess into a quality record, and a value that stays odd is what got this
+  reported in the first place.
+
+`coverCode()` in `fieldcall.ts` is the same rule on the client, so an import
+preview shows what will actually be stored; `check:ui` compares the two lists
+word for word.
+
+**"Spare Insights is blank for VPTechnical"**, and then Product Failure Analysis
+too. Both pages were in the menu, both opened, both showed zeros — because **the
+module key opens a screen and the read policies decide the rows**, and those two
+roles passed neither. It is the case the standing rule about Roles & Permissions
+does not cover: the screen was granted *correctly*.
+
+0207 merges `data.view_all` and the read gates into `vptechnical` and `rndengg`
+alone (the user: *"Never Touch those Roles & Permissions. Modify only the
+VPTechnical and RnDEngg Role"*). Read only — not one key granted there writes
+anything — and `analysis_roles_test.sql` asserts what it did NOT do at least as
+hard as what it did.
+
+### Still to run on the live project
+
+`_status.sql` first; rows **159** and **160** name these two. Then `rbac.sql`
+(0207) and `data_integrity.sql` (0208).
+
+---
+
+## 2026-09-15 — The requirements did not name the Field Call Register
+
+The user asked why registering a field call was not *"called out loud"* in the
+requirements. It was — **URS-003**, implemented by FRS-005 and FRS-006 and
+proved — but the document filed it under **"not tied to one screen"**.
+
+The grouping is DERIVED from each requirement's own words, and URS-003 says
+*"register a customer call"* without ever saying *"field"*. Measured rather than
+guessed: **34 of 56 screens had no requirement section at all**, including Spare
+Requests, Pending Registrations, the Field Failure Register and Visit Reports.
+
+**My error, and a specific kind of it.** I had guarded the *inverse* direction
+loudly — never claim a screen is uncovered, because inverting a strict match
+reports every near-miss as a gap (it did once: 31 of 54) — and never checked the
+forward one. A guard on one direction reads as a guard on the question.
+
+### What now holds it
+
+`Req.modules` — **derived by default, declared by exception**, unioned rather
+than one replacing the other, and each entry says which of the two filed it. 33
+requirements carry a declaration with a written reason. That leaves **2 screens
+of 56** with nothing filed under them, each with its reason in
+`MODULES_WITHOUT_REQUIREMENT`; `check:ui` fails on a third appearing without one,
+and on a declaration pointing at a route that does not exist.
+
+And a **traceability matrix** (the user's ask, same day): URS ID, URS Details,
+FRS ID, FRS Details, Test Case ID, Test Case Details — **one row per link**, in
+`docs/REQUIREMENTS.md` and in the Validation Package. 98 links, 67 requirements
+traced end to end. A requirement with no mechanism, or a mechanism with no test,
+still gets a row with the gap named in the empty column.
+
+---
 
 
 
@@ -627,85 +782,6 @@ Row 55 proved both ways against a database: NO with those rows present, yes once
 only the active engineer remained.
 
 ---
-
-## 2026-09-14 — The 2016 archive, folded into Machine History
-
-### Two screens were being built for one question
-
-This branch started before `/machine-history` existed and grew its own
-`/product-history` doing the same job on the live registers. **#335 shipped the
-better one** — eleven registers against four, and `machineHistory.ts` names the
-gap this branch actually fills:
-
-> WHAT THIS CANNOT SEE: anything before the migration into this system. That
-> lives in a separate archive project and is not reachable from here.
-
-So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
-`prodhistory.css`, its route and its module key — and the archive is folded into
-Machine History instead. Two screens answering one question is a defect however
-good each one is, and the module key would have been a second thing to grant.
-
-`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
-already grants `mod:/machine-history` to every role.
-
-### What the archive adds
-
-A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
-from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
-it is reached — so moving to `postgres_fdw` or an Edge Function later is one
-file, not a rewrite.
-
-- **Keyed on `machineKey`, never the serial.** The archive computes it as a
-  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
-  the two were diffed on twelve cases and agree on all of them. A disagreement
-  raises no error — it empties the list.
-- **Every row says which database it came from**, and an archive UCN renders
-  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
-  asked about live UCNs only.
-- **No de-duplication between the halves.** The cut-over date is a fact about
-  the migration, not about the machine.
-
-### The access question, which does not carry across
-
-Your users exist in the LIVE project's auth, so a JWT signed there cannot be
-verified by the archive: `auth.uid()` is null for everybody and no policy can
-test who is asking. **The archive key IS the credential** — so it is not baked
-into the repository, has no default, and is pasted per device in Settings.
-
-⚠️ **The better fix is to stop letting the browser talk to that project at
-all**: `postgres_fdw` foreign tables on the live project wrapped in
-`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
-Function that verifies the caller's JWT. Both need a setup step nobody has
-taken.
-
-### Loading it (ProdHistory_06)
-
-Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
-screen rather than in a loader of their own because a second importer for one
-table is how a good file comes back as "0 rows".
-
-`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
-DELETE policy, both privileges revoked. The worst a leaked key does is append
-rubbish NEXT TO the real data rather than over it. The insert policy's
-`with check` **refuses a row whose `source_system` is blank**, because that
-label is the only way back out — these registers have no natural key, so a
-re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
-
-### Status — SQL still to run
-
-| File | Run it on | What it does |
-| --- | --- | --- |
-| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
-| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
-| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
-| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
-| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
-
-**PENDING — none has been run on either project.** All apply and re-apply
-idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
-database built from every migration, `check:views` passes, and `public.calls`
-still carries `security_invoker`.
-
 
 ## 2026-09-15 — Why somebody's chip reads "Engineer" when User Master says otherwise
 

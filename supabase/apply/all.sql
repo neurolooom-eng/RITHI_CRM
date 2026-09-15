@@ -38,6 +38,7 @@
 --   0204_dccr_insights_module_key.sql
 --   0205_product_failure_module_key.sql
 --   0206_saved_charts.sql
+--   0207_analysis_roles_see_the_data.sql
 --   0199_user_master_is_the_master.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
@@ -224,6 +225,7 @@
 --   0188_feedback_key_repair.sql
 --   0189_feedback_update_policy.sql
 --   0190_feedback_dates_and_origin.sql
+--   0208_cover_code_normalised.sql
 --   0052_search_indexes.sql
 --   0098_product_register_names.sql
 --   0099_no_jit.sql
@@ -2631,6 +2633,110 @@ drop trigger if exists saved_charts_stamp on public.saved_charts;
 create trigger saved_charts_stamp
   before insert or update on public.saved_charts
   for each row execute function public.saved_charts_stamp();
+
+-- ------------------------------------------------------------------------
+-- 0207_analysis_roles_see_the_data.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE TWO ANALYSIS ROLES COULD OPEN THE ANALYTICS PAGES AND SEE NOTHING ON
+-- THEM.
+--
+-- Reported from use (the user, 2026-09-15): "Spare Insights is blank for
+-- VPTechnical Role", and then "Product Failure Analysis is also Blank for
+-- VpTechnical." Both pages were in the menu, both opened, both showed zeros.
+--
+-- THE MODULE KEY OPENS A SCREEN; IT DOES NOT SHOW THE ROWS. That is the whole
+-- of this bug, and it is the failure mode the standing rule about Roles &
+-- Permissions does not cover — the screen was granted correctly and the
+-- database still answered with nothing:
+--
+--   * PRODUCT FAILURE ANALYSIS reads `field_call_review`, and although
+--     `call_reviews_read` (0044) opens the review table to any signed-in user,
+--     the VIEW is built `from public.field_calls` — so what a reader sees is
+--     bounded by the CALL policies, which are
+--     `has_perm('calls.view') AND <visibility>`. A role holding neither sees
+--     no calls, therefore no reviews, therefore an empty chart.
+--   * SPARE INSIGHTS reads `spare_consumption`, whose `cons_read` (0038) is
+--     `can_view_all_calls() OR mine OR my team's`. An analysis role raises no
+--     consumption and has no reporting team, so every branch is false.
+--
+-- `can_view_all_calls()` (0035) names the OFFICE roles literally — hotline,
+-- nsm, commercial, spare_coordinator, stores_incharge, tally_coordinator — and
+-- neither of these is one. The per-role grant built for exactly this case is
+-- `data.view_all`, so that is what they are given, together with the
+-- `has_perm` gates each read path tests first. A role that sees NOTHING is
+-- usually the `has_perm` gate rather than the scope, and here it was BOTH.
+--
+-- ONLY THESE TWO ROLES ARE TOUCHED (the user, 2026-09-15: "Take the Current
+-- [As Set in the App] Roles as the Standard for Regional Managers, Reporting
+-- Managers, Engineers .. Never Touch those Roles & Permissions. Modify only
+-- the VPTechnical and RnDEngg Role"). The match is on the role's key OR its
+-- label with the separators squashed, so `vptechnical`, `vp_technical` and a
+-- label of "VP Technical" all land and nothing else can: `rgm`, `rm` and
+-- `engineer` cannot match either pattern.
+--
+-- READ ONLY. Every key below is a READ — the two roles gain no authority to
+-- write a call, a review, a failure report or a stock line. Analysing the data
+-- is what they were blank for; changing it was not asked for and is not
+-- granted here.
+--
+-- MERGED, NEVER OVERWRITTEN, and a role with ZERO permissions is left alone:
+-- an empty array means "not configured" and `permsForRole()` falls back to the
+-- code defaults, which writing one key into would silently switch off.
+-- ===========================================================================
+
+do $$
+declare
+  n int;
+  keys text[] := array[
+    'data.view_all',      -- the scope: every call, report, request and consumption row
+    'calls.view',         -- the gate the call policies test BEFORE the scope
+    'consumption.view',   -- Spare Insights, and the consumption reports
+    'reports.view',       -- the visit reports a failure is read from
+    'ffr.view',           -- the Field Failure Register the analysis rolls up
+    'masters.view',       -- product, party and part names, so a chart has labels
+    'feedback.view',
+    'dashboard.view'
+  ];
+  who text;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(keys) as v
+             ) u
+         ),
+         updated_at = now()
+   -- The LABEL is matched as well as the key: a role created through the UI
+   -- takes its key from the name it was given, and "VP Technical" keys as
+   -- `vp_technical` while "VPTechnical" keys as `vptechnical`. Squashing the
+   -- separators out of both means the migration does not depend on which was
+   -- typed. Nothing else squashes to these strings.
+   where jsonb_array_length(ar.permissions) > 0
+     and ( regexp_replace(lower(coalesce(ar.role,  '')), '[^a-z0-9]', '', 'g')
+             in ('vptechnical', 'rndengg', 'rndengineer')
+        or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g')
+             in ('vptechnical', 'rndengg', 'rndengineer') );
+  get diagnostics n = row_count;
+
+  select string_agg(ar.role, ', ' order by ar.role) into who
+    from public.app_roles ar
+   where regexp_replace(lower(coalesce(ar.role, '')), '[^a-z0-9]', '', 'g')
+           in ('vptechnical', 'rndengg', 'rndengineer')
+      or regexp_replace(lower(coalesce(ar.label, '')), '[^a-z0-9]', '', 'g')
+           in ('vptechnical', 'rndengg', 'rndengineer');
+
+  raise notice '0207: % analysis role(s) updated; roles present: %', n, coalesce(who, 'none');
+  if who is null then
+    raise notice '0207: neither VP Technical nor R&D Engineer exists on this project — nothing to do.';
+  end if;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0199_user_master_is_the_master.sql
@@ -29128,6 +29234,175 @@ begin
 
   raise notice '0190: % feedback row(s) marked as imported, % given their own date, % given a visit date',
     n_from, n_date, n_visit;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0208_cover_code_normalised.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- ONE VOCABULARY FOR COVER: WGP, OGP, CMC, AMC — AND "WARRANTY" IS WGP.
+--
+-- Reported from use (the user, 2026-09-15), looking at Failures per cover:
+-- "What is this Warranty? It has to be Normalized -- Warranty is WGP -- Where
+-- ever this DAta is feeding - Fix that as well."
+--
+-- The chart read CMC 880, OGP 374, WGP 56, AMC 3 and **WARRANTY 1**. The last
+-- one is not a fifth kind of cover; it is WGP spelled differently by whatever
+-- loaded it. The application has said `['WGP','OGP','CMC','AMC']` since
+-- `fieldcall.ts` was written, but nothing made the DATABASE agree, so a
+-- register loaded from a file could carry any spelling its source used.
+--
+-- A SECOND SPELLING IS WORSE THAN A WRONG ONE HERE. Every count, share and
+-- cross-tab on this dimension is a GROUP BY: two spellings of one cover do not
+-- read as a small error, they split the total silently and the reader believes
+-- both halves. One row today is the visible edge of it — the same load could
+-- have carried a thousand.
+--
+-- NORMALISED AT THE DATABASE, NOT IN THE CHART. Rewriting the label where it is
+-- drawn would leave the stored value wrong for every other reader — the DCCR
+-- grid, the exports, the spare-approval rule that asks whether an item is AMC
+-- or OGP — and the next screen would show the split again. So:
+--
+--   1. `public.cover_code(text)` is the ONE rule, in SQL.
+--   2. A trigger applies it on every write to the five tables that store a
+--      cover, so no importer, form or bulk load can reintroduce a synonym.
+--   3. The existing rows are corrected once, here.
+--
+-- AN UNRECOGNISED VALUE IS LEFT EXACTLY AS IT IS, on purpose. Forcing anything
+-- unknown into OGP would be a guess written into a quality record, and a wrong
+-- cover on a failure is a wrong answer to "is this a manufacturing question or
+-- a wear question". A spelling nobody anticipated stays visible as itself —
+-- which is how this one was found.
+-- ===========================================================================
+
+create or replace function public.cover_code(v text)
+returns text language sql immutable as $$
+  select case
+    when v is null or btrim(v) = '' then v
+    else coalesce(
+      (select m.code
+         from (values
+                -- WGP — inside the guarantee period. "Warranty" is the word
+                -- people use; WGP is the code this system stores.
+                ('wgp',                              'WGP'),
+                ('warranty',                         'WGP'),
+                ('underwarranty',                    'WGP'),
+                ('inwarranty',                       'WGP'),
+                ('withinwarranty',                   'WGP'),
+                ('warrantyguaranteeperiod',          'WGP'),
+                ('guaranteeperiod',                  'WGP'),
+                -- OGP — out of it. Note these are matched WHOLE, so
+                -- "outofwarranty" cannot be caught by the 'warranty' row
+                -- above: the comparison is on the entire squashed string.
+                ('ogp',                              'OGP'),
+                ('outofwarranty',                    'OGP'),
+                ('outofguaranteeperiod',             'OGP'),
+                ('outofguarantee',                   'OGP'),
+                ('outofcover',                       'OGP'),
+                ('outofcontract',                    'OGP'),
+                ('nocover',                          'OGP'),
+                -- The two contracts.
+                ('cmc',                              'CMC'),
+                ('comprehensivemaintenancecontract', 'CMC'),
+                ('undercmc',                         'CMC'),
+                ('amc',                              'AMC'),
+                ('annualmaintenancecontract',        'AMC'),
+                ('underamc',                         'AMC')
+              ) as m(src, code)
+        where m.src = regexp_replace(lower(v), '[^a-z0-9]', '', 'g')),
+      btrim(v))
+  end
+$$;
+comment on function public.cover_code(text) is
+  'The one rule for cover. WGP / OGP / CMC / AMC from any spelling that means '
+  'one of them; anything else is returned trimmed and unchanged, because a '
+  'guess written into a quality record is worse than a value that reads as odd.';
+
+-- ---------------------------------------------------------------------------
+-- The trigger, on every table that STORES a cover. `calls`, `pending_calls`
+-- and `machine_cover` are views over these and follow without being touched.
+-- ---------------------------------------------------------------------------
+create or replace function public.cover_code_stamp()
+returns trigger language plpgsql as $$
+begin
+  new.item_status := public.cover_code(new.item_status);
+  return new;
+end $$;
+
+-- The two AppSheet cover exports spell the same thing in a column of their
+-- own, `present_item_status` (0036 documents it as "OGP / WGP / CMC / AMC"),
+-- and `machine_cover` reads it as a machine's cover alongside the rest. A
+-- register left out of this list is exactly how one synonym survived.
+create or replace function public.present_cover_code_stamp()
+returns trigger language plpgsql as $$
+begin
+  new.present_item_status := public.cover_code(new.present_item_status);
+  return new;
+end $$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['field_calls','installation_calls','pm_calls','products','spare_requests']
+  loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    if (select c.relkind from pg_class c where c.oid = to_regclass('public.' || t)) <> 'r'
+      then continue; end if;
+    execute format('drop trigger if exists %I on public.%I', t || '_cover_code', t);
+    execute format(
+      'create trigger %I before insert or update of item_status on public.%I '
+      'for each row execute function public.cover_code_stamp()', t || '_cover_code', t);
+  end loop;
+
+  -- ONLY A TABLE TAKES A ROW TRIGGER. `contract_details` carries the column
+  -- and is a VIEW over `contract_items`, so it follows without being touched —
+  -- and naming it here without this guard is an error that stops the migration
+  -- dead, which is how the list gets quietly shortened instead of corrected.
+  foreach t in array array['contract_items','contract_details']
+  loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    if (select c.relkind from pg_class c where c.oid = to_regclass('public.' || t)) <> 'r'
+      then continue; end if;
+    execute format('drop trigger if exists %I on public.%I', t || '_cover_code', t);
+    execute format(
+      'create trigger %I before insert or update of present_item_status on public.%I '
+      'for each row execute function public.present_cover_code_stamp()', t || '_cover_code', t);
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- The rows already stored. Only the ones the rule actually changes are
+-- written: an update that touches every row would restamp `updated_at` across
+-- five registers and bury the real change in the audit trail.
+-- ---------------------------------------------------------------------------
+do $$
+declare t text; n int; total int := 0;
+begin
+  foreach t in array array['field_calls','installation_calls','pm_calls','products','spare_requests']
+  loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    execute format(
+      'update public.%I set item_status = public.cover_code(item_status) '
+      'where item_status is distinct from public.cover_code(item_status)', t);
+    get diagnostics n = row_count;
+    total := total + n;
+    if n > 0 then raise notice '0208: %: % row(s) normalised', t, n; end if;
+  end loop;
+
+  foreach t in array array['contract_items','contract_details']
+  loop
+    if to_regclass('public.' || t) is null then continue; end if;
+    if (select c.relkind from pg_class c where c.oid = to_regclass('public.' || t)) <> 'r'
+      then continue; end if;
+    execute format(
+      'update public.%I set present_item_status = public.cover_code(present_item_status) '
+      'where present_item_status is distinct from public.cover_code(present_item_status)', t);
+    get diagnostics n = row_count;
+    total := total + n;
+    if n > 0 then raise notice '0208: %.present_item_status: % row(s) normalised', t, n; end if;
+  end loop;
+  raise notice '0208: % cover value(s) normalised in all', total;
 end $$;
 
 -- ------------------------------------------------------------------------
