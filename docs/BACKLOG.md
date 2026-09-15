@@ -20,6 +20,56 @@ up)_
 
 
 
+## 2026-09-15 — The filter chips fold away, and never fold the filter away with them
+
+Asked: *"The Grouping at the top ... Seems to be very Congested for a Few but
+Useful for a Few — Is it possible to Expand and Collapse it? or Enable /
+Disable?"*
+
+Both, and they turn out to be the same control: a row that folds and REMEMBERS
+is a row that is disabled for whoever wants it disabled.
+
+### The default is a fact about the row, not a guess about the screen
+
+**A row is congested exactly when it has more options than fit** — three
+statuses are useful, ninety engineers are a wall. So a long row starts folded
+and a short one starts open, and it follows the data rather than being decided
+once per screen. Once somebody touches it their choice wins and is kept, because
+a default that cannot be overruled is a preference imposed.
+
+`FacetChips` already had **＋N more / Show fewer** for the overflow past twelve.
+That hides the tail; it never made the row smaller than twelve chips, which is
+the shape the complaint was about.
+
+### The one rule that matters
+
+**Folding the chips must not fold away the FILTER.** A shut row quietly holding
+a selection shows 90 rows where there are 3,850 with nothing on screen saying
+why — and the reader concludes the register is broken, not filtered. So the
+chosen chip stays out, keeps its count, and clears in one click.
+
+Mutation-tested: removing it fails two `check:ui` assertions.
+
+### Where they are
+
+| Screen | Rows |
+| --- | --- |
+| Field / Installation / PM calls | Engineer (per call type) |
+| Pending Calls, Spare Requests | Engineer |
+| Indoor Service | Status, Activity, Kind — **three stacked**, the congested case even though each is short |
+| KPI & Failure Analysis | Product, Region |
+
+### Two checks written wrong before they were written right
+
+- `code()` strips comments, so asserting the private-window `catch` by its
+  comment matched nothing. Asserted structurally instead — and it now covers
+  BOTH accesses, the read at mount as well as the write.
+- Counting `storeKey=` to count facet rows measured the wrong thing: **Drawer
+  takes that prop too**, so Indoor Service failed a check on a file that was
+  correct. Counted by the keys themselves.
+
+---
+
 ## 2026-09-15 — A column in the table is not a column on the screen
 
 Reported with a screenshot the moment the Party Master was opened: *"Why is the

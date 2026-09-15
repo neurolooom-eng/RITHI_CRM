@@ -6056,5 +6056,69 @@ console.log('\n-- a new column reaches the Party Master screen, not just the tab
     /options=\{KYC_STATUSES\}/.test(pm), true);
 }
 
+console.log('\n-- a facet row can be put away, and never hides a live filter --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "The Grouping at the top ... Seems to be very
+  // Congested for a Few but Useful for a Few — Is it possible to Expand and
+  // Collapse it? or Enable / Disable?"
+  //
+  // THE ONE RULE THAT MATTERS HERE is what a SHUT row does with a filter that
+  // is still applied. Putting the chips away must not put the FILTER away: a
+  // reader who sees 90 rows where there are 3,850, with nothing on screen
+  // saying why, concludes the register is broken. So the chosen chip stays out
+  // and stays clickable.
+  // -------------------------------------------------------------------------
+  const ui = code(readFileSync('src/components/ui/ui.tsx', 'utf8'));
+
+  eq('a shut row still shows the chip that is filtering',
+    /if \(!isOpen\) \{[\s\S]*?picked[\s\S]*?chip-on/.test(ui), true);
+  eq('...and clearing it is one click from there',
+    /className="chip chip-on" onClick=\{\(\) => onChange\(''\)\}/.test(ui), true);
+
+  // THE DEFAULT IS A FACT ABOUT THE ROW, not a guess about the screen: a row is
+  // congested exactly when it has more options than fit, and that changes as
+  // the data does.
+  eq('long rows start shut, short rows start open',
+    /const isOpen = open \?\? sorted\.length <= max;/.test(ui), true);
+  // ...AND THE PERSON'S OWN CHOICE OVERRULES IT, or the default is a preference
+  // imposed rather than offered.
+  eq('...and a choice once made is remembered',
+    /localStorage\.setItem\(lsKey, next \? '1' : '0'\)/.test(ui), true);
+  // A private window throws on localStorage, and BOTH accesses are wrapped —
+  // reading at mount as well as writing. A filter row is not worth a blank
+  // screen. Asserted structurally: `code()` strips comments, so the sentence
+  // that says so is not there to match.
+  eq('...without a private window taking the row down',
+    /localStorage\.getItem\(lsKey\)[\s\S]{0,60}catch/.test(ui)
+    && /localStorage\.setItem\(lsKey[\s\S]{0,40}catch/.test(ui), true);
+
+  // EVERY ROW NEEDS A NAME TO BE PUT AWAY UNDER. A bare caret says only that
+  // something is hidden; "Engineer 90" says what. Counted by the KEYS
+  // themselves, not by `storeKey=` — Drawer takes that prop too, so counting
+  // the attribute measured the wrong thing and the check failed on a file that
+  // was correct.
+  const FACETS: [string, number, string[]][] = [
+    ['src/modules/FieldCalls.tsx', 1, ['engineer']],
+    ['src/modules/PendingCalls.tsx', 1, ['pending.engineer']],
+    ['src/modules/SpareRequests.tsx', 1, ['spares.engineer']],
+    ['src/modules/IndoorService.tsx', 3, ['indoor.status', 'indoor.activity', 'indoor.kind']],
+    ['src/modules/KpiAnalytics.tsx', 2, ['kpi.product', 'kpi.region']],
+  ];
+  FACETS.forEach(([f, n, keys]) => {
+    const src = code(readFileSync(f, 'utf8'));
+    eq(`${f.split('/').pop()} still has its ${n} facet row(s)`,
+      (src.match(/<FacetChips/g) ?? []).length, n);
+    eq('...each one named', (src.match(/title="/g) ?? []).length >= n, true);
+    keys.forEach((k) => eq(`...and remembered under ${k}`, src.includes(k), true));
+  });
+
+  // THE CLASSES EXIST. A class with no CSS rule is the wart this project keeps
+  // finding; a collapsed row styled by nothing reads as a broken one.
+  const css = readFileSync('src/modules/fieldcalls.css', 'utf8');
+  ['facet-head', 'facet-caret', 'facet-shut', 'facet-all']
+    .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

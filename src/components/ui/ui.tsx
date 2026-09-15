@@ -337,6 +337,7 @@ export function SectionCard({
 // ---------------------------------------------------------------------------
 export function FacetChips({
   options, value, onChange, allLabel = 'All', max = 12, blankLabel = '— none —', more = false,
+  title, storeKey,
 }: {
   options: { key: string; count: number }[];
   value: string;
@@ -349,8 +350,36 @@ export function FacetChips({
   // "90+", never a bare 90. A number that looks exact and is not is worse than
   // no number: somebody reads "MAYANK GUPTA 90" and believes it.
   more?: boolean;
+  // WHAT THIS ROW FILTERS BY, in a word. Shown on the header, and it is what
+  // makes a SHUT row readable: "Engineer · All engineers" says what is behind
+  // it, where a bare ▸ says only that something is hidden.
+  title?: string;
+  // Remembers open or shut for this row, per person, per screen. Without one
+  // the row still collapses — it just forgets by the next visit.
+  storeKey?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  // -------------------------------------------------------------------------
+  // OPEN OR SHUT, and the default is the answer to "congested for a few,
+  // useful for a few" (the user, 2026-09-15).
+  //
+  // A row is congested exactly when it has MORE OPTIONS THAN FIT — three
+  // statuses are useful, ninety engineers are a wall — so that is the default:
+  // short rows open, long rows shut. Not a guess about the screen, a fact about
+  // the row, and it changes as the data does.
+  //
+  // Once somebody TOUCHES it, their choice wins and is remembered. A default
+  // that cannot be overruled is a preference imposed.
+  // -------------------------------------------------------------------------
+  const lsKey = storeKey ? `rithi.facets.${storeKey}` : '';
+  const [open, setOpen] = useState<boolean | null>(() => {
+    if (!lsKey) return null;
+    try { const v = localStorage.getItem(lsKey); return v === null ? null : v === '1'; } catch { return null; }
+  });
+  const setOpenPersist = (next: boolean) => {
+    setOpen(next);
+    try { if (lsKey) localStorage.setItem(lsKey, next ? '1' : '0'); } catch { /* private window */ }
+  };
   if (options.length <= 1) return null;   // nothing to choose between
   // Busiest first, then alphabetical: the name carrying 40 spares is the one
   // being looked for. The chosen one is always shown, wherever it sorts.
@@ -362,8 +391,39 @@ export function FacetChips({
   }
   const hidden = sorted.length - shown.length;
   const total = options.reduce((n, o) => n + o.count, 0);
+  const isOpen = open ?? sorted.length <= max;
+  const picked = value ? sorted.find((o) => o.key === value) : undefined;
+
+  // SHUT, BUT NEVER HIDING AN ACTIVE FILTER. A collapsed row that quietly holds
+  // a selection makes the register look wrong rather than filtered — the reader
+  // sees 90 rows where there are 3,850 and nothing on screen says why. So the
+  // chosen chip stays out, clickable, and clearing it is one click from here.
+  if (!isOpen) {
+    return (
+      <div className="stage-chips facet-shut">
+        <button className="chip facet-head" onClick={() => setOpenPersist(true)}
+          title={`Show every ${title ? title.toLowerCase() : 'filter'} (${sorted.length})`}>
+          <span className="facet-caret">▸</span>{title ? `${title} ` : ''}<b>{sorted.length}</b>
+        </button>
+        {picked
+          ? (
+            <button className="chip chip-on" onClick={() => onChange('')}
+              title="Clear this filter">
+              {picked.key || blankLabel} <b>{picked.count}{more ? '+' : ''}</b> ✕
+            </button>
+          )
+          : <span className="muted facet-all">{allLabel} <b>{total}{more ? '+' : ''}</b></span>}
+      </div>
+    );
+  }
+
   return (
     <div className="stage-chips">
+      {title && (
+        <button className="chip facet-head" onClick={() => setOpenPersist(false)} title="Hide these">
+          <span className="facet-caret">▾</span>{title}
+        </button>
+      )}
       <button className={`chip ${value === '' ? 'chip-on' : ''}`} onClick={() => onChange('')}>
         {allLabel} <b>{total}{more ? '+' : ''}</b>
       </button>

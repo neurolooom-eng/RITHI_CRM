@@ -1163,6 +1163,8 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
         onChange={setEngineerFilter}
         allLabel="All engineers"
         blankLabel="— not allotted —"
+        title="Engineer"
+        storeKey={`calls.${config.callType}.engineer`}
         more={moreAvailable}
       />
 

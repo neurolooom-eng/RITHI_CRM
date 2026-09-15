@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.271',
+    date: '2026-09-15',
+    title: 'The filter chips above a register can be put away',
+    changes: [
+      'Every row of filter chips now has a heading you can click to fold it away — Engineer on the call registers and Spare Requests, Status / Activity / Kind on Indoor Service, Product / Region on KPI.',
+      'A LONG ROW STARTS FOLDED, a short one starts open. A row is crowded exactly when it has more names than fit, so that is what decides it — and it follows the data rather than being set once.',
+      'Whatever you choose is remembered, per screen, on your own device. Indoor Service stacks three rows; put away the two you never use and they stay away.',
+      'FOLDING THE CHIPS NEVER FOLDS AWAY THE FILTER. If one is applied it stays on screen with its count, and one click clears it — otherwise you would be looking at 90 rows out of 3,850 with nothing saying why.',
+    ],
+  },
+  {
     version: '0.9.270',
     date: '2026-09-15',
     title: 'Party Master shows the new columns — and lets you fill them in',
