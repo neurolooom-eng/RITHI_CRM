@@ -22,13 +22,18 @@
 // Usage: npm run coverage:reqs
 // ===========================================================================
 import { MODULES, ACTIONS, PERM_TREE, moduleAction } from '../src/lib/rbac';
-import { URS, FRS, TESTS, RISKS, DETAILED, CHECKLIST } from '../src/lib/validation';
+import { URS, FRS, TESTS, RISKS, DETAILED, CHECKLIST, NON_AUDITABLE } from '../src/lib/validation';
 
 // EVERY WORD OF THE PACKAGE, not just the requirement text: a control named in
 // a risk row or a test step is covered, and treating only URS/FRS as the corpus
 // would report dozens of false questions.
 const corpus = [
   ...URS.map((r) => `${r.title} ${r.text}`),
+  // A NON-AUDITABLE REQUIREMENT IS STILL COVERAGE. The classification is about
+  // PROVENANCE — whether a clause is claimed — not about whether the thing is
+  // specified. Leaving this out reported the Tracker as unmentioned on the very
+  // run after it was written up.
+  ...NON_AUDITABLE.map((r) => `${r.title} ${r.text} ${r.rationale}`),
   ...FRS.map((r) => `${r.title} ${r.text}`),
   ...TESTS.map((t) => `${t.objective} ${t.steps.join(' ')} ${t.expected}`),
   ...RISKS.map((r) => `${r.fn} ${r.failure} ${r.effect} ${r.controls}`),

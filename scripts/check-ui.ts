@@ -34,6 +34,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
+import { TESTS } from '../src/lib/validation';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
@@ -5744,6 +5745,38 @@ console.log('\n-- a part can be renamed, and the rename carries its history --')
   // decision a rename should make silently.
   eq('a rename refuses to merge two parts',
     /a rename cannot merge two parts/.test(mig), true);
+}
+
+console.log('\n-- a test protocol that claims to be automated IS --');
+{
+  // -------------------------------------------------------------------------
+  // `auto` on a TestCase names the check or suite that EXECUTES that protocol.
+  // A claim like that is worth exactly its truthfulness: a package saying "this
+  // requirement is automatically tested" while naming a file that does not
+  // exist is worse than one saying nothing, because nobody goes looking.
+  //
+  // It was already wrong once, on the run that introduced the field: OQ-61
+  // named `supabase/tests/retention_test.sql` before that suite was written.
+  // Caught here, and the suite written rather than the claim dropped — FRS-022
+  // is a HIGH-risk requirement and was one of four carrying no test at all.
+  // -------------------------------------------------------------------------
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
+  const bad: string[] = [];
+  for (const t of TESTS) {
+    if (!t.auto) continue;
+    const a = t.auto.trim();
+    if (a.startsWith('npm run ')) {
+      if (!pkg.scripts[a.slice(8).trim()]) bad.push(`${t.id} → no such script: ${a}`);
+    } else if (!existsSync(a)) {
+      bad.push(`${t.id} → no such file: ${a}`);
+    }
+  }
+  eq('every automated protocol names something that exists', bad, []);
+  // AND THE PACKAGE KNOWS ITS OWN RATIO. Stating how many protocols a command
+  // runs, versus how many wait for a person, is the honest form of "we test
+  // this" — and it can only be stated if it is counted.
+  const n = TESTS.filter((t) => t.auto).length;
+  eq('...and at least some protocols are executed by a command', n > 0, true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
