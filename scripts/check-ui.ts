@@ -5857,5 +5857,58 @@ console.log('\n-- Part Master: the category is chosen, the product is many --');
   }
 }
 
+console.log('\n-- frequent failure: two rules, and they answer different questions --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Add more rule. Rule 2, Same Complaint across same
+  // product, but multiple serial nos in the last 30 days."
+  //
+  // A second rule that merely fires more often is not a second rule. What has
+  // to hold is the SEPARATION: rule 1 is one MACHINE repeating, rule 2 is one
+  // MODEL failing the same way on DIFFERENT units — which rule 1 can never see,
+  // because each of those calls is a first failure on its own machine.
+  // -------------------------------------------------------------------------
+  const mig = readFileSync('supabase/migrations/0198_frequent_failure_rule2.sql', 'utf8');
+
+  // COUNTS DISTINCT SERIALS, NOT CALLS. The load-bearing choice: five visits to
+  // one machine are rule 1's finding and must not read as a batch problem.
+  eq('rule 2 counts distinct serials, not calls',
+    /count\(distinct f\.serial_key\)/.test(mig), true);
+  // ...AND A COMPLAINT IS REQUIRED. Matching on the product alone would flag
+  // every busy model in the register.
+  eq('...and a complaint is required, or every busy model would flag',
+    /if v_r2_on and \(v_std <> '' or v_reported <> ''\) then/.test(mig), true);
+  // DAYS, NOT MONTHS. Thirty days and "a month" are different lengths in
+  // February, and the ask was thirty days.
+  eq('...over a window measured in DAYS',
+    /c\.reg_date >  v_on - v_r2_days/.test(mig)
+    && /'rule2_window_days'/.test(mig), true);
+  // EITHER RULE. A rule that did not change the verdict would be a report.
+  eq('the verdict is either rule', /'is_frequent', v_rule1 or v_rule2/.test(mig), true);
+  eq('...and says WHICH fired',
+    /'rule1_is_frequent', v_rule1/.test(mig) && /'rule2_is_frequent', v_rule2/.test(mig), true);
+
+  // RULE 1 MUST SURVIVE THE REWRITE. 0198 replaces frequent_failure() whole, and
+  // the first draft rewrote `equipment_needs_complaint`'s truthiness test as
+  // `in ('true',...)` while the stored value is `on` — so it silently read
+  // FALSE and rule 1 would have flagged more calls than it does today.
+  eq('rule 1\u2019s own setting keeps the test that matches its stored value',
+    /\(select lower\(btrim\(value\)\) = 'on'\s*\n\s*from public\.app_settings where key = 'ffr\.equipment_needs_complaint'\)/.test(mig), true);
+
+  // THE SCREEN SAYS WHICH RULE, because the action differs completely: a unit
+  // to swap, or a batch to investigate.
+  const dc = code(readFileSync('src/modules/DailyCallReview.tsx', 'utf8'));
+  eq('the review screen names the rule that fired',
+    /history\.rule1_is_frequent &&/.test(dc) && /history\.rule2_is_frequent &&/.test(dc), true);
+  // AND AN ADMINISTRATOR CAN TUNE IT, as they can rule 1.
+  const card = code(readFileSync('src/modules/FrequentFailureCard.tsx', 'utf8'));
+  eq('...and an administrator can tune rule 2 too',
+    /rule2_enabled/.test(card) && /rule2_window_days/.test(card) && /rule2_serials/.test(card), true);
+  // ONE SERIAL IS NOT "MULTIPLE" — floored in the form as well as in SQL.
+  eq('...with at least two serials, in the form as well as the database',
+    /Math\.max\(2, num\(e\.target\.value, 2\)\)/.test(card)
+    && /greatest\(coalesce\(\(select nullif\(btrim\(value\), ''\)::integer\s*\n\s*from public\.app_settings where key = 'ffr\.rule2_serials'\), 2\), 2\)/.test(mig), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

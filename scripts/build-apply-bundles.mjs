@@ -256,6 +256,11 @@ const MODULES = {
             // procedure actually states. A bundle replayed alone has to see
             // them in that order.
             '0153_frequent_failure_rule.sql',
+            // Rule 2 (the same complaint across other units of a model). It
+            // redefines frequent_failure() and frequent_failure_rule(), both
+            // owned by this module, so it must come after 0153 — a bundle
+            // carries the LATEST definition of everything it defines.
+            '0198_frequent_failure_rule2.sql',
             '0119_bulk_review2.sql', '0124_auto_review2.sql',
             '0048_daily_review_map_by_call_number.sql',
             // Call Review (/call-review) -- a SECOND review, on the report rather
