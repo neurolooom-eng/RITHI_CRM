@@ -123,7 +123,16 @@ export function makeLocalUcn(callType: string, when: Date, existing: string[]): 
 // Map a Product Database row (keyed by its own headers) onto the Field Call
 // form fields, so registering a call auto-fills customer / product / warranty
 // / contract from the selected item.
-export function productToCallPrefill(p: Record<string, unknown>): Record<string, unknown> {
+/** The call form's values for a machine picked out of the Product Database.
+ *
+ *  `partyEngineer` is the PARTY MASTER's Serviceman, used only where the
+ *  machine has no Service Engineer of its own (0200). THE MACHINE WINS — the
+ *  precedence the user chose, 2026-09-15 — so this widens where an engineer
+ *  can be found and changes no call that already found one. Both are a
+ *  PREFILL: the box is editable and whoever registers the call decides. */
+export function productToCallPrefill(
+  p: Record<string, unknown>, partyEngineer = '',
+): Record<string, unknown> {
   const g = (h: string) => {
     const v = p[h];
     return v == null ? '' : String(v);
@@ -142,7 +151,27 @@ export function productToCallPrefill(p: Record<string, unknown>): Record<string,
     contractStart: g('Contract Start Date'),
     contractEnd: g('Contract End Date'),
     contractType: g('Contract Type'),
-    allocatedTo: g('Service Engineer'),
+    allocatedTo: g('Service Engineer').trim() || (partyEngineer ?? '').trim(),
+  };
+}
+
+/** The call form's values for a PARTY, with no machine chosen yet (0200).
+ *
+ *  An INSTALLATION reaches a customer who has no machine here at all, so the
+ *  machine's own Service Engineer can never answer for it and the Party Master
+ *  is the only thing that can. Picking the party fills the customer and the
+ *  engineer; picking a serial afterwards replaces this with the fuller
+ *  machine prefill above, where the machine's engineer wins again.
+ *
+ *  DELIBERATELY TWO FIELDS. Everything else on the form belongs to the MACHINE
+ *  or the complaint, and writing a blank over something somebody has already
+ *  typed is worse than leaving it for them. */
+export function partyToCallPrefill(
+  party: { partyName: string; serviceEngineer?: string },
+): Record<string, unknown> {
+  return {
+    partyName: party.partyName,
+    allocatedTo: (party.serviceEngineer ?? '').trim(),
   };
 }
 

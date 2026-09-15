@@ -514,7 +514,10 @@ const MODULES = {
       '0193_product_master_lines.sql',
       // Every column of the v2_ProdMaster export, read back out of `extra`.
       // AFTER 0193 only for tidiness; it touches a different table.
-      '0194_product_database_all_columns.sql'],
+      '0194_product_database_all_columns.sql',
+      // The Party Master's Serviceman gets a column, so the call form can look
+      // it up. Here because `parties` is this module's table (0076).
+      '0200_party_service_engineer.sql'],
   },
   reports: {
     title: 'Reports',

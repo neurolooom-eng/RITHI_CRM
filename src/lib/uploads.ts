@@ -972,12 +972,22 @@ export const UPLOADS: UploadDef[] = [
   // ---- registers with their own screens
   { key: 'parties', label: 'Party Master', group: 'Masters', table: 'parties', extraInto: 'extra',
     conflict: 'name_key', conflictFrom: ['party_name'],
-    note: 'The AppSheet export loads as exported. Everything the table has no column for — Type, Profile, Country, Route, the telephone/email/PAN/GST fields, the contact person — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again.',
+    note: 'The export loads as exported. Everything the table has no column for — Office Name, Profile, Route, Under, Salesman, the telephone/fax/email/tax fields, the billing address — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again. SERVICEMAN gets a column of its own: it is what prefills “Call Allocated To” on a new call where the machine has no Service Engineer, and a value in the kept-as-is blob cannot be looked up.',
     cols: [
       { to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
       TEXT('city'), TEXT('state'),
+      // `type` before `profile`: this export carries BOTH, and Type is the
+      // classification (Hospital, Dealer) while Profile is a free note.
       TEXT('party_type', 'type', 'profile'),
+      // `address` before `billing address`, and this export carries both — the
+      // installation address is where the machine is, which is what a call
+      // needs; the billing address is kept on the row.
       TEXT('address', 'billing address'),
+      // WHO LOOKS AFTER THIS CUSTOMER (0200). `serviceman` is the supplied
+      // export's own heading; the others are what the same column is called
+      // elsewhere. Deliberately NOT aliased to a bare `engineer`, which on a
+      // party sheet is as likely to mean the sales contact.
+      TEXT('service_engineer', 'serviceman', 'service engineer', 'service man'),
     ] },
   // RENAMED, NOT REPLACED (the user, 2026-09-14: "Rename Product Master to
   // Product Database"). Same register, same table, same key — one row per
