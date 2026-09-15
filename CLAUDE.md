@@ -277,6 +277,21 @@ on testing the old shape. **When a migration replaces a definition, move the
   because the result looks complete. `paging.ts` is a module of its own for one
   reason: `supabase.ts` reads `import.meta.env` and no node script can import
   it, so nothing in it can be tested as behaviour.
+- **`npm run validate -- "<psql args>"` RUNS EVERYTHING** — a template database
+  from every migration, all 77 suites EACH ON ITS OWN COPY, all 13 checks, and a
+  dated record in `docs/VALIDATION_RUN.md` written whatever happens. Two things
+  it judges that a loop would not: an `expect ERROR` **that does not error is a
+  failure too** (a guard that stopped working produces a suite that runs clean —
+  three had), and a suite run against a SHARED database collides on its own
+  fixtures and reads as a failure it is not.
+- **A DATABASE-LEVEL SETTING DOES NOT SURVIVE A COPY OR A RESTORE.**
+  `alter database ... set jit = off` (0099 — the Hand Stock timeout, 3.7s
+  COMPILING a query that runs in 174ms) lives in `pg_db_role_setting` keyed by
+  the database OID, so `create database ... template x` gets a new OID and NONE
+  of the settings. Proved by asking: the original reads `jit=off`, the copy
+  reads nothing. **Any rebuild that copies or restores rather than re-running
+  the migrations silently loses it**, and the timeout returns with nothing to
+  say why. `_status.sql` row 47 is the check.
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.

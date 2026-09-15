@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.263',
+    date: '2026-09-15',
+    title: 'Every test now passes, and three of them had stopped testing anything',
+    changes: [
+      'All 77 database test suites and all 13 automated checks now pass. Eight were failing; none of them was a fault in the application.',
+      'THREE TESTS HAD QUIETLY STOPPED WORKING and still reported success: one checked that a Field Failure re-load updates rather than duplicates, using a key that was widened months ago; one still insisted the spare category must be one of four words, a rule that was deliberately dropped after a real Item Master upload stopped half-written; and one section of the Ownership Transfer tests had never run at all, because two hand-over records were given no OT numbers and collided.',
+      'A FINDING WORTH KNOWING FOR ANY REBUILD: the fix for the Hand Stock timeout is a database SETTING, and a database setting is not carried by a copy or a restore — only by re-running the migrations. If the project is ever rebuilt the other way, that slowness returns with nothing to say why.',
+      'The defect register is up to 14 entries, and the two largest causes are now level: a check that could not fail, and a control nothing could reach.',
+    ],
+  },
+  {
     version: '0.9.262',
     date: '2026-09-15',
     title: 'Software Validation: every test run in one command, and a defect register',

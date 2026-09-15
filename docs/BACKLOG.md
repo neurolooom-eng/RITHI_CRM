@@ -17,6 +17,55 @@ up)_
 
 
 
+
+## 2026-09-15 — The validation run goes green, and what was wrong was the tests
+
+Phase E of *"Test it, record the bugs, Fix it, update relevant documentations
+then re-test"*. **77/77 suites and 13/13 checks.** Eight were failing and **none
+of them was a fault in the application.**
+
+### Four were the harness
+
+| | |
+| --- | --- |
+| `expect ERROR twice` | counted as ONE expectation, so the second error read as unexpected — audit_mode, spare_bulk_decisions |
+| consecutive labels | one explanation over three `\echo` lines, EACH prefixed `expect ERROR`, counted as three expectations for one error — indoor_service |
+| `check:columns` | invoked with no connection arguments, printed its usage, recorded as a failure |
+| `check:safe-updates` | handed psql arguments it read as a DIRECTORY |
+
+### Three were tests that had stopped testing anything
+
+- **`ffr_import`** upserted `on conflict (ffr_no)`. `0181` widened the key to the
+  report **and the machine** — one report can cover several — so from then on
+  section 4 raised *"no unique or exclusion constraint matching the ON CONFLICT
+  specification"* and the re-load was never exercised.
+- **`spare_insights`** still asserted a closed category vocabulary. `0152`
+  **deliberately dropped** that constraint after a real Item Master load aborted
+  at row 174 with 173 rows already written. The test expected an error that
+  could no longer happen, raised none, and ran clean.
+- **`ownership_transfer_same_party`** section 5 gave neither hand-over an OT
+  number, so the second collided on `('', 'OT-C')` and the section had never run.
+
+The pattern is one thing: **when a migration replaces a decision, the test has
+to move with it** — the same rule `CLAUDE.md` already states for `_status.sql`.
+
+### ⚠️ And one finding that outlives the test run
+
+`_status.sql` row 47 answered NO on every harness run and yes on any real
+database. The cause matters more than the symptom: **`alter database ... set
+jit = off`** (0099, the Hand Stock timeout — 3.7 seconds *compiling* a query
+that runs in 174ms) lives in `pg_db_role_setting` **keyed by the database OID**,
+and `create database ... template x` gets a new OID and none of the settings.
+Proved by asking: the original reads `jit=off`, the copy reads nothing.
+
+**Any rebuild of the live project that copies or restores rather than re-running
+the migrations silently loses it**, and the Hand Stock timeout comes back with
+nothing to say why. Recorded in `CLAUDE.md` and as defect D-014.
+
+### Nothing to run on the live project
+
+Tests, harness and documentation only.
+
 ## 2026-09-14 — Part Master: renaming a part carries its history
 
 Asked: *"I need to be able to Edit Part Master - Bulk upload to edit it or
