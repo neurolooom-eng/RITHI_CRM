@@ -96,14 +96,18 @@ trigger (4 sections go wrong and the `expect ERROR` in section 9 stops
 arriving). `_status.sql` row 153 tests the TRIGGER, not the function: a function
 nothing fires syncs nothing, which is the failure a definition check would miss.
 
-### Still open
+### Applied — 2026-09-15
 
-Two name mismatches worth a decision, both pre-dating the trigger and both
-harmless (a name is shown, never enforced): `ajay.g-sc` signs in as *INDOOR
-SERVICE* where User Master says *AJAY G*, and `devika.m` as *Devika M* where it
-says *DEVIKA*. Saving either row now corrects it. The third,
-`service.almsind@gmail.com`, needs its **duplicate directory row** removed
-first.
+`rbac.sql` run on the live project, so `user_directory_profile_sync` is live
+and `_status.sql` row 153 reads yes. The three findings section A reported were
+cleared in the same sitting: the **duplicate directory row** on
+`service.almsind@gmail.com` removed, and the two name mismatches (`ajay.g-sc`
+*INDOOR SERVICE* → *AJAY G*, `devika.m` *Devika M* → *DEVIKA*) corrected by
+saving the rows, which is now all that correcting one takes.
+
+`_profile_names_check.sql` is the confirmation: every sign-in should read
+**7 looks fine**, and from here a role set in User Master IS that person's
+access, with no button in between.
 
 ---
 
