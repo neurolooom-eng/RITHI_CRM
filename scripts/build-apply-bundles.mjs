@@ -127,6 +127,9 @@ const MODULES = {
             // ...and the key again, because the screen was renamed the next
             // day and the module key IS the route.
             '0205_product_failure_module_key.sql',
+            // A chart somebody builds and keeps. Modelled on role_table_views
+            // (0120), which is also in this module.
+            '0206_saved_charts.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is

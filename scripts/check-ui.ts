@@ -6420,6 +6420,39 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('the chosen row INVERTS rather than tints',
     /tr\.row-on > td \{ background: var\(--text\); color: var\(--surface\); \}/.test(css), true);
 
+  // -------------------------------------------------------------------------
+  // A CHART SOMEBODY BUILDS AND KEEPS (the user, 2026-09-15: "Add a provision
+  // to create a chart by myself and save it").
+  // -------------------------------------------------------------------------
+  // IT IS DRAWN THROUGH THE SAME BLOCK as the built-in charts, so a saved one
+  // arrives with the table, the labels and the download rather than being a
+  // lesser kind of chart.
+  eq('a saved chart is drawn through the same block',
+    /saved\.map\(\(c\) => \{[\s\S]{0,1400}?<ParetoBlock/.test(di), true);
+  // A DIMENSION THE PAGE NO LONGER KNOWS IS SAID, not silently dropped: a chart
+  // that quietly shows nothing is worse than one that says the column has gone.
+  eq('...and a chart on a column that has gone says so',
+    /is no longer on the review/.test(di), true);
+  // SHARING IS A DIFFERENT ACT FROM KEEPING. It decides what a GROUP sees when
+  // they open a screen — the same thing setting a register layout for a role
+  // does — so it takes the same authority, and somebody without it is told
+  // rather than offered the choice and refused later.
+  eq('sharing is gated on config.manage, and the reader is told',
+    /const maySh: boolean = can\('config\.manage'\)/.test(di)
+    && /Manage configuration/.test(di), true);
+  // THE OWNER IS NOT SENT. The database stamps it, so a chart cannot be filed
+  // under somebody else's name even by a client that means to.
+  const sb2 = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  eq('the client never sends an owner',
+    /\.insert\(\{ page, name: name\.trim\(\), role, spec \}\)/.test(sb2), true);
+  // ONE PAGE KEY, because the value is written to the database and read back.
+  eq('the page key has one spelling', /const PAGE_KEY = 'product-failure';/.test(di), true);
+  // AND THE LIST OF WHAT MAY BE CHARTED IS NAMED, not "any column": the view
+  // has 57 and most answer nothing worth a chart — an id, a uuid, a free-text
+  // observation whose every value is unique.
+  eq('what may be charted is a named list',
+    /const BUILDABLE: \{ key: string; label: string; form:/.test(di), true);
+
   // A RENAMED SCREEN MUST NOT STRAND ITS OLD ADDRESS. The page shipped at
   // /dccr-insights the day before; a bookmark to it has to land somewhere
   // rather than on a blank page.

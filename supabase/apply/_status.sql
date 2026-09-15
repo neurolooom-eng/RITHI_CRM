@@ -988,6 +988,16 @@ with checks(sort_order, bundle, provides, present) as (
            or not exists (select 1 from public.app_roles
                            where jsonb_array_length(permissions) > 0
                              and not (permissions ? 'mod:/product-failure'))))))
+,
+    (158, 'A chart somebody builds can be kept, and shared safely', 'saved_charts + its three policies and the stamp trigger (0206). The user: "Add a provision to create a chart by myself and save it", having asked earlier whether it could be saved "for Everyone or for Specific roles" -- so scope is part of the feature. MODELLED ON role_table_views (0120) DELIBERATELY: that table already answers "this configuration belongs to a role, or to everyone" for register layouts, and a second answer to the same question would be a second set of rules to keep in step. THREE SCOPES and the difference is who else is affected -- MINE (owner = the person, role NULL, anybody may make one), A ROLE, and EVERYONE; the last two need config.manage or an administrator, the same authority 0120 requires to set a layout for a role, because it is the same act. SHARING A CHART CAN NEVER SHARE DATA: the row holds a DIMENSION and a chart type, never numbers, and the counting happens in the reader''s own session over rows their own RLS allowed -- so a chart shared with somebody who may see less simply shows less. THE OWNER IS STAMPED, NOT SENT (0113''s rule): a caller-supplied owner is DISCARDED rather than refused, which is the better behaviour -- refusing makes an honest client fail, discarding makes a dishonest one harmless. The row tests the TABLE and the WRITE policies together, because a table anybody could share from would be worse than none. NO means saved charts are gone, or shareable by anyone. Restore: rbac.sql',
+        (to_regclass('public.saved_charts') is null
+         or ((select relrowsecurity from pg_class where oid = 'public.saved_charts'::regclass)
+         and (select count(*) from pg_policies
+               where tablename = 'saved_charts'
+                 and policyname in ('sc_read','sc_write_mine','sc_write_shared')) = 3
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.saved_charts'::regclass
+                        and tgname = 'saved_charts_stamp' and not tgisinternal))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

@@ -338,6 +338,11 @@ typed into a form that reads it.
   > ranking, so a number can be argued with by somebody who was not at the screen.
   > **Age at failure is not ranked by count**, deliberately: whether failures come
   > early or late in a machine's life is the point of that one.
+  > **Build your own chart** with ＋ New chart — count the failures by any of the
+  > review's answers, as a Pareto, a share, or in its own order. It is kept for
+  > you; sharing it with a role or with everyone needs *Manage configuration*.
+  > **Sharing a chart never shares data**: what is saved is the question, not the
+  > answer, so each reader still sees only the failures their own role may see.
 - **My Workload** `/workload` — everything waiting on you, across the registers
   you can open. **Click a card and you get the list behind it.**
   > A card with nothing to open stays a plain figure — there is no list of an
