@@ -27,6 +27,11 @@ export interface ProductLine {
   name: string;
   active: boolean;
   category: string;
+  /** The catalogue's own abbreviation — ORG, MT75, CPX, EXT. What the Part
+   *  Master names a product family by, because a part fits a MODEL and the
+   *  short form is what fits in a column beside a part code. Several lines
+   *  share one (all nine CPX CARE codes are CPX), so it is not a key. */
+  shortForm: string;
 }
 
 const s = (v: unknown) => String(v ?? '').trim();
@@ -35,7 +40,7 @@ export async function listProductLines(): Promise<ProductLine[]> {
   const c = getSupabase();
   if (!c) return [];
   const { data, error } = await c.from('product_master')
-    .select('product_code,product_name,active,item_category')
+    .select('product_code,product_name,active,item_category,short_form')
     .order('product_name');
   // A CATALOGUE THAT CANNOT BE READ MUST NOT EMPTY THE FORM. The picker falls
   // back to free text below, so a reader who cannot see this table (or a
@@ -44,6 +49,7 @@ export async function listProductLines(): Promise<ProductLine[]> {
   return (data ?? []).map((r) => ({
     code: s(r.product_code), name: s(r.product_name),
     active: r.active !== false, category: s(r.item_category),
+    shortForm: s(r.short_form),
   })).filter((p) => p.code || p.name);
 }
 
@@ -62,3 +68,18 @@ export const retiredNames = (lines: ProductLine[]): string[] => {
   return [...new Set(lines.filter((p) => !p.active && !live.has(p.name)).map((p) => p.name))]
     .filter(Boolean).sort();
 };
+
+/** THE SHORT FORMS, for the Part Master's product family.
+ *
+ *  DE-DUPLICATED, because several lines share one: all nine CPX CARE codes are
+ *  CPX, both EXTEND-XT codes are EXT. A list offering CPX nine times is a list
+ *  nobody can use.
+ *
+ *  ACTIVE AND RETIRED ALIKE. `active` stops a NEW SALE ENTRY and nothing else —
+ *  a part still fits a machine that is no longer sold, and most of the spares
+ *  catalogue is for exactly those. Refusing to record which would lose the fact
+ *  rather than the sale.
+ */
+export function shortForms(lines: ProductLine[]): string[] {
+  return [...new Set(lines.map((l) => l.shortForm).filter(Boolean))].sort();
+}

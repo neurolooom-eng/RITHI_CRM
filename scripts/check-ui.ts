@@ -35,6 +35,7 @@ import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
+import { shortForms, type ProductLine } from '../src/lib/productLines';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
@@ -5782,6 +5783,78 @@ console.log('\n-- a test protocol that claims to be automated IS --');
   // this" — and it can only be stated if it is counted.
   const n = TESTS.filter((t) => t.auto).length;
   eq('...and at least some protocols are executed by a command', n > 0, true);
+}
+
+console.log('\n-- Part Master: the category is chosen, the product is many --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "In Part Master- the Spare / Consumable should be a
+  // drop-down. product should be a multiple select drop-down from product list
+  // (Short Form)."
+  // -------------------------------------------------------------------------
+  const pm = code(readFileSync('src/modules/PartMaster.tsx', 'utf8'));
+
+  // A DROP-DOWN, AND A PickList ONE — a native <select> picks on the first
+  // keystroke, which is why this application has none in a module.
+  eq('Spare / Consumable is a pick list, not a text box',
+    /<label className="field-label">Spare \/ Consumable<\/label>/.test(pm)
+    && /<PickList\s+value=\{edit\.category\}/.test(pm), true);
+  eq('...offering the four the importer normalises to',
+    /const PART_CATEGORIES = \['Spare', 'Consumable', 'Product', 'Labour'\]/.test(pm), true);
+  // OFFERED, NOT ENFORCED. 0152 dropped the CHECK on this column because it
+  // aborted a 1,300-row load part-written; a form that silently replaced a
+  // value the file brought would undo that decision from the other end.
+  eq('...and a value the file brought is kept rather than dropped',
+    /edit\.category && !PART_CATEGORIES\.includes\(edit\.category\)/.test(pm), true);
+
+  // MANY, because a shared spare fits more than one machine.
+  eq('Product is a multi-select', /<MultiPick\s+values=\{edit\.product\.split\(','\)/.test(pm), true);
+  eq('...from the catalogue\u2019s SHORT FORMS',
+    /shortForms\(v\)/.test(pm) && /options=\{families\}/.test(pm), true);
+  // EMPTY MEANS NONE HERE, NOT ALL. MultiPick's own default is a FILTER's:
+  // empty means every row. On a form that reading is wrong, so the label has to
+  // say so rather than let the control imply it.
+  eq('...and empty reads as none recorded, not as every product',
+    /allLabel="\u2014 none recorded \u2014"/.test(pm), true);
+
+  const pl = code(readFileSync('src/lib/productLines.ts', 'utf8'));
+  eq('the short form is actually selected from the catalogue',
+    /short_form/.test(pl) && /shortForm: s\(r\.short_form\)/.test(pl), true);
+  // DE-DUPLICATED: all nine CPX CARE codes carry CPX, and a list offering it
+  // nine times is a list nobody can use.
+  eq('...and the list is de-duplicated',
+    /new Set\(lines\.map\(\(l\) => l\.shortForm\)/.test(pl), true);
+
+  // ---- AND THE BEHAVIOUR, not only the source ------------------------------
+  // Shaped like the user's own ProductList export: nine CPX CARE codes all
+  // carrying CPX, two EXTEND-XT carrying EXT, a line with no short form at all,
+  // and a retired one.
+  {
+    const L = (name: string, shortForm: string, active = true): ProductLine =>
+      ({ code: name + shortForm, name, active, category: '', shortForm });
+    const out = shortForms([
+      ...Array.from({ length: 9 }, () => L('CPX CARE', 'CPX')),
+      L('EXTEND-XT', 'EXT'), L('EXTEND-XT', 'EXT'),
+      L('ORION-G', 'ORG'), L('MONNAL T75', 'MT75'),
+      L('NITRIC OXIDE REGULATOR', ''),
+      L('HORUS', 'HO', false),
+    ]);
+    eq('nine CPX CARE codes give ONE option', out.filter((x) => x === 'CPX').length, 1);
+    eq('...a line with no short form contributes nothing', out.includes(''), false);
+    // A PART STILL FITS A MACHINE NO LONGER SOLD, and most of this catalogue is
+    // for exactly those — `active` stops a new SALE ENTRY and nothing else.
+    eq('...a RETIRED line is still offered', out.includes('HO'), true);
+    eq('...and the list is sorted and whole', out, ['CPX', 'EXT', 'HO', 'MT75', 'ORG']);
+
+    // THE ROUND TRIP the form performs: stored string -> choices -> stored
+    // string. A column holding one text value has to survive being read back as
+    // a set, or a saved part re-opens with the wrong boxes ticked.
+    const parse = (v: string) => v.split(',').map((x) => x.trim()).filter(Boolean);
+    eq('a stored value parses back to its choices', parse('ORG, MT75'), ['ORG', 'MT75']);
+    eq('...an empty column is NO choices, not one empty one', parse(''), []);
+    eq('...odd spacing from a hand-edited row still parses', parse(' ORG ,MT75,, '), ['ORG', 'MT75']);
+    eq('...and it round-trips unchanged', parse('ORG, MT75').join(', '), 'ORG, MT75');
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
