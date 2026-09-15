@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.277',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights — what the reviews are saying',
+    changes: [
+      'A new analytics page under Overview, built like FFR Insights: Pareto of root cause, complaint grouping, which products fail, cover, the month-by-month trend with its numbers beside it, and more.',
+      'CLICK ANY BAR TO NARROW EVERYTHING BELOW IT. “What is the root cause on ORION-G, under contract?” is two clicks rather than a query nobody can write.',
+      'IT COUNTS UNDER THE PRODUCT REVIEW 2 SAYS ACTUALLY FAILED. A fault moved to an accessory is counted there, not against the machine it was logged on — the correction was reaching the Field Failure register and nothing else.',
+      'HOW LONG UNTIL REVIEW 2 WAS ANSWERED, in bands rather than an average: an average hides the tail and the tail is the finding. A review nobody has answered is counted nowhere rather than as nought days.',
+      'WHO ANSWERED REVIEW 2 — including “Auto (9:15 am)”, the rule answering for calls nobody looked at. Its share is the honest measure of how much of this review is being done, and by whom.',
+      'Also: what was reported, which spares were implicated, how old the machine was, the software version it was on, why a call is still open, and where.',
+      'Needs the Daily Call Review SQL (daily_review.sql) and then Roles & Permissions (rbac.sql).',
+    ],
+  },
+  {
     version: '0.9.276',
     date: '2026-09-15',
     title: 'My Workload cards now open the right list, not just the right page',

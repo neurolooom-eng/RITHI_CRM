@@ -53,6 +53,63 @@ fails instead of passing quietly.
 
 ---
 
+## 2026-09-15 — Daily Call Review Insights, and the correction that reached nothing
+
+Asked: *"In the Overview heading - Add one more analytics page to analyse all the
+data that is part of the daily call review -- similar to how FFR Insights are
+built. Use all those chart.. analyse and suggest more analytics there."*
+
+### The finding that had to be fixed before the page could be right
+
+**0197's corrected product reached the Field Failure register and nothing else.**
+`field_call_review` — the view the Daily Call Review reads, and the one this page
+groups by — had no `actual_product` at all. So every "which product fails" chart
+would have counted under the MAIN product, and *Change product?* would have
+changed nothing on the one screen built to see it: the failure still reading as
+EXTEND-XT's when somebody had said it was the CPX CARE's.
+
+0203 carries `live_product_name` — **one effective value**, the corrected product
+where one was chosen and the call's where none was, exactly as 0197 argued for
+the register. A failure is counted ONCE under whatever that is.
+
+**Two mistakes on the way, both caught by running it:**
+
+- The first version appended with `select fcr.* from field_call_review fcr` —
+  **the view selecting from itself.** Postgres accepts that at creation and then
+  answers every query with *"infinite recursion detected in rules for relation"*.
+- Splicing the new columns in left the previous one without its comma.
+
+The whole definition is restated now, which is the rule this project already
+has: a bundle must carry the LATEST definition of everything it defines.
+`security_invoker` re-asserted, `check:views` and `check:replay` green.
+
+### What the page shows
+
+Root cause as a **Pareto**; complaint grouping; which products fail; what they
+were reported as; cover; the trend with its numbers beside it; where; which
+customers.
+
+And four the FFR page has no equivalent of:
+
+| | Why it earns its place |
+| --- | --- |
+| **Turnaround to Review 2** | in BANDS, not an average — an average hides the tail and the tail is the finding. A review nobody has answered is counted **nowhere** rather than as nought days, which would read as "same day" and flatter it |
+| **Who answered Review 2** | including **"Auto (9:15 am)"** — the honest measure of how much of this review a person is doing |
+| **Software version** | from the latest visit. A fault clustering on one version is what reaches manufacturing |
+| **Age at failure, and why a call is still open** | the two questions the register makes you count by hand |
+
+### Still worth building
+
+Named here rather than guessed at: **warranty-failure RATE per product** (needs
+the install base as a denominator, which `objective_evidence` already knows how
+to count); **first-visit fix rate** (`visit_count = 1`, by product and engineer);
+**a vigilance funnel** — calls → risk to patient → any potential effect → FFR
+raised, which is the ISO-relevant chain and currently four separate numbers; and
+**review backlog ageing** — not how long an answered review took, but how long
+the unanswered ones have been waiting.
+
+---
+
 ## 2026-09-15 — My Workload: the queues left the registers, and now open
 
 Asked: *"Remove such cards in Main Views. Move those to a Separate KPI Cards
