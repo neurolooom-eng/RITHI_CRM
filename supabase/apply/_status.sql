@@ -945,6 +945,13 @@ with checks(sort_order, bundle, provides, present) as (
          or not exists (select 1 from public.app_roles
                          where jsonb_array_length(permissions) > 0
                            and not (permissions ? 'mod:/machine-history'))))
+,
+    (153, 'User Master is the master: a role set there reaches the sign-in', 'sync_profile_from_user_directory() + the user_directory_profile_sync trigger (0199). The user''''s rule: "The intent and the fact has to match 100% -- the user master is the only place I can map and configure." TWO VALUES ANSWER TO THE NAME ROLE: user_directory.role is what User Master shows, profiles.role is what the sign-in RUNS ON -- the menu-bar chip, has_perm(), every policy. 0033 copies the first into the second exactly once, inside ensure_my_profile(), which returns early for a row that already exists; after that the only thing that copied it was a BUTTON IN THE BROWSER. So a role changed after somebody first signed in stayed in User Master and the application went on enforcing the old one, with nothing reporting the difference. Reported twice -- "Why is it now Engineer" (2026-09-11, which produced the drift banner: a repair for a problem still being created) and "Why is it showing as engineer and not Zoho Migration" (2026-09-15). THE ROW TESTS THE TRIGGER, NOT THE FUNCTION: a function nothing fires syncs nothing, and that is the failure mode a definition check would miss. It weakens no guard -- profiles_role_guard still refuses a self-change and still refuses to grant admin -- and it never applies a role the matrix does not know, so a typo grants nothing rather than something unintended. NO means User Master and the sign-in can disagree again, silently. Restore: rbac.sql',
+        (to_regclass('public.user_directory') is null
+         or exists (select 1 from pg_trigger
+                     where tgrelid = 'public.user_directory'::regclass
+                       and tgname = 'user_directory_profile_sync'
+                       and not tgisinternal)))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

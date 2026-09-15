@@ -27,6 +27,12 @@
 -- does not filter: it returns EVERY sign-in, worst first. "No rows" from the
 -- query below means there are no auth users at all.
 --
+-- SINCE 0199 THE DRIFT IS NO LONGER CREATED: `user_directory_profile_sync`
+-- applies a User Master role to the sign-in as it is written. This file stays
+-- as the PROOF of that, and because two things it reports are still possible —
+-- a login claimed by TWO directory rows, and a name that was corrected on one
+-- side only before the trigger existed.
+--
 -- SECTION B (commented out) is the repair. Read A first.
 -- ===========================================================================
 
@@ -42,16 +48,32 @@
 --                                what the audit trail records as the ACTOR, so
 --                                it is not cosmetic.
 --   3  ROLE DRIFT              — the sign-in role is not the User Master role.
---                                This is Deepika's case.
---   4  not in User Master      — signs in, but no directory row to check
+--                                0199 stops this being created; a row here now
+--                                means something wrote `profiles` directly.
+--   4  TWO USER MASTER ROWS    — one login, two directory rows. "The" name for
+--                                that sign-in has no answer, so the sync leaves
+--                                it alone and whichever row is saved last
+--                                decides the role.
+--   5  name drift              — both sides have a name and they differ. Only
+--                                SHOWN, never enforced, which is why it sorts
+--                                below the role — but it is what the audit trail
+--                                records as the actor.
+--   6  not in User Master      — signs in, but no directory row to check
 --                                against; nothing syncs their role, ever.
---   5  looks fine.
+--   7  looks fine.
 select case when p.id is null then '1 NO PROFILE ROW — boots as a bare engineer'
             when coalesce(btrim(p.full_name), '') = '' then '2 no name on the profile — this is the "?" avatar'
             when coalesce(btrim(d.role), '') <> '' and lower(btrim(coalesce(p.role, ''))) is distinct from lower(btrim(d.role))
-              then '3 ROLE DRIFT — User Master was changed after they first signed in'
-            when d.id is null then '4 not in User Master — nothing will ever sync their role'
-            else '5 looks fine'
+              then '3 ROLE DRIFT — something wrote the sign-in directly'
+            when (select count(*) from public.user_directory d2
+                   where lower(btrim(coalesce(d2.email, ''))) = lower(btrim(coalesce(u.email, '')))
+                      or lower(btrim(coalesce(d2.gmail, ''))) = lower(btrim(coalesce(u.email, '')))) > 1
+              then '4 TWO USER MASTER ROWS for one login — the name cannot follow'
+            when d.id is not null and coalesce(btrim(d.name), '') <> ''
+             and btrim(coalesce(p.full_name, '')) is distinct from btrim(d.name)
+              then '5 name drift — shown, not enforced; corrects itself when the row is saved'
+            when d.id is null then '6 not in User Master — nothing will ever sync their role'
+            else '7 looks fine'
        end                                                        as "verdict",
        coalesce(nullif(btrim(u.email), ''), '(auth user has no email)') as "signs in as",
        coalesce(nullif(btrim(p.full_name), ''), '(blank)')         as "name on the sign-in profile",
@@ -76,8 +98,10 @@ select case when p.id is null then '1 NO PROFILE ROW — boots as a bare enginee
 
 -- ---- B. THE REPAIR. Commented out on purpose; read A first. ---------------
 -- B1 COPIES THE USER MASTER ROLE ONTO THE SIGN-IN, for everybody reading
--- "3 ROLE DRIFT" above. IT IS AN ACCESS CHANGE, not a label fix — it is the
--- same write that saving their row in User Master performs, applied in bulk.
+-- "3 ROLE DRIFT" above. 0199 carries the same statement as its backfill, so on
+-- a project that has run `rbac.sql` there should be nobody left for it; it is
+-- kept for a project that has not, and as the repair if something ever writes
+-- `profiles` directly again. IT IS AN ACCESS CHANGE, not a label fix.
 -- It refuses a directory role that is not a real role (`join app_roles`), so a
 -- typo cannot strand somebody on a key nothing grants.
 --

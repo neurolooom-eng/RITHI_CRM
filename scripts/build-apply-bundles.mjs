@@ -119,6 +119,11 @@ const MODULES = {
             // Same reason as 0192: it writes MODULE KEYS into app_roles, so it
             // belongs with the role migrations and must run after 0005.
             '0195_new_module_keys.sql',
+            // User Master is the master: a role set there reaches the
+            // sign-in by itself. It redefines nothing, but it needs BOTH
+            // app_roles (0005, this module) and user_directory, so this is
+            // the only module it can sit in.
+            '0199_user_master_is_the_master.sql',
             // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
             // created by 0008 in THIS module and redefined by these two. While they
             // sat in spare_requests, replaying `rbac.sql` on its own put 0008's
