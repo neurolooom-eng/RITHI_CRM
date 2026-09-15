@@ -4264,12 +4264,26 @@ export interface FfrRow { [k: string]: unknown }
  *  it must stand on its own without the register having been loaded first.
  *  The view is security_invoker, so a report the reader may not see is simply
  *  not found, with no separate permission check needed. */
+/** THE PRODUCT THE COUNTS USE. Review 2 may decide the thing that failed is an
+ *  accessory logged against the machine it is fitted to (0197), and every rate,
+ *  Pareto and tally reads that answer rather than the call's.
+ *
+ *  THE FALLBACK IS WHAT LETS THIS SHIP BEFORE THE MIGRATION LANDS. On a project
+ *  that has not run 0197 the view has no such column, so `live_product_name`
+ *  arrives undefined — and a dimension keyed on it would go EMPTY across the
+ *  whole register rather than degrading to the old behaviour. Filled here, once,
+ *  where the rows are read, so nothing downstream has to remember. */
+const withEffectiveProduct = (r: Record<string, unknown>): Record<string, unknown> => ({
+  ...r,
+  live_product_name: String(r.live_product_name ?? '').trim() || r.product_name,
+});
+
 export async function getFfr(ffrNo: string): Promise<Record<string, unknown> | null> {
   const c = getSupabase(); if (!c) return null;
   const { data, error } = await c.from('field_failure_register').select('*')
     .eq('ffr_no', ffrNo).maybeSingle();
   if (error) throw new Error(errMsg(error));
-  return (data as Record<string, unknown>) ?? null;
+  return data ? withEffectiveProduct(data as Record<string, unknown>) : null;
 }
 
 /** THE CHANGE LOG FOR ONE REPORT (0174) — "I need to be able to capture
@@ -4339,7 +4353,7 @@ export async function listFfrs(limit = 5000): Promise<Record<string, unknown>[]>
       .range(from, Math.min(from + PAGE, limit) - 1);
     if (error) throw new Error(errMsg(error));
     const rows = data ?? [];
-    out.push(...rows);
+    out.push(...rows.map(withEffectiveProduct));
     if (rows.length < PAGE) break;
   }
   return out;

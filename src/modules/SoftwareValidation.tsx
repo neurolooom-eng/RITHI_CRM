@@ -4,7 +4,7 @@ import { PageHeader } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
 import { listValidationResults, saveValidationResult, supabaseConfigured, type ValidationResult } from '../lib/supabase';
 import {
-  VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, NON_AUDITABLE, ARCHITECTURE, DETAILED, RISKS, TESTS,
+  VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, NON_AUDITABLE, DEFECTS, ARCHITECTURE, DETAILED, RISKS, TESTS,
   FMEA, FMEA_SCALE, SUPPLIERS, VSR,
   DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
 } from '../lib/validation';
@@ -20,7 +20,7 @@ import './softwarevalidation.css';
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
 type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
-  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'trace' | 'capa' | 'vsr';
+  | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
@@ -28,6 +28,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'urs', label: 'User Requirements' },
   { key: 'srs', label: 'System Requirements' },
   { key: 'nonaudit', label: 'Non-Auditable Requirements' },
+  { key: 'defects', label: 'Defect Register' },
   { key: 'arch', label: 'Architecture Design' },
   { key: 'design', label: 'Detailed Design' },
   { key: 'config', label: 'Configuration Spec' },
@@ -154,6 +155,54 @@ export function SoftwareValidation() {
         <Section title="System / Functional Requirements Specification (FRS)">
           <table className="sv-table"><thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 90 }}>Traces to</th><th style={{ width: 80 }}>Risk</th></tr></thead>
             <tbody>{FRS.map((f) => <tr key={f.id}><td className="sv-id">{f.id}</td><td><b>{f.title}.</b> {f.text}</td><td className="sv-ref">{f.urs.join(', ')}</td><td>{riskBadge(f.risk)}</td></tr>)}</tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* DEFECT REGISTER */}
+      {show('defects') && (
+        <Section title="Defect Register">
+          {/* THE CATEGORY COLUMN IS THE POINT. A list of bugs is a list; what
+              makes a REPEAT visible is filing each by the shape of the mistake
+              rather than by the screen it appeared on — the same fault in a
+              different module reads as new until the two sit under one heading.
+              The tally is shown first for that reason, and it is not flattering:
+              the largest single cause is a check that could not fail. */}
+          <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>
+            Every defect found, with the <b>shape of the mistake</b> rather than the screen it appeared on, so a
+            fault arriving somewhere new is recognisable as one that has happened before. <b>How it came to
+            light</b> is recorded separately: the faults nobody could see are the expensive ones, and counting
+            how many were reported <i>in use</i> against how many a test caught says where the next check is
+            worth writing.
+          </p>
+          <div className="sv-grid">
+            {[...new Set(DEFECTS.map((d) => d.category))]
+              .map((c) => ({ c, n: DEFECTS.filter((d) => d.category === c).length }))
+              .sort((a, b) => b.n - a.n)
+              .map(({ c, n }) => (
+                <div key={c} className="sv-kpi">
+                  <div className="sv-kpi-n">{n}</div>
+                  <div className="sv-kpi-l">{c.replace(/-/g, ' ')}</div>
+                </div>
+              ))}
+          </div>
+          <table className="sv-table">
+            <thead><tr>
+              <th style={{ width: 64 }}>ID</th><th>Defect</th>
+              <th style={{ width: 150 }}>Root cause</th><th style={{ width: 130 }}>Found</th>
+            </tr></thead>
+            <tbody>{DEFECTS.map((d) => (
+              <tr key={d.id}>
+                <td className="sv-id">{d.id}</td>
+                <td>
+                  <b>{d.title}.</b> {d.what}
+                  <div style={{ marginTop: 6 }}><b>Fix.</b> {d.fix}</div>
+                  {d.guard && <div style={{ marginTop: 4 }}><b>What stops a repeat.</b> {d.guard}</div>}
+                </td>
+                <td>{d.category.replace(/-/g, ' ')}</td>
+                <td>{d.found}<div className="muted" style={{ fontSize: 12 }}>{d.date}</div></td>
+              </tr>
+            ))}</tbody>
           </table>
         </Section>
       )}

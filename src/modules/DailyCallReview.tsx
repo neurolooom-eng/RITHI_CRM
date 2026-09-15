@@ -29,6 +29,7 @@ import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
+import { listProductLines } from '../lib/productLines';
 
 // ===========================================================================
 // DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
@@ -995,6 +996,10 @@ function ReviewDrawer({
   const [draft, setDraft] = useState<ReviewPatch>({});
   const [groupings, setGroupings] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
+  // THE PRODUCT LINES, for "Change product?". The catalogue (0193) rather than
+  // the install base: an accessory like CPX CARE is a product LINE, and the
+  // reviewer is naming WHAT failed, not which unit.
+  const [productLines, setProductLines] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // AUTO SAVE, off unless this reviewer turned it on (DCCR only, the user's
@@ -1068,6 +1073,7 @@ function ReviewDrawer({
       frequent_failure: row.frequent_failure ?? '',
       complaint_grouping: row.complaint_grouping ?? '',
       root_cause_keyword: row.root_cause_keyword ?? '',
+      actual_product: row.actual_product ?? '',
       spare_category: row.spare_category ?? '',
       service_observation: row.service_observation ?? '',
       action_taken: row.action_taken ?? '',
@@ -1111,6 +1117,13 @@ function ReviewDrawer({
       .then((v) => { if (!cancelled) setGroupings(v); }).catch(() => { if (!cancelled) setGroupings([]); });
     void listMasterValuesForProduct(ROOT_CAUSE_MASTER, productName)
       .then((v) => { if (!cancelled) setKeywords(v); }).catch(() => { if (!cancelled) setKeywords([]); });
+    // EVERY line, active or not. A failure can be on an accessory that is no
+    // longer sold — `active` stops a NEW SALE ENTRY and nothing else — and
+    // refusing to record what failed because the line is retired would lose the
+    // finding rather than the sale.
+    void listProductLines()
+      .then((v) => { if (!cancelled) setProductLines([...new Set(v.map((l) => l.name).filter(Boolean))].sort()); })
+      .catch(() => { if (!cancelled) setProductLines([]); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ucn, productName]);
@@ -1574,6 +1587,36 @@ function ReviewDrawer({
               emptyHint="If it is not here, add it to Masters."
             />
             <div className="field-help">{masterScope(keywords.length)}</div>
+          </div>
+          {/* CHANGE PRODUCT? — the user's own concept, 2026-09-14: "Accessory
+              Issues are also Logged in the Main Product - Like CPX Care Failure
+              is logged in Extend-XT or Orion-G ... I can select the Actual
+              Product [Accessory in this case] and the Failure is included in
+              the Accessory and Excluded from the Main Product."
+
+              IT DOES NOT REWRITE THE CALL. The call says a machine was down and
+              an engineer went to it; that stays true. This records what the
+              review DETERMINED actually failed, and every count reads it — so
+              the failure lands on the accessory and leaves the machine, which
+              is both halves of the ask at once.
+
+              Blank is the normal answer and means the call was right. */}
+          <div className="dccr-wide">
+            <label className="field-label">Change product?</label>
+            <PickList
+              value={String(draft.actual_product ?? '')}
+              options={withCurrent(productLines, draft.actual_product)}
+              onPick={(v) => setDraft((d) => ({ ...d, actual_product: v }))}
+              disabled={!editable}
+              placeholder="Leave blank unless an accessory failed, not the machine…"
+              emptyHint="The product lines come from Product Master."
+            />
+            <div className="field-help">
+              Only where the thing that failed is <b>not</b> the product on the call — an accessory
+              logged against the machine it is fitted to. The failure is then counted against what
+              you choose and <b>not</b> against {productName || 'the machine'}. The call itself is
+              not changed.
+            </div>
           </div>
           {/* Both boxes come from the masters, so the way to change what they
               offer is to change the master — said here, where somebody is

@@ -34,6 +34,7 @@ import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies
 import { stateColour } from '../src/lib/callstate';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
+import { TESTS } from '../src/lib/validation';
 import { DEFAULT_PERMS, MODULES, PERM_TREE, ROLES, moduleAction, parentAction, roleKeyFrom, roleProblem, rolesWith, roleLabelFor, setRoleLabels, RESERVED_ROLE_KEYS } from '../src/lib/rbac';
 import { UPLOADS, shapeUpload } from '../src/lib/uploads';
 import { manualReportLink } from '../src/lib/reports';
@@ -4074,8 +4075,13 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /delete from public\.field_failure_reports/.test(body), false);
 
   // THE LIVE CALL BESIDE THE RECORD, which is what the register is read for.
+  // DROPPED AND RECREATED, not `create or replace` — 0197 widens this view, and
+  // a replace can only ADD columns, so replaying the bundle onto a database
+  // already carrying the wider one failed with "cannot drop columns from view".
+  // Both definitions drop first now, which is the property a bundle needs: a
+  // statement true whatever shape the view is in when it runs.
   eq('the register view carries the live call',
-    /create or replace view public\.field_failure_register/.test(body), true);
+    /drop view if exists public\.field_failure_register;\s*\ncreate view public\.field_failure_register/.test(body), true);
   eq('and applies RLS to the reader', /security_invoker = on/.test(body), true);
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the screen reads the view, not the bare table',
@@ -5209,7 +5215,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   // choice — filtering a chart by its own dimension collapses it to the single
   // bar that was just clicked, which answers nothing.
   eq('a chart excludes its own dimension', /except\?: DimKey/.test(ins), true);
-  eq('...and the charts go through forDim', ins.includes("tally(forDim('product_name'), 'product_name')"), true);
+  eq('...and the charts go through forDim', ins.includes("tally(forDim('live_product_name'), 'live_product_name')"), true);
   eq('the KPIs read the FULLY filtered rows',
     /const rows = useMemo\(\(\) => applyPicks\(allRows, picked, period\)/.test(ins), true);
 
@@ -5258,7 +5264,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   const pDims = [...paretoBlock.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
   eq('the Pareto drills three levels', pDims.length, 3);
   eq('...machine, grouping, root cause', pDims,
-    ['product_name', 'live_complaint_grouping', 'live_root_cause_keyword']);
+    ['live_product_name', 'live_complaint_grouping', 'live_root_cause_keyword']);
   for (const d of pDims) eq(`Pareto by ${d} is a declared dimension`, dims.includes(d), true);
   // NOT over a period or a status: a Pareto ranks CONTRIBUTORS to a total, and
   // a period is a sequence while a status is an outcome.
@@ -5552,10 +5558,18 @@ console.log('\n-- the Roles & Permissions matrix follows the MENU, and every scr
   const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
   const nav = lay.slice(lay.indexOf('title:'), lay.indexOf('\n];', lay.indexOf('title:')));
   const menu: { title: string; items: { to: string; label: string }[] }[] = [];
-  for (const m of nav.matchAll(/title: '([^']+)',\s*\n\s*items: \[([\s\S]*?)\n\s*\],/g)) {
+  for (const m of nav.matchAll(/title: '([^']+)',[^[]*?items: \[([\s\S]*?)\n\s*\],/g)) {
     menu.push({ title: m[1], items: [...m[2].matchAll(/\{ to: '([^']+)', label: '([^']+)'/g)].map((x) => ({ to: x[1], label: x[2] })) });
   }
-  eq('the menu parsed', menu.length > 5, true);
+  // EVERY GROUP, not "more than five". The first version trusted a floor and a
+  // whole group went missing without a word: `Knowledge Base` carries
+  // `flash: true` between its title and its items, the pattern required them
+  // adjacent, and the group was skipped — so Service Manuals and the two
+  // Knowledge Base pages were compared against nothing and PASSED. A parse that
+  // silently drops input makes every assertion built on it vacuous, which is a
+  // worse failure than the one this block was written to catch.
+  eq('every menu group parsed, not just most of them',
+    menu.length, (nav.match(/^\s*title: '/gm) ?? []).length);
 
   const headerOf = new Map<string, string>();      // matrix: path -> header
   const labelOf = new Map<string, string>();       // matrix: path -> label
@@ -5741,6 +5755,38 @@ console.log('\n-- a part can be renamed, and the rename carries its history --')
   // decision a rename should make silently.
   eq('a rename refuses to merge two parts',
     /a rename cannot merge two parts/.test(mig), true);
+}
+
+console.log('\n-- a test protocol that claims to be automated IS --');
+{
+  // -------------------------------------------------------------------------
+  // `auto` on a TestCase names the check or suite that EXECUTES that protocol.
+  // A claim like that is worth exactly its truthfulness: a package saying "this
+  // requirement is automatically tested" while naming a file that does not
+  // exist is worse than one saying nothing, because nobody goes looking.
+  //
+  // It was already wrong once, on the run that introduced the field: OQ-61
+  // named `supabase/tests/retention_test.sql` before that suite was written.
+  // Caught here, and the suite written rather than the claim dropped — FRS-022
+  // is a HIGH-risk requirement and was one of four carrying no test at all.
+  // -------------------------------------------------------------------------
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> };
+  const bad: string[] = [];
+  for (const t of TESTS) {
+    if (!t.auto) continue;
+    const a = t.auto.trim();
+    if (a.startsWith('npm run ')) {
+      if (!pkg.scripts[a.slice(8).trim()]) bad.push(`${t.id} → no such script: ${a}`);
+    } else if (!existsSync(a)) {
+      bad.push(`${t.id} → no such file: ${a}`);
+    }
+  }
+  eq('every automated protocol names something that exists', bad, []);
+  // AND THE PACKAGE KNOWS ITS OWN RATIO. Stating how many protocols a command
+  // runs, versus how many wait for a person, is the honest form of "we test
+  // this" — and it can only be stated if it is counted.
+  const n = TESTS.filter((t) => t.auto).length;
+  eq('...and at least some protocols are executed by a command', n > 0, true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

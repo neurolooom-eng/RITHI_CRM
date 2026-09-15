@@ -16,6 +16,108 @@ up)_
 
 
 
+
+
+## 2026-09-15 — DCCR Review 2: "Change product?"
+
+Asked: *"Accessory Issues are also Logged in the Main Product - Like CPX Care
+Failure is logged in Extend-XT or Orion-G … During Review I used to have a
+Concept of 'CHANGE PRODUCT?' as part of Review 2, When i can select the Actual
+Product [Accessory in this case] and the Failure is included in the Accessory
+and Excluded from the Main Product."*
+
+### The ask has two halves, and ONE value satisfies both
+
+*Included in the accessory* **and** *excluded from the main product*. A single
+effective product does both by construction: the report is counted **once**,
+under whatever that value is. Two columns, or a flag beside the original, would
+let a count include it twice or neither — **and a Pareto that double-counts is
+worse than one that is merely wrong.** The suite asserts the total is unchanged
+for exactly that reason.
+
+### It does not rewrite the call
+
+The call says a machine was down and an engineer went to it. That stays true —
+the visit is against it, the spares were issued for it. What the review
+establishes is what actually **failed**. `field_failure_register` exposes both,
+plus `live_product_changed`, so the difference is visible rather than hidden.
+
+`0197` follows the pattern already there: `live_complaint_grouping` and
+`live_root_cause_keyword` are the review's answers read in place of the report's
+own, precisely so a judgement corrected later reads corrected everywhere.
+
+### ⚠️ Two things caught by checks rather than by reading
+
+- **The DCCR export is a controlled shape.** Adding `ACTUAL PRODUCT` to it broke
+  *"the DCCR export still carries all 53 of WRR-2026 columns 15-67"* — the
+  export mirrors a controlled form and is not a place to add a column. Reverted.
+- **`create or replace view` can only ADD columns**, so 0197 widening the view
+  made 0167's narrower definition fail on replay with *cannot drop columns from
+  view* — `npm run check:replay` refused the bundle. Both definitions now drop
+  first, which is the property a bundle needs: a statement true whatever shape
+  the view is in when it runs. Nothing depends on that view — asked of the
+  database (`pg_depend` over `pg_rewrite`) rather than assumed.
+
+### The list offers retired lines too
+
+`active` stops a **new sale entry** and nothing else. A failure can be on an
+accessory no longer sold, and refusing to record it would lose the finding
+rather than the sale.
+
+### To run on the live project
+
+[`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
+— `_status.sql` row 151 answers NO until it is in, and Change product? will save
+while nothing moves.
+
+## 2026-09-15 — The validation run goes green, and what was wrong was the tests
+
+Phase E of *"Test it, record the bugs, Fix it, update relevant documentations
+then re-test"*. **77/77 suites and 13/13 checks.** Eight were failing and **none
+of them was a fault in the application.**
+
+### Four were the harness
+
+| | |
+| --- | --- |
+| `expect ERROR twice` | counted as ONE expectation, so the second error read as unexpected — audit_mode, spare_bulk_decisions |
+| consecutive labels | one explanation over three `\echo` lines, EACH prefixed `expect ERROR`, counted as three expectations for one error — indoor_service |
+| `check:columns` | invoked with no connection arguments, printed its usage, recorded as a failure |
+| `check:safe-updates` | handed psql arguments it read as a DIRECTORY |
+
+### Three were tests that had stopped testing anything
+
+- **`ffr_import`** upserted `on conflict (ffr_no)`. `0181` widened the key to the
+  report **and the machine** — one report can cover several — so from then on
+  section 4 raised *"no unique or exclusion constraint matching the ON CONFLICT
+  specification"* and the re-load was never exercised.
+- **`spare_insights`** still asserted a closed category vocabulary. `0152`
+  **deliberately dropped** that constraint after a real Item Master load aborted
+  at row 174 with 173 rows already written. The test expected an error that
+  could no longer happen, raised none, and ran clean.
+- **`ownership_transfer_same_party`** section 5 gave neither hand-over an OT
+  number, so the second collided on `('', 'OT-C')` and the section had never run.
+
+The pattern is one thing: **when a migration replaces a decision, the test has
+to move with it** — the same rule `CLAUDE.md` already states for `_status.sql`.
+
+### ⚠️ And one finding that outlives the test run
+
+`_status.sql` row 47 answered NO on every harness run and yes on any real
+database. The cause matters more than the symptom: **`alter database ... set
+jit = off`** (0099, the Hand Stock timeout — 3.7 seconds *compiling* a query
+that runs in 174ms) lives in `pg_db_role_setting` **keyed by the database OID**,
+and `create database ... template x` gets a new OID and none of the settings.
+Proved by asking: the original reads `jit=off`, the copy reads nothing.
+
+**Any rebuild of the live project that copies or restores rather than re-running
+the migrations silently loses it**, and the Hand Stock timeout comes back with
+nothing to say why. Recorded in `CLAUDE.md` and as defect D-014.
+
+### Nothing to run on the live project
+
+Tests, harness and documentation only.
+
 ## 2026-09-14 — Part Master: renaming a part carries its history
 
 Asked: *"I need to be able to Edit Part Master - Bulk upload to edit it or
@@ -97,6 +199,18 @@ rather than silently inserting.
 [`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)
 — `_status.sql` row 150 answers NO until it is in, and the Edit button will fail
 on any part that has history.
+
+⚠️ **AT THE REPOSITORY ROOT, not `supabase/apply/`.** The handstock module is
+written out as `HandStock_X.sql`, one of the two numbered consolidated files
+handed round. This entry first linked it under the apply folder with the module's
+own name, which does not exist there — the identical 404 CLAUDE.md already
+records, made again by somebody who had read the note. `check:ui` caught it
+before the user ran it; the wrong link had already gone out in the pull request
+body for #346, and was corrected in the chat.
+
+(The bad path is described rather than quoted here on purpose: that check reads
+TEXT, not intent, so a note naming the broken link would fail on itself for
+ever — which is how a check ends up being switched off.)
 
 ## 2026-09-14 — A correction at source that the upload could not carry
 

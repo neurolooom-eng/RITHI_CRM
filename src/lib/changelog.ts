@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.262',
+    version: '0.9.265',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,42 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.264',
+    date: '2026-09-15',
+    title: 'Daily Call Review: “Change product?” — move a failure onto the accessory',
+    changes: [
+      'Review 2 now has a CHANGE PRODUCT? box. Where the thing that actually failed is an accessory logged against the machine it is fitted to — a CPX CARE failure raised on an EXTEND-XT or an ORION-G — you choose the real product there.',
+      'The failure is then counted against that accessory AND NOT against the machine. Both halves, and the total never changes: a report is counted once, under whatever you chose.',
+      'THE CALL IS NOT REWRITTEN. It still says a machine was down and an engineer went to it, because that is true. The register shows what the call named and what actually failed side by side, and flags the ones that moved.',
+      'Every count on Field Failure Insights reads the corrected product — the machine chart, the Pareto, the filters and the downloaded raw data, which carries both so a row under CPX CARE can be explained from the file.',
+      'Leave it blank, which is the normal answer, and nothing changes. Clear it later and the report goes back to the machine.',
+      'The list offers every product line, retired ones included: a failure can be on an accessory no longer sold, and refusing to record it would lose the finding rather than the sale.',
+    ],
+  },
+  {
+    version: '0.9.263',
+    date: '2026-09-15',
+    title: 'Every test now passes, and three of them had stopped testing anything',
+    changes: [
+      'All 77 database test suites and all 13 automated checks now pass. Eight were failing; none of them was a fault in the application.',
+      'THREE TESTS HAD QUIETLY STOPPED WORKING and still reported success: one checked that a Field Failure re-load updates rather than duplicates, using a key that was widened months ago; one still insisted the spare category must be one of four words, a rule that was deliberately dropped after a real Item Master upload stopped half-written; and one section of the Ownership Transfer tests had never run at all, because two hand-over records were given no OT numbers and collided.',
+      'A FINDING WORTH KNOWING FOR ANY REBUILD: the fix for the Hand Stock timeout is a database SETTING, and a database setting is not carried by a copy or a restore — only by re-running the migrations. If the project is ever rebuilt the other way, that slowness returns with nothing to say why.',
+      'The defect register is up to 14 entries, and the two largest causes are now level: a check that could not fail, and a control nothing could reach.',
+    ],
+  },
+  {
+    version: '0.9.262',
+    date: '2026-09-15',
+    title: 'Software Validation: every test run in one command, and a defect register',
+    changes: [
+      'One command now builds a clean database, runs all 77 database test suites and all 13 automated checks, and writes a dated record of what happened — pass, fail, and which guard did not fire.',
+      'A DEFECT REGISTER is on the Software Validation screen. Each entry records the SHAPE of the mistake rather than the screen it appeared on, so the same fault turning up somewhere new is recognisable as one that has happened before, and how it came to light — reported in use, caught by a test, or found by reading.',
+      'Thirteen defects are recorded to start it off, all real and all from the last two days. The most common single cause is a check that could not fail.',
+      'Three tests were found to have quietly stopped testing anything: they had a month written into them (spare order numbers carry the year and month), so from 1 September they matched no rows, raised no errors, and still reported success.',
+      'Every screen and every permission in the application is now named somewhere in the validation package, and every requirement has at least one test.',
     ],
   },
   {
