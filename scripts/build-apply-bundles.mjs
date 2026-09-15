@@ -119,6 +119,11 @@ const MODULES = {
             // Same reason as 0192: it writes MODULE KEYS into app_roles, so it
             // belongs with the role migrations and must run after 0005.
             '0195_new_module_keys.sql',
+            // User Master is the master: a role set there reaches the
+            // sign-in by itself. It redefines nothing, but it needs BOTH
+            // app_roles (0005, this module) and user_directory, so this is
+            // the only module it can sit in.
+            '0199_user_master_is_the_master.sql',
             // HERE, NOT IN spare_requests, AND THAT IS THE POINT. `srl_insert` is
             // created by 0008 in THIS module and redefined by these two. While they
             // sat in spare_requests, replaying `rbac.sql` on its own put 0008's
@@ -256,6 +261,11 @@ const MODULES = {
             // procedure actually states. A bundle replayed alone has to see
             // them in that order.
             '0153_frequent_failure_rule.sql',
+            // Rule 2 (the same complaint across other units of a model). It
+            // redefines frequent_failure() and frequent_failure_rule(), both
+            // owned by this module, so it must come after 0153 — a bundle
+            // carries the LATEST definition of everything it defines.
+            '0198_frequent_failure_rule2.sql',
             '0119_bulk_review2.sql', '0124_auto_review2.sql',
             '0048_daily_review_map_by_call_number.sql',
             // Call Review (/call-review) -- a SECOND review, on the report rather

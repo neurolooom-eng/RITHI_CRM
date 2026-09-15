@@ -1532,10 +1532,29 @@ function ReviewDrawer({
               // months later needs to see which rule produced it.
               <div className={history.is_frequent ? 'dccr-warn' : 'field-help'} style={{ marginTop: 6 }}>
                 {history.is_frequent && <span aria-hidden="true">⚠️</span>}
+                {/* WHICH RULE FIRED, not merely that one did. A reviewer asked
+                    to justify this answer months later needs to know whether
+                    they were looking at one machine or at a dozen — the action
+                    is completely different: a unit to swap, or a batch to
+                    investigate. */}
                 <span>
-                  {history.is_frequent
-                    ? <>Meets the rule: <b>{history.total}</b> in the {windowLabel(history.window_months)}, threshold is {history.threshold}.</>
-                    : <>Below the rule: {history.total} in the {windowLabel(history.window_months)}, threshold is {history.threshold}.</>}
+                  {history.rule1_is_frequent && (
+                    <>Meets <b>rule 1</b>: <b>{history.total}</b> on this machine in the
+                    {' '}{windowLabel(history.window_months)}, threshold is {history.threshold}.{' '}</>
+                  )}
+                  {history.rule2_is_frequent && (
+                    <>Meets <b>rule 2</b>: the same complaint on <b>{history.rule2_serials_seen}</b> different
+                    {' '}serials of this product in {history.rule2_window_days} days
+                    {' '}({history.rule2_calls} call{history.rule2_calls === 1 ? '' : 's'}), threshold is
+                    {' '}{history.rule2_serials}.{' '}</>
+                  )}
+                  {!history.is_frequent && (
+                    <>Below both rules: {history.total} on this machine in the
+                    {' '}{windowLabel(history.window_months)} (threshold {history.threshold}), and
+                    {' '}{history.rule2_serials_seen} serial{history.rule2_serials_seen === 1 ? '' : 's'} of this
+                    {' '}product with the same complaint in {history.rule2_window_days} days
+                    {' '}(threshold {history.rule2_serials}).</>
+                  )}
                 </span>
               </div>
             )}

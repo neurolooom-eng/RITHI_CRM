@@ -4,7 +4,7 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-14 (the 2016 archive, folded into Machine History)_
+_Last updated: 2026-09-15 (the 2016 archive, folded into Machine History)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -17,6 +17,266 @@ up)_
 
 
 
+
+
+## 2026-09-15 — The one NO on `_status.sql`, and looking before deleting
+
+The status report came back with **161 rows yes and one NO**: row 55, *"handstock:
+opening stock is ENGINEERS only"*. It is one of the few rows that tests DATA
+rather than an object, so a NO there is not a bundle to run — it means opening
+hand-stock rows are filed under names that are not active User Master users.
+
+`_handstock_opening_engineers.sql` is the repair, and it **deleted on the first
+run and reported afterwards** — the wrong way round for a removal: by the time
+the Messages tab named what went, it had gone.
+
+### A name reaches that list three ways and only one is a dealer
+
+| | |
+| --- | --- |
+| not in User Master at all | the WinMax dealers and customers — what the file is for |
+| in User Master, **deactivated** | a real engineer; this would delete their opening balance |
+| in User Master, **different spelling** | a rename, a middle initial, a double space — the same person, and the MATCH is what is broken |
+
+Proved rather than argued: seeded all three beside an exactly-matching active
+engineer, and the removal took the deactivated engineer and the double-spaced
+name away with the two dealers, leaving only the exact match.
+
+So the file now **looks first**. Section A is one read-only statement naming
+every pool that would go **and why it is on the list**; the removal is section
+B, commented out, saying in terms that it does not read the reason and that the
+second and third rows must be fixed in User Master before it is run. The match
+itself is unchanged — `lower(btrim(name))`, which is `handstock_key()`, the key
+the balance is grouped on.
+
+Row 55 proved both ways against a database: NO with those rows present, yes once
+only the active engineer remained.
+
+---
+
+## 2026-09-14 — The 2016 archive, folded into Machine History
+
+### Two screens were being built for one question
+
+This branch started before `/machine-history` existed and grew its own
+`/product-history` doing the same job on the live registers. **#335 shipped the
+better one** — eleven registers against four, and `machineHistory.ts` names the
+gap this branch actually fills:
+
+> WHAT THIS CANNOT SEE: anything before the migration into this system. That
+> lives in a separate archive project and is not reachable from here.
+
+So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
+`prodhistory.css`, its route and its module key — and the archive is folded into
+Machine History instead. Two screens answering one question is a defect however
+good each one is, and the module key would have been a second thing to grant.
+
+`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
+already grants `mod:/machine-history` to every role.
+
+### What the archive adds
+
+A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
+from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
+it is reached — so moving to `postgres_fdw` or an Edge Function later is one
+file, not a rewrite.
+
+- **Keyed on `machineKey`, never the serial.** The archive computes it as a
+  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
+  the two were diffed on twelve cases and agree on all of them. A disagreement
+  raises no error — it empties the list.
+- **Every row says which database it came from**, and an archive UCN renders
+  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
+  asked about live UCNs only.
+- **No de-duplication between the halves.** The cut-over date is a fact about
+  the migration, not about the machine.
+
+### The access question, which does not carry across
+
+Your users exist in the LIVE project's auth, so a JWT signed there cannot be
+verified by the archive: `auth.uid()` is null for everybody and no policy can
+test who is asking. **The archive key IS the credential** — so it is not baked
+into the repository, has no default, and is pasted per device in Settings.
+
+⚠️ **The better fix is to stop letting the browser talk to that project at
+all**: `postgres_fdw` foreign tables on the live project wrapped in
+`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
+Function that verifies the caller's JWT. Both need a setup step nobody has
+taken.
+
+### Loading it (ProdHistory_06)
+
+Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
+screen rather than in a loader of their own because a second importer for one
+table is how a good file comes back as "0 rows".
+
+`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
+DELETE policy, both privileges revoked. The worst a leaked key does is append
+rubbish NEXT TO the real data rather than over it. The insert policy's
+`with check` **refuses a row whose `source_system` is blank**, because that
+label is the only way back out — these registers have no natural key, so a
+re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
+
+### Status — SQL still to run
+
+| File | Run it on | What it does |
+| --- | --- | --- |
+| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
+| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
+| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
+| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
+| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
+
+**PENDING — none has been run on either project.** All apply and re-apply
+idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
+database built from every migration, `check:views` passes, and `public.calls`
+still carries `security_invoker`.
+
+
+## 2026-09-15 — Why somebody's chip reads "Engineer" when User Master says otherwise
+
+Reported: *"For a few engineers, it shows a question mark in the profile. This
+is user Dipika / Depika - Zoho Migration"*, then *"Why is it showing as engineer
+and not Zoho Migration."* Her User Master row reads **Role: Zoho Migration,
+Signed in: Yes**.
+
+### Two values answer to the name "role"
+
+| | |
+| --- | --- |
+| `user_directory.role` | what **User Master** shows. Edited there. |
+| `profiles.role` | what the **sign-in** runs on — the menu-bar chip, `has_perm()`, every policy |
+
+`ensure_my_profile()` copies the first into the second **only when it creates
+the row** (`if found then return p; end if;`). The only other thing that copies
+it is SAVING that person's row in User Master while the email matches
+(`UserMasterView.tsx` → `updateProfile(signedIn.id, { role: row.role })`).
+
+So a role changed in User Master **after** somebody first signed in stays in
+User Master. The chip is not mislabelling her access — it is reporting it
+correctly, and **her access really is the engineer's**, which is why every tile
+on her dashboard read 0. User Master is the screen that is out of date.
+
+### The diagnostic could not see its own case
+
+`supabase/apply/_profile_names_check.sql` ended in
+`where p.id is null or full_name = ''` — a profile that exists, has a name, and
+differs only in its **role** was filtered out. It came back *"Success. No rows
+returned"* on a project where the drift was real, which reads as "nothing is
+wrong". Rewritten to filter nothing: every `auth.users` row, worst first, with
+five verdicts — no profile row / no name (the "?" avatar) / **role drift** / not
+in User Master / fine. All five proved to fire against a database.
+
+Section B1 is the bulk repair: copy the User Master role onto the sign-in for
+everyone reading ROLE DRIFT. It `join`s `app_roles`, so a typo'd directory role
+is refused rather than stranding somebody on a key nothing grants — proved.
+
+### The fix: User Master IS the master (0199)
+
+The user's rule when the diagnosis landed: *"The intent and the fact has to
+match 100% — the user master is the only place I can map and configure."*
+
+`user_directory_profile_sync` applies a directory role to the sign-in as it is
+written — for **every** path that writes a row, not only the browser's Save.
+The drift banner that shipped on 2026-09-11 was a repair for a problem still
+being created; **a button that repairs drift is not the same as not drifting**,
+because somebody has to open the right screen and notice it, and in between the
+application enforces a role nobody chose.
+
+What it deliberately does not do:
+
+- **It never invents a role.** A blank one leaves the sign-in alone, and one the
+  matrix does not know is ignored — a typo must grant nothing, not something
+  unintended. Same rule `ensure_my_profile()` already used.
+- **It weakens no guard.** `profiles_role_guard` (0008) still fires, so changing
+  the role on your OWN User Master row is refused and the save rolls back whole
+  — the only way the two screens stay honest. Granting `admin` still needs an
+  administrator, and a `users.manage` holder who is not an admin still cannot
+  reach the directory at all (the address guard). Both proved running as
+  `authenticated`, not as the owner.
+- **It will not follow a name while two rows share one login.**
+  `service.almsind@gmail.com` has two (eBizWiz Admin, WRITE OFF), so "the" name
+  for that sign-in has no answer and "WRITE OFF" would have become somebody's
+  display name. The role still applies — the duplicates agree about it, and a
+  wrong role is *enforced* where a wrong name is only *shown*.
+
+The **Access** drawer now writes the role to the User Master row too, instead of
+to `profiles`, so the list and the sign-in cannot end up showing different
+things from that side either.
+
+`user_master_sync_test.sql` — 11 sections, mutation-tested by dropping the
+trigger (4 sections go wrong and the `expect ERROR` in section 9 stops
+arriving). `_status.sql` row 153 tests the TRIGGER, not the function: a function
+nothing fires syncs nothing, which is the failure a definition check would miss.
+
+### Applied — 2026-09-15
+
+`rbac.sql` run on the live project, so `user_directory_profile_sync` is live
+and `_status.sql` row 153 reads yes. The three findings section A reported were
+cleared in the same sitting: the **duplicate directory row** on
+`service.almsind@gmail.com` removed, and the two name mismatches (`ajay.g-sc`
+*INDOOR SERVICE* → *AJAY G*, `devika.m` *Devika M* → *DEVIKA*) corrected by
+saving the rows, which is now all that correcting one takes.
+
+`_profile_names_check.sql` is the confirmation: every sign-in should read
+**7 looks fine**, and from here a role set in User Master IS that person's
+access, with no button in between.
+
+---
+
+## 2026-09-15 — Frequent failure gains a second rule
+
+Asked: *"For frequent failure - Add more rule. Rule 2, Same Complaint across
+same product, but multiple serial nos in the last 30 days."*
+
+### The two rules answer different questions
+
+| | |
+| --- | --- |
+| **Rule 1** | one **machine** repeating — same product AND serial, on the same complaint or the same part refitted |
+| **Rule 2** | one **model** failing the same way on **different units** |
+
+Rule 2 is the fault rule 1 can never see: each of those calls is a *first*
+failure on its own machine, so nothing looks repeated even while a whole batch
+fails identically.
+
+**It counts DISTINCT SERIALS, not calls.** That is the load-bearing choice —
+five visits to one machine are rule 1's finding and must not read as a batch
+problem. The same complaint five times on one serial does **not** fire rule 2;
+on two serials it does.
+
+**Thirty days, in days.** Rule 1's window is in months because the procedure
+says a month; the ask here was thirty days, and those are different lengths in
+February. Held as its own setting so changing one cannot move the other.
+
+`is_frequent` is now **either** rule — a rule that did not change the verdict
+would be a report — and the verdict says which fired, because the action differs
+completely: a unit to sort out, or a batch to investigate.
+
+### ⚠️ A regression caught by comparing, not by reading
+
+`0198` replaces `frequent_failure_rule()` whole. The first draft rewrote
+`equipment_needs_complaint`'s truthiness test as `in ('true','t','yes','1')`
+while **the stored value is `on`** — so the key silently read FALSE, the
+equipment path stopped requiring a matching complaint, and **rule 1 would have
+flagged more calls than it does today**. A rule nobody asked to change, changed
+by rewriting a line that was only being carried past.
+
+Found by running the function before and after and comparing the output, not by
+reading the SQL. The test now asserts it, and `check:ui` refuses the rewrite.
+
+### Also worth recording
+
+The suite failed twice on a database I had hand-seeded earlier — ORION-G 2410
+already had a call, so rule 1 fired where the test expected it not to. **That is
+why `npm run validate` gives every suite its own copy**, and it is the same
+lesson the harness was built on.
+
+### Applied — 2026-09-15
+
+[`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
+run on the live project, so `_status.sql` row 152 reads yes and rule 2 is
+answering alongside rule 1.
 
 ## 2026-09-15 — DCCR Review 2: "Change product?"
 
@@ -64,11 +324,11 @@ own, precisely so a judgement corrected later reads corrected everywhere.
 accessory no longer sold, and refusing to record it would lose the finding
 rather than the sale.
 
-### To run on the live project
+### Applied — 2026-09-15
 
 [`daily_review.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/daily_review.sql)
-— `_status.sql` row 151 answers NO until it is in, and Change product? will save
-while nothing moves.
+run on the live project, so `_status.sql` row 151 reads yes: Change product?
+now moves the failure, rather than saving while nothing moves.
 
 ## 2026-09-15 — The validation run goes green, and what was wrong was the tests
 
@@ -194,11 +454,11 @@ on a matching part, but a changed description creates a second part rather than
 renaming the first. The importer should recognise a probable rename and say so
 rather than silently inserting.
 
-### To run on the live project
+### Applied — 2026-09-15
 
 [`HandStock_X.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/HandStock_X.sql)
-— `_status.sql` row 150 answers NO until it is in, and the Edit button will fail
-on any part that has history.
+run on the live project, so `_status.sql` row 150 reads yes and Edit works on a
+part that has history.
 
 ⚠️ **AT THE REPOSITORY ROOT, not `supabase/apply/`.** The handstock module is
 written out as `HandStock_X.sql`, one of the two numbered consolidated files
@@ -3399,84 +3659,6 @@ data uploads (77 yearly consumptions, Ownership Transfer) · `engineer_stock`
 
 
 ---
-
-## 2026-09-14 — The 2016 archive, folded into Machine History
-
-### Two screens were being built for one question
-
-This branch started before `/machine-history` existed and grew its own
-`/product-history` doing the same job on the live registers. **#335 shipped the
-better one** — eleven registers against four, and `machineHistory.ts` names the
-gap this branch actually fills:
-
-> WHAT THIS CANNOT SEE: anything before the migration into this system. That
-> lives in a separate archive project and is not reachable from here.
-
-So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
-`prodhistory.css`, its route and its module key — and the archive is folded into
-Machine History instead. Two screens answering one question is a defect however
-good each one is, and the module key would have been a second thing to grant.
-
-`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
-already grants `mod:/machine-history` to every role.
-
-### What the archive adds
-
-A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
-from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
-it is reached — so moving to `postgres_fdw` or an Edge Function later is one
-file, not a rewrite.
-
-- **Keyed on `machineKey`, never the serial.** The archive computes it as a
-  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
-  the two were diffed on twelve cases and agree on all of them. A disagreement
-  raises no error — it empties the list.
-- **Every row says which database it came from**, and an archive UCN renders
-  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
-  asked about live UCNs only.
-- **No de-duplication between the halves.** The cut-over date is a fact about
-  the migration, not about the machine.
-
-### The access question, which does not carry across
-
-Your users exist in the LIVE project's auth, so a JWT signed there cannot be
-verified by the archive: `auth.uid()` is null for everybody and no policy can
-test who is asking. **The archive key IS the credential** — so it is not baked
-into the repository, has no default, and is pasted per device in Settings.
-
-⚠️ **The better fix is to stop letting the browser talk to that project at
-all**: `postgres_fdw` foreign tables on the live project wrapped in
-`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
-Function that verifies the caller's JWT. Both need a setup step nobody has
-taken.
-
-### Loading it (ProdHistory_06)
-
-Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
-screen rather than in a loader of their own because a second importer for one
-table is how a good file comes back as "0 rows".
-
-`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
-DELETE policy, both privileges revoked. The worst a leaked key does is append
-rubbish NEXT TO the real data rather than over it. The insert policy's
-`with check` **refuses a row whose `source_system` is blank**, because that
-label is the only way back out — these registers have no natural key, so a
-re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
-
-### Status — SQL still to run
-
-| File | Run it on | What it does |
-| --- | --- | --- |
-| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
-| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
-| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
-| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
-| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
-
-**PENDING — none has been run on either project.** All apply and re-apply
-idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
-database built from every migration, `check:views` passes, and `public.calls`
-still carries `security_invoker`.
 
 ## Review 2's frequent-failure rule — SETTLED, not yet built (2026-09-08)
 

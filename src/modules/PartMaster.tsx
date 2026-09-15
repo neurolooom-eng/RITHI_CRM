@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { PickList } from '../components/ui/PickList';
+import { MultiPick } from '../components/ui/MultiPick';
+import { listProductLines, shortForms } from '../lib/productLines';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, Drawer } from '../components/ui/ui';
 import { csvExport, timeAgo } from '../lib/format';
@@ -194,6 +197,18 @@ export function PartMaster() {
     category: string; product: string; cost: string;
     wasCode: string; wasDescription: string; wasDetail: string;
   };
+  // THE FOUR THE ITEM MASTER USES, and they are the importer's own normalisation
+  // (Spare / Consumable / Product / Labour) rather than a list invented here —
+  // a form offering different words from the loader is how one part ends up
+  // "Spare" and the next "SPARES".
+  //
+  // OFFERED, NOT ENFORCED. 0152 dropped the CHECK on this column deliberately:
+  // it aborted a 1,300-row Item Master load part-written at row 174, and a
+  // constraint that can half-load a master is in the wrong place. So the list
+  // is a convenience, the current value is always kept (`withCurrent`), and a
+  // value the file brought that is not one of these still shows and still saves.
+  const PART_CATEGORIES = ['Spare', 'Consumable', 'Product', 'Labour'];
+  const [families, setFamilies] = useState<string[]>([]);
   const [edit, setEdit] = useState<EditForm | null>(null);
   const [impact, setImpact] = useState<PartRenameImpact[] | null>(null);
   const [impactFor, setImpactFor] = useState('');
@@ -214,6 +229,14 @@ export function PartMaster() {
   // WHAT WOULD MOVE, fetched when the drawer opens and not on every keystroke:
   // it is a property of the part being renamed FROM, which does not change
   // while the form is open.
+  // THE PRODUCT FAMILIES, once. Read when the drawer first opens rather than on
+  // mount: most visits to this screen never edit a part, and the catalogue is a
+  // separate table.
+  useEffect(() => {
+    if (!edit || !live || families.length) return;
+    void listProductLines().then((v) => setFamilies(shortForms(v))).catch(() => setFamilies([]));
+  }, [edit, live, families.length]);
+
   useEffect(() => {
     if (!edit || !live || impactFor === edit.wasDetail) return;
     setImpactFor(edit.wasDetail);
@@ -429,17 +452,52 @@ export function PartMaster() {
             )}
 
             <div className="field">
-              <label className="field-label">Category</label>
-              <input className="input" value={edit.category} placeholder="SPARE / CONSUMABLE"
-                onChange={(e) => setEdit((f) => f && ({ ...f, category: e.target.value }))} />
+              <label className="field-label">Spare / Consumable</label>
+              {/* FOUR OPTIONS, SO NO SEARCH BOX — PickList shows just the list
+                  under eight, and making somebody type to reach "Spare" is
+                  worse than the box it replaced. A value the Item Master
+                  brought that is not one of these is put at the top rather than
+                  dropped: 0152 made this column source data on purpose, and a
+                  form that silently replaced what the file said would undo
+                  that. */}
+              <PickList
+                value={edit.category}
+                options={edit.category && !PART_CATEGORIES.includes(edit.category)
+                  ? [edit.category, ...PART_CATEGORIES] : PART_CATEGORIES}
+                onPick={(v) => setEdit((f) => f && ({ ...f, category: v }))}
+                placeholder="Choose Spare, Consumable, Product or Labour…"
+              />
               <span className="muted" style={{ fontSize: 12 }}>
                 Left blank it stays blank — Spare Insights reports those as Unclassified rather than guessing.
               </span>
             </div>
             <div className="field">
-              <label className="field-label">Product family</label>
-              <input className="input" value={edit.product}
-                onChange={(e) => setEdit((f) => f && ({ ...f, product: e.target.value }))} />
+              <label className="field-label">Product</label>
+              {/* MANY, BECAUSE A PART FITS MANY. A shared spare goes into an
+                  ORION-G and a VEGA, and one box forced a choice between
+                  naming one and typing a list nothing could read back.
+
+                  THE SHORT FORMS, from Product Master — ORG, MT75, CPX. Several
+                  lines share one (all nine CPX CARE codes are CPX), so the list
+                  is de-duplicated; retired lines are offered too, because a
+                  part still fits a machine that is no longer sold and most of
+                  this catalogue is for exactly those.
+
+                  EMPTY MEANS NONE RECORDED HERE, NOT ALL. MultiPick was built
+                  for a FILTER, where empty means every row; on a form that
+                  reading would be wrong, so the label says what empty means
+                  rather than leaving the control's own default to imply it. */}
+              <MultiPick
+                values={edit.product.split(',').map((x) => x.trim()).filter(Boolean)}
+                options={families}
+                onChange={(v) => setEdit((f) => f && ({ ...f, product: v.join(', ') }))}
+                allLabel="— none recorded —"
+                noun="products"
+              />
+              <span className="muted" style={{ fontSize: 12 }}>
+                Which machines this part is for, by their short form. Choose as many as apply.
+                {families.length ? '' : ' (Loading the product list…)'}
+              </span>
             </div>
             <div className="field">
               <label className="field-label">Purchase cost</label>

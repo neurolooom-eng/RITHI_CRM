@@ -2620,8 +2620,23 @@ export interface FrequentFailure {
   earlier: number;
   /** earlier + the call under review, which is what the threshold is against. */
   total: number;
+  /** EITHER RULE. Rule 1 is one machine repeating; rule 2 is one MODEL failing
+   *  the same way across different units — the thing rule 1 can never see,
+   *  because each of those calls is a first failure on its own machine. */
   is_frequent: boolean;
   rows: FailureHistoryRow[];
+  // ---- rule 2 (0198) ----
+  rule2_enabled: boolean;
+  rule2_window_days: number;
+  /** How many DISTINCT serials it takes. Counting serials rather than calls is
+   *  the point: five calls on one machine are rule 1's business. */
+  rule2_serials: number;
+  rule1_is_frequent: boolean;
+  rule2_is_frequent: boolean;
+  /** Distinct serials seen, INCLUDING the machine under review. */
+  rule2_serials_seen: number;
+  rule2_calls: number;
+  rule2_rows: FailureHistoryRow[];
 }
 export async function frequentFailure(ucn: string): Promise<FrequentFailure> {
   const { data, error } = await must().rpc('frequent_failure', { p_ucn: ucn });
@@ -2635,24 +2650,40 @@ export const FFR_KEYS = {
   months: 'ffr.window_months',
   threshold: 'ffr.threshold',
   needsComplaint: 'ffr.equipment_needs_complaint',
+  // Rule 2 (0198) — its own window, in DAYS, because the user asked for thirty
+  // days and "a month" is a different length in February.
+  rule2Enabled: 'ffr.rule2_enabled',
+  rule2WindowDays: 'ffr.rule2_window_days',
+  rule2Serials: 'ffr.rule2_serials',
 } as const;
 
-export async function getFrequentFailureRule(): Promise<{
+export interface FrequentFailureRule {
   window_months: number; threshold: number; equipment_needs_complaint: boolean;
-}> {
+  // Rule 2 (0198). Its window is in DAYS on purpose — the user asked for thirty
+  // days, and "a month" is a different length in February.
+  rule2_enabled: boolean; rule2_window_days: number; rule2_serials: number;
+}
+export async function getFrequentFailureRule(): Promise<FrequentFailureRule> {
   const { data, error } = await must().rpc('frequent_failure_rule');
   if (error) throw new Error(errMsg(error));
-  return data as { window_months: number; threshold: number; equipment_needs_complaint: boolean };
+  return data as FrequentFailureRule;
 }
 
 export async function setFrequentFailureRule(
-  r: { window_months: number; threshold: number; equipment_needs_complaint: boolean },
+  r: FrequentFailureRule,
 ): Promise<{ ok: boolean; error?: string }> {
   const now = new Date().toISOString();
   const { error } = await must().from('app_settings').upsert([
     { key: FFR_KEYS.months, value: String(Math.max(1, Math.round(r.window_months))), updated_at: now },
     { key: FFR_KEYS.threshold, value: String(Math.max(1, Math.round(r.threshold))), updated_at: now },
     { key: FFR_KEYS.needsComplaint, value: r.equipment_needs_complaint ? 'on' : 'off', updated_at: now },
+    // RULE 2. `on`/`off` for the switch, matching its sibling above rather than
+    // inventing a second spelling for the same idea in the same table.
+    { key: FFR_KEYS.rule2Enabled, value: r.rule2_enabled ? 'on' : 'off', updated_at: now },
+    { key: FFR_KEYS.rule2WindowDays, value: String(Math.max(1, Math.round(r.rule2_window_days))), updated_at: now },
+    // AT LEAST TWO SERIALS, floored here as well as in SQL: one serial is not
+    // "multiple", and a rule that fired on one would fire on every call.
+    { key: FFR_KEYS.rule2Serials, value: String(Math.max(2, Math.round(r.rule2_serials))), updated_at: now },
   ], { onConflict: 'key' });
   return error ? { ok: false, error: errMsg(error) } : { ok: true };
 }

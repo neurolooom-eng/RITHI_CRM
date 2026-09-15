@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.265',
+    version: '0.9.268',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,45 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.267',
+    date: '2026-09-15',
+    title: 'The role you set in User Master is the role they actually get',
+    changes: [
+      'A role set on a User Master row now reaches that person’s sign-in by itself. Until now it was copied only when they FIRST signed in — so a role changed afterwards stayed on this screen, and the application went on giving them the old one with nothing anywhere saying so.',
+      'Reported as “Why is it showing as engineer and not Zoho Migration”: the screen said Zoho Migration, every permission said engineer, and her dashboard was empty because that was genuinely her access.',
+      'It applies to every way a row is written — the screen, a bulk import, an administrator’s own SQL — not only to pressing Save on that one row.',
+      'The Access drawer now sets the role on the User Master row too, so the list and the sign-in cannot end up showing different things.',
+      'Nothing is invented: a blank role leaves the sign-in alone, and a role that is not on Roles & Permissions (a typo, a role since deleted) grants nothing rather than something unintended.',
+      'The guards are untouched. Nobody can move their own role, and granting Administrator still needs an administrator — if you change the role on your own row the save is refused, rather than the two screens quietly disagreeing.',
+      'Where two User Master rows share one login the role still applies but the NAME is left alone: “the” name for that sign-in has no answer until the duplicate is removed.',
+      'Needs the Roles & Permissions SQL (rbac.sql) to be run.',
+    ],
+  },
+  {
+    version: '0.9.266',
+    date: '2026-09-15',
+    title: 'Frequent failure: a second rule, for the same fault across different machines',
+    changes: [
+      'RULE 2: the same complaint on DIFFERENT serial numbers of one product within 30 days. That is the fault rule 1 could never see — each of those calls is a first failure on its own machine, so nothing looked repeated even when a whole batch was failing the same way.',
+      'It counts SERIALS, not calls. Five visits to one machine are rule 1’s finding and do not read as a fleet problem; two different machines with the same complaint do.',
+      'A call meeting EITHER rule is a frequent failure, and the review screen now says WHICH one — because the action is completely different: one machine to sort out, or a batch to investigate.',
+      'Both rules are yours to tune in Admin Config. Rule 2 has its own window in DAYS (30 to start) and its own threshold in serials (2), and can be switched off entirely.',
+      'Answers already recorded are untouched, as before — they are quality records, and the new rule applies to what is reviewed from here on.',
+    ],
+  },
+  {
+    version: '0.9.265',
+    date: '2026-09-15',
+    title: 'Part Master: Spare / Consumable is a list, and a part can name several products',
+    changes: [
+      'SPARE / CONSUMABLE is now a drop-down — Spare, Consumable, Product or Labour, the same four the Item Master upload normalises to, so one part cannot end up “Spare” and the next “SPARES”.',
+      'A value your file brought that is not one of those is still shown and still saves. The list is there to help, not to refuse — a rule that can stop an Item Master load half way through is the wrong kind of rule, and that one was removed on purpose.',
+      'PRODUCT is now a multiple-choice list of SHORT FORMS from Product Master — ORG, MT75, CPX. A shared spare goes into more than one machine, and one box forced you to pick one or type a list nothing could read back.',
+      'Retired product lines are offered too: a part still fits a machine that is no longer sold, and most of the spares catalogue is for exactly those.',
+      'Leaving it empty means none recorded for this part — not all of them.',
     ],
   },
   {

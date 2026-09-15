@@ -28,7 +28,14 @@ import { supabaseConfigured, getFrequentFailureRule, setFrequentFailureRule } fr
 // moving a threshold is entitled to know whether they are restating history.
 // ===========================================================================
 
-const DEFAULTS = { window_months: 1, threshold: 2, equipment_needs_complaint: true };
+// RULE 2 (0198) — the same complaint across DIFFERENT units of one model. Its
+// window is in DAYS rather than months because the user asked for thirty days,
+// and those are different lengths in February. Its threshold counts DISTINCT
+// SERIALS, not calls: five visits to one machine are rule 1's finding.
+const DEFAULTS = {
+  window_months: 1, threshold: 2, equipment_needs_complaint: true,
+  rule2_enabled: true, rule2_window_days: 30, rule2_serials: 2,
+};
 
 export function FrequentFailureCard() {
   const { isAdmin } = useAuth();
@@ -91,6 +98,41 @@ export function FrequentFailureCard() {
         {isAdmin && (
           <button className="btn btn-primary" disabled={busy || !loaded} onClick={() => void save()}>Save</button>
         )}
+      </div>
+
+      {/* RULE 2 — kept visually apart because it answers a DIFFERENT question,
+          and running the two sets of numbers together is how somebody changes
+          the wrong one. Rule 1 asks whether THIS MACHINE keeps failing; rule 2
+          asks whether THIS MODEL keeps failing the same way on other units. */}
+      <p className="field-help" style={{ marginTop: 16, marginBottom: 6 }}>
+        <b>Rule 2 — the same complaint across the fleet.</b> The same complaint on
+        <b> different serial numbers</b> of one product inside the window. It counts
+        SERIALS, not calls: several visits to one machine are rule 1&rsquo;s finding, not this
+        one&rsquo;s. A call meeting <i>either</i> rule is a frequent failure.
+      </p>
+      <div className="row" style={{ gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label className="field-label" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" disabled={!isAdmin || !loaded}
+                 checked={rule.rule2_enabled}
+                 onChange={(e) => setRule((r) => ({ ...r, rule2_enabled: e.target.checked }))} />
+          Rule 2 is in force
+        </label>
+        <label className="field-label" style={{ display: 'grid', gap: 4 }}>Window (days)
+          {/* DAYS, not months, and the field says so: thirty days and "a month"
+              are different lengths in February, and the ask was thirty days. */}
+          <input className="input" type="number" min={1} style={{ width: 110 }}
+                 disabled={!isAdmin || !loaded || !rule.rule2_enabled}
+                 value={rule.rule2_window_days}
+                 onChange={(e) => setRule((r) => ({ ...r, rule2_window_days: num(e.target.value, 1) }))} />
+        </label>
+        <label className="field-label" style={{ display: 'grid', gap: 4 }}>Serials needed
+          {/* MINIMUM TWO. One serial is not "multiple", and a rule that fired on
+              one would fire on every call ever reviewed. */}
+          <input className="input" type="number" min={2} style={{ width: 110 }}
+                 disabled={!isAdmin || !loaded || !rule.rule2_enabled}
+                 value={rule.rule2_serials}
+                 onChange={(e) => setRule((r) => ({ ...r, rule2_serials: Math.max(2, num(e.target.value, 2)) }))} />
+        </label>
       </div>
 
       <p className="muted" style={{ fontSize: 12.5 }}>

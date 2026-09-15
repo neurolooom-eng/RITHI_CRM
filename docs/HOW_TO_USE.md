@@ -121,6 +121,13 @@ against the call it was fitted to.
 ## Quality
 
 - **Daily Call Review** `/daily-review` — Review 1 is the vigilance answer taken
+  > **Frequent failure has two rules.** **Rule 1** — this machine failing again
+  > (same product and serial) within the window. **Rule 2** — the same complaint
+  > on **different serial numbers** of one product within 30 days, which is a
+  > batch or component problem rather than one unit. It counts serials, not
+  > calls, so several visits to one machine stay rule 1's finding. Either rule
+  > makes it a frequent failure, and the screen says which. Both are tuned in
+  > Admin Config.
   > **Change product?** (Review 2). Where what actually failed is an **accessory**
   > logged against the machine it is fitted to — a CPX CARE failure raised on an
   > EXTEND-XT — name the real product here. The failure is then counted against
@@ -258,7 +265,12 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
-  > **Editing a part.** Category, product family and cost are ordinary fields.
+  > **Editing a part.** **Spare / Consumable** is a list of the four the Item
+  > Master uses; a value your file brought that is not one of them still shows
+  > and still saves. **Product** is a multiple choice of **short forms** from
+  > Product Master (ORG, MT75, CPX) — a shared spare fits more than one machine,
+  > and retired lines are offered because a part still fits a machine no longer
+  > sold. Empty means none recorded, not all. Cost is an ordinary field.
   > The **code and description together are the part's identity** — every
   > consumption line, hand-stock row, issue, dispatch, transfer and return names
   > the part by `CODE|Description` — so changing either is a **rename**, and the
@@ -267,6 +279,17 @@ typed into a form that reads it.
   > A rename will not merge two parts: if the new name is taken, it is refused.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **The role on this screen IS their access.** Change it here and it applies
+  > to their sign-in straight away; they see it the next time they load the app.
+  > Set it before they ever sign in and they arrive with it. **Access** on a row
+  > is the same role plus anything extra that one person needs on top.
+  > Two things it will not do. You cannot change your own role — ask another
+  > administrator, and the save is refused rather than half-applied. And a role
+  > that is not on **Roles & Permissions** grants nothing: if you mean a new
+  > role, add it there first.
+  > **One person, one row.** Where two rows share an email the role still
+  > applies, but the name stops following, because there is no way to tell which
+  > of the two is theirs.
 - **All Masters** `/masters` — the value lists behind the dropdowns. Rights are
   **per list**.
   > A value in use is **deactivated**, not deleted, so records that used it keep
