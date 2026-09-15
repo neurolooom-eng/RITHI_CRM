@@ -6168,5 +6168,51 @@ console.log('\n-- one Serviceman, changed everywhere it appears --');
     /\{mayEdit && \([\s\S]{0,200}openSwap/.test(pm), true);
 }
 
+console.log('\n-- the requirements document and the requirements PAGE are one document --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Add this Requirements Page to the Validation
+  // Package." It is the same set of requirements in two places, and A DOCUMENT
+  // THAT SAYS DIFFERENT THINGS IN TWO PLACES IS WORSE THAN EITHER ALONE. So
+  // what is checked here is not that both exist — it is that neither carries
+  // its own copy of the rule that decides what they say.
+  // -------------------------------------------------------------------------
+  const lib = code(readFileSync('src/lib/requirements.ts', 'utf8'));
+  const doc = code(readFileSync('scripts/requirements-doc.ts', 'utf8'));
+  const page = code(readFileSync('src/modules/SoftwareValidation.tsx', 'utf8'));
+
+  eq('the matcher has ONE definition', /export function modulesNamedBy/.test(lib), true);
+  eq('...and the document imports it rather than repeating it',
+    /from '\.\.\/src\/lib\/requirements'/.test(doc) && !/const named = /.test(doc), true);
+  eq('...and so does the page',
+    /from '\.\.\/lib\/requirements'/.test(page), true);
+
+  // `/` MUST BE EXCLUDED or the Dashboard claims every requirement written:
+  // every route contains it.
+  eq('the root route cannot claim every requirement',
+    /m\.path !== '\/' && t\.includes\(m\.path\.toLowerCase\(\)\)/.test(lib), true);
+
+  // A TEST MAY NAME THE USER REQUIREMENT OR THE SYSTEM REQUIREMENT that
+  // implements it. Counting only one of the two reported requirements as
+  // unproved that a whole OQ case covers.
+  eq('a requirement is proved through its FRS as well as directly',
+    /const ids = new Set<string>\(\[req\.id, \.\.\.frs\.map\(\(f\) => f\.id\)\]\);/.test(lib), true);
+
+  // AND THE STRICT MATCH IS NOT INVERTED to claim a screen is uncovered —
+  // 31 of 54 false positives, including the Field Call Register.
+  eq('neither reader claims a screen is uncovered from this match',
+    !/no requirement names/i.test(doc) || /REQUIREMENT_COVERAGE/.test(doc), true);
+
+  // THE TAB EXISTS AND IS REACHABLE. A page nothing lists is a page nobody
+  // opens.
+  eq('the Validation Package lists it as a tab',
+    /\{ key: 'bymodule', label: 'Requirements by Module' \}/.test(page), true);
+
+  // CLASSES WITH RULES. A block styled by nothing reads as a broken one.
+  const css = readFileSync('src/modules/softwarevalidation.css', 'utf8');
+  ['sv-group', 'sv-module', 'sv-module-head', 'sv-req', 'sv-req-text', 'sv-req-proof']
+    .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

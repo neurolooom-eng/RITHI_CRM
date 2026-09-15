@@ -8,6 +8,11 @@ import {
   FMEA, FMEA_SCALE, SUPPLIERS, VSR,
   DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
 } from '../lib/validation';
+// ONE DEFINITION of the grouping, shared with `scripts/requirements-doc.ts`
+// which writes `docs/REQUIREMENTS.md`. Same document, two readers.
+import {
+  requirementsByModule, systemWideRequirements, requirementGaps, type UrsEntry,
+} from '../lib/requirements';
 import './softwarevalidation.css';
 
 // ===========================================================================
@@ -19,12 +24,18 @@ import './softwarevalidation.css';
 
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
-type TabKey = 'overview' | 'approach' | 'checklist' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
+type TabKey = 'overview' | 'approach' | 'checklist' | 'bymodule' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
   | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'approach', label: 'Validation Plan' },
   { key: 'checklist', label: 'Compliance Checklist' },
+  // THE SAME DOCUMENT AS docs/REQUIREMENTS.md, from the same grouping
+  // (src/lib/requirements.ts) — one definition, so the page and the file cannot
+  // say different things. It sits BEFORE the two flat lists because it is how
+  // the set is read: a need, the mechanism that meets it, the test that proves
+  // it, under the screen it governs. The flat lists stay for looking one up.
+  { key: 'bymodule', label: 'Requirements by Module' },
   { key: 'urs', label: 'User Requirements' },
   { key: 'srs', label: 'System Requirements' },
   { key: 'nonaudit', label: 'Non-Auditable Requirements' },
@@ -142,6 +153,103 @@ export function SoftwareValidation() {
       )}
 
       {/* URS */}
+      {show('bymodule') && (() => {
+        const groups = requirementsByModule();
+        const wide = systemWideRequirements();
+        const gaps = requirementGaps();
+        const tied = groups.reduce((n, g) => n + g.modules.reduce((m, x) => m + x.urs.length, 0), 0);
+        const Urs = ({ e }: { e: UrsEntry }) => (
+          <div className="sv-req">
+            <div className="sv-req-head">
+              <span className="sv-id">{e.req.id}</span> <b>{e.req.title}</b> {riskBadge(e.req.risk)}
+            </div>
+            <p className="sv-req-text">{e.req.text}</p>
+            {e.frs.length === 0
+              ? (
+                <div className="sheet-banner sheet-banner-warn">
+                  <span>No system requirement names this yet — a need nothing implements is a question for a person.</span>
+                </div>
+              )
+              : (
+                <table className="sv-table">
+                  <thead><tr><th style={{ width: 84 }}>Implemented by</th><th>How</th><th style={{ width: 80 }}>Risk</th></tr></thead>
+                  <tbody>{e.frs.map((f) => (
+                    <tr key={f.id}><td className="sv-id">{f.id}</td>
+                      <td><b>{f.title}.</b> {f.text}</td><td>{riskBadge(f.risk)}</td></tr>
+                  ))}</tbody>
+                </table>
+              )}
+            <div className="sv-req-proof">
+              {e.tests.length
+                ? <>Proved by <b>{e.tests.map((t) => t.id).join(', ')}</b></>
+                : <>Nothing proves this yet.</>}
+            </div>
+          </div>
+        );
+        return (
+          <Section title="Requirements by module — the complete set">
+            <p className="sv-lead">
+              <b>A user requirement is a need; a system requirement is a mechanism.</b> Under each
+              requirement below sit the system requirements that implement it, and under those the
+              tests that prove them — so one screen carries the whole argument: what was asked for,
+              how it was built, and what shows it works.
+            </p>
+            <p className="sv-lead">
+              <b>The module is derived from the requirement’s own words</b>, not declared — its route,
+              or every distinctive word of its label. So the grouping is evidence rather than opinion,
+              and it moves when the text does. One naming several modules appears under each.
+              The CALL REQUEST (CR) and SERVICING (SR) requirements are maintained in their own
+              documents and are folded into <code>docs/REQUIREMENTS.md</code> rather than copied here.
+            </p>
+            <div className="sv-grid">
+              <div className="sv-kpi"><div className="sv-kpi-n">{URS.length}</div><div className="sv-kpi-l">user requirements</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{FRS.length}</div><div className="sv-kpi-l">system requirements</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{tied}</div><div className="sv-kpi-l">tied to a module by their words</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{wide.length}</div><div className="sv-kpi-l">system-wide</div></div>
+            </div>
+
+            {groups.map((g) => (
+              <div key={g.title}>
+                <h3 className="sv-group">{g.title}</h3>
+                {g.modules.map((m) => (
+                  <div key={m.path} className="sv-module">
+                    <h4 className="sv-module-head">{m.label} <code>{m.path}</code>
+                      <span className="sv-ref"> opened by {m.action}</span></h4>
+                    {m.urs.map((e) => <Urs key={e.req.id} e={e} />)}
+                  </div>
+                ))}
+              </div>
+            ))}
+
+            <h3 className="sv-group">Not tied to one screen</h3>
+            <p className="sv-lead">
+              These name no module in their own words. Most are system-wide — access control, audit,
+              retention — and forcing them under a screen would say something the requirement does not.
+            </p>
+            {wide.map((e) => <Urs key={e.req.id} e={e} />)}
+
+            <h3 className="sv-group">Where the set is not complete</h3>
+            <p className="sv-lead">
+              Stated rather than left to be noticed. None is a defect on its own — each is a question
+              for a person. <b>Is every screen covered?</b> is a different question and is not answered
+              here: the match used for filing above is strict on purpose, and inverting a strict match
+              to claim an absence reports every near-miss as a gap.
+            </p>
+            <table className="sv-table">
+              <thead><tr><th>Question</th><th style={{ width: 80 }}>Count</th><th>What it means</th></tr></thead>
+              <tbody>
+                <tr><td>User requirements no system requirement implements</td><td>{gaps.unimplemented.length}</td>
+                  <td>a gap, or a need met outside this system</td></tr>
+                <tr><td>System requirements no test names</td><td>{gaps.unproved.length}</td>
+                  <td>built and specified, not yet proved</td></tr>
+                <tr><td>User requirements nothing proves, directly or through an FRS</td><td>{gaps.untested.length}</td>
+                  <td>the one that matters for an audit</td></tr>
+              </tbody>
+            </table>
+          </Section>
+        );
+      })()}
+
       {show('urs') && (
         <Section title="User Requirements Specification (URS)">
           <table className="sv-table"><thead><tr><th style={{ width: 84 }}>ID</th><th>Requirement</th><th style={{ width: 80 }}>Risk</th></tr></thead>

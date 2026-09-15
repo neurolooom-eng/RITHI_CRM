@@ -38,6 +38,14 @@
 import { readFileSync } from 'node:fs';
 import { MODULES, PERM_TREE, moduleAction } from '../src/lib/rbac';
 import { URS, FRS, TESTS, NON_AUDITABLE } from '../src/lib/validation';
+// ONE DEFINITION OF THE GROUPING, shared with the Requirements tab of the
+// in-app Validation Package. They are the same document in two places, and a
+// document that says different things in two places is worse than either.
+// The MATCHER is what must not drift — where a requirement is filed decides
+// what this document says. The rendering differs legitimately: the document
+// folds in the two hand-maintained references (CR, SR) and the in-app tab links
+// out to them instead.
+import { modulesNamedBy, frsFor, testsFor } from '../src/lib/requirements';
 
 const P = (s = '') => console.log(s);
 
@@ -64,31 +72,11 @@ function readExternal(file: string, prefix: string): Ext[] {
 const CR = readExternal('docs/CALL_REQUEST_REQUIREMENTS.md', 'CR');
 const SR = readExternal('docs/ISO13485_SERVICING.md', 'SR');
 
-// ---- which module does a requirement name? ---------------------------------
-const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 3);
-const named = (text: string) => {
-  const t = text.toLowerCase();
-  return MODULES.filter((m) => {
-    if (!m.path) return false;
-    if (m.path !== '/' && t.includes(m.path.toLowerCase())) return true;
-    const w = words(m.label);
-    return w.length > 0 && w.every((x) => t.includes(x));
-  }).map((m) => m.path);
-};
-
-// The menu group each screen sits under, so this document reads in the order
-// the application does. PERM_TREE follows the menu and `check:ui` proves it.
-const groupOf = new Map<string, string>();
-PERM_TREE.forEach((h) => h.pages.forEach((p) => groupOf.set(p.path, h.title)));
-
-const testsFor = (id: string) => TESTS.filter((t) => t.reqs.includes(id));
-const frsFor = (ursId: string) => FRS.filter((f) => f.urs.includes(ursId));
-
 type Item = { kind: 'URS' | 'CR' | 'SR'; id: string; title: string; text?: string; risk?: string; doc?: string };
 const items: { it: Item; mods: string[] }[] = [
-  ...URS.map((r) => ({ it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk }, mods: named(`${r.title} ${r.text}`) })),
-  ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc }, mods: named(r.title).length ? named(r.title) : ['/call-requests'] })),
-  ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc }, mods: named(r.title) })),
+  ...URS.map((r) => ({ it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk }, mods: modulesNamedBy(`${r.title} ${r.text}`) })),
+  ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title).length ? modulesNamedBy(r.title) : ['/call-requests'] })),
+  ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
 ];
 
 // ---- the document ----------------------------------------------------------
@@ -129,6 +117,9 @@ P('gathered at the end. Most are system-wide — access control, audit, retentio
 P('and belong to no single screen.');
 
 // ---- per module ------------------------------------------------------------
+const groupOf = new Map<string, string>();
+PERM_TREE.forEach((h) => h.pages.forEach((pg) => groupOf.set(pg.path, h.title)));
+
 const seen = new Set<string>();
 const byGroup = new Map<string, typeof MODULES>();
 MODULES.forEach((m) => {
