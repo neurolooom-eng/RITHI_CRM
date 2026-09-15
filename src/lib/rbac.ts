@@ -47,6 +47,10 @@ export const ROLE_KEYS = ROLES.map((r) => r.key);
 export interface ModuleDef { path: string; label: string; admin?: boolean }
 export const MODULES: ModuleDef[] = [
   { path: '/', label: 'Dashboard' },
+  // MY WORKLOAD — the queues that used to sit as cards on top of every
+  // register (the user, 2026-09-15). Beside the Dashboard because it answers
+  // the same question at a glance, for one person rather than the company.
+  { path: '/workload', label: 'My Workload' },
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
@@ -362,6 +366,11 @@ export const PERM_TREE: PermHeader[] = [
   // and whether a migration ever grants the key.
   { title: 'Overview', pages: [
     { path: '/', label: 'Dashboard', actions: ['dashboard.view'] },
+    // NO ACTIONS OF ITS OWN. The page reads seven registers and shows a
+    // section only where the reader already holds that register's key, so the
+    // authority it needs is entirely theirs — granting `mod:/workload` adds
+    // reach to nothing.
+    { path: '/workload', label: 'My Workload', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while

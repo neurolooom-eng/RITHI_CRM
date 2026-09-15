@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, Toolbar, SearchBox, EmptyState, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
 import { listPendingRmApproval, decideSpareLines, supabaseConfigured, type SpareDecision } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
@@ -146,7 +145,6 @@ export function SpareRmApproval() {
   useCallStates(visible.map((r) => String((r as { ucn?: unknown }).ucn ?? '')).filter(Boolean));
 
   const mine = visible.filter((l) => l.may_approve);
-  const oldest = mine.reduce((n, l) => Math.max(n, l._waiting), 0);
 
   const VERB: Record<SpareDecision, string> = { approve: 'Approve', reject: 'Reject', drop: 'Drop' };
   const DONE: Record<SpareDecision, string> = { approve: 'approved', reject: 'rejected', drop: 'dropped' };
@@ -250,12 +248,6 @@ export function SpareRmApproval() {
         </div>
       )}
 
-      <KpiGrid min={170}>
-        <KpiCard label="Waiting for an RM" value={visible.length} tone="primary" icon="⏳" />
-        <KpiCard label="Yours to approve" value={mine.length} tone={mine.length ? 'warning' : 'neutral'} icon="✅" />
-        <KpiCard label="Longest waiting" value={oldest} sub="days" tone={oldest >= 7 ? 'danger' : oldest >= 3 ? 'warning' : 'neutral'} />
-        <KpiCard label="Engineers" value={new Set(visible.map((l) => l.engineer)).size} tone="neutral" icon="👷" />
-      </KpiGrid>
 
       {!busy && visible.length === 0 ? (
         <EmptyState title="✅ Nothing waiting for an RM" hint={onDb ? 'Every spare has had its first approval.' : 'Connect the database to load the queue.'} />

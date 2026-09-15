@@ -970,6 +970,13 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_trigger
                       where tgrelid = 'public.parties'::regclass
                         and tgname = 'parties_kyc_stamp' and not tgisinternal))))
+,
+    (156, 'My Workload can be SEEN', 'mod:/workload merged into every configured role (0202). The user: "Remove such cards in Main Views. Move those to a Separate KPI Cards Page where ever applicable. It should be interactive." A NEW SCREEN IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS, and this is the part that bites: permsForRole() returns the STORED set whenever it is non-empty, so DEFAULT_PERMS reaches ONLY a role whose app_roles row is EMPTY -- and on a project in use every role has a tuned row. Without the migration the page ships, the menu entry exists, the permission is ticked in code, and the screen is invisible to every role with no error anywhere. That happened four times before 0195; check:ui caught it on this screen''s first build, which is what it is for. THE KEY GRANTS NO REACH: the page holds no authority of its own -- it shows a register''s section only where the reader already holds that register''s key, and a section they cannot open is never even requested, so a queue they may not read is never counted at them. MERGED, never overwritten, and a role with ZERO permissions is left alone so its code fallback stays live. NO means My Workload is invisible to everyone. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or not exists (select 1 from public.app_roles where jsonb_array_length(permissions) > 0)
+         or not exists (select 1 from public.app_roles
+                         where jsonb_array_length(permissions) > 0
+                           and not (permissions ? 'mod:/workload'))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

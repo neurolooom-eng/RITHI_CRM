@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import { listUsers } from '../lib/sheets';
 import {
@@ -272,12 +271,6 @@ export function StockTransfer() {
   }, [transfers, search]);
 
   // Counted from the transfers themselves, so the screen needs nothing but them.
-  const movements = useMemo(() => new Set(transfers.map((r) => g(r, 'uid'))).size, [transfers]);
-  const movedQty = useMemo(() => transfers.reduce((n, r) => n + Number(r.qty ?? 0), 0), [transfers]);
-  const people = useMemo(
-    () => new Set(transfers.flatMap((r) => [g(r, 'from_engineer'), g(r, 'to_engineer')]).filter(Boolean)).size,
-    [transfers],
-  );
 
   return (
     <div>
@@ -299,12 +292,6 @@ export function StockTransfer() {
         </div>
       )}
 
-      <KpiGrid>
-        <KpiCard label="Transfers" value={movements} icon="🔄" tone="primary" />
-        <KpiCard label="Transfer lines" value={transfers.length} icon="📦" tone="info" />
-        <KpiCard label="Units moved" value={movedQty} icon="Σ" tone="success" />
-        <KpiCard label="Engineers involved" value={people} icon="👷" tone="neutral" />
-      </KpiGrid>
 
       <DataTable<Row>
         columns={columns}

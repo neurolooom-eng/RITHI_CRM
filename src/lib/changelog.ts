@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.275',
+    date: '2026-09-15',
+    title: 'My Workload — the queues moved off the registers, and now open',
+    changes: [
+      'A new MY WORKLOAD page, under Overview, right below the Dashboard: everything waiting on you across the registers you can open — Spare Requests, RM Approval, Pending Dispatch, Daily Call Review, Hand Stock, Material Returns and Stock Transfer.',
+      'CLICK A CARD AND YOU GET THE LIST. “Awaiting me” opens the requests you can action; “Review 2 Pending” opens those calls; “Short” opens the hand-stock lines that were taken without a stock out.',
+      'A card with nothing to open does not pretend otherwise. There is no list of an ageing of four days, or of 1,200 units in the field, so those stay plain figures.',
+      'The registers themselves lose the card strip at the top — that was the ask. On Spare Requests it was duplicating the chips right beneath it, which already filtered.',
+      'ALL MASTERS KEEPS ITS CARDS: there the cards ARE the register, one per value list, rather than a header above a list of something else.',
+      'The counts are the registers’ own, not worked out a second time — a number that disagreed with the list it opens would be worse than no number.',
+      'You only see a section for a register you can already open, and a queue you may not read is never counted at you.',
+      'Needs the Roles & Permissions SQL (rbac.sql) to be run, or the page is invisible to everyone.',
+    ],
+  },
+  {
     version: '0.9.274',
     date: '2026-09-15',
     title: 'Six lists were stopping at a thousand rows without saying so',

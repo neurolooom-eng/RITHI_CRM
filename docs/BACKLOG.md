@@ -20,6 +20,68 @@ up)_
 
 
 
+## 2026-09-15 — My Workload: the queues left the registers, and now open
+
+Asked: *"Remove such cards in Main Views. Move those to a Separate KPI Cards
+Page where ever applicable. It should be interactive - Say if i click on
+Pending, it should give me the List."* Which cards: **every card off every
+register.** What to call it: **My Workload, under Overview.**
+
+### Two facts that shaped it, both from reading before building
+
+**Nothing was clickable.** `KpiCard` had no `onClick` at all — 67 cards across
+12 screens. So the interactivity was a new capability, not a wiring-up, and it
+belongs in the card: every screen that grows one gets it.
+
+**On Spare Requests the cards duplicated the chips beneath them.** The same six
+counts, and the chips already filtered. That row cost vertical space for nothing.
+
+### The cards are two different things
+
+A **queue** has a list behind it and opens the register with that filter. A
+**figure** counts units, engineers or days — there is no list of an ageing of
+four days — so it opens nothing **and does not look as though it would**. Told
+apart by whether `onOpen` is given; an openable card is a real button.
+
+### All Masters keeps its cards
+
+Not an oversight. There the cards **are** the register — one per value list,
+which is what the screen is for — rather than a header above a list of something
+else. Removing them would leave the page with nothing on it. Guarded, so nobody
+"finishes the job" later.
+
+### What the page will not do
+
+- **Count a queue the reader cannot open.** The permission is checked *before*
+  the load, so the request is never made. "Spares waiting 240" would otherwise
+  tell somebody the size of a queue the register itself would refuse them.
+- **Re-derive a count.** Every section uses the register's own helper
+  (`summarise`, `deriveStage`, `countCallReviews`). A count that disagreed with
+  the list it opens is worse than no count: somebody opens it, finds a different
+  number, and stops trusting both.
+- **Hide that it is still reading.** Sections load independently — one slow
+  register must not hold up six fast ones — and a section that has not read
+  everything shows its counts as a lower bound. The Daily Call Review is the
+  exception and takes no `+`: `countCallReviews` counts in the DATABASE, so
+  "3,850+" would be wrong in the other direction.
+
+### The third thing, which is the one that bites
+
+`check:ui` failed on the first build with *"every module key is written into
+app_roles by some migration"* — exactly what it exists for. `permsForRole()`
+returns the stored set whenever it is non-empty, so a code default reaches only
+a role whose row is empty; without **0202** the page would have been invisible
+to every role with no error anywhere. Proved against a database: merged into a
+tuned role, skipped one that already had it, left an unconfigured role alone.
+`_status.sql` row 156, proved both ways.
+
+### Also
+
+Five computations were left with no reader once the cards went, and were
+removed rather than left running.
+
+---
+
 ## 2026-09-15 — One Serviceman, changed everywhere it appears
 
 Asked: *"In Party Master - Give me an Option to Change the Engineer Name in one

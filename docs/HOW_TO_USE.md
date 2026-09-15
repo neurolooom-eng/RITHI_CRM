@@ -326,6 +326,13 @@ typed into a form that reads it.
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
 
+- **My Workload** `/workload` — everything waiting on you, across the registers
+  you can open. **Click a card and you get the list behind it.**
+  > A card with nothing to open stays a plain figure — there is no list of an
+  > *ageing of four days*. You see a section only for a register you can already
+  > open, so nothing here grants you anything you did not have.
+  > The counts are the registers' own, so a card and the list it opens agree.
+
 ## Across every register
 
 - **The filter chips above a list fold away.** Click the heading — *Engineer*,

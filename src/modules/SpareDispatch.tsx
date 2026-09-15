@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, timeAgo, todayISO } from '../lib/format';
 import {
   listPendingDispatch, dispatchSpareLines, dropSpareLines, supabaseConfigured,
@@ -117,7 +116,6 @@ export function SpareDispatch() {
     seededOpen.current = true;
     if (queues.length <= 3) setOpen(new Set(queues.map((q) => q.engineer_key)));
   }, [queues]);
-  const totals = useMemo(() => summarise(lines), [lines]);
   const selected = useMemo(() => selectedFrom(lines, picked), [lines, picked]);
   const problem = selectionProblem(selected);
 
@@ -222,13 +220,6 @@ export function SpareDispatch() {
         </div>
       )}
 
-      <KpiGrid>
-        <KpiCard label="Spares waiting" value={totals.spares} icon="📦" tone="primary" sub="cleared every approval" />
-        <KpiCard label="Units" value={totals.qty} icon="🔩" tone="info" sub="to be booked out" />
-        <KpiCard label="Engineers" value={totals.engineers} icon="👤" tone="info" sub="waiting for a delivery" />
-        <KpiCard label="Orders" value={totals.orders} icon="📄" tone="neutral" sub="ORs represented" />
-        <KpiCard label="Ageing" value={totals.ageing} icon="⏳" tone={totals.ageing ? 'danger' : 'neutral'} sub="waiting a week or more" />
-      </KpiGrid>
 
       <div className="stage-chips hs-tabs">
         <button className={`chip ${tab === 'queue' ? 'chip-on' : ''}`} onClick={() => setTab('queue')}>🚚 Queue <b>{lines.length}</b></button>
