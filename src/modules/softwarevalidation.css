@@ -105,3 +105,21 @@
 /* The proof line is the answer to "and what shows it works?", so it is set
    apart from the requirement rather than running on from it. */
 .sv-req-proof { margin-top: 6px; font-size: 12.5px; color: var(--text-muted); }
+
+/* ---------------------------------------------------------------------------
+   THE TRACEABILITY MATRIX.
+
+   A blank URS cell means "the same requirement as the row above", so the blocks
+   need an edge or the blanks read as missing data rather than as continuation.
+   A rule above each block does that without adding a colour to learn — and it
+   is the row STARTING a requirement that carries it, so the first row of the
+   table needs no special case.
+
+   The two long columns are given room and the identifier columns are kept
+   narrow and non-wrapping, because an ID broken across two lines stops being
+   something you can search a document for.
+   --------------------------------------------------------------------------- */
+.sv-trace td { vertical-align: top; }
+.sv-trace tr.sv-trace-start > td { border-top: 2px solid var(--text); }
+.sv-trace tr.sv-trace-start:first-child > td { border-top: 0; }
+.sv-trace .sv-id { white-space: nowrap; }

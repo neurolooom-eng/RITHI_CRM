@@ -622,3 +622,39 @@
    colour marks the DIRECTION and the screen says nothing about the merit. */
 .ffr-mini td.ffr-up { color: var(--danger); font-weight: 650; }
 .ffr-mini td.ffr-down { color: var(--success); font-weight: 650; }
+
+/* ---------------------------------------------------------------------------
+   THE DATA TABLE SITS BESIDE THE CHART, NEVER UNDER IT (the user's standing
+   rule, 2026-09-15: "Always position the Data table on the Side Right or Left
+   Depending on the Asthetics of the look").
+
+   Underneath, the table took the chart's full width — fifteen category names
+   in a column three times wider than the longest of them, and the counts
+   pushed to the far edge of the screen, a screenshot's width from the bar they
+   describe. The two are read together, so they are placed together.
+
+   The chart takes the larger track and the table a minimum of 280px; below
+   880px they stack, because a 280px table beside a chart is neither. The
+   chart's own min-width is 0 so an SVG cannot push the grid wider than its
+   container — the default `min-width: auto` on a grid item is what turns a
+   side-by-side chart into a horizontal page scroll.
+   --------------------------------------------------------------------------- */
+.chart-with-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 10px;
+}
+.chart-with-table > * { min-width: 0; }
+/* The table first in the layout, without moving it in the DOM — so the reading
+   order a screen reader follows stays chart-then-numbers either way. */
+.chart-with-table.table-first { grid-template-columns: minmax(280px, 1fr) minmax(0, 1.7fr); }
+.chart-with-table.table-first > .chart-table { order: -1; }
+.chart-with-table > .chart-table { max-height: 420px; overflow: auto; }
+@media (max-width: 880px) {
+  .chart-with-table,
+  .chart-with-table.table-first { grid-template-columns: 1fr; }
+  .chart-with-table.table-first > .chart-table { order: 0; }
+  .chart-with-table > .chart-table { max-height: none; }
+}

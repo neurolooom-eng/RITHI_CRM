@@ -4,8 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-15 (rows 150-153 all applied: the Part Master rename,
-Change product?, frequent-failure rule 2 and the User Master role sync)_
+_Last updated: 2026-09-15 (0207 and 0208 are BUILT AND NOT YET RUN on the live
+project — `_status.sql` rows 159 and 160 name them; rows 150-153 all applied)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -13,9 +13,84 @@ up)_
 
 ---
 
+## 2026-09-15 — Two spellings of one cover, and a page that opened onto nothing
 
+Two reports from use in one sitting, and they are the same shape: something that
+LOOKS answered.
 
+**"What is this Warranty?"** Failures per cover read CMC 880, OGP 374, WGP 56,
+AMC 3 and **WARRANTY 1**. Not a fifth kind of cover — WGP, spelled differently by
+whatever loaded it. On this dimension every number is a `group by`, so a second
+spelling does not read as a small error: it **splits the total silently and the
+reader believes both halves**. One row was the visible edge of it; the same load
+could have carried a thousand.
 
+`public.cover_code()` (0208) is now the one rule, with a trigger on all six
+tables that store a cover, and the stored values corrected. Two decisions in it
+are the whole design:
+
+- **"OUT OF WARRANTY" must not become WGP.** It contains the word, so a
+  substring rule turns one cover into its *opposite* — a worse answer than the
+  split it was fixing. The match is on the whole squashed string.
+- **An unrecognised value is left exactly as it is.** Forcing it into OGP writes
+  a guess into a quality record, and a value that stays odd is what got this
+  reported in the first place.
+
+`coverCode()` in `fieldcall.ts` is the same rule on the client, so an import
+preview shows what will actually be stored; `check:ui` compares the two lists
+word for word.
+
+**"Spare Insights is blank for VPTechnical"**, and then Product Failure Analysis
+too. Both pages were in the menu, both opened, both showed zeros — because **the
+module key opens a screen and the read policies decide the rows**, and those two
+roles passed neither. It is the case the standing rule about Roles & Permissions
+does not cover: the screen was granted *correctly*.
+
+0207 merges `data.view_all` and the read gates into `vptechnical` and `rndengg`
+alone (the user: *"Never Touch those Roles & Permissions. Modify only the
+VPTechnical and RnDEngg Role"*). Read only — not one key granted there writes
+anything — and `analysis_roles_test.sql` asserts what it did NOT do at least as
+hard as what it did.
+
+### Still to run on the live project
+
+`_status.sql` first; rows **159** and **160** name these two. Then `rbac.sql`
+(0207) and `data_integrity.sql` (0208).
+
+---
+
+## 2026-09-15 — The requirements did not name the Field Call Register
+
+The user asked why registering a field call was not *"called out loud"* in the
+requirements. It was — **URS-003**, implemented by FRS-005 and FRS-006 and
+proved — but the document filed it under **"not tied to one screen"**.
+
+The grouping is DERIVED from each requirement's own words, and URS-003 says
+*"register a customer call"* without ever saying *"field"*. Measured rather than
+guessed: **34 of 56 screens had no requirement section at all**, including Spare
+Requests, Pending Registrations, the Field Failure Register and Visit Reports.
+
+**My error, and a specific kind of it.** I had guarded the *inverse* direction
+loudly — never claim a screen is uncovered, because inverting a strict match
+reports every near-miss as a gap (it did once: 31 of 54) — and never checked the
+forward one. A guard on one direction reads as a guard on the question.
+
+### What now holds it
+
+`Req.modules` — **derived by default, declared by exception**, unioned rather
+than one replacing the other, and each entry says which of the two filed it. 33
+requirements carry a declaration with a written reason. That leaves **2 screens
+of 56** with nothing filed under them, each with its reason in
+`MODULES_WITHOUT_REQUIREMENT`; `check:ui` fails on a third appearing without one,
+and on a declaration pointing at a route that does not exist.
+
+And a **traceability matrix** (the user's ask, same day): URS ID, URS Details,
+FRS ID, FRS Details, Test Case ID, Test Case Details — **one row per link**, in
+`docs/REQUIREMENTS.md` and in the Validation Package. 98 links, 67 requirements
+traced end to end. A requirement with no mechanism, or a mechanism with no test,
+still gets a row with the gap named in the empty column.
+
+---
 
 
 

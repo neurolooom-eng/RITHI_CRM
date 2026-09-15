@@ -17,6 +17,7 @@
 // stub header (0036_sales_contracts.sql), which the header file then fills in.
 // ===========================================================================
 
+import { coverCode } from './fieldcall';
 import { toIsoDate, toIsoTimestamp } from './dates';
 
 export type CoverTable = 'sale_entries' | 'sale_items' | 'contract_entries' | 'contract_items';
@@ -188,7 +189,9 @@ export function shapeCoverRows(table: CoverTable, raw: Record<string, string>[])
       contract_years: toNum(r['Contract Period (Years)']), contract_months: toInt(r['Contract Period (Months)']),
       pm_visits_total: toInt(r['P M Visits (TOTAL)']), status: v('Status') || null,
       rate: toNum(r['Rate']), item_tax_amount: toNum(r['Item Tax Amount']), total_after_tax: toNum(r['Total After Tax']),
-      present_item_status: v('Present Item Status'),
+      // COVER, so it reads through the one rule (`coverCode` / SQL
+      // `cover_code`) rather than being stored as the export spelled it.
+      present_item_status: coverCode(v('Present Item Status')),
       last_contract_number: v('Last Contract Number'), last_contract_end: toDate(r['Last Contract End Date']),
       sa_number: v('SA Number'), sa_end_date: toDate(r['SA End Date']), added_by: v('Added By'),
       extra: leftovers(r, CONTRACT_ITEM_COLS),

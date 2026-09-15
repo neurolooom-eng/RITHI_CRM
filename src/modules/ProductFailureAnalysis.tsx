@@ -144,7 +144,7 @@ interface Cut { label: string; value: number }
 // ---------------------------------------------------------------------------
 function ParetoBlock({
   title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
-  onRemove, yearNote,
+  onRemove, yearNote, tableSide = 'right',
 }: {
   title: string;
   note?: string;
@@ -179,6 +179,11 @@ function ParetoBlock({
    *  is read by somebody who never saw the filter, so the window it was taken
    *  through has to travel with it or the numbers are simply wrong to them. */
   yearNote: string;
+  /** WHICH SIDE THE DATA TABLE SITS ON — never underneath (the user's standing
+   *  rule, 2026-09-15). Right by default: the chart is what the eye goes to
+   *  first and we read left to right. A chart whose shape reads better the
+   *  other way says so here rather than by being written differently. */
+  tableSide?: 'right' | 'left';
 }) {
   const [labels, setLabels] = useState(false);
   const rank = form === 'pareto';
@@ -315,13 +320,28 @@ function ParetoBlock({
           </button>
         )}
       </div>
+      {/* THE NUMBERS BESIDE THE PICTURE, NOT UNDER IT (the user, 2026-09-15:
+          "Move the Data table to the right side of the Pareto -- Always
+          position the Data table on the Side Right or Left Depending on the
+          Asthetics of the look").
+
+          Underneath, the table inherited the chart's full width, so fifteen
+          category names sat in a column three times wider than the longest of
+          them and the numbers ended up at the far right of the screen, a
+          screenshot's width away from the bar they belong to. Side by side
+          they are read together.
+
+          RIGHT IS THE DEFAULT because the chart is what the eye goes to first
+          and we read left to right; `tableSide` is there for a chart whose
+          shape says otherwise. Below `--side-by-side` the two stack, because a
+          280px table beside a chart is neither. */}
+      <div className={`chart-with-table${tableSide === 'left' ? ' table-first' : ''}`}>
       {form === 'pareto'
         ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
         : form === 'share'
           ? <DonutChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />
           : <ColumnChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />}
-      {/* THE NUMBERS BESIDE THE PICTURE. A chart is read; a table is checked. */}
-      <div className="assoc-scroll" style={{ marginTop: 10 }}>
+      <div className="assoc-scroll chart-table">
         <table className="assoc-table">
           <thead>
             <tr>
@@ -349,6 +369,7 @@ function ParetoBlock({
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </SectionCard>
   );

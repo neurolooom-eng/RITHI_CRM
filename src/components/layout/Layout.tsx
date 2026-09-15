@@ -50,10 +50,11 @@ export const NAV: NavGroup[] = [
       // the Dashboard answers "how is the company doing?" — the first question
       // somebody asks when they sign in, so it is the first thing under it.
       { to: '/workload', label: 'My Workload', icon: '⚡' },
-      // Beside the other two "what is going on" screens, and above the
-      // look-something-up pair.
-      { to: '/product-failure', label: 'Product Failure Analysis', icon: '📈' },
-      { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
+      // PRODUCT FAILURE ANALYSIS AND SPARE INSIGHTS MOVED TO QUALITY &
+      // ANALYTICS (the user, 2026-09-15). Both sat here because they are
+      // dashboards; but what they analyse — why products fail, what is being
+      // consumed to fix them — is the question that group exists to ask.
+      // Overview keeps the two "look something up" screens.
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:
       // "Add this to overview"). Product & Party Search answers "which
@@ -80,7 +81,12 @@ export const NAV: NavGroup[] = [
       // order on the menu is the order the work happens in.
       { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
       { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
+      // FROM OVERVIEW (the user, 2026-09-15). The three failure screens read
+      // in order: the register of what failed, the analysis of why, and the
+      // KPIs the two roll up into.
+      { to: '/product-failure', label: 'Product Failure Analysis', icon: '📈' },
       { to: '/kpi', label: 'KPI & Failure Analysis', icon: '📈' },
+      { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/objective', label: 'Objective', icon: '🎯' },
     ],
   },

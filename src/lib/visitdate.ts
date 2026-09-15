@@ -1,3 +1,4 @@
+import { formatDay } from './dates';
 // ---------------------------------------------------------------------------
 // WHEN A VISIT CAN HAVE HAPPENED.
 //
@@ -37,10 +38,7 @@ export function visitDateProblem(visit: string, complaint: string, today: string
   return '';
 }
 
-// dd-mmm-yyyy, so a message reads the way the rest of the app writes a date.
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function fmt(iso: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  if (!m) return iso;
-  return `${m[3]}-${MONTHS[Number(m[2]) - 1] ?? m[2]}-${m[1]}`;
-}
+// ONE FORMATTER, in `dates.ts` beside the one parser. This was a private copy
+// of it — which is exactly how four date PARSERS came to exist here and start
+// disagreeing with each other.
+const fmt = formatDay;
