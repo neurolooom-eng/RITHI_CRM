@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.268',
+    date: '2026-09-15',
+    title: 'The Party Master says who looks after the customer — and the call knows it',
+    changes: [
+      'The Party Master now keeps its SERVICEMAN. Uploading your party list fills it, and every other column of that file is kept exactly as it is — Office Name, Salesman, Route, Under, the tax fields and both addresses.',
+      'On a new Field, Installation or PM call, “Call Allocated To” fills itself from the party where the MACHINE has no Service Engineer of its own. The machine still wins where it has one, so nothing that already filled in correctly changes.',
+      'That matters most for an INSTALLATION: the machine does not exist here yet, so it can never name an engineer — the customer can.',
+      'Registering a call FROM A REQUEST keeps the engineer the request names. It did not: using the picker to correct the party or serial quietly replaced that engineer with the machine’s, on a picker whose own hint says it is only for fixing party/product/serial.',
+      'It is a suggestion, never an assignment. The box stays editable and nothing in the database allots a call by itself.',
+      'Uploads no longer drop a column whose heading appears twice. The party export carries Tel 1, Tel 2, Fax and Email ID twice over — once for the installation address and once for billing — and four of its twenty-five columns were reaching nothing at all.',
+      'Needs the Masters SQL (masters.sql) to be run.',
+    ],
+  },
+  {
     version: '0.9.267',
     date: '2026-09-15',
     title: 'The role you set in User Master is the role they actually get',

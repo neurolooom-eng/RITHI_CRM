@@ -5910,5 +5910,56 @@ console.log('\n-- frequent failure: two rules, and they answer different questio
     && /greatest\(coalesce\(\(select nullif\(btrim\(value\), ''\)::integer\s*\n\s*from public\.app_settings where key = 'ffr\.rule2_serials'\), 2\), 2\)/.test(mig), true);
 }
 
+console.log('\n-- who a new call is allotted to (0200) --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "During any new field call or Installation calls or
+  // PM Call, it has to map the engineer as per the party master. In case of
+  // creating a call from a request, then it has to map it to the requestor."
+  //
+  // TWO RULES THAT PULL AGAINST EACH OTHER, which is why both are checked here:
+  // the party master widens where an engineer is FOUND, and the request path
+  // must be the one place it does not reach.
+  // -------------------------------------------------------------------------
+  const fc = code(readFileSync('src/lib/fieldcall.ts', 'utf8'));
+  const pend = code(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8'));
+  const mod = code(readFileSync('src/modules/FieldCalls.tsx', 'utf8'));
+
+  // THE MACHINE WINS. The user chose this precedence before it was built, and
+  // reversing it would silently re-allot every call on a machine whose own
+  // Service Engineer is set — which is most of them.
+  eq('the machine\'s Service Engineer still wins, the party is the fallback',
+    /allocatedTo:\s*g\('Service Engineer'\)\.trim\(\)\s*\|\|\s*\(partyEngineer \?\? ''\)\.trim\(\)/.test(fc), true);
+
+  // THE INSTALLATION CASE. A customer with no machine here cannot be answered
+  // for by a machine, so the party has to be able to answer on its own.
+  eq('a party with no machine can still name the engineer',
+    /export function partyToCallPrefill/.test(fc), true);
+  eq('...and it writes only the customer and the engineer, never a blank over the form',
+    /return \{\s*partyName: party\.partyName,\s*allocatedTo: \(party\.serviceEngineer \?\? ''\)\.trim\(\),\s*\}/.test(fc), true);
+
+  // THE CASCADE HAS TO ASK. A fallback nothing looks up is not a fallback.
+  eq('the cascade looks the party engineer up and hands it on',
+    /partyServiceEngineer\(val\)/.test(mod) && /onPick\(row, partyEngineer\)/.test(mod), true);
+  eq('...and the party alone prefills the call, for an installation',
+    /onPartyPick=\{\(party, serviceEngineer\)/.test(mod) && /partyToCallPrefill\(/.test(mod), true);
+
+  // THE REQUEST WINS, and this is the line that used to lose it: spreading the
+  // product prefill whole overwrote the engineer the request names, on a picker
+  // whose own hint says it is only for correcting party/product/serial.
+  eq('registering FROM A REQUEST keeps the request\'s engineer',
+    /if \(String\(cur\.allocatedTo \?\? ''\)\.trim\(\)\) delete fromProduct\.allocatedTo;/.test(pend), true);
+
+  // AND THE SERVICEMAN HAS TO ARRIVE. A column nothing fills answers nothing.
+  const up = code(readFileSync('src/lib/uploads.ts', 'utf8'));
+  eq('the Party Master upload maps Serviceman to a column of its own',
+    /TEXT\('service_engineer', 'serviceman', 'service engineer', 'service man'\)/.test(up), true);
+  // A REPEATED HEADING IS KEPT. Four of that file's 25 columns repeat, and they
+  // used to reach no importer at all — not even `extra`.
+  const csv = code(readFileSync('src/lib/csv.ts', 'utf8'));
+  eq('a repeated heading is kept under a suffixed name, not dropped',
+    /const key = n === 1 \? h : `\$\{h\} \(\$\{n\}\)`;/.test(csv), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

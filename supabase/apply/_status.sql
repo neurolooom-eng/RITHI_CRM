@@ -952,6 +952,13 @@ with checks(sort_order, bundle, provides, present) as (
                      where tgrelid = 'public.user_directory'::regclass
                        and tgname = 'user_directory_profile_sync'
                        and not tgisinternal)))
+,
+    (154, 'Party Master: who looks after the customer', 'parties.service_engineer + party_service_engineer() (0200). The user: "In Party Master, my old source has service engineer details. So during any new field call or Installation calls or PM Call, it has to map the engineer as per the party master. In case of creating a call from a request, then it has to map it to the requestor. All the fields to be retained as is." The supplied export has a Serviceman on 4,677 of its 4,752 parties, 49 distinct names. IT IS A REAL COLUMN AND NOT A KEY IN `extra`: the importer is extraInto so the value arrives either way, but the call form has to LOOK IT UP on every registration and a jsonb blob is worst at exactly that -- the fault 0148 fixed for the Part Master and 0194 for the Product Database. PRECEDENCE, settled with the user before any of it was built: the MACHINE''''s own Service Engineer still wins and the party answers only where the machine has none, so this widens where an engineer can be FOUND and changes no call that already found one. It matters most for an INSTALLATION, which reaches a customer who has no machine here at all, so the machine can never answer for it. IT IS A PREFILL AND NOTHING MORE -- allocated_to keeps no default and gains no trigger, because an assignment the database made would be a rule nobody could see on the form and nobody could correct at the keyboard once the party master went stale. The row tests the FUNCTION as well as the column: the column alone prefills nothing. NO means the Party Master cannot name an engineer and the box is empty wherever the machine has none. Restore: masters.sql',
+        (to_regclass('public.parties') is null
+         or (exists (select 1 from information_schema.columns
+                      where table_schema='public' and table_name='parties'
+                        and column_name='service_engineer')
+         and to_regprocedure('public.party_service_engineer(text)') is not null)))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

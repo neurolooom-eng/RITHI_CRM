@@ -784,6 +784,28 @@ export async function sbListParties(): Promise<string[]> {
   return distinctColumn('parties', 'party_name');
 }
 
+/** The Party Master's Serviceman for one party, or '' (0200).
+ *
+ *  WHO LOOKS AFTER THIS CUSTOMER. It prefills "Call Allocated To" on a new
+ *  call where the MACHINE has no Service Engineer of its own — the precedence
+ *  the user chose: the machine still wins, the party answers where it cannot.
+ *  That is the whole reason it exists, because an INSTALLATION reaches a
+ *  customer who has no machine yet and the machine can never answer for it.
+ *
+ *  A FAILURE IS THE EMPTY STRING, never a throw. It is a courtesy on a form
+ *  the user is about to fill in by hand: a party master not yet loaded, or a
+ *  party nobody has recorded, must leave the box empty and cost nothing — not
+ *  stop somebody registering a call. */
+export async function sbPartyServiceEngineer(party: string): Promise<string> {
+  const name = (party ?? '').trim();
+  if (!name) return '';
+  const c = getSupabase(); if (!c) return '';
+  const { data, error } = await c.from('parties')
+    .select('service_engineer').eq('name_key', name.toLowerCase()).maybeSingle();
+  if (error || !data) return '';
+  return String((data as { service_engineer?: string }).service_engineer ?? '').trim();
+}
+
 // ---------------------------------------------------------------------------
 // THE CUSTOMER LIST IS SEARCHED, NEVER DOWNLOADED.
 //

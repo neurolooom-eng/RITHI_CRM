@@ -22,6 +22,7 @@ import {
   listParties,
   listPartyItems,
   listPartyProducts,
+  partyServiceEngineer,
   setPendingUcn,
   dataSource,
   dataConfigured,
@@ -41,6 +42,7 @@ import {
   PERSON_CALLING,
   YES_NO,
   makeLocalUcn,
+  partyToCallPrefill,
   productToCallPrefill,
   toSheetDate,
 } from '../lib/fieldcall';
@@ -242,7 +244,17 @@ const COLUMNS: Column<Rec>[] = [
 let cachedParties: string[] | null = null;
 
 // Cascade picker: Party → Product → Serial, prefilling the form from the item.
-export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>) => void }) {
+export function ProductLookup({ onPick, onPartyPick }: {
+  /** A machine was chosen. `partyEngineer` is the Party Master's Serviceman for
+   *  the party in the cascade — the FALLBACK, used only where the machine has
+   *  no Service Engineer of its own (0200). */
+  onPick: (p: Record<string, unknown>, partyEngineer: string) => void;
+  /** A party was chosen and no machine yet. THE INSTALLATION CASE: the customer
+   *  may have no machine here at all, so the Party Master is the only thing
+   *  that can name an engineer. Optional — a caller that does not want the
+   *  party to prefill anything simply leaves it off. */
+  onPartyPick?: (party: string, serviceEngineer: string) => void;
+}) {
   const [parties, setParties] = useState<string[]>(cachedParties ?? []);
   const [party, setParty] = useState('');
   const [products, setProducts] = useState<string[]>([]);
@@ -261,15 +273,25 @@ export function ProductLookup({ onPick }: { onPick: (p: Record<string, unknown>)
       .finally(() => setBusy(''));
   }, []);
 
+  // The Party Master's Serviceman for the party in the box. Held so that
+  // picking a serial can fall back to it where the MACHINE has none.
+  const [partyEngineer, setPartyEngineer] = useState('');
+
   const pick = (row: Record<string, unknown>) => {
     setSerial(String(row['Item Serial Number'] ?? ''));
-    onPick(row);
+    onPick(row, partyEngineer);
   };
 
   const onParty = async (val: string) => {
-    setParty(val); setProduct(''); setProducts([]); setItems([]); setSerial('');
+    setParty(val); setProduct(''); setProducts([]); setItems([]); setSerial(''); setPartyEngineer('');
     if (!val || !parties.includes(val)) return;
     setBusy('products'); setErr('');
+    // Who looks after this customer, asked once when the party is settled
+    // rather than again for every serial. It never fails the cascade: a party
+    // master not yet loaded leaves the box empty, exactly as before it existed.
+    const svc = await partyServiceEngineer(val).catch(() => '');
+    setPartyEngineer(svc);
+    onPartyPick?.(val, svc);
     try {
       const p = await listPartyProducts(val);
       setProducts(p);
@@ -1291,7 +1313,13 @@ function CallSheetModule({ config }: { config: CallSheetConfig }) {
             )}
             {drawer.mode === 'create' && configured && (
               <ProductLookup
-                onPick={(p) => { setPrefill(productToCallPrefill(p)); setPrefillKey((k) => k + 1); }}
+                onPick={(p, partyEngineer) => {
+                  setPrefill(productToCallPrefill(p, partyEngineer)); setPrefillKey((k) => k + 1);
+                }}
+                onPartyPick={(party, serviceEngineer) => {
+                  setPrefill(partyToCallPrefill({ partyName: party, serviceEngineer }));
+                  setPrefillKey((k) => k + 1);
+                }}
               />
             )}
             <SchemaForm

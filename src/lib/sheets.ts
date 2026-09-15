@@ -199,6 +199,16 @@ export async function listParties(): Promise<string[]> {
   return (r.values as string[]) ?? [];
 }
 
+/** Who the Party Master says looks after this customer, or '' (0200).
+ *
+ *  Supabase only. The Apps Script bridge has no Party Master to ask, so the
+ *  sheet-era path returns '' and the box is left for whoever registers the
+ *  call — which is what it did before this existed. */
+export async function partyServiceEngineer(party: string): Promise<string> {
+  if (!sb.supabaseConfigured()) return '';
+  return sb.sbPartyServiceEngineer(party);
+}
+
 export async function listPartyProducts(party: string): Promise<string[]> {
   if (sb.supabaseConfigured()) return sb.sbListPartyProducts(party);
   const r = await getJson({ action: 'products', party });

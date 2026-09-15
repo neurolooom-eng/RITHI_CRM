@@ -277,6 +277,14 @@ typed into a form that reads it.
   > rename moves all of those records with it. The screen tells you how many
   > will move before you commit to it, and stock balances come out unchanged.
   > A rename will not merge two parts: if the new name is taken, it is refused.
+- **Party Master** `/parties` — your customers, and **who looks after each one**.
+  > The **Serviceman** on a party is what fills *Call Allocated To* on a new
+  > call when the machine itself has no Service Engineer — which is every
+  > **installation**, because the machine does not exist here yet. The machine
+  > wins where it has one; this only answers where it cannot.
+  > It is a suggestion, not an assignment: whoever registers the call can change
+  > it, and a call registered **from a request** keeps the request's engineer
+  > regardless.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
   > **The role on this screen IS their access.** Change it here and it applies

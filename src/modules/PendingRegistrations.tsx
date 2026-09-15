@@ -751,7 +751,27 @@ function RegisterPanel({
           <div className="reg-split-body">
             {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span><button className="btn btn-ghost btn-sm" onClick={() => setErr('')}>✕</button></div>}
             <div className="detail-hint">Party / Product / Serial are from the request. Use the picker only to correct them from Product Database.</div>
-            <ProductLookup onPick={(p) => { setPf((cur) => ({ ...cur, ...productToCallPrefill(p) })); setPfKey((k) => k + 1); }} />
+            {/* THE REQUEST'S ENGINEER WINS HERE, and this is the one place it can
+                be lost. The user's rule, 2026-09-15: "In case of creating a call
+                from a request, then it has to map it to the requestor."
+                `productToCallPrefill` carries an `allocatedTo` — the machine's
+                Service Engineer, or the party's (0200) — and spreading it whole
+                overwrote the engineer the request names, silently, on a picker
+                whose own hint says it is only for correcting party/product/
+                serial. So the engineer is held back while the request has one;
+                where the request names nobody, the machine may still answer.
+                (The auto-fill path never had this fault: PRODMASTER_FILL above
+                lists the eight cover fields and `allocatedTo` is not one.) */}
+            <ProductLookup
+              onPick={(p, partyEngineer) => {
+                setPf((cur) => {
+                  const fromProduct = productToCallPrefill(p, partyEngineer);
+                  if (String(cur.allocatedTo ?? '').trim()) delete fromProduct.allocatedTo;
+                  return { ...cur, ...fromProduct };
+                });
+                setPfKey((k) => k + 1);
+              }}
+            />
             <SchemaForm
               key={pfKey}
               sectionOrderKey="callform"

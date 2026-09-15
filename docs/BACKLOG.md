@@ -20,6 +20,74 @@ up)_
 
 
 
+## 2026-09-15 — The Party Master names the engineer, and the request keeps its own
+
+Asked, with the export attached: *"It has to be mapped to Party Master. In Party
+Master, my old source has service engineer details. So during any new field call
+or Installation calls or PM Call, it has to map the engineer as per the party
+master. In case of creating a call from a request, then it has to map it to the
+requestor. All the fields to be retained as is."*
+
+### What the file actually holds
+
+`Product Master - PartyMaster.csv` — **4,752 parties, 25 columns**. `Serviceman`
+is filled on **4,677** of them, **49 distinct names**. Four headings appear
+**twice** (`Tel 1`, `Tel 2`, `Fax`, `Email ID` — once for the installation
+address, once for billing).
+
+### Precedence was a question, not a detail — so it was asked
+
+The machine already carries its own Service Engineer and that is what prefills
+the box today. Put to the user before anything was built, and the answer was
+**the machine wins, the party is the fallback**. So this widens where an
+engineer can be FOUND and changes no call that already found one. It matters
+most for an **installation**: the machine does not exist here yet, so it can
+never name an engineer and the customer is the only thing that can.
+
+For a call registered **from a request**, the answer was **the engineer the
+request names** — which is what the request path already did on its auto-fill,
+and did NOT do through its picker (below).
+
+### What was wrong underneath
+
+**The request's engineer was being lost.** `PendingRegistrations` spread the
+whole product prefill over the form, `allocatedTo` included, on a picker whose
+own hint says it is only for correcting party/product/serial. The auto-fill path
+never had the fault — `PRODMASTER_FILL` lists the eight cover fields and the
+engineer is not one — so it only bit the person who corrected a serial by hand.
+
+**Four columns were reaching nothing at all.** `parseCSV` kept the FIRST of a
+repeated heading and DROPPED the rest — right about which one wins, wrong about
+the other, on a file whose whole point is that every field is retained. A repeat
+is now kept as `Email ID (2)`. It cannot steal a mapped column: `findHeader`
+tries `strict` across every heading before `loose`, and only `loose` discards a
+bracketed suffix — so the FFR's twice-over `FFR Date` still binds to the real
+date, which is why that rule existed.
+
+### Three faults the suite found, that reading would not have
+
+- `update … from lateral (…)` **cannot see the update's own target table**. The
+  tidier backfill raised *"invalid reference to FROM-clause entry for table p"*
+  and stopped the migration **before the function below it was created**.
+- `party_service_engineer()` returned **NULL, not `''`**, for a party nobody has
+  recorded — the coalesce was INSIDE a subquery that returns no rows. It passed
+  every test written against a party that exists; it failed the case it exists
+  to answer.
+- `field_calls` has no `serial_number` column — it is `serial`.
+
+### Still open
+
+**The names have to match the User Master, and 32 of the 49 do not** match any
+name that has signed in — `SIVA KUMAR R.` against `SIVAKUMAR`, `SINGH VISHAL`
+against `VISHAL`, `AAYUSH N SHAH` against nobody. That comparison is against the
+**58 people who have signed in**, not the whole directory, so the real figure
+needs a query against the live User Master before anyone concludes anything. An
+unmatched name still prefills — it is a text box, not a foreign key — but it
+will not notify anybody, because `notify_call_allotted()` resolves the person
+through `user_directory`.
+
+---
+
 ## 2026-09-15 — The one NO on `_status.sql`, and looking before deleting
 
 The status report came back with **161 rows yes and one NO**: row 55, *"handstock:
