@@ -72,11 +72,18 @@ select extra ? 'Merged Doc ID' as autocrat_column_kept,
 
 \echo ''
 \echo '--- 4. re-loading a corrected year UPDATES rather than duplicating ---'
+-- THE KEY IS THE REPORT **AND THE MACHINE** (0181), because one report can
+-- cover several machines and keying on the number alone silently replaced one
+-- machine's record with another's — that is how twelve machines were lost on a
+-- load that reported success. This section was written against the old
+-- single-column key and was never moved with it, so from 0181 onward it raised
+-- “no unique or exclusion constraint matching the ON CONFLICT specification”
+-- and stopped testing the re-load at all. Found by the isolated run, 2026-09-15.
 insert into public.field_failure_reports
-  (ffr_no, ffr_date, ucn, customer_name, product_name, problem_reported, imported_from)
+  (ffr_no, ffr_date, ucn, customer_name, product_name, product_serial, problem_reported, imported_from)
 values ('FFR - 012/16', date '2016-07-14', 'CRN-2016-88', 'OLD HOSPITAL, MUMBAI',
-        'MONNAL T50', 'Blower noise on start-up', 'Field Failure Register (sheet)')
-on conflict (ffr_no) do update set
+        'MONNAL T50', '4471', 'Blower noise on start-up', 'Field Failure Register (sheet)')
+on conflict (ffr_no, product_serial) do update set
   customer_name = excluded.customer_name, problem_reported = excluded.problem_reported;
 select count(*) as should_be_1, max(customer_name) as should_be_corrected
   from public.field_failure_reports where ffr_no = 'FFR - 012/16';

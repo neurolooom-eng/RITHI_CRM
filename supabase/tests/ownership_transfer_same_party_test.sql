@@ -51,10 +51,17 @@ select case when btrim(from_party) = '' then 'EMPTY (not known)' else from_party
 
 \echo ''
 \echo '=== 5. a chain loaded in date order still records each hop ============='
-insert into public.ownership_transfers (serial_number, to_party, transfer_date)
-values ('OT-C','SECOND OWNER','2023-01-01');
-insert into public.ownership_transfers (serial_number, to_party, transfer_date)
-values ('OT-C','THIRD OWNER','2024-01-01');
+-- EACH HOP NEEDS ITS OWN OT NUMBER. The key is (reference_no, serial_number),
+-- and both of these inserts used to omit the reference — so the second collided
+-- with the first on ('', 'OT-C') and THIS WHOLE SECTION NEVER RAN. It failed
+-- with an unlabelled duplicate-key error that nobody read as a failure, because
+-- the suite's convention is that only labelled errors appear and an unlabelled
+-- one at the bottom of a long output looks like part of the scenery.
+-- Found by the isolated validation run, 2026-09-15.
+insert into public.ownership_transfers (serial_number, to_party, transfer_date, reference_no)
+values ('OT-C','SECOND OWNER','2023-01-01','OT-CHAIN-2');
+insert into public.ownership_transfers (serial_number, to_party, transfer_date, reference_no)
+values ('OT-C','THIRD OWNER','2024-01-01','OT-CHAIN-3');
 select transfer_date, from_party, to_party from public.ownership_transfers
  where serial_number = 'OT-C' order by transfer_date;
 

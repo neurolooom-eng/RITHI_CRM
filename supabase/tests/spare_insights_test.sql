@@ -106,12 +106,24 @@ select (public.spare_insights(current_date - 400, current_date - 300)->'total'->
 \echo 'expect: the one somebody is usually looking at.'
 select (public.spare_insights(current_date, current_date)->'total'->>'qty')::int as qty;
 
-\echo '--- 8. THE CATEGORY VOCABULARY IS THE FILE''S, AND CLOSED ---'
-\echo 'expect ERROR: parts_category_check. Spare, Consumable, Product, Labour or'
-\echo 'expect: empty — a fifth spelling would appear as its own slice of the'
-\echo 'expect: chart and nobody would know which parts moved.'
+\echo '--- 8. THE CATEGORY IS SOURCE DATA, NOT A CLOSED VOCABULARY (0152) ---'
+-- THIS SECTION USED TO ASSERT THE OPPOSITE, and had gone on asserting it for
+-- six days after the decision changed. 0148 put a CHECK on this column with the
+-- four words the Item Master uses; 0152 DROPPED it, because loading the real
+-- Item Master stopped at row 174 with 173 rows already written — a check on a
+-- column of SOURCE DATA can abort an import part-written, and a half-loaded
+-- master is worse than an unexpected spelling.
+--
+-- The test was not moved with the decision, so it expected an error that could
+-- no longer happen, raised none, and the suite still ran clean. Found by the
+-- isolated run, 2026-09-15. The rule now is the one 0152 states: the column
+-- takes what the file says, and Spare Insights reports an unrecognised or
+-- absent category as Unclassified rather than refusing the load.
+\echo 'expect: the insert SUCCEEDS — a fifth spelling is data, not an error'
 insert into public.parts (code, description, item_detail, category)
 values ('SIP-9','A PART','SIP-9|A PART','Spares');
+\echo 'expect: Spares — stored as the file wrote it'
+select category from public.parts where code = 'SIP-9';
 
 \echo '--- 9. ...and empty stays legal ---'
 \echo 'expect: the insert succeeds. 1,136 of 1,324 rows have no category, and a'
