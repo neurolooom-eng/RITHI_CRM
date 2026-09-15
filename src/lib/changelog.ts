@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.277',
+    version: '0.9.283',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,81 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.282',
+    date: '2026-09-15',
+    title: 'Product Failure Analysis opens on this year',
+    changes: [
+      'THE PAGE NOW OPENS ON 2026 — this year — instead of all nine years at once. The register carries 1,120 reviews migrated from the old system against 36 raised here, so opening on everything made every Pareto a chart of the superseded system.',
+      'The year is a row of chips at the top, never hidden, and it says how many of the register’s failures you are looking at. “Every year” is still one click away.',
+      'IT FOLLOWS THE CALENDAR rather than being pinned to 2026: a fixed year would show an empty page on the first of January with nothing saying why.',
+      'A FAILURE’S YEAR IS NOW WHEN THE MACHINE FAILED — its complaint date, or the day the call was registered where there is none. It used to be the date somebody REVIEWED it, which put a December failure reviewed in January into January. The month-by-month chart reads the same date, so the chart and the filter above it cannot disagree.',
+      'Every download says which year it was taken through — a spreadsheet is read by somebody who never saw the filter.',
+    ],
+  },
+  {
+    version: '0.9.281',
+    date: '2026-09-15',
+    title: 'Build your own chart on Product Failure Analysis, and keep it',
+    changes: [
+      '“＋ New chart” — count the failures by any of the review’s own answers (product, root cause, cover, customer, engineer, software version, age, and more), drawn as a Pareto, a share, or in its own order.',
+      'A chart you build arrives with everything the built-in ones have: the data table, the labels toggle and the download. It is not a lesser kind of chart.',
+      'KEEP IT FOR YOURSELF, or SHARE IT — with everyone, or with one role. Sharing needs “Manage configuration”, the same permission as setting a register layout for a role, because it is the same act: deciding what a group of people see when they open a screen.',
+      'SHARING A CHART NEVER SHARES DATA. What is saved is a question — “count the failures by root cause, as a Pareto” — not an answer. The numbers are worked out in each reader’s own session, so somebody who may see fewer failures simply sees fewer.',
+      'A chart built on a column that later disappears SAYS SO rather than quietly drawing nothing.',
+      'Needs the Roles & Permissions SQL (rbac.sql).',
+    ],
+  },
+  {
+    version: '0.9.280',
+    date: '2026-09-15',
+    title: 'Product Failure Analysis: the right chart for each question',
+    changes: [
+      'ROOT CAUSE, PRODUCT AND COMPLAINT STAY PARETOS — many categories, and the question is which few account for most of it.',
+      'COVER AND SPARE CATEGORY ARE NOW SHARES, not Paretos. They are a handful of values that add up to the whole, so the question is composition: a Pareto over four slices with a running total only says “these four are 100% of the four”.',
+      'SOFTWARE VERSION IS IN VERSION ORDER, not ranked by count — the question is whether a newer release fails more than the one before it, and ranking hid exactly that. 2.10 now sorts after 2.9, where a plain sort put it first.',
+      'AGE AT FAILURE keeps its own order, as before.',
+      'NEW — MACHINES THAT FAILED MORE THAN ONCE. Every other chart answers “which product line fails”; this answers “which UNIT keeps failing”, which is often the more actionable one. A model with four hundred failures across two thousand machines is a fleet; one machine with nine is a machine to go and look at.',
+      'Pick a product and the cover chart narrows to it — that is the cross-tab worth having, without a second chart.',
+    ],
+  },
+  {
+    version: '0.9.279',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights is now Product Failure Analysis',
+    changes: [
+      'Named for what it analyses rather than for where the data comes from.',
+      'The address it shipped at yesterday still works — a bookmark to it lands on the page rather than a blank screen.',
+      'IT NEEDS THE ROLES & PERMISSIONS SQL AGAIN. The page’s address is also its permission, so renaming it made every role’s old permission point at nothing — the screen would have gone invisible to everybody with no error anywhere. Run rbac.sql.',
+    ],
+  },
+  {
+    version: '0.9.278',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights is now a product failure analysis',
+    changes: [
+      'Focused on what fails and why. The process and people charts are gone — who answered a review, how long it took, why a call is still open — and every remaining one is a PARETO with the same four things on it.',
+      'EVERY CHART NOW CARRIES: the ranked picture, a DATA TABLE beside it with share and cumulative share, a DATA LABEL toggle, and a DOWNLOAD.',
+      'The download carries THE REVIEWS THEMSELVES, not only the ranking — UCN, both products, cover, complaint, root cause, spare, software version, age, and every Review 2 answer — plus a sheet saying how the number was worked out. A ranked list is an assertion; the rows are the evidence.',
+      'FAILURES PER COVER is on the page: a product failing mostly INSIDE warranty is a manufacturing question, one failing mostly outside it is a wear question.',
+      'AGE AT FAILURE KEEPS ITS OWN ORDER and is not ranked by count — whether failures cluster early or late in a machine’s life is the whole point of that chart, and sorting it by count would erase it. It shows no cumulative share for the same reason.',
+      'Click a bar OR a table row to narrow everything below it.',
+    ],
+  },
+  {
+    version: '0.9.277',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights — what the reviews are saying',
+    changes: [
+      'A new analytics page under Overview, built like FFR Insights: Pareto of root cause, complaint grouping, which products fail, cover, the month-by-month trend with its numbers beside it, and more.',
+      'CLICK ANY BAR TO NARROW EVERYTHING BELOW IT. “What is the root cause on ORION-G, under contract?” is two clicks rather than a query nobody can write.',
+      'IT COUNTS UNDER THE PRODUCT REVIEW 2 SAYS ACTUALLY FAILED. A fault moved to an accessory is counted there, not against the machine it was logged on — the correction was reaching the Field Failure register and nothing else.',
+      'HOW LONG UNTIL REVIEW 2 WAS ANSWERED, in bands rather than an average: an average hides the tail and the tail is the finding. A review nobody has answered is counted nowhere rather than as nought days.',
+      'WHO ANSWERED REVIEW 2 — including “Auto (9:15 am)”, the rule answering for calls nobody looked at. Its share is the honest measure of how much of this review is being done, and by whom.',
+      'Also: what was reported, which spares were implicated, how old the machine was, the software version it was on, why a call is still open, and where.',
+      'Needs the Daily Call Review SQL (daily_review.sql) and then Roles & Permissions (rbac.sql).',
     ],
   },
   {

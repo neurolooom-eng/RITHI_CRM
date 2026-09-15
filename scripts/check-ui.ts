@@ -6351,5 +6351,155 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
     /done\.current === location\.key/.test(arrive), true);
 }
 
+console.log('\n-- Product Failure Analysis: the four things asked for --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Idea is to focus on the product failure analysis in
+  // this new page.. so stick to Pareto, failures per cover.. give data table,
+  // download option, data label toggle."
+  //
+  // They were asked for TOGETHER and are checked together: a chart is read, a
+  // table is CHECKED, labels are what make a chart quotable, and a download is
+  // what makes it arguable with somebody who was not at the screen. One block
+  // carries all four, so a dimension added later cannot arrive with three.
+  // -------------------------------------------------------------------------
+  const di = code(readFileSync('src/modules/ProductFailureAnalysis.tsx', 'utf8'));
+
+  eq('one block carries chart, labels, table and download',
+    /function ParetoBlock\(/.test(di), true);
+  ['ParetoChart', 'Data labels', 'assoc-table', 'xlsxDownload']
+    .forEach((x) => eq(`...and it has the ${x}`, di.includes(x), true));
+
+  // FAILURES PER COVER was named explicitly.
+  eq('failures per cover is on the page', /title="Failures per cover"/.test(di), true);
+  // AND THE PRODUCT IS THE CORRECTED ONE, or the page undoes 0197 on the screen
+  // built to see it.
+  eq('products are counted under the corrected one',
+    /rows=\{byProduct\}[\s\S]{0,80}dim="live_product_name"/.test(di), true);
+
+  // THE DOWNLOAD CARRIES THE ROWS, not only the ranking. A ranked list is an
+  // assertion; the rows are the evidence (the user's ask on FFR Insights).
+  eq('the download carries the reviews behind the number',
+    /name: 'The reviews counted'/.test(di), true);
+  eq('...and how the number was worked out',
+    /name: 'How this was worked out'/.test(di), true);
+
+  // THE FORM FOLLOWS THE QUESTION (the user, 2026-09-15: "For Root Cause Pareto
+  // makes sense -- but for the rest use appropriate charts"). Three forms, and
+  // each is a claim about what is being asked:
+  //   pareto  — which FEW account for most of it (ranked, cumulative line)
+  //   share   — composition across a handful that add up to the whole
+  //   ordered — an ORDINAL scale whose own order IS the finding
+  eq('the block offers the three forms', /form\?: 'pareto' \| 'share' \| 'ordered'/.test(di), true);
+  eq('root cause stays a Pareto',
+    /title="Root cause"[\s\S]{0,300}?dim="root_cause_keyword"/.test(di)
+    && !/title="Root cause"[\s\S]{0,200}?form="/.test(di), true);
+  // COVER IS COMPOSITION, not a vital-few question: a Pareto over four slices
+  // with a running total says only "these four are 100% of the four".
+  eq('cover is read as a share', /title="Failures per cover"[\s\S]{0,400}?form="share"/.test(di), true);
+  // AN ORDINAL DIMENSION IS NOT RANKED. Sorting the age bands by count destroys
+  // the one thing that chart is for — early life against late. Software version
+  // is the same: ranking hides whether the NEWER release fails more.
+  eq('age at failure keeps its own order',
+    /title="Age at failure"[\s\S]{0,400}?form="ordered"/.test(di), true);
+  eq('...and the software version is in VERSION order, not count order',
+    /title="Software version"[\s\S]{0,400}?form="ordered"/.test(di)
+    && /rows=\{bySwOrdered\}/.test(di), true);
+  eq('...and a non-ranked block shows no cumulative share',
+    /\{rank && <th style=\{\{ textAlign: 'right' \}\}>Cumulative<\/th>\}/.test(di), true);
+
+  // A COMPOSED KEY IS NOT A COLUMN. The repeat-machine chart counts model +
+  // serial, so clicking one must be MATCHED the same way it was counted —
+  // reading it as a column would find nothing and the page would silently empty.
+  eq('the repeat-machine filter matches the way it was counted',
+    /if \(dim === '__machine'\)/.test(di), true);
+  // KEYED ON MODEL AND SERIAL, never the serial alone: 3,794 serials repeat
+  // across models, so counting by serial merges different machines.
+  eq('...and a machine is its model AND its serial',
+    /\$\{s\(r, 'live_product_name'\) \|\| '\(no product\)'\} · \$\{serial\}/.test(di), true);
+
+  // THE CLASSES EXIST. A row that filters must look pressable, and a chosen one
+  // must look chosen — by INVERSION, not a tint (the user's standing rule).
+  const css = readFileSync('src/modules/productfailure.css', 'utf8');
+  eq('.linkish has a rule of its own', /\.linkish[\s,{:]/.test(css), true);
+  eq('the chosen row INVERTS rather than tints',
+    /tr\.row-on > td \{ background: var\(--text\); color: var\(--surface\); \}/.test(css), true);
+
+  // -------------------------------------------------------------------------
+  // A CHART SOMEBODY BUILDS AND KEEPS (the user, 2026-09-15: "Add a provision
+  // to create a chart by myself and save it").
+  // -------------------------------------------------------------------------
+  // IT IS DRAWN THROUGH THE SAME BLOCK as the built-in charts, so a saved one
+  // arrives with the table, the labels and the download rather than being a
+  // lesser kind of chart.
+  eq('a saved chart is drawn through the same block',
+    /saved\.map\(\(c\) => \{[\s\S]{0,1400}?<ParetoBlock/.test(di), true);
+  // A DIMENSION THE PAGE NO LONGER KNOWS IS SAID, not silently dropped: a chart
+  // that quietly shows nothing is worse than one that says the column has gone.
+  eq('...and a chart on a column that has gone says so',
+    /is no longer on the review/.test(di), true);
+  // SHARING IS A DIFFERENT ACT FROM KEEPING. It decides what a GROUP sees when
+  // they open a screen — the same thing setting a register layout for a role
+  // does — so it takes the same authority, and somebody without it is told
+  // rather than offered the choice and refused later.
+  eq('sharing is gated on config.manage, and the reader is told',
+    /const maySh: boolean = can\('config\.manage'\)/.test(di)
+    && /Manage configuration/.test(di), true);
+  // THE OWNER IS NOT SENT. The database stamps it, so a chart cannot be filed
+  // under somebody else's name even by a client that means to.
+  const sb2 = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  eq('the client never sends an owner',
+    /\.insert\(\{ page, name: name\.trim\(\), role, spec \}\)/.test(sb2), true);
+  // ONE PAGE KEY, because the value is written to the database and read back.
+  eq('the page key has one spelling', /const PAGE_KEY = 'product-failure';/.test(di), true);
+  // AND THE LIST OF WHAT MAY BE CHARTED IS NAMED, not "any column": the view
+  // has 57 and most answer nothing worth a chart — an id, a uuid, a free-text
+  // observation whose every value is unique.
+  eq('what may be charted is a named list',
+    /const BUILDABLE: \{ key: string; label: string; form:/.test(di), true);
+
+  // -------------------------------------------------------------------------
+  // THE PAGE OPENS ON THIS YEAR (the user, 2026-09-15: "Always default it to
+  // 2026"), and the register carries nine years of migrated history against one
+  // of its own — so opening on everything makes every Pareto a chart of the old
+  // system.
+  // -------------------------------------------------------------------------
+  // READ AS THE CURRENT YEAR, not the literal number. A hard-coded 2026 becomes
+  // wrong on the first of January and shows an empty page with nothing saying
+  // why; "ALWAYS" is what makes the current year the honest reading.
+  eq('the year defaults to the current one, not a hard-coded number',
+    /const thisYear = \(\) => String\(new Date\(\)\.getFullYear\(\)\);/.test(di)
+    && /useState<string>\(thisYear\(\)\)/.test(di), true);
+  eq('...and there is no year literal pinning it', !/\byear = '20\d\d'/.test(di), true);
+
+  // A FAILURE'S YEAR IS WHEN THE MACHINE FAILED, not when somebody reviewed it:
+  // one that broke in December and was reviewed in January did not fail in
+  // January. The trend reads the same date, so the chart and the filter above it
+  // cannot disagree about which year a failure is in.
+  eq('a failure is dated by when it FAILED',
+    /const failedOn = \(r: Row\) => s\(r, 'complaint_date'\) \|\| s\(r, 'reg_date'\);/.test(di), true);
+  eq('...and the trend reads the same date', /periodKey\(failedOn\(r\), period\)/.test(di), true);
+
+  // THE WINDOW IS NEVER IMPLIED. A page quietly showing one year of nine makes
+  // every number a fraction of what the reader thinks they are looking at.
+  eq('the year is on screen and says what it is counting',
+    /<SectionCard title="Year">/.test(di) && /out of \{allRows\.length/.test(di), true);
+  // ...AND IT TRAVELS WITH THE DOWNLOAD, which is read by somebody who never
+  // saw the filter.
+  eq('...and every download says which year it was taken through',
+    /\{ Item: 'Year', Value: yearNote \}/.test(di), true);
+
+  // A RENAMED SCREEN MUST NOT STRAND ITS OLD ADDRESS. The page shipped at
+  // /dccr-insights the day before; a bookmark to it has to land somewhere
+  // rather than on a blank page.
+  const app2 = code(readFileSync('src/App.tsx', 'utf8'));
+  eq('the address it shipped at still lands on the page',
+    /<Route path="\/dccr-insights" element=\{<Navigate to="\/product-failure" replace \/>\}/.test(app2), true);
+  // AND THE MODULE KEY IS THE ROUTE, so a rename is a permissions change: every
+  // role's old key stopped opening anything the moment the route moved.
+  eq('...and a migration grants the renamed key',
+    existsSync('supabase/migrations/0205_product_failure_module_key.sql'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

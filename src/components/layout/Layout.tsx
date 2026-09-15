@@ -50,6 +50,9 @@ export const NAV: NavGroup[] = [
       // the Dashboard answers "how is the company doing?" — the first question
       // somebody asks when they sign in, so it is the first thing under it.
       { to: '/workload', label: 'My Workload', icon: '⚡' },
+      // Beside the other two "what is going on" screens, and above the
+      // look-something-up pair.
+      { to: '/product-failure', label: 'Product Failure Analysis', icon: '📈' },
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:

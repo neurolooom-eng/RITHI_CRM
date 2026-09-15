@@ -326,6 +326,28 @@ typed into a form that reads it.
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
 
+- **Product Failure Analysis** `/product-failure` — **what fails, and why**,
+  across the whole register. The register is a worklist; this is the question it
+  cannot answer.
+  > **Click any bar and every chart below it narrows.** Click it again to let go.
+  > Products are counted under the one **Review 2 says actually failed**, so a
+  > fault moved to an accessory counts there and not against the machine it was
+  > logged on.
+  > **It opens on this year.** The register holds nine years of migrated history
+  > against one of its own, so counting everything would make each chart a
+  > picture of the old system. *Every year* is one click away.
+  > A failure's year is **when the machine failed** — its complaint date — not
+  > when somebody reviewed it.
+  > Every chart has a **data table** beside it, a **data label** toggle and a
+  > **download** — and the download carries the reviews THEMSELVES, not just the
+  > ranking, so a number can be argued with by somebody who was not at the screen.
+  > **Age at failure is not ranked by count**, deliberately: whether failures come
+  > early or late in a machine's life is the point of that one.
+  > **Build your own chart** with ＋ New chart — count the failures by any of the
+  > review's answers, as a Pareto, a share, or in its own order. It is kept for
+  > you; sharing it with a role or with everyone needs *Manage configuration*.
+  > **Sharing a chart never shares data**: what is saved is the question, not the
+  > answer, so each reader still sees only the failures their own role may see.
 - **My Workload** `/workload` — everything waiting on you, across the registers
   you can open. **Click a card and you get the list behind it.**
   > A card with nothing to open stays a plain figure — there is no list of an

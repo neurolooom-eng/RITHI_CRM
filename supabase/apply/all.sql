@@ -35,6 +35,9 @@
 --   0192_product_database_rename.sql
 --   0195_new_module_keys.sql
 --   0202_workload_module_key.sql
+--   0204_dccr_insights_module_key.sql
+--   0205_product_failure_module_key.sql
+--   0206_saved_charts.sql
 --   0199_user_master_is_the_master.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
@@ -120,6 +123,7 @@
 --   0178_ffr_call_context.sql
 --   0179_ffr_import.sql
 --   0197_review_actual_product.sql
+--   0203_review_view_actual_product.sql
 --   0181_ffr_one_row_per_machine.sql
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
@@ -2407,6 +2411,226 @@ begin
   get diagnostics n = row_count;
   raise notice '0202: % role(s) given mod:/workload', n;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0204_dccr_insights_module_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- DAILY CALL REVIEW INSIGHTS REACHES THE ROLES THAT ALREADY READ THE REVIEWS.
+--
+-- The user, 2026-09-15: "In the Overview heading - Add one more analytics page
+-- to analyse all the data that is part of the daily call review."
+--
+-- A NEW SCREEN IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS. `permsForRole()`
+-- returns the STORED set whenever it is non-empty, so a code default reaches
+-- only a role whose row is empty — and on a project in use every role has a
+-- tuned row. Without this the page ships, the menu entry exists, the permission
+-- is ticked in DEFAULT_PERMS, and the screen is invisible to every role with no
+-- error anywhere. That happened four times before 0195.
+--
+-- IT GRANTS NO REACH. The page holds no authority of its own: it reads
+-- `field_call_review`, which `call_reviews_read` already opens to any signed-in
+-- user, and it writes nothing. What each role SEES is decided by the row-level
+-- security on the calls underneath, exactly as on the register.
+--
+-- MERGED, NEVER OVERWRITTEN, and a role with ZERO permissions is left alone —
+-- an empty array means "not configured" and writing one key into it would turn
+-- that fallback off.
+-- ===========================================================================
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/dccr-insights']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ? 'mod:/dccr-insights');
+  get diagnostics n = row_count;
+  raise notice '0204: % role(s) given mod:/dccr-insights', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0205_product_failure_module_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE SCREEN WAS RENAMED, AND THE MODULE KEY IS THE ROUTE.
+--
+-- The user, 2026-09-15: "Rename it as Product Failure analysis." It shipped
+-- yesterday as Daily Call Review Insights at `/dccr-insights`; it is now
+-- Product Failure Analysis at `/product-failure`.
+--
+-- A RE-ARRANGED UI IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS — the standing
+-- rule, and a RENAME is the case that hides it best, because the screen is
+-- already working for everybody. `permsForRole()` returns the stored set
+-- whenever it is non-empty, so the moment the route changed, every role's
+-- `mod:/dccr-insights` stopped opening anything and the page went invisible to
+-- all of them with no error anywhere.
+--
+-- IT MERGES THE NEW KEY INTO EVERY CONFIGURED ROLE, exactly as 0204 granted the
+-- old one, so nobody loses the screen across the rename.
+--
+-- THE OLD KEY IS LEFT IN PLACE, and that is deliberate rather than untidy.
+-- Removing it would be a second write for no gain: it now names a route that
+-- does not exist, so it grants nothing, and `check:ui` ignores a key with no
+-- module. Stripping it would also make this migration destructive on a project
+-- where an administrator had tuned that row — and 0192 is the precedent for
+-- MERGING a renamed module's key rather than swapping it.
+--
+-- A ROLE WITH ZERO PERMISSIONS IS LEFT ALONE: an empty array means "not
+-- configured" and the code falls back to the defaults, which carry the new key.
+-- ===========================================================================
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/product-failure']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ? 'mod:/product-failure');
+  get diagnostics n = row_count;
+  raise notice '0205: % role(s) given mod:/product-failure (renamed from mod:/dccr-insights)', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0206_saved_charts.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A CHART SOMEBODY BUILDS, AND KEEPS.
+--
+-- The user, 2026-09-15: "Add a provision to create a chart by myself and save
+-- it." Asked earlier in the same session whether it could be saved "for
+-- Everyone or for Specific roles" — so scope is part of the feature, not an
+-- afterthought.
+--
+-- MODELLED ON `role_table_views` (0120) DELIBERATELY. That table already
+-- answers "this configuration belongs to a role, or to everyone" for register
+-- layouts, and a second answer to the same question would be a second set of
+-- rules to keep in step. Same columns, same `set_at`, same admin-only rule for
+-- anything shared.
+--
+-- THREE SCOPES, and the difference is who else is affected:
+--   • MINE      owner = the person, role is NULL. Anybody may make one; nobody
+--               else sees it.
+--   • A ROLE    role = the role key. Changes what a group of people see.
+--   • EVERYONE  role = ''. Same, for all of them.
+-- The last two need `config.manage` or an administrator — the same authority
+-- 0120 requires to set a layout for a role, because it is the same act.
+--
+-- A CHART IS NOT SENSITIVE AND ITS DATA IS NOT IN IT. The row holds a
+-- DIMENSION and a chart type: "count the failures by root cause, as a Pareto".
+-- The numbers are computed in the reader's own session from rows their own RLS
+-- allowed, so a chart shared with somebody who may see less simply shows less.
+-- Sharing a chart can never share data.
+--
+-- THE SPEC IS VALIDATED WHERE IT IS USED, NOT HERE. A jsonb column cannot
+-- usefully constrain "dimension must be a column of field_call_review" — the
+-- view's shape changes with migrations, and a CHECK that went stale would
+-- refuse a chart that is fine. The page ignores a dimension it does not know
+-- and says so, which is the failure that can be seen and corrected.
+-- ===========================================================================
+
+create table if not exists public.saved_charts (
+  id          bigint generated always as identity primary key,
+  page        text        not null,                -- which analysis page it belongs to
+  name        text        not null,
+  role        text,                                -- NULL = private to `owner`; '' = everyone
+  owner       uuid        references auth.users (id),
+  spec        jsonb       not null default '{}'::jsonb,
+  set_at      bigint      not null default (extract(epoch from now()) * 1000)::bigint,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  updated_by  uuid        references auth.users (id)
+);
+
+comment on table public.saved_charts is
+  'A chart somebody built and kept. role NULL = private to owner; '''' = everyone; otherwise that role key. The spec holds a dimension and a chart type — never data.';
+
+-- A PERSON CANNOT HAVE TWO CHARTS OF THE SAME NAME ON THE SAME PAGE, and a
+-- role cannot either. Partial, because `role` is NULL for a private chart and
+-- NULL is not equal to itself: one index per shape, or a private chart and a
+-- shared one of the same name would collide with each other.
+create unique index if not exists saved_charts_mine_uniq
+  on public.saved_charts (page, owner, name) where role is null;
+create unique index if not exists saved_charts_shared_uniq
+  on public.saved_charts (page, role, name) where role is not null;
+
+create index if not exists saved_charts_page_idx on public.saved_charts (page);
+
+alter table public.saved_charts enable row level security;
+grant select, insert, update, delete on public.saved_charts to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- READ: your own, plus anything shared with everyone or with your role.
+drop policy if exists sc_read on public.saved_charts;
+create policy sc_read on public.saved_charts for select
+  using (
+    (role is null and owner = auth.uid())
+    or role = ''
+    or role = public.my_role()
+  );
+
+-- WRITE YOUR OWN. `owner = auth.uid()` on both sides, so nobody can create a
+-- chart in somebody else's name or move one to them.
+drop policy if exists sc_write_mine on public.saved_charts;
+create policy sc_write_mine on public.saved_charts for all
+  using (role is null and owner = auth.uid())
+  with check (role is null and owner = auth.uid());
+
+-- WRITE A SHARED ONE — the same authority 0120 requires to set a register
+-- layout for a role, because it is the same act: deciding what a group of
+-- people see when they open a screen.
+drop policy if exists sc_write_shared on public.saved_charts;
+create policy sc_write_shared on public.saved_charts for all
+  using (role is not null and (public.is_admin() or public.has_perm('config.manage')))
+  with check (role is not null and (public.is_admin() or public.has_perm('config.manage')));
+
+-- WHO SAVED IT IS THE DATABASE'S TO RECORD, not the caller's — 0113's rule for
+-- who registered a call, and for the same reason: a caller-supplied author is
+-- a name anybody can type. `owner` is stamped on a PRIVATE chart so it cannot
+-- be filed against somebody else even by a caller that means well.
+create or replace function public.saved_charts_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_at := now();
+  new.updated_by := auth.uid();
+  if new.role is null then new.owner := auth.uid(); end if;
+  if tg_op = 'UPDATE' then
+    new.created_at := old.created_at;
+    -- `set_at` moves on every write: it is what the reader compares when the
+    -- same chart exists both privately and for their role — the later decision
+    -- stands, which is 0120's rule and the Auto Save rule before it.
+    new.set_at := (extract(epoch from now()) * 1000)::bigint;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists saved_charts_stamp on public.saved_charts;
+create trigger saved_charts_stamp
+  before insert or update on public.saved_charts
+  for each row execute function public.saved_charts_stamp();
 
 -- ------------------------------------------------------------------------
 -- 0199_user_master_is_the_master.sql
@@ -14642,6 +14866,186 @@ left join public.call_reviews r on r.ucn = f.ucn;
 
 alter view public.field_failure_register set (security_invoker = on);
 grant select on public.field_failure_register to authenticated;
+
+-- ------------------------------------------------------------------------
+-- 0203_review_view_actual_product.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE REVIEW'S CORRECTED PRODUCT REACHES THE VIEW THE REGISTER READS.
+--
+-- 0197 gave Review 2 a "Change product?" — the user's rule: *"Accessory Issues
+-- are also Logged in the Main Product ... I can select the Actual Product
+-- [Accessory in this case] and the Failure is included in the Accessory and
+-- Excluded from the Main Product."* It put `actual_product` on `call_reviews`
+-- and taught `field_failure_register` to count under it.
+--
+-- `field_call_review` NEVER LEARNED. It is the view the Daily Call Review reads
+-- and, from today, the one DCCR Insights groups by — so every "which product
+-- fails" chart would have counted under the MAIN product and the correction
+-- would have changed nothing on the one screen built to see it.
+--
+-- THE WHOLE DEFINITION IS RESTATED, and it has to be. The first version of this
+-- file was `create or replace view field_call_review as select fcr.*, … from
+-- field_call_review fcr` — appending by selecting from ITSELF. Postgres accepts
+-- that at creation and then answers every query with "infinite recursion
+-- detected in rules for relation". Caught by running it. It is also the rule
+-- this project already has: A BUNDLE MUST CARRY THE LATEST DEFINITION of
+-- everything it defines, and this file is now that definition.
+--
+-- `security_invoker` IS RE-ASSERTED at the end, because a view without it reads
+-- as its OWNER and row-level security stops applying to whoever is reading,
+-- with no error and no warning — shipped three times here (0040/0050/0057).
+-- ===========================================================================
+
+drop view if exists public.field_call_review;
+create view public.field_call_review as
+select
+  c.id,
+  c.ucn,
+  c.call_number,
+  c.reg_date,
+  c.complaint_date,
+  c.party_name,
+  c.city,
+  c.state,
+  c.product_name,
+  c.serial,
+  c.item_status,
+  c.call_type,
+  c.standard_complaint,
+  c.complaint_reported,
+  c.allocated_to,
+  c.allocated_to_email,
+  c.warranty_number,
+  c.warranty_start,
+  c.status,
+  c.open_state,
+  c.last_status,
+  c.last_visit_at,
+
+  -- ---- age of the product at failure -------------------------------------
+  -- Warranty start to the complaint (the call's registration date when there
+  -- is no complaint date). Null when the machine has no warranty start on it.
+  age.age_days,
+  public.failure_age_group(age.age_days) as age_group,
+
+  -- ---- from the report ----------------------------------------------------
+  coalesce(h.visit_details, '')  as visit_details,   -- every visit, newest first
+  coalesce(h.visit_count, 0)     as visit_count,
+  coalesce(v.sw_version, '')     as sw_version,
+  coalesce(v.observation, '')    as observation,     -- latest visit's finding
+  coalesce(v.job_done, '')       as job_done,
+  coalesce(v.pending_reason, '') as pending_reason,
+  coalesce(v.visit_engineer, '') as visit_engineer,
+  coalesce(sp.spares_consumed, '') as spares_consumed,
+  coalesce(sp.spares_count, 0)     as spares_count,
+
+  -- ---- Review 1 — from the call itself ------------------------------------
+  c.public_health_threat,
+  c.death,
+  c.serious_incident,
+  c.reg_date as review1_at,
+  (btrim(coalesce(c.public_health_threat, '')) <> ''
+   and btrim(coalesce(c.death, '')) <> ''
+   and btrim(coalesce(c.serious_incident, '')) <> '') as review1_done,
+  -- ---- Review 2 -----------------------------------------------------------
+  coalesce(r.risk_to_patient, '')     as risk_to_patient,
+  coalesce(r.warranty_failure, '')    as warranty_failure,
+  coalesce(r.frequent_failure, '')    as frequent_failure,
+  r.review2_at,
+  coalesce(r.review2_by, '')          as review2_by,
+  coalesce(r.review2_done, false)     as review2_done,
+  -- ---- Review 3 -----------------------------------------------------------
+  coalesce(r.complaint_grouping, '')  as complaint_grouping,
+  coalesce(r.root_cause_keyword, '')  as root_cause_keyword,
+  coalesce(r.spare_category, '')      as spare_category,
+  coalesce(r.service_observation, '') as service_observation,
+  r.review3_at,
+  coalesce(r.review3_by, '')          as review3_by,
+  coalesce(r.review3_done, false)     as review3_done,
+  -- ---- Derived ------------------------------------------------------------
+  coalesce(r.any_potential_effect, '') as any_potential_effect,
+  coalesce(r.action_taken, '')         as action_taken,
+  case
+    when not (btrim(coalesce(c.public_health_threat, '')) <> ''
+              and btrim(coalesce(c.death, '')) <> ''
+              and btrim(coalesce(c.serious_incident, '')) <> '') then 'Review 1 Pending'
+    when not coalesce(r.review2_done, false) then 'Review 2 Pending'
+    when not coalesce(r.review3_done, false) then 'Review 3 Pending'
+    else 'Review Completed'
+  end as review_status,
+  -- ---- 0203: THE REVIEW'S CORRECTED PRODUCT ------------------------------
+  coalesce(nullif(btrim(r.actual_product), ''), '')               as actual_product,
+  -- ONE EFFECTIVE VALUE, exactly as 0197 argued for the register: the
+  -- corrected product where one was chosen, the call's where none was. So a
+  -- failure is counted ONCE under whatever that is. Two columns, or a flag
+  -- beside the original, would let a count include it twice or neither, and a
+  -- Pareto that double-counts is worse than one merely wrong.
+  coalesce(nullif(btrim(r.actual_product), ''), c.product_name)   as live_product_name,
+  -- Was it moved? For SHOWING the correction, never for counting it. The call
+  -- still says a machine was down and an engineer went to it, which stays true.
+  (coalesce(nullif(btrim(r.actual_product), ''), c.product_name)
+     is distinct from c.product_name)                             as live_product_changed
+from public.field_calls c
+left join public.call_reviews r on r.ucn = c.ucn
+
+-- Age at failure.
+left join lateral (
+  select (coalesce(c.complaint_date, c.reg_date) - c.warranty_start)::int as age_days
+) age on true
+
+-- The LATEST visit, by entry (updated_at desc, id desc) — the same visit the
+-- call's status comes from (sync_call_last_visit, 0032).
+left join lateral (
+  select nullif(btrim(coalesce(rp.data->>'Software Version', '')), '')      as sw_version,
+         nullif(btrim(coalesce(rp.data->>'Complaint Observation', '')), '') as observation,
+         nullif(btrim(coalesce(rp.data->>'Job Done', '')), '')              as job_done,
+         nullif(btrim(coalesce(rp.pending_reason, '')), '')                 as pending_reason,
+         nullif(btrim(coalesce(rp.engineer, '')), '')                       as visit_engineer
+    from public.reports rp
+   where (btrim(coalesce(c.call_number, '')) <> '' and rp.call_number = c.call_number)
+      or (btrim(coalesce(c.ucn, '')) <> '' and rp.ucn = c.ucn)
+   order by rp.updated_at desc nulls last, rp.id desc
+   limit 1
+) v on true
+
+-- EVERY visit, as the register writes them: "date : what was done", newest
+-- first. A visit with nothing written still shows its date, so a call that was
+-- attended and left blank does not read as never visited.
+left join lateral (
+  select string_agg(
+           to_char(coalesce(rp.visit_at, rp.updated_at), 'DD-Mon-YYYY') || ' : ' ||
+           coalesce(
+             nullif(btrim(coalesce(rp.data->>'Job Done', '')), ''),
+             nullif(btrim(coalesce(rp.data->>'Complaint Observation', '')), ''),
+             ''),
+           E'\n' order by rp.visit_at desc nulls last, rp.id desc) as visit_details,
+         count(*) as visit_count
+    from public.reports rp
+   where (btrim(coalesce(c.call_number, '')) <> '' and rp.call_number = c.call_number)
+      or (btrim(coalesce(c.ucn, '')) <> '' and rp.ucn = c.ucn)
+) h on true
+
+-- Every spare booked against the call, with the quantity when it is not one.
+left join lateral (
+  select string_agg(
+           btrim(s.part) || case
+             when coalesce(s.qty, 1) = 1 then ''
+             -- A whole number reads as "x 2", not "x 2." (FM keeps the point).
+             when s.qty = trunc(s.qty) then ' x ' || trunc(s.qty)::bigint::text
+             else ' x ' || trim(to_char(s.qty, 'FM999999.999'))
+           end,
+           ', ' order by s.id) as spares_consumed,
+         count(*) as spares_count
+    from public.spare_consumption s
+   where btrim(coalesce(s.part, '')) <> ''
+     and ((btrim(coalesce(c.call_number, '')) <> '' and s.call_number = c.call_number)
+       or (btrim(coalesce(c.ucn, '')) <> '' and s.ucn = c.ucn))
+) sp on true;
+
+alter view public.field_call_review set (security_invoker = on);
+grant select on public.field_call_review to authenticated;
 
 -- ------------------------------------------------------------------------
 -- 0181_ffr_one_row_per_machine.sql

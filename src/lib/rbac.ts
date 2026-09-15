@@ -51,6 +51,10 @@ export const MODULES: ModuleDef[] = [
   // register (the user, 2026-09-15). Beside the Dashboard because it answers
   // the same question at a glance, for one person rather than the company.
   { path: '/workload', label: 'My Workload' },
+  // What FAILS and why, from every reviewed call — the question the worklist
+  // itself cannot answer. Named for what it analyses rather than for where the
+  // data comes from.
+  { path: '/product-failure', label: 'Product Failure Analysis' },
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
@@ -371,6 +375,9 @@ export const PERM_TREE: PermHeader[] = [
     // authority it needs is entirely theirs — granting `mod:/workload` adds
     // reach to nothing.
     { path: '/workload', label: 'My Workload', actions: [] },
+    // READ-ONLY, and it holds no action of its own: it analyses the review
+    // register, which `call_reviews_read` already opens to any signed-in user.
+    { path: '/product-failure', label: 'Product Failure Analysis', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while

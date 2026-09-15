@@ -27,6 +27,9 @@
 --   0192_product_database_rename.sql
 --   0195_new_module_keys.sql
 --   0202_workload_module_key.sql
+--   0204_dccr_insights_module_key.sql
+--   0205_product_failure_module_key.sql
+--   0206_saved_charts.sql
 --   0199_user_master_is_the_master.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
@@ -1407,6 +1410,226 @@ begin
   get diagnostics n = row_count;
   raise notice '0202: % role(s) given mod:/workload', n;
 end $$;
+
+-- ------------------------------------------------------------------------
+-- 0204_dccr_insights_module_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- DAILY CALL REVIEW INSIGHTS REACHES THE ROLES THAT ALREADY READ THE REVIEWS.
+--
+-- The user, 2026-09-15: "In the Overview heading - Add one more analytics page
+-- to analyse all the data that is part of the daily call review."
+--
+-- A NEW SCREEN IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS. `permsForRole()`
+-- returns the STORED set whenever it is non-empty, so a code default reaches
+-- only a role whose row is empty — and on a project in use every role has a
+-- tuned row. Without this the page ships, the menu entry exists, the permission
+-- is ticked in DEFAULT_PERMS, and the screen is invisible to every role with no
+-- error anywhere. That happened four times before 0195.
+--
+-- IT GRANTS NO REACH. The page holds no authority of its own: it reads
+-- `field_call_review`, which `call_reviews_read` already opens to any signed-in
+-- user, and it writes nothing. What each role SEES is decided by the row-level
+-- security on the calls underneath, exactly as on the register.
+--
+-- MERGED, NEVER OVERWRITTEN, and a role with ZERO permissions is left alone —
+-- an empty array means "not configured" and writing one key into it would turn
+-- that fallback off.
+-- ===========================================================================
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/dccr-insights']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ? 'mod:/dccr-insights');
+  get diagnostics n = row_count;
+  raise notice '0204: % role(s) given mod:/dccr-insights', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0205_product_failure_module_key.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- THE SCREEN WAS RENAMED, AND THE MODULE KEY IS THE ROUTE.
+--
+-- The user, 2026-09-15: "Rename it as Product Failure analysis." It shipped
+-- yesterday as Daily Call Review Insights at `/dccr-insights`; it is now
+-- Product Failure Analysis at `/product-failure`.
+--
+-- A RE-ARRANGED UI IS NOT DONE UNTIL ROLES & PERMISSIONS KNOWS — the standing
+-- rule, and a RENAME is the case that hides it best, because the screen is
+-- already working for everybody. `permsForRole()` returns the stored set
+-- whenever it is non-empty, so the moment the route changed, every role's
+-- `mod:/dccr-insights` stopped opening anything and the page went invisible to
+-- all of them with no error anywhere.
+--
+-- IT MERGES THE NEW KEY INTO EVERY CONFIGURED ROLE, exactly as 0204 granted the
+-- old one, so nobody loses the screen across the rename.
+--
+-- THE OLD KEY IS LEFT IN PLACE, and that is deliberate rather than untidy.
+-- Removing it would be a second write for no gain: it now names a route that
+-- does not exist, so it grants nothing, and `check:ui` ignores a key with no
+-- module. Stripping it would also make this migration destructive on a project
+-- where an administrator had tuned that row — and 0192 is the precedent for
+-- MERGING a renamed module's key rather than swapping it.
+--
+-- A ROLE WITH ZERO PERMISSIONS IS LEFT ALONE: an empty array means "not
+-- configured" and the code falls back to the defaults, which carry the new key.
+-- ===========================================================================
+
+do $$
+declare n int;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/product-failure']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and not (ar.permissions ? 'mod:/product-failure');
+  get diagnostics n = row_count;
+  raise notice '0205: % role(s) given mod:/product-failure (renamed from mod:/dccr-insights)', n;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0206_saved_charts.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A CHART SOMEBODY BUILDS, AND KEEPS.
+--
+-- The user, 2026-09-15: "Add a provision to create a chart by myself and save
+-- it." Asked earlier in the same session whether it could be saved "for
+-- Everyone or for Specific roles" — so scope is part of the feature, not an
+-- afterthought.
+--
+-- MODELLED ON `role_table_views` (0120) DELIBERATELY. That table already
+-- answers "this configuration belongs to a role, or to everyone" for register
+-- layouts, and a second answer to the same question would be a second set of
+-- rules to keep in step. Same columns, same `set_at`, same admin-only rule for
+-- anything shared.
+--
+-- THREE SCOPES, and the difference is who else is affected:
+--   • MINE      owner = the person, role is NULL. Anybody may make one; nobody
+--               else sees it.
+--   • A ROLE    role = the role key. Changes what a group of people see.
+--   • EVERYONE  role = ''. Same, for all of them.
+-- The last two need `config.manage` or an administrator — the same authority
+-- 0120 requires to set a layout for a role, because it is the same act.
+--
+-- A CHART IS NOT SENSITIVE AND ITS DATA IS NOT IN IT. The row holds a
+-- DIMENSION and a chart type: "count the failures by root cause, as a Pareto".
+-- The numbers are computed in the reader's own session from rows their own RLS
+-- allowed, so a chart shared with somebody who may see less simply shows less.
+-- Sharing a chart can never share data.
+--
+-- THE SPEC IS VALIDATED WHERE IT IS USED, NOT HERE. A jsonb column cannot
+-- usefully constrain "dimension must be a column of field_call_review" — the
+-- view's shape changes with migrations, and a CHECK that went stale would
+-- refuse a chart that is fine. The page ignores a dimension it does not know
+-- and says so, which is the failure that can be seen and corrected.
+-- ===========================================================================
+
+create table if not exists public.saved_charts (
+  id          bigint generated always as identity primary key,
+  page        text        not null,                -- which analysis page it belongs to
+  name        text        not null,
+  role        text,                                -- NULL = private to `owner`; '' = everyone
+  owner       uuid        references auth.users (id),
+  spec        jsonb       not null default '{}'::jsonb,
+  set_at      bigint      not null default (extract(epoch from now()) * 1000)::bigint,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  updated_by  uuid        references auth.users (id)
+);
+
+comment on table public.saved_charts is
+  'A chart somebody built and kept. role NULL = private to owner; '''' = everyone; otherwise that role key. The spec holds a dimension and a chart type — never data.';
+
+-- A PERSON CANNOT HAVE TWO CHARTS OF THE SAME NAME ON THE SAME PAGE, and a
+-- role cannot either. Partial, because `role` is NULL for a private chart and
+-- NULL is not equal to itself: one index per shape, or a private chart and a
+-- shared one of the same name would collide with each other.
+create unique index if not exists saved_charts_mine_uniq
+  on public.saved_charts (page, owner, name) where role is null;
+create unique index if not exists saved_charts_shared_uniq
+  on public.saved_charts (page, role, name) where role is not null;
+
+create index if not exists saved_charts_page_idx on public.saved_charts (page);
+
+alter table public.saved_charts enable row level security;
+grant select, insert, update, delete on public.saved_charts to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+-- READ: your own, plus anything shared with everyone or with your role.
+drop policy if exists sc_read on public.saved_charts;
+create policy sc_read on public.saved_charts for select
+  using (
+    (role is null and owner = auth.uid())
+    or role = ''
+    or role = public.my_role()
+  );
+
+-- WRITE YOUR OWN. `owner = auth.uid()` on both sides, so nobody can create a
+-- chart in somebody else's name or move one to them.
+drop policy if exists sc_write_mine on public.saved_charts;
+create policy sc_write_mine on public.saved_charts for all
+  using (role is null and owner = auth.uid())
+  with check (role is null and owner = auth.uid());
+
+-- WRITE A SHARED ONE — the same authority 0120 requires to set a register
+-- layout for a role, because it is the same act: deciding what a group of
+-- people see when they open a screen.
+drop policy if exists sc_write_shared on public.saved_charts;
+create policy sc_write_shared on public.saved_charts for all
+  using (role is not null and (public.is_admin() or public.has_perm('config.manage')))
+  with check (role is not null and (public.is_admin() or public.has_perm('config.manage')));
+
+-- WHO SAVED IT IS THE DATABASE'S TO RECORD, not the caller's — 0113's rule for
+-- who registered a call, and for the same reason: a caller-supplied author is
+-- a name anybody can type. `owner` is stamped on a PRIVATE chart so it cannot
+-- be filed against somebody else even by a caller that means well.
+create or replace function public.saved_charts_stamp()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_at := now();
+  new.updated_by := auth.uid();
+  if new.role is null then new.owner := auth.uid(); end if;
+  if tg_op = 'UPDATE' then
+    new.created_at := old.created_at;
+    -- `set_at` moves on every write: it is what the reader compares when the
+    -- same chart exists both privately and for their role — the later decision
+    -- stands, which is 0120's rule and the Auto Save rule before it.
+    new.set_at := (extract(epoch from now()) * 1000)::bigint;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists saved_charts_stamp on public.saved_charts;
+create trigger saved_charts_stamp
+  before insert or update on public.saved_charts
+  for each row execute function public.saved_charts_stamp();
 
 -- ------------------------------------------------------------------------
 -- 0199_user_master_is_the_master.sql

@@ -122,6 +122,14 @@ const MODULES = {
             // My Workload — the queues moved off the registers. Same reason as
             // 0195: a module key reaches nobody until a migration writes it.
             '0202_workload_module_key.sql',
+            // Daily Call Review Insights — same reason as 0202.
+            '0204_dccr_insights_module_key.sql',
+            // ...and the key again, because the screen was renamed the next
+            // day and the module key IS the route.
+            '0205_product_failure_module_key.sql',
+            // A chart somebody builds and keeps. Modelled on role_table_views
+            // (0120), which is also in this module.
+            '0206_saved_charts.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -317,6 +325,10 @@ const MODULES = {
             // that view — a module replaying an older definition would drop
             // the column and every count would go back to the call's product.
             '0197_review_actual_product.sql',
+      // The corrected product reaches the view the register reads, so the
+      // Insights page counts under it. Must run AFTER 0048, which defines the
+      // view, and after 0197, which creates the column.
+      '0203_review_view_actual_product.sql',
             // After 0179: it re-keys the same table, and the import needs the
             // pair as its conflict target.
             '0181_ffr_one_row_per_machine.sql'],

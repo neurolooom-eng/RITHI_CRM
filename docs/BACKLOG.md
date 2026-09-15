@@ -52,6 +52,196 @@ fails instead of passing quietly.
 
 ---
 
+## 2026-09-15 — The right chart for each question, and a chart you build yourself
+
+Asked: *"How else do u think we can break down the analysis -- For Root Cause
+Pareto makes sense -- but for the rest use appropriate charts. Add a provision
+to create a chart by myself and save it."*
+
+### The form is a claim about what is being asked
+
+| | When | Why |
+| --- | --- | --- |
+| **pareto** | root cause, product, complaint | many categories; the question is which FEW account for most. Ranking is what makes the running share mean anything |
+| **share** | cover, spare category | a handful that add up to the whole — COMPOSITION. A Pareto over four slices says only *"these four are 100% of the four"* |
+| **ordered** | age at failure, software version | an ORDINAL scale whose own order IS the finding |
+
+**Software version was the one hiding a real fault.** Ranked by count it could
+not answer the question anybody asks of it — *does the newer release fail more
+than the one before?* It is in version order now, each dotted part compared as a
+NUMBER, because a string sort puts `2.10` before `2.9` and would claim a release
+order that never shipped.
+
+### The new breakdown: machines that failed more than once
+
+Every other chart answers "which product LINE fails". This answers "which UNIT
+keeps failing" — a model with 400 failures across 2,000 machines is a fleet; one
+machine with nine is a machine to go and look at. Keyed on **model AND serial**,
+because 3,794 serials repeat across models (`src/lib/machine.ts`). The
+cross-filter had to be taught that a COMPOSED KEY IS NOT A COLUMN, or the click
+would find nothing and the page would silently empty.
+
+### A chart somebody builds and keeps (0206)
+
+**Modelled on `role_table_views` (0120) deliberately** — that table already
+answers "this configuration belongs to a role, or to everyone", and a second
+answer to the same question is a second set of rules to keep in step.
+
+**Sharing a chart can never share data.** The row holds a DIMENSION and a chart
+type, never numbers; the counting happens in the reader's own session over rows
+their own RLS allowed. A chart shared with somebody who may see less simply
+shows less. That is what makes "share with everyone" safe to offer at all.
+
+**Sharing takes `config.manage`**, the same authority 0120 needs to set a layout
+for a role, because it is the same act. Somebody without it is TOLD, rather than
+offered the choice and refused afterwards.
+
+### A test that was wrong before the code was
+
+Section 3 expected an ERROR when a caller sends somebody else's `owner`. It does
+not error — the stamp trigger runs BEFORE the row-level check and overwrites it,
+so the row is filed as the caller's and the check passes. **The test was wrong,
+not the code**: discarding is 0113's rule and the better behaviour, because
+refusing makes an honest client that sends its own id fail while discarding
+makes a dishonest one harmless. What matters is that the row cannot land under
+somebody else's name, and that is what it asserts now.
+
+Nine sections, run as `authenticated` — the owner bypasses RLS and would have
+reported every hole closed while it stood open.
+
+---
+
+## 2026-09-15 — Renamed to Product Failure Analysis, which is a permissions change
+
+Asked: *"Rename it as Product Failure analysis."* Named for what it analyses
+rather than for where the data comes from — and the page had already been
+narrowed to exactly that, so the old title had stopped being true.
+
+### A rename is the case the standing rule hides best
+
+**The module key IS the route.** `/dccr-insights` became `/product-failure`, so
+the moment the route moved every role's `mod:/dccr-insights` stopped opening
+anything — and the page would have gone invisible to all of them **with no error
+anywhere**. It is the worst version of that fault, because the screen was
+already working for everybody the day before: nobody would have thought to look
+at permissions.
+
+0205 merges the new key into every configured role, exactly as 0204 granted the
+old one.
+
+**The old key is left in place, deliberately.** It now names a route that does
+not exist, so it grants nothing, and `check:ui` ignores a key with no module.
+Stripping it would be a second write for no gain — and destructive on a row an
+administrator had tuned. 0192 is the precedent: MERGE a renamed module's key,
+never swap it.
+
+### And the old address still works
+
+`/dccr-insights` redirects. A screen renamed the day after it shipped must not
+turn somebody's bookmark into a blank page. `check:ui` holds both halves — the
+redirect and the migration.
+
+---
+
+## 2026-09-15 — DCCR Insights narrowed to product failure analysis
+
+Asked, after seeing the first version: *"Idea is to focus on the product failure
+analysis in this new page.. so stick to Pareto, failures per cover.. give data
+table, download option, data label toggle."*
+
+**The first version was too wide.** It also answered process questions — who
+answered Review 2, how long it took, why a call is still open. Those are good
+questions and they are not THIS page's; a page that answers everything is read
+for nothing. They are gone.
+
+### The four things are one block
+
+They were asked for together, so they are built together: **`ParetoBlock`**
+carries the ranked chart, the **data table** (share and cumulative share), the
+**data label** toggle and the **download**. A dimension added later cannot
+arrive with three of the four.
+
+### Two judgements worth recording
+
+**The download carries the reviews, not only the ranking.** A ranked list is an
+assertion; the rows are the evidence — the user's own ask on FFR Insights
+(*"the Raw data of how that Number was arrived at"*). Both products are in it
+side by side, as called and as reviewed, so a reader can see which corrections
+moved a count.
+
+**Age at failure is NOT ranked, and shows no cumulative share.** Every other
+block is a Pareto because ranking is what makes a running share mean something.
+Age is ORDINAL: whether failures cluster early or late in a machine's life is
+the entire point of that chart, and sorting the bands by count would erase it. A
+running total across an arbitrary order says nothing, so there is none. The flag
+is in the block and the reason is in the download's method sheet.
+
+### Also
+
+`.linkish` and `.row-on` had no CSS rule — the wart this project keeps finding.
+The chosen row **inverts** rather than tints, which is the standing preference
+(*"Highlight means CONTRAST, not a tint"*) and works in either theme by
+construction.
+
+---
+
+## 2026-09-15 — Daily Call Review Insights, and the correction that reached nothing
+
+Asked: *"In the Overview heading - Add one more analytics page to analyse all the
+data that is part of the daily call review -- similar to how FFR Insights are
+built. Use all those chart.. analyse and suggest more analytics there."*
+
+### The finding that had to be fixed before the page could be right
+
+**0197's corrected product reached the Field Failure register and nothing else.**
+`field_call_review` — the view the Daily Call Review reads, and the one this page
+groups by — had no `actual_product` at all. So every "which product fails" chart
+would have counted under the MAIN product, and *Change product?* would have
+changed nothing on the one screen built to see it: the failure still reading as
+EXTEND-XT's when somebody had said it was the CPX CARE's.
+
+0203 carries `live_product_name` — **one effective value**, the corrected product
+where one was chosen and the call's where none was, exactly as 0197 argued for
+the register. A failure is counted ONCE under whatever that is.
+
+**Two mistakes on the way, both caught by running it:**
+
+- The first version appended with `select fcr.* from field_call_review fcr` —
+  **the view selecting from itself.** Postgres accepts that at creation and then
+  answers every query with *"infinite recursion detected in rules for relation"*.
+- Splicing the new columns in left the previous one without its comma.
+
+The whole definition is restated now, which is the rule this project already
+has: a bundle must carry the LATEST definition of everything it defines.
+`security_invoker` re-asserted, `check:views` and `check:replay` green.
+
+### What the page shows
+
+Root cause as a **Pareto**; complaint grouping; which products fail; what they
+were reported as; cover; the trend with its numbers beside it; where; which
+customers.
+
+And four the FFR page has no equivalent of:
+
+| | Why it earns its place |
+| --- | --- |
+| **Turnaround to Review 2** | in BANDS, not an average — an average hides the tail and the tail is the finding. A review nobody has answered is counted **nowhere** rather than as nought days, which would read as "same day" and flatter it |
+| **Who answered Review 2** | including **"Auto (9:15 am)"** — the honest measure of how much of this review a person is doing |
+| **Software version** | from the latest visit. A fault clustering on one version is what reaches manufacturing |
+| **Age at failure, and why a call is still open** | the two questions the register makes you count by hand |
+
+### Still worth building
+
+Named here rather than guessed at: **warranty-failure RATE per product** (needs
+the install base as a denominator, which `objective_evidence` already knows how
+to count); **first-visit fix rate** (`visit_count = 1`, by product and engineer);
+**a vigilance funnel** — calls → risk to patient → any potential effect → FFR
+raised, which is the ISO-relevant chain and currently four separate numbers; and
+**review backlog ageing** — not how long an answered review took, but how long
+the unanswered ones have been waiting.
+
+---
+
 ## 2026-09-15 — My Workload: the queues left the registers, and now open
 
 Asked: *"Remove such cards in Main Views. Move those to a Separate KPI Cards

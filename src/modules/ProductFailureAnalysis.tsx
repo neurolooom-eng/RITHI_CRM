@@ -1,0 +1,913 @@
+// ===========================================================================
+// PRODUCT FAILURE ANALYSIS.
+//
+// Asked for as an analytics page over the Daily Call Review (2026-09-15), then
+// narrowed — "focus on the product failure analysis in this new page" — and
+// then NAMED for what it had become. The title is the honest one: this answers
+// what fails and why, not what the review process is doing.
+//
+// THE REVIEW IS STILL WHERE THE DATA COMES FROM. Every number here is one
+// REVIEWED CALL, so a failure nobody has reviewed is not on this page at all —
+// which is worth knowing before reading any of it as "all our failures".
+//
+// WHAT THIS ANSWERS THAT THE REGISTER DOES NOT. The Daily Call Review is a
+// worklist: one call at a time, answered and moved on from. These are the
+// questions asked ACROSS it — what is actually failing, why, under whose cover,
+// how long a review waits before somebody looks at it, and how much of the
+// review is being answered by the 9:15 rule rather than by a person.
+//
+// IT COUNTS UNDER THE CORRECTED PRODUCT (`live_product_name`, 0203). Review 2
+// can move a failure to the accessory it really belongs to, and a page that
+// grouped by the CALL's product would count it under EXTEND-XT after somebody
+// had said it was the CPX CARE's — undoing the correction on the one screen
+// built to see it.
+//
+// EVERY COUNT IS OVER WHAT LOADED, and the register pages. So the figures carry
+// `+` while more is waiting, which is the rule everywhere else in this project
+// and the easiest one to drop on a screen made of counts.
+// ===========================================================================
+import { useEffect, useMemo, useState } from 'react';
+import { SectionCard, PageHeader, Drawer } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
+import { useAuth } from '../lib/auth';
+import { rolesWith } from '../lib/rbac';
+import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
+import { ColumnChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
+import { xlsxDownload } from '../lib/xlsx';
+import { logAudit } from '../lib/audit';
+import './productfailure.css';
+// ONE DEFINITION of the period buckets, shared with FFR Insights: the trend's
+// marks are clickable, so a bucket key is also a filter value — two functions
+// that drifted would make a click filter on a value no row has, and the page
+// would silently empty.
+import { PERIODS, periodKey, type Period } from './FieldFailureInsights';
+
+type Row = Record<string, unknown>;
+const s = (r: Row, k: string) => String(r[k] ?? '').trim();
+const yes = (v: string) => /^(yes|y|true|1)$/i.test(v.trim());
+
+/** Count by a key, biggest first, with blanks GATHERED rather than dropped:
+ *  "not stated" is a finding about the review, and silently omitting it makes
+ *  the chart add up to less than the total with nothing saying why. */
+function tally(rows: Row[], key: string, blankLabel = '(not answered)'): { label: string; value: number }[] {
+  const m = new Map<string, number>();
+  for (const r of rows) {
+    const k = s(r, key) || blankLabel;
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return [...m.entries()].map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+}
+
+// ---------------------------------------------------------------------------
+// WHAT A READER MAY BUILD A CHART OVER.
+//
+// A NAMED LIST, NOT "ANY COLUMN". The view has 57 of them and most answer
+// nothing worth a chart — an id, a uuid, a free-text observation whose every
+// value is unique. Offering all 57 would bury the eight that matter and let
+// somebody build a Pareto with four thousand bars, one per row.
+//
+// THE SUGGESTED FORM IS A SUGGESTION. A dimension knows what it usually is —
+// cover is composition, age is ordinal — but the reader may say otherwise, and
+// they are allowed to: it is their chart.
+// ---------------------------------------------------------------------------
+const BUILDABLE: { key: string; label: string; form: 'pareto' | 'share' | 'ordered' }[] = [
+  { key: 'live_product_name', label: 'Product (as reviewed)', form: 'pareto' },
+  { key: 'product_name', label: 'Product (as called)', form: 'pareto' },
+  { key: 'root_cause_keyword', label: 'Root cause', form: 'pareto' },
+  { key: 'complaint_grouping', label: 'Complaint grouping', form: 'pareto' },
+  { key: 'standard_complaint', label: 'Standard complaint', form: 'pareto' },
+  { key: 'item_status', label: 'Cover', form: 'share' },
+  { key: 'spare_category', label: 'Spare category', form: 'share' },
+  { key: 'age_group', label: 'Age at failure', form: 'ordered' },
+  { key: 'sw_version', label: 'Software version', form: 'ordered' },
+  { key: 'party_name', label: 'Customer', form: 'pareto' },
+  { key: 'state', label: 'State', form: 'pareto' },
+  { key: 'city', label: 'City', form: 'pareto' },
+  { key: 'allocated_to', label: 'Engineer the call was allotted to', form: 'pareto' },
+  { key: 'visit_engineer', label: 'Engineer who visited', form: 'pareto' },
+  { key: 'risk_to_patient', label: 'Risk to patient', form: 'share' },
+  { key: 'warranty_failure', label: 'Failed in warranty', form: 'share' },
+  { key: 'frequent_failure', label: 'Frequent failure', form: 'share' },
+  { key: 'any_potential_effect', label: 'Any potential effect', form: 'share' },
+  { key: 'review_status', label: 'Review status', form: 'share' },
+  { key: 'call_type', label: 'Call type', form: 'share' },
+  { key: 'open_state', label: 'Call status', form: 'share' },
+  { key: 'pending_reason', label: 'Why still open', form: 'pareto' },
+];
+const FORMS: { key: 'pareto' | 'share' | 'ordered'; label: string }[] = [
+  { key: 'pareto', label: 'Pareto — which few account for most' },
+  { key: 'share', label: 'Share — how the whole splits up' },
+  { key: 'ordered', label: 'In its own order — a scale, not a ranking' },
+];
+
+/** Which page a saved chart belongs to. One constant, because the value is
+ *  written to the database and read back — two spellings would be two pages. */
+const PAGE_KEY = 'product-failure';
+
+/** WHEN THE FAILURE HAPPENED — the complaint date, falling back to the date the
+ *  call was registered.
+ *
+ *  NOT `review2_at`, which is when somebody LOOKED at it. On a process page the
+ *  review date is the right clock; on a failure analysis it is the wrong one,
+ *  because a machine that broke in December and was reviewed in January did not
+ *  fail in January. The trend and the year filter both read this, so the chart
+ *  and the filter above it cannot disagree about which year a failure is in. */
+const failedOn = (r: Row) => s(r, 'complaint_date') || s(r, 'reg_date');
+
+/** THE YEAR THE PAGE OPENS ON.
+ *
+ *  The user, 2026-09-15: "Always default it to 2026." Read as THE CURRENT YEAR
+ *  rather than the literal number: a hard-coded 2026 becomes wrong on the first
+ *  of January and shows an empty page with nothing saying why — and "always"
+ *  is what makes the current year the honest reading of it.
+ *
+ *  It matters because the register carries nine years of migrated history:
+ *  1,120 reviews from before 2026 against 36 raised in it. Opening on
+ *  everything makes every Pareto a chart of the old system. */
+const thisYear = () => String(new Date().getFullYear());
+const ALL_YEARS = '__all';
+
+interface Cut { label: string; value: number }
+
+// ---------------------------------------------------------------------------
+// ONE BLOCK, USED FOR EVERY DIMENSION.
+//
+// The user, 2026-09-15: "focus on the product failure analysis ... stick to
+// Pareto, failures per cover.. give data table, download option, data label
+// toggle." So every analysis on this page carries the same four things, and
+// carries them because they were asked for TOGETHER: a chart is read, a table
+// is CHECKED, labels are what make a chart quotable, and a download is what
+// makes it arguable with somebody who was not at the screen.
+//
+// Which FORM each one takes is documented on the `form` prop below.
+// ---------------------------------------------------------------------------
+function ParetoBlock({
+  title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
+  onRemove, yearNote,
+}: {
+  title: string;
+  note?: string;
+  rows: Cut[];
+  total: number;
+  dim: string;
+  picked: Record<string, string>;
+  onPick: (dim: string) => (label: string) => void;
+  /** THE FORM FOLLOWS THE QUESTION, not the page's habit.
+   *
+   *  `pareto`   many categories, and the question is "which few account for
+   *             most of it" — root cause, product, complaint. The cumulative
+   *             line is the whole point and it is why the rows are RANKED.
+   *  `share`    a handful of categories that add up to the whole, and the
+   *             question is composition — cover, spare category. A Pareto over
+   *             four slices with a running total is theatre: it says "these
+   *             four are 100% of the four".
+   *  `ordered`  an ORDINAL scale whose own order is the finding — age at
+   *             failure, software version. Ranking by count destroys exactly
+   *             what the chart is for, so it keeps its order, shows no
+   *             cumulative share, and is drawn as columns because that is what
+   *             a distribution across a scale looks like. */
+  form?: 'pareto' | 'share' | 'ordered';
+  /** The reviews behind these numbers, so the download can carry them. */
+  raw: Row[];
+  rawDateKey: string;
+  rawDateLabel: string;
+  /** Present only on a chart somebody BUILT — the built-in ones are the page
+   *  and cannot be removed from it. */
+  onRemove?: () => void;
+  /** WHICH YEAR THESE NUMBERS CAME THROUGH. A spreadsheet leaves the screen and
+   *  is read by somebody who never saw the filter, so the window it was taken
+   *  through has to travel with it or the numbers are simply wrong to them. */
+  yearNote: string;
+}) {
+  const [labels, setLabels] = useState(false);
+  const rank = form === 'pareto';
+  const shown = rank ? rows.slice(0, 15) : rows;
+  let run = 0;
+  const table = shown.map((r, i) => {
+    run += r.value;
+    return {
+      rank: i + 1,
+      label: r.label,
+      value: r.value,
+      share: total ? r.value / total : 0,
+      running: run,
+      cumulative: total ? run / total : 0,
+    };
+  });
+
+  const download = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const scope = Object.entries(picked).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'the whole register';
+    const name = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    xlsxDownload(`product-failure-${name}-${when}.xlsx`, [
+      {
+        name: 'Ranked',
+        columns: rank
+          ? ['Rank', title, 'Failures', 'Share', 'Share worked out', 'Running total', 'Cumulative share']
+          : [title, 'Failures', 'Share', 'Share worked out'],
+        rows: table.map((r) => (rank ? {
+          Rank: r.rank,
+          [title]: r.label,
+          Failures: r.value,
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${total}`,
+          'Running total': r.running,
+          'Cumulative share': `${(r.cumulative * 100).toFixed(1)}%`,
+        } : {
+          [title]: r.label,
+          Failures: r.value,
+          Share: `${(r.share * 100).toFixed(1)}%`,
+          'Share worked out': `${r.value} ÷ ${total}`,
+        })),
+      },
+      // THE RAW DATA BEHIND THE NUMBER (the user's ask on FFR Insights,
+      // 2026-09-14: "In the Download, i want the Raw data of how that Number was
+      // arrived at"). A ranked list is an assertion; the rows are the evidence.
+      {
+        name: 'The reviews counted',
+        columns: ['UCN', 'Call number', rawDateLabel, 'Product (as called)', 'Product (as reviewed)',
+                  'Cover', 'Customer', 'Standard complaint', 'Complaint grouping', 'Root cause',
+                  'Spare category', 'Software version', 'Age at failure', 'Risk to patient',
+                  'Warranty failure', 'Frequent failure', 'Any potential effect', 'Review status'],
+        rows: raw.map((r) => ({
+          UCN: s(r, 'ucn'),
+          'Call number': s(r, 'call_number'),
+          [rawDateLabel]: s(r, rawDateKey),
+          'Product (as called)': s(r, 'product_name'),
+          'Product (as reviewed)': s(r, 'live_product_name'),
+          Cover: s(r, 'item_status'),
+          Customer: s(r, 'party_name'),
+          'Standard complaint': s(r, 'standard_complaint'),
+          'Complaint grouping': s(r, 'complaint_grouping'),
+          'Root cause': s(r, 'root_cause_keyword'),
+          'Spare category': s(r, 'spare_category'),
+          'Software version': s(r, 'sw_version'),
+          'Age at failure': s(r, 'age_group'),
+          'Risk to patient': s(r, 'risk_to_patient'),
+          'Warranty failure': s(r, 'warranty_failure'),
+          'Frequent failure': s(r, 'frequent_failure'),
+          'Any potential effect': s(r, 'any_potential_effect'),
+          'Review status': s(r, 'review_status'),
+        })),
+      },
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Counted by', Value: title },
+          { Item: 'Narrowed to', Value: scope },
+          { Item: 'Year', Value: yearNote },
+          { Item: 'Failures counted', Value: total },
+          { Item: 'Rows shown on the chart', Value: shown.length },
+          { Item: '', Value: '' },
+          { Item: 'What one failure is',
+            Value: 'ONE REVIEWED CALL. A machine that failed twice is two calls and counts twice.' },
+          { Item: 'Which product it counts under',
+            Value: 'the product REVIEW 2 says actually failed, where somebody changed it — so a '
+              + 'fault moved to an accessory counts against the accessory and not against the '
+              + 'machine it was logged on. Both are in the raw sheet, side by side.' },
+          { Item: 'A blank answer',
+            Value: 'is gathered as "(not answered)" and counted, never dropped. Dropping it would '
+              + 'make the chart add up to less than the total with nothing saying why.' },
+          ...(form === 'pareto' ? [{
+            Item: 'Why it is a Pareto',
+            Value: 'many categories, and the question is which FEW account for most of it. Ranking '
+              + 'is what makes the running share mean anything.',
+          }] : form === 'share' ? [{
+            Item: 'Why it is a share, not a Pareto',
+            Value: 'a handful of categories that add up to the whole, so the question is '
+              + 'COMPOSITION. A Pareto over four slices with a running total says only "these four '
+              + 'are 100% of the four".',
+          }] : [{
+            Item: 'Why it is NOT ranked',
+            Value: 'this is an ordinal scale and its own order is the finding — whether failures '
+              + 'cluster EARLY or LATE. Sorting it by count would destroy that, so there is no '
+              + 'cumulative share either: a running total across an arbitrary order says nothing.',
+          }]),
+          { Item: '', Value: '' },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'productfailure.download', target: title, meta: { rows: shown.length, total, scope } });
+  };
+
+  if (!rows.length) {
+    return (
+      <SectionCard title={title}>
+        <div className="muted">Nothing to count here yet.</div>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard title={title}>
+      {note && <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>{note}</p>}
+      <div className="stage-chips">
+        <button className={`chip ${labels ? 'chip-on' : ''}`} onClick={() => setLabels((v) => !v)}>
+          {labels ? '✓ ' : ''}Data labels
+        </button>
+        <button className="chip" onClick={download}>⭳ Download</button>
+        {onRemove && (
+          <button className="chip" onClick={onRemove} title="Remove this chart from the page">
+            ✕ Remove
+          </button>
+        )}
+      </div>
+      {form === 'pareto'
+        ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
+        : form === 'share'
+          ? <DonutChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />
+          : <ColumnChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} />}
+      {/* THE NUMBERS BESIDE THE PICTURE. A chart is read; a table is checked. */}
+      <div className="assoc-scroll" style={{ marginTop: 10 }}>
+        <table className="assoc-table">
+          <thead>
+            <tr>
+              {rank && <th style={{ width: 48 }}>#</th>}
+              <th>{title}</th>
+              <th style={{ textAlign: 'right' }}>Failures</th>
+              <th style={{ textAlign: 'right' }}>Share</th>
+              {rank && <th style={{ textAlign: 'right' }}>Cumulative</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {table.map((r) => (
+              <tr key={r.label} className={picked[dim] === r.label ? 'row-on' : undefined}>
+                {rank && <td>{r.rank}</td>}
+                <td>
+                  <button className="linkish" onClick={() => onPick(dim)(r.label)}
+                    title={picked[dim] === r.label ? 'Drop this filter' : 'Narrow every chart to this'}>
+                    {r.label}
+                  </button>
+                </td>
+                <td style={{ textAlign: 'right' }}>{r.value.toLocaleString()}</td>
+                <td style={{ textAlign: 'right' }}>{(r.share * 100).toFixed(1)}%</td>
+                {rank && <td style={{ textAlign: 'right' }}>{(r.cumulative * 100).toFixed(1)}%</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </SectionCard>
+  );
+}
+
+export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
+  const [period, setPeriod] = useState<Period>('month');
+  const [trendLabels, setTrendLabels] = useState(false);
+  // CROSS-FILTER. Clicking a bar, or a row of any table, narrows every other
+  // chart — so "what is the root cause on ORION-G, under contract?" is two
+  // clicks rather than a query nobody can write.
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  // THE YEAR THE PAGE OPENS ON — this one, not all nine.
+  const [year, setYear] = useState<string>(thisYear());
+
+  // Every year the register actually holds, newest first, so the picker offers
+  // what is there rather than a range somebody guessed.
+  const years = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => { const y = failedOn(r).slice(0, 4); if (/^\d{4}$/.test(y)) set.add(y); });
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [allRows]);
+
+  // ---- charts a reader built and kept (0206) ------------------------------
+  const { can, rolePerms } = useAuth();
+  const maySh: boolean = can('config.manage');
+  const [saved, setSaved] = useState<SavedChart[]>([]);
+  const [builder, setBuilder] = useState<{ dim: string; form: SavedChartSpec['form']; name: string; scope: string } | null>(null);
+  const [savingMsg, setSavingMsg] = useState('');
+
+  const reloadSaved = () => { void listSavedCharts(PAGE_KEY).then(setSaved); };
+  useEffect(() => { reloadSaved(); }, []);
+
+  const openBuilder = () => {
+    setSavingMsg('');
+    setBuilder({ dim: BUILDABLE[0].key, form: BUILDABLE[0].form, name: '', scope: 'mine' });
+  };
+
+  const doSave = async () => {
+    if (!builder) return;
+    const scope = builder.scope === 'mine' ? null : builder.scope === 'all' ? '' : builder.scope;
+    const res = await saveChart(PAGE_KEY, builder.name, scope, { dim: builder.dim, form: builder.form });
+    if (!res.ok) { setSavingMsg(res.error ?? 'Could not save it.'); return; }
+    setBuilder(null); reloadSaved();
+  };
+
+  const removeSaved = async (c: SavedChart) => {
+    const res = await deleteSavedChart(c.id);
+    if (!res.ok) { setSavingMsg(res.error ?? 'Could not remove it.'); return; }
+    reloadSaved();
+  };
+  const pick = (dim: string) => (label: string) =>
+    setPicked((cur) => (cur[dim] === label ? (({ [dim]: _drop, ...rest }) => rest)(cur) : { ...cur, [dim]: label }));
+
+  const dimValue = (r: Row, dim: string): string => {
+    if (dim === 'period') return periodKey(failedOn(r), period);
+    // A COMPOSED KEY IS NOT A COLUMN. The machine chart counts model + serial,
+    // so clicking one has to be matched the same way it was counted — reading
+    // `r['__machine']` would find nothing and the page would silently empty.
+    if (dim === '__machine') {
+      const serial = s(r, 'serial');
+      return serial ? `${s(r, 'live_product_name') || '(no product)'} · ${serial}` : '';
+    }
+    return s(r, dim);
+  };
+
+  const rows = useMemo(() => {
+    // THE YEAR IS APPLIED FIRST, before any chart counts — it is not one of the
+    // cross-filters but the window every one of them is read through.
+    const inYear = year === ALL_YEARS
+      ? allRows
+      : allRows.filter((r) => failedOn(r).slice(0, 4) === year);
+    const dims = Object.entries(picked);
+    if (!dims.length) return inYear;
+    return inYear.filter((r) => dims.every(([dim, label]) =>
+      (dimValue(r, dim) || '(not answered)') === label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRows, picked, period, year]);
+
+  const n = rows.length;
+  const plus = more ? '+' : '';
+  const countIf = (fn: (r: Row) => boolean) => rows.filter(fn).length;
+
+  const byProduct = useMemo(() => tally(rows, 'live_product_name', '(no product)'), [rows]);
+  const byCover = useMemo(() => tally(rows, 'item_status', '(no cover recorded)'), [rows]);
+  const byRootCause = useMemo(() => tally(rows, 'root_cause_keyword'), [rows]);
+  const byGrouping = useMemo(() => tally(rows, 'complaint_grouping'), [rows]);
+  const byComplaint = useMemo(() => tally(rows, 'standard_complaint'), [rows]);
+  const bySpareCat = useMemo(() => tally(rows, 'spare_category'), [rows]);
+  // REPEAT OFFENDERS — the individual MACHINE, not the model.
+  //
+  // Every other chart here answers "which product line fails". This answers
+  // "which UNIT keeps failing", which is a different question and often the
+  // more actionable one: a model with 400 failures across 2,000 machines is a
+  // fleet; one machine with nine is a machine to go and look at.
+  //
+  // KEYED ON MODEL PLUS SERIAL, never the serial alone — the rule this codebase
+  // already carries (`src/lib/machine.ts`): 3,794 serials repeat across models,
+  // and counting by serial would merge an ORION-G 219 with an EXTEND-XT 219.
+  const byMachine = useMemo(() => {
+    const m = new Map<string, number>();
+    rows.forEach((r) => {
+      const serial = s(r, 'serial');
+      if (!serial) return;   // a failure with no serial names no machine
+      const k = `${s(r, 'live_product_name') || '(no product)'} · ${serial}`;
+      m.set(k, (m.get(k) ?? 0) + 1);
+    });
+    return [...m.entries()].map(([label, value]) => ({ label, value }))
+      .filter((x) => x.value > 1)   // one failure is not a repeat
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label));
+  }, [rows]);
+  const repeatTotal = byMachine.reduce((t, x) => t + x.value, 0);
+
+  const bySw = useMemo(() => tally(rows, 'sw_version', '(not captured)'), [rows]);
+  // VERSION ORDER, not count order. "2.10" is newer than "2.9" and a plain
+  // string sort puts it earlier, so each dotted part is compared as a NUMBER —
+  // otherwise the chart would claim the release order is something it is not,
+  // which on a version axis is the whole finding. Anything unparseable sorts
+  // last rather than pretending to a position.
+  const bySwOrdered = useMemo(() => {
+    const parts = (v: string) => v.split(/[^0-9]+/).filter(Boolean).map(Number);
+    return [...bySw].sort((a, b) => {
+      const pa = parts(a.label), pb = parts(b.label);
+      if (!pa.length && !pb.length) return a.label.localeCompare(b.label);
+      if (!pa.length) return 1;
+      if (!pb.length) return -1;
+      for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+        if (d) return d;
+      }
+      return 0;
+    });
+  }, [bySw]);
+
+  // AGE KEEPS ITS OWN ORDER (see ParetoBlock): whether failures cluster early
+  // or late in a machine's life is the finding, and ranking by count erases it.
+  const byAge = useMemo(() => {
+    const t = tally(rows, 'age_group', '(age unknown)');
+    const order = new Map<string, number>();
+    allRows.forEach((r) => {
+      const g = s(r, 'age_group') || '(age unknown)';
+      const d = Number(r.age_days);
+      if (!order.has(g) || (Number.isFinite(d) && d < (order.get(g) ?? Infinity))) {
+        order.set(g, Number.isFinite(d) ? d : Infinity);
+      }
+    });
+    return [...t].sort((a, b) => (order.get(a.label) ?? Infinity) - (order.get(b.label) ?? Infinity));
+  }, [rows, allRows]);
+
+  const trend = useMemo(() => {
+    const m = new Map<string, number>();
+    rows.forEach((r) => {
+      const k = periodKey(failedOn(r), period);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    });
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, value]) => ({ label, value }));
+  }, [rows, period]);
+  const trendTotal = trend.reduce((t, x) => t + x.value, 0);
+
+  const downloadTrend = () => {
+    const when = new Date().toISOString().slice(0, 10);
+    const per = PERIODS.find((x) => x.key === period)!.label;
+    let run = 0;
+    xlsxDownload(`product-failure-trend-${period}-${when}.xlsx`, [
+      {
+        name: 'Failures by period',
+        columns: [per, 'Failures', 'Share', 'Running total'],
+        rows: trend.map((t) => {
+          run += t.value;
+          return {
+            [per]: t.label,
+            Failures: t.value,
+            Share: `${trendTotal ? ((t.value / trendTotal) * 100).toFixed(1) : '0.0'}%`,
+            'Running total': run,
+          };
+        }),
+      },
+      {
+        name: 'How this was worked out',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Counted by', Value: per },
+          { Item: 'Year', Value: yearNote },
+          { Item: 'Which date decides the period',
+            Value: 'when the machine FAILED — its complaint date, or the day the call was '
+              + 'registered where there is none. NOT the date somebody reviewed it: a machine '
+              + 'that broke in December and was reviewed in January did not fail in January.' },
+          { Item: 'A period with no failures',
+            Value: 'is not a row. A gap is a gap in the register, not a zero somebody recorded.' },
+          { Item: 'Failures counted', Value: trendTotal },
+          { Item: 'Downloaded', Value: new Date().toISOString() },
+        ],
+      },
+    ]);
+    logAudit({ action: 'productfailure.trend.download', target: period, meta: { total: trendTotal } });
+  };
+
+  const effects = countIf((r) => yes(s(r, 'any_potential_effect')));
+  const risk = countIf((r) => yes(s(r, 'risk_to_patient')));
+  const warrantyFail = countIf((r) => yes(s(r, 'warranty_failure')));
+  const frequent = countIf((r) => yes(s(r, 'frequent_failure')));
+  const moved = countIf((r) => s(r, 'live_product_changed') === 'true' || r.live_product_changed === true);
+
+  const yearNote = year === ALL_YEARS
+    ? 'every year on the register, migrated history included'
+    : `${year} — by the date the machine FAILED (complaint date, or registration where there is none)`;
+
+  const RAW_DATE = 'review2_at';
+  const RAW_DATE_LABEL = 'Review 2 answered on';
+
+  return (
+    <div>
+      {/* ---- THE YEAR --------------------------------------------------------
+          Always on screen, never folded away, and never implied. A page that
+          quietly showed one year of nine would be a page whose every number is
+          a fraction of what the reader thinks they are looking at — and the
+          register carries nine years of migrated history against one of its
+          own, so the difference is not small. */}
+      <SectionCard title="Year">
+        <div className="stage-chips">
+          {years.map((y) => (
+            <button key={y} className={`chip ${year === y ? 'chip-on' : ''}`}
+              onClick={() => setYear(y)}>
+              {y}{y === thisYear() ? ' · this year' : ''}
+            </button>
+          ))}
+          <button className={`chip ${year === ALL_YEARS ? 'chip-on' : ''}`}
+            onClick={() => setYear(ALL_YEARS)}>
+            Every year <b>{allRows.length.toLocaleString()}{more ? '+' : ''}</b>
+          </button>
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+          {year === ALL_YEARS
+            ? <>Counting <b>every year on the register</b>, including failures migrated from the
+                superseded system. Read the Paretos knowing that.</>
+            : <>Counting the <b>{n.toLocaleString()}{more ? '+' : ''}</b> failures that happened in{' '}
+                <b>{year}</b>, out of {allRows.length.toLocaleString()}{more ? '+' : ''} on the
+                register. A failure&rsquo;s year is when the machine FAILED — its complaint date,
+                or the day the call was registered where there is none — not when somebody
+                reviewed it.</>}
+        </div>
+      </SectionCard>
+
+      {Object.keys(picked).length > 0 && (
+        <SectionCard title="Narrowed to">
+          <div className="stage-chips">
+            {Object.entries(picked).map(([dim, label]) => (
+              <button key={dim} className="chip chip-on" onClick={() => pick(dim)(label)}
+                title="Drop this and count everything again">
+                {dim}: {label} ✕
+              </button>
+            ))}
+            <button className="chip" onClick={() => setPicked({})}>Clear all</button>
+          </div>
+          <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+            {n.toLocaleString()}{plus} of {allRows.length.toLocaleString()}{plus} reviewed calls.
+          </div>
+        </SectionCard>
+      )}
+
+      <KpiGrid min={190}>
+        <KpiCard label="Failures reviewed" value={`${n.toLocaleString()}${plus}`} tone="primary" icon="📋"
+          sub="one per reviewed call" />
+        <KpiCard label="Any potential effect" value={`${effects.toLocaleString()}${plus}`} icon="⚠️"
+          tone={effects ? 'danger' : 'neutral'} sub="an FFR is raised from each" />
+        <KpiCard label="Risk to patient" value={`${risk.toLocaleString()}${plus}`} icon="🚨"
+          tone={risk ? 'danger' : 'neutral'} sub="answered Yes at Review 2" />
+        <KpiCard label="Failed in warranty" value={`${warrantyFail.toLocaleString()}${plus}`} icon="🛡️"
+          tone={warrantyFail ? 'warning' : 'neutral'} sub="inside the cover period" />
+        <KpiCard label="Frequent failure" value={`${frequent.toLocaleString()}${plus}`} icon="🔁"
+          tone={frequent ? 'warning' : 'neutral'} sub="flagged by either rule" />
+        <KpiCard label="Product corrected" value={`${moved.toLocaleString()}${plus}`} icon="🔀"
+          tone="info" sub="counted under the accessory that failed" />
+      </KpiGrid>
+
+      <ParetoBlock
+        title="Which products fail"
+        note="Counted under the product Review 2 says actually failed, so a fault moved to an
+              accessory counts there and not against the machine it was logged on."
+        rows={byProduct} total={n} dim="live_product_name" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Failures per cover"
+        note="Warranty, contract or out of cover — four categories that add up to the whole, so this
+              is a SHARE and not a Pareto. A product failing mostly INSIDE warranty is a
+              manufacturing question; one failing mostly outside it is a wear question. Pick a
+              product above and this narrows to it, which is the cross-tab worth having."
+        form="share"
+        rows={byCover} total={n} dim="item_status" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Root cause"
+        note="The few causes behind most of the failures — which is what the running share is for."
+        rows={byRootCause} total={n} dim="root_cause_keyword" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Complaint grouping"
+        rows={byGrouping} total={n} dim="complaint_grouping" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="What it was reported as"
+        note="The complaint the customer gave, before anybody looked. Where this and the root cause
+              disagree is where the fault is hard to describe from the outside."
+        rows={byComplaint} total={n} dim="standard_complaint" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Which spares were implicated"
+        note="A short closed list, so it is read as a share of the failures rather than ranked."
+        form="share"
+        rows={bySpareCat} total={n} dim="spare_category" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Machines that failed more than once"
+        note={`The individual UNIT, not the model — a model with four hundred failures across two
+              thousand machines is a fleet; one machine with nine is a machine to go and look at.
+              Keyed on model AND serial, because the same serial number belongs to several models.
+              ${repeatTotal.toLocaleString()} of ${n.toLocaleString()} failures are on a machine
+              that has failed before.`}
+        rows={byMachine} total={repeatTotal} dim="__machine" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Software version"
+        note="In VERSION ORDER, not ranked by count: the question is whether a newer release is
+              failing more than the one before it, and sorting by count hides exactly that. From the
+              latest visit report."
+        form="ordered"
+        rows={bySwOrdered} total={n} dim="sw_version" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      <ParetoBlock
+        title="Age at failure"
+        note="In its own order, NOT ranked by count: whether failures cluster early or late in a
+              machine's life is the finding, and sorting by count would erase it."
+        form="ordered"
+        rows={byAge} total={n} dim="age_group" picked={picked} onPick={pick}
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
+
+      {/* ---- CHARTS SOMEBODY BUILT ------------------------------------------
+          Rendered through the SAME block as the built-in ones, so a saved chart
+          arrives with the table, the labels and the download rather than being
+          a lesser kind of chart. A dimension the page no longer knows is SAID,
+          not silently dropped: a chart that quietly shows nothing is worse than
+          one that says the column has gone. */}
+      {saved.map((c) => {
+        const known = BUILDABLE.find((b) => b.key === c.spec.dim);
+        if (!known) {
+          return (
+            <SectionCard key={c.id} title={c.name}>
+              <div className="sheet-banner sheet-banner-warn">
+                <span>
+                  This chart counts by <b>{c.spec.dim}</b>, which is no longer on the review —
+                  so it cannot be drawn. Remove it, or rebuild it on a column that is.
+                </span>
+              </div>
+            </SectionCard>
+          );
+        }
+        const cut = tally(rows, c.spec.dim, '(not answered)');
+        return (
+          <ParetoBlock
+            key={c.id}
+            title={c.name}
+            note={`Built here${c.role === null ? ' and kept for you'
+              : c.role === '' ? ' and shared with everyone' : ` and shared with ${c.role}`}, counting by ${known.label}.`}
+            form={c.spec.form}
+            rows={cut} total={n} dim={c.spec.dim} picked={picked} onPick={pick}
+            raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote}
+            onRemove={() => void removeSaved(c)} />
+        );
+      })}
+
+      <SectionCard title="Build a chart">
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Count the failures by any of the review's own answers, in whichever form suits the
+          question. It is kept for you unless you share it — and a shared chart still shows each
+          reader only the failures their own role may see, so sharing a chart never shares data.
+        </p>
+        <button className="btn btn-sm" onClick={openBuilder}>＋ New chart</button>
+        {savingMsg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{savingMsg}</span></div>}
+      </SectionCard>
+
+      {builder && (
+        <Drawer open title="Build a chart" onClose={() => setBuilder(null)} width={560} storeKey="pfaBuilder">
+          <div className="kb-form">
+            <div className="field">
+              <label className="field-label">Count the failures by</label>
+              <SelectPicker
+                value={builder.dim}
+                options={BUILDABLE.map((b) => ({ value: b.key, label: b.label }))}
+                onChange={(v) => setBuilder((b) => b && ({
+                  ...b, dim: v,
+                  // THE SUGGESTED FORM FOLLOWS THE DIMENSION, because most of
+                  // the time it is right — and the reader may still overrule it
+                  // below. Leaving the previous form on a new dimension is how
+                  // somebody ends up with a Pareto of four cover types.
+                  form: BUILDABLE.find((x) => x.key === v)?.form ?? 'pareto',
+                }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Drawn as</label>
+              <SelectPicker
+                value={builder.form}
+                options={FORMS.map((f) => ({ value: f.key, label: f.label }))}
+                onChange={(v) => setBuilder((b) => b && ({ ...b, form: v as SavedChartSpec['form'] }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Call it</label>
+              <input className="input" value={builder.name} autoFocus
+                placeholder="Failures by customer, say"
+                onChange={(e) => setBuilder((b) => b && ({ ...b, name: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Who sees it</label>
+              {/* SHARING IS A DIFFERENT ACT FROM KEEPING, and takes different
+                  authority: it decides what a group of people see when they
+                  open a screen — the same thing setting a register layout for a
+                  role does (0120), and it takes the same permission. Somebody
+                  without it is told so rather than being offered the choice. */}
+              <SelectPicker
+                value={builder.scope}
+                options={[
+                  { value: 'mine', label: 'Only me' },
+                  ...(maySh ? [{ value: 'all', label: 'Everyone' }] : []),
+                  ...(maySh ? rolesWith(Object.keys(rolePerms ?? {})).map((r) => ({
+                    value: r.key, label: `Everyone on ${r.label}`,
+                  })) : []),
+                ]}
+                onChange={(v) => setBuilder((b) => b && ({ ...b, scope: v }))} />
+              {!maySh && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Sharing a chart with a role, or with everyone, needs the “Manage configuration”
+                  permission.
+                </span>
+              )}
+            </div>
+            {savingMsg && <div className="sheet-banner sheet-banner-error"><span>{savingMsg}</span></div>}
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" disabled={!builder.name.trim()} onClick={() => void doSave()}>
+                Save
+              </button>
+              <button className="btn" onClick={() => setBuilder(null)}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
+
+      <SectionCard title={`Failures, ${period === 'year' ? 'year by year'
+        : period === 'quarter' ? 'quarter by quarter' : 'month by month'}`}>
+        <div className="stage-chips">
+          {PERIODS.map((p) => (
+            <button key={p.key} className={`chip ${period === p.key ? 'chip-on' : ''}`}
+              onClick={() => setPeriod(p.key)}>{p.label}</button>
+          ))}
+          <button className={`chip ${trendLabels ? 'chip-on' : ''}`} onClick={() => setTrendLabels((v) => !v)}>
+            {trendLabels ? '✓ ' : ''}Data labels
+          </button>
+          <button className="chip" onClick={downloadTrend}>⭳ Download</button>
+        </div>
+        <LineChart data={trend} showLabels={trendLabels}
+          onPick={pick('period')} active={picked.period ?? null} />
+        <div className="assoc-scroll" style={{ marginTop: 10 }}>
+          <table className="assoc-table">
+            <thead><tr><th>Period</th><th style={{ textAlign: 'right' }}>Failures</th>
+              <th style={{ textAlign: 'right' }}>Share</th></tr></thead>
+            <tbody>
+              {trend.map((t) => (
+                <tr key={t.label} className={picked.period === t.label ? 'row-on' : undefined}>
+                  <td>
+                    <button className="linkish" onClick={() => pick('period')(t.label)}>{t.label}</button>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>{t.value.toLocaleString()}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {trendTotal ? ((t.value / trendTotal) * 100).toFixed(1) : '0.0'}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// THE PAGE.
+//
+// Its own screen under Overview rather than a tab on the register (the user's
+// ask). The register is a WORKLIST — you open it to answer a review — and this
+// is read to ask what the reviews are saying; somebody looking at the second
+// question is not part-way through the first.
+//
+// IT READS IN PAGES, like every register here, and says so. PostgREST caps a
+// response at a thousand rows however large the limit says, so a single big
+// request would quietly analyse the first thousand reviews and present it as
+// all of them — on a page whose entire purpose is aggregate numbers, that is
+// the worst possible place for a silent truncation.
+// ---------------------------------------------------------------------------
+import {
+  listCallReviews, supabaseConfigured, listSavedCharts, saveChart, deleteSavedChart,
+  type SavedChart, type SavedChartSpec,
+} from '../lib/supabase';
+
+const SCAN_PAGES = 8;          // 8,000 reviews before it admits a lower bound
+const PAGE_SIZE = 1000;
+
+export function ProductFailureAnalysis() {
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [at, setAt] = useState('');
+
+  const load = async () => {
+    if (!supabaseConfigured()) return;
+    setBusy(true); setErr('');
+    try {
+      const out: Record<string, unknown>[] = [];
+      let hitCap = false;
+      for (let p = 0; p < SCAN_PAGES; p += 1) {
+        const page = await listCallReviews({}, p * PAGE_SIZE, PAGE_SIZE);
+        out.push(...page);
+        // A SHORT PAGE IS THE LAST PAGE. Asking again costs a request to be
+        // told the same thing.
+        if (page.length < PAGE_SIZE) { hitCap = false; break; }
+        if (p === SCAN_PAGES - 1) hitCap = true;
+      }
+      setRows(out); setMore(hitCap); setAt(new Date().toISOString());
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally { setBusy(false); }
+  };
+
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  return (
+    <div>
+      <PageHeader
+        title="Product Failure Analysis" icon="📈"
+        subtitle="What fails and why, from every reviewed call. Click any bar — or any row — to narrow every chart below it."
+        onRefresh={() => void load()} refreshing={busy} syncedAt={at}
+        count={rows.length} countMore={more}
+      />
+      {!supabaseConfigured() && (
+        <div className="sheet-banner sheet-banner-info">
+          <span>Connect the database in Settings to analyse the reviews.</span>
+        </div>
+      )}
+      {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
+      {busy && !rows.length && <div className="muted" style={{ padding: 16 }}>Reading the reviews…</div>}
+      {rows.length > 0 && <ProductFailureCharts rows={rows} more={more} />}
+    </div>
+  );
+}
