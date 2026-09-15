@@ -5958,7 +5958,63 @@ console.log('\n-- who a new call is allotted to (0200) --');
   // used to reach no importer at all — not even `extra`.
   const csv = code(readFileSync('src/lib/csv.ts', 'utf8'));
   eq('a repeated heading is kept under a suffixed name, not dropped',
-    /const key = n === 1 \? h : `\$\{h\} \(\$\{n\}\)`;/.test(csv), true);
+    /const key = n === 1 \? h : `\$\{h\} \[\$\{n\}\]`;/.test(csv), true);
+  // SQUARE brackets are load-bearing: `loose()` strips a PARENTHESISED suffix,
+  // so "Tel 1 (2)" loosens back to "tel 1" and the billing alias would bind to
+  // the INSTALLATION column — silently, and only on files that repeat.
+  eq('...in SQUARE brackets, which loose() does not strip',
+    /\\\(\[\^\)\]\*\\\)/.test(code(readFileSync('src/lib/headers.ts', 'utf8'))), true);
+}
+
+console.log('\n-- the Party Master\'s columns, and its KYC (0201) --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Additionally add provision to capture the KYC
+  // details of the customer. Clean up the columns, de-dupe the column headers."
+  //
+  // Asked WHICH KYC fields, the answer was "I don't know.. there is some format
+  // for KYC, I will update." So the fields are not invented: what is checked
+  // here is the frame that WAS decided, and that nothing guessed its way in.
+  // -------------------------------------------------------------------------
+  const mig = readFileSync('supabase/migrations/0201_party_columns_and_kyc.sql', 'utf8');
+  const up = code(readFileSync('src/lib/uploads.ts', 'utf8'));
+
+  // EVERY PARTY STARTS PENDING — the user's answer, and the one KYC decision
+  // that was actually made.
+  eq('KYC starts Pending on every party',
+    /add column if not exists kyc_status\s+text default 'Pending'/.test(mig), true);
+  // A COUNTED VALUE IS A CLOSED LIST. A fourth spelling makes every count
+  // wrong rather than merely untidy.
+  eq('...and the status is a closed list, because it is counted',
+    /check \(coalesce\(kyc_status, ''\) in \('', 'Pending', 'Verified', 'Rejected'\)\)/.test(mig), true);
+  // WHO VERIFIED IT IS THE DATABASE'S TO RECORD — 0113's rule for who
+  // registered a call, and 0173's for who reviewed one.
+  eq('a caller cannot say who verified it',
+    /new\.kyc_verified_by := auth\.uid\(\);/.test(mig), true);
+  eq('...and un-verifying clears the stamp rather than leaving a stale name',
+    /new\.kyc_verified_by := null;/.test(mig), true);
+
+  // ONE DEFINITION OF THE PARSE, called by the backfill AND the trigger — or a
+  // file loaded next year is read differently from the file loaded today.
+  eq('the number is found by SHAPE, in one place',
+    /create or replace function public\.kyc_gstin/.test(mig)
+    && /create or replace function public\.kyc_pan/.test(mig), true);
+  eq('...and the trigger calls it, so an upload is read like the migration',
+    /new\.gstin := coalesce\(public\.kyc_gstin\(/.test(mig), true);
+  eq('a typed number is never overwritten by a spreadsheet',
+    /if coalesce\(btrim\(new\.gstin\), ''\) = '' then/.test(mig), true);
+
+  // THE COLUMNS ARE DE-DUPED BY NAME, not numbered: two contact blocks.
+  ['billing_address', 'billing_pincode', 'billing_phone', 'billing_phone_2', 'billing_fax', 'billing_email']
+    .forEach((c) => eq(`the billing block has a ${c} of its own`,
+      new RegExp(`add column if not exists ${c}\\s`).test(mig), true));
+  eq('the billing contacts are read from the REPEATED headings',
+    /'tel 1 \[2\]'/.test(up) && /'email id \[2\]'/.test(up), true);
+  // AND Profile STOPPED BEING AN ALIAS OF party_type the moment it got a
+  // column: on a file with Profile and no Type, both would bind the same
+  // heading and party_type would come out holding "GOVERNMENT".
+  eq('Profile is its own column and no longer an alias of party_type',
+    /TEXT\('party_type', 'type'\),/.test(up) && /TEXT\('profile'\),/.test(up), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

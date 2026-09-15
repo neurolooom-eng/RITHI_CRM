@@ -99,14 +99,26 @@ eq('only the complete row loads', cons.rows.length, 1);
 eq('skipped rows name the file row', cons.skipped, [{ row: 3, why: 'no spares used' }, { row: 4, why: 'no consumed qty' }]);
 eq('unrecognised column kept in data', cons.rows[0].data, { 'Job Note': 'kept' });
 
-console.log('\n-- several aliases present at once: the FIRST wins, the rest are kept --');
+console.log('\n-- every heading reaches a column or the row; none is dropped --');
 const party = shapeUpload(def('parties'), [
   { 'Party Name': 'HOSP', 'Type': 'CUSTOMER', 'Profile': 'GOVERNMENT', 'Address': 'Main St', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' },
 ]);
-eq('Type beats Profile (alias order)', party.rows[0].party_type, 'CUSTOMER');
-eq('Address beats Billing Address', party.rows[0].address, 'Main St');
-eq('the losing aliases are kept, not dropped', party.rows[0].extra,
-   { 'Profile': 'GOVERNMENT', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' });
+// THESE TWO USED TO COLLIDE and one of each pair was kept in `extra` as a
+// LOSING ALIAS. Both now have columns of their own (0201), so nothing is
+// competing — which is the point of cleaning the columns up.
+eq('Type and Profile are different questions, and different columns',
+   [party.rows[0].party_type, party.rows[0].profile], ['CUSTOMER', 'GOVERNMENT']);
+eq('so are the two addresses',
+   [party.rows[0].address, party.rows[0].billing_address], ['Main St', 'PO Box 9']);
+// THE INVARIANT THAT MATTERS, and it is stronger than the alias rule it
+// replaces: a heading either lands in a column or is kept on the row. A file's
+// column may be one this register does not know; it may never be DROPPED.
+eq('a heading with no column of its own is still kept', party.rows[0].extra, { 'COUNTRY': 'BD' });
+// AND A FALLBACK IS STILL A FALLBACK where the pair really is one value: a
+// party sheet with only a billing address has given us the only address it has.
+const billOnly = shapeUpload(def('parties'), [{ 'Party Name': 'HOSP', 'Billing Address': 'PO Box 9' }]);
+eq('a lone Billing Address still answers "where is this customer?"',
+   [billOnly.rows[0].address, billOnly.rows[0].billing_address], ['PO Box 9', 'PO Box 9']);
 
 console.log('\n-- a mis-picked register is visible before writing --');
 const wrong = shapeUpload(def('stock_transfers'), [{ 'UID': 'T1', 'From Engineer': 'A', 'To Engineer': 'B', 'Totally Unknown': 'x' }]);
@@ -674,9 +686,15 @@ console.log('\n-- the Party Master names who looks after the customer (0200) --'
   // this file's twenty-five columns reached no importer at all — not even
   // `extra` — on a file whose whole point is that every field is retained.
   eq('the FIRST of a repeated heading is the plain one', rows[0]['Email ID'], 'install@x.com');
-  eq('...and the second arrives under a suffixed name', rows[0]['Email ID (2)'], 'billing@x.com');
+  eq('...and the second arrives under a suffixed name', rows[0]['Email ID [2]'], 'billing@x.com');
   eq('every repeated heading, not just the first pair',
-     [rows[0]['Tel 1 (2)'], rows[0]['Tel 2 (2)'], rows[0]['Fax (2)']], ['444', '555', '666']);
+     [rows[0]['Tel 1 [2]'], rows[0]['Tel 2 [2]'], rows[0]['Fax [2]']], ['444', '555', '666']);
+  // SQUARE brackets, and it is load-bearing. `loose()` strips a PARENTHESISED
+  // suffix, so "Tel 1 (2)" loosens back to "tel 1" and the billing alias would
+  // bind to the INSTALLATION column — silently, and only on files that repeat.
+  eq('the second column can be NAMED without binding to the first',
+     [findHeaderFor(Object.keys(rows[0]), ['tel 1 [2]']), findHeaderFor(Object.keys(rows[0]), ['tel 1'])],
+     ['Tel 1 [2]', 'Tel 1']);
   eq('nothing is lost: 25 columns in, 25 keys out', Object.keys(rows[0]).length, 25);
 
   const shaped = shapeUpload(def('parties'), rows);
@@ -688,11 +706,28 @@ console.log('\n-- the Party Master names who looks after the customer (0200) --'
   eq('the INSTALLATION address wins over the billing address', r.address, '12 Install St');
   eq('Type wins over Profile for the classification', r.party_type, 'Hospital');
   const extra = (r.extra ?? {}) as Record<string, unknown>;
-  eq('...and the billing address is kept rather than dropped', extra['Billing Address'], '9 Billing Rd');
-  eq('so is everything else the table has no column for',
-     [extra['Office Name'], extra['Salesman'], extra['Route'], extra['Under'], extra['Tax 1']],
-     ['CHENNAI', 'A SALESMAN', 'R1', 'HO', 'T1']);
-  eq('including the billing contact that used to vanish', extra['Email ID (2)'], 'billing@x.com');
+  // THE COLUMNS ARE CLEANED UP (0201): two contact blocks, NAMED, not numbered.
+  eq('the installation contact block lands in columns',
+     [r.pincode, r.phone, r.phone_2, r.fax, r.email],
+     ['600001', '111', '222', '333', 'install@x.com']);
+  eq('...and the billing block beside it, out of the REPEATED headings',
+     [r.billing_address, r.billing_phone, r.billing_phone_2, r.billing_fax, r.billing_email],
+     ['9 Billing Rd', '444', '555', '666', 'billing@x.com']);
+  // THE BILLING PINCODE IS THE DATABASE'S, and deliberately not the importer's.
+  // This file names the installation pincode (`Inst. Pincode`) and leaves the
+  // billing one BARE (`Pincode`), so an alias here would race the installation
+  // column for the same heading — it did, and the installation pincode came out
+  // holding the billing value. The pair is only ambiguous in isolation: 0201
+  // takes the bare one as billing precisely when an `Inst. Pincode` sits beside
+  // it, which is a question the row can answer and a heading cannot.
+  eq('the installation pincode is NOT taken by the bare heading', r.pincode, '600001');
+  eq('...and the bare one is left on the row for the database to place',
+     [r.billing_pincode, extra['Pincode']], [undefined, '600002']);
+  eq('Profile is its own column, no longer swallowed by Type', [r.party_type, r.profile], ['Hospital', 'Govt']);
+  eq('the territory is kept too', r.route, 'R1');
+  eq('what has no column is still kept on the row',
+     [extra['Office Name'], extra['Salesman'], extra['Under'], extra['Tax 1']],
+     ['CHENNAI', 'A SALESMAN', 'HO', 'T1']);
 }
 
 console.log('\n-- who a new call is allotted to: the machine wins, the party answers --');

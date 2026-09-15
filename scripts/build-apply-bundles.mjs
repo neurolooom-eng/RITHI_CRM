@@ -517,7 +517,10 @@ const MODULES = {
       '0194_product_database_all_columns.sql',
       // The Party Master's Serviceman gets a column, so the call form can look
       // it up. Here because `parties` is this module's table (0076).
-      '0200_party_service_engineer.sql'],
+      '0200_party_service_engineer.sql',
+      // The Party Master's own columns (the export's Profile, Route, the two
+      // contact blocks) and somewhere to record KYC.
+      '0201_party_columns_and_kyc.sql'],
   },
   reports: {
     title: 'Reports',

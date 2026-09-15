@@ -66,18 +66,21 @@ export function parseCSV(text: string, opts?: { aliases?: string[] }): Record<st
   // columns reached no importer at all, not even `extra`, on a file whose whole
   // point was that every field is retained. A repeat now becomes "Email ID (2)".
   //
-  // It cannot steal a mapped column from the first: `findHeader` tries `strict`
-  // across every heading before it tries `loose`, and only `loose` discards a
-  // bracketed suffix — so the unsuffixed heading is always matched first, and
-  // the FFR's month label stays where it was. What changes is only that the
-  // second column now ARRIVES, under a name that says which it is.
+  // SQUARE brackets, and that is the whole reason they are not round ones.
+  // `loose()` in headers.ts strips a PARENTHESISED suffix — `PO No. (final)` is
+  // not a different column from `PO No.` — so "Email ID (2)" loosens back to
+  // "email id" and an importer aliasing the second column would bind to the
+  // FIRST on the loose pass. `[2]` survives all three passes intact: strict
+  // leaves it, loose leaves it, squash gives `emailid2` against `emailid`. So
+  // an importer can name the second column and be sure of getting it, which is
+  // what the Party Master's billing block needs.
   const idx = new Map<string, number>();
   const seen = new Map<string, number>();
   headers.forEach((h, i) => {
     if (!h) return;
     const n = (seen.get(h) ?? 0) + 1;
     seen.set(h, n);
-    const key = n === 1 ? h : `${h} (${n})`;
+    const key = n === 1 ? h : `${h} [${n}]`;
     if (!idx.has(key)) idx.set(key, i);
   });
 
