@@ -247,6 +247,9 @@ export interface ReviewRow extends Record<string, unknown> {
   // Review 3
   complaint_grouping: string;
   root_cause_keyword: string;
+  /** What actually failed, where Review 2 decided it is not the product on the
+   *  call (0197). Empty means the call was right. */
+  actual_product: string;
   spare_category: string;
   service_observation: string;
   review3_at: string | null;
@@ -267,6 +270,10 @@ export interface ReviewPatch {
   review2_by?: string;
   complaint_grouping?: string;
   root_cause_keyword?: string;
+  /** What ACTUALLY failed, where Review 2 decides it is not the product the
+   *  call names — an accessory logged against the machine it is fitted to
+   *  (0197). Empty means the call was right. The call is never rewritten. */
+  actual_product?: string;
   spare_category?: string;
   service_observation?: string;
   action_taken?: string;

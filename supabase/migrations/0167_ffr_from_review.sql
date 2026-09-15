@@ -146,7 +146,19 @@ create trigger zz_ffr_observation after update of service_observation on public.
 -- allows. Without it this view would read as its owner and hand every FFR to
 -- everyone (the fault 0040/0050/0057 shipped three times).
 -- ---------------------------------------------------------------------------
-create or replace view public.field_failure_register as
+-- DROPPED FIRST, NOT `create or replace`. This definition is the NARROWEST the
+-- view has ever had, and 0197 later widens it — so replaying this bundle onto a
+-- database already carrying the wider view failed outright with "cannot drop
+-- columns from view", which `create or replace` refuses by design. A bundle is
+-- replayed one at a time, not only as a set, so a statement that only works on
+-- a fresh database breaks the whole module for anybody bringing an existing
+-- project up to date. Found by `npm run check:replay`, 2026-09-15.
+--
+-- SAFE TO DROP: nothing depends on this view — asked of the database rather
+-- than assumed (pg_depend over pg_rewrite returns no dependent relation). The
+-- LAST definition in this module still wins, which is 0197's.
+drop view if exists public.field_failure_register;
+create view public.field_failure_register as
 select
   f.*,
   c.open_state                      as live_call_status,

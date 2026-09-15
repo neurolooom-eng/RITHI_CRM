@@ -100,7 +100,11 @@ function byPeriod(rows: Row[], p: Period): { label: string; value: number }[] {
 // `month` reads the first seven characters of ffr_date rather than a column.
 // ---------------------------------------------------------------------------
 const DIMS = [
-  { key: 'product_name', label: 'Machine' },
+  // THE EFFECTIVE PRODUCT, not the one the call named (0197). Where Review 2
+  // decided an accessory failed, the report counts under the accessory and NOT
+  // under the machine it was fitted to — which is both halves of the ask, and a
+  // single value is what makes them consistent.
+  { key: 'live_product_name', label: 'Machine' },
   { key: 'cover', label: 'Cover' },
   { key: 'ffr_status', label: 'Report status' },
   { key: 'capa_status', label: 'CAPA' },
@@ -169,7 +173,7 @@ function applyPicks(rows: Row[], picked: Picked, p: Period, except?: DimKey): Ro
 // showing one thing and claiming another.
 // ---------------------------------------------------------------------------
 const PARETO_LEVELS = [
-  { key: 'product_name', label: 'Machine', of: 'machines' },
+  { key: 'live_product_name', label: 'Machine', of: 'machines' },
   { key: 'live_complaint_grouping', label: 'Complaint grouping', of: 'groupings' },
   { key: 'live_root_cause_keyword', label: 'Root cause', of: 'root causes' },
 ] as const;
@@ -223,7 +227,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
 
   // Each chart counts the rows left by EVERY OTHER choice — see applyPicks.
   const forDim = (k: DimKey) => applyPicks(allRows, picked, period, k);
-  const byProduct = useMemo(() => tally(forDim('product_name'), 'product_name'), [allRows, picked]);
+  const byProduct = useMemo(() => tally(forDim('live_product_name'), 'live_product_name'), [allRows, picked]);
   const byCover = useMemo(() => tally(forDim('cover'), 'cover'), [allRows, picked]);
   const byStatus = useMemo(() => tally(forDim('ffr_status'), 'ffr_status'), [allRows, picked]);
   const byCapa = useMemo(() => tally(forDim('capa_status'), 'capa_status'), [allRows, picked]);
@@ -376,7 +380,11 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
       'FFR No': s(r, 'ffr_no'),
       'FFR date': s(r, 'ffr_date'),
       UCN: s(r, 'ucn'),
-      Machine: s(r, 'product_name'),
+      Machine: s(r, 'live_product_name') || s(r, 'product_name'),
+      // BOTH, where they differ: the raw sheet is the evidence, and a reader
+      // adding up the rows has to be able to see why one sits under CPX CARE
+      // while its report names ORION-G.
+      'Machine the call named': s(r, 'product_name'),
       Serial: s(r, 'product_serial'),
       Customer: s(r, 'customer_name'),
       Cover: s(r, 'cover'),
@@ -546,7 +554,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
             the reader would drag the column open and find the name had
             already been cut before it got here. */}
         <BarChart data={byProduct.slice(0, 12)} widthKey="ffr.product"
-                  onPick={pick('product_name')} active={picked.product_name ?? null} />
+                  onPick={pick('live_product_name')} active={picked.live_product_name ?? null} />
       </SectionCard>
 
       <div style={{ height: 12 }} />

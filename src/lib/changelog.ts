@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.264',
+    date: '2026-09-15',
+    title: 'Daily Call Review: “Change product?” — move a failure onto the accessory',
+    changes: [
+      'Review 2 now has a CHANGE PRODUCT? box. Where the thing that actually failed is an accessory logged against the machine it is fitted to — a CPX CARE failure raised on an EXTEND-XT or an ORION-G — you choose the real product there.',
+      'The failure is then counted against that accessory AND NOT against the machine. Both halves, and the total never changes: a report is counted once, under whatever you chose.',
+      'THE CALL IS NOT REWRITTEN. It still says a machine was down and an engineer went to it, because that is true. The register shows what the call named and what actually failed side by side, and flags the ones that moved.',
+      'Every count on Field Failure Insights reads the corrected product — the machine chart, the Pareto, the filters and the downloaded raw data, which carries both so a row under CPX CARE can be explained from the file.',
+      'Leave it blank, which is the normal answer, and nothing changes. Clear it later and the report goes back to the machine.',
+      'The list offers every product line, retired ones included: a failure can be on an accessory no longer sold, and refusing to record it would lose the finding rather than the sale.',
+    ],
+  },
+  {
     version: '0.9.263',
     date: '2026-09-15',
     title: 'Every test now passes, and three of them had stopped testing anything',

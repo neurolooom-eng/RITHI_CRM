@@ -121,6 +121,12 @@ against the call it was fitted to.
 ## Quality
 
 - **Daily Call Review** `/daily-review` — Review 1 is the vigilance answer taken
+  > **Change product?** (Review 2). Where what actually failed is an **accessory**
+  > logged against the machine it is fitted to — a CPX CARE failure raised on an
+  > EXTEND-XT — name the real product here. The failure is then counted against
+  > that accessory and **not** against the machine. The call itself is not
+  > changed: it still records that a machine was down and an engineer attended,
+  > and the register shows both. Blank is the normal answer.
   at registration; **Review 2** asks what the failure was; **Review 3** classifies
   it.
   - Your name is recorded when a stage completes, on every path including

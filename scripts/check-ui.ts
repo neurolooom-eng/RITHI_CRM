@@ -4075,8 +4075,13 @@ console.log('\n-- the Standard Complaint is picked, never typed --');
     /delete from public\.field_failure_reports/.test(body), false);
 
   // THE LIVE CALL BESIDE THE RECORD, which is what the register is read for.
+  // DROPPED AND RECREATED, not `create or replace` — 0197 widens this view, and
+  // a replace can only ADD columns, so replaying the bundle onto a database
+  // already carrying the wider one failed with "cannot drop columns from view".
+  // Both definitions drop first now, which is the property a bundle needs: a
+  // statement true whatever shape the view is in when it runs.
   eq('the register view carries the live call',
-    /create or replace view public\.field_failure_register/.test(body), true);
+    /drop view if exists public\.field_failure_register;\s*\ncreate view public\.field_failure_register/.test(body), true);
   eq('and applies RLS to the reader', /security_invoker = on/.test(body), true);
   const sb = readFileSync('src/lib/supabase.ts', 'utf8');
   eq('the screen reads the view, not the bare table',
@@ -5205,7 +5210,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   // choice — filtering a chart by its own dimension collapses it to the single
   // bar that was just clicked, which answers nothing.
   eq('a chart excludes its own dimension', /except\?: DimKey/.test(ins), true);
-  eq('...and the charts go through forDim', ins.includes("tally(forDim('product_name'), 'product_name')"), true);
+  eq('...and the charts go through forDim', ins.includes("tally(forDim('live_product_name'), 'live_product_name')"), true);
   eq('the KPIs read the FULLY filtered rows',
     /const rows = useMemo\(\(\) => applyPicks\(allRows, picked, period\)/.test(ins), true);
 
@@ -5254,7 +5259,7 @@ console.log('\n-- the Insights tab can be interrogated --');
   const pDims = [...paretoBlock.matchAll(/\{\s*key:\s*'([a-z_]+)'\s*,\s*label:/g)].map((m) => m[1]);
   eq('the Pareto drills three levels', pDims.length, 3);
   eq('...machine, grouping, root cause', pDims,
-    ['product_name', 'live_complaint_grouping', 'live_root_cause_keyword']);
+    ['live_product_name', 'live_complaint_grouping', 'live_root_cause_keyword']);
   for (const d of pDims) eq(`Pareto by ${d} is a declared dimension`, dims.includes(d), true);
   // NOT over a period or a status: a Pareto ranks CONTRIBUTORS to a total, and
   // a period is a sequence while a status is an outcome.
