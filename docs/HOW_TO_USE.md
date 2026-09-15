@@ -379,7 +379,25 @@ typed into a form that reads it.
     transfers, additional entries and workshop jobs. Filter by register, or
     export.
   > A machine not on the Product Master still has a history, and the screen says
-  > so rather than looking empty. Nothing from before the migration is here.
+  > so rather than looking empty.
+  - **The years before this system.** The service history from 2016 up to the
+    cut-over lives in a separate database, and the screen reads it alongside the
+    registers. Every row says which one it came from: **Live** rows carry the
+    call's real state, **Archive** rows carry whatever the old system was told
+    when somebody closed the call. That is why an archived UCN is not coloured —
+    its state cannot be known, and a wrong colour on a code people read is worse
+    than none. A machine that exists only in the archive can still be found.
+  - If it says **Archive not connected**, it is showing the registers only.
+    Somebody with admin rights enters that project's key once per device under
+    Settings → Archive (Machine History).
+  - **Loading the old data** is done on **Bulk Uploads**, under the heading
+    **2016 Archive** — five registers, one per kind of export (Machines, Calls,
+    Visits, Parts fitted, Cover). Each asks *which export is this?* before it
+    will upload and writes that label on every row: these registers have no key
+    to match on, so loading the same file twice **adds** the rows again, and the
+    label is the only way to take a batch back out (an administrator does that in
+    the database, not here). Nothing in the application can change or delete an
+    archive row once it is in.
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with

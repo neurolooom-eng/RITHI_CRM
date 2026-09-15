@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth';
 import { parseCSV } from '../lib/dataImport';
 import { uploadRows, prepareUpload, countTable, listMasterLists, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { UPLOADS, masterUpload, shapeUpload, uploadGroups, type UploadDef, type ShapeResult } from '../lib/uploads';
+import { archiveConfigured, archiveUploadRows, countArchiveTable } from '../lib/archive';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -22,8 +23,10 @@ import './fieldcalls.css';
 
 interface Pending { file: string; shaped: ShapeResult }
 
-function Register({ def, count, onDone }: { def: UploadDef; count: number | null; onDone: () => void }) {
+function Register({ def, count, onDone, disabled = false }:
+    { def: UploadDef; count: number | null; onDone: () => void; disabled?: boolean }) {
   const [pending, setPending] = useState<Pending | null>(null);
+  const [stamp, setStamp] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [open, setOpen] = useState(false);
@@ -57,6 +60,11 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 
   const write = async () => {
     if (!pending) return;
+    const label = stamp.trim();
+    if (def.askStamp && !label) {
+      setMsg({ tone: 'error', text: `${def.askStamp.label} — this is written on every row and is the only way to undo the load, so it cannot be blank.` });
+      return;
+    }
     // Some registers point at rows that have to be there first, or accept only
     // some of the names in the file (see `prepare`). Done in its own statements
     // BEFORE anything is written — a database trigger cannot do this for us —
@@ -79,9 +87,23 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
     const warn = def.conflict
       ? `Rows are matched on ${def.conflict}, so running this again corrects them rather than duplicating.`
       : `⚠ This register has NO natural key — running it again will ADD ${n} more rows, not correct these.`;
-    if (!confirm(`Upload ${n} rows into ${def.label}?\n\n${note ? `${note}\n\n` : ''}${warn}`)) return;
+    // WHICH DATABASE, said out loud before anything is written. Every other
+    // register on this screen writes to the live project; these five do not,
+    // and the confirmation is the last place that difference can be noticed.
+    const where = def.db === 'archive'
+      ? `\n\nThis writes to the 2016 ARCHIVE project, not the live one, labelled "${label}".`
+      : '';
+    if (!confirm(`Upload ${n} rows into ${def.label}?${where}\n\n${note ? `${note}\n\n` : ''}${warn}`)) return;
     setBusy(`Writing 0 / ${n}…`);
-    const res = await uploadRows(def.table, pending.shaped.rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
+    // The operator's label rides on every row. Set here rather than in the
+    // shaper so the preview cannot show rows carrying a label that was changed
+    // between looking and pressing Upload.
+    const rows = def.askStamp
+      ? pending.shaped.rows.map((r) => ({ ...r, [def.askStamp!.col]: label }))
+      : pending.shaped.rows;
+    const res = def.db === 'archive'
+      ? await archiveUploadRows(def.table, rows, (d, t) => setBusy(`Writing ${d} / ${t}…`))
+      : await uploadRows(def.table, rows, def.conflict, (d, t) => setBusy(`Writing ${d} / ${t}…`));
     setBusy('');
     if (!res.ok) { setMsg({ tone: 'error', text: `${res.error} (${res.written} written before it stopped.)` }); onDone(); return; }
     setMsg({ tone: 'ok', text: `${res.written} rows written to ${def.label}.${note ? ` ${note}` : ''}` });
@@ -96,10 +118,21 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       <div className="row" style={{ gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <b style={{ minWidth: 260 }}>{def.label}</b>
         <span className="muted" style={{ fontSize: 12, minWidth: 120 }}>
-          {count === null ? '' : `${count.toLocaleString()} row${count === 1 ? '' : 's'} now`}
+          {disabled ? 'not connected' : count === null ? '' : `${count.toLocaleString()} row${count === 1 ? '' : 's'} now`}
         </span>
+        {def.askStamp && (
+          <input
+            id={`stamp-${def.key}`}
+            className="input"
+            style={{ maxWidth: 230 }}
+            placeholder={def.askStamp.label}
+            value={stamp}
+            disabled={!!busy || disabled}
+            onChange={(e) => setStamp(e.target.value)}
+          />
+        )}
         <input type="file" accept=".csv,text/csv" className="input" style={{ maxWidth: 260 }}
-          disabled={!!busy} onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
+          disabled={!!busy || disabled} onChange={(e) => void pick(e.target.files?.[0] ?? null)} />
         {s && (
           <>
             <button className="btn btn-sm" onClick={() => setOpen((o) => !o)}>
@@ -109,8 +142,13 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
                 ? ` · ${s.unmatched.length} ${def.extraInto ? 'kept on the row' : 'ignored'}`
                 : ''}
             </button>
-            <button className="btn btn-primary btn-sm" disabled={!!busy || !s.rows.length} onClick={() => void write()}>
-              ⤵ Upload {s.rows.length}
+            <button
+              className="btn btn-primary btn-sm"
+              disabled={!!busy || !s.rows.length || (!!def.askStamp && !stamp.trim())}
+              title={def.askStamp && !stamp.trim() ? def.askStamp.label : undefined}
+              onClick={() => void write()}
+            >
+              ⤵ Upload {s.rows.length}{def.db === 'archive' ? ' to the archive' : ''}
             </button>
           </>
         )}
@@ -118,6 +156,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
       </div>
 
       {def.note && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{def.note}</div>}
+      {def.askStamp && <div className="muted" style={{ fontSize: 12 }}>{def.askStamp.hint}</div>}
       {def.requires && <div className="muted" style={{ fontSize: 12 }}>Load <b>{def.requires}</b> first — these rows point at it.</div>}
       {!def.conflict && (
         <div className="muted" style={{ fontSize: 12 }}>
@@ -208,6 +247,7 @@ function Register({ def, count, onDone }: { def: UploadDef; count: number | null
 
 export function BulkUploads() {
   const { isAdmin } = useAuth();
+  const onArchive = archiveConfigured();
   const [lists, setLists] = useState<MasterList[]>([]);
   const [counts, setCounts] = useState<Record<string, number | null>>({});
 
@@ -215,9 +255,14 @@ export function BulkUploads() {
   const groups = useMemo(() => uploadGroups(defs), [defs]);
 
   const refresh = async () => {
-    const tables = [...new Set(defs.map((d) => d.table))];
+    // COUNTED IN THE DATABASE THE REGISTER WRITES TO. Asking the live project
+    // how many rows `history_calls` holds returns nothing and would render as
+    // a blank next to a register that is working perfectly.
+    const live = [...new Set(defs.filter((d) => d.db !== 'archive').map((d) => d.table))];
+    const arc = [...new Set(defs.filter((d) => d.db === 'archive').map((d) => d.table))];
     const out: Record<string, number | null> = {};
-    for (const t of tables) out[t] = await countTable(t);
+    for (const t of live) out[t] = await countTable(t);
+    for (const t of arc) out[t] = await countArchiveTable(t);
     setCounts(out);
   };
 
@@ -245,16 +290,37 @@ export function BulkUploads() {
           <li><b>Every file previews first</b> — how many rows are ready, which were held back and why, and any column the register did not recognise. That last one is what catches a file loaded against the wrong register.</li>
           <li><b>Dates are read day-first</b> (03/04/2026 = 3 April), which is how these exports are written.</li>
           <li>Registers <b>with</b> a natural key can be re-run safely; the ones marked ⚠ cannot.</li>
+          <li><b>The 2016 Archive writes to a different database</b> — the history project, not this one.
+            Those five ask which export the file is and write that label on every row, because it is the
+            only way to take a batch back out again: they can add rows and nothing in the application can
+            alter or delete one.</li>
         </ul>
       </SectionCard>
 
-      {groups.map((g) => (
-        <SectionCard key={g.title} title={`${g.title} · ${g.items.length}`}>
-          {g.items.map((d) => (
-            <Register key={d.key} def={d} count={counts[d.table] ?? null} onDone={() => void refresh()} />
-          ))}
-        </SectionCard>
-      ))}
+      {groups.map((g) => {
+        const arc = g.items.some((d) => d.db === 'archive');
+        return (
+          <SectionCard key={g.title} title={`${g.title} · ${g.items.length}`}>
+            {arc && (
+              // SHOWN, NOT HIDDEN, when the archive is not connected. A group
+              // that disappears is a feature nobody knows exists — and the
+              // reason it cannot be used is a two-minute fix in Settings, which
+              // is worth saying where somebody is standing with the file.
+              <div className={onArchive ? 'muted' : 'sheet-banner sheet-banner-info'}
+                   style={{ fontSize: 13, marginBottom: 8 }}>
+                {onArchive
+                  ? 'These five write to the 2016 history project, not the live database. They can add rows and nothing here can alter or delete one — the export label is how a batch is taken back out.'
+                  : 'The archive is not connected on this device, so these cannot load. Settings → Archive (Machine History), then reload this page. The archive project also needs ProdHistory_01, 02, 03 and 06 run on it.'}
+              </div>
+            )}
+            {g.items.map((d) => (
+              <Register key={d.key} def={d} count={counts[d.table] ?? null}
+                        disabled={d.db === 'archive' && !onArchive}
+                        onDone={() => void refresh()} />
+            ))}
+          </SectionCard>
+        );
+      })}
     </div>
   );
 }

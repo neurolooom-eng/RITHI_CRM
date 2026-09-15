@@ -3,7 +3,7 @@ import { PageHeader, SectionCard, Toolbar } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { supabaseConfigured, sbListProductNames, sbListProductSerials } from '../lib/supabase';
-import { machineHistory, machineNow, partyDiffers, type MachineEvent, type MachineNow } from '../lib/machineHistory';
+import { archiveNote, machineHistory, machineNow, partyDiffers, type MachineEvent, type MachineNow } from '../lib/machineHistory';
 import { Ucn } from '../lib/callstate';
 import { useCallStates, callStateFor } from '../lib/callstates';
 import { csvExport, fmtLongDate } from '../lib/format';
@@ -88,16 +88,46 @@ export function MachineHistory() {
     () => (events ?? []).filter((e) => !only || e.source === only),
     [events, only],
   );
-  useCallStates(shown.map((e) => e.ucn).filter(Boolean));
+  // ONLY THE LIVE UCNs. An archived call belongs to a system this project has
+  // never heard of, so there is no state to look up — asking would be a request
+  // that can only come back empty, and colouring the chip from an empty answer
+  // is the wrong-colour-on-a-code fault the rule exists to prevent.
+  useCallStates(shown.filter((e) => !e.archive).map((e) => e.ucn).filter(Boolean));
+
+  const archiveRows = (events ?? []).filter((e) => e.archive).length;
+
+  // WHAT THE SCREEN CANNOT SEE, said where the counts are. An archive that is
+  // unconfigured or unreachable must not read as a machine with no past.
+  const ArchiveLine = () => {
+    const note = archiveNote();
+    if (!note) return <span className="muted">{archiveRows} of these are from the 2016 archive.</span>;
+    if (note === 'not-connected') {
+      return (
+        <span className="muted">
+          Showing the registers only — the 2016 archive is not connected on this device
+          (Settings → Archive).
+        </span>
+      );
+    }
+    return <span className="muted">The 2016 archive could not be read ({note.replace(/^unreadable: /, '')}).</span>;
+  };
 
   const columns: Column<Record<string, unknown>>[] = [
     { key: 'on', header: 'When', width: 120, wrap: false,
       render: (r) => (r.on ? fmtLongDate(r.on) : <span className="muted">no date</span>) },
-    { key: 'source', header: 'Register', width: 130, wrap: false },
+    // WHICH DATABASE, in words rather than a second colour: the one colour
+    // language on this row is the call state, and a second would weaken it.
+    { key: 'source', header: 'Register', width: 150, wrap: false,
+      render: (r) => (r.archive
+        ? <span>{String(r.source)} <span className="muted">· archive</span></span>
+        : String(r.source)) },
     { key: 'what', header: 'What', width: 150 },
     { key: 'ref', header: 'Reference', width: 150, wrap: false,
       render: (r) => (r.ucn
-        ? <Ucn ucn={String(r.ucn)} state={callStateFor(String(r.ucn))} />
+        // An archived UCN renders PLAIN — the archive cannot know the call's
+        // state, and a wrong colour on a code people have learned to read is
+        // worse than no colour (the same rule the spare registers follow).
+        ? <Ucn ucn={String(r.ucn)} state={r.archive ? undefined : callStateFor(String(r.ucn))} />
         : String(r.ref ?? '')) },
     { key: 'party', header: 'Who', width: 180 },
     { key: 'detail', header: 'Detail' },
@@ -115,6 +145,7 @@ export function MachineHistory() {
         title="Machine History" icon="🔎"
         subtitle="One machine — where it is now, and everything ever recorded against it."
         count={events ? shown.length : undefined} countMore={false}
+        status={events ? <ArchiveLine /> : undefined}
       />
       {!live && (
         <div className="sheet-banner sheet-banner-error">
