@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.276',
+    date: '2026-09-15',
+    title: 'My Workload cards now open the right list, not just the right page',
+    changes: [
+      'Clicking “Review 2 Pending” opens THOSE calls; “Awaiting me” opens the requests you can action; “Short” opens the hand-stock lines taken without a stock out.',
+      'They were landing on the right register with the WHOLE list showing — the click looked answered and was not, which is worse than a card that plainly does nothing.',
+      'Two cards were pointing at addresses that do not exist (Hand Stock and Material Returns), so those sections would not have shown at all.',
+      'The filter is applied once, on arrival, so it never fights a change you make afterwards.',
+    ],
+  },
+  {
     version: '0.9.275',
     date: '2026-09-15',
     title: 'My Workload — the queues moved off the registers, and now open',
