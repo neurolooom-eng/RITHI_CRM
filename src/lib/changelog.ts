@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.281',
+    date: '2026-09-15',
+    title: 'Build your own chart on Product Failure Analysis, and keep it',
+    changes: [
+      '“＋ New chart” — count the failures by any of the review’s own answers (product, root cause, cover, customer, engineer, software version, age, and more), drawn as a Pareto, a share, or in its own order.',
+      'A chart you build arrives with everything the built-in ones have: the data table, the labels toggle and the download. It is not a lesser kind of chart.',
+      'KEEP IT FOR YOURSELF, or SHARE IT — with everyone, or with one role. Sharing needs “Manage configuration”, the same permission as setting a register layout for a role, because it is the same act: deciding what a group of people see when they open a screen.',
+      'SHARING A CHART NEVER SHARES DATA. What is saved is a question — “count the failures by root cause, as a Pareto” — not an answer. The numbers are worked out in each reader’s own session, so somebody who may see fewer failures simply sees fewer.',
+      'A chart built on a column that later disappears SAYS SO rather than quietly drawing nothing.',
+      'Needs the Roles & Permissions SQL (rbac.sql).',
+    ],
+  },
+  {
     version: '0.9.280',
     date: '2026-09-15',
     title: 'Product Failure Analysis: the right chart for each question',

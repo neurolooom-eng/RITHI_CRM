@@ -27,7 +27,10 @@
 // and the easiest one to drop on a screen made of counts.
 // ===========================================================================
 import { useEffect, useMemo, useState } from 'react';
-import { SectionCard, PageHeader } from '../components/ui/ui';
+import { SectionCard, PageHeader, Drawer } from '../components/ui/ui';
+import { SelectPicker } from '../components/ui/SelectPicker';
+import { useAuth } from '../lib/auth';
+import { rolesWith } from '../lib/rbac';
 import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { ColumnChart, DonutChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { xlsxDownload } from '../lib/xlsx';
@@ -74,10 +77,57 @@ function tally(rows: Row[], key: string, blankLabel = '(not answered)'): { label
 // order and show no cumulative line, because a running total across an
 // arbitrary order says nothing.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// WHAT A READER MAY BUILD A CHART OVER.
+//
+// A NAMED LIST, NOT "ANY COLUMN". The view has 57 of them and most answer
+// nothing worth a chart — an id, a uuid, a free-text observation whose every
+// value is unique. Offering all 57 would bury the eight that matter and let
+// somebody build a Pareto with four thousand bars, one per row.
+//
+// THE SUGGESTED FORM IS A SUGGESTION. A dimension knows what it usually is —
+// cover is composition, age is ordinal — but the reader may say otherwise, and
+// they are allowed to: it is their chart.
+// ---------------------------------------------------------------------------
+const BUILDABLE: { key: string; label: string; form: 'pareto' | 'share' | 'ordered' }[] = [
+  { key: 'live_product_name', label: 'Product (as reviewed)', form: 'pareto' },
+  { key: 'product_name', label: 'Product (as called)', form: 'pareto' },
+  { key: 'root_cause_keyword', label: 'Root cause', form: 'pareto' },
+  { key: 'complaint_grouping', label: 'Complaint grouping', form: 'pareto' },
+  { key: 'standard_complaint', label: 'Standard complaint', form: 'pareto' },
+  { key: 'item_status', label: 'Cover', form: 'share' },
+  { key: 'spare_category', label: 'Spare category', form: 'share' },
+  { key: 'age_group', label: 'Age at failure', form: 'ordered' },
+  { key: 'sw_version', label: 'Software version', form: 'ordered' },
+  { key: 'party_name', label: 'Customer', form: 'pareto' },
+  { key: 'state', label: 'State', form: 'pareto' },
+  { key: 'city', label: 'City', form: 'pareto' },
+  { key: 'allocated_to', label: 'Engineer the call was allotted to', form: 'pareto' },
+  { key: 'visit_engineer', label: 'Engineer who visited', form: 'pareto' },
+  { key: 'risk_to_patient', label: 'Risk to patient', form: 'share' },
+  { key: 'warranty_failure', label: 'Failed in warranty', form: 'share' },
+  { key: 'frequent_failure', label: 'Frequent failure', form: 'share' },
+  { key: 'any_potential_effect', label: 'Any potential effect', form: 'share' },
+  { key: 'review_status', label: 'Review status', form: 'share' },
+  { key: 'call_type', label: 'Call type', form: 'share' },
+  { key: 'open_state', label: 'Call status', form: 'share' },
+  { key: 'pending_reason', label: 'Why still open', form: 'pareto' },
+];
+const FORMS: { key: 'pareto' | 'share' | 'ordered'; label: string }[] = [
+  { key: 'pareto', label: 'Pareto — which few account for most' },
+  { key: 'share', label: 'Share — how the whole splits up' },
+  { key: 'ordered', label: 'In its own order — a scale, not a ranking' },
+];
+
+/** Which page a saved chart belongs to. One constant, because the value is
+ *  written to the database and read back — two spellings would be two pages. */
+const PAGE_KEY = 'product-failure';
+
 interface Cut { label: string; value: number }
 
 function ParetoBlock({
   title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
+  onRemove,
 }: {
   title: string;
   note?: string;
@@ -105,6 +155,9 @@ function ParetoBlock({
   raw: Row[];
   rawDateKey: string;
   rawDateLabel: string;
+  /** Present only on a chart somebody BUILT — the built-in ones are the page
+   *  and cannot be removed from it. */
+  onRemove?: () => void;
 }) {
   const [labels, setLabels] = useState(false);
   const rank = form === 'pareto';
@@ -234,6 +287,11 @@ function ParetoBlock({
           {labels ? '✓ ' : ''}Data labels
         </button>
         <button className="chip" onClick={download}>⭳ Download</button>
+        {onRemove && (
+          <button className="chip" onClick={onRemove} title="Remove this chart from the page">
+            ✕ Remove
+          </button>
+        )}
       </div>
       {form === 'pareto'
         ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
@@ -281,6 +339,35 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   // chart — so "what is the root cause on ORION-G, under contract?" is two
   // clicks rather than a query nobody can write.
   const [picked, setPicked] = useState<Record<string, string>>({});
+
+  // ---- charts a reader built and kept (0206) ------------------------------
+  const { can, rolePerms } = useAuth();
+  const maySh: boolean = can('config.manage');
+  const [saved, setSaved] = useState<SavedChart[]>([]);
+  const [builder, setBuilder] = useState<{ dim: string; form: SavedChartSpec['form']; name: string; scope: string } | null>(null);
+  const [savingMsg, setSavingMsg] = useState('');
+
+  const reloadSaved = () => { void listSavedCharts(PAGE_KEY).then(setSaved); };
+  useEffect(() => { reloadSaved(); }, []);
+
+  const openBuilder = () => {
+    setSavingMsg('');
+    setBuilder({ dim: BUILDABLE[0].key, form: BUILDABLE[0].form, name: '', scope: 'mine' });
+  };
+
+  const doSave = async () => {
+    if (!builder) return;
+    const scope = builder.scope === 'mine' ? null : builder.scope === 'all' ? '' : builder.scope;
+    const res = await saveChart(PAGE_KEY, builder.name, scope, { dim: builder.dim, form: builder.form });
+    if (!res.ok) { setSavingMsg(res.error ?? 'Could not save it.'); return; }
+    setBuilder(null); reloadSaved();
+  };
+
+  const removeSaved = async (c: SavedChart) => {
+    const res = await deleteSavedChart(c.id);
+    if (!res.ok) { setSavingMsg(res.error ?? 'Could not remove it.'); return; }
+    reloadSaved();
+  };
   const pick = (dim: string) => (label: string) =>
     setPicked((cur) => (cur[dim] === label ? (({ [dim]: _drop, ...rest }) => rest)(cur) : { ...cur, [dim]: label }));
 
@@ -533,6 +620,115 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         rows={byAge} total={n} dim="age_group" picked={picked} onPick={pick}
         raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
 
+      {/* ---- CHARTS SOMEBODY BUILT ------------------------------------------
+          Rendered through the SAME block as the built-in ones, so a saved chart
+          arrives with the table, the labels and the download rather than being
+          a lesser kind of chart. A dimension the page no longer knows is SAID,
+          not silently dropped: a chart that quietly shows nothing is worse than
+          one that says the column has gone. */}
+      {saved.map((c) => {
+        const known = BUILDABLE.find((b) => b.key === c.spec.dim);
+        if (!known) {
+          return (
+            <SectionCard key={c.id} title={c.name}>
+              <div className="sheet-banner sheet-banner-warn">
+                <span>
+                  This chart counts by <b>{c.spec.dim}</b>, which is no longer on the review —
+                  so it cannot be drawn. Remove it, or rebuild it on a column that is.
+                </span>
+              </div>
+            </SectionCard>
+          );
+        }
+        const cut = tally(rows, c.spec.dim, '(not answered)');
+        return (
+          <ParetoBlock
+            key={c.id}
+            title={c.name}
+            note={`Built here${c.role === null ? ' and kept for you'
+              : c.role === '' ? ' and shared with everyone' : ` and shared with ${c.role}`}, counting by ${known.label}.`}
+            form={c.spec.form}
+            rows={cut} total={n} dim={c.spec.dim} picked={picked} onPick={pick}
+            raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL}
+            onRemove={() => void removeSaved(c)} />
+        );
+      })}
+
+      <SectionCard title="Build a chart">
+        <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>
+          Count the failures by any of the review's own answers, in whichever form suits the
+          question. It is kept for you unless you share it — and a shared chart still shows each
+          reader only the failures their own role may see, so sharing a chart never shares data.
+        </p>
+        <button className="btn btn-sm" onClick={openBuilder}>＋ New chart</button>
+        {savingMsg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{savingMsg}</span></div>}
+      </SectionCard>
+
+      {builder && (
+        <Drawer open title="Build a chart" onClose={() => setBuilder(null)} width={560} storeKey="pfaBuilder">
+          <div className="kb-form">
+            <div className="field">
+              <label className="field-label">Count the failures by</label>
+              <SelectPicker
+                value={builder.dim}
+                options={BUILDABLE.map((b) => ({ value: b.key, label: b.label }))}
+                onChange={(v) => setBuilder((b) => b && ({
+                  ...b, dim: v,
+                  // THE SUGGESTED FORM FOLLOWS THE DIMENSION, because most of
+                  // the time it is right — and the reader may still overrule it
+                  // below. Leaving the previous form on a new dimension is how
+                  // somebody ends up with a Pareto of four cover types.
+                  form: BUILDABLE.find((x) => x.key === v)?.form ?? 'pareto',
+                }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Drawn as</label>
+              <SelectPicker
+                value={builder.form}
+                options={FORMS.map((f) => ({ value: f.key, label: f.label }))}
+                onChange={(v) => setBuilder((b) => b && ({ ...b, form: v as SavedChartSpec['form'] }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Call it</label>
+              <input className="input" value={builder.name} autoFocus
+                placeholder="Failures by customer, say"
+                onChange={(e) => setBuilder((b) => b && ({ ...b, name: e.target.value }))} />
+            </div>
+            <div className="field">
+              <label className="field-label">Who sees it</label>
+              {/* SHARING IS A DIFFERENT ACT FROM KEEPING, and takes different
+                  authority: it decides what a group of people see when they
+                  open a screen — the same thing setting a register layout for a
+                  role does (0120), and it takes the same permission. Somebody
+                  without it is told so rather than being offered the choice. */}
+              <SelectPicker
+                value={builder.scope}
+                options={[
+                  { value: 'mine', label: 'Only me' },
+                  ...(maySh ? [{ value: 'all', label: 'Everyone' }] : []),
+                  ...(maySh ? rolesWith(Object.keys(rolePerms ?? {})).map((r) => ({
+                    value: r.key, label: `Everyone on ${r.label}`,
+                  })) : []),
+                ]}
+                onChange={(v) => setBuilder((b) => b && ({ ...b, scope: v }))} />
+              {!maySh && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Sharing a chart with a role, or with everyone, needs the “Manage configuration”
+                  permission.
+                </span>
+              )}
+            </div>
+            {savingMsg && <div className="sheet-banner sheet-banner-error"><span>{savingMsg}</span></div>}
+            <div className="kb-form-actions">
+              <button className="btn btn-primary" disabled={!builder.name.trim()} onClick={() => void doSave()}>
+                Save
+              </button>
+              <button className="btn" onClick={() => setBuilder(null)}>Cancel</button>
+            </div>
+          </div>
+        </Drawer>
+      )}
+
       <SectionCard title={`Failures, ${period === 'year' ? 'year by year'
         : period === 'quarter' ? 'quarter by quarter' : 'month by month'}`}>
         <div className="stage-chips">
@@ -585,7 +781,10 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
 // all of them — on a page whose entire purpose is aggregate numbers, that is
 // the worst possible place for a silent truncation.
 // ---------------------------------------------------------------------------
-import { listCallReviews, supabaseConfigured } from '../lib/supabase';
+import {
+  listCallReviews, supabaseConfigured, listSavedCharts, saveChart, deleteSavedChart,
+  type SavedChart, type SavedChartSpec,
+} from '../lib/supabase';
 
 const SCAN_PAGES = 8;          // 8,000 reviews before it admits a lower bound
 const PAGE_SIZE = 1000;

@@ -1052,6 +1052,58 @@ export async function renamePartyServiceEngineer(
   return { ok: true, changed: count ?? 0 };
 }
 
+// ---------------------------------------------------------------------------
+// A CHART SOMEBODY BUILT AND KEPT (0206).
+//
+// The row holds a DIMENSION and a chart type — never data. The numbers are
+// computed in the reader's own session from rows their own RLS allowed, so a
+// chart shared with somebody who may see less simply shows less, and sharing a
+// chart can never share data.
+// ---------------------------------------------------------------------------
+export interface SavedChartSpec { dim: string; form: 'pareto' | 'share' | 'ordered'; top?: number }
+export interface SavedChart {
+  id: number; page: string; name: string;
+  /** null = private to whoever made it · '' = everyone · otherwise a role key. */
+  role: string | null;
+  spec: SavedChartSpec;
+  set_at: number;
+}
+
+export async function listSavedCharts(page: string): Promise<SavedChart[]> {
+  const c = getSupabase(); if (!c) return [];
+  // RLS decides what comes back — your own, plus what is shared with everyone
+  // or with your role — so there is no filter here to get wrong.
+  const { data, error } = await c.from('saved_charts')
+    .select('id, page, name, role, spec, set_at').eq('page', page).order('name');
+  if (error) return [];
+  return (data ?? []) as SavedChart[];
+}
+
+export async function saveChart(
+  page: string, name: string, role: string | null, spec: SavedChartSpec,
+): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  // `owner` is NOT sent: the database stamps it from auth.uid(), so a chart
+  // cannot be filed under somebody else's name even by a client that means to.
+  const { error } = await c.from('saved_charts').insert({ page, name: name.trim(), role, spec });
+  if (!error) return { ok: true };
+  const m = errMsg(error);
+  if (/duplicate key/i.test(m)) return { ok: false, error: 'A chart of that name is already saved here.' };
+  if (/row-level security/i.test(m)) {
+    return { ok: false, error: 'Saving a chart for a role or for everyone needs the “Manage configuration” permission.' };
+  }
+  return { ok: false, error: m };
+}
+
+export async function deleteSavedChart(id: number): Promise<{ ok: boolean; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  const { error } = await c.from('saved_charts').delete().eq('id', id);
+  if (!error) return { ok: true };
+  const m = errMsg(error);
+  return { ok: false, error: /row-level security|0 rows/i.test(m)
+    ? 'That chart was shared by somebody else — removing it needs the “Manage configuration” permission.' : m };
+}
+
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
   if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);

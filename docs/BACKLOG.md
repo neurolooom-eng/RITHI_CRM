@@ -53,6 +53,65 @@ fails instead of passing quietly.
 
 ---
 
+## 2026-09-15 — The right chart for each question, and a chart you build yourself
+
+Asked: *"How else do u think we can break down the analysis -- For Root Cause
+Pareto makes sense -- but for the rest use appropriate charts. Add a provision
+to create a chart by myself and save it."*
+
+### The form is a claim about what is being asked
+
+| | When | Why |
+| --- | --- | --- |
+| **pareto** | root cause, product, complaint | many categories; the question is which FEW account for most. Ranking is what makes the running share mean anything |
+| **share** | cover, spare category | a handful that add up to the whole — COMPOSITION. A Pareto over four slices says only *"these four are 100% of the four"* |
+| **ordered** | age at failure, software version | an ORDINAL scale whose own order IS the finding |
+
+**Software version was the one hiding a real fault.** Ranked by count it could
+not answer the question anybody asks of it — *does the newer release fail more
+than the one before?* It is in version order now, each dotted part compared as a
+NUMBER, because a string sort puts `2.10` before `2.9` and would claim a release
+order that never shipped.
+
+### The new breakdown: machines that failed more than once
+
+Every other chart answers "which product LINE fails". This answers "which UNIT
+keeps failing" — a model with 400 failures across 2,000 machines is a fleet; one
+machine with nine is a machine to go and look at. Keyed on **model AND serial**,
+because 3,794 serials repeat across models (`src/lib/machine.ts`). The
+cross-filter had to be taught that a COMPOSED KEY IS NOT A COLUMN, or the click
+would find nothing and the page would silently empty.
+
+### A chart somebody builds and keeps (0206)
+
+**Modelled on `role_table_views` (0120) deliberately** — that table already
+answers "this configuration belongs to a role, or to everyone", and a second
+answer to the same question is a second set of rules to keep in step.
+
+**Sharing a chart can never share data.** The row holds a DIMENSION and a chart
+type, never numbers; the counting happens in the reader's own session over rows
+their own RLS allowed. A chart shared with somebody who may see less simply
+shows less. That is what makes "share with everyone" safe to offer at all.
+
+**Sharing takes `config.manage`**, the same authority 0120 needs to set a layout
+for a role, because it is the same act. Somebody without it is TOLD, rather than
+offered the choice and refused afterwards.
+
+### A test that was wrong before the code was
+
+Section 3 expected an ERROR when a caller sends somebody else's `owner`. It does
+not error — the stamp trigger runs BEFORE the row-level check and overwrites it,
+so the row is filed as the caller's and the check passes. **The test was wrong,
+not the code**: discarding is 0113's rule and the better behaviour, because
+refusing makes an honest client that sends its own id fail while discarding
+makes a dishonest one harmless. What matters is that the row cannot land under
+somebody else's name, and that is what it asserts now.
+
+Nine sections, run as `authenticated` — the owner bypasses RLS and would have
+reported every hole closed while it stood open.
+
+---
+
 ## 2026-09-15 — Renamed to Product Failure Analysis, which is a permissions change
 
 Asked: *"Rename it as Product Failure analysis."* Named for what it analyses
