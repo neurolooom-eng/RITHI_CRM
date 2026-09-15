@@ -5915,5 +5915,112 @@ console.log('\n-- frequent failure: two rules, and they answer different questio
     && /greatest\(coalesce\(\(select nullif\(btrim\(value\), ''\)::integer\s*\n\s*from public\.app_settings where key = 'ffr\.rule2_serials'\), 2\), 2\)/.test(mig), true);
 }
 
+console.log('\n-- who a new call is allotted to (0200) --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "During any new field call or Installation calls or
+  // PM Call, it has to map the engineer as per the party master. In case of
+  // creating a call from a request, then it has to map it to the requestor."
+  //
+  // TWO RULES THAT PULL AGAINST EACH OTHER, which is why both are checked here:
+  // the party master widens where an engineer is FOUND, and the request path
+  // must be the one place it does not reach.
+  // -------------------------------------------------------------------------
+  const fc = code(readFileSync('src/lib/fieldcall.ts', 'utf8'));
+  const pend = code(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8'));
+  const mod = code(readFileSync('src/modules/FieldCalls.tsx', 'utf8'));
+
+  // THE MACHINE WINS. The user chose this precedence before it was built, and
+  // reversing it would silently re-allot every call on a machine whose own
+  // Service Engineer is set — which is most of them.
+  eq('the machine\'s Service Engineer still wins, the party is the fallback',
+    /allocatedTo:\s*g\('Service Engineer'\)\.trim\(\)\s*\|\|\s*\(partyEngineer \?\? ''\)\.trim\(\)/.test(fc), true);
+
+  // THE INSTALLATION CASE. A customer with no machine here cannot be answered
+  // for by a machine, so the party has to be able to answer on its own.
+  eq('a party with no machine can still name the engineer',
+    /export function partyToCallPrefill/.test(fc), true);
+  eq('...and it writes only the customer and the engineer, never a blank over the form',
+    /return \{\s*partyName: party\.partyName,\s*allocatedTo: \(party\.serviceEngineer \?\? ''\)\.trim\(\),\s*\}/.test(fc), true);
+
+  // THE CASCADE HAS TO ASK. A fallback nothing looks up is not a fallback.
+  eq('the cascade looks the party engineer up and hands it on',
+    /partyServiceEngineer\(val\)/.test(mod) && /onPick\(row, partyEngineer\)/.test(mod), true);
+  eq('...and the party alone prefills the call, for an installation',
+    /onPartyPick=\{\(party, serviceEngineer\)/.test(mod) && /partyToCallPrefill\(/.test(mod), true);
+
+  // THE REQUEST WINS, and this is the line that used to lose it: spreading the
+  // product prefill whole overwrote the engineer the request names, on a picker
+  // whose own hint says it is only for correcting party/product/serial.
+  eq('registering FROM A REQUEST keeps the request\'s engineer',
+    /if \(String\(cur\.allocatedTo \?\? ''\)\.trim\(\)\) delete fromProduct\.allocatedTo;/.test(pend), true);
+
+  // AND THE SERVICEMAN HAS TO ARRIVE. A column nothing fills answers nothing.
+  const up = code(readFileSync('src/lib/uploads.ts', 'utf8'));
+  eq('the Party Master upload maps Serviceman to a column of its own',
+    /TEXT\('service_engineer', 'serviceman', 'service engineer', 'service man'\)/.test(up), true);
+  // A REPEATED HEADING IS KEPT. Four of that file's 25 columns repeat, and they
+  // used to reach no importer at all — not even `extra`.
+  const csv = code(readFileSync('src/lib/csv.ts', 'utf8'));
+  eq('a repeated heading is kept under a suffixed name, not dropped',
+    /const key = n === 1 \? h : `\$\{h\} \[\$\{n\}\]`;/.test(csv), true);
+  // SQUARE brackets are load-bearing: `loose()` strips a PARENTHESISED suffix,
+  // so "Tel 1 (2)" loosens back to "tel 1" and the billing alias would bind to
+  // the INSTALLATION column — silently, and only on files that repeat.
+  eq('...in SQUARE brackets, which loose() does not strip',
+    /\\\(\[\^\)\]\*\\\)/.test(code(readFileSync('src/lib/headers.ts', 'utf8'))), true);
+}
+
+console.log('\n-- the Party Master\'s columns, and its KYC (0201) --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Additionally add provision to capture the KYC
+  // details of the customer. Clean up the columns, de-dupe the column headers."
+  //
+  // Asked WHICH KYC fields, the answer was "I don't know.. there is some format
+  // for KYC, I will update." So the fields are not invented: what is checked
+  // here is the frame that WAS decided, and that nothing guessed its way in.
+  // -------------------------------------------------------------------------
+  const mig = readFileSync('supabase/migrations/0201_party_columns_and_kyc.sql', 'utf8');
+  const up = code(readFileSync('src/lib/uploads.ts', 'utf8'));
+
+  // EVERY PARTY STARTS PENDING — the user's answer, and the one KYC decision
+  // that was actually made.
+  eq('KYC starts Pending on every party',
+    /add column if not exists kyc_status\s+text default 'Pending'/.test(mig), true);
+  // A COUNTED VALUE IS A CLOSED LIST. A fourth spelling makes every count
+  // wrong rather than merely untidy.
+  eq('...and the status is a closed list, because it is counted',
+    /check \(coalesce\(kyc_status, ''\) in \('', 'Pending', 'Verified', 'Rejected'\)\)/.test(mig), true);
+  // WHO VERIFIED IT IS THE DATABASE'S TO RECORD — 0113's rule for who
+  // registered a call, and 0173's for who reviewed one.
+  eq('a caller cannot say who verified it',
+    /new\.kyc_verified_by := auth\.uid\(\);/.test(mig), true);
+  eq('...and un-verifying clears the stamp rather than leaving a stale name',
+    /new\.kyc_verified_by := null;/.test(mig), true);
+
+  // ONE DEFINITION OF THE PARSE, called by the backfill AND the trigger — or a
+  // file loaded next year is read differently from the file loaded today.
+  eq('the number is found by SHAPE, in one place',
+    /create or replace function public\.kyc_gstin/.test(mig)
+    && /create or replace function public\.kyc_pan/.test(mig), true);
+  eq('...and the trigger calls it, so an upload is read like the migration',
+    /new\.gstin := coalesce\(public\.kyc_gstin\(/.test(mig), true);
+  eq('a typed number is never overwritten by a spreadsheet',
+    /if coalesce\(btrim\(new\.gstin\), ''\) = '' then/.test(mig), true);
+
+  // THE COLUMNS ARE DE-DUPED BY NAME, not numbered: two contact blocks.
+  ['billing_address', 'billing_pincode', 'billing_phone', 'billing_phone_2', 'billing_fax', 'billing_email']
+    .forEach((c) => eq(`the billing block has a ${c} of its own`,
+      new RegExp(`add column if not exists ${c}\\s`).test(mig), true));
+  eq('the billing contacts are read from the REPEATED headings',
+    /'tel 1 \[2\]'/.test(up) && /'email id \[2\]'/.test(up), true);
+  // AND Profile STOPPED BEING AN ALIAS OF party_type the moment it got a
+  // column: on a file with Profile and no Type, both would bind the same
+  // heading and party_type would come out holding "GOVERNMENT".
+  eq('Profile is its own column and no longer an alias of party_type',
+    /TEXT\('party_type', 'type'\),/.test(up) && /TEXT\('profile'\),/.test(up), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -19,6 +19,145 @@ up)_
 
 
 
+## 2026-09-15 — The Party Master's own columns, and somewhere for KYC
+
+Asked: *"Additionally add provision to capture the KYC details of the customer.
+Clean up the columns, de-dupe the column headers."*
+
+### KYC is a CAPTURE job, not an import one — and the file says so
+
+Counted before anything was designed: `Tax 1` is filled on **5 rows of 4,752**,
+`Tax 2` on **1**, `Tax 3` on none. So there is essentially no KYC on record.
+
+Asked which fields to capture, the user said *"I don't know.. there is some
+format for KYC, I will update."* **So the fields were not invented.** What was
+built is the part that was decided and the part the evidence settles:
+
+- **Every party starts Pending** (the user's answer) — all 4,752, including the
+  handful whose GSTIN came out of the spreadsheet. A number on file is not a
+  verification, and marking five rows Verified because a sheet had a string in a
+  Tax column would be **inventing an audit record**.
+- **GSTIN and PAN**, which are statutory and have a shape.
+- Who verified it and when are **stamped by the database**, not supplied by the
+  caller — 0113's rule for who registered a call. Un-verifying clears the stamp.
+
+The rest arrives as real columns when the format does. A jsonb bag "for the
+fields we don't know yet" is what 0148 and 0194 both had to undo.
+
+### The number is found by SHAPE, because the file keeps to no format
+
+`PAN NO:AAACI7716A` · `GST NO:33AADCK3295K2ZB` · `GSTIN:33AAACL7222Q1ZB` ·
+`GSTIN: 09AAACI7716A1ZV` — a label, a separator that is sometimes a colon and
+sometimes a space, then the number. **A GSTIN contains a PAN** at characters
+3–12, so a customer who gave only a GSTIN is not asked for a PAN as well.
+
+**One definition, called by the backfill AND the trigger** — otherwise a file
+loaded next year is read differently from the file loaded today, and the
+migration's parse would be a one-off that a re-upload silently undoes.
+
+### What the counting decided about the columns
+
+| | |
+| --- | --- |
+| `Profile` | filled on every row, PRIVATE / GOVERNMENT — and **being thrown away**, because it was an alias of `party_type` behind `Type`. Its own column now, and no longer an alias: on a file with Profile and no Type, both would bind the same heading and `party_type` would come out holding "GOVERNMENT". |
+| `Office Name` | our own company on all 4,752 rows. **No column** — one that says the same thing 4,752 times answers no question. |
+| `Under`, `Salesman`, `Tax 3` | entirely empty. No columns either. |
+| `Tel 1/2`, `Fax`, `Email ID` | **twice each** — one block per address. Named `billing_*`, not numbered. |
+
+### Two faults found by running it, not reading it
+
+- **`Inst. Pincode` and a bare `Pincode`, and the bare one is the BILLING one.**
+  `TEXT()` puts the column's own name first in the alias list, so `pincode`
+  matched the bare heading and **the installation pincode came out holding the
+  billing value**. The pair is only ambiguous in isolation, so the database
+  takes the bare one as billing precisely when an `Inst. Pincode` sits beside it
+  — a question the ROW can answer and a heading cannot.
+- **Round brackets would have broken the billing aliases.** `loose()` strips a
+  parenthesised suffix, so the repeated-heading name `Tel 1 (2)` loosens back to
+  `tel 1` and the billing alias would have bound to the **installation** column
+  — silently, and only on files that repeat. Square brackets survive all three
+  passes; proved by asking `findHeader` rather than by reasoning about it.
+
+And the same **`update … from lateral`** trap as 0200, twice more — it cannot
+see the update's own target table, and the second time it stopped the migration
+*before the function below it was created*.
+
+### Also
+
+`_status.sql` had 22 possessive apostrophes written as `''''`, which renders as
+`''`. Tidied; the two places that genuinely want a doubled quote (a nested SQL
+string, and a sentence about `default ''`) were left alone.
+
+---
+
+## 2026-09-15 — The Party Master names the engineer, and the request keeps its own
+
+Asked, with the export attached: *"It has to be mapped to Party Master. In Party
+Master, my old source has service engineer details. So during any new field call
+or Installation calls or PM Call, it has to map the engineer as per the party
+master. In case of creating a call from a request, then it has to map it to the
+requestor. All the fields to be retained as is."*
+
+### What the file actually holds
+
+`Product Master - PartyMaster.csv` — **4,752 parties, 25 columns**. `Serviceman`
+is filled on **4,677** of them, **49 distinct names**. Four headings appear
+**twice** (`Tel 1`, `Tel 2`, `Fax`, `Email ID` — once for the installation
+address, once for billing).
+
+### Precedence was a question, not a detail — so it was asked
+
+The machine already carries its own Service Engineer and that is what prefills
+the box today. Put to the user before anything was built, and the answer was
+**the machine wins, the party is the fallback**. So this widens where an
+engineer can be FOUND and changes no call that already found one. It matters
+most for an **installation**: the machine does not exist here yet, so it can
+never name an engineer and the customer is the only thing that can.
+
+For a call registered **from a request**, the answer was **the engineer the
+request names** — which is what the request path already did on its auto-fill,
+and did NOT do through its picker (below).
+
+### What was wrong underneath
+
+**The request's engineer was being lost.** `PendingRegistrations` spread the
+whole product prefill over the form, `allocatedTo` included, on a picker whose
+own hint says it is only for correcting party/product/serial. The auto-fill path
+never had the fault — `PRODMASTER_FILL` lists the eight cover fields and the
+engineer is not one — so it only bit the person who corrected a serial by hand.
+
+**Four columns were reaching nothing at all.** `parseCSV` kept the FIRST of a
+repeated heading and DROPPED the rest — right about which one wins, wrong about
+the other, on a file whose whole point is that every field is retained. A repeat
+is now kept as `Email ID (2)`. It cannot steal a mapped column: `findHeader`
+tries `strict` across every heading before `loose`, and only `loose` discards a
+bracketed suffix — so the FFR's twice-over `FFR Date` still binds to the real
+date, which is why that rule existed.
+
+### Three faults the suite found, that reading would not have
+
+- `update … from lateral (…)` **cannot see the update's own target table**. The
+  tidier backfill raised *"invalid reference to FROM-clause entry for table p"*
+  and stopped the migration **before the function below it was created**.
+- `party_service_engineer()` returned **NULL, not `''`**, for a party nobody has
+  recorded — the coalesce was INSIDE a subquery that returns no rows. It passed
+  every test written against a party that exists; it failed the case it exists
+  to answer.
+- `field_calls` has no `serial_number` column — it is `serial`.
+
+### Still open
+
+**The names have to match the User Master, and 32 of the 49 do not** match any
+name that has signed in — `SIVA KUMAR R.` against `SIVAKUMAR`, `SINGH VISHAL`
+against `VISHAL`, `AAYUSH N SHAH` against nobody. That comparison is against the
+**58 people who have signed in**, not the whole directory, so the real figure
+needs a query against the live User Master before anyone concludes anything. An
+unmatched name still prefills — it is a text box, not a foreign key — but it
+will not notify anybody, because `notify_call_allotted()` resolves the person
+through `user_directory`.
+
+---
+
 ## 2026-09-15 — The one NO on `_status.sql`, and looking before deleting
 
 The status report came back with **161 rows yes and one NO**: row 55, *"handstock:

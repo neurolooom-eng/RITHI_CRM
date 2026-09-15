@@ -997,12 +997,69 @@ export const UPLOADS: UploadDef[] = [
   // ---- registers with their own screens
   { key: 'parties', label: 'Party Master', group: 'Masters', table: 'parties', extraInto: 'extra',
     conflict: 'name_key', conflictFrom: ['party_name'],
-    note: 'The AppSheet export loads as exported. Everything the table has no column for — Type, Profile, Country, Route, the telephone/email/PAN/GST fields, the contact person — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again.',
+    note: 'The export loads as exported. The installation and billing contact blocks now have columns of their own, so the four headings this file repeats (Tel 1, Tel 2, Fax, Email ID — once per address) stop colliding; before this, the second of each reached nothing at all. Everything still without a column — Office Name (which is our own company on every row), Under and Salesman (both empty in the supplied file), the raw Tax strings — is kept on the row rather than dropped. Each party is given its key (Party-1, Party-2 …) on first load and keeps it; matching is on the party name, so re-loading a corrected sheet updates those parties instead of adding them again. SERVICEMAN gets a column of its own: it is what prefills “Call Allocated To” on a new call where the machine has no Service Engineer, and a value in the kept-as-is blob cannot be looked up.',
     cols: [
       { to: 'party_name', from: ['party name', 'party', 'customer', 'name'], required: true },
       TEXT('city'), TEXT('state'),
-      TEXT('party_type', 'type', 'profile'),
+      // `profile` IS NO LONGER AN ALIAS OF THIS. It was, as a fallback, and that
+      // stopped being right the moment Profile got a column of its own (0201):
+      // on a file carrying Profile and no Type, BOTH columns would bind the
+      // same heading and `party_type` would come out holding "GOVERNMENT",
+      // which is not a kind of party. Measured in the supplied export: Type is
+      // CUSTOMER and its friends, Profile is PRIVATE / GOVERNMENT. Different
+      // questions, and now different columns.
+      TEXT('party_type', 'type'),
+      // `address` before `billing address`, and this export carries both — the
+      // installation address is where the machine is, which is what a call
+      // needs; the billing address is kept on the row.
       TEXT('address', 'billing address'),
+      // WHO LOOKS AFTER THIS CUSTOMER (0200). `serviceman` is the supplied
+      // export's own heading; the others are what the same column is called
+      // elsewhere. Deliberately NOT aliased to a bare `engineer`, which on a
+      // party sheet is as likely to mean the sales contact.
+      TEXT('service_engineer', 'serviceman', 'service engineer', 'service man'),
+      // PRIVATE / GOVERNMENT — its OWN column now (0201). It used to be an
+      // alias of `party_type` behind `type`, so on a file carrying both — which
+      // this one does — it only ever reached `extra`.
+      TEXT('profile'),
+      TEXT('route'),
+      // EXPLICIT ORDER, because `TEXT` puts the column's own name FIRST and
+      // that is wrong here: this file carries `Inst. Pincode` AND a bare
+      // `Pincode`, and the bare one belongs to the BILLING block. Aliased the
+      // usual way, the installation pincode column took the billing value —
+      // found by testing the real header row, not by reading it.
+      { to: 'pincode', from: ['inst. pincode', 'inst pincode', 'pincode'] },
+      // THE INSTALLATION CONTACT BLOCK — where the machine is, which is what a
+      // call needs.
+      TEXT('phone', 'tel 1', 'telephone'),
+      TEXT('phone_2', 'tel 2'),
+      TEXT('fax'),
+      TEXT('email', 'email id'),
+      // THE BILLING BLOCK, and the reason `csv.ts` stopped dropping a repeated
+      // heading. This file carries `Tel 1`, `Tel 2`, `Fax` and `Email ID` TWICE
+      // — once per address — and the second set reached nothing at all, not
+      // even `extra`. `[2]` is the parser's name for the second one, and SQUARE
+      // brackets are load-bearing: `loose()` strips a PARENTHESISED suffix, so
+      // `tel 1 (2)` would loosen back to `tel 1` and bind to the FIRST column.
+      TEXT('billing_address', 'billing address'),
+      // NOT aliased to a bare `pincode`: it would then race the installation
+      // column above for the same heading. Where this file's lone `Pincode`
+      // IS the billing one, the database recognises it — see 0201, which takes
+      // it only when an `Inst. Pincode` exists beside it to prove which is which.
+      { to: 'billing_pincode', from: ['billing pincode', 'pincode [2]'] },
+      TEXT('billing_phone', 'tel 1 [2]', 'billing tel 1'),
+      TEXT('billing_phone_2', 'tel 2 [2]', 'billing tel 2'),
+      TEXT('billing_fax', 'fax [2]', 'billing fax'),
+      TEXT('billing_email', 'email id [2]', 'billing email'),
+      // KYC. Only what is CERTAIN: the two statutory numbers, which have a
+      // shape. The rest of the format is the user's to supply, and inventing
+      // fields to hold it would be inventing the format.
+      //
+      // The database derives both from the free-text `Tax` columns where a file
+      // has no column of its own (0201), so these aliases are for a file that
+      // names them properly — and a value here still wins over a derived one.
+      TEXT('gstin', 'gst no', 'gst number', 'gstin no'),
+      TEXT('pan', 'pan no', 'pan number'),
     ] },
   // RENAMED, NOT REPLACED (the user, 2026-09-14: "Rename Product Master to
   // Product Database"). Same register, same table, same key — one row per

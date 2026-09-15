@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.268',
+    version: '0.9.270',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,34 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.269',
+    date: '2026-09-15',
+    title: 'Party Master: the customer’s own columns, and somewhere to record KYC',
+    changes: [
+      'The Party Master keeps the customer’s details in columns you can search, sort and report on, instead of a blob: PROFILE (Private / Government), the territory, and TWO SEPARATE CONTACT BLOCKS — one for the installation address, one for billing.',
+      'That second block used to vanish. Your export names Tel 1, Tel 2, Fax and Email ID twice over — once per address — and the second of each was reaching nothing at all, not even the kept-as-is fields.',
+      'Profile was being thrown away too: it shared a slot with Type, and Type always won.',
+      'KYC: every party now carries a status, and all of them start PENDING — so you can see how many customers still need doing and who has been done. Marking one Verified records WHO did it and WHEN, from the sign-in; sending it back to Pending clears that again, because a party that is no longer verified was not verified by anybody.',
+      'GSTIN and PAN are picked out of the Tax columns you already have, whatever way they were typed (“PAN NO:…”, “GST NO:…”, “GSTIN: …”). A GSTIN contains a PAN, so giving one gives both. A number you type in is never overwritten by a spreadsheet.',
+      'THE REST OF THE KYC FORM IS STILL TO COME — send the format and the fields go in as real columns. Nothing has been guessed.',
+      'Needs the Masters SQL (masters.sql) to be run.',
+    ],
+  },
+  {
+    version: '0.9.268',
+    date: '2026-09-15',
+    title: 'The Party Master says who looks after the customer — and the call knows it',
+    changes: [
+      'The Party Master now keeps its SERVICEMAN. Uploading your party list fills it, and every other column of that file is kept exactly as it is — Office Name, Salesman, Route, Under, the tax fields and both addresses.',
+      'On a new Field, Installation or PM call, “Call Allocated To” fills itself from the party where the MACHINE has no Service Engineer of its own. The machine still wins where it has one, so nothing that already filled in correctly changes.',
+      'That matters most for an INSTALLATION: the machine does not exist here yet, so it can never name an engineer — the customer can.',
+      'Registering a call FROM A REQUEST keeps the engineer the request names. It did not: using the picker to correct the party or serial quietly replaced that engineer with the machine’s, on a picker whose own hint says it is only for fixing party/product/serial.',
+      'It is a suggestion, never an assignment. The box stays editable and nothing in the database allots a call by itself.',
+      'Uploads no longer drop a column whose heading appears twice. The party export carries Tel 1, Tel 2, Fax and Email ID twice over — once for the installation address and once for billing — and four of its twenty-five columns were reaching nothing at all.',
+      'Needs the Masters SQL (masters.sql) to be run.',
     ],
   },
   {

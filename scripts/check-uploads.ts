@@ -6,6 +6,8 @@ import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
 import { toTimestamp as mappingTs, pick } from '../src/lib/reportMapping';
 import { machineKey } from '../src/lib/machine';
+import { parseCSV } from '../src/lib/csv';
+import { productToCallPrefill, partyToCallPrefill } from '../src/lib/fieldcall';
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -97,14 +99,26 @@ eq('only the complete row loads', cons.rows.length, 1);
 eq('skipped rows name the file row', cons.skipped, [{ row: 3, why: 'no spares used' }, { row: 4, why: 'no consumed qty' }]);
 eq('unrecognised column kept in data', cons.rows[0].data, { 'Job Note': 'kept' });
 
-console.log('\n-- several aliases present at once: the FIRST wins, the rest are kept --');
+console.log('\n-- every heading reaches a column or the row; none is dropped --');
 const party = shapeUpload(def('parties'), [
   { 'Party Name': 'HOSP', 'Type': 'CUSTOMER', 'Profile': 'GOVERNMENT', 'Address': 'Main St', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' },
 ]);
-eq('Type beats Profile (alias order)', party.rows[0].party_type, 'CUSTOMER');
-eq('Address beats Billing Address', party.rows[0].address, 'Main St');
-eq('the losing aliases are kept, not dropped', party.rows[0].extra,
-   { 'Profile': 'GOVERNMENT', 'Billing Address': 'PO Box 9', 'COUNTRY': 'BD' });
+// THESE TWO USED TO COLLIDE and one of each pair was kept in `extra` as a
+// LOSING ALIAS. Both now have columns of their own (0201), so nothing is
+// competing — which is the point of cleaning the columns up.
+eq('Type and Profile are different questions, and different columns',
+   [party.rows[0].party_type, party.rows[0].profile], ['CUSTOMER', 'GOVERNMENT']);
+eq('so are the two addresses',
+   [party.rows[0].address, party.rows[0].billing_address], ['Main St', 'PO Box 9']);
+// THE INVARIANT THAT MATTERS, and it is stronger than the alias rule it
+// replaces: a heading either lands in a column or is kept on the row. A file's
+// column may be one this register does not know; it may never be DROPPED.
+eq('a heading with no column of its own is still kept', party.rows[0].extra, { 'COUNTRY': 'BD' });
+// AND A FALLBACK IS STILL A FALLBACK where the pair really is one value: a
+// party sheet with only a billing address has given us the only address it has.
+const billOnly = shapeUpload(def('parties'), [{ 'Party Name': 'HOSP', 'Billing Address': 'PO Box 9' }]);
+eq('a lone Billing Address still answers "where is this customer?"',
+   [billOnly.rows[0].address, billOnly.rows[0].billing_address], ['PO Box 9', 'PO Box 9']);
 
 console.log('\n-- a mis-picked register is visible before writing --');
 const wrong = shapeUpload(def('stock_transfers'), [{ 'UID': 'T1', 'From Engineer': 'A', 'To Engineer': 'B', 'Totally Unknown': 'x' }]);
@@ -719,6 +733,88 @@ console.log('\n-- hand stock belongs to an active engineer --');
 ['handstock_winmax', 'handstock_opening'].forEach((k) => {
   eq(`${k} filters to active User Master names`, def(k).prepare, 'handstock-engineers');
 });
+
+console.log('\n-- the Party Master names who looks after the customer (0200) --');
+{
+  // The supplied export's own headings, in its own order — 25 columns, four of
+  // them REPEATED (Tel 1, Tel 2, Fax, Email ID: once for the installation
+  // address, once for billing). 4,752 parties, Serviceman filled on 4,677.
+  const HEAD = 'Office Name,Party Name,Type,Profile,State,City,Route,Under,Salesman,Serviceman,Address,'
+             + 'Inst. Pincode,Tel 1,Tel 2,Fax,Email ID,Billing Address,Pincode,Tel 1,Tel 2,Fax,Email ID,Tax 1,Tax 2,Tax 3';
+  const ROW  = 'CHENNAI,APOLLO HOSPITAL,Hospital,Govt,TN,CHENNAI,R1,HO,A SALESMAN,SIVAKUMAR,12 Install St,'
+             + '600001,111,222,333,install@x.com,9 Billing Rd,600002,444,555,666,billing@x.com,T1,T2,T3';
+  const rows = parseCSV(`${HEAD}\n${ROW}`);
+
+  // A REPEATED HEADING IS KEPT, not dropped. It used to be dropped, so four of
+  // this file's twenty-five columns reached no importer at all — not even
+  // `extra` — on a file whose whole point is that every field is retained.
+  eq('the FIRST of a repeated heading is the plain one', rows[0]['Email ID'], 'install@x.com');
+  eq('...and the second arrives under a suffixed name', rows[0]['Email ID [2]'], 'billing@x.com');
+  eq('every repeated heading, not just the first pair',
+     [rows[0]['Tel 1 [2]'], rows[0]['Tel 2 [2]'], rows[0]['Fax [2]']], ['444', '555', '666']);
+  // SQUARE brackets, and it is load-bearing. `loose()` strips a PARENTHESISED
+  // suffix, so "Tel 1 (2)" loosens back to "tel 1" and the billing alias would
+  // bind to the INSTALLATION column — silently, and only on files that repeat.
+  eq('the second column can be NAMED without binding to the first',
+     [findHeaderFor(Object.keys(rows[0]), ['tel 1 [2]']), findHeaderFor(Object.keys(rows[0]), ['tel 1'])],
+     ['Tel 1 [2]', 'Tel 1']);
+  eq('nothing is lost: 25 columns in, 25 keys out', Object.keys(rows[0]).length, 25);
+
+  const shaped = shapeUpload(def('parties'), rows);
+  const r = shaped.rows[0] as Record<string, unknown>;
+  eq('Serviceman lands in a COLUMN, not the blob', r.service_engineer, 'SIVAKUMAR');
+  eq('the Salesman is never mistaken for it', JSON.stringify(r).includes('A SALESMAN') && r.service_engineer === 'SIVAKUMAR', true);
+  // `Address` is where the machine is; `Billing Address` is not, and a call
+  // sends somebody to the first of those.
+  eq('the INSTALLATION address wins over the billing address', r.address, '12 Install St');
+  eq('Type wins over Profile for the classification', r.party_type, 'Hospital');
+  const extra = (r.extra ?? {}) as Record<string, unknown>;
+  // THE COLUMNS ARE CLEANED UP (0201): two contact blocks, NAMED, not numbered.
+  eq('the installation contact block lands in columns',
+     [r.pincode, r.phone, r.phone_2, r.fax, r.email],
+     ['600001', '111', '222', '333', 'install@x.com']);
+  eq('...and the billing block beside it, out of the REPEATED headings',
+     [r.billing_address, r.billing_phone, r.billing_phone_2, r.billing_fax, r.billing_email],
+     ['9 Billing Rd', '444', '555', '666', 'billing@x.com']);
+  // THE BILLING PINCODE IS THE DATABASE'S, and deliberately not the importer's.
+  // This file names the installation pincode (`Inst. Pincode`) and leaves the
+  // billing one BARE (`Pincode`), so an alias here would race the installation
+  // column for the same heading — it did, and the installation pincode came out
+  // holding the billing value. The pair is only ambiguous in isolation: 0201
+  // takes the bare one as billing precisely when an `Inst. Pincode` sits beside
+  // it, which is a question the row can answer and a heading cannot.
+  eq('the installation pincode is NOT taken by the bare heading', r.pincode, '600001');
+  eq('...and the bare one is left on the row for the database to place',
+     [r.billing_pincode, extra['Pincode']], [undefined, '600002']);
+  eq('Profile is its own column, no longer swallowed by Type', [r.party_type, r.profile], ['Hospital', 'Govt']);
+  eq('the territory is kept too', r.route, 'R1');
+  eq('what has no column is still kept on the row',
+     [extra['Office Name'], extra['Salesman'], extra['Under'], extra['Tax 1']],
+     ['CHENNAI', 'A SALESMAN', 'HO', 'T1']);
+}
+
+console.log('\n-- who a new call is allotted to: the machine wins, the party answers --');
+{
+  // The user's precedence, settled before any of it was built (2026-09-15).
+  // Party Master is a FALLBACK, so this widens where an engineer can be found
+  // and changes no call that already found one.
+  const machine = { 'Item Serial Number': '2410', 'Item Name': 'ORION-G', 'Service Engineer': 'MAYANK GUPTA' };
+  eq('the machine has one: the machine wins',
+     productToCallPrefill(machine, 'SIVAKUMAR').allocatedTo, 'MAYANK GUPTA');
+  eq('the machine has none: the party answers',
+     productToCallPrefill({ ...machine, 'Service Engineer': '' }, 'SIVAKUMAR').allocatedTo, 'SIVAKUMAR');
+  eq('...and whitespace is not an engineer',
+     productToCallPrefill({ ...machine, 'Service Engineer': '   ' }, 'SIVAKUMAR').allocatedTo, 'SIVAKUMAR');
+  eq('neither has one: the box is left empty for a person',
+     productToCallPrefill({ ...machine, 'Service Engineer': '' }, '').allocatedTo, '');
+  // THE INSTALLATION CASE. The customer may have no machine here at all, so the
+  // machine can never answer and the Party Master is the only thing that can.
+  eq('a party with no machine still names an engineer',
+     partyToCallPrefill({ partyName: 'APOLLO HOSPITAL', serviceEngineer: 'SIVAKUMAR' }),
+     { partyName: 'APOLLO HOSPITAL', allocatedTo: 'SIVAKUMAR' });
+  eq('...and a party nobody looks after writes no name over the form',
+     partyToCallPrefill({ partyName: 'APOLLO HOSPITAL' }).allocatedTo, '');
+}
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

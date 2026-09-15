@@ -58,8 +58,31 @@ export function parseCSV(text: string, opts?: { aliases?: string[] }): Record<st
   // column 6 and a month label ("Feb 2021") in column 39 — so the last-wins
   // default parsed every date in five years from the month alone, losing the
   // day silently on every row.
+  //
+  // THE LATER ONE IS KEPT UNDER A SUFFIXED NAME rather than dropped. It used to
+  // be dropped, and that loses real columns: the Party Master export carries
+  // `Tel 1`, `Tel 2`, `Fax` and `Email ID` TWICE — once for the installation
+  // address and once for the billing address — so four of its twenty-five
+  // columns reached no importer at all, not even `extra`, on a file whose whole
+  // point was that every field is retained. A repeat now becomes "Email ID (2)".
+  //
+  // SQUARE brackets, and that is the whole reason they are not round ones.
+  // `loose()` in headers.ts strips a PARENTHESISED suffix — `PO No. (final)` is
+  // not a different column from `PO No.` — so "Email ID (2)" loosens back to
+  // "email id" and an importer aliasing the second column would bind to the
+  // FIRST on the loose pass. `[2]` survives all three passes intact: strict
+  // leaves it, loose leaves it, squash gives `emailid2` against `emailid`. So
+  // an importer can name the second column and be sure of getting it, which is
+  // what the Party Master's billing block needs.
   const idx = new Map<string, number>();
-  headers.forEach((h, i) => { if (h && !idx.has(h)) idx.set(h, i); });
+  const seen = new Map<string, number>();
+  headers.forEach((h, i) => {
+    if (!h) return;
+    const n = (seen.get(h) ?? 0) + 1;
+    seen.set(h, n);
+    const key = n === 1 ? h : `${h} [${n}]`;
+    if (!idx.has(key)) idx.set(key, i);
+  });
 
   return rows.slice(at + 1)
     .filter((r) => r.some((v) => String(v).trim() !== ''))
