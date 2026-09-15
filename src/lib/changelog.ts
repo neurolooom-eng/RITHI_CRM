@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.282',
+    date: '2026-09-15',
+    title: 'Product Failure Analysis opens on this year',
+    changes: [
+      'THE PAGE NOW OPENS ON 2026 — this year — instead of all nine years at once. The register carries 1,120 reviews migrated from the old system against 36 raised here, so opening on everything made every Pareto a chart of the superseded system.',
+      'The year is a row of chips at the top, never hidden, and it says how many of the register’s failures you are looking at. “Every year” is still one click away.',
+      'IT FOLLOWS THE CALENDAR rather than being pinned to 2026: a fixed year would show an empty page on the first of January with nothing saying why.',
+      'A FAILURE’S YEAR IS NOW WHEN THE MACHINE FAILED — its complaint date, or the day the call was registered where there is none. It used to be the date somebody REVIEWED it, which put a December failure reviewed in January into January. The month-by-month chart reads the same date, so the chart and the filter above it cannot disagree.',
+      'Every download says which year it was taken through — a spreadsheet is read by somebody who never saw the filter.',
+    ],
+  },
+  {
     version: '0.9.281',
     date: '2026-09-15',
     title: 'Build your own chart on Product Failure Analysis, and keep it',

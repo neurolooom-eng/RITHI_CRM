@@ -60,24 +60,6 @@ function tally(rows: Row[], key: string, blankLabel = '(not answered)'): { label
 }
 
 // ---------------------------------------------------------------------------
-// ONE BLOCK, USED FOR EVERY DIMENSION.
-//
-// The user, 2026-09-15: "focus on the product failure analysis ... stick to
-// Pareto, failures per cover.. give data table, download option, data label
-// toggle." So every analysis on this page carries the same four things, and
-// carries them because they were asked for TOGETHER: a chart is read, a table
-// is CHECKED, labels are what make a chart quotable, and a download is what
-// makes it arguable with somebody who was not at the screen.
-//
-// RANKED OR NOT, and the flag is not cosmetic. A Pareto ranks by count so the
-// running share means something — "four causes are 80% of the failures". An
-// ORDINAL dimension must not be re-ordered: sorting the age bands by how many
-// failures each holds destroys the one thing the chart is for, which is whether
-// failures cluster EARLY or LATE in a machine's life. Those keep their own
-// order and show no cumulative line, because a running total across an
-// arbitrary order says nothing.
-// ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // WHAT A READER MAY BUILD A CHART OVER.
 //
 // A NAMED LIST, NOT "ANY COLUMN". The view has 57 of them and most answer
@@ -123,11 +105,46 @@ const FORMS: { key: 'pareto' | 'share' | 'ordered'; label: string }[] = [
  *  written to the database and read back — two spellings would be two pages. */
 const PAGE_KEY = 'product-failure';
 
+/** WHEN THE FAILURE HAPPENED — the complaint date, falling back to the date the
+ *  call was registered.
+ *
+ *  NOT `review2_at`, which is when somebody LOOKED at it. On a process page the
+ *  review date is the right clock; on a failure analysis it is the wrong one,
+ *  because a machine that broke in December and was reviewed in January did not
+ *  fail in January. The trend and the year filter both read this, so the chart
+ *  and the filter above it cannot disagree about which year a failure is in. */
+const failedOn = (r: Row) => s(r, 'complaint_date') || s(r, 'reg_date');
+
+/** THE YEAR THE PAGE OPENS ON.
+ *
+ *  The user, 2026-09-15: "Always default it to 2026." Read as THE CURRENT YEAR
+ *  rather than the literal number: a hard-coded 2026 becomes wrong on the first
+ *  of January and shows an empty page with nothing saying why — and "always"
+ *  is what makes the current year the honest reading of it.
+ *
+ *  It matters because the register carries nine years of migrated history:
+ *  1,120 reviews from before 2026 against 36 raised in it. Opening on
+ *  everything makes every Pareto a chart of the old system. */
+const thisYear = () => String(new Date().getFullYear());
+const ALL_YEARS = '__all';
+
 interface Cut { label: string; value: number }
 
+// ---------------------------------------------------------------------------
+// ONE BLOCK, USED FOR EVERY DIMENSION.
+//
+// The user, 2026-09-15: "focus on the product failure analysis ... stick to
+// Pareto, failures per cover.. give data table, download option, data label
+// toggle." So every analysis on this page carries the same four things, and
+// carries them because they were asked for TOGETHER: a chart is read, a table
+// is CHECKED, labels are what make a chart quotable, and a download is what
+// makes it arguable with somebody who was not at the screen.
+//
+// Which FORM each one takes is documented on the `form` prop below.
+// ---------------------------------------------------------------------------
 function ParetoBlock({
   title, note, rows, total, dim, picked, onPick, form = 'pareto', raw, rawDateKey, rawDateLabel,
-  onRemove,
+  onRemove, yearNote,
 }: {
   title: string;
   note?: string;
@@ -158,6 +175,10 @@ function ParetoBlock({
   /** Present only on a chart somebody BUILT — the built-in ones are the page
    *  and cannot be removed from it. */
   onRemove?: () => void;
+  /** WHICH YEAR THESE NUMBERS CAME THROUGH. A spreadsheet leaves the screen and
+   *  is read by somebody who never saw the filter, so the window it was taken
+   *  through has to travel with it or the numbers are simply wrong to them. */
+  yearNote: string;
 }) {
   const [labels, setLabels] = useState(false);
   const rank = form === 'pareto';
@@ -236,6 +257,7 @@ function ParetoBlock({
         rows: [
           { Item: 'Counted by', Value: title },
           { Item: 'Narrowed to', Value: scope },
+          { Item: 'Year', Value: yearNote },
           { Item: 'Failures counted', Value: total },
           { Item: 'Rows shown on the chart', Value: shown.length },
           { Item: '', Value: '' },
@@ -339,6 +361,16 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   // chart — so "what is the root cause on ORION-G, under contract?" is two
   // clicks rather than a query nobody can write.
   const [picked, setPicked] = useState<Record<string, string>>({});
+  // THE YEAR THE PAGE OPENS ON — this one, not all nine.
+  const [year, setYear] = useState<string>(thisYear());
+
+  // Every year the register actually holds, newest first, so the picker offers
+  // what is there rather than a range somebody guessed.
+  const years = useMemo(() => {
+    const set = new Set<string>();
+    allRows.forEach((r) => { const y = failedOn(r).slice(0, 4); if (/^\d{4}$/.test(y)) set.add(y); });
+    return [...set].sort((a, b) => b.localeCompare(a));
+  }, [allRows]);
 
   // ---- charts a reader built and kept (0206) ------------------------------
   const { can, rolePerms } = useAuth();
@@ -372,7 +404,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
     setPicked((cur) => (cur[dim] === label ? (({ [dim]: _drop, ...rest }) => rest)(cur) : { ...cur, [dim]: label }));
 
   const dimValue = (r: Row, dim: string): string => {
-    if (dim === 'period') return periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period);
+    if (dim === 'period') return periodKey(failedOn(r), period);
     // A COMPOSED KEY IS NOT A COLUMN. The machine chart counts model + serial,
     // so clicking one has to be matched the same way it was counted — reading
     // `r['__machine']` would find nothing and the page would silently empty.
@@ -384,12 +416,17 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   };
 
   const rows = useMemo(() => {
+    // THE YEAR IS APPLIED FIRST, before any chart counts — it is not one of the
+    // cross-filters but the window every one of them is read through.
+    const inYear = year === ALL_YEARS
+      ? allRows
+      : allRows.filter((r) => failedOn(r).slice(0, 4) === year);
     const dims = Object.entries(picked);
-    if (!dims.length) return allRows;
-    return allRows.filter((r) => dims.every(([dim, label]) =>
+    if (!dims.length) return inYear;
+    return inYear.filter((r) => dims.every(([dim, label]) =>
       (dimValue(r, dim) || '(not answered)') === label));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allRows, picked, period]);
+  }, [allRows, picked, period, year]);
 
   const n = rows.length;
   const plus = more ? '+' : '';
@@ -464,7 +501,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   const trend = useMemo(() => {
     const m = new Map<string, number>();
     rows.forEach((r) => {
-      const k = periodKey(s(r, 'review2_at') || s(r, 'reg_date'), period);
+      const k = periodKey(failedOn(r), period);
       if (k) m.set(k, (m.get(k) ?? 0) + 1);
     });
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]))
@@ -495,9 +532,11 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         columns: ['Item', 'Value'],
         rows: [
           { Item: 'Counted by', Value: per },
+          { Item: 'Year', Value: yearNote },
           { Item: 'Which date decides the period',
-            Value: 'the date Review 2 was answered, falling back to the call’s registration '
-              + 'date where it has not been answered yet.' },
+            Value: 'when the machine FAILED — its complaint date, or the day the call was '
+              + 'registered where there is none. NOT the date somebody reviewed it: a machine '
+              + 'that broke in December and was reviewed in January did not fail in January.' },
           { Item: 'A period with no failures',
             Value: 'is not a row. A gap is a gap in the register, not a zero somebody recorded.' },
           { Item: 'Failures counted', Value: trendTotal },
@@ -514,11 +553,46 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
   const frequent = countIf((r) => yes(s(r, 'frequent_failure')));
   const moved = countIf((r) => s(r, 'live_product_changed') === 'true' || r.live_product_changed === true);
 
+  const yearNote = year === ALL_YEARS
+    ? 'every year on the register, migrated history included'
+    : `${year} — by the date the machine FAILED (complaint date, or registration where there is none)`;
+
   const RAW_DATE = 'review2_at';
   const RAW_DATE_LABEL = 'Review 2 answered on';
 
   return (
     <div>
+      {/* ---- THE YEAR --------------------------------------------------------
+          Always on screen, never folded away, and never implied. A page that
+          quietly showed one year of nine would be a page whose every number is
+          a fraction of what the reader thinks they are looking at — and the
+          register carries nine years of migrated history against one of its
+          own, so the difference is not small. */}
+      <SectionCard title="Year">
+        <div className="stage-chips">
+          {years.map((y) => (
+            <button key={y} className={`chip ${year === y ? 'chip-on' : ''}`}
+              onClick={() => setYear(y)}>
+              {y}{y === thisYear() ? ' · this year' : ''}
+            </button>
+          ))}
+          <button className={`chip ${year === ALL_YEARS ? 'chip-on' : ''}`}
+            onClick={() => setYear(ALL_YEARS)}>
+            Every year <b>{allRows.length.toLocaleString()}{more ? '+' : ''}</b>
+          </button>
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+          {year === ALL_YEARS
+            ? <>Counting <b>every year on the register</b>, including failures migrated from the
+                superseded system. Read the Paretos knowing that.</>
+            : <>Counting the <b>{n.toLocaleString()}{more ? '+' : ''}</b> failures that happened in{' '}
+                <b>{year}</b>, out of {allRows.length.toLocaleString()}{more ? '+' : ''} on the
+                register. A failure&rsquo;s year is when the machine FAILED — its complaint date,
+                or the day the call was registered where there is none — not when somebody
+                reviewed it.</>}
+        </div>
+      </SectionCard>
+
       {Object.keys(picked).length > 0 && (
         <SectionCard title="Narrowed to">
           <div className="stage-chips">
@@ -556,7 +630,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
         note="Counted under the product Review 2 says actually failed, so a fault moved to an
               accessory counts there and not against the machine it was logged on."
         rows={byProduct} total={n} dim="live_product_name" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Failures per cover"
@@ -566,32 +640,32 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
               product above and this narrows to it, which is the cross-tab worth having."
         form="share"
         rows={byCover} total={n} dim="item_status" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Root cause"
         note="The few causes behind most of the failures — which is what the running share is for."
         rows={byRootCause} total={n} dim="root_cause_keyword" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Complaint grouping"
         rows={byGrouping} total={n} dim="complaint_grouping" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="What it was reported as"
         note="The complaint the customer gave, before anybody looked. Where this and the root cause
               disagree is where the fault is hard to describe from the outside."
         rows={byComplaint} total={n} dim="standard_complaint" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Which spares were implicated"
         note="A short closed list, so it is read as a share of the failures rather than ranked."
         form="share"
         rows={bySpareCat} total={n} dim="spare_category" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Machines that failed more than once"
@@ -601,7 +675,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
               ${repeatTotal.toLocaleString()} of ${n.toLocaleString()} failures are on a machine
               that has failed before.`}
         rows={byMachine} total={repeatTotal} dim="__machine" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Software version"
@@ -610,7 +684,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
               latest visit report."
         form="ordered"
         rows={bySwOrdered} total={n} dim="sw_version" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       <ParetoBlock
         title="Age at failure"
@@ -618,7 +692,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
               machine's life is the finding, and sorting by count would erase it."
         form="ordered"
         rows={byAge} total={n} dim="age_group" picked={picked} onPick={pick}
-        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} />
+        raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote} />
 
       {/* ---- CHARTS SOMEBODY BUILT ------------------------------------------
           Rendered through the SAME block as the built-in ones, so a saved chart
@@ -649,7 +723,7 @@ export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Ro
               : c.role === '' ? ' and shared with everyone' : ` and shared with ${c.role}`}, counting by ${known.label}.`}
             form={c.spec.form}
             rows={cut} total={n} dim={c.spec.dim} picked={picked} onPick={pick}
-            raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL}
+            raw={rows} rawDateKey={RAW_DATE} rawDateLabel={RAW_DATE_LABEL} yearNote={yearNote}
             onRemove={() => void removeSaved(c)} />
         );
       })}
