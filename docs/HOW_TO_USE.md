@@ -320,6 +320,16 @@ typed into a form that reads it.
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
 
+## Across every register
+
+- **The filter chips above a list fold away.** Click the heading — *Engineer*,
+  *Status*, *Product* — to hide the row, and again to bring it back. A long row
+  starts folded and a short one starts open, and whatever you choose is
+  remembered on your device for that screen.
+  > **Folding the chips never removes the filter.** If one is applied it stays
+  > on screen with its count and one click clears it — otherwise you would be
+  > looking at part of a register with nothing saying why.
+
 ## Analysis & reports
 
 - **KPI & Failure Analysis** `/kpi` — failure rate by product, region × cover, and

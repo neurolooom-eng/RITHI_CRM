@@ -936,6 +936,8 @@ export function SpareRequests() {
             onChange={setEngineerFilter}
             allLabel="All engineers"
             blankLabel="— no engineer —"
+            title="Engineer"
+            storeKey="spares.engineer"
             more={onDb && more}
           />
         </>

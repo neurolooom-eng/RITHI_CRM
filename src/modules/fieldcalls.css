@@ -274,6 +274,17 @@
 }
 .chip:hover { border-color: var(--primary); }
 .chip b { font-weight: 700; margin-left: 4px; color: var(--text-muted); }
+/* THE ROW'S OWN HEADER — what it filters by, and the handle that shuts it.
+   Quieter than a value chip on purpose: it is a label with a control on it,
+   not one of the things being chosen between. */
+.facet-head { background: transparent; border-style: dashed; color: var(--text-muted); }
+.facet-head:hover { color: var(--text); }
+.facet-caret { margin-right: 5px; font-size: 11px; }
+/* A shut row is ONE LINE. It still carries the active filter as a real chip
+   (see FacetChips) — only the unchosen options are put away. */
+.facet-shut { margin: 6px 0 8px; align-items: center; }
+.facet-all { font-size: 12.5px; }
+.facet-all b { font-weight: 700; margin-left: 4px; }
 .chip-on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .chip-on b { color: #fff; }
 
