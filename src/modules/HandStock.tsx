@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Toolbar, SearchBox } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
+import { useArrivingFilter } from '../lib/arriveWith';
 import {
   listHandstockBalance, listHandstockMovements, listAllHandstockMovements, supabaseConfigured,
 } from '../lib/supabase';
@@ -139,6 +140,8 @@ export function HandStock() {
   const [search, setSearch] = useState('');
   const [engineerFilter, setEngineerFilter] = useState('');
   const [holding, setHolding] = useState<Holding>('held');
+  // ARRIVING FROM MY WORKLOAD — the Short card opens the short lines.
+  useArrivingFilter<Holding>('holding', setHolding);
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState(cached?.at ?? '');
   // The balance is paged, like the call registers. `loaded` is how many rows

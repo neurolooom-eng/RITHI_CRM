@@ -61,8 +61,8 @@ export function Workload() {
       { needs: 'mod:/spare-rm-approval', run: rmApprovalSection },
       { needs: 'mod:/spare-dispatch', run: dispatchSection },
       { needs: 'mod:/daily-review', run: reviewSection },
-      { needs: 'mod:/hand-stock', run: handStockSection },
-      { needs: 'mod:/material-returns', run: materialReturnsSection },
+      { needs: 'mod:/handstock', run: handStockSection },
+      { needs: 'mod:/mrn', run: materialReturnsSection },
       { needs: 'mod:/stock-transfer', run: stockTransferSection },
     ].filter((j) => can(j.needs));
     setSections([]); setErr([]); setBusy(jobs.length); setAt(new Date().toISOString());

@@ -20,6 +20,39 @@ up)_
 
 
 
+## 2026-09-15 — The cards were opening the right page and the wrong list
+
+Caught by checking my own claim rather than leaving it for the user: I had told
+them the click-through was the part I most wanted their eyes on. It did not work.
+
+**None of the three registers read `location.state` at all.** The cards passed
+`stageFilter`, `status` and `holding`; nothing consumed any of them. So every
+card navigated to the right register showing the WHOLE list — **the click looks
+answered**, and the reader believes the list in front of them is the one they
+asked for. That is worse than a card that plainly does nothing.
+
+**And two cards pointed at addresses that do not exist**: `/hand-stock` (the
+route is `/handstock`) and `/material-returns` (`/mrn`). The same strings were
+the permission keys, so those two sections would never have appeared for anyone.
+
+### What now holds it
+
+`useArrivingFilter` — one reader, so three registers cannot disagree about how
+an arriving filter is applied, and **applied once on arrival**: re-reading
+`location.state` would fight every change the reader makes afterwards, and the
+screen would appear stuck.
+
+`check:ui` resolves each card's path through `App.tsx` to the module serving it
+and proves that module reads the key the card sends. Mutation-tested.
+
+**The first version of that check silently covered two registers of three** —
+its `(\w+):` missed the shorthand `state: { status }`, which is how the Daily
+Call Review passes it, and the register it skipped was the one most likely to be
+wrong. It now asserts the PAIR COUNT first, so a check that stops seeing one
+fails instead of passing quietly.
+
+---
+
 ## 2026-09-15 — My Workload: the queues left the registers, and now open
 
 Asked: *"Remove such cards in Main Views. Move those to a Separate KPI Cards

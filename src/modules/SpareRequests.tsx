@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
+import { useArrivingFilter } from '../lib/arriveWith';
 import { toIsoDate } from '../lib/dates';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
 import {
@@ -504,6 +505,8 @@ export function SpareRequests() {
   const [rows, setRows] = useState<Row[]>(cached?.rows ?? []);
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<Stage | typeof MINE | ''>('');
+  // ARRIVING FROM MY WORKLOAD with the stage that was clicked (0202's page).
+  useArrivingFilter<Stage | typeof MINE | ''>('stageFilter', setStageFilter);
   // ---- approval in bulk (0116) ---------------------------------------------
   // The ask (2026-09-06): NSM / Admin / Super Admin tick boxes and approve, at
   // EVERY stage. The register is the right place for it because the selection

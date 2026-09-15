@@ -171,12 +171,14 @@ export async function handStockSection(): Promise<WorkloadSection> {
   const rows = await listHandstockBalance(SCAN, 0) as unknown as HandstockBalance[];
   const t = summariseStock(rows);
   return {
-    key: 'handstock', title: 'Hand Stock', path: '/hand-stock', needs: 'mod:/hand-stock',
+    key: 'handstock', title: 'Hand Stock', path: '/handstock', needs: 'mod:/handstock',
     more: rows.length >= SCAN,
     cards: [
       { label: 'Short', value: t.shortLines, sub: 'taken without a stock out', icon: '⚠️',
         tone: t.shortLines ? 'danger' : 'neutral',
-        to: t.shortLines ? { path: '/hand-stock', opens: 'the hand-stock lines' } : undefined },
+        to: t.shortLines
+          ? { path: '/handstock', state: { holding: 'short' }, opens: 'the short lines' }
+          : undefined },
       { label: 'Units in the field', value: t.onHand, sub: 'held across every engineer', icon: '🎒', tone: 'primary' },
       { label: 'Engineers holding', value: t.engineers, sub: 'with at least one spare in hand', icon: '👤', tone: 'info' },
       { label: 'Spares held', value: t.partCodes, sub: 'distinct part codes', icon: '🔩', tone: 'info' },
@@ -192,11 +194,11 @@ export async function materialReturnsSection(): Promise<WorkloadSection> {
   const rows = await listMaterialReturns(SCAN, 0);
   const notes = new Set(rows.map((r) => g(r, 'uid'))).size;
   return {
-    key: 'mrn', title: 'Material Returns', path: '/material-returns', needs: 'mod:/material-returns',
+    key: 'mrn', title: 'Material Returns', path: '/mrn', needs: 'mod:/mrn',
     more: rows.length >= SCAN,
     cards: [
       { label: 'Returns', value: notes, sub: 'MRNs raised', icon: '↩️', tone: 'primary',
-        to: { path: '/material-returns', opens: 'the returns register' } },
+        to: { path: '/mrn', opens: 'the returns register' } },
       { label: 'Items returned', value: rows.length, sub: 'lines across every MRN', icon: '🔩', tone: 'info' },
       { label: 'Good', value: rows.reduce((n, r) => n + num(r.good_qty), 0), sub: 'back to Stores, usable',
         icon: '✅', tone: 'success' },

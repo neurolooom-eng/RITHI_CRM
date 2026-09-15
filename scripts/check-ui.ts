@@ -6306,6 +6306,44 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
     && /to: '\/workload'/.test(layout), true);
   eq('...and a migration writes the key into app_roles',
     existsSync('supabase/migrations/0202_workload_module_key.sql'), true);
+
+  // -------------------------------------------------------------------------
+  // EVERY FILTER A CARD SENDS IS READ BY THE REGISTER IT SENDS IT TO.
+  //
+  // This is the failure the feature is most likely to have and least likely to
+  // show: the card navigates, the right page opens, and the list is the WHOLE
+  // register. The click looks answered. It shipped that way for one build —
+  // three registers were handed `stageFilter`, `status` and `holding` and NONE
+  // of them read `location.state` at all — and nothing anywhere would have said
+  // so; the reader would simply have believed the list in front of them was the
+  // one they asked for. A half-kept promise is worse than a card that plainly
+  // does nothing.
+  // -------------------------------------------------------------------------
+  const app = code(readFileSync('src/App.tsx', 'utf8'));
+  const routeOf = new Map<string, string>();
+  [...app.matchAll(/<Route path="([^"]+)" element=\{<(\w+)/g)].forEach((m) => routeOf.set(m[1], m[2]));
+  // `(\w+):` MISSED THE SHORTHAND. `state: { status }` is how the Daily Call
+  // Review's helper passes it, so the first version of this check silently
+  // covered two of the three registers — and the one it skipped was the one
+  // most likely to be wrong. A check that looks like it covers everything and
+  // covers two thirds is the shape this project keeps finding.
+  const sent = [...wl.matchAll(/path: '([^']+)', state: \{ (\w+)/g)]
+    .map((m) => ({ path: m[1], key: m[2] }));
+  const pairs = new Set(sent.map((x) => `${x.path}|${x.key}`));
+  eq('every register a card filters is covered here', pairs.size, 3);
+  sent.forEach(({ path, key }) => {
+    const mod = routeOf.get(path);
+    const src = mod && existsSync(`src/modules/${mod}.tsx`)
+      ? code(readFileSync(`src/modules/${mod}.tsx`, 'utf8')) : '';
+    eq(`${path} reads the '${key}' it is sent`,
+      !!src && new RegExp(`useArrivingFilter<[^>]*>\\('${key}'`).test(src), true);
+  });
+  // APPLIED ONCE, ON ARRIVAL. Re-reading `location.state` would fight every
+  // filter change the reader makes afterwards — they clear the stage, the
+  // effect puts it back, and the screen appears stuck.
+  const arrive = code(readFileSync('src/lib/arriveWith.ts', 'utf8'));
+  eq('...and applies it once, so it cannot fight the reader',
+    /done\.current === location\.key/.test(arrive), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

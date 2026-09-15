@@ -3,6 +3,7 @@ import { SelectPicker } from '../components/ui/SelectPicker';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { useArrivingFilter } from '../lib/arriveWith';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -158,6 +159,8 @@ export function DailyCallReview() {
   const [from, setFrom] = useState(yearStartISO());
   const [to, setTo] = useState('');
   const [status, setStatus] = useState('');       // the PAPERWORK: Review 1/2/3
+  // ARRIVING FROM MY WORKLOAD with the review stage that was clicked.
+  useArrivingFilter<string>('status', setStatus);
   const [callState, setCallState] = useState('');  // the CALL: Unattended / Solved / …
   const [product, setProduct] = useState('');
   const [engineer, setEngineer] = useState('');
