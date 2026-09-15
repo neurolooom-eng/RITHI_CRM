@@ -6379,11 +6379,39 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('...and how the number was worked out',
     /name: 'How this was worked out'/.test(di), true);
 
+  // THE FORM FOLLOWS THE QUESTION (the user, 2026-09-15: "For Root Cause Pareto
+  // makes sense -- but for the rest use appropriate charts"). Three forms, and
+  // each is a claim about what is being asked:
+  //   pareto  — which FEW account for most of it (ranked, cumulative line)
+  //   share   — composition across a handful that add up to the whole
+  //   ordered — an ORDINAL scale whose own order IS the finding
+  eq('the block offers the three forms', /form\?: 'pareto' \| 'share' \| 'ordered'/.test(di), true);
+  eq('root cause stays a Pareto',
+    /title="Root cause"[\s\S]{0,300}?dim="root_cause_keyword"/.test(di)
+    && !/title="Root cause"[\s\S]{0,200}?form="/.test(di), true);
+  // COVER IS COMPOSITION, not a vital-few question: a Pareto over four slices
+  // with a running total says only "these four are 100% of the four".
+  eq('cover is read as a share', /title="Failures per cover"[\s\S]{0,400}?form="share"/.test(di), true);
   // AN ORDINAL DIMENSION IS NOT RANKED. Sorting the age bands by count destroys
-  // the one thing that chart is for — early life against late.
-  eq('age at failure keeps its own order', /rank=\{false\}/.test(di), true);
+  // the one thing that chart is for — early life against late. Software version
+  // is the same: ranking hides whether the NEWER release fails more.
+  eq('age at failure keeps its own order',
+    /title="Age at failure"[\s\S]{0,400}?form="ordered"/.test(di), true);
+  eq('...and the software version is in VERSION order, not count order',
+    /title="Software version"[\s\S]{0,400}?form="ordered"/.test(di)
+    && /rows=\{bySwOrdered\}/.test(di), true);
   eq('...and a non-ranked block shows no cumulative share',
     /\{rank && <th style=\{\{ textAlign: 'right' \}\}>Cumulative<\/th>\}/.test(di), true);
+
+  // A COMPOSED KEY IS NOT A COLUMN. The repeat-machine chart counts model +
+  // serial, so clicking one must be MATCHED the same way it was counted —
+  // reading it as a column would find nothing and the page would silently empty.
+  eq('the repeat-machine filter matches the way it was counted',
+    /if \(dim === '__machine'\)/.test(di), true);
+  // KEYED ON MODEL AND SERIAL, never the serial alone: 3,794 serials repeat
+  // across models, so counting by serial merges different machines.
+  eq('...and a machine is its model AND its serial',
+    /\$\{s\(r, 'live_product_name'\) \|\| '\(no product\)'\} · \$\{serial\}/.test(di), true);
 
   // THE CLASSES EXIST. A row that filters must look pressable, and a chosen one
   // must look chosen — by INVERSION, not a tint (the user's standing rule).

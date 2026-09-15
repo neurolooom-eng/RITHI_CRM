@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.280',
+    date: '2026-09-15',
+    title: 'Product Failure Analysis: the right chart for each question',
+    changes: [
+      'ROOT CAUSE, PRODUCT AND COMPLAINT STAY PARETOS — many categories, and the question is which few account for most of it.',
+      'COVER AND SPARE CATEGORY ARE NOW SHARES, not Paretos. They are a handful of values that add up to the whole, so the question is composition: a Pareto over four slices with a running total only says “these four are 100% of the four”.',
+      'SOFTWARE VERSION IS IN VERSION ORDER, not ranked by count — the question is whether a newer release fails more than the one before it, and ranking hid exactly that. 2.10 now sorts after 2.9, where a plain sort put it first.',
+      'AGE AT FAILURE keeps its own order, as before.',
+      'NEW — MACHINES THAT FAILED MORE THAN ONCE. Every other chart answers “which product line fails”; this answers “which UNIT keeps failing”, which is often the more actionable one. A model with four hundred failures across two thousand machines is a fleet; one machine with nine is a machine to go and look at.',
+      'Pick a product and the cover chart narrows to it — that is the cross-tab worth having, without a second chart.',
+    ],
+  },
+  {
     version: '0.9.279',
     date: '2026-09-15',
     title: 'Daily Call Review Insights is now Product Failure Analysis',
