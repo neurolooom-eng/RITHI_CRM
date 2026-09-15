@@ -6,7 +6,6 @@ import { useAuth } from '../lib/auth';
 import { PageHeader, SectionCard, Toolbar, Drawer, Modal } from '../components/ui/ui';
 import { PickList } from '../components/ui/PickList';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
   callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
@@ -731,14 +730,6 @@ export function DailyCallReview() {
 
       {tab === 'register' && (
         <>
-          <KpiGrid min={170}>
-            <KpiCard label="Calls in view" value={inView} tone="primary" icon="📋" />
-            <KpiCard label="Review 1 Pending" value={statusCount('Review 1 Pending')} tone={statusCount('Review 1 Pending') ? 'danger' : 'neutral'} />
-            <KpiCard label="Review 2 Pending" value={statusCount('Review 2 Pending')} tone={statusCount('Review 2 Pending') ? 'warning' : 'neutral'} />
-            <KpiCard label="Review 3 Pending" value={statusCount('Review 3 Pending')} tone={statusCount('Review 3 Pending') ? 'info' : 'neutral'} />
-            <KpiCard label="Review Completed" value={statusCount('Review Completed')} tone="success" />
-            <KpiCard label="Any Potential Effect" value={counts.effects} tone={counts.effects ? 'danger' : 'neutral'} icon="⚠️" sub="FFR to be raised" />
-          </KpiGrid>
 
           <div className="filter-bar">
             <div>

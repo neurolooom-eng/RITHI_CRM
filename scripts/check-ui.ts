@@ -6246,5 +6246,67 @@ console.log('\n-- the requirements document and the requirements PAGE are one do
     .forEach((c) => eq(`.${c} has a rule of its own`, new RegExp(`\\.${c}[\\s,{:]`).test(css), true));
 }
 
+console.log('\n-- My Workload: the queues left the registers, and open what they count --');
+{
+  // -------------------------------------------------------------------------
+  // The user, 2026-09-15: "Remove such cards in Main Views. Move those to a
+  // Separate KPI Cards Page where ever applicable. It should be interactive."
+  // Asked which cards: every card off every register. Asked what to call it:
+  // My Workload, under Overview.
+  // -------------------------------------------------------------------------
+  const REGISTERS = [
+    'SpareRequests', 'SpareRmApproval', 'SpareDispatch', 'MaterialReturns',
+    'StockTransfer', 'HandStock', 'DailyCallReview',
+  ];
+  REGISTERS.forEach((m) => {
+    const src = code(readFileSync(`src/modules/${m}.tsx`, 'utf8'));
+    eq(`${m} no longer carries a card header`, /<KpiCard/.test(src), false);
+  });
+  // ALL MASTERS KEEPS ITS CARDS, and that is a decision rather than an
+  // oversight: there the cards ARE the register — one per master list, which is
+  // what the screen is for — not a header above a list of something else.
+  eq('All Masters keeps its cards, because there they ARE the register',
+    /<KpiCard/.test(code(readFileSync('src/modules/AllMasters.tsx', 'utf8'))), true);
+
+  const wl = code(readFileSync('src/lib/workload.ts', 'utf8'));
+  const page = code(readFileSync('src/modules/Workload.tsx', 'utf8'));
+
+  // THE COUNTS USE THE REGISTER'S OWN HELPERS. A count that disagrees with the
+  // register it links to is worse than no count: somebody opens the list, finds
+  // a different number, and stops trusting both.
+  eq('the counts are the registers\' own, not re-derived',
+    /from '\.\/spareflow'/.test(wl) && /from '\.\/sparedispatch'/.test(wl)
+    && /from '\.\/handstock'/.test(wl) && /countCallReviews/.test(wl), true);
+
+  // A SECTION THE READER CANNOT OPEN IS NEVER REQUESTED. Counting a queue for
+  // somebody who may not read it is a number they cannot act on and a leak:
+  // "Spares waiting 240" is the size of a queue the register would refuse them.
+  eq('a register the reader cannot open is not even counted',
+    /\.filter\(\(j\) => can\(j\.needs\)\)/.test(page), true);
+
+  // EVERY COUNT IS OVER WHAT LOADED, so a section still reading says so — the
+  // rule this project applies everywhere and would be easiest to drop on a
+  // screen made of counts.
+  eq('a partly-read section shows its counts as a lower bound',
+    /\$\{s\.more \? '\+' : ''\}/.test(page), true);
+  // ...AND THE ONE EXACT SECTION DOES NOT. countCallReviews walks every page in
+  // the database, so "3,850+" would be wrong in the other direction.
+  eq('...and the Daily Call Review, counted in the database, does not',
+    /key: 'review'[\s\S]{0,200}more: false/.test(wl), true);
+
+  // A FIGURE OPENS NOTHING. There is no list of an ageing of 4 days.
+  eq('a card with no list behind it is not given one',
+    /onOpen=\{c\.to \? \(\) => navigate/.test(page), true);
+
+  // THE THREE THINGS A NEW SCREEN NEEDS, and the third is the one that bites.
+  const rbac = code(readFileSync('src/lib/rbac.ts', 'utf8'));
+  const layout = code(readFileSync('src/components/layout/Layout.tsx', 'utf8'));
+  eq('it is a module, on the menu, and in the matrix',
+    /path: '\/workload', label: 'My Workload'/.test(rbac)
+    && /to: '\/workload'/.test(layout), true);
+  eq('...and a migration writes the key into app_roles',
+    existsSync('supabase/migrations/0202_workload_module_key.sql'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

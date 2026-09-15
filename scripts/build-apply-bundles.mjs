@@ -119,6 +119,9 @@ const MODULES = {
             // Same reason as 0192: it writes MODULE KEYS into app_roles, so it
             // belongs with the role migrations and must run after 0005.
             '0195_new_module_keys.sql',
+            // My Workload — the queues moved off the registers. Same reason as
+            // 0195: a module key reaches nobody until a migration writes it.
+            '0202_workload_module_key.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is

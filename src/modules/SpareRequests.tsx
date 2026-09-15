@@ -4,7 +4,6 @@ import { PickList } from '../components/ui/PickList';
 import { useNavigate } from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Drawer, Modal, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
-import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { csvExport, fmtLongDate, makeRequestUID, timeAgo, todayISO } from '../lib/format';
 import { toIsoDate } from '../lib/dates';
 import { listTabRows, sheetsConfigured } from '../lib/sheets';
@@ -910,14 +909,6 @@ export function SpareRequests() {
 
       {onDb && (
         <>
-          <KpiGrid>
-            <KpiCard label="Awaiting me" value={counts[MINE]} icon="⚡" tone="primary" sub="requests you can action" />
-            <KpiCard label="In approval" value={counts['RM Approval'] + counts.Commercial + counts.NSM} icon="🕒" tone="warning" sub="RM · Commercial · NSM" />
-            <KpiCard label="Awaiting dispatch" value={counts.Stores} icon="📦" tone="info" sub="cleared, with Stores" />
-            <KpiCard label="Dispatched" value={counts.Dispatched} icon="🚚" tone="info" sub="in transit to the field" />
-            <KpiCard label="Received" value={counts.Received} icon="✅" tone="success" sub="acknowledged by the engineer" />
-            <KpiCard label="Rejected" value={counts.Rejected} icon="✕" tone="danger" sub="closed without dispatch" />
-          </KpiGrid>
 
           <div className="stage-chips">
             {/* Counted over what has LOADED, so each is a lower bound while more
