@@ -1,4 +1,22 @@
 -- ===========================================================================
+-- HOW TO RUN THIS FILE  (asked, 2026-09-15: "I don't understand how to clear
+-- the FFR")
+--
+--   MOST OF THIS FILE IS COMMENTED OUT ON PURPOSE. Pasting the whole thing runs
+--   ONLY section A, which counts what would go and changes nothing. That is the
+--   safety, and it is also what makes it confusing the first time — so, plainly:
+--
+--     1. Paste the whole file. You get ONE result grid: section A's counts.
+--     2. Read it. If those are the reports you mean to remove, copy section B
+--        BELOW and REMOVE THE LEADING `-- ` FROM EVERY LINE OF IT, then run it.
+--        It ends in `rollback;`, so it still changes nothing — it shows you the
+--        numbers as they WOULD be.
+--     3. Run section B once more with the last line changed to `commit;`.
+--
+--   Section C is for afterwards and is optional.
+-- ===========================================================================
+
+-- ===========================================================================
 -- CLEARING THE OLD FIELD FAILURE REPORTS, TO RE-UPLOAD THEM.
 --
 -- Asked, 2026-09-14: "Delete all Old FFRs also, Let me re-upload those after
