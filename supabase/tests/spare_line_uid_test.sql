@@ -1,4 +1,12 @@
 -- ===========================================================================
+-- NOTE (2026-09-15): the line identifiers here are LOOKED UP by request and row
+-- number rather than typed. `OR-YYMM-NNNN-RR` carries the current year and
+-- MONTH, so the literals this suite used to carry — written in August — matched
+-- nothing from 1 September onward, and the three `expect ERROR` sections
+-- silently stopped testing anything: the updates found no row, so they raised
+-- no error, and the suite still ran clean. A test that only passes in the month
+-- it was written is a test that reports the calendar.
+-- ===========================================================================
 -- Per-spare IDs (0022_spare_line_uid.sql).
 --   Every spare is <OR number>-<RowNo>, e.g. OR-2608-0001-01. The RM approves
 --   and Stores dispatches against that ID, so two spares on one OR can go out
@@ -30,14 +38,14 @@ call public.be('rm@x.com');
 update public.spare_request_lines
    set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
        commercial_approval='Auto-Approved', nsm_approval='Auto-Approved'
- where line_uid = 'OR-2608-0001-02';
+ where line_uid = (select line_uid from public.spare_request_lines where request_uid='R1' and row_no=2);
 select line_uid, rm_approval, stage from public.spare_request_lines where request_uid='R1' order by row_no;
 
 \echo '--- 4. Stores dispatches that spare on its own DC and date ---'
 call public.be('st@x.com');
 update public.spare_request_lines
    set stores_status='Dispatched', dc_number='DC-77', dispatched_by='Stores Sam', dispatched_at=now()
- where line_uid = 'OR-2608-0001-02';
+ where line_uid = (select line_uid from public.spare_request_lines where request_uid='R1' and row_no=2);
 select line_uid, stage, dc_number, dispatched_at::date as dispatched_on
   from public.spare_request_lines where request_uid='R1' order by row_no;
 
@@ -53,6 +61,14 @@ select line_uid, dc_number, dispatched_at::date as dispatched_on, stage
 
 \echo '--- 6. the ID is unique and immutable ---'
 \echo 'expect ERROR: changing a spare ID'
-update public.spare_request_lines set line_uid='OR-2608-0001-99' where line_uid='OR-2608-0001-03';
+update public.spare_request_lines
+   set line_uid = line_uid || '-99'
+ where line_uid = (select line_uid from public.spare_request_lines where request_uid='R1' and row_no=3);
 \echo 'expect ERROR: duplicate spare ID'
-insert into public.spare_request_lines (request_uid, row_no, part, qty, line_uid) values ('R2',9,'P-Z',1,'OR-2608-0001-01');
+do $$
+declare taken text;
+begin
+  select line_uid into taken from public.spare_request_lines where request_uid='R1' and row_no=1;
+  execute format('insert into public.spare_request_lines (request_uid,row_no,part,qty,line_uid) values (%L,%s,%L,%s,%L)',
+                 'R2', 9, 'P-Z', 1, taken);
+end $$;

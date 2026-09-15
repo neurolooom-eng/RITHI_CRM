@@ -378,13 +378,27 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/objective', label: 'Objective', actions: [] },
   ] },
   { title: 'Documents', pages: [
-    { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
     { path: '/qms', label: 'QMS Documents', actions: ['qms.manage'] },
   ] },
   { title: 'Contracts & Warranty', pages: [
     { path: '/warranties', label: 'Warranty Register', actions: ['cover.edit'] },
     { path: '/contracts', label: 'Contract Register', actions: [] },
     { path: '/ownership-transfer', label: 'Ownership Transfer', actions: ['ownership.transfer', 'cover.edit'] },
+  ] },
+  // KNOWLEDGE BASE, WHICH THE MATRIX DID NOT HAVE AT ALL until 2026-09-14.
+  // Service Manuals sat under Documents here while the MENU put it under
+  // Knowledge Base, so an administrator looking where the screen lives did not
+  // find it. It went unnoticed because the check that compares the two parsed
+  // the menu with a pattern requiring `items:` to follow `title:` immediately —
+  // this group carries `flash: true` between them, so the WHOLE GROUP was
+  // skipped and its pages were compared against nothing and passed.
+  //
+  // The other two entries in that menu group — Field Solutions and How to Use
+  // RITHI CRM — are `alwaysOpen` and are not modules: they are open to
+  // everyone and there is nothing to grant, which is why this header has one
+  // page rather than three.
+  { title: 'Knowledge Base', pages: [
+    { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
   ] },
   { title: 'Service Calls', pages: [
     { path: '/request-registration', label: 'Request Registration', actions: ['request.create'] },

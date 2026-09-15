@@ -40,5 +40,16 @@ insert into public.spare_requests (uid, engineer, item_status)
 select or_no from public.spare_requests where or_no ~ '^OR-\d\d08-' order by or_no;
 
 \echo '--- uniqueness still enforced ---'
+-- THE NUMBER IS DERIVED, NOT TYPED. `OR-YYMM-NNNN` carries the current YEAR AND
+-- MONTH, so a literal written in August fails every day of September onwards —
+-- and it did, silently, until the suites were run in isolation on 2026-09-15.
+-- A test that only passes in the month it was written is a test that reports
+-- the calendar rather than the code.
 \echo 'expect ERROR: duplicate or_no'
-insert into public.spare_requests (uid, engineer, item_status, or_no) values ('D1','E','WARRANTY','OR-2608-0001');
+do $$
+declare taken text;
+begin
+  select or_no into taken from public.spare_requests where or_no is not null order by or_no limit 1;
+  execute format('insert into public.spare_requests (uid, engineer, item_status, or_no) values (%L,%L,%L,%L)',
+                 'D1', 'E', 'WARRANTY', taken);
+end $$;

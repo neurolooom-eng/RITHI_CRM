@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.262',
+    date: '2026-09-15',
+    title: 'Software Validation: every test run in one command, and a defect register',
+    changes: [
+      'One command now builds a clean database, runs all 77 database test suites and all 13 automated checks, and writes a dated record of what happened — pass, fail, and which guard did not fire.',
+      'A DEFECT REGISTER is on the Software Validation screen. Each entry records the SHAPE of the mistake rather than the screen it appeared on, so the same fault turning up somewhere new is recognisable as one that has happened before, and how it came to light — reported in use, caught by a test, or found by reading.',
+      'Thirteen defects are recorded to start it off, all real and all from the last two days. The most common single cause is a check that could not fail.',
+      'Three tests were found to have quietly stopped testing anything: they had a month written into them (spare order numbers carry the year and month), so from 1 September they matched no rows, raised no errors, and still reported success.',
+      'Every screen and every permission in the application is now named somewhere in the validation package, and every requirement has at least one test.',
+    ],
+  },
+  {
     version: '0.9.261',
     date: '2026-09-14',
     title: 'Part Master: parts can be edited, and renaming one carries its history',
