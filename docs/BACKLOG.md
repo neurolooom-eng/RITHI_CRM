@@ -20,6 +20,59 @@ up)_
 
 
 
+## 2026-09-15 — One Serviceman, changed everywhere it appears
+
+Asked: *"In Party Master - Give me an Option to Change the Engineer Name in one
+go - Like Ctrl H."*
+
+This is the repair for the fault measured when the export first arrived, and
+left open in the 0200 entry: **32 of the 49 Servicemen match no User Master
+name**, and `allocated_to` on a call is a NAME that `notify_call_allotted()`
+resolves through `user_directory`. So a spelling nobody holds prefills the box
+with somebody who does not exist and notifies no one — **328 customers** on the
+worst one (`SIVA KUMAR R.` against `SIVAKUMAR`). Opening 328 parties is not a
+repair anybody performs.
+
+### The decisions worth recording
+
+- **ONE STATEMENT.** Every party moves together or none does. A row at a time
+  is 328 requests and a half-finished rename if one fails.
+- **MATCHED EXACTLY**, never trimmed or case-folded. A rename that quietly
+  caught a second spelling would be one nobody asked for — `siva kumar r.` is a
+  different spelling and appears on the list in its own right.
+- **THE COUNT COMES FIRST.** A count afterwards is a report; a count beforehand
+  is a decision. Same rule as renaming a part (0196).
+- **THE NEW NAME COMES FROM THE USER MASTER, with no free text.** Letting
+  somebody type one recreates exactly the fault being repaired. Clearing it is
+  its own tick-box, because `SelectPicker` FILTERS OUT a blank-valued option —
+  PickList has its own "— none —" and two of them read as a bug — so an entry
+  for it would silently not be there.
+- **THE LIST SAYS WHICH SPELLINGS ARE THE PROBLEM**, marked on the spot, rather
+  than leaving somebody to compare two screens.
+- **COUNTED OVER EVERY PARTY**, through `allRows`. There are 4,752 and PostgREST
+  caps a response at a thousand: counting the first page reports 49 names as 20
+  and says nothing.
+
+### No migration
+
+It is a plain update through a policy that already exists (`parties_write` is
+`has_perm('masters.edit')`), so there is no SQL for the user to run — which
+also means the button must be gated in the UI, or it offers something the
+database will refuse.
+
+### Proved
+
+Sections 11-13 of `party_kyc_test.sql`: three parties move, the one already
+correct is untouched, the differently-cased one is left alone, **a Verified KYC
+keeps its stamp** (the rename must not disturb it), and clearing works.
+82/82 suites, 13/13 checks.
+
+`.ind-toggle` was nearly borrowed for the tick-box — it lives in a stylesheet
+this screen does not import, the same implicit-CSS trap as `kb-form` the day
+before. `.kb-check` has a rule of its own.
+
+---
+
 ## 2026-09-15 — The filter chips fold away, and never fold the filter away with them
 
 Asked: *"The Grouping at the top ... Seems to be very Congested for a Few but

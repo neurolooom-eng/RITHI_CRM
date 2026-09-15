@@ -1001,6 +1001,57 @@ export async function getParty(id: number): Promise<Record<string, unknown> | nu
   return (data as Record<string, unknown>) ?? null;
 }
 
+/** Every Serviceman on the Party Master, with how many customers each has.
+ *
+ *  PAGED, because there are 4,752 parties and PostgREST caps a response at a
+ *  thousand however large the limit says. Counting the first page would report
+ *  49 names as 20 and nothing would say so.
+ *
+ *  Grouped in the browser rather than the database because PostgREST has no
+ *  GROUP BY: one short column over five thousand rows is a few hundred KB and
+ *  this is opened by hand, not on every page load. */
+export async function partyServiceEngineerCounts(): Promise<{ key: string; count: number }[]> {
+  const c = getSupabase(); if (!c) return [];
+  const rows = await allRows<{ service_engineer: string | null }>((from, to) =>
+    c.from('parties').select('service_engineer').order('id').range(from, to));
+  const m = new Map<string, number>();
+  rows.forEach((r) => {
+    const k = String(r.service_engineer ?? '').trim();
+    if (k) m.set(k, (m.get(k) ?? 0) + 1);
+  });
+  return [...m].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count || a.key.localeCompare(b.key));
+}
+
+/** Rename one Serviceman across every party that names them.
+ *
+ *  THE WHOLE POINT IS THAT THE NAME MUST MATCH THE USER MASTER. `allocated_to`
+ *  on a call is a NAME, and `notify_call_allotted()` finds the person by it in
+ *  `user_directory` — so "SIVA KUMAR R." against a directory holding
+ *  "SIVAKUMAR" prefills a box with somebody who does not exist, and nobody is
+ *  notified. On the supplied export that is 328 customers for one spelling.
+ *
+ *  ONE STATEMENT, so 328 parties change together or not at all. Doing it a row
+ *  at a time is 328 requests and a half-finished rename if one fails.
+ *
+ *  MATCHED EXACTLY on the stored string, which is what the caller picked out of
+ *  the list above — not trimmed, not case-folded. A rename that quietly caught
+ *  a second spelling would be a rename nobody asked for. */
+export async function renamePartyServiceEngineer(
+  from: string, to: string,
+): Promise<{ ok: boolean; changed?: number; error?: string }> {
+  const c = getSupabase(); if (!c) return { ok: false, error: 'Not connected.' };
+  if (!from) return { ok: false, error: 'Pick the name to change.' };
+  if (from === to) return { ok: false, error: 'That is the same name.' };
+  const { error, count } = await c.from('parties')
+    .update({ service_engineer: to }, { count: 'exact' })
+    .eq('service_engineer', from);
+  if (error) {
+    const m = errMsg(error);
+    return { ok: false, error: /permission|policy/i.test(m) ? `${m} — this needs the “Edit masters” permission.` : m };
+  }
+  return { ok: true, changed: count ?? 0 };
+}
+
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
   if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);

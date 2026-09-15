@@ -141,6 +141,12 @@
 .kb-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .kb-att-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; margin-bottom: 8px; }
 .kb-form-actions { display: flex; gap: 10px; border-top: 1px solid var(--border); padding-top: 14px; }
+/* A tick-box that reads as a sentence, for a choice that is not one of the
+   options in the picker beneath it. Its own rule here rather than borrowing
+   `.ind-toggle`, which lives in a stylesheet this screen does not import — a
+   control styled by nothing reads as a broken one. */
+.kb-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); cursor: pointer; }
+.kb-check input { margin: 0; }
 @media (max-width: 620px) { .kb-form-row, .kb-att-row { grid-template-columns: 1fr; } }
 
 /* A button has to be told to look like the link it replaced (see the note in

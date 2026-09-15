@@ -291,6 +291,12 @@ typed into a form that reads it.
   > **Click a party to edit it** — contact details, both addresses, the
   > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
   > editable: every machine, call and contract names the customer by it.
+  > **✎ Change engineer** corrects one Serviceman across every customer that
+  > names them, in one go. Do this when a spelling here does not match the User
+  > Master — a call is allotted by NAME, so a name nobody holds fills the box
+  > with somebody who does not exist and notifies no one. It tells you how many
+  > customers will change before it changes them, and calls already registered
+  > keep the engineer they were allotted to.
   > Not every column is shown at first — **⚙ Columns** offers the rest.
   > The **Serviceman** on a party is what fills *Call Allocated To* on a new
   > call when the machine itself has no Service Engineer — which is every
