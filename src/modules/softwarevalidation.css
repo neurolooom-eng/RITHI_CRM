@@ -90,3 +90,18 @@
 }
 .sv-kpi-n { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .sv-kpi-l { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; text-transform: capitalize; }
+
+/* ---- Requirements by module ------------------------------------------------
+   One requirement is a block: the need, the mechanisms under it, and what
+   proves them. The indent is what carries the argument -- an FRS table sitting
+   flush with its URS reads as a second list rather than as its implementation. */
+.sv-group { margin: 26px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--border); font-size: 17px; }
+.sv-module { margin: 14px 0 18px; }
+.sv-module-head { margin: 0 0 8px; font-size: 15px; }
+.sv-module-head code { font-size: 12.5px; color: var(--text-muted); font-weight: 400; }
+.sv-req { margin: 12px 0 16px; padding-left: 14px; border-left: 3px solid var(--border); }
+.sv-req-head { margin-bottom: 4px; }
+.sv-req-text { margin: 4px 0 8px; }
+/* The proof line is the answer to "and what shows it works?", so it is set
+   apart from the requirement rather than running on from it. */
+.sv-req-proof { margin-top: 6px; font-size: 12.5px; color: var(--text-muted); }

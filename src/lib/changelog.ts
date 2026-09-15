@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.273',
+    date: '2026-09-15',
+    title: 'The Validation Package carries the requirements, grouped by module',
+    changes: [
+      'A new REQUIREMENTS BY MODULE tab: every user requirement under the screen it governs, the system requirements that implement it beneath, and the tests that prove those beneath them. One screen carries the whole argument — what was asked for, how it was built, and what shows it works.',
+      'It is the same document as docs/REQUIREMENTS.md, from the same rule — not a second copy. A document that says different things in two places is worse than either alone.',
+      'The module is worked out from each requirement’s own words, so the grouping follows the text rather than somebody’s filing. One that names several modules appears under each; the 28 that name none — access control, audit, retention — are listed apart rather than forced under a screen.',
+      'Gaps are stated: needs nothing implements, mechanisms nothing proves, requirements nothing tests. All three read zero today.',
+      'The two flat lists (User Requirements, System Requirements) are unchanged, for looking one up by number.',
+    ],
+  },
+  {
     version: '0.9.272',
     date: '2026-09-15',
     title: 'Party Master: change one engineer’s name everywhere it appears',
