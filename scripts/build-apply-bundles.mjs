@@ -130,6 +130,11 @@ const MODULES = {
             // A chart somebody builds and keeps. Modelled on role_table_views
             // (0120), which is also in this module.
             '0206_saved_charts.sql',
+            // The two ANALYSIS roles could open the analytics pages and see
+            // nothing on them: the module key opens a screen, the read
+            // policies decide the rows, and neither role passed either. It
+            // touches those two roles alone.
+            '0207_analysis_roles_see_the_data.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -415,7 +420,14 @@ const MODULES = {
             '0189_feedback_update_policy.sql',
             // The feedback's OWN date and where it came from. After 0186/0188,
             // which own the key it is loaded on.
-            '0190_feedback_dates_and_origin.sql'],
+            '0190_feedback_dates_and_origin.sql',
+            // ONE VOCABULARY FOR COVER — and it must run after every table that
+            // stores one exists: field/installation/PM calls, products,
+            // spare_requests and contract_items span five modules, and this is
+            // the last module in ALL_ORDER that runs after all of them. It
+            // defines two functions nothing else redefines, so no bundle can
+            // put an older rule back.
+            '0208_cover_code_normalised.sql'],
   },
   performance: {
     title: 'Search performance (trigram indexes)',

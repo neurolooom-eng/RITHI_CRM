@@ -71,6 +71,42 @@ export function recordToRow(rec: Record<string, unknown>): Record<string, unknow
 
 // Enum values observed in the live FIELD tab.
 export const ITEM_STATUS = ['WGP', 'OGP', 'CMC', 'AMC'];
+
+// ---------------------------------------------------------------------------
+// ONE VOCABULARY FOR COVER, and "WARRANTY" is WGP.
+//
+// The user, 2026-09-15, looking at Failures per cover: "What is this Warranty?
+// It has to be Normalized -- Warranty is WGP -- Where ever this DAta is
+// feeding - Fix that as well." The chart showed WGP 56 and WARRANTY 1 side by
+// side: not a fifth cover, one cover spelled two ways by whatever loaded it.
+// A second spelling does not read as a small error on this dimension — every
+// count and share is a GROUP BY, so it SPLITS the total silently.
+//
+// THE DATABASE IS WHERE THIS IS ENFORCED (`public.cover_code`, 0208, with a
+// trigger on all five tables that store a cover). This is the same rule on the
+// client, so a file is shown normalised in the preview rather than being
+// silently corrected after it lands — and the two must stay in step:
+// `check:ui` compares this list with the SQL.
+//
+// ANYTHING UNRECOGNISED IS LEFT EXACTLY AS IT IS, never guessed into a bucket:
+// a wrong cover on a failure answers "manufacturing or wear?" wrongly, and an
+// odd value that stays odd is what got this reported in the first place.
+const COVER_SYNONYMS: Record<string, string> = {
+  wgp: 'WGP', warranty: 'WGP', underwarranty: 'WGP', inwarranty: 'WGP',
+  withinwarranty: 'WGP', warrantyguaranteeperiod: 'WGP', guaranteeperiod: 'WGP',
+  // Matched on the WHOLE squashed string, so "out of warranty" cannot be
+  // caught by the `warranty` entry above and turned into its own opposite.
+  ogp: 'OGP', outofwarranty: 'OGP', outofguaranteeperiod: 'OGP',
+  outofguarantee: 'OGP', outofcover: 'OGP', outofcontract: 'OGP', nocover: 'OGP',
+  cmc: 'CMC', comprehensivemaintenancecontract: 'CMC', undercmc: 'CMC',
+  amc: 'AMC', annualmaintenancecontract: 'AMC', underamc: 'AMC',
+};
+
+export function coverCode(v: unknown): string {
+  const raw = String(v ?? '').trim();
+  if (!raw) return raw;
+  return COVER_SYNONYMS[raw.toLowerCase().replace(/[^a-z0-9]/g, '')] ?? raw;
+}
 export const FC_CONTRACT_TYPE = ['CMC', 'AMC'];
 export const PERSON_CALLING = ['DIRECT CUSTOMER', 'DIRECT ENGINEER', 'DEALER', 'Other'];
 export const MODE_OF_REPORTING = ['EMAIL', 'Phone Call', 'Whatsapp', 'EXOTEL', 'Portal', 'Other'];

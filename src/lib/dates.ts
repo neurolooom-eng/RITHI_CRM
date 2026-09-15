@@ -193,3 +193,36 @@ export function addPeriod(startIso: string, years: number, months: number): stri
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// ---------------------------------------------------------------------------
+// DISPLAYING A DATE — dd-MMM-yyyy, day first, one place.
+//
+// The user, 2026-09-15: "Update the date formats." A Field Call drawer showed
+// "Call Registration Date 2026-09-12" beside "Complaint Date 09/11/2026" — one
+// ISO, one whatever the browser's locale makes of a native date input — and
+// 09/11 is either 9 November or 11 September depending on which of the two you
+// think you are reading. On a record of when a device failed, that is not a
+// cosmetic difference.
+//
+// `dd-MMM-yyyy` rather than `dd/mm/yyyy` because a NAMED month cannot be read
+// the other way round by anybody, whatever they are used to. This file is
+// already the one parser (day-first, always); it is now the one formatter too,
+// for the same reason there is one parser: there used to be four and they had
+// started to disagree.
+// ---------------------------------------------------------------------------
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** `2026-09-12` → `12-Sep-2026`. Anything this cannot read comes back EXACTLY
+ *  as it arrived — a value that is not a date is not improved by being
+ *  rewritten, and showing it unchanged is what lets somebody see it is wrong. */
+export function formatDay(v: unknown): string {
+  const raw = String(v ?? '').trim();
+  if (!raw) return '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) return `${iso[3]}-${MONTH_NAMES[Number(iso[2]) - 1] ?? iso[2]}-${iso[1]}`;
+  // Not ISO — read it day-first, the way every other date in this system is
+  // read, and leave it alone if that fails too.
+  const p = parseDateParts(raw);
+  if (!p) return raw;
+  return `${String(p.d).padStart(2, '0')}-${MONTH_NAMES[p.mo - 1] ?? p.mo}-${p.y}`;
+}

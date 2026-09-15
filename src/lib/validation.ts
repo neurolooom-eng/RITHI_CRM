@@ -200,83 +200,224 @@ export const CHECKLIST: ChecklistSection[] = [
   },
 ];
 
+// ---- Screens no user requirement governs -----------------------------------
+// WRITTEN DOWN RATHER THAN NOTICED. Every other screen is filed under at least
+// one requirement — derived from its words or declared on the requirement —
+// and these two are not. Each is a decision somebody made, with the reason
+// beside it, so `check:ui` can fail on a THIRD appearing without one.
+//
+// This question could not be asked at all while the grouping was derived from
+// text alone: inverting a strict match reports every near-miss as a gap, and it
+// did — 31 of 54 screens, including the Field Call Register. It can be asked of
+// the FILED set, because that is about where requirements actually sit.
+//
+// Neither entry is a defect on its own. Both are questions for a person, which
+// is the point of writing them where a person will read them.
+export const MODULES_WITHOUT_REQUIREMENT: Record<string, string> = {
+  '/objective': 'The quality objectives are a QMS obligation (ISO 13485 §5.4.1) '
+    + 'rather than something a user asked this system for. The servicing reference '
+    + 'governs them; no URS claims to, and writing one to fill the gap would be '
+    + 'inventing a requirement to satisfy a report.',
+  '/settings': 'Per-device preferences — the CallReg endpoint, the theme. Nothing '
+    + 'about the quality record depends on them, which is why no requirement '
+    + 'reaches this screen.',
+};
+
 // ---- User Requirements -----------------------------------------------------
 export type Risk = 'High' | 'Medium' | 'Low';
-export interface Req { id: string; title: string; text: string; risk: Risk; refs?: string[] }
+export interface Req {
+  id: string; title: string; text: string; risk: Risk; refs?: string[];
+  /** THE SCREENS THIS GOVERNS, WHERE ITS OWN WORDS DO NOT NAME THEM.
+   *
+   *  The grouping in `docs/REQUIREMENTS.md` is DERIVED by default: a
+   *  requirement is filed under a module when its text names that module — its
+   *  route, or every distinctive word of its label. That keeps the grouping
+   *  evidence rather than opinion, and makes it move when the text does.
+   *
+   *  Derivation alone left 34 of 56 screens with no requirement section and the
+   *  FIELD CALL REGISTER among them, which URS-003 plainly governs — it says
+   *  "register a customer call" and never says "field". The user asked why
+   *  registering a field call was not called out loud in the requirements; it
+   *  was, and the document filed it under "not tied to one screen".
+   *
+   *  So: DERIVED BY DEFAULT, DECLARED BY EXCEPTION, and the document says which
+   *  of the two put each requirement where it is. A declaration is a
+   *  deliberate, auditable statement about one requirement — not a guess
+   *  applied to 146 of them. Declaring modules does not switch derivation off:
+   *  the two are UNIONED, so a requirement that later gains the words keeps
+   *  being filed by them.
+   *
+   *  Every path must be a real module route; `check:ui` fails on one that is
+   *  not, because a declaration pointing at a screen that does not exist files
+   *  the requirement nowhere while looking as though it files it somewhere. */
+  modules?: string[];
+}
 export const URS: Req[] = [
   { id: 'URS-065', title: 'A recovered quality record is reviewed before it is written', risk: 'High',
     text: 'Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.',
     refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.4', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-066', title: 'A request awaiting registration is visible and is dispositioned', risk: 'Medium',
+    // My Workload is where a request waiting on somebody becomes visible as
+    // such.
+    modules: ['/workload'],
     text: 'A request for service that has not yet become a call shall be visible as such, and shall reach one of a stated set of outcomes — registered as a new call, mapped to an existing call, or cancelled with a reason. It shall not be possible for a request to be silently dropped or to remain in no state at all, a request nobody can see being indistinguishable from a request nobody made.',
     refs: ['ISO 13485 \u00a77.5.4', 'ISO 13485 \u00a78.2.1'] },
   { id: 'URS-067', title: 'Authority over a quality record is held section by section', risk: 'High',
+    // The sectional rights are granted in the matrix and tested on the call.
+    modules: ['/roles', '/field-calls'],
     text: 'The authority to amend a call in progress shall be grantable SEPARATELY for each part of the record whose amendment means a different thing: the complaint as reported, the customer and device it names, the vigilance answers, and the customer’s contact details. Re-allocating a call to another engineer, and cancelling or restoring one, shall each be their own authority. A single \u201Cedit\u201D right cannot express the distinction the record requires — correcting a telephone number and re-answering whether a patient was harmed are not the same act — and each shall be attributable to the person who performed it.',
     refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a78.2.2', 'MDR-2017 Fifth Schedule'] },
   // ---- Rev 2.4 (2026-09-13) ----------------------------------------------
   { id: 'URS-064', title: 'A credential cannot be recovered from a log', text: 'No log, error message or build record the system produces shall contain any part of a credential. Where a credential is malformed such that a subsystem would report a fragment of it, the operation shall be REFUSED before that subsystem is reached, and the refusal shall say what to correct without reproducing any part of the value. Masking the credential is not by itself sufficient: a subsystem reports the piece it failed on, which may be a fragment matching neither the credential nor the string containing it.', risk: 'High', refs: ['ISO 13485 \u00a74.1.6', 'ISO 13485 \u00a74.2.4', 'Information Technology Act, 2000', 'MDR-2017 Fifth Schedule'] },
-  { id: 'URS-063', title: 'A read-only role holds no authority to write, and a derived role does not track its source', text: 'Where a role is described as read-only it shall hold no permission that any write policy names, so that a refusal is the database’s and not a hidden control. Where a role is created by COPYING another, the copy shall be a one-time act and the two shall not thereafter be kept in step, so that granting an authority on one role cannot confer it on another. A periodic report shall state the write authority each such role holds; it shall present that as a matter for review rather than as a defect, because a grant may be deliberate and no re-application of configuration can remove one.', risk: 'High', refs: ['ISO 13485 \u00a74.1.6', 'ISO 13485 \u00a76.2', 'MDR-2017 Fifth Schedule'] },
-  { id: 'URS-062', title: 'A loaded register can be corrected by loading it again', text: 'Every register that may be populated from a file shall have a natural key drawn from the file itself, so that re-loading a corrected export UPDATES the records it names rather than adding them a second time. The key shall be one the data interface can infer, and its sufficiency shall be verified against a database rather than by inspection. A row not carrying the key shall be refused and the reason given, a row that cannot be matched on a re-run being one that arrives again on every load.', risk: 'Medium', refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-063', title: 'A read-only role holds no authority to write, and a derived role does not track its source', text: 'Where a role is described as read-only it shall hold no permission that any write policy names, so that a refusal is the database’s and not a hidden control. Where a role is created by COPYING another, the copy shall be a one-time act and the two shall not thereafter be kept in step, so that granting an authority on one role cannot confer it on another. A periodic report shall state the write authority each such role holds; it shall present that as a matter for review rather than as a defect, because a grant may be deliberate and no re-application of configuration can remove one.', risk: 'High',
+    // Read-only is a claim the matrix makes, so the matrix is where it is
+    // kept true.
+    modules: ['/roles'], refs: ['ISO 13485 \u00a74.1.6', 'ISO 13485 \u00a76.2', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-062', title: 'A loaded register can be corrected by loading it again', text: 'Every register that may be populated from a file shall have a natural key drawn from the file itself, so that re-loading a corrected export UPDATES the records it names rather than adding them a second time. The key shall be one the data interface can infer, and its sufficiency shall be verified against a database rather than by inspection. A row not carrying the key shall be refused and the reason given, a row that cannot be matched on a re-run being one that arrives again on every load.', risk: 'Medium',
+    // Re-loading a corrected export is what this screen is for.
+    modules: ['/bulk-uploads'], refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-061', title: 'A value that cannot be determined is recorded as unknown', text: 'Where the system completes a value the record did not supply and the source cannot answer, the field shall be left EMPTY and the record retained. It shall not be filled with a value that is available but untrue, and the record shall not be discarded for want of it. What is known — that this happened, to this device, on this date, under this paperwork — is the record; the part that is unknown is one field.', risk: 'High', refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a77.5.8', 'MDR-2017 Fifth Schedule'] },
-  { id: 'URS-060', title: 'A record is keyed on what identifies it', text: 'The key of a quality or servicing record shall be the whole of what identifies it. Where a record concerns a DEVICE, the device is its model together with its serial number, serial numbers being repeated across models. Where one document concerns SEVERAL devices, each device shall hold its own record under that document’s number. A key narrower than the identity does not fail loudly — it silently replaces one record with another — so the sufficiency of such a key shall be established by MEASUREMENT against the data to be loaded, before that data is loaded.', risk: 'High', refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a77.5.8', 'ISO 13485 \u00a78.2.6', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-060', title: 'A record is keyed on what identifies it', text: 'The key of a quality or servicing record shall be the whole of what identifies it. Where a record concerns a DEVICE, the device is its model together with its serial number, serial numbers being repeated across models. Where one document concerns SEVERAL devices, each device shall hold its own record under that document’s number. A key narrower than the identity does not fail loudly — it silently replaces one record with another — so the sufficiency of such a key shall be established by MEASUREMENT against the data to be loaded, before that data is loaded.', risk: 'High',
+    // A machine is its model AND its serial — which is what these two
+    // registers are keyed on.
+    modules: ['/product-database', '/product-master'], refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a77.5.8', 'ISO 13485 \u00a78.2.6', 'MDR-2017 Fifth Schedule'] },
   // ---- Rev 2.1 (2026-09-11) ----------------------------------------------
-  { id: 'URS-053', title: 'A service record identifies the individual device', text: 'Every service call shall identify the single machine it concerns by its serial number, from the request onward. A record that names a product but not a unit cannot be traced to the device serviced, and its cover, warranty and contract cannot be established.', risk: 'High', refs: ['ISO 13485 §7.5.8', 'ISO 13485 §7.5.9', 'ISO 13485 §7.5.4'] },
-  { id: 'URS-054', title: 'Consumption recorded against a call is complete', text: 'Every part fitted during a visit shall be recorded against that call. Recording shall not depend on a further confirming action by the engineer once the part has been entered, and where no part was used that shall be a STATED answer rather than an unanswered field.', risk: 'High', refs: ['ISO 13485 §7.5.4', 'ISO 13485 §7.5.9'] },
+  { id: 'URS-053', title: 'A service record identifies the individual device', text: 'Every service call shall identify the single machine it concerns by its serial number, from the request onward. A record that names a product but not a unit cannot be traced to the device serviced, and its cover, warranty and contract cannot be established.', risk: 'High',
+    // The serial is what makes a call a record of one device, and what
+    // Machine History reads it back by.
+    modules: ['/field-calls', '/machine-history'], refs: ['ISO 13485 §7.5.8', 'ISO 13485 §7.5.9', 'ISO 13485 §7.5.4'] },
+  { id: 'URS-054', title: 'Consumption recorded against a call is complete', text: 'Every part fitted during a visit shall be recorded against that call. Recording shall not depend on a further confirming action by the engineer once the part has been entered, and where no part was used that shall be a STATED answer rather than an unanswered field.', risk: 'High',
+    // What was fitted, and the two reports that ask whether it was all
+    // accounted for against the call.
+    modules: ['/spare-consumption', '/exports/consumption', '/exports/unused'], refs: ['ISO 13485 §7.5.4', 'ISO 13485 §7.5.9'] },
   { id: 'URS-055', title: 'The report on a closed call is reviewed', text: 'A closed call’s service report shall be subject to review by a competent person other than routine daily coding of the failure, with the reviewer and the time recorded. The reviewer shall be able to return the call to open where the report does not close it, and to correct consumption where a part was fitted and not booked.', risk: 'Medium', refs: ['ISO 13485 §7.5.4', 'ISO 13485 §8.2.1', 'ISO 13485 §8.2.4'] },
-  { id: 'URS-058', title: 'A judgement on a quality record names the person who made it', text: 'Where the system records a judgement about a product failure, it shall record WHO made that judgement, taken from the authenticated session at the moment the judgement is completed and not from a value supplied by the caller. The identity shall not be displaced by later editing of the same record, and where the judgement is carried onto a further record the person shall be carried with it. No record shall attribute a judgement to a screen, a process or the system itself.', risk: 'High', refs: ['ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a78.2.2', 'MDR-2017 Fifth Schedule'] },
-  { id: 'URS-059', title: 'Every change to a field failure report is recorded', text: 'Each amendment to a field failure report shall be recorded with what changed — the previous and the new value of each field — together with who changed it and when. The record of amendments shall be produced by the system itself rather than by the application requesting it, shall not be alterable or removable through the application, and shall begin at the creation of the report.', risk: 'High', refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a78.5.2', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-058', title: 'A judgement on a quality record names the person who made it', text: 'Where the system records a judgement about a product failure, it shall record WHO made that judgement, taken from the authenticated session at the moment the judgement is completed and not from a value supplied by the caller. The identity shall not be displaced by later editing of the same record, and where the judgement is carried onto a further record the person shall be carried with it. No record shall attribute a judgement to a screen, a process or the system itself.', risk: 'High',
+    // The judgement is made in the review and carried into the failure
+    // report.
+    modules: ['/daily-review', '/failure-report'], refs: ['ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a78.2.2', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-059', title: 'Every change to a field failure report is recorded', text: 'Each amendment to a field failure report shall be recorded with what changed — the previous and the new value of each field — together with who changed it and when. The record of amendments shall be produced by the system itself rather than by the application requesting it, shall not be alterable or removable through the application, and shall begin at the creation of the report.', risk: 'High',
+    // The amendment log belongs to the register it logs.
+    modules: ['/failure-report'], refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'ISO 13485 \u00a78.5.2', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-057', title: 'A person’s signature is applied by that person alone', text: 'A user shall be able to record their own handwritten signature and have it reproduced on the documents that name them as signatory. The recorded signature shall be readable and writable only by the person it belongs to — by no manager, and by no administrator — and shall be reproduced on a document only where the signature block names the person producing it; in every other case the block shall be produced blank for signature by hand. Removal of a signature belonging to a person who has left shall be an authorised act which does not disclose the signature.', risk: 'High', refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a74.2.5', 'Information Technology Act, 2000', 'MDR-2017 Fifth Schedule'] },
-  { id: 'URS-056', title: 'An access role always has a defined permission set', text: 'A role by which access is granted shall never exist without an explicit set of permissions. Where a role is added by configuration it shall be derived from an existing role, so that no role can be brought into use whose effective authority is implied rather than stated.', risk: 'High', refs: ['ISO 13485 §4.1.6', 'ISO 13485 §6.2', 'MDR-2017 Fifth Schedule'] },
+  { id: 'URS-056', title: 'An access role always has a defined permission set', text: 'A role by which access is granted shall never exist without an explicit set of permissions. Where a role is added by configuration it shall be derived from an existing role, so that no role can be brought into use whose effective authority is implied rather than stated.', risk: 'High',
+    // A role without a permission set is created — or prevented — here.
+    modules: ['/roles'], refs: ['ISO 13485 §4.1.6', 'ISO 13485 §6.2', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-001', title: 'Authenticated access', text: 'Only authenticated, authorised personnel shall access the system, each with a unique user identity.', risk: 'High' },
-  { id: 'URS-002', title: 'Role-based visibility', text: 'A user shall see and act on only the records their role permits: an engineer their own calls, a manager their reporting team, office/administration roles as defined.', risk: 'High' },
-  { id: 'URS-003', title: 'Register a service call', text: 'The service desk shall register a customer call capturing customer, product, serial, complaint and reported problem, and the system shall assign a unique call number (UCN).', risk: 'High' },
-  { id: 'URS-004', title: 'Record a visit / call report', text: 'An engineer shall record each visit with call status, observations, work done and readings; the call status shall reflect the latest visit.', risk: 'High' },
+  { id: 'URS-002', title: 'Role-based visibility', text: 'A user shall see and act on only the records their role permits: an engineer their own calls, a manager their reporting team, office/administration roles as defined.', risk: 'High',
+    // Visibility is configured in Roles & Permissions and granted in User
+    // Access; the call registers are where it is felt.
+    modules: ['/roles', '/users', '/field-calls'] },
+  { id: 'URS-003', title: 'Register a service call', text: 'The service desk shall register a customer call capturing customer, product, serial, complaint and reported problem, and the system shall assign a unique call number (UCN).', risk: 'High',
+    // Registering a call is what the Field Call Register IS, and the same act
+    // on an installation, a PM and a request awaiting registration. The text
+    // says "register a customer call" and never says "field", so no
+    // derivation reaches the screen the user went looking for.
+    modules: ['/field-calls', '/installations', '/pm-calls', '/pending-registrations'] },
+  { id: 'URS-004', title: 'Record a visit / call report', text: 'An engineer shall record each visit with call status, observations, work done and readings; the call status shall reflect the latest visit.', risk: 'High',
+    // A visit report IS this screen; the requirement calls it a "call
+    // report".
+    modules: ['/reports'] },
   { id: 'URS-005', title: 'Preventive maintenance', text: 'The company shall schedule and record preventive-maintenance (PM) visits, including bulk creation of the monthly PM batch by an administrator.', risk: 'Medium' },
   { id: 'URS-006', title: 'Installation control', text: 'Creation of installation calls shall be restricted to the Commercial function; installation records shall capture the warranty start date.', risk: 'Medium' },
   { id: 'URS-007', title: 'Spare request & approval', text: 'An engineer shall request spare parts against a call; the request shall follow a defined multi-stage approval chain, each stage authorised by the correct role.', risk: 'High' },
-  { id: 'URS-008', title: 'Spare dispatch & receipt', text: 'Stores shall dispatch approved spares and the requesting engineer shall acknowledge receipt; each step shall be recorded with actor and time.', risk: 'Medium' },
+  { id: 'URS-008', title: 'Spare dispatch & receipt', text: 'Stores shall dispatch approved spares and the requesting engineer shall acknowledge receipt; each step shall be recorded with actor and time.', risk: 'Medium',
+    // Dispatch is Stock Out; the acknowledgement is Pending Dispatch.
+    modules: ['/spare-dispatch', '/stock-out'] },
   { id: 'URS-009', title: 'Stock accuracy', text: 'Hand stock, stock transfers and material returns shall be tracked so an engineer cannot transfer or return more than they hold.', risk: 'Medium' },
-  { id: 'URS-010', title: 'Master data', text: 'Party, product, part and user master data, and configurable value lists, shall be maintained under control.', risk: 'Medium' },
-  { id: 'URS-011', title: 'Warranty & contract cover', text: 'Warranty and contract cover per machine shall be maintained and reflected on calls.', risk: 'Medium' },
+  { id: 'URS-010', title: 'Master data', text: 'Party, product, part and user master data, and configurable value lists, shall be maintained under control.', risk: 'Medium',
+    // The masters overview and the two product registers are master data; the
+    // text names the parties, parts and users but not the screens that hold
+    // them.
+    modules: ['/masters', '/product-database', '/product-master'] },
+  { id: 'URS-011', title: 'Warranty & contract cover', text: 'Warranty and contract cover per machine shall be maintained and reflected on calls.', risk: 'Medium',
+    // Cover per machine is maintained on these two registers, and a transfer
+    // carries it to the machine’s new owner.
+    modules: ['/warranties', '/contracts', '/ownership-transfer'] },
   { id: 'URS-012', title: 'Customer feedback', text: 'Customer feedback captured on a call shall be recorded and retrievable per question.', risk: 'Low' },
-  { id: 'URS-013', title: 'Reports & analytics', text: 'Authorised users shall retrieve visit history and analytics; export shall be permitted only to authorised roles.', risk: 'Medium' },
-  { id: 'URS-014', title: 'SLA monitoring', text: 'The company shall define service-level targets and the system shall highlight open calls that are due or breached.', risk: 'Medium' },
+  { id: 'URS-013', title: 'Reports & analytics', text: 'Authorised users shall retrieve visit history and analytics; export shall be permitted only to authorised roles.', risk: 'Medium',
+    // Each export is one of the analytics this requirement governs; it names
+    // the parent screen only.
+    modules: ['/exports/consumption', '/exports/kpi', '/exports/unused', '/exports/calls', '/exports/feedback'] },
+  { id: 'URS-014', title: 'SLA monitoring', text: 'The company shall define service-level targets and the system shall highlight open calls that are due or breached.', risk: 'Medium',
+    // The targets are defined in Admin Config and the breach is shown on the
+    // Dashboard and in Pending Calls.
+    modules: ['/', '/pending-calls', '/admin-config'] },
   { id: 'URS-015', title: 'Notifications', text: 'An engineer shall be notified in-app when a call is allotted to them or a requested spare is dispatched.', risk: 'Low' },
   { id: 'URS-016', title: 'Audit trail', text: 'The system shall keep a secure, attributable, time-stamped audit trail of key actions that users cannot alter.', risk: 'High', refs: ['ISO 13485 §4.2.5'] },
   { id: 'URS-017', title: 'Data integrity & retention', text: 'Records shall be complete, accurate and retained and retrievable for the required retention period (ALCOA+).', risk: 'High', refs: ['ISO 13485 §4.2.5', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-018', title: 'Availability & recovery', text: 'The system and its records shall be backed up and recoverable.', risk: 'Medium' },
-  { id: 'URS-019', title: 'Controlled change', text: 'Changes to the software shall be version-controlled, tested and approved; each release shall be uniquely identifiable in-app.', risk: 'Medium' },
-  { id: 'URS-020', title: 'Knowledge base', text: 'The team shall maintain how-to guidance and field-solution knowledge within the system.', risk: 'Low' },
-  { id: 'URS-021', title: 'Partial issue of spares', text: 'Stores shall be able to issue fewer units of a spare than were requested when only part of the quantity is available, and the outstanding balance shall remain visible as still due.', risk: 'Medium' },
-  { id: 'URS-022', title: 'Acknowledged receipt', text: 'The engineer shall confirm each delivery of a spare as it is received, and a spare shall be recorded as received only when the whole quantity has been confirmed.', risk: 'Medium' },
+  { id: 'URS-019', title: 'Controlled change', text: 'Changes to the software shall be version-controlled, tested and approved; each release shall be uniquely identifiable in-app.', risk: 'Medium',
+    // The release is identified in Version History, the change is validated
+    // in the package, and the work itself is tracked.
+    modules: ['/version-history', '/software-validation', '/tracker'] },
+  { id: 'URS-020', title: 'Knowledge base', text: 'The team shall maintain how-to guidance and field-solution knowledge within the system.', risk: 'Low',
+    // The manuals and the field-solution notes are kept here; the other two
+    // Knowledge Base entries are open to everyone and are not modules.
+    modules: ['/service-manuals'] },
+  { id: 'URS-021', title: 'Partial issue of spares', text: 'Stores shall be able to issue fewer units of a spare than were requested when only part of the quantity is available, and the outstanding balance shall remain visible as still due.', risk: 'Medium',
+    // Issuing fewer than were asked for is done here, and the balance stays
+    // open.
+    modules: ['/stock-out'] },
+  { id: 'URS-022', title: 'Acknowledged receipt', text: 'The engineer shall confirm each delivery of a spare as it is received, and a spare shall be recorded as received only when the whole quantity has been confirmed.', risk: 'Medium',
+    // The engineer acknowledges each delivery from this screen.
+    modules: ['/spare-dispatch'] },
   { id: 'URS-023', title: 'Reconciliation of consumption', text: 'Authorised office roles shall be able to record a spare consumed against a call that the engineer did not report, correct a quantity reported in error, and void an entry made in error, with a reason retained for each.', risk: 'High' },
   { id: 'URS-024', title: 'Stock integrity', text: 'No spare shall be recorded as consumed in excess of the quantity the engineer holds, so that hand-stock balances cannot become negative.', risk: 'High' },
-  { id: 'URS-025', title: 'Re-opening a closed call', text: 'A closed call shall be re-openable by an authorised role where further work or correction is required, and the re-opening shall be recorded.', risk: 'Medium' },
+  { id: 'URS-025', title: 'Re-opening a closed call', text: 'A closed call shall be re-openable by an authorised role where further work or correction is required, and the re-opening shall be recorded.', risk: 'Medium',
+    // Re-opening is done from the call, and read from the review.
+    modules: ['/field-calls', '/call-review'] },
   { id: 'URS-027', title: 'Refurbished spares', text: 'Where a recycled spare is issued in place of a new one, it shall be identified by its own part number, held and consumed as that part, and the engineer shall be told the part is refurbished. Only a part held in Part Master and active may be issued this way.', risk: 'High' },
   { id: 'URS-028', title: 'Dispatch performance', text: 'The time taken by Stores to issue an approved spare shall be measurable, from the moment the spare cleared its last approval to the moment it was issued.', risk: 'Low' },
   { id: 'URS-029', title: 'Service manuals available at the point of work', text: 'The service documentation for a product shall be held centrally and presented to the engineer on the call for that product, so the machine is worked on against its own manual rather than one found by memory or by hunting a shared folder.', risk: 'Medium' },
   { id: 'URS-030', title: 'Controlled QMS documents', text: 'Quality-system documents (SOPs, work instructions, forms) shall be held with their document number, revision and effective date, be readable by every user, and be maintainable only by the role responsible for the quality system. A superseded document shall be withdrawn from use without being destroyed.', risk: 'High' },
-  { id: 'URS-031', title: 'Find a machine, or a customer’s machines', text: 'A user shall be able to identify the customer holding a given product and serial number, and to list every machine and serial number recorded against a given customer, without needing to know how either is spelled in the register.', risk: 'Low' },
-  { id: 'URS-032', title: 'Allotment and re-allotment of calls', text: 'A reporting manager shall be able to allot a call to, or move a call between, the engineers reporting to them and themselves, including several calls in one action, changing nothing on the call but the engineer it is allotted to.', risk: 'High' },
+  { id: 'URS-031', title: 'Find a machine, or a customer’s machines', text: 'A user shall be able to identify the customer holding a given product and serial number, and to list every machine and serial number recorded against a given customer, without needing to know how either is spelled in the register.', risk: 'Low',
+    // Finding the machine, the register it is found in, and what happened to
+    // it.
+    modules: ['/lookup', '/product-database', '/machine-history'] },
+  { id: 'URS-032', title: 'Allotment and re-allotment of calls', text: 'A reporting manager shall be able to allot a call to, or move a call between, the engineers reporting to them and themselves, including several calls in one action, changing nothing on the call but the engineer it is allotted to.', risk: 'High',
+    // Allotment happens on the register, and Pending Calls is where an
+    // unallotted one is found.
+    modules: ['/field-calls', '/pending-calls'] },
   { id: 'URS-033', title: 'Grouping a register', text: 'A user shall be able to group a register by the values of a column — and by more than one column at a time — so a manager can read a list by region, then by engineer, then by call status, without exporting it.', risk: 'Low' },
   { id: 'URS-034', title: 'Requesting on behalf of an engineer', text: 'A reporting manager shall be able to raise a spare request, a call registration request or a visit report for an engineer reporting to them, with the record attributed to that engineer and the manager’s identity retained as its author.', risk: 'Medium' },
-  { id: 'URS-035', title: 'Correcting who a spare order is for', text: 'An administrator shall be able to correct the engineer a spare order was raised against while it is still awaiting issue, and shall be prevented from doing so once any part of it has been issued. Every such change shall be retained with both names, the person who made it, the time and the reason.', risk: 'High' },
-  { id: 'URS-036', title: 'Reliability and consumption analysis', text: 'Authorised users shall be able to read how often each product fails RELATIVE TO THE NUMBER IN THE FIELD, how it fails, and what spare parts are consumed under each type of cover and in each region, computed from the service record rather than maintained separately.', risk: 'Medium' },
+  { id: 'URS-035', title: 'Correcting who a spare order is for', text: 'An administrator shall be able to correct the engineer a spare order was raised against while it is still awaiting issue, and shall be prevented from doing so once any part of it has been issued. Every such change shall be retained with both names, the person who made it, the time and the reason.', risk: 'High',
+    // Correcting who the order is for is done on the request, before it is
+    // issued.
+    modules: ['/spare-requests'] },
+  { id: 'URS-036', title: 'Reliability and consumption analysis', text: 'Authorised users shall be able to read how often each product fails RELATIVE TO THE NUMBER IN THE FIELD, how it fails, and what spare parts are consumed under each type of cover and in each region, computed from the service record rather than maintained separately.', risk: 'Medium',
+    // The two screens that answer "how does it fail, and what does fixing it
+    // consume" — this requirement is what they were built for.
+    modules: ['/product-failure', '/spare-insights'] },
   { id: 'URS-037', title: 'Migrated data is distinguishable from the system’s own record', text: 'Where a stock or service figure is derived partly from records MIGRATED from the superseded system and partly from records this system created, a user shall be able to see how much of the figure comes from each, and to read the figure without the migrated part. Neither reading shall be presented as a correction of the other.', risk: 'High', refs: ['ALCOA+ (Attributable, Original)'] },
   { id: 'URS-038', title: 'Closing a stock period', text: 'An authorised role shall be able to close a stock period, fixing an opening figure per engineer and part that stands for every movement up to that date, so the register need not re-derive settled history. A close shall not change any balance.', risk: 'High' },
-  { id: 'URS-039', title: 'Identifier continuity across a migration', text: 'Record identifiers shall remain unique and continue in sequence after historical records carrying their own identifiers are loaded; the system shall not re-issue an identifier the migrated data already uses.', risk: 'High' },
-  { id: 'URS-040', title: 'A bulk load shall not silently alter what it does not carry', text: 'Loading a file shall change only the fields that file supplies. A value the file leaves empty shall take the value the system defines for it, and shall not be written as empty or null; a load that cannot honour this shall fail rather than write.', risk: 'High' },
+  { id: 'URS-039', title: 'Identifier continuity across a migration', text: 'Record identifiers shall remain unique and continue in sequence after historical records carrying their own identifiers are loaded; the system shall not re-issue an identifier the migrated data already uses.', risk: 'High',
+    // A migration arrives through the importer, and its identifiers must not
+    // collide with the system’s own.
+    modules: ['/bulk-uploads'] },
+  { id: 'URS-040', title: 'A bulk load shall not silently alter what it does not carry', text: 'Loading a file shall change only the fields that file supplies. A value the file leaves empty shall take the value the system defines for it, and shall not be written as empty or null; a load that cannot honour this shall fail rather than write.', risk: 'High',
+    // Every screen that loads a file, since this is a rule about what a file
+    // does NOT carry.
+    modules: ['/bulk-uploads', '/pm-bulk-upload', '/report-mapping'] },
   { id: 'URS-041', title: 'Migrated stock belongs to a person who can hold it', text: 'A stock balance shall be opened only against an active member of the user directory; identifiers appearing in a migrated file that are not people (dealers, customers) shall be excluded before loading, and what is excluded shall be reported.', risk: 'Medium' },
   { id: 'URS-042', title: 'Response within a working time', text: 'A register shall return within a time that allows the work it supports, on the full production data volume and with access rules in force.', risk: 'Medium' },
   { id: 'URS-043', title: 'Decision support', text: 'The system may SUGGEST a controlled value to the person entering it, provided the suggestion is drawn from the record, states its grounds, can be overruled, and is never written without a person choosing it. What was offered and what was accepted shall be retained so the suggestion quality can be reviewed.', risk: 'Medium' },
-  { id: 'URS-044', title: 'Attributable registration', text: 'A registered call shall record BOTH the Hotline desk it belongs to and the individual who registered it. Only the Hotline engineer is trained on the vigilance questions answered at registration, so a call registered by anyone else shall be identifiable from the record without reconstruction. The individual shall be taken from the authenticated session and shall not be settable by the application or by a client of the API.', risk: 'High' },
+  { id: 'URS-044', title: 'Attributable registration', text: 'A registered call shall record BOTH the Hotline desk it belongs to and the individual who registered it. Only the Hotline engineer is trained on the vigilance questions answered at registration, so a call registered by anyone else shall be identifiable from the record without reconstruction. The individual shall be taken from the authenticated session and shall not be settable by the application or by a client of the API.', risk: 'High',
+    // Both registrant columns are stamped where a call is typed in.
+    modules: ['/field-calls', '/pending-registrations'] },
   { id: 'URS-045', title: 'Controlled vocabulary is chosen, not typed', text: 'Where a field must match a controlled list — a Standard Complaint above all — the value shall be CHOSEN from that list and shall not be typed freehand, and no keystroke shall commit a value on its own. Counting, filtering, repeat-failure detection and every downstream report match on the stored value, so a hand-entered variant is a record that no analysis will ever find. Where a list is empty the field shall say so rather than accept arbitrary text.', risk: 'High' },
   { id: 'URS-046', title: 'Repeat failure determined to the documented rule', text: 'The review shall determine whether a call is a repeat failure by the rule the servicing procedure states — counting the call under review, within the stated window, on the same equipment or the same part in the same machine — and shall present the rule alongside the verdict so a judgement recorded under one rule is not mistaken for one recorded under another. Window and threshold shall be maintainable by an administrator without a code change. Where the machine cannot be identified the review shall say so rather than report no repeat failure.', risk: 'High' },
   { id: 'URS-047', title: 'Spares sent to a call are accounted for against it', text: 'A spare that reached an engineer for a specific call shall be accounted for in that call’s consumption, and any shortfall shall be reportable — whether nothing was booked or less than was sent. A part refused or never dispatched shall not be reported as unaccounted for, because nothing arrived to be fitted. The determination shall be made only once the call is closed.', risk: 'Medium' },
-  { id: 'URS-048', title: 'Cover continues across a contract renewal', text: 'A maintenance contract shall be renewable from its predecessor without the machine list being re-keyed, and the renewal shall carry a recorded link back to the contract it replaces. Cover shall be continuous: the successor begins the day after the predecessor ends, so no machine is momentarily uncovered and none is covered twice. Prices shall NOT be carried forward, a renewal being re-priced.', risk: 'Medium' },
+  { id: 'URS-048', title: 'Cover continues across a contract renewal', text: 'A maintenance contract shall be renewable from its predecessor without the machine list being re-keyed, and the renewal shall carry a recorded link back to the contract it replaces. Cover shall be continuous: the successor begins the day after the predecessor ends, so no machine is momentarily uncovered and none is covered twice. Prices shall NOT be carried forward, a renewal being re-priced.', risk: 'Medium',
+    // A renewal is raised from its predecessor on the Contract Register.
+    modules: ['/contracts'] },
   { id: 'URS-049', title: 'Custody of equipment held on the organisation’s premises', text: 'Equipment taken into the organisation’s own premises shall be recorded on a register that identifies it, states WHOSE property it is, and holds the condition it arrived in — that condition being the baseline against which any later damage is judged. Where such equipment is lost, damaged or found unfit for use, that shall be recorded and reported to its owner. The register shall distinguish the organisation’s own stock from a customer’s property, because the duty of care applies to one and not the other, and shall not require a service call to exist: equipment may be held for reasons that have no call.', risk: 'High' },
-  { id: 'URS-050', title: 'Decontamination before the equipment is worked on', text: 'Equipment returned from use shall be cleaned and disinfected to the applicable work instruction before it is worked on, and that shall be recorded with who did it, when, and against WHICH REVISION of the instruction. Where the work involves opening or dismantling the equipment, the record shall be a PRECONDITION of that work rather than a note made after it.', risk: 'High' },
-  { id: 'URS-051', title: 'A quality check separable from the work it checks', text: 'Work performed on equipment before it is returned shall be subject to a recorded quality check held as its own record, attributable to the person who performed it. The authority to sign the check shall be grantable separately from the authority to do the work, so that the two may be different people. Equipment whose check has failed, and work of a kind that requires a check and has none, shall not leave.', risk: 'High' },
+  { id: 'URS-050', title: 'Decontamination before the equipment is worked on', text: 'Equipment returned from use shall be cleaned and disinfected to the applicable work instruction before it is worked on, and that shall be recorded with who did it, when, and against WHICH REVISION of the instruction. Where the work involves opening or dismantling the equipment, the record shall be a PRECONDITION of that work rather than a note made after it.', risk: 'High',
+    // Decontamination is recorded when the equipment is received here.
+    modules: ['/indoor'] },
+  { id: 'URS-051', title: 'A quality check separable from the work it checks', text: 'Work performed on equipment before it is returned shall be subject to a recorded quality check held as its own record, attributable to the person who performed it. The authority to sign the check shall be grantable separately from the authority to do the work, so that the two may be different people. Equipment whose check has failed, and work of a kind that requires a check and has none, shall not leave.', risk: 'High',
+    // The quality check before the equipment goes back is a step of this
+    // register.
+    modules: ['/indoor'] },
   { id: 'URS-052', title: 'Scrapping equipment is an authorised act', text: 'Condemning equipment shall require an authority granted for that purpose alone, shall record who condemned it and why, and shall be refused to anybody not holding that authority. Parts recovered from condemned equipment shall be recorded with their condition, and shall not enter usable stock in a way that makes them indistinguishable from new parts.', risk: 'High' },
   { id: 'URS-026', title: 'Preventive-maintenance scheduling', text: 'The monthly preventive-maintenance batch shall be created for a stated due month, retaining the date it was uploaded, and shall support loading earlier months.', risk: 'Medium' },
 ];

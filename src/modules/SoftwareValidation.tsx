@@ -7,11 +7,14 @@ import {
   VAL_META, APPROVALS, APPROACH, CHECKLIST, URS, FRS, NON_AUDITABLE, DEFECTS, ARCHITECTURE, DETAILED, RISKS, TESTS,
   FMEA, FMEA_SCALE, SUPPLIERS, VSR,
   DATA_MIGRATION, BACKUP, SECURITY, ALCOA, CONFIG_SPEC, SOPS, GOVERNANCE, CAPA_COLUMNS, type Risk,
+  MODULES_WITHOUT_REQUIREMENT,
 } from '../lib/validation';
+import { MODULES } from '../lib/rbac';
 // ONE DEFINITION of the grouping, shared with `scripts/requirements-doc.ts`
 // which writes `docs/REQUIREMENTS.md`. Same document, two readers.
 import {
   requirementsByModule, systemWideRequirements, requirementGaps, type UrsEntry,
+  traceabilityMatrix, traceabilitySummary, modulesWithNoRequirement,
 } from '../lib/requirements';
 import './softwarevalidation.css';
 
@@ -24,7 +27,7 @@ import './softwarevalidation.css';
 
 const riskBadge = (r: Risk) => <span className={`sv-risk sv-risk-${r.toLowerCase()}`}>{r}</span>;
 
-type TabKey = 'overview' | 'approach' | 'checklist' | 'bymodule' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
+type TabKey = 'overview' | 'approach' | 'checklist' | 'bymodule' | 'trace' | 'urs' | 'srs' | 'nonaudit' | 'arch' | 'design' | 'config' | 'risk' | 'fmea'
   | 'security' | 'alcoa' | 'datamig' | 'backup' | 'supplier' | 'procedures' | 'tests' | 'defects' | 'trace' | 'capa' | 'vsr';
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -36,6 +39,10 @@ const TABS: { key: TabKey; label: string }[] = [
   // the set is read: a need, the mechanism that meets it, the test that proves
   // it, under the screen it governs. The flat lists stay for looking one up.
   { key: 'bymodule', label: 'Requirements by Module' },
+  // SIX COLUMNS, THE SAME CONTENT TURNED NINETY DEGREES (the user, 2026-09-15).
+  // The tab above reads DOWN one requirement; this reads ACROSS the chain, and
+  // an auditor asks for it by that name.
+  { key: 'trace', label: 'Traceability Matrix' },
   { key: 'urs', label: 'User Requirements' },
   { key: 'srs', label: 'System Requirements' },
   { key: 'nonaudit', label: 'Non-Auditable Requirements' },
@@ -157,11 +164,18 @@ export function SoftwareValidation() {
         const groups = requirementsByModule();
         const wide = systemWideRequirements();
         const gaps = requirementGaps();
+        const ungoverned = modulesWithNoRequirement();
         const tied = groups.reduce((n, g) => n + g.modules.reduce((m, x) => m + x.urs.length, 0), 0);
         const Urs = ({ e }: { e: UrsEntry }) => (
           <div className="sv-req">
             <div className="sv-req-head">
               <span className="sv-id">{e.req.id}</span> <b>{e.req.title}</b> {riskBadge(e.req.risk)}
+              {/* WHICH KIND OF CLAIM FILED IT HERE. "The text says so" and
+                  "somebody said so" are different kinds of evidence, and a
+                  reader cannot tell them apart from an absence. */}
+              {e.how && <span className="sv-ref"> · filed here because {e.how === 'declared'
+                ? 'the requirement declares this screen'
+                : 'its own words name this screen'}</span>}
             </div>
             <p className="sv-req-text">{e.req.text}</p>
             {e.frs.length === 0
@@ -195,16 +209,21 @@ export function SoftwareValidation() {
               how it was built, and what shows it works.
             </p>
             <p className="sv-lead">
-              <b>The module is derived from the requirement’s own words</b>, not declared — its route,
-              or every distinctive word of its label. So the grouping is evidence rather than opinion,
-              and it moves when the text does. One naming several modules appears under each.
+              <b>Derived by default, declared by exception</b> — and each entry says which. A
+              requirement is filed under a module when its own words name it (its route, or every
+              distinctive word of its label), so the grouping is evidence rather than opinion and it
+              moves when the text does. Where the words name no screen, the requirement DECLARES the
+              modules it governs and the entry is marked <i>declared</i>. That exception exists
+              because derivation alone left 34 of 56 screens with no requirements at all — the Field
+              Call Register among them, since URS-003 says “register a customer call” and never says
+              “field”. One requirement naming several modules appears under each.
               The CALL REQUEST (CR) and SERVICING (SR) requirements are maintained in their own
               documents and are folded into <code>docs/REQUIREMENTS.md</code> rather than copied here.
             </p>
             <div className="sv-grid">
               <div className="sv-kpi"><div className="sv-kpi-n">{URS.length}</div><div className="sv-kpi-l">user requirements</div></div>
               <div className="sv-kpi"><div className="sv-kpi-n">{FRS.length}</div><div className="sv-kpi-l">system requirements</div></div>
-              <div className="sv-kpi"><div className="sv-kpi-n">{tied}</div><div className="sv-kpi-l">tied to a module by their words</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{tied}</div><div className="sv-kpi-l">filed under a module</div></div>
               <div className="sv-kpi"><div className="sv-kpi-n">{wide.length}</div><div className="sv-kpi-l">system-wide</div></div>
             </div>
 
@@ -223,8 +242,9 @@ export function SoftwareValidation() {
 
             <h3 className="sv-group">Not tied to one screen</h3>
             <p className="sv-lead">
-              These name no module in their own words. Most are system-wide — access control, audit,
-              retention — and forcing them under a screen would say something the requirement does not.
+              These name no module in their own words and declare none. They are system-wide —
+              access control, audit, retention, performance — and forcing them under a screen would
+              say something the requirement does not.
             </p>
             {wide.map((e) => <Urs key={e.req.id} e={e} />)}
 
@@ -246,6 +266,112 @@ export function SoftwareValidation() {
                   <td>the one that matters for an audit</td></tr>
               </tbody>
             </table>
+            <h3 className="sv-group">Screens no user requirement governs</h3>
+            {/* THIS QUESTION CAN NOW BE ASKED, and it could not be before.
+                Inverting a strict TEXT match reports every near-miss as a gap,
+                and it did — 31 of 54 screens, including the Field Call
+                Register. Asked of the FILED set, which declarations complete, a
+                screen with nothing under it is a real hole rather than a word
+                nobody happened to use. */}
+            <p className="sv-lead">
+              <b>{ungoverned.length} of {MODULES.filter((m) => m.path).length}.</b> Each is written
+              down with its reason in <code>MODULES_WITHOUT_REQUIREMENT</code>, so it is a decision
+              somebody made rather than a drift nobody saw — and <code>check:ui</code> fails when a
+              screen joins this list without one. Neither is a defect on its own; both are questions
+              for a person.
+            </p>
+            {ungoverned.length === 0
+              ? <p className="sv-lead">Every screen has at least one requirement filed under it.</p>
+              : (
+                <table className="sv-table">
+                  <thead><tr><th style={{ width: 240 }}>Screen</th><th>Why nothing is filed here</th></tr></thead>
+                  <tbody>{ungoverned.map((m) => (
+                    <tr key={m.path}>
+                      <td><b>{m.label}</b> <code>{m.path}</code></td>
+                      <td>{MODULES_WITHOUT_REQUIREMENT[m.path]
+                        ?? 'No reason recorded — that absence is itself the gap.'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )}
+          </Section>
+        );
+      })()}
+
+      {show('trace') && (() => {
+        // ===================================================================
+        // THE TRACEABILITY MATRIX — six columns, as asked for (the user,
+        // 2026-09-15): URS ID, URS Details, FRS ID, FRS Details, Test Case ID,
+        // Test Case Details.
+        //
+        // ONE ROW PER LINK, not per requirement: what is traced is "this need
+        // is met by this mechanism, and that is shown by this test". The
+        // repeated URS and FRS cells are blank on a continuing row so the eye
+        // follows one requirement down its own block — which is how a matrix
+        // is read on paper, and why the block gets a rule above it.
+        // ===================================================================
+        const rows = traceabilityMatrix();
+        const sum = traceabilitySummary(rows);
+        return (
+          <Section title="Traceability matrix">
+            <p className="sv-lead">
+              <b>One row per link, not per requirement.</b> A user requirement implemented by two
+              system requirements, each proved by two tests, is four rows — because what is traced is
+              the link: <i>this need is met by this mechanism, and that is shown by this test</i>.
+              Collapsing them into one row with three lists hands the reader back the question the
+              matrix exists to answer.
+            </p>
+            <p className="sv-lead">
+              The URS and FRS cells are <b>blank on a row that continues the one above</b>. Nothing is
+              missing there — the identifier is the one at the top of the block. A requirement with no
+              system requirement, or a mechanism with no test, <b>still gets a row</b>, with the gap
+              named in the empty column: leaving it out would make this table answer “everything here
+              is traced” by omitting everything that is not.
+            </p>
+            <div className="sv-grid">
+              <div className="sv-kpi"><div className="sv-kpi-n">{sum.rows}</div><div className="sv-kpi-l">links</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{sum.fullyTraced}</div><div className="sv-kpi-l">traced end to end</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{sum.partlyTraced}</div><div className="sv-kpi-l">traced in part</div></div>
+              <div className="sv-kpi"><div className="sv-kpi-n">{sum.untraced}</div><div className="sv-kpi-l">not yet traced</div></div>
+            </div>
+            <div className="assoc-scroll">
+              <table className="sv-table sv-trace">
+                <thead>
+                  <tr>
+                    <th style={{ width: 84 }}>URS ID</th>
+                    <th>URS Details</th>
+                    <th style={{ width: 84 }}>FRS ID</th>
+                    <th>FRS Details</th>
+                    <th style={{ width: 84 }}>Test Case ID</th>
+                    <th>Test Case Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={`${r.ursId}-${r.frsId}-${r.testId}-${i}`}
+                      className={r.ursRepeat ? undefined : 'sv-trace-start'}>
+                      <td className="sv-id">{r.ursRepeat ? '' : r.ursId}</td>
+                      <td>{r.ursRepeat ? '' : <><b>{r.ursTitle}.</b> {r.ursText} {riskBadge(r.risk)}</>}</td>
+                      <td className="sv-id">{r.frsRepeat ? '' : r.frsId}</td>
+                      <td>{r.frsRepeat ? '' : r.frsText}</td>
+                      <td className="sv-id">{r.testId}</td>
+                      <td>{r.testText}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {sum.outside.length > 0 && (
+              // A TEST IN NO ROW IS NAMED. A matrix whose test count is lower
+              // than the suite's and does not say why reads as one that dropped
+              // something.
+              <p className="sv-lead">
+                <b>Outside this matrix:</b> {sum.outside.join(', ')} —
+                {sum.outside.length === 1 ? ' it proves' : ' they prove'} a requirement recorded as
+                NON-AUDITABLE, which sits outside the URS → FRS → test chain by design rather than by
+                omission.
+              </p>
+            )}
           </Section>
         );
       })()}
