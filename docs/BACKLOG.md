@@ -53,6 +53,38 @@ fails instead of passing quietly.
 
 ---
 
+## 2026-09-15 — Renamed to Product Failure Analysis, which is a permissions change
+
+Asked: *"Rename it as Product Failure analysis."* Named for what it analyses
+rather than for where the data comes from — and the page had already been
+narrowed to exactly that, so the old title had stopped being true.
+
+### A rename is the case the standing rule hides best
+
+**The module key IS the route.** `/dccr-insights` became `/product-failure`, so
+the moment the route moved every role's `mod:/dccr-insights` stopped opening
+anything — and the page would have gone invisible to all of them **with no error
+anywhere**. It is the worst version of that fault, because the screen was
+already working for everybody the day before: nobody would have thought to look
+at permissions.
+
+0205 merges the new key into every configured role, exactly as 0204 granted the
+old one.
+
+**The old key is left in place, deliberately.** It now names a route that does
+not exist, so it grants nothing, and `check:ui` ignores a key with no module.
+Stripping it would be a second write for no gain — and destructive on a row an
+administrator had tuned. 0192 is the precedent: MERGE a renamed module's key,
+never swap it.
+
+### And the old address still works
+
+`/dccr-insights` redirects. A screen renamed the day after it shipped must not
+turn somebody's bookmark into a blank page. `check:ui` holds both halves — the
+redirect and the migration.
+
+---
+
 ## 2026-09-15 — DCCR Insights narrowed to product failure analysis
 
 Asked, after seeing the first version: *"Idea is to focus on the product failure

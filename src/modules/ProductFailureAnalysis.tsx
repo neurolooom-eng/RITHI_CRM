@@ -1,9 +1,14 @@
 // ===========================================================================
-// DAILY CALL REVIEW — INSIGHTS.
+// PRODUCT FAILURE ANALYSIS.
 //
-// The user, 2026-09-15: "Add one more analytics page to analyse all the data
-// that is part of the daily call review — similar to how FFR Insights are
-// built. Use all those chart.. analyse and suggest more analytics there."
+// Asked for as an analytics page over the Daily Call Review (2026-09-15), then
+// narrowed — "focus on the product failure analysis in this new page" — and
+// then NAMED for what it had become. The title is the honest one: this answers
+// what fails and why, not what the review process is doing.
+//
+// THE REVIEW IS STILL WHERE THE DATA COMES FROM. Every number here is one
+// REVIEWED CALL, so a failure nobody has reviewed is not on this page at all —
+// which is worth knowing before reading any of it as "all our failures".
 //
 // WHAT THIS ANSWERS THAT THE REGISTER DOES NOT. The Daily Call Review is a
 // worklist: one call at a time, answered and moved on from. These are the
@@ -27,7 +32,7 @@ import { KpiCard, KpiGrid } from '../components/kpi/Kpi';
 import { BarChart, LineChart, ParetoChart } from '../components/charts/Charts';
 import { xlsxDownload } from '../lib/xlsx';
 import { logAudit } from '../lib/audit';
-import './dccrinsights.css';
+import './productfailure.css';
 // ONE DEFINITION of the period buckets, shared with FFR Insights: the trend's
 // marks are clickable, so a bucket key is also a filter value — two functions
 // that drifted would make a click filter on a value no row has, and the page
@@ -106,7 +111,7 @@ function ParetoBlock({
     const when = new Date().toISOString().slice(0, 10);
     const scope = Object.entries(picked).map(([k, v]) => `${k}: ${v}`).join(' · ') || 'the whole register';
     const name = title.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-    xlsxDownload(`dccr-${name}-${when}.xlsx`, [
+    xlsxDownload(`product-failure-${name}-${when}.xlsx`, [
       {
         name: 'Ranked',
         columns: rank
@@ -190,7 +195,7 @@ function ParetoBlock({
         ],
       },
     ]);
-    logAudit({ action: 'dccr.insights.download', target: title, meta: { rows: shown.length, total, scope } });
+    logAudit({ action: 'productfailure.download', target: title, meta: { rows: shown.length, total, scope } });
   };
 
   if (!rows.length) {
@@ -212,7 +217,7 @@ function ParetoBlock({
       </div>
       {rank
         ? <ParetoChart data={shown} onPick={onPick(dim)} active={picked[dim] ?? null} showLabels={labels} />
-        : <BarChart data={shown} widthKey={`dccr.${dim}`} onPick={onPick(dim)} active={picked[dim] ?? null} />}
+        : <BarChart data={shown} widthKey={`pfa.${dim}`} onPick={onPick(dim)} active={picked[dim] ?? null} />}
       {/* THE NUMBERS BESIDE THE PICTURE. A chart is read; a table is checked. */}
       <div className="assoc-scroll" style={{ marginTop: 10 }}>
         <table className="assoc-table">
@@ -247,7 +252,7 @@ function ParetoBlock({
   );
 }
 
-export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
+export function ProductFailureCharts({ rows: allRows, more = false }: { rows: Row[]; more?: boolean }) {
   const [period, setPeriod] = useState<Period>('month');
   const [trendLabels, setTrendLabels] = useState(false);
   // CROSS-FILTER. Clicking a bar, or a row of any table, narrows every other
@@ -310,7 +315,7 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
     const when = new Date().toISOString().slice(0, 10);
     const per = PERIODS.find((x) => x.key === period)!.label;
     let run = 0;
-    xlsxDownload(`dccr-trend-${period}-${when}.xlsx`, [
+    xlsxDownload(`product-failure-trend-${period}-${when}.xlsx`, [
       {
         name: 'Failures by period',
         columns: [per, 'Failures', 'Share', 'Running total'],
@@ -339,7 +344,7 @@ export function DccrInsights({ rows: allRows, more = false }: { rows: Row[]; mor
         ],
       },
     ]);
-    logAudit({ action: 'dccr.trend.download', target: period, meta: { total: trendTotal } });
+    logAudit({ action: 'productfailure.trend.download', target: period, meta: { total: trendTotal } });
   };
 
   const effects = countIf((r) => yes(s(r, 'any_potential_effect')));
@@ -494,7 +499,7 @@ import { listCallReviews, supabaseConfigured } from '../lib/supabase';
 const SCAN_PAGES = 8;          // 8,000 reviews before it admits a lower bound
 const PAGE_SIZE = 1000;
 
-export function DccrInsightsPage() {
+export function ProductFailureAnalysis() {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -526,8 +531,8 @@ export function DccrInsightsPage() {
   return (
     <div>
       <PageHeader
-        title="Daily Call Review — Insights" icon="📈"
-        subtitle="What the reviews are saying, across the whole register. Click any bar to narrow every chart below it."
+        title="Product Failure Analysis" icon="📈"
+        subtitle="What fails and why, from every reviewed call. Click any bar — or any row — to narrow every chart below it."
         onRefresh={() => void load()} refreshing={busy} syncedAt={at}
         count={rows.length} countMore={more}
       />
@@ -538,7 +543,7 @@ export function DccrInsightsPage() {
       )}
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
       {busy && !rows.length && <div className="muted" style={{ padding: 16 }}>Reading the reviews…</div>}
-      {rows.length > 0 && <DccrInsights rows={rows} more={more} />}
+      {rows.length > 0 && <ProductFailureCharts rows={rows} more={more} />}
     </div>
   );
 }
