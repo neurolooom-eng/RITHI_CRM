@@ -258,7 +258,12 @@ typed into a form that reads it.
   Load it under **Bulk Uploads → Product Master (product lines)**.
 - **Part Master** `/parts` — the item catalogue. An inactive part stays on records
   that use it but is not offered in pickers.
-  > **Editing a part.** Category, product family and cost are ordinary fields.
+  > **Editing a part.** **Spare / Consumable** is a list of the four the Item
+  > Master uses; a value your file brought that is not one of them still shows
+  > and still saves. **Product** is a multiple choice of **short forms** from
+  > Product Master (ORG, MT75, CPX) — a shared spare fits more than one machine,
+  > and retired lines are offered because a part still fits a machine no longer
+  > sold. Empty means none recorded, not all. Cost is an ordinary field.
   > The **code and description together are the part's identity** — every
   > consumption line, hand-stock row, issue, dispatch, transfer and return names
   > the part by `CODE|Description` — so changing either is a **rename**, and the

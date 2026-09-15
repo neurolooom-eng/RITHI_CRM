@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.265',
+    date: '2026-09-15',
+    title: 'Part Master: Spare / Consumable is a list, and a part can name several products',
+    changes: [
+      'SPARE / CONSUMABLE is now a drop-down — Spare, Consumable, Product or Labour, the same four the Item Master upload normalises to, so one part cannot end up “Spare” and the next “SPARES”.',
+      'A value your file brought that is not one of those is still shown and still saves. The list is there to help, not to refuse — a rule that can stop an Item Master load half way through is the wrong kind of rule, and that one was removed on purpose.',
+      'PRODUCT is now a multiple-choice list of SHORT FORMS from Product Master — ORG, MT75, CPX. A shared spare goes into more than one machine, and one box forced you to pick one or type a list nothing could read back.',
+      'Retired product lines are offered too: a part still fits a machine that is no longer sold, and most of the spares catalogue is for exactly those.',
+      'Leaving it empty means none recorded for this part — not all of them.',
+    ],
+  },
+  {
     version: '0.9.264',
     date: '2026-09-15',
     title: 'Daily Call Review: “Change product?” — move a failure onto the accessory',
