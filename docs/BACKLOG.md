@@ -53,6 +53,48 @@ fails instead of passing quietly.
 
 ---
 
+## 2026-09-15 — DCCR Insights narrowed to product failure analysis
+
+Asked, after seeing the first version: *"Idea is to focus on the product failure
+analysis in this new page.. so stick to Pareto, failures per cover.. give data
+table, download option, data label toggle."*
+
+**The first version was too wide.** It also answered process questions — who
+answered Review 2, how long it took, why a call is still open. Those are good
+questions and they are not THIS page's; a page that answers everything is read
+for nothing. They are gone.
+
+### The four things are one block
+
+They were asked for together, so they are built together: **`ParetoBlock`**
+carries the ranked chart, the **data table** (share and cumulative share), the
+**data label** toggle and the **download**. A dimension added later cannot
+arrive with three of the four.
+
+### Two judgements worth recording
+
+**The download carries the reviews, not only the ranking.** A ranked list is an
+assertion; the rows are the evidence — the user's own ask on FFR Insights
+(*"the Raw data of how that Number was arrived at"*). Both products are in it
+side by side, as called and as reviewed, so a reader can see which corrections
+moved a count.
+
+**Age at failure is NOT ranked, and shows no cumulative share.** Every other
+block is a Pareto because ranking is what makes a running share mean something.
+Age is ORDINAL: whether failures cluster early or late in a machine's life is
+the entire point of that chart, and sorting the bands by count would erase it. A
+running total across an arbitrary order says nothing, so there is none. The flag
+is in the block and the reason is in the download's method sheet.
+
+### Also
+
+`.linkish` and `.row-on` had no CSS rule — the wart this project keeps finding.
+The chosen row **inverts** rather than tints, which is the standing preference
+(*"Highlight means CONTRAST, not a tint"*) and works in either theme by
+construction.
+
+---
+
 ## 2026-09-15 — Daily Call Review Insights, and the correction that reached nothing
 
 Asked: *"In the Overview heading - Add one more analytics page to analyse all the

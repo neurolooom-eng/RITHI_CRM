@@ -1,0 +1,20 @@
+/* DAILY CALL REVIEW — INSIGHTS.
+   The table beside every chart is not decoration: a chart is read, a table is
+   CHECKED, and its rows are the same filter the bars are. So a row has to look
+   pressable and a chosen row has to look chosen. */
+
+/* A cell that filters. It is a button and must read as one — but inside a data
+   table, so it borrows the table's type rather than the browser's. */
+.linkish {
+  background: none; border: 0; padding: 0; font: inherit; text-align: left;
+  color: var(--primary); cursor: pointer;
+}
+.linkish:hover { text-decoration: underline; }
+.linkish:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* THE CHOSEN ROW IS INVERTED, not tinted. "Highlight means CONTRAST, not a
+   tint" (the user's standing preference, 2026-09-06): a pale wash of the accent
+   is what this project reached for first and it did not read at all on screen.
+   Inverting against the page works in either theme by construction. */
+.assoc-table tr.row-on > td { background: var(--text); color: var(--surface); }
+.assoc-table tr.row-on .linkish { color: var(--surface); font-weight: 600; }
