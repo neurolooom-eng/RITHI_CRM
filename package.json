@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.261",
+  "version": "0.9.262",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -28,7 +28,8 @@
     "check:status": "node scripts/check-status.mjs",
     "check:paging": "esbuild scripts/check-paging.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-paging.mjs --log-level=error && node node_modules/.cache/check-paging.mjs",
     "inventory": "esbuild scripts/module-inventory.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/inventory.mjs --log-level=error && node node_modules/.cache/inventory.mjs",
-    "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs"
+    "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs",
+    "validate": "node scripts/validate-run.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",

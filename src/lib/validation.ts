@@ -596,6 +596,116 @@ export const FMEA: FmeaRow[] = [
   { id: 'FM-16', item: 'Reconciliation entry', mode: 'A consumption entry is booked, amended or voided without authority, without a reason, or is re-pointed at another call or engineer', cause: 'UI-only gating; free-text identity fields left editable', effect: 'Unattributable change to a quality record', s: 8, o: 3, d: 3, controls: 'RLS on consumption.reconcile; mandatory fields and immutable identity enforced in a trigger; original quantity, reason and author retained on the row', action: 'OQ-16 and OQ-17 exercise each refusal and the retained record', oa: 2, da: 3, refs: ['FRS-028', 'FRS-029', 'OQ-16', 'OQ-17'] },
 ];
 
+// ---- Defect register --------------------------------------------------------
+// THE POINT OF THIS IS THE `category` FIELD.
+//
+// The user, 2026-09-14: "Note down the Bugs (Record It), This should become a
+// Place holder to figure out repeated issues."
+//
+// A list of bugs is a list. What makes repeats visible is classifying each by
+// the SHAPE OF THE MISTAKE rather than by the screen it appeared on — the same
+// fault arrives in a different module and reads as new until the two are filed
+// under one heading. Every category below has already happened more than once
+// in this system, which is why it is a category and not a description.
+//
+// `found` says HOW it came to light, and that is worth recording separately:
+// this project's most expensive faults were the ones no check could see, and
+// counting how many were found by a person using the application versus by a
+// test tells you where the next check is worth writing.
+export type DefectCategory =
+  | 'silent-truncation'        // a limit or cap that trims without saying so
+  | 'guard-not-reached'        // a control exists but nothing can reach it
+  | 'check-that-cannot-fail'   // an assertion vacuous, or a parse that drops input
+  | 'stale-fixture'            // a test that encodes a moment rather than a rule
+  | 'key-narrower-than-identity'
+  | 'name-vs-definition'       // IF NOT EXISTS, or a comment claiming a control
+  | 'absent-not-empty'         // "no opinion" and "empty" conflated
+  | 'permission-not-granted'   // built, specified, and reaching nobody
+  | 'wrong-link';              // a hand-over that 404s
+
+export interface Defect {
+  id: string; date: string; title: string;
+  category: DefectCategory;
+  found: 'reported in use' | 'found by a test' | 'found by a check' | 'found while reading';
+  what: string;
+  fix: string;
+  reqs?: string[];
+  guard?: string;              // what now stops it recurring, where anything does
+}
+
+export const DEFECTS: Defect[] = [
+  { id: 'D-001', date: '2026-09-14', title: 'A product’s serial list stopped at 1,000',
+    category: 'silent-truncation', found: 'reported in use',
+    what: 'Product & Party Search on ORION-G offered 1,000 of 2,547 serials, so a real serial read as \u201CNothing matches\u201D. PostgREST caps a response at 1,000 rows however large the `limit` says, and says nothing when it trims — so `.limit(20000)` read as a precaution and was the line HIDING the truncation.',
+    fix: 'One shared pager (`src/lib/paging.ts`) with a deterministic order on every paged read; twelve call sites converted.',
+    guard: 'check:ui refuses any `.limit(n > 1000)`; check:paging tests the pager against a fake server that honours the cap.',
+    reqs: ['URS-042'] },
+  { id: 'D-002', date: '2026-09-14', title: 'The same fault, fixed once in thirteen places',
+    category: 'silent-truncation', found: 'found while reading',
+    what: 'D-001 had been diagnosed a year earlier for `listCallRequests`, whose comment describes it exactly. The fix went into that ONE function and the same `.limit(n)` stayed in twelve others — which is why it was reported again as a new bug.',
+    fix: 'Recorded as its own defect because the lesson is not the cap: a fix applied to one of thirteen call sites is a fix that will be reported again.',
+    guard: 'The check is over the whole file, not the one function.' },
+  { id: 'D-003', date: '2026-09-14', title: 'Three screens were invisible to every role',
+    category: 'permission-not-granted', found: 'found by a check',
+    what: 'Machine History, the Call Report and the Customer Feedback Report shipped with their module key granted in DEFAULT_PERMS and written into `app_roles` by no migration. `permsForRole()` returns the STORED set whenever it is non-empty, and on a project in use every role has a tuned row — so the screens were invisible to all twelve roles with no error anywhere.',
+    fix: '0195 merges the three keys into every configured role, leaving a role with zero permissions alone so its fallback stays live.',
+    guard: 'check:ui refuses a module key that no migration grants; _status.sql row 149.',
+    reqs: ['URS-056'] },
+  { id: 'D-004', date: '2026-09-14', title: 'A comment claimed a check that did not exist',
+    category: 'check-that-cannot-fail', found: 'found while reading',
+    what: '`rbac.ts` said \u201Ccheck:ui compares the two on every run\u201D of the menu and the permission matrix. NOTHING read PERM_TREE at all. In the days that sentence stood, Machine History moved menu groups and left its matrix entry behind.',
+    fix: 'The check was written. A comment claiming a control is worse than no comment, because it is the reason nobody looks.',
+    guard: 'The block exists now and is mutation-tested in both directions.' },
+  { id: 'D-005', date: '2026-09-15', title: 'A menu group was silently dropped by the check that reads it',
+    category: 'check-that-cannot-fail', found: 'found by a check',
+    what: 'The menu-versus-matrix check parsed groups with a pattern requiring `items:` to follow `title:` immediately. The Knowledge Base group carries `flash: true` between them, so THE WHOLE GROUP WAS SKIPPED — its pages were compared against nothing and passed. Service Manuals was filed under Documents in the matrix while the menu put it under Knowledge Base.',
+    fix: 'The pattern was widened and the matrix gained the Knowledge Base header in the menu’s position.',
+    guard: 'The anti-vacuous guard now COUNTS the groups it parsed against the `title:` lines in the source, rather than trusting a floor of five.' },
+  { id: 'D-006', date: '2026-09-14', title: 'A correction at source could not be uploaded',
+    category: 'absent-not-empty', found: 'reported in use',
+    what: 'ORION-G 2410 carried contract MC5521, which belongs to the CPX CARE sharing that serial. The master was corrected and re-uploading it changed nothing: a blank cell was never sent, so an upload could only ever ADD a value and never REMOVE one. A heading the file does not carry and a heading it carries with an empty cell produced the same payload while meaning opposite things.',
+    fix: '`blanksClear` sends the empty value where the file CARRIES the heading; opt-in per register, and a stamped or required column is never blanked.',
+    guard: 'check:uploads asserts both directions from the two real rows.',
+    reqs: ['URS-040'] },
+  { id: 'D-007', date: '2026-09-14', title: 'A renamed part would have moved an engineer’s stock',
+    category: 'key-narrower-than-identity', found: 'found by a test',
+    what: 'A part’s identity is the string CODE|Description and NOTHING has a foreign key to `parts`: nine tables carry it as a value, and hand stock is DERIVED from them. Renaming the catalogue row alone would have left the consumption lines naming a part that no longer existed — changing a balance, not merely a link.',
+    fix: '`rename_part()` rewrites all nine in one transaction, refuses a merge, and shows what will move before it moves.',
+    guard: 'supabase/tests/rename_part_test.sql compares the balance before and after; _status.sql row 150.',
+    reqs: ['URS-060'] },
+  { id: 'D-008', date: '2026-09-14', title: 'The rename exemption was forgeable',
+    category: 'guard-not-reached', found: 'found by a test',
+    what: 'The first version of D-007 declared the rename in a transaction-local `set_config`. `set_config` is callable by anybody, so whoever could update a consumption line could set the flag and re-point the line — the one thing the reconciliation guard exists to prevent. Proved by doing it before it shipped.',
+    fix: 'A ticket row in a table with RLS on, no policy and no grants: a flag is a suggestion, a row nobody may write is a capability.',
+    guard: 'Tested from `authenticated`, not from the owner — the owner bypasses RLS and would have reported it closed while it was open.' },
+  { id: 'D-009', date: '2026-09-15', title: 'The retention trigger is not what stops an application delete',
+    category: 'guard-not-reached', found: 'found by a test',
+    what: 'FRS-022 describes `block_hard_delete` as the control. Running the new retention suite as `authenticated` shows the delete affecting ZERO ROWS AND RAISING NOTHING: these tables carry no DELETE policy, so Row-Level Security never locates a row and the trigger is never reached. The record IS protected — by the absence of a delete path, not by the trigger named in the specification.',
+    fix: 'The suite now tests BOTH: that no row is deleted today, and that the trigger still refuses if a delete policy were ever added.',
+    guard: 'supabase/tests/retention_test.sql (OQ-61).',
+    reqs: ['FRS-022'] },
+  { id: 'D-010', date: '2026-09-15', title: 'Three suites stopped testing anything when the month changed',
+    category: 'stale-fixture', found: 'found by a test',
+    what: 'The spare OR number is `OR-YYMM-NNNN`. Two suites hard-coded `OR-2608-...`, written in August; from 1 September those rows matched nothing, so the updates found no row, raised no error, and the suites still ran clean. Three `expect ERROR` sections had silently stopped exercising their guards.',
+    fix: 'The identifiers are looked up from the row the database generated rather than typed. The guards fire again.',
+    guard: 'The validation run matches every `expect ERROR` to an error and reports an expectation whose error never arrived — which is how these were found.' },
+  { id: 'D-011', date: '2026-09-15', title: 'The first validation run reported everything as broken',
+    category: 'check-that-cannot-fail', found: 'found by a test',
+    what: 'The harness captured psql’s STDOUT only. `ERROR:` goes to STDERR, so the matcher saw no errors at all and reported 163 expectations unmet across 55 of 77 suites — every one of them the harness, not the code.',
+    fix: 'Both streams are captured. 69 of 77 came out clean on the next run, and the eight that did not were then worth reading.',
+    guard: 'Recorded because a run that says everything is broken is as useless as one that says nothing is, and the next harness will be written by somebody who has not made this mistake yet.' },
+  { id: 'D-013', date: '2026-09-15', title: 'Six suites and two checks are still not clean — open',
+    category: 'stale-fixture', found: 'found by a test',
+    what: 'The first honest validation run leaves six suites and two checks unresolved: audit_mode, ffr_import, indoor_service, ownership_transfer_same_party, spare_bulk_decisions and spare_insights; check:columns and check:status. ownership_transfer_same_party is already diagnosed — section 5 has never run, both its inserts omit `reference_no` and the second collides. The others are NOT yet diagnosed, and are recorded as OPEN rather than guessed at: each needs the same treatment the three fixed ones got, which is to run it in isolation and read what it actually did.',
+    fix: 'OPEN. Recorded here so the next run starts from a known list rather than rediscovering it.',
+    guard: 'docs/VALIDATION_RUN.md is rewritten on every run, so this number is always current rather than remembered.' },
+  { id: 'D-012', date: '2026-09-15', title: 'A hand-over link 404’d, again',
+    category: 'wrong-link', found: 'found by a check',
+    what: 'The handstock bundle is written to the REPOSITORY ROOT as `HandStock_X.sql`, not into the apply folder under its module name. CLAUDE.md records this exact 404 from a previous occasion; it was made again, in the backlog and in a pull request body, by somebody who had read that note.',
+    fix: 'Corrected before the user ran it.',
+    guard: 'check:ui resolves every SQL path named in the docs — which is what caught it.' },
+];
+
 // ---- Test protocol (IQ / OQ / PQ) -----------------------------------------
 export type TestPhase = 'IQ' | 'OQ' | 'PQ';
 /** `auto` names the check or suite that EXECUTES this protocol, where one does.

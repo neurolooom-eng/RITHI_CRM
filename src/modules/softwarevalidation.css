@@ -78,3 +78,15 @@
 .sv-exec .input { flex: 1; min-width: 160px; font-size: 13px; }
 .sv-exec .sv-exec-tester { flex: 0 0 140px; min-width: 120px; }
 @media print { .sv-exec .select, .sv-exec .input { border: none; } }
+
+/* THE DEFECT REGISTER'S ROOT-CAUSE TALLY. Small, plain counts rather than
+   anything chart-shaped: this is eight numbers read at a glance to see which
+   shape of mistake keeps coming back, and a chart would dress up a list.
+   The tiles wrap, so a ninth category needs no layout change. */
+.sv-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.sv-kpi {
+  flex: 1 1 130px; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+}
+.sv-kpi-n { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sv-kpi-l { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; text-transform: capitalize; }
