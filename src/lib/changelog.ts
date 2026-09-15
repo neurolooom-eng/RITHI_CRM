@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.270',
+    date: '2026-09-15',
+    title: 'Party Master shows the new columns — and lets you fill them in',
+    changes: [
+      'The Party Master was still showing six columns after the new ones shipped. They were in the database and in the ⚙ Columns picker, but not on the screen — so nobody saw them. Serviceman, Profile, Pincode, Phone, Email, KYC, GSTIN and PAN are now on the register as it opens; everything else is still one tick away in the picker.',
+      'CLICK A PARTY TO EDIT IT (needs “Edit masters”). Its contact details, the two addresses, the Serviceman, and the KYC.',
+      'KYC is captured here: GSTIN, PAN, status and notes. Marking one Verified records who did it and when, from your sign-in.',
+      'The party NAME is deliberately not editable — every machine, call and contract names the customer by it.',
+      'The count at the top read a flat “1,000” while there are 4,752 parties. It now reads 1,000+ until the rest are loaded, because a number that looks exact and is not is the one somebody quotes.',
+      'The ⚙ picker offered raw column names like “billing_phone_2”. It reads “Billing Phone 2”.',
+    ],
+  },
+  {
     version: '0.9.269',
     date: '2026-09-15',
     title: 'Party Master: the customer’s own columns, and somewhere to record KYC',

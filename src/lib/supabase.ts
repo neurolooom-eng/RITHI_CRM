@@ -963,6 +963,44 @@ export async function sbSearchPartiesForInstall(query: string, limit = 50): Prom
 
 // Party Master view — field-specific server-side filters + paging (Load more).
 export interface PartyFilter { name?: string; city?: string; state?: string; type?: string }
+export interface PartyPatch {
+  city?: string; state?: string; party_type?: string; profile?: string; route?: string;
+  address?: string; pincode?: string; phone?: string; phone_2?: string; fax?: string; email?: string;
+  billing_address?: string; billing_pincode?: string; billing_phone?: string;
+  billing_phone_2?: string; billing_fax?: string; billing_email?: string;
+  service_engineer?: string;
+  gstin?: string; pan?: string; kyc_status?: string; kyc_notes?: string;
+}
+
+/** Edit one party (0201).
+ *
+ *  THE PARTY NAME IS NOT HERE, deliberately. It is the key everything else
+ *  names this customer by — `products.party_name`, every call, every contract —
+ *  and there is not one foreign key to `parties`. Renaming it from this box
+ *  would strand all of them, exactly as renaming a part would (0196), and that
+ *  needs a carry-the-history function rather than a text input.
+ *
+ *  `kyc_verified_by` and `kyc_verified_at` are not here either: the database
+ *  stamps them when the status becomes Verified, and a caller that could set
+ *  them could sign somebody else's name to a verification. */
+export async function updateParty(id: number, patch: PartyPatch): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await must().from('parties').update(patch).eq('id', id);
+  return error ? { ok: false, error: errMsg(error) } : { ok: true };
+}
+
+/** One party, re-read after an edit.
+ *
+ *  The database DERIVES things the form did not send — the GSTIN and PAN out of
+ *  the Tax columns, and who verified it and when (0201) — so the row on screen
+ *  would otherwise disagree with the row that was written. Re-reading the ONE
+ *  row rather than the whole register keeps a reader's "Load more" progress:
+ *  this register pages a thousand at a time and the real file has 4,752. */
+export async function getParty(id: number): Promise<Record<string, unknown> | null> {
+  const { data, error } = await must().from('parties').select('*').eq('id', id).maybeSingle();
+  if (error) throw new Error(errMsg(error));
+  return (data as Record<string, unknown>) ?? null;
+}
+
 export async function queryParties(filter: PartyFilter, offset = 0, limit = 1000): Promise<Record<string, unknown>[]> {
   let q = must().from('parties').select('*').order('party_name').range(offset, offset + limit - 1);
   if (filter.name) q = q.ilike('party_name', `%${_san(filter.name)}%`);

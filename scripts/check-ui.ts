@@ -6017,5 +6017,44 @@ console.log('\n-- the Party Master\'s columns, and its KYC (0201) --');
     /TEXT\('party_type', 'type'\),/.test(up) && /TEXT\('profile'\),/.test(up), true);
 }
 
+console.log('\n-- a new column reaches the Party Master screen, not just the table --');
+{
+  // -------------------------------------------------------------------------
+  // Reported the day after 0200/0201 shipped: "Why is the party Master not
+  // showing any of the Columns?" They were in the database AND in the ⚙ picker,
+  // and the screen still showed six — because the CURATED list is what a reader
+  // sees without asking, and nobody had added them to it.
+  //
+  // A FIELD NOBODY CAN SEE IS A FIELD NOBODY FILLS IN, which on KYC is the
+  // whole feature. So the columns the two migrations added are checked here
+  // against the screen, not against the schema.
+  // -------------------------------------------------------------------------
+  const pm = code(readFileSync('src/modules/PartyMaster.tsx', 'utf8'));
+  ['service_engineer', 'profile', 'pincode', 'phone', 'email', 'kyc_status', 'gstin', 'pan']
+    .forEach((k) => eq(`the register shows ${k} without being asked`,
+      new RegExp(`key: '${k}'`).test(pm), true));
+
+  // A COUNT OVER PARTLY-LOADED DATA IS A LOWER BOUND AND MUST SAY SO. This
+  // register pages a thousand at a time over 4,752 parties, and the badge read
+  // a flat "1,000" — a number that looks exact, is not, and is the one somebody
+  // quotes.
+  eq('...and the count says it is a lower bound', /count=\{rows\.length\} countMore=\{more\}/.test(pm), true);
+
+  // KYC HAS TO BE CAPTURABLE, or the columns are a report on an empty table.
+  eq('a party can be edited, by whoever may edit masters',
+    /can\('masters\.edit'\)/.test(pm) && /onRowClick=\{mayEdit/.test(pm), true);
+  // THE PARTY NAME IS NOT EDITABLE. Every machine, call and contract names the
+  // customer by that string and there is no foreign key to `parties`.
+  eq('...but never its NAME, which everything else points at by string',
+    !/setEditField\('party_name'/.test(pm), true);
+  // NOR THE VERIFICATION STAMP: the database sets it, or this form could sign
+  // somebody else's name to a verification.
+  eq('...nor who verified it, which the database stamps',
+    !/setEditField\('kyc_verified_by'/.test(pm), true);
+  // THREE OPTIONS, SO NO SEARCH BOX — the PickList rule for a short list.
+  eq('the KYC status is a picker over the closed list',
+    /options=\{KYC_STATUSES\}/.test(pm), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

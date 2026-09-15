@@ -288,6 +288,10 @@ typed into a form that reads it.
   > you type in yourself is never overwritten by a re-upload.
   > The customer has **two contact blocks**: where the machine is, and where the
   > bill goes. They are separate columns now; the billing one used to be lost.
+  > **Click a party to edit it** — contact details, both addresses, the
+  > Serviceman and the KYC. You need *Edit masters*. The **party name** is not
+  > editable: every machine, call and contract names the customer by it.
+  > Not every column is shown at first — **⚙ Columns** offers the rest.
   > The **Serviceman** on a party is what fills *Call Allocated To* on a new
   > call when the machine itself has no Service Engineer — which is every
   > **installation**, because the machine does not exist here yet. The machine

@@ -20,6 +20,53 @@ up)_
 
 
 
+## 2026-09-15 — A column in the table is not a column on the screen
+
+Reported with a screenshot the moment the Party Master was opened: *"Why is the
+party Master not showing any of the Columns?"*
+
+**They were in the database and in the ⚙ picker.** The screen has a CURATED
+list — `COLUMNS` in `PartyMaster.tsx` — which is what a reader sees without
+asking; everything else on the row is addable but hidden. Adding a column to
+`parties` and to the importer put the value in the row and nowhere a person
+would look.
+
+**A field nobody can see is a field nobody fills in**, and on KYC that is the
+whole feature. `check:ui` now compares the columns 0200 and 0201 added against
+the SCREEN, not against the schema.
+
+### And it could not be captured at all
+
+The register was READ-ONLY, so "provision to capture the KYC details" had no
+provision. A party can now be opened and edited by whoever holds `masters.edit`:
+its contact blocks, the Serviceman, and the KYC.
+
+Two things the form deliberately cannot do, and both are guarded:
+
+- **The party NAME.** Every machine, call and contract names the customer by
+  that string and there is no foreign key to `parties` — the same shape as a
+  part's identity (0196), which needs a carry-the-history function rather than a
+  text box.
+- **Who verified the KYC.** The database stamps it; a form that could set it
+  could sign somebody else's name to a verification.
+
+### Two more the screenshot showed
+
+- **The count read a flat "1,000"** over 4,752 parties. This register pages a
+  thousand at a time, so the badge was a lower bound presented as exact — the
+  project's own rule, broken on its own screen. `countMore` now adds the `+`.
+- **The picker offered `billing_phone_2`.** `allFields` was passing the raw
+  column name as the header, which beats DataTable's own `humanize()`. Dropping
+  it gives "Billing Phone 2".
+
+### Also
+
+`kb-form` and `kb-form-actions` reached this screen only because another module
+happens to import `knowledgebase.css`. Imported here too: a form that loses its
+layout when somebody code-splits the app is a bug waiting for a build change.
+
+---
+
 ## 2026-09-15 — The Party Master's own columns, and somewhere for KYC
 
 Asked: *"Additionally add provision to capture the KYC details of the customer.
