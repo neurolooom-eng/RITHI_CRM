@@ -6453,6 +6453,37 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('what may be charted is a named list',
     /const BUILDABLE: \{ key: string; label: string; form:/.test(di), true);
 
+  // -------------------------------------------------------------------------
+  // THE PAGE OPENS ON THIS YEAR (the user, 2026-09-15: "Always default it to
+  // 2026"), and the register carries nine years of migrated history against one
+  // of its own — so opening on everything makes every Pareto a chart of the old
+  // system.
+  // -------------------------------------------------------------------------
+  // READ AS THE CURRENT YEAR, not the literal number. A hard-coded 2026 becomes
+  // wrong on the first of January and shows an empty page with nothing saying
+  // why; "ALWAYS" is what makes the current year the honest reading.
+  eq('the year defaults to the current one, not a hard-coded number',
+    /const thisYear = \(\) => String\(new Date\(\)\.getFullYear\(\)\);/.test(di)
+    && /useState<string>\(thisYear\(\)\)/.test(di), true);
+  eq('...and there is no year literal pinning it', !/\byear = '20\d\d'/.test(di), true);
+
+  // A FAILURE'S YEAR IS WHEN THE MACHINE FAILED, not when somebody reviewed it:
+  // one that broke in December and was reviewed in January did not fail in
+  // January. The trend reads the same date, so the chart and the filter above it
+  // cannot disagree about which year a failure is in.
+  eq('a failure is dated by when it FAILED',
+    /const failedOn = \(r: Row\) => s\(r, 'complaint_date'\) \|\| s\(r, 'reg_date'\);/.test(di), true);
+  eq('...and the trend reads the same date', /periodKey\(failedOn\(r\), period\)/.test(di), true);
+
+  // THE WINDOW IS NEVER IMPLIED. A page quietly showing one year of nine makes
+  // every number a fraction of what the reader thinks they are looking at.
+  eq('the year is on screen and says what it is counting',
+    /<SectionCard title="Year">/.test(di) && /out of \{allRows\.length/.test(di), true);
+  // ...AND IT TRAVELS WITH THE DOWNLOAD, which is read by somebody who never
+  // saw the filter.
+  eq('...and every download says which year it was taken through',
+    /\{ Item: 'Year', Value: yearNote \}/.test(di), true);
+
   // A RENAMED SCREEN MUST NOT STRAND ITS OLD ADDRESS. The page shipped at
   // /dccr-insights the day before; a bookmark to it has to land somewhere
   // rather than on a blank page.

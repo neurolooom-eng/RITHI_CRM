@@ -333,6 +333,11 @@ typed into a form that reads it.
   > Products are counted under the one **Review 2 says actually failed**, so a
   > fault moved to an accessory counts there and not against the machine it was
   > logged on.
+  > **It opens on this year.** The register holds nine years of migrated history
+  > against one of its own, so counting everything would make each chart a
+  > picture of the old system. *Every year* is one click away.
+  > A failure's year is **when the machine failed** — its complaint date — not
+  > when somebody reviewed it.
   > Every chart has a **data table** beside it, a **data label** toggle and a
   > **download** — and the download carries the reviews THEMSELVES, not just the
   > ranking, so a number can be argued with by somebody who was not at the screen.
