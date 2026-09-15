@@ -52,7 +52,7 @@ export const NAV: NavGroup[] = [
       { to: '/workload', label: 'My Workload', icon: '⚡' },
       // Beside the other two "what is going on" screens, and above the
       // look-something-up pair.
-      { to: '/dccr-insights', label: 'Daily Call Review Insights', icon: '📈' },
+      { to: '/product-failure', label: 'Product Failure Analysis', icon: '📈' },
       { to: '/spare-insights', label: 'Spare Insights', icon: '🔎' },
       { to: '/lookup', label: 'Product & Party Search', icon: '🔎' },
       // BESIDE THE OTHER "LOOK SOMETHING UP" SCREEN (the user, 2026-09-14:

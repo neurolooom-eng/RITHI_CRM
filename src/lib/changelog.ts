@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.279',
+    date: '2026-09-15',
+    title: 'Daily Call Review Insights is now Product Failure Analysis',
+    changes: [
+      'Named for what it analyses rather than for where the data comes from.',
+      'The address it shipped at yesterday still works — a bookmark to it lands on the page rather than a blank screen.',
+      'IT NEEDS THE ROLES & PERMISSIONS SQL AGAIN. The page’s address is also its permission, so renaming it made every role’s old permission point at nothing — the screen would have gone invisible to everybody with no error anywhere. Run rbac.sql.',
+    ],
+  },
+  {
     version: '0.9.278',
     date: '2026-09-15',
     title: 'Daily Call Review Insights is now a product failure analysis',

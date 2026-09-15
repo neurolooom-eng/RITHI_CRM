@@ -6346,7 +6346,7 @@ console.log('\n-- My Workload: the queues left the registers, and open what they
     /done\.current === location\.key/.test(arrive), true);
 }
 
-console.log('\n-- DCCR Insights: product failure, with the four things asked for --');
+console.log('\n-- Product Failure Analysis: the four things asked for --');
 {
   // -------------------------------------------------------------------------
   // The user, 2026-09-15: "Idea is to focus on the product failure analysis in
@@ -6358,7 +6358,7 @@ console.log('\n-- DCCR Insights: product failure, with the four things asked for
   // what makes it arguable with somebody who was not at the screen. One block
   // carries all four, so a dimension added later cannot arrive with three.
   // -------------------------------------------------------------------------
-  const di = code(readFileSync('src/modules/DccrInsights.tsx', 'utf8'));
+  const di = code(readFileSync('src/modules/ProductFailureAnalysis.tsx', 'utf8'));
 
   eq('one block carries chart, labels, table and download',
     /function ParetoBlock\(/.test(di), true);
@@ -6387,10 +6387,21 @@ console.log('\n-- DCCR Insights: product failure, with the four things asked for
 
   // THE CLASSES EXIST. A row that filters must look pressable, and a chosen one
   // must look chosen — by INVERSION, not a tint (the user's standing rule).
-  const css = readFileSync('src/modules/dccrinsights.css', 'utf8');
+  const css = readFileSync('src/modules/productfailure.css', 'utf8');
   eq('.linkish has a rule of its own', /\.linkish[\s,{:]/.test(css), true);
   eq('the chosen row INVERTS rather than tints',
     /tr\.row-on > td \{ background: var\(--text\); color: var\(--surface\); \}/.test(css), true);
+
+  // A RENAMED SCREEN MUST NOT STRAND ITS OLD ADDRESS. The page shipped at
+  // /dccr-insights the day before; a bookmark to it has to land somewhere
+  // rather than on a blank page.
+  const app2 = code(readFileSync('src/App.tsx', 'utf8'));
+  eq('the address it shipped at still lands on the page',
+    /<Route path="\/dccr-insights" element=\{<Navigate to="\/product-failure" replace \/>\}/.test(app2), true);
+  // AND THE MODULE KEY IS THE ROUTE, so a rename is a permissions change: every
+  // role's old key stopped opening anything the moment the route moved.
+  eq('...and a migration grants the renamed key',
+    existsSync('supabase/migrations/0205_product_failure_module_key.sql'), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

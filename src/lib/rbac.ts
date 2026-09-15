@@ -51,9 +51,10 @@ export const MODULES: ModuleDef[] = [
   // register (the user, 2026-09-15). Beside the Dashboard because it answers
   // the same question at a glance, for one person rather than the company.
   { path: '/workload', label: 'My Workload' },
-  // What the Daily Call Review is SAYING, across the whole register — the
-  // question the worklist itself cannot answer.
-  { path: '/dccr-insights', label: 'Daily Call Review Insights' },
+  // What FAILS and why, from every reviewed call — the question the worklist
+  // itself cannot answer. Named for what it analyses rather than for where the
+  // data comes from.
+  { path: '/product-failure', label: 'Product Failure Analysis' },
   { path: '/spare-insights', label: 'Spare Insights' },
   { path: '/lookup', label: 'Product & Party Search' },
   { path: '/daily-review', label: 'Daily Call Review' },
@@ -376,7 +377,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/workload', label: 'My Workload', actions: [] },
     // READ-ONLY, and it holds no action of its own: it analyses the review
     // register, which `call_reviews_read` already opens to any signed-in user.
-    { path: '/dccr-insights', label: 'Daily Call Review Insights', actions: [] },
+    { path: '/product-failure', label: 'Product Failure Analysis', actions: [] },
     { path: '/spare-insights', label: 'Spare Insights', actions: ['consumption.view'] },
     { path: '/lookup', label: 'Product & Party Search', actions: ['masters.view', 'calls.create'] },
     // MOVED HERE WITH THE MENU (2026-09-14). It had a header of its own while

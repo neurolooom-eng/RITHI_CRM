@@ -326,7 +326,7 @@ typed into a form that reads it.
   right ones.
 - **QMS Documents** `/qms` — with number and revision.
 
-- **Daily Call Review Insights** `/dccr-insights` — **what fails, and why**,
+- **Product Failure Analysis** `/product-failure` — **what fails, and why**,
   across the whole register. The register is a worklist; this is the question it
   cannot answer.
   > **Click any bar and every chart below it narrows.** Click it again to let go.
