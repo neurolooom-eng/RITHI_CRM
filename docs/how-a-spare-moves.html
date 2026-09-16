@@ -286,7 +286,7 @@ footer code{font-size:12.5px}
   <a href="#route2">
     <span class="flownav-n">Route 2</span>
     <span class="flownav-t">HandStock — replenishing what the engineer carries</span>
-    <span class="flownav-s">No call · needs a stated reason instead</span>
+    <span class="flownav-s">No call · a stated reason instead · and NSM reviews it</span>
   </a>
   <a href="#approvals">
     <span class="flownav-n">Then</span>
@@ -389,7 +389,9 @@ footer code{font-size:12.5px}
     <p class="flowhead-p">
       A Call-Based request explains itself: there is a machine, it has failed, here is the part.
       A HandStock request has no such evidence, so it <b>must carry a written reason</b> — and
-      that reason is what the approver is actually approving.
+      that reason is what the approver is actually approving. It is also why
+      <b>NSM reviews every HandStock request</b>: the chain is manager → NSM → Stores, and
+      Commercial is the only stage skipped.
     </p>
   </section>
 
@@ -419,7 +421,8 @@ footer code{font-size:12.5px}
       <h3>Restrictions &amp; mandates</h3>
       <ul>
         <li class="mandate"><span class="tag">Mandate</span>The <b>reason</b>. The form refuses a HandStock request without one — it is the only thing an approver has to go on.</li>
-        <li><b>No cover, so no AMC/OGP review.</b> With no machine there is no item status, so Commercial and NSM auto-approve and the request goes manager → Stores.</li>
+        <li class="mandate"><span class="tag">Mandate</span><b>NSM approves every HandStock request</b>, whatever the parts. Replenishment has no machine behind it to justify it, so the reason above is the case — and somebody senior reads it.</li>
+        <li><b>Commercial still auto-approves.</b> With no machine there is no cover, so nothing here is chargeable to a customer — which is the question Commercial answers. The chain is manager → NSM → Stores.</li>
         <li>The customer and machine fields stay empty. A HandStock request is not evidence about any device.</li>
       </ul>
     </div>
@@ -487,9 +490,15 @@ footer code{font-size:12.5px}
       <h2>Commercial, then NSM</h2>
       <span class="who">spare.approve_commercial</span><span class="who">spare.approve_nsm</span>
       <p>
-        <b>These two run only when the item is AMC or OGP</b> — the covers where the part is
-        chargeable to somebody. On WGP and CMC they are stamped Auto-Approved at the RM stage and
+        <b>Commercial runs only when the item is AMC or OGP</b> — the covers where the part is
+        chargeable to somebody. On WGP and CMC it is stamped Auto-Approved at the RM stage and
         nobody waits.
+      </p>
+      <p>
+        <b>NSM runs on those too — and on every HandStock request.</b> The two stages stopped
+        sharing a rule when replenishment started needing a second signature: a HandStock line has
+        no cover for Commercial to judge, and no machine to justify it, so it is NSM who reads the
+        reason.
       </p>
       <p>
         Both may be actioned <b>for a whole OR at once</b>: by this point the question is
@@ -590,7 +599,7 @@ footer code{font-size:12.5px}
           <tr>
             <td>RM Approval</td><td><code>spare.approve_rm</code></td>
             <td><code>rm_approval</code> · <code>rm_by</code> · <code>rm_at</code></td>
-            <td>On approval of a non-AMC/OGP item, <code>commercial_approval</code> and <code>nsm_approval</code> are set to <i>Auto-Approved</i> in the same write</td>
+            <td>Each stage that is not required is set to <i>Auto-Approved</i> in the same write — <code>commercial_approval</code> unless the item is AMC/OGP, and <code>nsm_approval</code> unless it is AMC/OGP <b>or a HandStock request</b>. No <code>_by</code> or <code>_at</code> is written with an auto-approval: nobody decided it</td>
           </tr>
           <tr>
             <td>Commercial</td><td><code>spare.approve_commercial</code></td>
@@ -734,7 +743,8 @@ footer code{font-size:12.5px}
       <tbody>
         <tr><td>—</td><td>The request is submitted</td><td>RM Approval</td><td>Whoever raised it</td></tr>
         <tr><td>RM Approval</td><td>Approved, item is AMC or OGP</td><td>Commercial</td><td>The engineer's own manager</td></tr>
-        <tr><td>RM Approval</td><td>Approved, any other cover — and on every HandStock request</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved, any other cover</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved, and the request is <b>HandStock</b></td><td>NSM <span class="muted">(Commercial auto-approves; NSM does not)</span></td><td>The engineer's own manager</td></tr>
         <tr><td>Commercial</td><td>Approved</td><td>NSM</td><td>Commercial</td></tr>
         <tr><td>NSM</td><td>Approved</td><td>Stores</td><td>NSM</td></tr>
         <tr><td>Stores</td><td>Booked out on a stock out / DC</td><td>Dispatched</td><td>Stores · Spare Coordinator</td></tr>
@@ -756,8 +766,14 @@ footer code{font-size:12.5px}
     </p>
     <p>
       <b>AMC</b> and <b>OGP</b> — the part is chargeable to somebody, so two more people look at it
-      before it leaves the building. That is the whole rule, and it is why the cover on the call is
-      worth getting right upstream.
+      before it leaves the building. That is why the cover on the call is worth getting right
+      upstream.
+    </p>
+    <p>
+      <b>And HandStock, which has no cover at all, goes to NSM.</b> The two middle stages stopped
+      sharing a rule for that reason: Commercial judges whether somebody is being charged, NSM
+      judges whether the stock is warranted — and replenishment is the case where only the second
+      question has an answer.
     </p>
   </div>
 
