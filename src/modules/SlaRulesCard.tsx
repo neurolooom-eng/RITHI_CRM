@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { listSlaRules, saveSlaRule, supabaseConfigured, type SlaRuleRow } from '../lib/supabase';
@@ -22,7 +23,7 @@ export function SlaRulesCard() {
       if (!r.length) setMsg({ tone: 'info', text: 'SLA table not set up yet — run 0044_sla_rules.sql, then Refresh.' });
     } catch (e) {
       setRules(DEFAULT_SLA_RULES);
-      setMsg({ tone: 'error', text: /sla_rules|does not exist|schema cache/i.test(String(e)) ? 'Run 0044_sla_rules.sql in the Supabase SQL editor to enable editing.' : `Load failed: ${e instanceof Error ? e.message : String(e)}` });
+      setMsg({ tone: 'error', text: isMissingTable(e, 'sla_rules') ? 'Run 0044_sla_rules.sql in the Supabase SQL editor to enable editing.' : `Load failed: ${e instanceof Error ? e.message : String(e)}` });
     }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);

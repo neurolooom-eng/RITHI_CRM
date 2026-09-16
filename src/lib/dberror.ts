@@ -1,0 +1,101 @@
+// ===========================================================================
+// "IS THIS TABLE MISSING?" — asked properly, in one place.
+//
+// A dozen screens carry a line of the shape
+//
+//     /spare_stock_out_lines|does not exist|schema cache/i.test(err)
+//         ? 'Run migration 0027 in the Supabase SQL editor'
+//         : `Load failed: ${err}`
+//
+// and the middle alternative is the bug: **`does not exist` is not a question
+// about the table.** Postgres says it about a missing COLUMN, a missing
+// FUNCTION and a missing ROLE in exactly the same words, so any of those turns
+// into an instruction to go and run a migration.
+//
+// Reported from use (2026-09-16): Stock Out showed *"Stock outs need migration
+// 0027_spare_dispatch.sql — run it in the Supabase SQL editor"* on a project
+// where 0027 had been applied for months. The real fault was a paged read
+// ordering by `id` on a view that calls that column `line_id`; PostgREST
+// answered `column spare_stock_out_lines.id does not exist`, and the screen
+// read it as an absent table.
+//
+// THAT IS THE EXPENSIVE KIND OF WRONG, and this project has a name for it: a
+// message that is ACTED ON. It does not merely fail to explain — it sends
+// somebody to re-run a bundle that is already in, and teaches them that the
+// instruction may mean nothing. The same reasoning is written against
+// `_status.sql`, where a NO that means nothing is held to be worse than no row
+// at all.
+//
+// So the test asks what it means: is the RELATION absent? A missing column, a
+// missing function and a permission refusal are all NOT that, and each gets
+// its own message — which is the one the reader can act on.
+// ===========================================================================
+
+/** The error text, however it arrived — an Error, a PostgREST body, a string. */
+export function errText(e: unknown): string {
+  if (e == null) return '';
+  if (typeof e === 'string') return e;
+  if (e instanceof Error) return e.message;
+  const o = e as { message?: unknown; error?: unknown; details?: unknown };
+  return String(o.message ?? o.error ?? o.details ?? e);
+}
+
+/** THE TABLE ITSELF IS NOT THERE — so a migration really is the answer.
+ *
+ *  Two ways PostgREST says it, and they are both about the RELATION:
+ *
+ *    relation "public.foo" does not exist                     (Postgres 42P01)
+ *    Could not find the table 'public.foo' in the schema cache  (PGRST205)
+ *
+ *  Pass the table names the screen reads. Naming them matters: an error about
+ *  some OTHER table is not this screen's migration to run, and a hint that
+ *  fires on any missing relation anywhere is the same over-firing in a
+ *  smaller size. */
+export function isMissingTable(e: unknown, ...tables: string[]): boolean {
+  const m = errText(e);
+  if (!m) return false;
+  // A COLUMN is not a table, and it is the case that caused this to be
+  // written. Postgres: `column foo.bar does not exist`; PostgREST's schema
+  // cache: `Could not find the 'bar' column of 'foo' in the schema cache`.
+  // Checked FIRST, because those messages also carry the table's name and
+  // would otherwise satisfy every test below.
+  if (/\bcolumn\b/i.test(m)) return false;
+  // Likewise a function or a type. `function part_code(text) does not exist`
+  // is a missing migration too, but a DIFFERENT one, and telling somebody to
+  // re-run the register's bundle for it wastes the trip.
+  if (/\bfunction\b|\boperator\b|\btype\b/i.test(m)) return false;
+
+  const aboutRelation = /relation\s+"?[\w.]*"?\s+does not exist/i.test(m)
+    || /could not find the table\b/i.test(m)
+    || /\bin the schema cache\b/i.test(m);
+  if (!aboutRelation) return false;
+
+  // ...AND IT IS ONE OF OURS. Matched on the bare name, since the message may
+  // carry it schema-qualified and quoted.
+  return tables.length === 0 || tables.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(m));
+}
+
+/** The database refused the read. Not a missing anything — a permission, and
+ *  the fix is a grant rather than a migration. `errMsg()` in `supabase.ts`
+ *  already rewrites this one for the reader; this recognises it so a screen
+ *  does not offer a migration instead. */
+export function isRefused(e: unknown): boolean {
+  const m = errText(e);
+  return /row-level security|permission denied|does not have permission|42501/i.test(m);
+}
+
+/** What to put on screen. ONE shape for every register that has a migration
+ *  behind it, so the three cases cannot drift apart screen by screen:
+ *
+ *    the table is missing   → the migration, named, with its bundle
+ *    the read was refused   → say so; a migration will not help
+ *    anything else          → the error itself, verbatim
+ *
+ *  Verbatim matters on the third: the fault that prompted all this was
+ *  readable in the original message (`column … does not exist`) and was hidden
+ *  by a hint that overwrote it. */
+export function loadFailure(e: unknown, opts: { tables: string[]; hint: string }): string {
+  if (isMissingTable(e, ...opts.tables)) return opts.hint;
+  if (isRefused(e)) return 'Your role does not have permission to read this.';
+  return `Load failed: ${errText(e)}`;
+}

@@ -7,6 +7,7 @@ import { ACTIONS, ROLES, PERM_TREE, permsForRole, moduleAction, masterAction, ma
   type PermHeader, type PermPage } from '../lib/rbac';
 import { setRolePerms, listMasterLists, listRoleRows, createRole, supabaseConfigured, type MasterList } from '../lib/supabase';
 import { logAudit } from '../lib/audit';
+import { xlsxDownload } from '../lib/xlsx';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -23,7 +24,7 @@ import './fieldcalls.css';
 const label = (key: string) => ACTIONS.find((a) => a.key === key)?.label ?? dynamicActionLabel(key) ?? key;
 
 export function RolePermissions() {
-  const { can, rolePerms, reloadRoles } = useAuth();
+  const { can, user, rolePerms, reloadRoles } = useAuth();
   // THE ROLES ARE THE DATABASE'S, not the code's. ROLES in rbac.ts is the
   // starting set that ships with the app; once a role can be added here, a
   // matrix drawn from the code alone would simply not show it, with no error --
@@ -117,6 +118,126 @@ export function RolePermissions() {
     });
   };
 
+
+  // ---- exporting the matrix -----------------------------------------------
+  // The user, 2026-09-16: "Add a Provision to Export the Permission matrix."
+  //
+  // The matrix is read to answer "who can do what", and it is read AWAY from
+  // this screen — in a review, beside an audit finding, against last quarter's
+  // copy. So the file has to carry the three things the screen says implicitly
+  // and a spreadsheet cannot:
+  //
+  //   1. ADMIN IS ALWAYS FULL. Its boxes are ticked and disabled here, which is
+  //      obvious on screen and reads as "somebody ticked 400 boxes" in a file.
+  //   2. A ROLE WITH AN EMPTY STORED SET IS NOT A ROLE WITH NO PERMISSIONS.
+  //      `permsForRole()` returns the stored set only while it is non-empty and
+  //      otherwise falls back to the ENGINEER defaults, so such a role's row
+  //      here shows something the database does not contain. Exporting that
+  //      without saying so produces a document that is wrong in the most
+  //      expensive direction: it would be read as evidence of what is granted.
+  //   3. UNSAVED TICKS. This screen holds its edits in local state. Exporting
+  //      mid-edit is legitimate — it is how somebody reviews a change before
+  //      committing it — but the file must say which it is.
+  //
+  // Everything else follows the reports already here: xlsx, dated in the
+  // filename, and a sheet that says how to read it rather than a README nobody
+  // gets sent.
+  const exportMatrix = () => {
+    const when = new Date();
+    const stamp = when.toISOString().slice(0, 10);
+
+    // WHERE EACH ROLE'S ROW COMES FROM. Computed rather than assumed: it is the
+    // one thing about this matrix that is not visible on the screen it is taken
+    // from.
+    const provenance = (key: string): string => {
+      if (key === 'admin') return 'Always full — not stored, and cannot be changed';
+      const stored = rolePerms[key];
+      return stored && stored.length
+        ? 'Stored in the database'
+        : 'NOT CONFIGURED — showing the Engineer fallback, which is what these users actually get';
+    };
+    const edited = roles.some((r) => {
+      if (r.key === 'admin') return false;
+      const now = [...(perms[r.key] ?? [])].sort().join('|');
+      return now !== [...permsForRole(r.key, rolePerms)].sort().join('|');
+    });
+
+    // One row per grantable thing, in the order the screen shows them — so the
+    // file can be read beside the screen without hunting.
+    const matrix: Record<string, unknown>[] = [];
+    PERM_TREE.forEach((head) => {
+      pagesFor(head).forEach((page) => {
+        const view = page.path ? moduleAction(page.path) : '';
+        const row = (what: string, key: string) => {
+          const r: Record<string, unknown> = {
+            Group: head.title,
+            Page: page.label.replace(/^🗂 /, ''),
+            Route: page.path || '(not a page)',
+            Grants: what,
+            'Permission key': key,
+          };
+          roles.forEach((x) => { r[x.label] = has(x.key, key) ? 'Yes' : 'No'; });
+          matrix.push(r);
+        };
+        // THE PAGE KEY IS THE ROUTE, and opening a page is a different right
+        // from acting on it — which is the distinction the whole tree exists to
+        // make, so it is a row of its own rather than a column.
+        if (view) row('Open the page', view);
+        page.actions.forEach((a) => row(label(a), a));
+      });
+    });
+
+    const columns = ['Group', 'Page', 'Route', 'Grants', 'Permission key', ...roles.map((r) => r.label)];
+
+    xlsxDownload(`permission-matrix-${stamp}.xlsx`, [
+      { name: 'Matrix', columns, rows: matrix },
+      {
+        name: 'Roles',
+        columns: ['Role', 'Key', 'Permissions held', 'Where this row comes from'],
+        rows: roles.map((r) => ({
+          Role: r.label,
+          Key: r.key,
+          'Permissions held': r.key === 'admin' ? 'every one' : (perms[r.key]?.size ?? 0),
+          'Where this row comes from': provenance(r.key),
+        })),
+      },
+      {
+        name: 'How to read this',
+        // NAMED COLUMNS, because `buildXlsx` looks each cell up BY the column
+        // name (`row[h]`). Two columns both called '' read the same key twice,
+        // so the second column would have come out empty on every row — a sheet
+        // of headings with nothing beside them, which is worse than no sheet.
+        columns: ['About this export', 'Detail'],
+        rows: [
+          { 'About this export': 'Taken from', Detail: 'Roles & Permissions, RITHI CRM' },
+          { 'About this export': 'Taken on', Detail: when.toLocaleString() },
+          { 'About this export': 'Taken by', Detail: user?.fullName || user?.email || 'not recorded' },
+          { 'About this export': 'State',
+            Detail: edited
+              ? 'UNSAVED — this shows what is on screen, including changes not yet saved to the database'
+              : 'Saved — this matches the database as it was read' },
+          { 'About this export': 'Opening a page vs acting on it',
+            Detail: 'Granted separately. The "Open the page" row is the module key — and the module key IS the route, so renaming a route is a permissions change.' },
+          { 'About this export': 'Admin',
+            Detail: 'Admin always holds everything. It is not stored as a list and cannot be edited, so its Yes column is a statement about the role rather than 400 ticked boxes. Super Admin is not a role at all and cannot be granted.' },
+          { 'About this export': 'A role marked NOT CONFIGURED',
+            Detail: 'Its stored permission list is EMPTY — and an empty list does not mean "no permissions". The system falls back to the Engineer defaults, so the Yes columns for that role are that fallback, which is what its users actually get. Granting it anything writes a real list and turns the fallback off.' },
+          { 'About this export': 'Master value lists',
+            Detail: 'Each list is grantable on its own and also comes free with the global "Edit masters" right, so a role can reach a list without a Yes against it here.' },
+        ],
+      },
+    ]);
+    logAudit({
+      action: 'rbac.export', status: 'ok',
+      meta: { roles: roles.length, rows: matrix.length, unsaved: edited },
+    });
+    setMsg({
+      tone: edited ? 'info' : 'ok',
+      text: edited
+        ? `Exported ${matrix.length} permissions across ${roles.length} roles — including your UNSAVED changes. The file says so on its "How to read this" sheet.`
+        : `Exported ${matrix.length} permissions across ${roles.length} roles.`,
+    });
+  };
 
   // ---- adding a role ------------------------------------------------------
   // ALWAYS A COPY OF AN EXISTING ROLE, and that is not a convenience. has_perm()
@@ -222,6 +343,14 @@ export function RolePermissions() {
         <div className="rbac-tools">
           <button className="btn btn-sm" onClick={expandAll}>⌄ Expand all</button>
           <button className="btn btn-sm" onClick={collapseAll}>› Collapse all</button>
+          {/* AVAILABLE TO A READ-ONLY VIEWER TOO. Reading this matrix is how
+              somebody answers "why can this person not see that page?", and
+              that reader is exactly the one who needs to take it away with
+              them — `admin.view` holds it without `rbac.manage`. */}
+          <button className="btn btn-sm" onClick={exportMatrix}
+            title="Download the whole matrix — every role against every permission — as a spreadsheet">
+            ⭳ Export matrix
+          </button>
           <span className="muted" style={{ fontSize: 12 }}>
             <b>View</b> is permission to open the page. The actions under it are what can be done there.
           </span>

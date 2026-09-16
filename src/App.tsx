@@ -51,6 +51,7 @@ import { Tracker } from './modules/Tracker';
 import { Settings } from './modules/Settings';
 import { Profile } from './modules/Profile';
 import { VersionHistory } from './modules/VersionHistory';
+import { HowRithiFunctions } from './modules/HowRithiFunctions';
 import { HowToUse } from './modules/HowToUse';
 import { KnowledgeBase } from './modules/KnowledgeBase';
 import { ServiceManuals, QmsDocuments } from './modules/DocumentLibrary';
@@ -177,6 +178,11 @@ function Shell() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/version-history" element={<VersionHistory />} />
         <Route path="/knowledge-base/how-to" element={<HowToUse />} />
+        {/* HOW RITHI FUNCTIONS — the third Knowledge Base topic. Not a module
+            and not permission-gated, like the other two help pages: a page
+            explaining how the system works is of most use to whoever has just
+            been refused something by it. */}
+        <Route path="/knowledge-base/how-it-works" element={<HowRithiFunctions />} />
         <Route path="/knowledge-base" element={<KnowledgeBase />} />
         <Route path="/pm-bulk-upload" element={<PmBulkUpload />} />
         <Route path="/software-validation" element={<SoftwareValidation />} />

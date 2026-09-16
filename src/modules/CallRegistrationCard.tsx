@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { SectionCard } from '../components/ui/ui';
@@ -38,7 +39,7 @@ export function CallRegistrationCard() {
     } catch (e) {
       setMsg({
         tone: 'error',
-        text: /registrant_desks|does not exist|schema cache/i.test(String(e))
+        text: isMissingTable(e, 'registrant_desks')
           ? 'Run supabase/apply/call_requests.sql in the Supabase SQL editor, then Refresh.'
           : `Load failed: ${e instanceof Error ? e.message : String(e)}`,
       });

@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, Toolbar, SearchBox, EmptyState, Modal } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -121,7 +122,7 @@ export function SpareRmApproval() {
       setMsg(null);
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
-      setMsg({ tone: 'error', text: /spare_pending_rm|does not exist|schema cache/i.test(m) ? MIGRATION_HINT : `Could not read the queue: ${m}` });
+      setMsg({ tone: 'error', text: isMissingTable(m, 'spare_pending_rm') ? MIGRATION_HINT : `Could not read the queue: ${m}` });
     } finally { setBusy(false); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
