@@ -6832,5 +6832,67 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     /'check:orders': 'db'/.test(readFileSync('scripts/validate-run.mjs', 'utf8')), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // A SPREADSHEET COLUMN IS A LOOKUP KEY, NOT A CAPTION.
+  //
+  // `buildXlsx` fills each cell with `row[columnName]`, so two columns sharing
+  // a name read the SAME key twice: the second one comes out with the first
+  // one's value on every row, or empty, and the sheet looks like headings with
+  // nothing beside them. No error anywhere.
+  //
+  // Found in my own first draft of the permission-matrix export (2026-09-16),
+  // which gave the "How to read this" sheet `columns: ['', '']` — every
+  // explanation would have shipped with an empty second column.
+  // -------------------------------------------------------------------------
+  const dupCols: string[] = [];
+  readdirSync(`${process.cwd()}/src/modules/`).filter((f) => f.endsWith('.tsx')).forEach((f) => {
+    const src = readFileSync(`${process.cwd()}/src/modules/${f}`, 'utf8');
+    // Only literal lists — a computed one (`[...roles.map(r => r.label)]`) is
+    // not judged here, and could not be judged without running it.
+    for (const m of src.matchAll(/columns:\s*\[((?:\s*'[^']*'\s*,?)+)\]/g)) {
+      const cols = [...m[1].matchAll(/'([^']*)'/g)].map((x) => x[1]);
+      const dupes = cols.filter((c, i2) => cols.indexOf(c) !== i2);
+      if (dupes.length) {
+        const line = src.slice(0, m.index ?? 0).split('\n').length;
+        dupCols.push(`${f}:${line} ${JSON.stringify([...new Set(dupes)])}`);
+      }
+    }
+  });
+  eq('no export sheet has two columns of the same name', dupCols, []);
+
+  // -------------------------------------------------------------------------
+  // THE PERMISSION MATRIX EXPORT SAYS THE THREE THINGS THE SCREEN SAYS
+  // IMPLICITLY (the user, 2026-09-16: "Add a Provision to Export the
+  // Permission matrix").
+  //
+  // A file is read away from the screen that produced it, so each of these is
+  // the difference between a document and a misleading one. The third is the
+  // one this project has been bitten by repeatedly.
+  // -------------------------------------------------------------------------
+  const rp = readFileSync('src/modules/RolePermissions.tsx', 'utf8');
+  eq('the matrix can be exported', /xlsxDownload\(`permission-matrix-/.test(rp), true);
+  // A ROLE WITH AN EMPTY STORED SET IS NOT A ROLE WITH NO PERMISSIONS: it falls
+  // back to the ENGINEER defaults, so its row shows something the database does
+  // not contain. Exporting that silently produces a document wrong in the most
+  // expensive direction — it reads as evidence of what is granted.
+  eq('...and it says when a role is showing the fallback rather than a stored list',
+    /NOT CONFIGURED/.test(rp), true);
+  eq('...which it works out from the STORED set, not the screen',
+    /const stored = rolePerms\[key\];/.test(rp), true);
+  // UNSAVED TICKS. Exporting mid-edit is legitimate — it is how a change is
+  // reviewed before it is committed — but the file must say which it is.
+  eq('...and whether the file includes unsaved changes', /unsaved: edited/.test(rp), true);
+  // ADMIN IS ALWAYS FULL, which reads on screen as disabled boxes and in a file
+  // as somebody having ticked four hundred of them.
+  eq('...and why Admin is Yes everywhere', /Admin always holds everything/.test(rp), true);
+  // READ-ONLY VIEWERS TOO. Reading this matrix is how somebody answers "why can
+  // this person not see that page?", and that reader is the one who most needs
+  // to take it away — `admin.view` holds it without `rbac.manage`.
+  eq('...and the button is not behind rbac.manage',
+    /onClick=\{exportMatrix\}/.test(rp) && !/mayEdit && \(\s*<button className="btn btn-sm" onClick=\{exportMatrix\}/.test(rp), true);
+  eq('...and taking a copy is recorded', /action: 'rbac\.export'/.test(rp), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

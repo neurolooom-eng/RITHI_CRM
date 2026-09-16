@@ -4,12 +4,58 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (Stock Out's empty register and its false migration
-hint; 0207 and 0208 APPLIED — `_status.sql` rows 159 and 160)_
+_Last updated: 2026-09-16 (the permission-matrix export and How RITHI
+Functions; 0207 and 0208 APPLIED — `_status.sql` rows 159 and 160)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — Exporting the matrix, and a topic for "why does it already know that?"
+
+**The permission matrix exports.** One button on Roles & Permissions, available
+to a READ-ONLY viewer too — reading the matrix is how somebody answers "why can
+this person not see that page?", and that reader is the one who needs to take it
+away with them.
+
+Three things the screen says implicitly and a spreadsheet cannot, so the file
+says them outright:
+
+- **Admin is Yes everywhere** because Admin always holds everything, not because
+  somebody ticked four hundred boxes.
+- **A role whose stored list is EMPTY is marked NOT CONFIGURED.** An empty list
+  does not mean "no permissions" — `permsForRole()` falls back to the ENGINEER
+  defaults, so that role's Yes columns are the fallback, which is what its users
+  actually get. Exporting that silently would produce a document wrong in the
+  most expensive direction: it would be read as evidence of what is granted.
+- **Whether the file contains unsaved ticks**, because exporting mid-edit is a
+  legitimate way to review a change before committing it.
+
+A guard caught a fault in my own first draft: the "How to read this" sheet had
+`columns: ['', '']`, and `buildXlsx` looks each cell up BY the column name — so
+every explanation would have shipped with an empty second column. `check:ui`
+now refuses two columns of the same name in any export.
+
+**How RITHI Functions** is the third Knowledge Base topic, and a different
+question from How to Use: that one answers *what do I click*, this answers *why
+does the form already know that*. **Flow 1** is registering a direct customer
+call on New Field Call — which master answers which field, in the order the form
+asks, and why the cover arrives locked — with a ledger of all fourteen fields
+separating what is looked up, what the database stamps, and the four things
+somebody actually types. **Flow 2** is the longer life of a call raised from a
+request.
+
+Open to everybody, like the other two topics: not a module, nothing to grant,
+and of most use to whoever has just been refused something.
+
+The shareable diagram carries the same two flows:
+<https://claude.ai/artifact/1rxueHsny6drq5sun5dvU5>
+
+*Not in `docs/HOW_TO_USE.md`: that handbook covers the modules in `MODULES`, and
+this page is `alwaysOpen` and deliberately not one — the same as How to Use and
+Field Solutions, which are not in it either.*
 
 ---
 
