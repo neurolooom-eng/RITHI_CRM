@@ -4,12 +4,56 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (0210 is BUILT AND NOT YET RUN — `_status.sql` row
-162; 0207-0209 APPLIED, rows 159-161)_
+_Last updated: 2026-09-16 (0211 is BUILT AND NOT YET RUN — `_status.sql` row
+163; 0207-0210 APPLIED, rows 159-162)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — The delivery challan named the wrong person
+
+*"dispatched_by -- Is not actually taking the Name based on the USer. Kasturi is
+Dispatching whereas it still shows Jagadesh."*
+
+**The app was never sending a name at all.** `SpareDispatch.tsx` read
+`user?.name` — and the `User` type has no `name`; it has `fullName`. It
+type-checked **only** because `BaseRecord` carries an index signature
+(`[key: string]: unknown`), so the expression was `undefined` at runtime every
+time and fell through to the email. No error anywhere.
+
+And `dispatched_by` came from the CALLER: `dispatch_spare_lines(..., p_actor)`
+writes whatever the app sends into `spare_dispatches.dispatched_by`, and the
+line rows copy it from there. So a fault in the app was a fault on a document
+that **leaves the building with the company's mark on it**.
+
+Fixed the way this project already fixes it for a call's registrant (0113/0114):
+**a caller-supplied value is DISCARDED, not refused.** Refusing makes an honest
+client fail; discarding makes a buggy one harmless.
+
+### A trigger rather than a rewrite — and why that matters
+
+The first draft of 0211 edited `dispatch_spare_lines` to resolve the name
+itself. It was written against **0027's version of that function, four revisions
+out of date**. The live one carries partial dispatch: per-line quantities, the
+outstanding balance, the refurbished flags and the `spare_dispatch_lines` rows.
+A tidied copy of the old body would have **silently deleted all of it**.
+
+Caught by reading the function out of the database before trusting the migration
+file — the same habit that this repo's own rule recommends and that I had not
+applied to a function I was about to replace. 0211 touches the function not at
+all: a `before insert` trigger on `spare_dispatches` overwrites the column, which
+also covers any other path that inserts a dispatch.
+
+`check:ui` now refuses `user.name` anywhere in the app, since TypeScript cannot.
+
+### Still to run on the live project
+
+`_status.sql` first; row **163**. Then `Spare_1.sql` (0211) — repository ROOT.
+The app-side fix alone puts the right name on new stock outs; the migration is
+what stops it ever being the app's to get wrong.
 
 ---
 

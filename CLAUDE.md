@@ -362,6 +362,21 @@ on testing the old shape. **When a migration replaces a definition, move the
   approval written to the request itself, and redefining it is how a wider hole
   than the one you are closing gets opened — `check:replay` caught exactly that
   in 0210's first draft.
+- **`user.name` DOES NOT EXIST — it is `fullName` — AND TYPESCRIPT CANNOT SAY
+  SO**, because `BaseRecord` carries `[key: string]: unknown`. `user?.name`
+  type-checks and is `undefined` at runtime, every time, with no error. It put
+  the wrong name on a DELIVERY CHALLAN (2026-09-16): `SpareDispatch.tsx` sent
+  `user?.name ?? user?.email`, so it never sent a name at all. `check:ui`
+  refuses it anywhere now.
+  **And `spare_dispatches.dispatched_by` is STAMPED from the session** (0211,
+  a `before insert` trigger), so what the client sends is discarded — the
+  0113/0114 rule. A caller-supplied value is DISCARDED, not refused: refusing
+  makes an honest client fail, discarding makes a buggy one harmless.
+  **The trigger exists rather than an edit to `dispatch_spare_lines` because
+  that function is four revisions past 0027** and carries partial dispatch;
+  0211's first draft rewrote it from the old body and would have deleted all of
+  it. **Read a function out of the DATABASE before replacing it**, not out of
+  the migration that first created it.
 - **Hand stock is derived, never stored** — issued − consumed ± transfers −
   returns. Consumption is therefore the control point: a DB trigger caps every
   consumption line at the engineer's balance. Reported lines are capped too;

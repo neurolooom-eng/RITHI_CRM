@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.290',
+    date: '2026-09-16',
+    title: 'The delivery challan names the person who actually booked the stock out',
+    changes: [
+      'REPORTED: the name on Stock Out, the DC and the Declaration was not the person dispatching. Kasthuri books it out and the document still carries somebody else.',
+      'THE APP WAS NEVER SENDING A NAME. The dispatch screen read a field on the signed-in user that does not exist — the user record has a “full name”, and the code asked for “name”. It came back empty every time, with no error, so the name fell through to the email address.',
+      'IT IS NO LONGER THE APP’S TO GET WRONG. Who dispatched a stock out is now stamped by the database from the signed-in session, and whatever the app sends is ignored — the same rule already used for who registered a call.',
+      'OLD STOCK OUTS ARE UNCHANGED. A challan that has already gone out keeps the name it went out with; rewriting a despatch record after the fact would be worse than a name somebody can explain.',
+      'Needs migration 0211 (apply bundle: Spare_1.sql). Until it is run the app-side fix alone will put the right name on new stock outs.',
+    ],
+  },
+  {
     version: '0.9.289',
     date: '2026-09-16',
     title: 'A HandStock request now goes to NSM',
