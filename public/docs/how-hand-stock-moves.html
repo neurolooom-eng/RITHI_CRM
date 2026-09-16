@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Hand Stock Moves</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Hand stock · process reference</p>
+  <h1>How hand stock moves</h1>
+  <p class="standfirst">
+    <b>Hand stock is derived, never stored.</b> There is no balance column anybody can edit — what
+    an engineer holds is computed, every time it is read, from the movements that put it there and
+    took it away. So this is one document rather than four: reconciliation, returns and transfers
+    are not separate systems, they are <b>entries in one ledger</b>, and the only way to understand
+    any of them is to see what they do to the same number.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The master or record the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The movements">
+  <a href="#stockout">
+    <span class="flownav-n">In</span>
+    <span class="flownav-t">Stock Out — Stores issues it on a challan</span>
+    <span class="flownav-s">The batch, the DC, a part-sent balance, and the acknowledgement</span>
+  </a>
+  <a href="#consumption">
+    <span class="flownav-n">Out</span>
+    <span class="flownav-t">Consumption — the part is fitted</span>
+    <span class="flownav-s">On the report, or booked by the office · and how a wrong line is voided</span>
+  </a>
+  <a href="#transfer">
+    <span class="flownav-n">Out and in</span>
+    <span class="flownav-t">Stock Transfer — between two engineers</span>
+    <span class="flownav-s">One record, read from both sides</span>
+  </a>
+  <a href="#mrn">
+    <span class="flownav-n">Out</span>
+    <span class="flownav-t">Material Return — back to Stores</span>
+    <span class="flownav-s">Good and defective counted apart</span>
+  </a>
+</nav>
+
+<section class="ledger" id="formula">
+  <h2>The balance, in one line</h2>
+  <p>
+    Six movement kinds, and every one of them is a row somebody can point at. Add the two that
+    bring stock in, subtract the three that take it out, and that is what the engineer has:
+  </p>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>Movement</th><th>Direction</th><th>Written by</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td>Opening</td><td><b>IN</b></td><td>A one-off load</td><td>What they already held the day the system started</td></tr>
+        <tr><td>Stock out</td><td><b>IN</b></td><td>Stores, on a DC</td><td>The approved spare reached them</td></tr>
+        <tr><td>Transfer in</td><td><b>IN</b></td><td>Another engineer</td><td>Moved across from a colleague</td></tr>
+        <tr><td>Consumption</td><td><b>OUT</b></td><td>The visit report, or a reconciliation</td><td>Fitted to a machine, against a call</td></tr>
+        <tr><td>Transfer out</td><td><b>OUT</b></td><td>The engineer</td><td>Moved across to a colleague</td></tr>
+        <tr><td>Return</td><td><b>OUT</b></td><td>An MRN</td><td>Sent back to Stores, good or defective</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="margin-top:18px">
+    <b>Which makes consumption the control point.</b> Stock out, transfers and returns each have a
+    document and a second party behind them. Consumption is the one movement a person enters
+    freely — so it is the one the database guards, and the guard is a hard refusal rather than a
+    warning.
+  </p>
+</section>
+
+<main class="flow">
+
+  <!-- ============ STOCK OUT ============ -->
+  <section class="flowhead" id="stockout">
+    <p class="flowhead-n">In · the ordinary way</p>
+    <h2 class="flowhead-t">Stock Out — Stores issues it on a challan</h2>
+    <p class="flowhead-p">
+      The approved spare leaves Stores and lands in an engineer's hand stock. <b>This is the only
+      routine way stock arrives</b> — which is why the balance can be trusted enough to refuse a
+      consumption later.
+    </p>
+    <p class="flowhead-p">
+      The approval chain that gets a spare this far is the <b>Spare module's</b> document. This is
+      what happens at the moment it is booked out.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The approved lines</b>, grouped by engineer</li>
+        <li><b>The day’s counter</b>, for the stock-out number</li>
+        <li><b>The signed-in session</b> — who is booking it out</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Stock Out · booking it</p>
+      <h2>A batch, a number, and one engineer</h2>
+      <span class="who">spare.dispatch</span>
+      <p>
+        A stock out is a <b>batch</b>: many spares, <b>one engineer</b>, one delivery challan. The
+        number is generated by Postgres in the same transaction, so there is one way to book stock
+        out and <b>no way to type a DC number by hand</b> — and <b>the challan IS the stock out</b>,
+        one series rather than two.
+      </p>
+      <p>
+        <b>Who booked it is stamped from the session</b>, not sent by the screen. The name on the
+        challan is the person signed in, and the app cannot influence it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span><b>One engineer per stock out.</b> Selecting spares for two is refused — a challan is addressed to somebody.</li>
+        <li><span class="tag db">Trigger</span>The number and the DC are minted by the database, in one transaction, so a batch never half-lands.</li>
+        <li>Only lines <b>still waiting at Stores</b> can go. If somebody else booked one out meanwhile, the whole batch is refused and says how many of the selection are still eligible.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>What was approved</b> against what has been sent</li>
+        <li><b>What was sent</b> against what has been acknowledged</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Stock Out · part of it, and the receipt</p>
+      <h2>Sending less than was asked for</h2>
+      <span class="who">Stores</span><span class="who">The engineer</span>
+      <p>
+        Stores may send <b>fewer units than were approved</b>. The balance stays open and the line
+        stays at Stores until the rest goes — so a short supply is a partly-filled line rather than
+        a decision.
+      </p>
+      <p>
+        <b>Receipt follows the stock, not the stage.</b> A part-sent line has something for the
+        engineer to acknowledge while it is still sitting at Stores waiting for its balance — and a
+        spare counts as received only when the <b>whole</b> quantity has been.
+      </p>
+      <p>
+        Each stock out can also mark a part <b>refurbished</b>, which travels with the line.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>Only the person who raised the request may acknowledge it</b>, whatever permission anybody else holds.</li>
+        <li><b>Dispatched is Stores’ claim; Received is the engineer’s.</b> The gap between them is stock that has left the building and not been confirmed as arrived — worth watching for exactly that reason.</li>
+        <li>Or Stores may <b>drop</b> an approved part instead of sending it — terminal, needing a reason, and <b>not</b> a rejection: an approver refuses a request, Stores declines to send an approved part.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The opening file</b>, once</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-cancelled)">
+      <p class="n">In · the one-off</p>
+      <h2>The opening balance</h2>
+      <p>
+        What an engineer already held the day the system started. Loaded once, and <b>keyed</b> on
+        the engineer, the part and the source — so the same figure cannot be loaded twice and
+        silently double somebody’s balance.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>An engineer cannot put stock into their own hand.</b> Every IN movement has a second party or a controlled load behind it — which is what makes the balance worth enforcing against.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ CONSUMPTION ============ -->
+  <section class="flowhead" id="consumption">
+    <p class="flowhead-n">Out · 1 of 3</p>
+    <h2 class="flowhead-t">Consumption — the part is fitted</h2>
+    <p class="flowhead-p">
+      Stock leaves the engineer's hands and goes into a machine. It is recorded <b>two ways</b>, and
+      the difference between them is the whole of the next section: the engineer writes it on the
+      visit, or the office books it afterwards as a <b>reconciliation</b>.
+    </p>
+    <p class="flowhead-p">
+      Both reduce the balance identically. What differs is who wrote it and what it had to justify.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call</b> — the UCN the part was fitted on</li>
+        <li><b>Hand Stock</b> — this engineer's balance of this part, right now</li>
+        <li><b>Part Master</b> — what was fitted</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Consumption · the ordinary way</p>
+      <h2>On the visit report</h2>
+      <span class="who">The engineer</span>
+      <p>
+        Recorded as part of writing up the visit. The line carries the engineer, the part, the
+        quantity and the call — and <code>source</code> reads <b>Report</b>, meaning the person who
+        fitted it is the person who wrote it down.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>You cannot consume more than the engineer holds.</b> The database refuses it and says the balance back: <i>"X has 2 of PART in hand — cannot book 3 against this call"</i>.</li>
+        <li class="mandate"><span class="tag">Mandate</span>A quantity above zero, and a <b>real UCN</b> — checked against the call register, not merely non-empty.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call register</b> — the UCN must exist</li>
+        <li><b>Hand Stock</b> — of the engineer named, not of whoever is typing</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Consumption · the corrected way</p>
+      <h2>Reconciliation — the office books it</h2>
+      <span class="who">consumption.reconcile</span>
+      <p>
+        A spare was sent, fitted and never written up. The Spare Coordinator books it against the
+        call directly, without waiting for the report — and the line is <b>flagged</b>:
+        <code>source</code> reads <b>Reconciliation</b> rather than Report.
+      </p>
+      <p>
+        <b>The flag is the point.</b> It corrects the balance exactly as a reported line does, so
+        the stock is right either way; what the flag preserves is that this was a stock adjustment
+        made by the office rather than something the engineer said happened.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>Four things, each refused <b>by name</b>: the <b>engineer</b> whose stock it came off, the <b>part</b>, a <b>UCN that exists</b>, and a <b>written reason</b>.</li>
+        <li><b>A stock adjustment with no stated reason is not auditable</b> — which is the whole argument for flagging these apart from the rest.</li>
+        <li><span class="tag db">Trigger</span>Capped at the balance, the same as any other consumption. The office cannot book what the engineer does not have either.</li>
+        <li>Its own permission. An engineer cannot write one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The line as it stands</b> — its original quantity, and who is signed in</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-cancelled)">
+      <p class="n">Consumption · correcting one</p>
+      <h2>A wrong line is VOIDED, never deleted</h2>
+      <span class="who">The Spare Coordinator</span>
+      <p>
+        Set the quantity to <b>0</b>. The row stays — with its original quantity, its reason and its
+        author — and the stock comes back. Reducing it part-way works the same: the balance follows
+        and the original is kept beside it.
+      </p>
+      <p>
+        <b>Quality records are never deleted here</b>, and the database blocks it outright. A void
+        says both things at once: what was claimed, and that it was withdrawn.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A <b>reason</b> for the adjustment. Refused without one, in those words: <i>"the reason is kept with the line"</i>.</li>
+        <li><span class="tag db">Trigger</span>A negative quantity is refused — <i>"set it to 0 to void the line"</i>. And <b>increasing</b> a line is capped at the balance, like any other consumption.</li>
+        <li><span class="tag db">Trigger</span>The original quantity and <b>who adjusted it</b> are stamped from the session, not sent.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ TRANSFER ============ -->
+  <section class="flowhead" id="transfer">
+    <p class="flowhead-n">Out · 2 of 3 — and in</p>
+    <h2 class="flowhead-t">Stock Transfer — between two engineers</h2>
+    <p class="flowhead-p">
+      <b>One movement seen from both sides.</b> A transfer is a single record that takes stock out
+      of one balance and puts it into another — so it appears as <i>Transfer out</i> on one ledger
+      and <i>Transfer in</i> on the other, and the two can never disagree, because they are the
+      same row read twice.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Hand Stock of the sender</b> — checked as the lines are written</li>
+        <li><b>User Master</b> — who it can go to</li>
+        <li><b>Part Master</b> — what is moving</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Transfer</p>
+      <h2>From one engineer to another</h2>
+      <span class="who">stock.transfer</span>
+      <p>
+        A header names the two engineers and the date; the lines name the parts and quantities. The
+        stock moves on the strength of that record alone — there is no despatch and no
+        acknowledgement, because nothing leaves the field.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>A transfer cannot overdraw the sender.</b> The check runs per line and names the shortfall: <i>"Stock transfer exceeds available stock: X would be left with −2 of PART"</i>.</li>
+        <li>Checked <b>after</b> each line is written rather than before — so several lines of the same part on one transfer are judged together, not one at a time.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ RETURN ============ -->
+  <section class="flowhead" id="mrn">
+    <p class="flowhead-n">Out · 3 of 3</p>
+    <h2 class="flowhead-t">Material Return — stock goes back to Stores</h2>
+    <p class="flowhead-p">
+      The part is not needed, or it came off a machine and is defective. An <b>MRN</b> sends it back
+      — and it counts <b>good and defective separately</b>, because they are not the same thing
+      arriving back at Stores and they do not go to the same place next.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Part Master</b> — item code and item name</li>
+        <li><b>The machine</b> it was removed from, where it was removed from one</li>
+        <li><b>The visit report</b> it relates to</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Return</p>
+      <h2>What an MRN records</h2>
+      <span class="who">stock.return</span>
+      <p>
+        The MRN number and date, the engineer, the part, and the two quantities — <b>good</b> and
+        <b>defective</b>. Both leave the engineer's hand stock; only the split says what Stores has
+        received.
+      </p>
+      <p>
+        A defective part also records <b>which equipment it was removed from</b> and the customer,
+        with the report it relates to.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>Good and defective are counted <b>apart</b>. A single "returned" number would make a defective part indistinguishable from an unused one.</li>
+        <li><b>A defective part with no origin cannot be investigated</b> — which is why the equipment it came off is recorded with it.</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<div class="panels">
+  <div class="panel">
+    <h3>Why derived rather than stored</h3>
+    <p>
+      A stored balance is a number somebody can edit, and once it can be edited it has to be
+      reconciled against the movements that were supposed to produce it. Deriving it means the
+      movements <b>are</b> the balance — there is nothing to reconcile, and no way for the two to
+      disagree.
+    </p>
+    <p>
+      The cost is that every movement has to be right, which is why each one is guarded at the
+      database rather than on a screen.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>Report vs Reconciliation</h3>
+    <p>
+      Both are consumption and both move the stock identically. <b>Report</b> is the engineer
+      writing up what they fitted; <b>Reconciliation</b> is the office booking a spare that was
+      fitted and never written up.
+    </p>
+    <p>
+      Keeping them tellable apart is what lets somebody ask how much of the register is the
+      engineers' own record and how much was tidied up afterwards — a question you cannot ask once
+      the flag is gone.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>Void vs delete</h3>
+    <p>
+      A wrong consumption line is set to <b>0</b>, not removed. The row keeps its original quantity,
+      its reason and its author, and the stock returns.
+    </p>
+    <p>
+      Deleting it would leave the balance right and the history wrong — and the history is the part
+      an auditor reads. The database refuses the delete outright.
+    </p>
+  </div>
+</div>
+<footer>
+  <p>
+    Drawn from the running system, not from memory: the balance view and its movement kinds in
+    <code>supabase/migrations/</code>, the consumption guard (0059, 0060), the quantity adjustment
+    and void rules (0062, 0063), the transfer stock check (0020), the returns register, the stock
+    out and its challan (0027, 0028) and the actor stamp (0211) — and the rights in
+    <code>src/lib/rbac.ts</code>.
+    Where this page and the code disagree, the code is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH A SHARED DIAGRAM AND AN IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
