@@ -6976,5 +6976,63 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('a missing document says so rather than rendering blank', /setFailed\(true\)/.test(hrf), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // NEVER CALL SUPABASE FROM INSIDE AN onAuthStateChange LISTENER.
+  //
+  // The listener runs while the auth client holds its internal lock, so an
+  // `await c.auth.getUser()` — or any PostgREST read, which needs the token —
+  // made from in there waits on a lock its own caller is holding. supabase-js
+  // documents it, and it is easy to write by accident because IT WORKS THE
+  // FIRST TIME: the direct call at boot is outside the callback and returns
+  // real data. Only a LATER event goes through the broken path.
+  //
+  // Reported from use (2026-09-16): "For 1 user alone - in 10Secs, it is going
+  // into ? instead of Profile Details ... no matter which user logins in, it is
+  // the same." The profile loaded, and seconds later the name and email went
+  // blank and the role fell back to Engineer.
+  // -------------------------------------------------------------------------
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('the auth listener hands its work to a fresh task',
+    /onAuthStateChange\(\(event\) => \{[\s\S]{0,400}setTimeout\(\(\) => cb\(event\), 0\);/.test(sb), true);
+  // A MICROTASK IS NOT ENOUGH — a promise continuation can still run before the
+  // lock is released — so the deferral must be a real task.
+  eq('...a task, not a microtask',
+    /onAuthStateChange\([\s\S]{0,400}queueMicrotask|onAuthStateChange\([\s\S]{0,400}Promise\.resolve\(\)\.then/.test(sb), false);
+  // AND THE EVENT REACHES THE CALLER. It was swallowed, so every event looked
+  // alike and the identity was re-read on a timer tick that cannot change it.
+  eq('...and the event is passed on, not swallowed',
+    /export function sbOnAuthChange\(cb: \(event: AuthEvent\) => void\)/.test(sb), true);
+  const authx = readFileSync('src/lib/auth.tsx', 'utf8');
+  eq('...so a token refresh does not re-read the profile',
+    /if \(event === 'TOKEN_REFRESHED'\) return;/.test(authx), true);
+
+  // -------------------------------------------------------------------------
+  // AN IDENTITY THAT COULD NOT BE READ SAYS SO.
+  //
+  // The last-resort profile used to be `full_name: user.email ?? ''` with the
+  // fallback role — so where the session carries no email it is a person with
+  // NO NAME ANYWHERE, shown as "—", "—" and "Engineer" with nothing saying
+  // why. `supabase.ts` condemns exactly that fifteen lines above the line that
+  // did it: a person quietly downgraded is the worst kind of permission bug,
+  // because it looks like the app is broken rather than like access was never
+  // granted.
+  //
+  // They stay SIGNED IN — locking somebody out of an app they can authenticate
+  // to is worse — so the fix is that every screen showing who they are admits
+  // the profile did not load.
+  // -------------------------------------------------------------------------
+  eq('an unreadable profile is marked, not dressed up as a real one',
+    /unresolved: true,/.test(sb), true);
+  eq('...and it is never a blank name', /full_name: user\.email \|\| 'Profile not loaded'/.test(sb), true);
+  eq('...the flag reaches the app\u2019s own user', /unresolved: p\.unresolved === true/.test(authx), true);
+  eq('...My Profile says so outright',
+    /user\?\.unresolved && \(/.test(readFileSync('src/modules/Profile.tsx', 'utf8')), true);
+  eq('...and the "?" avatar is marked rather than left looking like a glitch',
+    /user\?\.unresolved \? ' user-avatar-unresolved' : ''/.test(readFileSync('src/components/layout/Layout.tsx', 'utf8')), true);
+  eq('...with a rule of its own',
+    /\.user-avatar-unresolved \{/.test(readFileSync('src/components/layout/layout.css', 'utf8')), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

@@ -13,6 +13,51 @@ up)_
 
 ---
 
+## 2026-09-16 — The profile emptied itself ten seconds after sign-in
+
+Reported: *"For 1 user alone - in 10Secs, it is going into ? instead of Profile
+Details -- User is Deepika, But no matter which user Logins in, it is the
+same."* Name and email blank, role fallen back to Engineer, avatar a "?".
+
+**Not the same fault as yesterday.** 0199 fixed a role that was WRONG (User
+Master and `profiles` disagreeing). This is the whole identity going blank
+AFTER it had loaded, for everyone — a different shape, and the delay is the
+clue.
+
+**`sbOnAuthChange` awaited Supabase calls from inside the
+`onAuthStateChange` listener.** That listener runs while the auth client holds
+its internal lock, and `getUser()` — like any PostgREST read, which needs the
+token — waits on that same lock. supabase-js documents it.
+
+It is easy to write by accident because **it works the first time**: the boot
+call is outside the callback and returns real data. Only a LATER event goes
+through the broken path — and the later event is the automatic token refresh, a
+few seconds in. Hence "10 secs", and hence every user on every device.
+
+Two changes, both small:
+
+- The listener hands its work to a fresh task (`setTimeout(…, 0)` — a microtask
+  is not enough, a promise continuation can still run before the lock is
+  released) and the EVENT is passed on instead of being swallowed.
+- `TOKEN_REFRESHED` no longer re-reads the profile at all. It fires on a timer
+  and carries the same person every time, so it was a round trip per tick for
+  an answer that cannot have changed.
+
+**And the identity stopped lying.** `sbCurrentProfile`'s last resort returned
+`full_name: user.email ?? ''` with the fallback role — so where the session
+carries no email, a person with no name anywhere: "—", "—", "Engineer", and
+nothing saying why. `supabase.ts` condemns precisely that fifteen lines above
+the line that did it. They stay signed in (locking somebody out of an app they
+can authenticate to is worse), but My Profile now says the profile did not load,
+the role shown is a fallback, and the "?" is marked.
+
+**Confidence, stated honestly:** the deadlock is a real defect that matches the
+symptom in every particular, but it could not be reproduced from here — there is
+no live Supabase in the sandbox. If it recurs, `_profile_names_check.sql` is the
+next step: it answers whether the `profiles` row exists at all.
+
+---
+
 ## 2026-09-16 — The page IS the diagram, and it is no longer open to everyone
 
 Two asks on one page, a few hours after it shipped.

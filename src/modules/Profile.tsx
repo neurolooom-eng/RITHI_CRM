@@ -19,9 +19,11 @@ export function Profile() {
   const { theme, themes, setThemeId } = useTheme();
 
   const rows: [string, string][] = [
-    ['Name', user?.fullName || '—'],
-    ['Email', user?.email || '—'],
-    ['Role', roleLabel(user) || '—'],
+    // A DASH MEANS "EMPTY", AND HERE IT MEANT "NOT LOADED" — two different
+    // things that looked identical on this screen. The banner above says which.
+    ['Name', user?.unresolved ? '— not loaded —' : (user?.fullName || '—')],
+    ['Email', user?.unresolved ? '— not loaded —' : (user?.email || '—')],
+    ['Role', user?.unresolved ? 'Engineer (a fallback, not your role)' : (roleLabel(user) || '—')],
     ...(user?.designation ? [['Designation', user.designation] as [string, string]] : []),
     ...(user?.region ? [['Region', user.region] as [string, string]] : []),
   ];
@@ -29,6 +31,24 @@ export function Profile() {
   return (
     <div>
       <PageHeader title="My Profile" subtitle="Your account, password and appearance" icon="👤" />
+
+      {/* THE PROFILE DID NOT LOAD, so say it. Reported 2026-09-16: this page
+          showed "—" for the name, "—" for the email and "Engineer" for the
+          role, and nothing on it said why — which reads as a broken app rather
+          than as an account that needs setting up. The identity is a stand-in
+          and the person stays signed in; what changes is that they can now tell
+          somebody WHAT is wrong. */}
+      {user?.unresolved && (
+        <div className="sheet-banner sheet-banner-error">
+          <span>
+            <b>Your profile did not load.</b> You are signed in, but there is no profile record
+            for this login — so the name, email and role above are not yours, and the app is
+            treating you as an Engineer until one exists. An administrator can put it right under{' '}
+            <b>User Access</b>; until then, do not take what this page says about your role as
+            fact. Signing out and in again will not fix it.
+          </span>
+        </div>
+      )}
 
       <SectionCard title="Account">
         <div className="assoc-scroll">

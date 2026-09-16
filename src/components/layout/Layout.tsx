@@ -543,7 +543,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
           <div className="header-user">
             <button className="user-chip" onClick={() => setMenuOpen((o) => !o)}>
-              <span className="user-avatar">{user?.fullName?.[0] ?? '?'}</span>
+              {/* "?" USED TO BE THE ONLY SIGN that a profile had not loaded, and
+                  it reads as a rendering glitch rather than as a problem with
+                  the account. It still shows — there is nothing else to draw —
+                  but it is now marked, and the menu below says what it means. */}
+              <span className={`user-avatar${user?.unresolved ? ' user-avatar-unresolved' : ''}`}
+                title={user?.unresolved ? 'Your profile did not load — open My Profile' : undefined}>
+                {user?.fullName?.[0] ?? '?'}</span>
               <span className="user-meta">
                 <span className="user-name">{user?.fullName}</span>
                 <span className="user-role">{roleLabel(user)}</span>
