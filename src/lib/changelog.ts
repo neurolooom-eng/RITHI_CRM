@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.289',
+    date: '2026-09-16',
+    title: 'A HandStock request now goes to NSM',
+    changes: [
+      'REPLENISHMENT USED TO LEAVE ON ONE SIGNATURE. A HandStock request has no machine behind it, so it had no cover — and the rule that decided whether Commercial and NSM were needed only asked about the cover. With none, both were waved through and the request went from the manager straight to Stores.',
+      'NSM NOW REVIEWS EVERY HANDSTOCK REQUEST. The chain is manager → NSM → Stores. Commercial still auto-approves, because with no machine there is nothing chargeable to a customer — which is the question Commercial answers. The reason written on the request is what NSM is reading.',
+      'NOTHING ELSE CHANGED. A Call-Based request behaves exactly as before: AMC and OGP go through both Commercial and NSM, everything else goes straight to Stores.',
+      'The approval screen says so before you approve — “HandStock: approving clears Commercial and sends it to NSM, not to Stores” — rather than leaving you to notice the line did not arrive at Stores.',
+      'NOTHING ALREADY APPROVED IS RE-OPENED. Requests that were waved through under the old rule keep their approvals, including ones sitting at Stores or already dispatched.',
+      'Needs migration 0210 (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
     version: '0.9.288',
     date: '2026-09-16',
     title: 'How RITHI Functions now carries the Spare module too',

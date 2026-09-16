@@ -689,6 +689,11 @@ const MODULES = {
       '0033_rm_approves_own_team.sql',
       '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
+      // A HANDSTOCK REQUEST GOES TO NSM. LAST in this module: it redefines
+      // spare_line_stage (0016/0025) and both stage guards (0012/0016), so
+      // replaying this bundle with it anywhere earlier would put the old
+      // AMC/OGP-only rule back — no error, and the bundle would report success.
+      '0210_handstock_needs_nsm.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
