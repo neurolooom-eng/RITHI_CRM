@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
@@ -187,7 +188,7 @@ export function HandStock() {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
         tone: 'error',
-        text: /handstock|does not exist|schema cache/i.test(text) ? MIGRATION_HINT : `Load failed: ${text}`,
+        text: isMissingTable(text, 'handstock_balance', 'handstock_movements', 'handstock_opening') ? MIGRATION_HINT : `Load failed: ${text}`,
       });
     } finally { setBusy(false); }
   };
@@ -470,7 +471,7 @@ function Movements({
       setAllMoves(page); setOffset(page.length); setMore(page.length === PAGE);
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
-      if (/handstock|does not exist|schema cache/i.test(text)) onMigrationError();
+      if (isMissingTable(text, 'handstock_balance', 'handstock_movements', 'handstock_opening')) onMigrationError();
       else setErr(text);
       setAllMoves([]); setMore(false);
     } finally { setBusy(false); }

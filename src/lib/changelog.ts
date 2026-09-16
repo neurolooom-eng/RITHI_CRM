@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.284',
+    date: '2026-09-16',
+    title: 'Stock Out is back, and a migration hint no longer cries wolf',
+    changes: [
+      'STOCK OUT WAS EMPTY AND TOLD YOU TO RUN SQL THAT WAS ALREADY IN. Both halves of that were faults, and the second one is the worse: a message you act on, that sends you to re-run a bundle applied months ago.',
+      'The register itself: it was sorted by a column the underlying view calls something else. That is not a wonky sort order — the database refuses the whole request, so the page came back with nothing on it. Stock Out and the Stock outs tab under Pending Dispatch both read normally again.',
+      'THE HINT: fourteen screens decided “this table is missing, run a migration” by looking for the words “does not exist” anywhere in the error. The database says those words about a missing COLUMN, a missing function and a missing operator too — so any of them turned into an instruction to run SQL. Every screen now asks the question that was meant: is the table actually absent? A permission problem says so instead, and anything else shows you the real error rather than covering it up.',
+      'Two new checks so neither can come back: one asks a real database whether every sorted-and-paged read names a column that exists, and one proves the missing-table test can tell a table from a column.',
+    ],
+  },
+  {
     version: '0.9.283',
     date: '2026-09-15',
     title: 'Cover is one word, the drawer is three columns, and the requirements name every screen',

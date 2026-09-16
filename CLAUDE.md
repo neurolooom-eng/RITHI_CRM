@@ -288,6 +288,26 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **`create or replace view` can only APPEND columns.** Inserting one in the
   middle fails with "cannot change name of view column"; add at the end, or drop
   and recreate (and then everything depending on the view must be rebuilt too).
+- **A PAGED READ'S `order()` COLUMN MUST EXIST, AND POSTGREST ANSWERS A BAD ONE
+  WITH AN ERROR — not with unsorted rows.** So the register comes back EMPTY,
+  not merely out of order. Reported from use (2026-09-16): Stock Out was blank
+  because `listStockOutLines` ordered by `id` and the view publishes
+  `dl.id as line_id`. Nothing could catch it by reading — the column is a
+  STRING in a chained call, no type-checker sees it, and `dl.id as line_id`
+  reads like an `id` until you look twice. `npm run check:orders -- "<psql
+  args>"` asks a DATABASE, for all 109 order columns across 53 relations.
+- **"DOES NOT EXIST" IS NOT A QUESTION ABOUT THE TABLE.** Postgres says it about
+  a missing COLUMN, FUNCTION and OPERATOR in the same words, so fourteen screens
+  matching `/foo|does not exist|schema cache/` turned any of those into *"run
+  migration 00xx"* — an instruction, ACTED ON, sending somebody to re-run a
+  bundle already in. Same argument as a `_status.sql` row that answers NO for
+  nothing: worse than no message. `isMissingTable()` in `src/lib/dberror.ts` is
+  the one test — it rules out column/function/operator FIRST, then asks whether
+  the message is about a RELATION, then whether it is one of the screen's own.
+  `loadFailure()` gives the three answers (migration · grant · the error
+  VERBATIM, because the real fault was readable in the message and a hint
+  overwrote it). `check:dberror` proves it, and `check:ui` refuses a bare
+  `does not exist` test in any module.
 - **POSTGREST CAPS A RESPONSE AT 1,000 ROWS HOWEVER LARGE THE `limit` SAYS, and
   silently.** So `.limit(20000)` is not a bigger request — it is a line that
   reads like a precaution and is the thing HIDING the truncation. Everything

@@ -4,12 +4,50 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (0207 and 0208 APPLIED to the live project —
-`_status.sql` rows 159 and 160; rows 150-153 applied earlier)_
+_Last updated: 2026-09-16 (Stock Out's empty register and its false migration
+hint; 0207 and 0208 APPLIED — `_status.sql` rows 159 and 160)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — Stock Out was empty and told the user to run SQL already in
+
+Reported from use, and two faults stacked — the second worse than the first.
+
+**The register.** `listStockOutLines` ordered by `id`; the view publishes that
+column as `line_id` (`dl.id as line_id`). PostgREST does not answer a bad ORDER
+with unsorted rows — it answers with an **error**, so Stock Out and the Stock
+outs tab came back with nothing at all. Mine, from the paging sweep: the paging
+was the right fix and the order column was wrong.
+
+**The hint, which is the one that cost something.** Fourteen screens decided
+"this table is missing" by matching `does not exist` anywhere in the error.
+Postgres says that about a missing COLUMN too — so the screen read its own
+symptom as an absent table and printed *"Stock outs need migration
+0027_spare_dispatch.sql"* on a project that had run it months ago. An
+instruction that is ACTED ON, sending somebody to re-run a bundle already in,
+and teaching them the instruction may mean nothing. Exactly the argument this
+project already makes about a `_status.sql` row that answers NO for nothing.
+
+### What now holds it
+
+- `src/lib/dberror.ts` — `isMissingTable()` rules out column, function and
+  operator FIRST, then asks whether the message is about a RELATION, then
+  whether it is one of THIS screen's. `loadFailure()` gives three answers:
+  the migration, a grant, or **the error verbatim** — the real fault was
+  readable in the original message and the hint overwrote it.
+- `npm run check:orders -- "<psql args>"` asks a database whether every paged
+  ORDER column exists — 109 across 53 relations. It has to be a database: the
+  column is a string in a chained call, and `dl.id as line_id` reads like an
+  `id`.
+- `npm run check:dberror` proves the test can tell a table from a column, mostly
+  through NEGATIVE cases.
+- `check:ui` refuses a bare `does not exist` test in any module.
+
+Nothing to run on the live project: all four are application-side.
 
 ---
 

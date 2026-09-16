@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -50,7 +51,7 @@ export function KnowledgeBase() {
     if (!onDb) return;
     setBusy(true);
     try { setArticles(await kbList()); setMsg(null); }
-    catch (e) { setMsg({ tone: 'error', text: /kb_articles|does not exist|schema cache/i.test(String(e)) ? 'Knowledge Base needs migration 0042_knowledge_base.sql — run it in the Supabase SQL editor.' : `Load failed: ${e instanceof Error ? e.message : String(e)}` }); }
+    catch (e) { setMsg({ tone: 'error', text: isMissingTable(e, 'kb_articles') ? 'Knowledge Base needs migration 0042_knowledge_base.sql — run it in the Supabase SQL editor.' : `Load failed: ${e instanceof Error ? e.message : String(e)}` }); }
     finally { setBusy(false); }
   };
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, []);

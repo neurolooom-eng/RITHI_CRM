@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { Drawer } from '../components/ui/ui';
@@ -256,7 +257,7 @@ export function CallReportDrawer({
         if (!alive) return;
         const t = e instanceof Error ? e.message : String(e);
         setStock([]);
-        setStockErr(/handstock|does not exist|schema cache/i.test(t)
+        setStockErr(isMissingTable(t, 'handstock_balance', 'handstock_movements', 'handstock_opening')
           ? 'Hand stock needs migration 0023_handstock.sql — until it is run there is no stock to pick from.'
           : t);
       })
