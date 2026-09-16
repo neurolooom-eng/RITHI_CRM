@@ -111,3 +111,7 @@
      somebody can read rather than a sliver. */
   min-height: 600px;
 }
+
+/* The module picker. Chips rather than a dropdown: with two documents, a
+   control that hides one of them hides the fact that it exists. */
+.hf-docs { display: flex; gap: 8px; flex-wrap: wrap; }
