@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a Call Works</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Field Service · process reference</p>
+  <h1>How a call works</h1>
+  <p class="standfirst">
+    <b>Two ways in, one record.</b> Flow 1 is the Hotline registering a direct customer call
+    from scratch on <b>New Field Call</b> — the path where every field is answered by a master.
+    Flow 2 is the longer life of a call raised from a request in the field, through the visit,
+    the closure and the review. Read the middle column for <b>what happens</b>, the left for
+    <b>which master the screen is reading from</b>, and the right for <b>what the system
+    refuses and what it demands</b>. Everything here is enforced somewhere — a form rule,
+    an access policy or a database trigger — and the enforcement is named.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Masters in</strong>A controlled list the step reads. Nothing on the left is typed by hand.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not let happen, and where the refusal comes from.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+  <nav class="flownav" aria-label="The two flows">
+    <a href="#flow1">
+      <span class="flownav-n">Flow 1</span>
+      <span class="flownav-t">A customer rings, and you register the call yourself</span>
+      <span class="flownav-s">New Field Call · six steps · masters-led</span>
+    </a>
+    <a href="#flow2">
+      <span class="flownav-n">Flow 2</span>
+      <span class="flownav-t">The call's whole life, from a request in the field</span>
+      <span class="flownav-s">Request → call → visit → review · six stages</span>
+    </a>
+  </nav>
+
+
+<main class="flow"><main class="flow">
+
+  <!-- ================= FLOW 1 ================= -->
+  <section class="flowhead" id="flow1">
+    <p class="flowhead-n">Flow 1</p>
+    <h2 class="flowhead-t">A customer rings, and you register the call yourself</h2>
+    <p class="flowhead-p">
+      The Hotline's own path: <b>New Field Call</b>, with the customer on the phone. No request
+      exists, so nothing is carried in — <b>every fact on the form comes from a master, and the
+      order you fill it in is the order the masters answer</b>. Person Calling is
+      <i>DIRECT CUSTOMER</i>.
+    </p>
+    <p class="flowhead-p">
+      The point of this flow is that <b>almost nothing here is typed</b>. Four things are:
+      the complaint in the customer's own words, the complaint date, the three vigilance answers,
+      and the caller's name and number. Everything else is looked up — and where it is looked up,
+      it is <b>locked</b>, because the place to correct it is the master, not the call.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Product Database</b> — one row per machine. This is what makes a customer
+          <i>selectable</i>: the search offers the ones who own something</li>
+        <li><b>Party Master</b> — the customer list, so a name on file can always be found even
+          before a machine is against it</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 1 · Step 01</p>
+      <h2>Find the customer</h2>
+      <span class="who">Hotline</span>
+      <p>
+        Type into Party Name. The box searches as you type rather than loading every customer —
+        <b>the machines below are looked up BY this name</b>, so the two lists are run together:
+        owners lead, and the master guarantees a name on file can be found.
+      </p>
+      <p>
+        A customer who owns <b>no</b> machine is shown, greyed, reading <i>"no machine on
+        record"</i>. Shown rather than hidden on purpose: the reason on the row beats a bare
+        "nothing matches".
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A customer who owns a machine. On a field call there is nothing to service otherwise.</li>
+        <li><b>The exception is an installation</b>, which reaches somebody who has no machine yet — there, a new customer may be typed in.</li>
+        <li>The customer search must never come <b>before</b> the machine search on a request; here you are the one holding the phone, so you start from who is calling.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Party Master → Serviceman</b>, read the moment the customer is settled and held as the fallback engineer</li>
+        <li><b>Product Database</b> — the products this customer owns, then the serials of that product</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 1 · Step 02</p>
+      <h2>Pick the machine — product, then serial</h2>
+      <span class="who">Hotline</span>
+      <p>
+        Two steps rather than one box, because that is how the caller knows their own equipment:
+        <i>"the ORION-G"</i>, and then the serial off the label. The serial list is the machines
+        <b>this customer</b> holds of <b>that</b> product.
+      </p>
+      <p>
+        The customer's Serviceman is fetched once here, when the party settles — not again for
+        every serial. If the Party Master has no one against them, the box simply stays empty.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>The <b>serial number</b>. A service record that names a product but not the individual device is not a record of anything.</li>
+        <li>Every serial is offered, not the first thousand — a register that quietly truncates makes a real serial read as <i>"nothing matches"</i>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Warranty Register</b> — warranty number, start, end</li>
+        <li><b>Contract Register</b> — contract number, start, end, CMC or AMC</li>
+        <li><b>Cover vocabulary</b> — <code>WGP</code> · <code>OGP</code> · <code>CMC</code> · <code>AMC</code>, and nothing else</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 03</p>
+      <h2>What the machine brings with it</h2>
+      <p>
+        Choosing the serial fills eight fields at once, off that machine's row: the city and
+        state, the <b>cover</b> it is under, and its warranty and contract particulars. Nobody
+        types them and nobody should have to remember them.
+      </p>
+      <p>
+        <b>They arrive locked</b> — the form says <i>From Product Database (locked)</i>. That is
+        the whole idea: a cover typed onto a call is true of that call and of nothing else, so
+        the next call on the same machine disagrees with it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>Locked, not merely prefilled.</b> Wrong cover? Correct the machine in Product Database, or the register that feeds it — then every call reads right, including the ones already raised.</li>
+        <li>Cover is <b>one vocabulary</b>. "Warranty" is <code>WGP</code>, normalised on write, because two spellings split every count made on it without saying so.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Product Database → Service Engineer</b> (the machine's own)</li>
+        <li><b>Party Master → Serviceman</b> (the customer's)</li>
+        <li><b>User Master</b> — the list the box can be changed to</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 04</p>
+      <h2>Who it goes to</h2>
+      <p>
+        <b>The machine wins.</b> Call Allocated To is filled from the machine's own Service
+        Engineer; where the machine names nobody, the customer's Serviceman from the Party Master
+        answers instead.
+      </p>
+      <p>
+        Two masters, one box, and a stated precedence — so the common case needs no decision and
+        the awkward one still has an answer.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>A prefill, not a lock.</b> Unlike the cover, this box stays editable: whoever registers the call may know the regular engineer is on leave, and the master cannot.</li>
+        <li>What it can be changed <i>to</i> is the <b>User Master</b> — the directory plus the real sign-ins, deduplicated. Not a free-text name.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Standard Complaint master</b> — the controlled fault vocabulary</li>
+        <li><b>Past calls on this machine</b> — offered as suggestions, with how often each was chosen</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 1 · Step 05</p>
+      <h2>What is wrong — in two fields, doing two jobs</h2>
+      <p>
+        <b>Standard Complaint</b> is the controlled one: every count, filter and repeat-failure
+        match downstream runs on that value. <b>Complaint Reported</b> is the customer's own
+        words, free text, and is the one you read back to them.
+      </p>
+      <p>
+        Under both, past calls on this machine and this fault are offered — <i>"chosen on 85
+        similar calls"</i>. They state their grounds, you choose, and they appear only while the
+        call is being registered.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>The Standard Complaint takes no free text, in any module.</b> A typed value is a master entry that does not exist, and it matches nothing downstream. An empty master is a <i>master</i> problem — the field says so and stays a picker.</li>
+        <li class="mandate"><span class="tag">Mandate</span>Complaint Reported, and the complaint date.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Admin Config</b> — which Hotline desk a call is filed to</li>
+        <li><b>The signed-in session</b> — who is actually typing</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 1 · Step 06</p>
+      <h2>Save — and the database does the rest</h2>
+      <p>
+        Three things are assigned on save and none of them can be supplied by the app:
+      </p>
+      <p>
+        The <b>UCN</b> — <code>26I12F0002</code>, the second <b>F</b>ield call of 12 September
+        2026. The <b>Call Number</b> — <code>CL26#####</code> from a running series, which is what
+        a <i>direct</i> customer call gets; a call raised from a request carries the request's own
+        key instead. And <b>both registrant columns</b>.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>The three <b>vigilance answers</b> — public health threat, death, serious incident. Defaulted to NO, never skippable, and every later change to one is kept.</li>
+        <li><span class="tag db">Trigger</span><b>Created By</b> is the Hotline desk the call is filed to. <b>Actually Registered By</b> is you, taken from the session and not settable by the app.</li>
+        <li><b>The two differing is the finding</b>, not an error: only the Hotline engineer is trained on the vigilance questions, so a call registered by a stand-in is visible as one.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>Flow 1, as a ledger</h2>
+    <p>
+      Which master answers which field, in the order the form asks. <b>Locked</b> means the field
+      is filled and closed — correct the master, not the call.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead><tr><th>Field</th><th>Comes from</th><th>How</th></tr></thead>
+        <tbody>
+          <tr><td>Party Name</td><td>Product Database + Party Master</td><td>Type-search. Owners lead; a customer with no machine is unpickable</td></tr>
+          <tr><td>City · State</td><td>Product Database</td><td>Filled from the machine</td></tr>
+          <tr><td>Product Name · Serial</td><td>Product Database</td><td>Chosen — product, then serial</td></tr>
+          <tr><td>Item Status (cover)</td><td>Product Database ← Warranty / Contract</td><td><b>Locked</b></td></tr>
+          <tr><td>Warranty no. · start · end</td><td>Warranty Register</td><td><b>Locked</b></td></tr>
+          <tr><td>Contract no. · start · end · type</td><td>Contract Register</td><td><b>Locked</b></td></tr>
+          <tr><td>Call Allocated To</td><td>Machine's engineer, else Party Master's Serviceman</td><td>Prefilled, editable from the User Master</td></tr>
+          <tr><td>Standard Complaint</td><td>Standard Complaint master</td><td>Picker — no free text, ever</td></tr>
+          <tr><td>Complaint Reported</td><td>The customer</td><td><b>Typed.</b> Their words</td></tr>
+          <tr><td>Complaint Date</td><td>You</td><td><b>Typed</b>, and it is what every failure analysis dates the failure by</td></tr>
+          <tr><td>Vigilance × 3</td><td>The caller's answers</td><td><b>Typed.</b> Default NO, never skipped</td></tr>
+          <tr><td>Customer contact</td><td>The caller</td><td><b>Typed</b></td></tr>
+          <tr><td>UCN · Call Number</td><td>The database</td><td>Assigned on save. The app cannot supply either</td></tr>
+          <tr><td>Created By · Actually Registered By</td><td>Admin Config · the session</td><td>Stamped. Not settable</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= FLOW 2 ================= -->
+  <section class="flowhead" id="flow2">
+    <p class="flowhead-n">Flow 2</p>
+    <h2 class="flowhead-t">The call's whole life, from a request in the field</h2>
+    <p class="flowhead-p">
+      The longer path, and the one most calls take: an engineer in the field raises a request, the
+      Hotline turns it into a call, and it runs to a visit, a closure and a review. Flow 1 is the
+      first two of these stages compressed into one screen; everything from Stage 03 onwards is the
+      same for both.
+    </p>
+  </section>
+
+
+  <!-- 1 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Product Database</b> — every machine on record: model + serial, its customer, its cover</li>
+        <li><b>Party Master</b> — the customer, and the <b>service engineer</b> who looks after them</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 2 · Stage 01</p>
+      <h2>A request is raised</h2>
+      <span class="who">Engineer</span><span class="who">Regional Manager</span><span class="who">Hotline</span>
+      <p>
+        Somebody in the field reports a fault. The request is identified by a <code>REQID</code>
+        the database mints, and each machine on it becomes one call keyed
+        <code>REQID-Product-Serial</code>.
+      </p>
+      <p>
+        <b>The machine is found first, and the customer is read off it.</b> Searching for the
+        customer before the machine would mean knowing who owns it to find out who owns it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A <b>serial number</b>. A key that reads <code>…-NA</code> is a defect, not a variant.</li>
+        <li>One machine appears <b>at most once</b> on a request.</li>
+        <li>The <b>first call fixes the customer</b> for the whole request.</li>
+        <li>A party that owns <b>no machine</b> cannot be chosen — except on an installation, which reaches a customer who has none yet.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 2 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Warranty &amp; Contract registers</b> — the cover on this machine today</li>
+        <li><b>Cover vocabulary</b> — <code>WGP</code> · <code>OGP</code> · <code>CMC</code> · <code>AMC</code>, and nothing else</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Flow 2 · Stage 02</p>
+      <h2>It is registered as a call</h2>
+      <span class="who">Hotline desk</span>
+      <p>
+        The request is dispositioned — registered as a new call, mapped to an existing one,
+        or cancelled with a reason. A request cannot be silently dropped: one nobody can see
+        is indistinguishable from one nobody made.
+      </p>
+      <p>
+        On save the database assigns the <b>UCN</b> — year, month letter, day, a type letter
+        and a sequence: <code>26I12F0002</code> is the second <b>F</b>ield call of 12 September
+        2026. Installation calls take <code>I</code>, preventive maintenance <code>P</code>, and
+        the three live in separate tables behind one view, with a CHECK constraint against
+        mis-filing.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>Customer, product, <b>serial</b>, complaint date and the complaint as reported.</li>
+        <li class="mandate"><span class="tag">Mandate</span>The three <b>vigilance answers</b> — public health threat, death, serious incident. Defaulted to NO and never skippable.</li>
+        <li><span class="tag db">Trigger</span>The UCN is minted by the database. The app cannot supply one.</li>
+        <li><b>Two registrant columns, and they answer different questions</b> — the Hotline desk the call is filed to, and the person who actually typed it in. The two differing is the finding: only the Hotline engineer is trained on the vigilance questions.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Standard Complaint master</b> — the controlled fault vocabulary</li>
+        <li><b>User Master</b> — the engineers a call can be allotted to</li>
+        <li><b>Party Master</b> — the serviceman already looking after this customer</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Stage 03</p>
+      <h2>An engineer is allotted</h2>
+      <span class="who">Hotline</span><span class="who">Reporting Manager</span><span class="who">Regional Manager</span>
+      <p>
+        The engineer is proposed from the machine first and the party second; a call raised
+        from a request goes to the person who raised it. A manager can move a call, or several
+        at once, between the engineers reporting to them and themselves.
+      </p>
+      <p>
+        Past calls on the same machine and complaint are offered as suggestions <b>while the
+        call is being registered</b> — they state their grounds, they can be overruled, and
+        nothing is written without somebody choosing it.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>The Standard Complaint takes no free text, in any module.</b> Every count, filter and frequent-failure match runs on that value, so a hand-typed one matches nothing. An empty master is a master problem.</li>
+        <li>A manager may allot only <b>within their own reporting tree</b>.</li>
+        <li>Every dropdown is type-search-and-select — a native picker commits on the first keystroke, which is how a Root Cause nobody chose was once saved.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Part Master</b> — what may be requested</li>
+        <li><b>Hand Stock</b> — what this engineer actually holds, derived: issued − consumed ± transfers − returns</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Flow 2 · Stage 04 · optional</p>
+      <h2>Spares are requested and fitted</h2>
+      <span class="who">Engineer</span><span class="who">RM</span><span class="who">Commercial</span><span class="who">NSM</span><span class="who">Stores</span>
+      <p>
+        A spare request runs RM → Commercial → NSM → Stores, and Commercial and NSM approve
+        automatically unless the item is AMC or OGP. Stores may issue <b>fewer than were asked
+        for</b> when only part of the quantity is available; the balance stays open.
+      </p>
+      <p>
+        The engineer acknowledges each delivery. A spare counts as received only when the whole
+        quantity has been.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>Consumption is capped at the engineer's hand-stock balance.</b> Hand stock is derived and never stored, so consumption is the control point.</li>
+        <li>A wrong line is <b>voided, never deleted</b> — quantity set to zero, the row retained with its original quantity, reason and author, and the stock returns.</li>
+        <li>An engineer corrects nothing about the stock itself; the Spare Coordinator does.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 5 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Service Manuals</b> — the controlled document at the point of work</li>
+        <li><b>Call status vocabulary</b> — what a visit may conclude</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Flow 2 · Stage 05</p>
+      <h2>A visit is recorded</h2>
+      <span class="who">Engineer</span>
+      <p>
+        One row per visit: what was observed, what was done, the readings, and the status the
+        visit concluded with. <b>The call's status is then the latest ENTRY's</b> — not the
+        latest visit date, which is a different thing when a visit is written up late.
+      </p>
+      <p>
+        A call is <b>Unattended</b> only while it has no visit row at all. After that it reads
+        as whatever the last entry said.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>Every part fitted is recorded against the call, without a further confirming step.</li>
+        <li>A visit <b>cannot be dated in the future</b>, nor before the complaint it answers.</li>
+        <li>A closed call takes <b>no visit entry and no spare request</b> until it is re-opened.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 6 ------------------------------------------------------------------ -->
+  <section class="stage">
+    <div class="side in">
+      <h3>Masters in</h3>
+      <ul>
+        <li><b>Root Cause</b> and <b>Complaint Grouping</b> lists — the review's own vocabulary</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Flow 2 · Stage 06</p>
+      <h2>It is closed, reviewed, and read back</h2>
+      <span class="who">Hotline</span><span class="who">NSM</span><span class="who">Quality</span>
+      <p>
+        A closed call is reviewed in the Daily Call Review — the judgement that a Field Failure
+        Report is raised from, and the record every failure analysis is computed over. Every
+        judgement carries <b>who made it</b>, taken from the signed-in session.
+      </p>
+      <p>
+        A closed call can be re-opened by an authorised role where further work or a correction
+        is needed, and the re-opening is recorded and counted.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>A quality record is never deleted.</b> The database refuses it outright.</li>
+        <li>A call reading <i>Solved — Report Completed</i> is <b>read-only</b> to everyone but an administrator. The way back is Re-open, not an exemption — otherwise a call's history could gain a visit that never happened.</li>
+        <li>Every amendment after registration is kept, with the old value and the new.</li>
+      </ul>
+    </div>
+  </section>
+
+
+
+<!-- the status code ------------------------------------------------------ -->
+<section class="states">
+  <h2>The status code</h2>
+  <p>
+    These four colours are fixed, and identical in light and dark. A colour people have
+    learned to read is a code, and a code that means something else after dark is not one.
+    A UCN carries its call's colour <b>wherever it appears</b> — in any module. Where a screen
+    does not know the state, the UCN is drawn plain, because a wrong colour on a code is worse
+    than no colour.
+  </p>
+  <div class="chips">
+    <span class="chip" style="background:var(--st-unattended)">Unattended</span>
+    <span class="chip" style="background:var(--st-unsolved)">Unsolved</span>
+    <span class="chip" style="background:var(--st-pending)">Solved — Report Pending</span>
+    <span class="chip" style="background:var(--st-solved)">Solved</span>
+    <span class="chip" style="background:var(--st-reopened)">Re-opened</span>
+    <span class="chip" style="background:var(--st-cancelled)">Cancelled</span>
+  </div>
+  <div class="scroll">
+    <table class="transitions">
+      <thead>
+        <tr><th>From</th><th>What moves it</th><th>To</th><th>Who may</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>—</td><td>The call is registered</td><td>Unattended</td><td>Hotline desk</td></tr>
+        <tr><td>Unattended</td><td>A visit is entered, unresolved</td><td>Unsolved</td><td>The allotted engineer</td></tr>
+        <tr><td>Unsolved</td><td>A visit resolves it, report outstanding</td><td>Solved — Report Pending</td><td>The allotted engineer</td></tr>
+        <tr><td>Solved — Report Pending</td><td>The report is completed</td><td>Solved</td><td>The allotted engineer</td></tr>
+        <tr><td>Solved</td><td>Further work or a correction is needed</td><td>Re-opened</td><td>Hotline · call creators</td></tr>
+        <tr><td>Re-opened</td><td>The re-open is withdrawn — it was only to correct the record</td><td>back to what the last visit said</td><td>Hotline · call creators</td></tr>
+        <tr><td>Unattended <i>or</i> Unsolved</td><td>The call should not exist</td><td>Cancelled</td><td>Holders of <code>calls.cancel</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- panels --------------------------------------------------------------- -->
+<div class="panels">
+
+  <div class="panel">
+    <h3>Who may see which call</h3>
+    <p>
+      Visibility is decided by the database, not by the screen, and it is evaluated
+      <b>once per query</b> rather than once per row.
+    </p>
+    <ul>
+      <li><b>An engineer</b> sees their own calls.</li>
+      <li><b>A reporting manager</b> sees their team's, down the whole reporting tree.</li>
+      <li><b>The office roles</b> — Hotline, NSM, Commercial, Spare Coordinator, Stores, Tally — see everything, because they coordinate across engineers.</li>
+      <li><b>Anyone else</b> needs the explicit grant. Opening a screen and seeing the rows are two different rights: the module key opens the page, the read policy decides the rows.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>Editing is granted section by section</h3>
+    <p>
+      One "edit" right cannot express the distinction a quality record needs — correcting a
+      telephone number and re-answering whether a patient was harmed are not the same act.
+      Each is its own authority, each refusal comes from the database, and each change is
+      attributable:
+    </p>
+    <ul>
+      <li>the complaint as reported</li>
+      <li>the customer and the machine it names</li>
+      <li>the <b>vigilance answers</b></li>
+      <li>the customer's contact details</li>
+      <li>re-allotting the call · cancelling and restoring it</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h3>What a call is worth downstream</h3>
+    <p>
+      The call is not the end of anything. Its record is read by the Daily Call Review, the
+      Field Failure Register, Product Failure Analysis, the KPI views, the consumption reports
+      and the customer feedback.
+    </p>
+    <p>
+      Which is why the controlled values matter more than they look: a hand-typed complaint, a
+      second spelling of one cover, a status that does not follow the latest entry — each one
+      is a number somebody later acts on, quietly wrong.
+    </p>
+  </div>
+
+</div>
+
+<footer>
+  <p>
+    Drawn from the running system, not from memory: the call tables and their triggers in
+    <code>supabase/migrations/</code>, the form schema in <code>src/modules/FieldCalls.tsx</code>,
+    the access rules in <code>src/lib/rbac.ts</code> and the call policies, the status colours in
+    <code>src/lib/callstate.tsx</code>, and the module's own requirements —
+    <code>docs/CALL_REQUEST_REQUIREMENTS.md</code> and <code>docs/REQUIREMENTS.md</code>.
+    Where this page and the code disagree, the code is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH THE SHARED DIAGRAM AND THE IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>
