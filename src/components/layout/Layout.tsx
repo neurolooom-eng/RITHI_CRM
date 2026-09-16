@@ -139,7 +139,12 @@ export const NAV: NavGroup[] = [
       // proceed without. `alwaysOpen` like its neighbours: there is nothing
       // here to grant, and a page explaining how the system works is of most
       // use to whoever has just been refused something by it.
-      { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭', alwaysOpen: true },
+      // NOT `alwaysOpen` ANY MORE (the user, 2026-09-16: "Limit Exposure to
+      // Admin, NSM, Zoho, Technical Support"). Dropping the flag is what makes
+      // the menu entry follow the permission; the permission itself is the
+      // module key, granted to those four roles by 0209. Removing a menu entry
+      // does not restrict a page — the route still answers.
+      { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭' },
       { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
       { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
     ],

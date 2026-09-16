@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.286',
+    date: '2026-09-16',
+    title: 'How RITHI Functions is now the shared diagram itself, and restricted to four roles',
+    changes: [
+      'THE PAGE IS THE DIAGRAM. Rather than a re-typed version of the shared flow chart, the page now carries that exact document — same layout, same typography, same colours — because it IS the file, not a copy of it. The shared link and the in-app page are one document, so they cannot drift into two that disagree.',
+      'It follows your theme: pick a dark theme and the document goes dark with the rest of the app. And “Open on its own” gives you the same page without the app around it, for printing or for a second screen.',
+      'RESTRICTED TO ADMIN, NSM, ZOHO MIGRATION AND TECHNICAL SUPPORT. It shipped open to everyone this morning; it now has a permission of its own, and Roles & Permissions can widen or narrow it like any other page.',
+      'Needs migration 0209 (apply bundle: rbac.sql) — until it is run, the page reaches nobody. Removing a menu entry does not restrict a page; the permission does.',
+    ],
+  },
+  {
     version: '0.9.285',
     date: '2026-09-16',
     title: 'Export the permission matrix, and a new Knowledge Base topic: How RITHI Functions',

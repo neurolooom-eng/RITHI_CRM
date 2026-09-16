@@ -351,9 +351,12 @@ export const URS: Req[] = [
     // in the package, and the work itself is tracked.
     modules: ['/version-history', '/software-validation', '/tracker'] },
   { id: 'URS-020', title: 'Knowledge base', text: 'The team shall maintain how-to guidance and field-solution knowledge within the system.', risk: 'Low',
-    // The manuals and the field-solution notes are kept here; the other two
-    // Knowledge Base entries are open to everyone and are not modules.
-    modules: ['/service-manuals'] },
+    // The manuals and the field-solution notes are kept here, and "How RITHI
+    // Functions" is the same requirement met a third way — guidance maintained
+    // WITHIN the system rather than in a document somebody has to be sent.
+    // (The other two Knowledge Base entries are open to everyone and are not
+    // modules, so there is nothing to file under them.)
+    modules: ['/service-manuals', '/knowledge-base/how-it-works'] },
   { id: 'URS-021', title: 'Partial issue of spares', text: 'Stores shall be able to issue fewer units of a spare than were requested when only part of the quantity is available, and the outstanding balance shall remain visible as still due.', risk: 'Medium',
     // Issuing fewer than were asked for is done here, and the balance stays
     // open.

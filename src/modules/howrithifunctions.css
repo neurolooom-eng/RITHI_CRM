@@ -79,3 +79,35 @@
 @media (max-width: 640px) {
   .hf-flow-head h2 { font-size: 19px; }
 }
+
+/* ---------------------------------------------------------------------------
+   THE EMBEDDED DOCUMENT.
+
+   `public/docs/how-a-call-works.html` is the same file that is shared outside
+   the app, framed from this app's own origin — the claude.ai copy cannot be
+   embedded (`x-frame-options: SAMEORIGIN`) and is private besides, so pointing
+   an iframe at it would render an empty box for everybody but its author.
+
+   NO BORDER AND NO INNER SCROLLBAR. The document reports its own height and
+   the frame is set to it, so the page scrolls once, as one page. A fixed height
+   here would give the reader a scrollbar inside a scrollbar, which on a
+   document this long is worse than not embedding it at all.
+   --------------------------------------------------------------------------- */
+.hf-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin: 2px 0 12px;
+}
+.hf-bar-note { color: var(--text-muted); font-size: 13px; }
+.hf-bar-spacer { flex: 1 1 auto; }
+
+.hf-frame {
+  display: block; width: 100%; border: 0;
+  /* The document paints its own background, and it is not the app's — it is a
+     designed page with its own palette. A transparent frame would show the
+     app's surface through the gaps and read as a rendering fault. */
+  background: transparent;
+  border-radius: 10px;
+  /* Its own minimum, so a frame that never reports a height is still a page
+     somebody can read rather than a sliver. */
+  min-height: 600px;
+}

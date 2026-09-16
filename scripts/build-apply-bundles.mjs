@@ -135,6 +135,10 @@ const MODULES = {
             // policies decide the rows, and neither role passed either. It
             // touches those two roles alone.
             '0207_analysis_roles_see_the_data.sql',
+            // The How RITHI Functions page, restricted to four roles. A module
+            // key is only a restriction once it is IN app_roles — a code
+            // default reaches nobody on a project whose roles are all tuned.
+            '0209_how_rithi_functions_key.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is

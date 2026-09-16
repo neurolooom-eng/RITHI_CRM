@@ -339,6 +339,22 @@ Warranty and contract cover per machine shall be maintained and reflected on cal
 
 # Knowledge Base
 
+## How RITHI Functions `/knowledge-base/how-it-works`
+
+Opened by `mod:/knowledge-base/how-it-works`.
+
+### URS-020 — Knowledge base
+
+*Risk: Low. Filed here because the requirement declares this screen.*
+
+The team shall maintain how-to guidance and field-solution knowledge within the system.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-025** — Knowledge base | Low | OQ-13 |
+
+**FRS-025.** A how-to guide plus team field-solution articles (sanitised rich text) are available to all; author or admin edits.
+
 ## Service Manuals `/service-manuals`
 
 Opened by `mod:/service-manuals`.
@@ -1749,7 +1765,7 @@ text alone.
 
 ## Screens no user requirement governs
 
-**2 of 56.** Each is written down with its reason in
+**2 of 57.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
@@ -1762,7 +1778,7 @@ questions for a person.
 
 ---
 
-**67** user requirements · **79** system requirements · **30** call-request · **44** servicing · **71** tests · **2** recorded as non-auditable · **103** of 67 user requirements tied to a module.
+**67** user requirements · **79** system requirements · **30** call-request · **44** servicing · **71** tests · **2** recorded as non-auditable · **104** of 67 user requirements tied to a module.
 
 ---
 

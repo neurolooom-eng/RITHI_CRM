@@ -4,12 +4,61 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (the permission-matrix export and How RITHI
-Functions; 0207 and 0208 APPLIED — `_status.sql` rows 159 and 160)_
+_Last updated: 2026-09-16 (0209 is BUILT AND NOT YET RUN — `_status.sql` row
+161; 0207 and 0208 APPLIED, rows 159 and 160)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — The page IS the diagram, and it is no longer open to everyone
+
+Two asks on one page, a few hours after it shipped.
+
+**"Limit Exposure to Admin, NSM, Zoho, Technical Support."** It shipped
+`alwaysOpen` — not a module at all. It is one now, and the thing worth writing
+down is what would NOT have restricted it: **removing the menu entry**. The
+route still answers, and anyone sent the address still reaches it. The
+permission is the restriction; the menu follows it.
+
+`admin: true` on the module keeps the key out of `NON_ADMIN_MODULES`, which
+leaves the three roles in `SEES_EVERY_MODULE`; NSM is named in its own defaults.
+**0209** is the other half — on a project in use every role has a tuned row, so
+`permsForRole()` never reaches the code defaults and the tick grants nobody
+anything. That rule is usually quoted about ADDING a page; it applies identically
+to narrowing one.
+
+`_status.sql` row 161 checks **both halves**, because "limit exposure" is two
+statements: every one of the four holds it, and nobody outside them does. A
+migration that grants the four and leaks to a fifth passes every check that only
+looks at the four. Mutation-tested in both directions.
+
+**"Is it possible to embed the Artifact? I want the same Look and Feel."**
+Not the claude.ai URL — asked directly it answers `x-frame-options: SAMEORIGIN`
+and `cross-origin-resource-policy: same-origin`, and the page is private
+besides. An iframe at it renders an empty box for everybody but its author,
+which is the kind of thing that looks right to whoever built it.
+
+So the document itself lives in the repository at
+`public/docs/how-a-call-works.html` and is framed from this app's own origin.
+The look and feel is identical because it IS the file. The shared copy is now
+**published from that path**, so there is one document rather than two.
+
+What a frame costs is handled: the host's theme is passed in (every app theme
+declares `scheme`, so all the dark ones hand it `dark`), the document reports
+its own height so there is no scrollbar inside a scrollbar, and a missing
+document says so rather than rendering blank.
+
+A guard written for this caught a false positive in itself: the first version
+matched `<iframe` inside the comment EXPLAINING why claude.ai cannot be framed,
+and failed a file that was correct. It reads `code()` now — a check that treats
+documentation as code fails exactly where the reasoning is best written down.
+
+### Still to run on the live project
+
+`_status.sql` first; row **161**. Then `rbac.sql` (0209).
 
 ---
 
