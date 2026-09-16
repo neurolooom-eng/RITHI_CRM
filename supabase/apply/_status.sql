@@ -1034,6 +1034,18 @@ with checks(sort_order, bundle, provides, present) as (
          and not exists (select 1 from public.app_roles
                           where permissions ? 'mod:/knowledge-base/how-it-works'
                             and role not in ('admin','nsm','zoho_migration','technical_support')))))
+,
+    (162, 'A HandStock request goes to NSM', 'spare_needs_nsm() + spare_is_handstock() and the line guard (0210). The user: "For Handstock request - NSM has to approve the request." Before this ONE rule decided both middle stages -- spare_needs_review(item_status) = AMC or OGP -- and a HandStock request has NO MACHINE, so no item status, so the rule was FALSE: the RM''s approval stamped BOTH Commercial and NSM ''Auto-Approved'' in the same write and the line went straight to Stores. Replenishment left the building on one signature. The two stages stop sharing a rule because they no longer ask the same question: Commercial is AMC/OGP as before, NSM is AMC/OGP OR HandStock. THE RULE MOVED OUT OF THE STAGE FUNCTION AND INTO WHAT IS STAMPED, which is why spare_line_stage keeps its six arguments: SEVEN migrations call it (0016, 0025, 0031, 0055, 0116, 0118, 0154) and three define views whose current definitions live in the later files, so a seventh argument would be a lot of surface for one rule -- and a six-argument version left beside a seven-argument one answers the OLD rule, correctly-looking, for anything still calling it. The stage now reads the recorded columns alone, which is the more honest reading: a stage reports the decisions on the record rather than re-deriving from the cover whether a decision was required. THAT IS ONLY SAFE BECAUSE 0210 FIRST PINS TODAY''S MEANING INTO THE DATA -- every line the old rule waved through has ''Auto-Approved'' written into the columns it waved through, without a by/at, because nobody decided them and inventing an approver on a quality record is worse than an outcome with no name against it. Without that step every settled line would march backwards out of Stores into Commercial. THE ROW TESTS THE RULE AND THE GUARD: the rule alone would be decoration, since the RM would simply stamp NSM themselves in the same write, exactly as they legitimately may on a Call-Based CMC line. NO means HandStock replenishment goes out on one signature again. Restore: Spare_1.sql',
+        (to_regclass('public.spare_requests') is null
+         or (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                      where n.nspname = 'public' and p.proname = 'spare_needs_nsm')
+         and public.spare_needs_nsm('', 'HandStock')
+         and public.spare_needs_nsm('AMC', 'Call Based')
+         and not public.spare_needs_nsm('CMC', 'Call Based')
+         and not public.spare_needs_commercial('')
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.spare_request_lines'::regclass
+                        and tgname = 'spare_request_lines_guard' and not tgisinternal))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

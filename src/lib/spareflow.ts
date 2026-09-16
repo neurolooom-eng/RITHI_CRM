@@ -18,15 +18,47 @@ export type Decision = 'approve' | 'reject';
 export type Stage = 'RM Approval' | 'Commercial' | 'NSM' | 'Stores' | 'Dispatched' | 'Received' | 'Dropped' | 'Rejected';
 
 export interface SpareReq {
-  uid?: unknown; item_status?: unknown;
+  uid?: unknown; item_status?: unknown; req_type?: unknown;
   rm_approval?: unknown; commercial_approval?: unknown; nsm_approval?: unknown; stores_status?: unknown;
   received_at?: unknown;
   [k: string]: unknown;
 }
 
 const s = (v: unknown) => String(v ?? '').trim();
-// Commercial / NSM must review AMC or OGP items; everything else auto-approves.
-export const needsReview = (itemStatus: unknown): boolean => /^(amc|ogp)$/i.test(s(itemStatus));
+
+// ---------------------------------------------------------------------------
+// THE TWO MIDDLE STAGES NO LONGER SHARE A RULE.
+//
+// The user, 2026-09-16: "For Handstock request - NSM has to approve the
+// request." Until then ONE rule decided both — AMC or OGP — and a HandStock
+// request has no machine, so no item status, so the rule was false and the
+// RM's approval stamped BOTH stages 'Auto-Approved' and sent the line straight
+// to Stores. Replenishment left the building on one signature.
+//
+//   needsCommercial   AMC or OGP                  (unchanged)
+//   needsNsm          AMC or OGP, OR HandStock
+//
+// Mirrored in SQL by `spare_needs_commercial` / `spare_needs_nsm` (0210), which
+// is what the GUARDS test — this copy decides what the app offers and what it
+// writes; the database decides what it will accept.
+// ---------------------------------------------------------------------------
+
+/** HandStock, however it was spelled. The app writes 'HandStock'; the sheet era
+ *  wrote 'Hand Stock' and 'HANDSTOCK', and an import is not going to be
+ *  retyped. Same argument as `coverCode()`, and the SQL squashes identically. */
+export const isHandStock = (reqType: unknown): boolean =>
+  s(reqType).toLowerCase().replace(/[^a-z]/g, '') === 'handstock';
+
+export const needsCommercial = (itemStatus: unknown): boolean => /^(amc|ogp)$/i.test(s(itemStatus));
+
+export const needsNsm = (itemStatus: unknown, reqType: unknown): boolean =>
+  needsCommercial(itemStatus) || isHandStock(reqType);
+
+/** @deprecated Ask `needsCommercial` or `needsNsm` — they are different
+ *  questions now. Kept because the screens use it for one thing it is still
+ *  right about: whether the two middle stages will be skipped ENTIRELY, which
+ *  is only true for a Call-Based line that is neither AMC nor OGP. */
+export const needsReview = (itemStatus: unknown): boolean => needsCommercial(itemStatus);
 const isApproved = (v: unknown) => /approv|auto/i.test(s(v)); // "Approved" or "Auto-Approved"
 
 export function deriveStage(r: SpareReq): Stage {
@@ -37,9 +69,12 @@ export function deriveStage(r: SpareReq): Stage {
   if (/drop/i.test(s(r.stores_status))) return 'Dropped';
   if (/dispatch/i.test(s(r.stores_status))) return 'Dispatched';
   if (!isApproved(r.rm_approval)) return 'RM Approval';
-  const review = needsReview(r.item_status);
-  if (review && !isApproved(r.commercial_approval)) return 'Commercial';
-  if (review && !isApproved(r.nsm_approval)) return 'NSM';
+  // FOLLOWS THE RECORD, not the cover. Whether a stage was REQUIRED is settled
+  // once, at RM approval, by whether 'Auto-Approved' is written into it — which
+  // is the same thing `spare_line_stage` does in SQL since 0210, and the reason
+  // that function keeps its six arguments while seven migrations call it.
+  if (!isApproved(r.commercial_approval)) return 'Commercial';
+  if (!isApproved(r.nsm_approval)) return 'NSM';
   return 'Stores';
 }
 
@@ -123,7 +158,13 @@ export function buildPatch(r: SpareReq, decision: Decision, actor: string, reaso
   }
   if (stage === 'RM Approval') {
     Object.assign(patch, { rm_approval: 'Approved', rm_by: actor, rm_at: now });
-    if (!needsReview(r.item_status)) { patch.commercial_approval = 'Auto-Approved'; patch.nsm_approval = 'Auto-Approved'; }
+    // EACH STAGE ASKED SEPARATELY. A HandStock line is waved through Commercial
+    // and STOPS AT NSM; an AMC or OGP line stops at both; everything else goes
+    // to Stores. No `_by`/`_at` is written with an auto-approval — nobody
+    // decided it, and inventing an approver on a quality record is worse than
+    // an outcome with no name against it.
+    if (!needsCommercial(r.item_status)) patch.commercial_approval = 'Auto-Approved';
+    if (!needsNsm(r.item_status, r.req_type)) patch.nsm_approval = 'Auto-Approved';
   } else if (stage === 'Commercial') {
     Object.assign(patch, { commercial_approval: 'Approved', commercial_by: actor, commercial_at: now });
   } else if (stage === 'NSM') {

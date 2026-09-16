@@ -342,6 +342,26 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.
+- **THE TWO MIDDLE SPARE STAGES DO NOT SHARE A RULE** (0210). Commercial judges
+  whether somebody is being CHARGED — AMC or OGP; NSM judges whether the stock
+  is WARRANTED — AMC or OGP **or a HandStock request**, which has no machine
+  behind it and so no cover for Commercial to weigh. `spare_needs_commercial` /
+  `spare_needs_nsm` in SQL, `needsCommercial` / `needsNsm` in `spareflow.ts`.
+  **`spare_line_stage` KEEPS ITS SIX ARGUMENTS and no longer reads
+  `item_status`**: seven migrations call it (0016, 0025, 0031, 0055, 0116, 0118,
+  0154) and three define views whose current definitions live in later files, so
+  a seventh argument is a lot of surface — and a six-arg version left beside a
+  seven-arg one answers the OLD rule, correctly-looking, for whatever still
+  calls it. The rule lives in what gets STAMPED at RM approval instead, which
+  also makes the stage report the record rather than re-deriving it.
+  **That is only safe because 0210 first writes today's meaning into the data** —
+  every line the old rule waved through gets `Auto-Approved` in the columns it
+  waved through, with NO `_by`/`_at`, since nobody decided them. Without that
+  step every settled line marches backwards out of Stores.
+  **Approvals are PER LINE**: `spare_requests_stage_guard()` (0016) refuses any
+  approval written to the request itself, and redefining it is how a wider hole
+  than the one you are closing gets opened — `check:replay` caught exactly that
+  in 0210's first draft.
 - **Hand stock is derived, never stored** — issued − consumed ± transfers −
   returns. Consumption is therefore the control point: a DB trigger caps every
   consumption line at the engineer's balance. Reported lines are capped too;

@@ -4,12 +4,73 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (the Spare module documented; 0207, 0208 and 0209 all
-APPLIED — `_status.sql` rows 159, 160 and 161)_
+_Last updated: 2026-09-16 (0210 is BUILT AND NOT YET RUN — `_status.sql` row
+162; 0207-0209 APPLIED, rows 159-161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — A HandStock request goes to NSM
+
+*"For Handstock request - NSM has to approve the request."*
+
+**Replenishment was leaving on one signature.** One rule decided both middle
+stages — `spare_needs_review(item_status)` = AMC or OGP — and a HandStock
+request has no machine, so no item status, so the rule was FALSE: the RM's
+approval stamped BOTH Commercial and NSM `Auto-Approved` in the same write and
+the line went straight to Stores.
+
+The two stages stop sharing a rule, because they no longer ask the same
+question. Commercial judges whether somebody is being CHARGED (AMC/OGP,
+unchanged); NSM judges whether the stock is WARRANTED — and replenishment is
+the case where only the second question has an answer.
+
+### The design decision worth recording
+
+The obvious change is a seventh argument on `spare_line_stage`. It is the wrong
+one: **seven migrations call that function** (0016, 0025, 0031, 0055, 0116,
+0118, 0154) and three define views whose current definitions live in the later
+files. And leaving a six-argument version beside a seven-argument one is the
+two-definitions trap — the short one cannot see `req_type`, so it answers the
+OLD rule, correctly-looking, for anything still calling it.
+
+So **the rule moved out of the stage and into what gets STAMPED**. The stage now
+follows the recorded columns alone, which is the more honest reading anyway: a
+stage should report the decisions on the record, not re-derive from the cover
+whether a decision was required. Whether a stage is needed is settled once, at
+RM approval.
+
+**Which is what makes step 2 of 0210 the important part.** Under the old rule a
+line could sit at Stores with BLANK middle columns — nothing was ever written,
+because nothing was needed. Read by the new rule those rows say "Commercial has
+not approved" and would march backwards out of Stores. So today's meaning is
+pinned into the data first: every line the old rule waved through gets
+`Auto-Approved` written into the columns it waved through — with **no `_by` or
+`_at`**, because nobody decided them and inventing an approver on a quality
+record is worse than an outcome with no name against it.
+
+### check:replay caught a regression in my own migration
+
+The first draft redefined `spare_requests_stage_guard()` with the old per-stage
+logic. That function was **superseded by 0016**, whose body refuses any approval
+written to `spare_requests` at all — *"Spare approvals are recorded per spare —
+update spare_request_lines, not the request"*. Redefining it would have quietly
+re-opened request-level approval writes: **a wider hole than the one this closes**.
+Caught before it shipped, by the check written for exactly that.
+
+Two more faults the suite caught in itself: an approver who is not the
+engineer's manager cannot SEE the rows, so every `UPDATE` matched nothing and
+read as "the guard refused it" (it refused nothing); and the request's stage is
+a ROLLUP of its lines, so a fixture with no lines rolls up to `RM Approval` for
+ever.
+
+### Still to run on the live project
+
+`_status.sql` first; row **162**. Then `Spare_1.sql` (0210) — at the repository
+ROOT, not in `supabase/apply/`.
 
 ---
 
