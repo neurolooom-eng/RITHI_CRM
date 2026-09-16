@@ -4,12 +4,98 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (the Hand Stock document; 0210 and 0211 BUILT AND NOT
-YET RUN — `_status.sql` rows 162 and 163; 0207-0209 APPLIED, rows 159-161)_
+_Last updated: 2026-09-16 (the Spare schema document, and the missing guard it
+found — **0210 CHANGED, so re-run `Spare_1.sql` even if you already ran it**;
+0210 and 0211 otherwise BUILT AND NOT YET RUN — `_status.sql` rows 162 and 163;
+0207-0209 APPLIED, rows 159-161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — The Spare module schema, and the guard 0210 was leaving off
+
+*"Build a Schema for every Table in the Spare Module - Highlight all important
+Variables, Type of Field, Mandatory / Optional, What is allowed, what is not
+allowed, How it flows to the Next Module, Down Stream / Up Stream links. Add
+this to "Schema" under How it Functions."*
+
+Shipped as `public/docs/spare-module-schema.html`, the **fourth** document in
+`DOCS` on How RITHI Functions. Sixteen table cards across six movements, every
+fact introspected from a Postgres with every migration applied — columns, types,
+defaults, generated expressions, CHECKs, unique indexes, foreign keys in BOTH
+directions, triggers and row-level policies — and every refusal quoted from the
+message the system actually raises.
+
+**It does not read "mandatory" off `NOT NULL`, deliberately.** That answer is
+wrong in both directions in this module: most `NOT NULL` columns carry a default
+and are never supplied by anybody, while four of the genuinely required fields
+on a reconciliation (UCN, part, engineer, reason) are NULLABLE in the DDL and
+demanded by a trigger. The badge answers the question somebody actually has —
+*must I put something here?* — and the rule beside it names what enforces it.
+
+### ⚠️ What writing it found — a hole in 0210, which had not yet been run
+
+Documenting `spare_requests` meant asking the database which triggers it
+carries. It carried four, and `spare_requests_stage_guard` was not among them.
+
+**0210 step 2 drops three guards** so the backfill can write approval columns
+nobody decided, and **restored only two**. Nothing caught it:
+`npm run check:replay` compares FUNCTIONS, and the function was untouched — only
+the TRIGGER was gone. The file reads as correct, and even carries a comment
+about remembering to restore the *second* of the three.
+
+Measured rather than reasoned about, on two databases built from the same
+migrations with and without 0210. An engineer holding `spare.request` and
+nothing else is the requester, so `sr_update` lets them write their own request.
+With the guard off, **one UPDATE** set `rm_approval`, `commercial_approval`,
+`nsm_approval`, `stores_status` and `received_at` — carrying their own request
+past RM, Commercial, NSM and Stores to Received. The per-line RBAC in
+`spare_request_lines_guard()` never ran, because no line was touched. With the
+guard on, the same statement raises *"Spare approvals are recorded per spare —
+update spare_request_lines, not the request."*
+
+The irony is the sharp part: this is the migration whose whole purpose is to
+**lengthen** the approval chain.
+
+Fixed in 0210 (the trigger restored; the function deliberately NOT redefined —
+0016 has the last word on it and re-stating an older body is how a wider hole
+gets opened). `_status.sql` row 162 now counts **all three** triggers rather
+than one, and `handstock_needs_nsm_test.sql` gained two steps: the count, and a
+behavioural probe. **That probe has to OWN the request** — pointed at somebody
+else's, RLS makes the UPDATE match zero rows and it passes with the guard
+removed, which is exactly what its first draft did. Mutation-tested both ways.
+
+### ⚠️ And a second thing, in the same migration's wake
+
+`spare_dispatch_test.sql` had **not been brought forward for 0210** either. Its
+fixtures approve every line as the RM and stamp `nsm_approval = 'Auto-Approved'`
+in the same write — which is exactly what 0210 stopped allowing on a HandStock
+request. So three of the four fixture lines sat at **NSM**, never reached
+Stores, and every dispatch in the suite failed with *"Nothing to dispatch: no
+spares selected"*.
+
+**The suite still printed all twelve of its headings.** Its result tables were
+empty and nothing said so. Worse, step 7's labelled `expect ERROR` — *"a stock
+out goes to one engineer"* — went on erroring, for the **wrong reason**: the
+queue was empty, so the call failed before it ever got as far as noticing two
+engineers. An expected error that fires for the wrong reason is indistinguishable
+from a passing test.
+
+Fixed by giving the suite an NSM and having them approve the HandStock lines, as
+the live system now requires. It dispatches again: stock outs created, SO and DC
+numbers assigned in series, hand stock counted from them. Two `of N` assertions
+were added at the fixture stage so an empty queue announces itself next time
+rather than quietly passing.
+
+### Still to run on the live project
+
+**`Spare_1.sql` has changed — run it again even if you already ran it.** It is
+idempotent, so a second run is safe, and it is the only thing that puts the
+guard back. `_status.sql` first: row **162** now tests all three triggers, so it
+reads NO until this is applied.
 
 ---
 

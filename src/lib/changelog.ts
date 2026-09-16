@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.292',
+    date: '2026-09-16',
+    title: 'The Spare module schema — every table, and a hole found while writing it',
+    changes: [
+      'A FOURTH DOCUMENT under How RITHI Functions — “Schema”. Every table behind the eight Spare screens: the fields that carry a decision, whether you fill them in or the database does, what each one refuses in the words it refuses it, and where the value goes next — upstream and downstream.',
+      'NOT WRITTEN BY HAND. The columns, types, defaults, constraints, keys, triggers and permissions were read out of a database with every migration applied. A schema description that is wrong is worse than none.',
+      'It does NOT say “mandatory” by reading NOT NULL, because that is wrong in both directions here: most NOT NULL columns fill themselves in, and four of the genuinely required fields on a reconciliation accept a blank as far as the table is concerned and are demanded by a rule instead. The badge answers the question people actually have — must I put something here?',
+      'FOUND WHILE WRITING IT, AND FIXED: the HandStock/NSM migration switches three guards off to repair old rows and was putting only two back. The missing one is the rule that approvals are recorded per spare — with it off, an engineer could take their OWN request past RM, Commercial, NSM and Stores to Received in a single step. Measured, not guessed at. The migration now restores all three, and both the test suite and the health check count them.',
+      'THE SQL IS STILL YOURS TO RUN. Spare_1.sql now carries this fix as well — if you have not run it yet, nothing is exposed; if you have, run it again.',
+    ],
+  },
+  {
     version: '0.9.291',
     date: '2026-09-16',
     title: 'How RITHI Functions: Hand Stock and every movement behind it',

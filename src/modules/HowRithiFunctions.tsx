@@ -76,6 +76,25 @@ const DOCS = [
     blurb: 'One ledger: stock out in, consumption, reconciliation, transfers and returns out — and why the balance is derived rather than stored.',
     title: 'How hand stock moves — the six movements behind the balance, and what each one refuses',
   },
+  {
+    // THE SCHEMA, and it is a different KIND of document from the three above.
+    // Those answer "how does this work"; this one answers "what is in the
+    // table, must I fill it in, and what happens to the value next" — the
+    // question somebody has with the form already open.
+    //
+    // ITS FACTS ARE INTROSPECTED, NOT WRITTEN. Columns, types, defaults,
+    // generated expressions, constraints, keys, triggers and policies were
+    // read out of a Postgres with every migration applied, and each refusal is
+    // quoted from the message the system actually raises. The project's reason
+    // for generating DATABASE_SCHEMA.md is the same one: a schema description
+    // that is WRONG is worse than none, and reading migrations to describe a
+    // default is the method that has produced wrong answers here.
+    id: 'schema',
+    label: 'Schema — the Spare tables',
+    file: 'spare-module-schema.html',
+    blurb: 'Every table behind the eight Spare screens: the fields that carry a decision, who fills them, what is refused, and where the value goes next.',
+    title: 'The Spare module, table by table — fields, rules, and the links upstream and downstream',
+  },
 ] as const;
 
 const urlFor = (file: string) => `${import.meta.env.BASE_URL}docs/${file}`;
@@ -150,8 +169,10 @@ export function HowRithiFunctions() {
       />
 
       <div className="hf-bar">
-        {/* CHIPS RATHER THAN A DROPDOWN: there are two, and a picker that hides
-            one of two options hides the fact that the other exists. */}
+        {/* CHIPS RATHER THAN A DROPDOWN: a picker would hide every option but
+            the chosen one, and what is here is a short list somebody is meant
+            to browse — the reason to open this page is often not knowing which
+            document answers the question. They wrap on a narrow screen. */}
         <div className="hf-docs" role="tablist" aria-label="Module">
           {DOCS.map((d) => (
             <button key={d.id} role="tab" aria-selected={d.id === doc.id}

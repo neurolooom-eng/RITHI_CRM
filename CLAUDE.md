@@ -166,6 +166,17 @@ on testing the old shape. **When a migration replaces a definition, move the
   Re-run it after changing any requirement. It caught the first stale count it
   was pointed at: CLAUDE.md said the servicing reference had 37 requirements
   and it defines 44.
+- **`public/docs/spare-module-schema.html` IS THE SPARE MODULE'S SCHEMA, for a
+  reader rather than a generator** — the fields that carry a decision, who fills
+  each one, what it refuses in the words it refuses it, and the links up and
+  downstream. Its facts are INTROSPECTED the same way `DATABASE_SCHEMA.md`'s are,
+  for the same reason, and it must be re-checked against a database after any
+  migration touching the module. **It deliberately does not read "mandatory" off
+  `NOT NULL`**, because that is wrong in both directions here: most `NOT NULL`
+  columns in the module carry a default, and four of the genuinely required
+  fields on a reconciliation are NULLABLE and demanded by a trigger. The badge
+  answers "must I put something here?" and the rule beside it says what enforces
+  that. Writing it is what found the missing guard above.
 - **`docs/DATABASE_SCHEMA.md` is GENERATED — never hand-edit it.** 61 tables,
   24 views, 1,400+ columns, 117 policies. `npm run schema:doc -- "<psql args>"`
   introspects a database built from the migrations and writes the whole thing:
@@ -362,6 +373,24 @@ on testing the old shape. **When a migration replaces a definition, move the
   approval written to the request itself, and redefining it is how a wider hole
   than the one you are closing gets opened — `check:replay` caught exactly that
   in 0210's first draft.
+- **A MIGRATION THAT DROPS A GUARD TO DO ITS WORK MUST PUT EVERY ONE BACK, AND
+  NOTHING EXISTING CHECKED THAT.** 0210's step 2 switches off three triggers so
+  the backfill can write approval columns nobody decided. Its first version
+  restored two and left `spare_requests_stage_guard` off the table — and every
+  check passed, because **`check:replay` compares FUNCTIONS and the function was
+  untouched**; only the TRIGGER was missing. Found by asking a database which
+  triggers `spare_requests` carries while documenting the table, not by reading
+  the file, which reads as correct (it even carries a comment about remembering
+  to restore the *second* one). What it cost was measured on two databases, one
+  built with 0210 and one without: an engineer holding `spare.request` alone is
+  the requester, so `sr_update` lets them write their own request, and with the
+  guard off **one UPDATE carried it past RM, Commercial, NSM and Stores to
+  Received** — the per-line RBAC never ran, because no line was touched. The
+  repair is in 0210; `_status.sql` row 162 now counts all **three** triggers and
+  `handstock_needs_nsm_test.sql` proves the refusal still fires. **The probe in
+  that suite must OWN the request** — pointed at somebody else's, RLS makes the
+  UPDATE match zero rows and the assertion passes with the guard removed, which
+  is what its first draft did.
 - **`user.name` DOES NOT EXIST — it is `fullName` — AND TYPESCRIPT CANNOT SAY
   SO**, because `BaseRecord` carries `[key: string]: unknown`. `user?.name`
   type-checks and is `undefined` at runtime, every time, with no error. It put
@@ -540,8 +569,9 @@ on testing the old shape. **When a migration replaces a definition, move the
   "limit exposure" is two statements and a grant that leaks to a fifth role
   passes every check that only looks at the four.
 - **THE SHARED DIAGRAMS AND THE IN-APP PAGE ARE THE SAME FILES.**
-  `public/docs/*.html` are in the repo — `how-a-call-works.html` and
-  `how-a-spare-moves.html` so far — framed from the app's own origin by
+  `public/docs/*.html` are in the repo — `how-a-call-works.html`,
+  `how-a-spare-moves.html`, `how-hand-stock-moves.html` and
+  `spare-module-schema.html` so far — framed from the app's own origin by
   `HowRithiFunctions.tsx`, which lists them in `DOCS` and offers a chip per
   module; each claude.ai artifact is PUBLISHED FROM its path. A third module is
   a file and a line in `DOCS`. They share ONE shell: copy the head of an
