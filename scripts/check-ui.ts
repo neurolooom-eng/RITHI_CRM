@@ -15,7 +15,8 @@ import { localIsoDate } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
-         ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem } from '../src/lib/coverspec';
+         ABOUT_TO_EXPIRE_DAYS, SERIES, nextInSeries, deriveHeader, deriveItem,
+         upliftRate, itemTaxAmount, totalAfterTax, periodToMonths } from '../src/lib/coverspec';
 import { callDateFromRequest, consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../src/lib/fieldcall';
 import { machineRowProblem, productPlaceholder, PICK_A_PRODUCT } from '../src/lib/callrequest';
 import { FFR_COLUMNS, FFR_LIVE_COLUMNS, ffrFromReview, ffrCallNotSolved, ffrEffectWithdrawn, ffrDocFrom, FFR_NO_SHAPE, FFR_CAPA_STATUS , FFR_WRITABLE, ffrWritable } from '../src/lib/ffr';
@@ -2543,13 +2544,78 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   // No period is not a zero-day contract; it is an unknown end date.
   eq('no period gives no end date, not the start date', addPeriod('2026-04-01', 0, 0), '');
 
-  // The money must NOT be carried: a rate copied forward is a price nobody
-  // agreed that looks exactly like one they did.
+  // THE MONEY MUST NOT BE CARRIED FROM THE OLD CONTRACT — which is a different
+  // statement from "the renewal writes no money", and the difference is the
+  // whole of the price-revision feature (2026-09-16).
+  //
+  // The first version of this check asserted that `rate:` never appears in
+  // `renewContract` at all. That was right while the flow could not price
+  // anything, and it would have been WRONG the moment it could: it forbids the
+  // feature rather than the hazard. The hazard is reading the money off `it` —
+  // the machine on the EXPIRING contract — because that is last year's price
+  // arriving unannounced in this year's record.
   const cov = readFileSync('src/lib/cover.ts', 'utf8');
   const renew = cov.slice(cov.indexOf('export async function renewContract'));
   for (const money of ['rate', 'item_tax_amount', 'total_after_tax']) {
-    eq(`a renewal does not carry ${money} over`, new RegExp(`\\b${money}:`).test(renew), false);
+    // `it` is the old machine row; `from` is the old header. Neither may supply
+    // a price.
+    eq(`a renewal does not copy ${money} off the old contract`,
+      new RegExp(`\\b(it|from)\\.${money}\\b`).test(renew), false);
   }
+  // It writes money only from the DRAFT, and derives tax and total through the
+  // one pricing rule rather than restating 18% here.
+  eq('the new rate comes from the renewal draft', /rateFor\(/.test(renew), true);
+  eq('...and tax and total are derived, not re-invented',
+    /itemTaxAmount\(rate\)/.test(renew) && /totalAfterTax\(rate\)/.test(renew), true);
+  eq('...with GST stated in exactly one place',
+    /GST_PERCENT/.test(readFileSync('src/lib/coverspec.ts', 'utf8'))
+      && !/\b18\b/.test(code(renew)), true);
+  // A blank rate still means "price it later" — the default the flow had before
+  // it could price anything, and the one every box starts in.
+  eq('a machine with no rate is written blank, not zero',
+    /rate: null, item_tax_amount: null, total_after_tax: null/.test(renew), true);
+  // ---- ONE PERIOD, NOT TWO ADDED TOGETHER --------------------------------
+  // Found 2026-09-16 with a realistic fixture: a contract states its period
+  // TWICE (years = months / 12), and the renewal read both and added them. A
+  // one-year contract proposed a TWO-year renewal; a two-year one, four. That
+  // is a service contract covering twice what anybody agreed, and it feeds
+  // `machine_cover` — "what is this serial under today?".
+  eq('a 12-month contract is twelve months, not twenty-four', periodToMonths(1, 12), 12);
+  eq('...and a 24-month one is not forty-eight', periodToMonths(2, 24), 24);
+  // Months wins because months is what the form drives from.
+  eq('months wins when the two disagree', periodToMonths(1, 18), 18);
+  // ...but years alone must still mean something, or an old row loses its period.
+  eq('years alone is still a period', periodToMonths(3, null), 36);
+  eq('neither is no period', periodToMonths(null, null), null);
+  // Zero months is a real stored value and not a missing one.
+  eq('zero months is zero, not a fallback to years', periodToMonths(1, 0), 0);
+  // And the end date that follows from it.
+  eq('a one-year renewal ends a year out, not two',
+    addPeriod('2026-04-01', 0, periodToMonths(1, 12) ?? 0), '2027-03-31');
+
+  // ---- revising the rate at renewal, as arithmetic -----------------------
+  // The user, 2026-09-16: "I will need provision to revise the price."
+  eq('a 10% uplift on 1,000 is 1,100', upliftRate(1000, 10), 1100);
+  eq('...and on 12,500 is 13,750', upliftRate(12500, 10), 13750);
+  // 0 IS AN ANSWER, not a missing one: holding last year's price is a decision
+  // somebody makes, and it must survive the falsy check that eats it.
+  eq('0% holds the price rather than clearing it', upliftRate(1000, 0), 1000);
+  // A REDUCTION IS LEGITIMATE. Renewals go down as well as up, and a rule that
+  // only adds quietly refuses half of what it is for.
+  eq('a negative percentage reduces', upliftRate(1000, -10), 900);
+  // NO OLD RATE IS NOT A RATE OF ZERO. "We do not know what this was on" and
+  // "it was free" are different facts; writing 0 asserts the false one.
+  eq('no old rate gives nothing, not zero', upliftRate(null, 10), null);
+  eq('...an empty string likewise', upliftRate('', 10), null);
+  eq('...and no percentage gives nothing', upliftRate(1000, null), null);
+  // FLOATING POINT REACHES AN INVOICE. 7% of 1000 is 1070, not
+  // 1070.0000000000001, and the difference shows up in a box somebody signs.
+  eq('the result is rounded to paise', upliftRate(1000, 7), 1070);
+  eq('...and keeps real paise', upliftRate(1234.5, 7.5), 1327.09);
+  // The panel previews the total through the same two functions that write it.
+  eq('tax is 18% of the revised rate', itemTaxAmount(1100), 198);
+  eq('...and the total is rate plus tax', totalAfterTax(1100), 1298);
+
   // ...and the link back must be written, or "what was this machine on before?"
   // has no answer.
   eq('the new contract points back at the old one', /prev_mc_number:/.test(renew), true);
