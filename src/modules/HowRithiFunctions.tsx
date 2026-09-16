@@ -63,6 +63,19 @@ const DOCS = [
     blurb: 'Two routes in — Call Based and HandStock — one approval chain, and what each cycle writes.',
     title: 'How a spare moves — the two routes, the approval chain, and what every stage records',
   },
+  {
+    // ONE DOCUMENT, NOT FOUR. Stock out, consumption, reconciliation, transfers
+    // and returns were asked for separately and are not separate systems: they
+    // are entries in ONE ledger, and the balance formula is what makes any of
+    // them make sense. Four pages would repeat that formula four times and hide
+    // the relationship (the user, 2026-09-16: "I think it has a flow to
+    // Handstock -- See if it can be merged").
+    id: 'handstock',
+    label: 'Hand Stock & movements',
+    file: 'how-hand-stock-moves.html',
+    blurb: 'One ledger: stock out in, consumption, reconciliation, transfers and returns out — and why the balance is derived rather than stored.',
+    title: 'How hand stock moves — the six movements behind the balance, and what each one refuses',
+  },
 ] as const;
 
 const urlFor = (file: string) => `${import.meta.env.BASE_URL}docs/${file}`;

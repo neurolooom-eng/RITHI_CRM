@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.291',
+    date: '2026-09-16',
+    title: 'How RITHI Functions: Hand Stock and every movement behind it',
+    changes: [
+      'A THIRD DOCUMENT — Hand Stock & movements. Stock Out, Consumption, Reconciliation, Stock Transfer and Material Return are all in it, as ONE ledger rather than five pages.',
+      'THEY ARE NOT SEPARATE SYSTEMS. Hand stock is derived, never stored: what an engineer holds is worked out, every time it is read, from the six movements that put it there and took it away. Reading any one of them on its own does not explain it — the balance is what they have in common.',
+      'STOCK OUT: the batch, one engineer per challan, the number the database mints so nobody types a DC by hand, sending fewer than were approved, and why Dispatched and Received are two different claims.',
+      'CONSUMPTION: on the visit report, or booked afterwards by the office as a RECONCILIATION — both move the stock identically, and the flag is what keeps them tellable apart. Plus why a wrong line is voided rather than deleted, and what a void keeps.',
+      'TRANSFER: one record read from both sides, so the two balances can never disagree. RETURN: good and defective counted apart, because they are not the same thing arriving back.',
+      'Every refusal is quoted as the system actually words it — including the one people meet most: “X has 2 of PART in hand — cannot book 3 against this call”.',
+    ],
+  },
+  {
     version: '0.9.290',
     date: '2026-09-16',
     title: 'The delivery challan names the person who actually booked the stock out',

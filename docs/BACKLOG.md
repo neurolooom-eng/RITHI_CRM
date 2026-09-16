@@ -4,12 +4,41 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (0211 is BUILT AND NOT YET RUN — `_status.sql` row
-163; 0207-0210 APPLIED, rows 159-162)_
+_Last updated: 2026-09-16 (the Hand Stock document; 0210 and 0211 BUILT AND NOT
+YET RUN — `_status.sql` rows 162 and 163; 0207-0209 APPLIED, rows 159-161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — Hand Stock, and the five movements that were asked for separately
+
+Asked for as four documents — Spare Reconciliation, Material Return, Stock
+Transfer, Handstock — then: *"I think it has a flow to Handstock -- See if it
+can be merged."* Then *"Add Consumption & Stock Out as well."*
+
+**Merged, and it is the better document.** All of them are entries in ONE
+ledger, and the balance formula is what makes any of them make sense:
+
+    on hand = opening + stock out + transfers in − consumed − transfers out − returns
+
+Five separate pages would repeat that formula five times and hide the
+relationship. One document puts the balance at the centre and hangs each
+movement off it — which is also the order somebody needs to read them in.
+
+**The order is IN then OUT**, not the order they were asked for: Stock Out and
+the opening balance first, because the balance has to exist before a refusal
+against it means anything; then consumption (reported, reconciled, voided),
+transfers, returns.
+
+**Consumption is the control point and the document says why**: every other
+movement has a document and a second party behind it, so it is the one a person
+enters freely and the one the database guards with a hard refusal. Every
+refusal is quoted as the system actually words it.
+
+Shareable copy: <https://claude.ai/artifact/HWP2Hy2yEZmpJevgeffZvm>
 
 ---
 
