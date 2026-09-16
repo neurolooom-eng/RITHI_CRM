@@ -494,6 +494,26 @@ on testing the old shape. **When a migration replaces a definition, move the
   import: 30 of the 53 lines are retired and those sales really happened.
   `product_line_sellable()` is the same rule in SQL; an UNKNOWN code is sellable,
   since an incomplete catalogue must not refuse a real sale.
+- **REMOVING A MENU ENTRY DOES NOT RESTRICT A PAGE**, and the rule below cuts
+  both ways: NARROWING a page needs the migration exactly as much as adding one
+  does. "How RITHI Functions" shipped `alwaysOpen` (no module, no key) and was
+  limited to four roles hours later — `admin: true` on the module keeps the key
+  out of `NON_ADMIN_MODULES`, leaving `SEES_EVERY_MODULE`'s three, and NSM is
+  named in its own `FUNCTIONAL_DEFAULTS`; **0209** puts it in `app_roles`,
+  without which the tick grants nobody anything. And the `_status.sql` row
+  checks BOTH halves — everyone named holds it, and nobody else does — because
+  "limit exposure" is two statements and a grant that leaks to a fifth role
+  passes every check that only looks at the four.
+- **THE SHARED DIAGRAM AND THE IN-APP PAGE ARE ONE FILE.**
+  `public/docs/how-a-call-works.html` is in the repo, framed from the app's own
+  origin by `HowRithiFunctions.tsx`, and the claude.ai artifact is PUBLISHED
+  FROM that path. **The artifact URL cannot be embedded** — that host answers
+  `x-frame-options: SAMEORIGIN` and the page is private, so an iframe at it
+  renders an empty box for everybody but its author. A frame keeps one copy of
+  the markup and one of the CSS; the two things it costs are handled and
+  checked: the host's theme is passed in (`?theme=`, from the app theme's
+  `scheme`) and the document posts its own height, accepted only from that
+  frame. A missing document says so rather than rendering blank.
 - **A NEW SCREEN, OR A RE-ARRANGED ONE, IS NOT DONE UNTIL ROLES & PERMISSIONS
   KNOWS** (the user's standing rule, 2026-09-14: *"Always when a New UI is
   introduced or when a UI is re-arranged — this is often missed"*). It had been

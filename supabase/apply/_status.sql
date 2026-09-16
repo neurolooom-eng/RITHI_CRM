@@ -1023,6 +1023,17 @@ with checks(sort_order, bundle, provides, present) as (
                  and not tgisinternal) = 6
          and not exists (select 1 from public.field_calls
                           where item_status is distinct from public.cover_code(item_status)))))
+,
+    (161, 'How RITHI Functions reaches four roles and no others', 'mod:/knowledge-base/how-it-works merged into admin, nsm, zoho_migration and technical_support (0209). The user: "How RITHI Functions - Limit Exposure to Admin, NSM, Zoho, Technical Support." The page shipped that morning as alwaysOpen -- not a module at all, open to everybody, like the two help pages beside it -- and is a module with a key now. REMOVING A MENU ENTRY DOES NOT RESTRICT A PAGE: the route still answers and anybody sent the address still reaches it, so the permission is the restriction and the menu merely follows it. AND A CODE DEFAULT REACHES NOBODY: permsForRole() returns the STORED set whenever it is non-empty, so on a project in use -- where every role has a tuned row -- ticking the box in DEFAULT_PERMS grants it to no one until this runs. The standing rule, and the direction is the same whether the change WIDENS or NARROWS. THE ROW CHECKS BOTH HALVES, because "limit exposure" is two statements and a migration that grants the four while leaking to a fifth passes every check that only looks at the four: every one of the four holds it, and nobody outside them does. A role with ZERO permissions is left alone, here as everywhere -- an empty array means "not configured" and writing one key into it would switch the fallback off and take everything else away. NO means the page is either invisible to the people who need it or visible to people who should not have it. Restore: rbac.sql',
+        (to_regclass('public.app_roles') is null
+         or not exists (select 1 from public.app_roles where jsonb_array_length(permissions) > 0)
+         or (not exists (select 1 from public.app_roles
+                          where role in ('admin','nsm','zoho_migration','technical_support')
+                            and jsonb_array_length(permissions) > 0
+                            and not (permissions ? 'mod:/knowledge-base/how-it-works'))
+         and not exists (select 1 from public.app_roles
+                          where permissions ? 'mod:/knowledge-base/how-it-works'
+                            and role not in ('admin','nsm','zoho_migration','technical_support')))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

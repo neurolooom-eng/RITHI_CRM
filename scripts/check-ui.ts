@@ -6894,5 +6894,87 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('...and taking a copy is recorded', /action: 'rbac\.export'/.test(rp), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // HOW RITHI FUNCTIONS — RESTRICTED, AND THE DOCUMENT IT EMBEDS IS PRESENT.
+  //
+  // The user, 2026-09-16: "Limit Exposure to Admin, NSM, Zoho, Technical
+  // Support", and "is it possible to embed the Artifact? I want the same Look
+  // and Feel".
+  //
+  // Two failure modes, both silent:
+  //   * A page "restricted" by dropping its menu entry is not restricted. The
+  //     route still answers and anyone sent the address still reaches it.
+  //   * A frame whose document is not deployed renders an EMPTY BOX, and looks
+  //     exactly like a page that is merely slow.
+  // -------------------------------------------------------------------------
+  const HOW = '/knowledge-base/how-it-works';
+
+  // 1. IT IS A MODULE, so there is a key to withhold at all.
+  eq('How RITHI Functions is a module with a key',
+    MODULES.some((m) => m.path === HOW), true);
+  eq('...and it is no longer alwaysOpen in the menu',
+    /to: '\/knowledge-base\/how-it-works', label: 'How RITHI Functions', icon: '🧭' \}/
+      .test(readFileSync('src/components/layout/Layout.tsx', 'utf8')), true);
+
+  // 2. THE CODE DEFAULTS REACH EXACTLY THE FOUR ROLES NAMED. Asserted as a SET,
+  //    so a fifth role gaining it fails here rather than being noticed on a
+  //    screen somebody happens to open.
+  const holders = ROLES.map((r) => r.key)
+    .filter((k) => (DEFAULT_PERMS[k] ?? []).includes(moduleAction(HOW))).sort();
+  eq('the defaults give it to exactly Admin, NSM, Zoho Migration and Technical Support',
+    holders, ['admin', 'nsm', 'technical_support', 'zoho_migration']);
+
+  // 3. ...AND A MIGRATION SAYS SO IN THE DATABASE. On a project in use every
+  //    role has a tuned row, so `permsForRole()` never reaches the defaults and
+  //    the tick above grants nobody anything. This is the standing rule, and it
+  //    applies to NARROWING a page just as much as to adding one.
+  const mig = 'supabase/migrations/0209_how_rithi_functions_key.sql';
+  eq('a migration grants the key on a live project', existsSync(mig), true);
+  const msql = readFileSync(mig, 'utf8');
+  eq('...to those four roles and no others',
+    /in \('admin', 'nsm', 'zoho_migration', 'technical_support'\)/.test(msql), true);
+  // MERGE, NEVER OVERWRITE — an administrator may have tuned the role — and
+  // leave a role with ZERO permissions alone, since an empty array means "not
+  // configured" and one key written into it turns the fallback off.
+  eq('...by merging, and skipping an unconfigured role',
+    /jsonb_agg\(distinct v\)/.test(msql) && /jsonb_array_length\(ar\.permissions\) > 0/.test(msql), true);
+  eq('...and a suite proves it grants the four and leaks to nobody',
+    existsSync('supabase/tests/how_rithi_functions_key_test.sql'), true);
+
+  // 4. THE EMBEDDED DOCUMENT IS IN THE REPOSITORY, not fetched from claude.ai.
+  //    That host answers `x-frame-options: SAMEORIGIN` and the page is private,
+  //    so an iframe at it would render an empty box for everybody but its
+  //    author — which is the kind of thing that looks right to whoever built it.
+  const hrf = readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8');
+  eq('the embedded document ships with the app',
+    existsSync('public/docs/how-a-call-works.html'), true);
+  eq('...and the page frames THAT file',
+    /docs\/how-a-call-works\.html/.test(hrf), true);
+  // ASSERTED ON THE CODE, NOT THE PROSE. The first version of this line matched
+  // `<iframe` inside the comment that EXPLAINS why claude.ai cannot be framed,
+  // and failed on a file that was correct — a check that reads documentation as
+  // if it were code fails exactly where the reasoning is best written down.
+  const hrfCode = code(hrf);
+  eq('...not a claude.ai URL, which cannot be framed',
+    /claude\.ai/.test(hrfCode), false);
+  eq('...and the frame\u2019s src is the local document',
+    /src=\{`\$\{DOC\}\?theme=\$\{scheme\}`\}/.test(hrfCode), true);
+
+  // 5. THE TWO THINGS A FRAME COSTS, both handled. A framed page cannot see the
+  //    host's theme, and a fixed-height frame gives a scrollbar inside a
+  //    scrollbar.
+  const doc = readFileSync('public/docs/how-a-call-works.html', 'utf8');
+  eq('the host\u2019s theme is passed in', /\?theme=\$\{scheme\}/.test(hrf), true);
+  eq('...and the document honours it', /data-theme', t\)/.test(doc), true);
+  eq('the document reports its own height', /rithi-doc-height/.test(doc), true);
+  eq('...and the frame is sized to it', /rithi-doc-height/.test(hrf), true);
+  // ONLY FROM THIS FRAME. A page that resizes itself on anyone's say-so is a
+  // page anyone can distort.
+  eq('...from this frame alone', /e\.source !== frame\.current\?\.contentWindow/.test(hrf), true);
+  // A MISSING DOCUMENT IS SAID, not left as an empty box.
+  eq('a missing document says so rather than rendering blank', /setFailed\(true\)/.test(hrf), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
