@@ -146,7 +146,13 @@ const pkg = JSON.parse(execSync('cat package.json', { encoding: 'utf8' }));
 // recorded as a failure. A harness that mis-invokes a check and reports the
 // result as a defect is worse than one that skips it.
 const NEEDS_DB = { 'check:views': 'db', 'check:status': 'db', 'check:upserts': 'db',
-                   'check:columns': 'db', 'check:replay': 'nodb' };
+                   'check:columns': 'db', 'check:replay': 'nodb',
+                   // The ORDER column of every paged read. It needs a database
+                   // for the reason the bug needed one: the column is a STRING
+                   // in a chained call, and only the database knows what a
+                   // view actually publishes (`dl.id as line_id` reads like an
+                   // `id` until you look twice).
+                   'check:orders': 'db' };
 // `check:safe-updates` and `check:mapping` take no connection — the first
 // version handed them psql arguments and they read them as a DIRECTORY.
 // THE CHECKS' DATABASE IS BUILT BY APPLYING THE MIGRATIONS, NOT BY COPYING THE

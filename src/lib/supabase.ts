@@ -1866,8 +1866,16 @@ export async function listStockOutLines(cap = 5000): Promise<Record<string, unkn
   // PAGED. `.limit(5000)` was not a bigger request: PostgREST caps a response
   // at 1,000 however large the number says, silently, so this returned the
   // first thousand dispatched lines and nothing said otherwise.
+  // `line_id`, NOT `id`. The view renames the dispatch line's primary key
+  // (`dl.id as line_id`), so ordering by `id` asked PostgREST for a column
+  // that is not there — and it does not answer with fewer rows, it answers
+  // with an ERROR, so the whole register came back empty. Worse, the error
+  // reads "…does not exist", which the screen matched as a MISSING TABLE and
+  // told the reader to run migration 0027 — a bundle already applied. See the
+  // note on that test in SpareDispatch.tsx; `npm run check:orders` now asks a
+  // database whether every paged ORDER column exists.
   return allRows<Record<string, unknown>>((from, to) => must().from('spare_stock_out_lines')
-    .select('*').order('dispatched_at', { ascending: false }).order('id', { ascending: false })
+    .select('*').order('dispatched_at', { ascending: false }).order('line_id', { ascending: false })
     .range(from, to), cap);
 }
 

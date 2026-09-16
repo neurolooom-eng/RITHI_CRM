@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
 import { SectionCard } from '../components/ui/ui';
 import { useAuth } from '../lib/auth';
@@ -48,7 +49,7 @@ export function AuditModeCard() {
     } catch (e) {
       setMsg({
         tone: 'error',
-        text: /audit_mode|does not exist|schema cache/i.test(String(e))
+        text: isMissingTable(e, 'audit_mode')
           ? 'Run supabase/apply/audit.sql in the Supabase SQL editor, then Refresh.'
           : `Load failed: ${e instanceof Error ? e.message : String(e)}`,
       });

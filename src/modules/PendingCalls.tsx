@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { useNavigate } from 'react-router-dom';
@@ -99,7 +100,7 @@ export function PendingCalls() {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
         tone: 'error',
-        text: /pending_calls|does not exist|schema cache/i.test(text)
+        text: isMissingTable(text, 'pending_calls')
           ? 'Pending calls need migration 0012_call_state.sql — run it in the Supabase SQL editor.'
           : `Load failed: ${text}`,
       });

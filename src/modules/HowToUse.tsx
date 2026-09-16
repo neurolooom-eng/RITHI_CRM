@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader } from '../components/ui/ui';
@@ -525,7 +526,7 @@ export function HowToUse() {
       const image = await fileToDataUrl(f, 1280);
       const caption = shots[id]?.caption ?? '';
       const res = await helpShotSet(id, image, caption);
-      if (!res.ok) { setMsg({ tone: 'error', text: /help_screenshots|does not exist|schema cache/i.test(res.error ?? '') ? 'Screenshots need migration 0043_help_screenshots.sql — run it in the Supabase SQL editor.' : (res.error ?? 'Upload failed.') }); return; }
+      if (!res.ok) { setMsg({ tone: 'error', text: isMissingTable(res.error, 'help_screenshots') ? 'Screenshots need migration 0043_help_screenshots.sql — run it in the Supabase SQL editor.' : (res.error ?? 'Upload failed.') }); return; }
       setShots((p) => ({ ...p, [id]: { section_id: id, image, caption, updated_at: new Date().toISOString() } }));
     } finally { setShotBusy(null); }
   };

@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageHeader, SectionCard, FacetChips } from '../components/ui/ui';
@@ -83,7 +84,7 @@ export function KpiAnalytics() {
       setRates(r); setModes(m); setUsage(u); setLastSync(Date.now());
     } catch (e) {
       const t = e instanceof Error ? e.message : String(e);
-      setMsg(/failure_rate_by_product|spare_usage|does not exist|schema cache/i.test(t)
+      setMsg(isMissingTable(t, 'failure_rate_by_product', 'failure_modes_by_product', 'spare_usage_rollup')
         ? 'These KPIs need migration 0101_kpi_views.sql — run supabase/apply/performance.sql in the SQL editor.'
         : `Could not build the KPIs: ${t}`);
     } finally { setBusy(false); }

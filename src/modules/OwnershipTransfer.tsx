@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, SectionCard, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -51,7 +52,7 @@ export function OwnershipTransfer() {
     } catch (err) {
       setMsg({
         tone: 'error',
-        text: /ownership_transfers|product_additional_entries|schema cache/i.test(String(err))
+        text: isMissingTable(err, 'ownership_transfers', 'product_additional_entries')
           ? 'These registers need supabase/apply/sales_contracts.sql (0072 + 0073) — run it in the SQL editor.'
           : `Could not load: ${err instanceof Error ? err.message : String(err)}`,
       });

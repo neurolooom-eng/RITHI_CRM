@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Modal, Toolbar, SearchBox, EmptyState, Drawer } from '../components/ui/ui';
@@ -89,7 +90,7 @@ export function SpareDispatch() {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
         tone: 'error',
-        text: /spare_pending_dispatch|does not exist|schema cache/i.test(text) ? MIGRATION_HINT : `Load failed: ${text}`,
+        text: isMissingTable(text, 'spare_pending_dispatch') ? MIGRATION_HINT : `Load failed: ${text}`,
       });
     } finally { setBusy(false); }
   };
@@ -493,7 +494,7 @@ export function StockOuts({ onMigrationError, onPrint, onDeclare, onCount }: {
     listStockOutLines()
       .then(setRows)
       .catch((e) => {
-        if (/spare_stock_out_lines|spare_dispatches|does not exist|schema cache/i.test(String(e))) onMigrationError();
+        if (isMissingTable(e, 'spare_stock_out_lines', 'spare_dispatches', 'spare_dispatch_lines')) onMigrationError();
       })
       .finally(() => setBusy(false));
     // eslint-disable-next-line

@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -92,7 +93,7 @@ export function MaterialReturns() {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
         tone: 'error',
-        text: /material_returns|does not exist|schema cache/i.test(text) ? MIGRATION_HINT : `Load failed: ${text}`,
+        text: isMissingTable(text, 'material_returns', 'material_return_lines') ? MIGRATION_HINT : `Load failed: ${text}`,
       });
     } finally { setBusy(false); }
   };

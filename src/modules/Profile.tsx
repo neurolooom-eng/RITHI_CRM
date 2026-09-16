@@ -1,3 +1,4 @@
+import { isMissingTable } from '../lib/dberror';
 import { useEffect, useState } from 'react';
 import { PageHeader, SectionCard } from '../components/ui/ui';
 import { SignaturePad } from '../components/ui/SignaturePad';
@@ -147,7 +148,7 @@ function MySignatureCard() {
     const res = await sbSaveMySignature({ signature: ink, name_line: nameLine.trim(), title_line: titleLine.trim() });
     setBusy(false);
     if (!res.ok) {
-      setMsg({ tone: 'error', text: /user_signatures|does not exist|schema cache/i.test(res.error ?? '')
+      setMsg({ tone: 'error', text: isMissingTable(res.error, 'user_signatures')
         ? 'Saving a signature needs migration 0172_user_signatures.sql — run it in the Supabase SQL editor (apply bundle: rbac.sql).'
         : (res.error ?? 'Could not save your signature.') });
       return;

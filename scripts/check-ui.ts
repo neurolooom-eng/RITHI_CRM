@@ -6755,5 +6755,82 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     /drawer\.mode === 'view' \? \{\s*\n\s*regDate: formatDay/.test(fc), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // A MIGRATION HINT IS AN INSTRUCTION, SO IT MUST BE RIGHT.
+  //
+  // Fourteen screens carried a line of the shape
+  //
+  //     /spare_stock_out_lines|does not exist|schema cache/i.test(err)
+  //
+  // and the middle alternative is the bug: "does not exist" is not a question
+  // about the TABLE. Postgres says it about a missing column, a missing
+  // function and a missing operator in the same words, so any of those became
+  // "run this migration".
+  //
+  // Reported 2026-09-16: Stock Out told the reader to run 0027 on a project
+  // that had it. The real fault was a paged read ordering by `id` on a view
+  // that publishes `line_id`; PostgREST answered `column … does not exist`,
+  // the register came back empty, and the message was overwritten by a hint.
+  // It is the expensive kind of wrong — it is ACTED ON, and it teaches people
+  // that the instruction may mean nothing, which is the same argument this
+  // project makes about a `_status.sql` row that answers NO for nothing.
+  // -------------------------------------------------------------------------
+  const modFiles = readdirSync(`${process.cwd()}/src/modules/`).filter((f) => f.endsWith('.tsx'));
+  const loose: string[] = [];
+  modFiles.forEach((f) => {
+    code(readFileSync(`${process.cwd()}/src/modules/${f}`, 'utf8')).split('\n').forEach((line, i) => {
+      // The whole shape, not the words on their own: a screen may legitimately
+      // print an error that contains them.
+      if (/\/[^/\n]*\bdoes not exist\b[^/\n]*\/[a-z]*\.test\(/.test(line)
+        || /\/[^/\n]*\bschema cache\b[^/\n]*\/[a-z]*\.test\(/.test(line)) {
+        loose.push(`${f}:${i + 1}`);
+      }
+    });
+  });
+  eq('no screen decides a table is missing by matching "does not exist"', loose, []);
+
+  // ...AND THE ONE PLACE THAT DOES DECIDE IT ASKS THE RIGHT QUESTION.
+  const dbe = readFileSync('src/lib/dberror.ts', 'utf8');
+  eq('the shared test rules a missing COLUMN out first',
+    /if \(\/\\bcolumn\\b\/i\.test\(m\)\) return false;/.test(dbe), true);
+  eq('...and a missing function or operator too',
+    /\\bfunction\\b\|\\boperator\\b/.test(dbe), true);
+  eq('...and it is proved by a check of its own',
+    existsSync('scripts/check-dberror.ts'), true);
+
+  // THE SCREENS THAT DECIDE IT USE THE HELPER. A file that names a migration
+  // in a user-facing string and reaches that string from its own `catch` is
+  // deciding the question some other way.
+  //
+  // NOT every file holding the words: `StockOut.tsx` writes the hint and is
+  // HANDED the decision by the component it renders (`onMigrationError`), which
+  // is right — one decision, two screens. Requiring the import there would push
+  // somebody to duplicate the test, which is the shape this whole change
+  // removes.
+  const offenders: string[] = [];
+  modFiles.forEach((f) => {
+    const src = readFileSync(`${process.cwd()}/src/modules/${f}`, 'utf8');
+    if (!/needs migration \d{4}|run it in the Supabase SQL editor|run it in the SQL editor/i.test(src)) return;
+    const decides = /catch\s*\(/.test(src) && !/onMigrationError/.test(src);
+    if (decides && !/isMissingTable/.test(src)) offenders.push(f);
+  });
+  eq('every screen that decides a table is missing asks isMissingTable()', offenders, []);
+
+  // AND THE CHECK THAT WOULD HAVE CAUGHT THE ROOT CAUSE EXISTS AND IS RUN.
+  // `check:orders` asks a DATABASE whether every paged ORDER column is real —
+  // the column is a string in a chained call, so nothing else can know.
+  eq('the ORDER columns are checked against a database',
+    existsSync('scripts/check-order-columns.mjs'), true);
+  const pkgj = JSON.parse(readFileSync('package.json', 'utf8'));
+  eq('...and it has a script', typeof pkgj.scripts['check:orders'], 'string');
+  // A CHECK NOBODY RUNS RECORDS WHAT USED TO BE TRUE — two of this project's
+  // own assertions had been failing on main unnoticed for exactly that reason.
+  // `validate` collects every `check:*`, but one needing a connection must say
+  // so or it is run without one and fails for the wrong reason.
+  eq('...and validate knows it needs a database',
+    /'check:orders': 'db'/.test(readFileSync('scripts/validate-run.mjs', 'utf8')), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
