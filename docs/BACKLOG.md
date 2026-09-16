@@ -4,14 +4,70 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (the Spare schema document, and the missing guard it
-found — **0210 CHANGED, so re-run `Spare_1.sql` even if you already ran it**;
-0210 and 0211 otherwise BUILT AND NOT YET RUN — `_status.sql` rows 162 and 163;
-0207-0209 APPLIED, rows 159-161)_
+_Last updated: 2026-09-16 (contract renewal prices the new contract, and the
+period double-count fixed — no SQL. Still outstanding: **0210 CHANGED, so re-run
+`Spare_1.sql` even if you already ran it**; 0210 and 0211 otherwise BUILT AND NOT
+YET RUN — `_status.sql` rows 162 and 163; 0207-0209 APPLIED, rows 159-161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — Renewing a contract at the new price
+
+*"In contract module - Renew this contract - I will need provision to revise
+the price."*
+
+Until now the renewal deliberately left every rate blank and said so, and
+somebody opened each machine afterwards to type one in — twenty trips through a
+form on a twenty-machine contract. The panel prices it now:
+
+- A **New Rate** box per machine, with **what it was charged on the expiring
+  contract** shown beside it as context.
+- **GST and total after tax** computed as you type, through
+  `itemTaxAmount`/`totalAfterTax` — the contract form's own rule, not a second
+  copy — plus the contract total at the foot, so a rate with a digit too many is
+  visible before it reaches an invoice.
+- **Revise all ticked by _%**: fills every ticked machine from its own old rate.
+  Each box stays editable. `0%` holds last year's price; a machine with **no**
+  old rate is left blank rather than set to 0, because "we do not know what this
+  was on" and "it was free" are different facts.
+
+**The rule underneath did not change.** The old rate is shown BESIDE the box and
+never IN it, and every box starts empty — a renewal saved with all of them blank
+writes exactly what it wrote before. Nothing is carried forward silently; the
+uplift only ever runs because somebody typed a percentage and pressed a button.
+
+`check:ui`'s renewal assertion had to change with it, and the change is the
+point: it used to assert that `rate:` never appears in `renewContract` at all,
+which was right while the flow could not price anything and **forbids the
+feature rather than the hazard**. The hazard is reading money off `it` — the
+machine on the *expiring* contract. That is what it tests now, plus that tax and
+total are derived rather than re-invented and that 18 appears in exactly one
+place. Both mutations caught.
+
+### ⚠️ And the renewal was doubling the contract period
+
+Found by giving the preview a realistic fixture: a one-year contract proposed a
+renewal ending **two years** out.
+
+A contract states its length **twice** — `contract_years` is derived from
+`contract_months` (months / 12), so twelve months is stored as years = 1 AND
+months = 12. `proposeRenewal` read both and passed both to `addPeriod`, which
+adds them: 24 months. A two-year contract renewed for four. The contract FORM
+never had this, because it computes the end from months alone; only the renewal
+passed both.
+
+This is not cosmetic — it is a service contract covering twice what anybody
+agreed, and `machine_cover` answers "what is this serial under today?" from
+those dates.
+
+`periodToMonths(years, months)` in `coverspec.ts` is the single reading (months
+wins; years is the fallback for a row that only has that, so an old import does
+not lose its period), and the panel's two period boxes now set each other
+instead of both feeding the end date. Seven assertions, mutation-tested.
 
 ---
 

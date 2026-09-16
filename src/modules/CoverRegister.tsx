@@ -15,6 +15,11 @@ import {
   deleteItem, deleteHeader, isPinned, proposeRenewal, renewContract, addPeriod, nextCoverNumber,
   type CoverKind, type CoverField, type Row, type RenewalDraft,
 } from '../lib/cover';
+// THE PRICING RULE COMES FROM ONE PLACE. GST and "total = rate + tax" are the
+// contract form's own rules; the renewal panel shows what it is about to write
+// and must not compute it a second way, or the preview and the saved row can
+// disagree about money.
+import { itemTaxAmount, totalAfterTax, upliftRate } from '../lib/coverspec';
 import './fieldcalls.css';
 
 // ===========================================================================
@@ -241,9 +246,20 @@ function ItemCard({
 // it came from. The MC Number is TYPED, never generated — the numbering belongs
 // to the business, and a number invented here would collide with theirs.
 //
-// The money is NOT carried over, and the panel says so rather than leaving
-// somebody to notice: a renewal is re-priced, and a rate carried forward
-// silently is a price nobody agreed that looks exactly like one they did.
+// THE MONEY IS RE-PRICED HERE (the user, 2026-09-16: "Renew this contract - I
+// will need provision to revise the price"). Until now the renewal left every
+// rate blank and somebody opened each machine afterwards to type one in, which
+// on a twenty-machine contract is twenty trips through a form.
+//
+// What did NOT change is the rule underneath: nothing is carried forward
+// silently. The old rate is shown BESIDE the box, never IN it, because a figure
+// sitting in a field reads as one somebody agreed. The boxes start empty, and a
+// renewal with all of them empty saves exactly as it did before.
+//
+// The uplift is the bulk case and it is an ACT, not a default: type a
+// percentage, press the button, and every ticked machine's box is filled from
+// its own old rate — visibly, and each one still editable. A machine with no
+// old rate stays empty rather than becoming 0.
 // ===========================================================================
 function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDone: (mc: string) => void }) {
   const [d, setD] = useState<RenewalDraft>(() => proposeRenewal(header, items));
@@ -254,14 +270,77 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
   // The end date follows the start and the period, so the three cannot disagree
   // — but it stays editable for a contract that does not run a whole number of
   // months.
-  const reperiod = (startIso: string, years: number | null, months: number | null) =>
-    setD((x) => ({ ...x, contract_start: startIso, contract_years: years, contract_months: months,
-      contract_end: addPeriod(startIso, years ?? 0, months ?? 0) || x.contract_end }));
+  //
+  // MONTHS IS THE ONLY DRIVER, and years is kept in step with it rather than
+  // added to it. Years and months on a contract are the SAME period written
+  // twice (years = months / 12), so the previous version — which passed both to
+  // `addPeriod` — renewed a one-year contract for two years. Editing either box
+  // now sets the other, and the end date is computed from months alone, exactly
+  // as the contract form does it.
+  const reperiodMonths = (startIso: string, months: number | null) =>
+    setD((x) => ({
+      ...x,
+      contract_start: startIso,
+      contract_months: months,
+      contract_years: months === null ? null : months / 12,
+      contract_end: addPeriod(startIso, 0, months ?? 0) || x.contract_end,
+    }));
 
   const toggle = (sn: string) => setD((x) => ({
     ...x,
     serials: x.serials.includes(sn) ? x.serials.filter((s) => s !== sn) : [...x.serials, sn],
   }));
+
+  // ---- the price revision ------------------------------------------------
+  const [pct, setPct] = useState('');
+
+  // What each machine was on last time, by serial. CONTEXT for whoever is
+  // pricing — it is never written anywhere.
+  const oldRate = new Map<string, unknown>(
+    items.map((i) => [str(i.serial_number), i.rate]),
+  );
+
+  const setRate = (sn: string, v: string) =>
+    setD((x) => ({ ...x, rates: { ...x.rates, [sn]: v } }));
+
+  // FILL THE TICKED MACHINES FROM THEIR OWN OLD RATES. Only the ticked ones:
+  // an unticked machine is not being renewed, and pricing it would be writing
+  // a number for a line that will not exist.
+  const applyUplift = () => {
+    const p = Number(pct);
+    if (pct.trim() === '' || !Number.isFinite(p)) return;
+    setD((x) => {
+      const next = { ...x.rates };
+      for (const sn of x.serials) {
+        const up = upliftRate(oldRate.get(sn), p);
+        // A machine with no old rate is left alone rather than set to 0 — "we
+        // do not know what this was on" is not "it was free".
+        if (up !== null) next[sn] = String(up);
+      }
+      return { ...x, rates: next };
+    });
+  };
+
+  const clearRates = () => setD((x) => ({ ...x, rates: {} }));
+
+  // What the panel is about to write, through the SAME functions that will
+  // write it — so the preview cannot disagree with the saved row.
+  const priced = d.serials
+    .map((sn) => {
+      const raw = (d.rates[sn] ?? '').trim();
+      if (raw === '') return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    })
+    .filter((n): n is number => n !== null);
+  const newTotal = priced.reduce((t, r) => t + (totalAfterTax(r) ?? 0), 0);
+  const badRate = d.serials.some((sn) => {
+    const raw = (d.rates[sn] ?? '').trim();
+    if (raw === '') return false;
+    const n = Number(raw);
+    return !Number.isFinite(n) || n < 0;
+  });
+  const money = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 
   const go = async () => {
     setBusy(true); setMsg('');
@@ -284,7 +363,7 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
         The new contract starts the day after this one ends, so cover has no gap and no overlap.
         The machines, type, party, period and billing schedule carry over.
         <b> Rates do not</b> — a renewal is re-priced, and a figure carried over silently is a price
-        nobody agreed.
+        nobody agreed. Set the new rates below, or leave them blank and price the contract later.
       </p>
 
       <div className="rep-grid">
@@ -301,47 +380,112 @@ function RenewPanel({ header, items, onDone }: { header: Row; items: Row[]; onDo
         <label className="rep-field">
           <span className="field-label">Start</span>
           <input className="input" type="date" value={d.contract_start}
-                 onChange={(e) => reperiod(e.target.value, d.contract_years, d.contract_months)} />
+                 onChange={(e) => reperiodMonths(e.target.value, d.contract_months)} />
         </label>
         <label className="rep-field">
           <span className="field-label">End</span>
           <input className="input" type="date" value={d.contract_end}
                  onChange={(e) => set('contract_end', e.target.value)} />
         </label>
+        {/* Two views of ONE period. Typing in either sets the other, so they
+            cannot disagree and cannot be added together. */}
         <label className="rep-field">
           <span className="field-label">Period (Years)</span>
-          <input className="input" type="number" min={0} value={d.contract_years ?? ''}
-                 onChange={(e) => reperiod(d.contract_start, e.target.value === '' ? null : Number(e.target.value), d.contract_months)} />
+          <input className="input" type="number" min={0} step="0.5" value={d.contract_years ?? ''}
+                 onChange={(e) => reperiodMonths(d.contract_start,
+                   e.target.value === '' ? null : Number(e.target.value) * 12)} />
         </label>
         <label className="rep-field">
           <span className="field-label">Period (Months)</span>
           <input className="input" type="number" min={0} value={d.contract_months ?? ''}
-                 onChange={(e) => reperiod(d.contract_start, d.contract_years, e.target.value === '' ? null : Number(e.target.value))} />
+                 onChange={(e) => reperiodMonths(d.contract_start,
+                   e.target.value === '' ? null : Number(e.target.value))} />
         </label>
       </div>
 
       <div className="field-label" style={{ marginTop: 10 }}>
-        Machines carrying over ({d.serials.length} of {serials.length})
+        Machines and rates ({d.serials.length} of {serials.length} carrying over)
       </div>
-      <div className="muted" style={{ fontSize: 12.5 }}>Untick a machine that is not being renewed.</div>
-      <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 6 }}>
+      <div className="muted" style={{ fontSize: 12.5 }}>
+        Untick a machine that is not being renewed. <b>Was</b> is what it was charged on{' '}
+        {str(header.mc_number)} — shown so you can price against it; it is not carried over.
+      </div>
+
+      {/* THE BULK CASE. Most renewals move every rate by the same percentage,
+          and typing that twenty times is how a digit gets missed. Nothing
+          happens until the button is pressed, and every box stays editable
+          afterwards. */}
+      <div className="row" style={{ gap: 8, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="muted" style={{ fontSize: 12.5 }}>Revise all ticked by</span>
+        <input className="input" type="number" step="0.01" value={pct} placeholder="%"
+               style={{ width: 90 }} onChange={(e) => setPct(e.target.value)} />
+        <button className="btn btn-sm" type="button" onClick={applyUplift}
+                disabled={pct.trim() === '' || !Number.isFinite(Number(pct))}>
+          Apply to rates
+        </button>
+        <button className="btn btn-sm" type="button" onClick={clearRates}>Clear rates</button>
+        <span className="muted" style={{ fontSize: 12 }}>
+          0% holds last year's price. A machine with no old rate is left blank.
+        </span>
+      </div>
+
+      <div style={{ maxHeight: 260, overflowY: 'auto', marginTop: 8 }}>
         {serials.map((sn) => {
           const it = items.find((x) => str(x.serial_number) === sn);
+          const on = d.serials.includes(sn);
+          const was = oldRate.get(sn);
+          const wasN = was == null || was === '' ? null : Number(was);
+          const raw = (d.rates[sn] ?? '').trim();
+          const n = raw === '' ? null : Number(raw);
+          const ok = n !== null && Number.isFinite(n) && n >= 0;
           return (
-            <label key={sn} className="row" style={{ gap: 8, alignItems: 'center', padding: '3px 0' }}>
-              <input type="checkbox" checked={d.serials.includes(sn)} onChange={() => toggle(sn)} />
-              <span><b>{sn}</b> <span className="muted">{str(it?.product_name)}</span></span>
-            </label>
+            <div key={sn} className="renew-row" style={{ opacity: on ? 1 : 0.5 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(sn)} />
+              <span className="renew-name">
+                <b>{sn}</b> <span className="muted">{str(it?.product_name)}</span>
+              </span>
+              <span className="renew-money">
+                <span className="muted renew-was">
+                  was {wasN === null || !Number.isFinite(wasN) ? '—' : money(wasN)}
+                </span>
+                <input className="input renew-rate" type="number" min={0} step="0.01"
+                       placeholder="new rate" disabled={!on}
+                       value={d.rates[sn] ?? ''} onChange={(e) => setRate(sn, e.target.value)} />
+                {/* WHAT WILL ACTUALLY BE WRITTEN, next to the number being
+                    typed: the rate goes in, but the contract bills the total. */}
+                <span className="muted renew-tot">
+                  {!on ? '' : ok ? `+GST = ${money(totalAfterTax(n) ?? 0)}`
+                       : raw === '' ? 'price later' : 'not a rate'}
+                </span>
+              </span>
+            </div>
           );
         })}
         {!serials.length && <div className="muted" style={{ fontSize: 12.5 }}>This contract has no machines on it.</div>}
       </div>
 
+      {/* The contract's own total, so a rate typed with a digit too many shows
+          up here rather than on an invoice. */}
+      {priced.length > 0 && (
+        <div className="row" style={{ gap: 8, marginTop: 8, fontSize: 13 }}>
+          <span className="muted">
+            {priced.length} of {d.serials.length} priced · rate {money(priced.reduce((t, r) => t + r, 0))}
+            {' '}· tax {money(priced.reduce((t, r) => t + (itemTaxAmount(r) ?? 0), 0))}
+          </span>
+          <span><b>Total after tax {money(newTotal)}</b></span>
+        </div>
+      )}
+
       {msg && <div className="sheet-banner sheet-banner-error" style={{ marginTop: 8 }}><span>{msg}</span></div>}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
-        <button className="btn btn-primary" disabled={busy} onClick={() => void go()}>
+        <button className="btn btn-primary" disabled={busy || badRate} onClick={() => void go()}>
           {busy ? 'Creating…' : 'Create the renewal'}
         </button>
+        {badRate && (
+          <span className="muted" style={{ fontSize: 12.5, alignSelf: 'center' }}>
+            One of the rates is not a number — clear it or correct it.
+          </span>
+        )}
       </div>
     </div>
   );

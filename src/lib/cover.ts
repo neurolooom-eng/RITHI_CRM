@@ -14,7 +14,7 @@
 // ===========================================================================
 import { getSupabase } from './supabase';
 import { dayAfter, addPeriod } from './dates';
-import { nextInSeries } from './coverspec';
+import { nextInSeries, itemTaxAmount, totalAfterTax, periodToMonths, periodYears } from './coverspec';
 
 export type CoverKind = 'sale' | 'contract';
 
@@ -396,24 +396,41 @@ export interface RenewalDraft {
   contract_years: number | null;
   contract_months: number | null;
   serials: string[];          // which machines carry over
+  // THE NEW RATE PER MACHINE, keyed by serial. A missing or empty entry means
+  // "leave it blank", which is what every machine starts as and what the whole
+  // renewal used to do — filling these in is the revision, and it is optional.
+  // Held as the TYPED STRING rather than a number so a half-typed "12" is not
+  // read as a rate of twelve rupees while somebody is still typing 12000.
+  rates: Record<string, string>;
 }
 
 /** What a renewal of `header` would look like, before anybody edits it. */
 export function proposeRenewal(header: Row, items: Row[]): RenewalDraft {
   const end = str(header.contract_end).slice(0, 10);
   const start = end ? dayAfter(end) : new Date().toISOString().slice(0, 10);
-  const years = header.contract_years == null ? null : Number(header.contract_years);
-  const months = header.contract_months == null ? null : Number(header.contract_months);
+  // ONE PERIOD, not two added together. A one-year contract is stored as
+  // years = 1 AND months = 12 — the same twelve months written twice, because
+  // `contract_years` is derived from `contract_months`. This used to read both
+  // and pass both to `addPeriod`, which renewed a one-year contract for TWO
+  // years and a two-year one for four. The end date was wrong on every renewal
+  // that had a period at all.
+  const months = periodToMonths(header.contract_years, header.contract_months);
+  const years = months === null ? null : periodYears(months);
   return {
     mc_number: '',
     contract_type: str(header.contract_type),
     contract_start: start,
-    contract_end: addPeriod(start, years ?? 0, months ?? 0),
+    contract_end: addPeriod(start, 0, months ?? 0),
     contract_years: years,
     contract_months: months,
     // Every machine on the old contract, and the caller unticks what is not
     // being renewed — dropping one is the common case, adding one is not.
     serials: items.map((i) => str(i.serial_number)).filter(Boolean),
+    // EMPTY, and that is the default the renewal has always had: no price is
+    // proposed. The old rate is shown beside the box as context, because that
+    // is what anybody pricing a renewal is working from — but it is not put IN
+    // the box, since a figure sitting in a field reads as one somebody agreed.
+    rates: {},
   };
 }
 
@@ -443,6 +460,22 @@ export async function renewContract(
   }
   if (!d.contract_start) throw new Error('The new contract needs a start date.');
   if (!d.serials.length) throw new Error('Tick at least one machine to carry over.');
+
+  // EVERY RATE IS CHECKED BEFORE ANYTHING IS WRITTEN. The header goes in first
+  // (see the note above), so a rate that turns out to be unreadable halfway
+  // down the machines would leave a real contract carrying some of its prices
+  // and not others — and a contract that exists is much harder to walk back
+  // than one that was refused. A blank is fine and means "price it later"; a
+  // value that is not a number is not.
+  const rateFor = (serial: string): number | null => {
+    const raw = (d.rates ?? {})[serial];
+    if (raw == null || String(raw).trim() === '') return null;
+    const n = Number(String(raw).trim());
+    if (!Number.isFinite(n)) throw new Error(`Rate for ${serial} is not a number: "${raw}"`);
+    if (n < 0) throw new Error(`Rate for ${serial} cannot be negative.`);
+    return n;
+  };
+  for (const sn of d.serials) rateFor(sn);
 
   await saveHeader('contract', {
     mc_number: mc,
@@ -476,8 +509,24 @@ export async function renewContract(
       sa_number: it.sa_number ?? null,
       sa_end_date: it.sa_end_date ?? null,
       // Dates, type and period are left EMPTY so each machine follows the new
-      // header — the whole point of the header/item inheritance. Money is left
-      // empty because a renewal is re-priced.
+      // header — the whole point of the header/item inheritance.
+      //
+      // THE MONEY IS THE ONE THING TAKEN FROM THE DRAFT AND NEVER FROM `it`.
+      // `it` is the machine on the OLD contract and its rate is last year's
+      // price; copying it is the thing this flow has always refused, because a
+      // figure carried forward silently is a price nobody agreed that looks
+      // exactly like one they did. What goes in is what somebody entered in the
+      // renewal panel, and when they entered nothing, null — the old default.
+      //
+      // Tax and total are DERIVED, through the same two functions the contract
+      // form uses. Restating "18%" here would be a second copy of the pricing
+      // rule, and the two would part company the first time the rate changed.
+      ...(() => {
+        const rate = rateFor(str(it.serial_number));
+        return rate === null
+          ? { rate: null, item_tax_amount: null, total_after_tax: null }
+          : { rate, item_tax_amount: itemTaxAmount(rate), total_after_tax: totalAfterTax(rate) };
+      })(),
     });
     machines += 1;
   }
