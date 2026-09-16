@@ -47,6 +47,30 @@ export const periodYears = (months: unknown): number | null => {
   return m === null ? null : m / 12;
 };
 
+/** THE PERIOD AS ONE NUMBER OF MONTHS — because a contract row states it TWICE
+ *  and the two are the same fact, not two facts to add up.
+ *
+ *  `contract_years` is DERIVED from `contract_months` (above: months / 12), so
+ *  a one-year contract is stored as years = 1 AND months = 12. Anything that
+ *  reads both and adds them gets twenty-four months.
+ *
+ *  That is exactly what the renewal did (found 2026-09-16, while adding price
+ *  revision to the same panel): `addPeriod(start, years, months)` on a one-year
+ *  contract proposed a TWO-year renewal, and on a two-year contract a four-year
+ *  one. The form never had the bug because it computes the end from months
+ *  alone; only the renewal passed both.
+ *
+ *  MONTHS WINS when both are present, since months is the one the form drives
+ *  from and the one that can express a period years cannot. Years is the
+ *  fallback for a row that somehow has only that — an old import, say — where
+ *  ignoring it would turn a real period into none. */
+export const periodToMonths = (years: unknown, months: unknown): number | null => {
+  const m = num(months);
+  if (m !== null) return m;
+  const y = num(years);
+  return y === null ? null : y * 12;
+};
+
 /** The end date, from BOTH registers:
  *
  *    WarrantySale  col 10: EOMONTH([Warranty Start Date],[Warranty Period (in Months)]-1)
@@ -96,6 +120,30 @@ export const totalAfterTax = (rate: unknown, tax?: unknown): number | null => {
   if (r === null) return null;
   const t = tax === undefined ? itemTaxAmount(r) : num(tax);
   return r + (t ?? 0);
+};
+
+/** REVISING A RATE AT RENEWAL — the old rate lifted by a percentage.
+ *
+ *  A renewal is re-priced, and on a contract carrying twenty machines that is
+ *  twenty numbers. Almost always they move together: the same percentage on
+ *  last year's rate. So this computes the SUGGESTION, and the panel still puts
+ *  it in an editable box — a machine that is being repriced differently is
+ *  typed over, and nothing is written that somebody did not see.
+ *
+ *  IT IS NOT A SILENT CARRY-FORWARD, which the renewal deliberately refuses:
+ *  this only ever runs because somebody entered a percentage and pressed the
+ *  button. 0% is a real answer (hold last year's price) and is honoured; a
+ *  machine with NO old rate yields null rather than 0, because "we do not know
+ *  what this was on" and "it was free" are different facts and only one of them
+ *  is true.
+ *
+ *  Rounded to paise, or a 7% uplift on 1000 arrives as 1070.0000000000001 and
+ *  that lands in a box somebody is about to agree to. */
+export const upliftRate = (oldRate: unknown, percent: unknown): number | null => {
+  const r = num(oldRate);
+  const p = num(percent);
+  if (r === null || p === null) return null;
+  return Math.round(r * (1 + p / 100) * 100) / 100;
 };
 
 /** `INDEX(SPLIT([Product Details],"|"),1..3)` — ContractDetails cols 17-19.

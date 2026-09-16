@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.293',
+    date: '2026-09-16',
+    title: 'Renew a contract at the new price — and a renewal that was doubling the period',
+    changes: [
+      'RENEW THIS CONTRACT NOW PRICES IT. Each machine gets a New Rate box, with what it was charged on the expiring contract shown beside it so you can price against it. GST and the total after tax are worked out as you type, and the contract total is shown at the foot — a rate typed with a digit too many shows up there rather than on an invoice.',
+      'REVISE ALL TICKED BY __%. Type a percentage and press Apply: every ticked machine is filled from its own old rate. Each box stays editable afterwards, so a machine being priced differently is just typed over. 0% holds last year\u2019s price. A machine with no old rate is left blank rather than set to zero.',
+      'The old rate is shown BESIDE the box, never in it, and the boxes start empty — a renewal saved with them all blank behaves exactly as before, and you can still price the contract later. A figure carried over silently is a price nobody agreed.',
+      'FIXED, AND IT WAS SILENTLY WRONG: the renewal was doubling the contract period. A contract records its length twice \u2014 1 year AND 12 months, the same twelve months \u2014 and the renewal added them, so a one-year contract renewed for two years and a two-year one for four. The end date was wrong on every renewal that had a period at all. It now reads the period once, as the contract form always has.',
+      'Nothing to run \u2014 no database change.',
+    ],
+  },
+  {
     version: '0.9.292',
     date: '2026-09-16',
     title: 'The Spare module schema — every table, and a hole found while writing it',

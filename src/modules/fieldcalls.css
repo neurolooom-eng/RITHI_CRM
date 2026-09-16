@@ -658,3 +658,28 @@
   .chart-with-table.table-first > .chart-table { order: 0; }
   .chart-with-table > .chart-table { max-height: none; }
 }
+
+/* ===========================================================================
+   RENEWAL — the machine-and-rate rows.
+   Inline widths alone could not do this: at phone width the four fixed columns
+   squeezed the product name into one word per line and pushed the total off the
+   edge. So the money moves to a second line of its own instead of competing
+   with the name for the same one.
+   =========================================================================== */
+.renew-row{display:flex; gap:8px; align-items:center; padding:5px 0; flex-wrap:wrap}
+.renew-row + .renew-row{border-top:1px solid var(--border)}
+.renew-name{flex:1 1 200px; min-width:0}
+.renew-money{display:flex; gap:8px; align-items:center; flex:0 0 auto; margin-left:auto}
+.renew-was{flex:0 0 120px; text-align:right; font-size:12.5px}
+.renew-rate{width:130px}
+.renew-tot{flex:0 0 150px; font-size:12.5px}
+
+@media (max-width: 760px){
+  /* The name keeps the first line to itself; the money gets the second,
+     indented past the checkbox so it reads as belonging to the row above. */
+  .renew-name{flex:1 1 100%}
+  .renew-money{flex:1 1 100%; margin-left:0; padding-left:26px}
+  .renew-was{flex:0 0 auto; text-align:left}
+  .renew-rate{width:110px}
+  .renew-tot{flex:1 1 auto}
+}

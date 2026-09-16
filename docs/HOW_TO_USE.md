@@ -231,6 +231,24 @@ pins that machine, ↺ hands it back.
 > The end date stays typeable and editing it changes nothing else, so a contract
 > that does not run a whole number of months still works.
 
+**Renew this contract** raises the next MC from an expiring one. It starts the
+day after the old one ends, so cover has no gap and no overlap, and the
+machines, type, party, period and billing schedule carry over. Untick anything
+not being renewed.
+
+**Rates do not carry over — you set them here.** Each machine has a **New Rate**
+box with **what it was charged last time shown beside it**, and GST and the
+total after tax fill in as you type. For the usual case, put a percentage in
+**Revise all ticked by** and press **Apply to rates**: every ticked machine is
+filled from its own old rate, and each box is still editable afterwards. 0%
+holds last year's price; a machine that had no rate is left blank rather than
+set to zero.
+
+> Leaving every rate blank is fine and is what the renewal used to do — the new
+> contract is created unpriced and you fill it in later. What never happens is
+> last year's price arriving in this year's contract without somebody putting it
+> there.
+
 - **Ownership Transfer** `/ownership-transfer` — one row per hand-over; the
   machine follows the **latest** transfer.
   - **Leave "From Party" blank** and it fills from whoever holds the machine now,
