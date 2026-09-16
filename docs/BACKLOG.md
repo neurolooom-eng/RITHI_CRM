@@ -4,8 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-15 (0207 and 0208 are BUILT AND NOT YET RUN on the live
-project — `_status.sql` rows 159 and 160 name them; rows 150-153 all applied)_
+_Last updated: 2026-09-16 (0207 and 0208 APPLIED to the live project —
+`_status.sql` rows 159 and 160; rows 150-153 applied earlier)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -52,10 +52,22 @@ VPTechnical and RnDEngg Role"*). Read only — not one key granted there writes
 anything — and `analysis_roles_test.sql` asserts what it did NOT do at least as
 hard as what it did.
 
-### Still to run on the live project
+### Applied — 2026-09-16
 
-`_status.sql` first; rows **159** and **160** name these two. Then `rbac.sql`
-(0207) and `data_integrity.sql` (0208).
+`rbac.sql` (0207) and `data_integrity.sql` (0208) were both run by the user.
+`_status.sql` rows **159** and **160** are the standing check.
+
+**What to look at rather than assume.** The backlog is a record, not evidence,
+and two things here are only true of the data as it stood when the bundle ran:
+
+- **0207 grants the roles that EXISTED, with a tuned row, at the moment it ran.**
+  A role added later — or one whose permissions array is still empty — is not
+  reached by it, by design: an empty array means "not configured" and writing one
+  key into it would switch the code defaults off. If a third analysis role
+  appears, it needs the keys merging in the same way.
+- **0208 corrected the cover values stored at that moment**, and the trigger
+  holds the line from then on. The one-row `WARRANTY` that started this should
+  now read `WGP` on Failures per cover, and the pie should have four slices.
 
 ---
 
