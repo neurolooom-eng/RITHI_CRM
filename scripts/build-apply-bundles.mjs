@@ -694,6 +694,9 @@ const MODULES = {
       // replaying this bundle with it anywhere earlier would put the old
       // AMC/OGP-only rule back — no error, and the bundle would report success.
       '0210_handstock_needs_nsm.sql',
+      // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
+      // the (much-revised) dispatch function is not touched at all.
+      '0211_dispatched_by_is_stamped.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',

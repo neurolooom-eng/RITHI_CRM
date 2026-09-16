@@ -1046,6 +1046,14 @@ with checks(sort_order, bundle, provides, present) as (
          and exists (select 1 from pg_trigger
                       where tgrelid = 'public.spare_request_lines'::regclass
                         and tgname = 'spare_request_lines_guard' and not tgisinternal))))
+,
+    (163, 'Who dispatched a stock out is stamped, not sent', 'my_display_name() + the spare_dispatches_stamp_actor trigger (0211). Reported from use: "dispatched_by -- Is not actually taking the Name based on the USer. Kasturi is Dispatching whereas it still shows Jagadesh." THE NAME ON A DELIVERY CHALLAN IS DATA, and it came from the CALLER -- dispatch_spare_lines(..., p_actor) writes whatever the app sent into spare_dispatches.dispatched_by, and the line rows copy it from there. So a fault in the app was a fault on a document that leaves the building with the company''s mark on it. And the app was sending the wrong thing: SpareDispatch.tsx read user?.name, and the User type has no `name` -- it has fullName. It type-checked ONLY because BaseRecord carries an index signature, so the value was undefined at runtime every time and fell through to the email, with no error anywhere. THE SAME RULE AS A CALL''S REGISTRANT (0113/0114): a caller-supplied value is DISCARDED, not refused -- refusing makes an honest client fail, discarding makes a buggy one harmless. A TRIGGER RATHER THAN A REWRITE, and that is the design: this migration''s first draft edited dispatch_spare_lines against 0027''s version, which is FOUR revisions out of date -- the live one carries partial dispatch (per-line quantities, the outstanding balance, the refurbished flags, the spare_dispatch_lines rows) and a tidied copy of the old body would have silently deleted all of it. AN ADMINISTRATIVE CONNECTION HAS NO SESSION, so there the supplied value is kept: blanking it would lose the only record of who booked the stock out. NOTHING ALREADY DISPATCHED IS REWRITTEN. NO means a delivery challan can name somebody who did not send it. Restore: Spare_1.sql',
+        (to_regclass('public.spare_dispatches') is null
+         or (exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                      where n.nspname = 'public' and p.proname = 'my_display_name')
+         and exists (select 1 from pg_trigger
+                      where tgrelid = 'public.spare_dispatches'::regclass
+                        and tgname = 'spare_dispatches_stamp_actor' and not tgisinternal))))
     -- NOT A ROW HERE: the missing "Monthly" payment schedule. It was a fault in
     -- the FORM (a picker with three of the sheet's four values and no free-text
     -- fallback), not in the database -- contract_entries.payment_schedule is

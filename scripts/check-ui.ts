@@ -7051,5 +7051,63 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     /\.user-avatar-unresolved \{/.test(readFileSync('src/components/layout/layout.css', 'utf8')), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // `user.name` DOES NOT EXIST, AND TYPESCRIPT CANNOT SAY SO.
+  //
+  // The `User` type has `fullName`. It has no `name` — but `BaseRecord` carries
+  // an index signature (`[key: string]: unknown`), so `user?.name` type-checks
+  // and is `undefined` at runtime, every time, with no error anywhere.
+  //
+  // Reported from use (2026-09-16): the name on a DELIVERY CHALLAN. Stores
+  // booked a stock out and `SpareDispatch.tsx` sent `user?.name ?? user?.email`
+  // — so it never sent a name at all. A document that leaves the building with
+  // the company's mark on it said the wrong thing, and nothing failed.
+  //
+  // The database stamps that column from the session now (0211), so the value
+  // the client sends no longer decides it — but the same phantom field would
+  // read as blank anywhere else it is used, so it is refused outright.
+  // -------------------------------------------------------------------------
+  const phantom: string[] = [];
+  ['src/modules', 'src/components', 'src/lib'].forEach((dir) => {
+    const walk = (d: string) => {
+      readdirSync(d, { withFileTypes: true }).forEach((e) => {
+        const full = `${d}/${e.name}`;
+        if (e.isDirectory()) { walk(full); return; }
+        if (!/\.tsx?$/.test(e.name)) return;
+        code(readFileSync(full, 'utf8')).split('\n').forEach((line, i) => {
+          // `user.name` / `user?.name`, but not `user.name_line`, `userName`,
+          // or a different object that happens to end in "user".
+          if (/\buser\s*\??\.\s*name\b(?!_)/.test(line)) {
+            phantom.push(`${full.replace(`${process.cwd()}/`, '')}:${i + 1}`);
+          }
+        });
+      });
+    };
+    walk(`${process.cwd()}/${dir}`);
+  });
+  eq('nothing reads user.name — the field is called fullName', phantom, []);
+
+  // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client
+  // no longer able to get it wrong. Same rule as a call's registrant (0113).
+  eq('who dispatched a stock out is stamped from the session',
+    existsSync('supabase/migrations/0211_dispatched_by_is_stamped.sql'), true);
+  const st = readFileSync('supabase/migrations/0211_dispatched_by_is_stamped.sql', 'utf8');
+  eq('...by a trigger, leaving the dispatch function alone',
+    /before insert on public\.spare_dispatches/.test(st), true);
+  // THE FUNCTION IS NOT REDEFINED. Its live version carries partial dispatch —
+  // per-line quantities, the outstanding balance, the refurbished flags — and
+  // this migration's first draft rewrote it from a four-revision-old copy,
+  // which would have deleted all of it.
+  eq('...and does NOT redefine dispatch_spare_lines',
+    /create or replace function public\.dispatch_spare_lines/.test(st), false);
+  // AN ADMINISTRATIVE CONNECTION HAS NO SESSION, and blanking there would lose
+  // the only record of who booked the stock out.
+  eq('...and keeps the supplied value when there is no session',
+    /if me is not null then/.test(st), true);
+  eq('...with a suite behind it',
+    existsSync('supabase/tests/dispatched_by_stamped_test.sql'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

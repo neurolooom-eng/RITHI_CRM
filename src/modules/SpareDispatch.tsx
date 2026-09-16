@@ -161,7 +161,12 @@ export function SpareDispatch() {
 
   const runDispatch = async (courier: string, remarks: string, dcDate: string) => {
     setBusy(true);
-    const actor = String(user?.name ?? user?.email ?? '');
+    // `fullName`, NOT `name`. The User type has no `name` — it only
+    // type-checked because BaseRecord carries an index signature, so this was
+    // `undefined` every time and fell through to the email. The database
+    // stamps this column from the session now (0211), so what is sent here is
+    // belt-and-braces; it is still what the screen shows before a refresh.
+    const actor = String(user?.fullName ?? user?.email ?? '');
     const ids = selected.map((l) => l.line_id);
     const qtys = selected.map((l) => qtyOf(l));
     const refurb = selected.map((l) => isRefurb(l.line_id));
@@ -191,7 +196,12 @@ export function SpareDispatch() {
     const reason = prompt(`Reason for dropping ${selected.length} spare${selected.length === 1 ? '' : 's'}? (short supply, no longer needed, superseded…)`);
     if (reason == null) return;
     setBusy(true);
-    const actor = String(user?.name ?? user?.email ?? '');
+    // `fullName`, NOT `name`. The User type has no `name` — it only
+    // type-checked because BaseRecord carries an index signature, so this was
+    // `undefined` every time and fell through to the email. The database
+    // stamps this column from the session now (0211), so what is sent here is
+    // belt-and-braces; it is still what the screen shows before a refresh.
+    const actor = String(user?.fullName ?? user?.email ?? '');
     const ids = selected.map((l) => l.line_id);
     const res = await dropSpareLines(ids, reason.trim(), actor);
     setBusy(false);
