@@ -3196,6 +3196,14 @@ export interface Profile {
   designation?: string; engineer_code?: string; region?: string;
   reporting_manager_email?: string; regional_manager_email?: string; active?: boolean;
   extra_permissions?: string[];
+  /** THIS IDENTITY IS A STAND-IN, not a row that was read. Set only by
+   *  `sbCurrentProfile()`'s last resort, where there is no profile row and
+   *  nothing in the User Master to build one from. The person stays signed in —
+   *  locking somebody out of an app they can authenticate to is worse — but
+   *  every screen that shows who they are must SAY the profile did not load,
+   *  because a blank name beside the fallback role is exactly what a broken app
+   *  looks like. It is never stored: the column does not exist. */
+  unresolved?: boolean;
 }
 
 // Admin: set a user's role, extra per-user permissions, and/or active flag.
@@ -3409,8 +3417,27 @@ export async function sbCurrentProfile(): Promise<Profile | null> {
   // so they show up in User Access at all).
   const made = await ensureMyProfile();
   if (made) return made;
-  // Nothing to build from — the minimal identity, as before.
-  return { id: user.id, email: user.email ?? '', full_name: user.email ?? '', role: 'engineer' };
+  // NOTHING TO BUILD FROM. They stay signed in — a person with no profile row
+  // and no User Master row would otherwise be locked out of an app they can
+  // authenticate to — but the identity SAYS it is unresolved rather than
+  // reading as a real one.
+  //
+  // It used to return `full_name: user.email ?? ''`, and where the session
+  // carries no email that is a person with NO NAME ANYWHERE: the screen shows
+  // "—" for their name, "—" for their email and "Engineer" for their role, and
+  // nothing on it says why. That is the quiet downgrade the comment fifteen
+  // lines above calls the worst kind of permission bug, written by the same
+  // file that condemns it.
+  //
+  // `unresolved` is what the app reads to say so out loud; the name is filled
+  // for the same reason, because a blank is indistinguishable from a bug.
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    full_name: user.email || 'Profile not loaded',
+    role: 'engineer',
+    unresolved: true,
+  } as Profile;
 }
 // ---------------------------------------------------------------------------
 // A USER'S SAVED SIGNATURE (0172).
@@ -3479,9 +3506,40 @@ export async function listUserNames(): Promise<Record<string, string>> {
 }
 
 // Notify on sign-in/sign-out (Supabase persists the session across reloads).
-export function sbOnAuthChange(cb: () => void): () => void {
+/** Auth events, with the two things that make them safe to act on.
+ *
+ *  1. NEVER CALL SUPABASE FROM INSIDE THE CALLBACK. `onAuthStateChange` runs
+ *     its listeners while the auth client holds its internal lock, so an
+ *     `await c.auth.getUser()` — or any PostgREST read, which needs the token —
+ *     made from in here waits for a lock the caller is holding. supabase-js
+ *     documents this and it is easy to write by accident, because it works the
+ *     first time: the DIRECT call at boot is outside the callback and returns
+ *     real data, and only a LATER event (the auto-refresh tick, a tab regaining
+ *     focus) goes through this path.
+ *
+ *     Reported from use (2026-09-16): "For 1 user alone - in 10Secs, it is
+ *     going into ? instead of Profile Details ... no matter which user logins
+ *     in, it is the same." The profile loaded, and seconds later the name and
+ *     email went blank and the role fell back to Engineer. Handing the callback
+ *     back out to a fresh task is the whole fix — the listener returns at once,
+ *     the lock is released, and the work runs normally.
+ *
+ *  2. THE EVENT IS PASSED ON. It was swallowed, so every event looked alike and
+ *     the caller re-read the identity for things that cannot change it. The
+ *     ones that matter are named below; the rest are ignored rather than
+ *     causing a round trip per tick.
+ */
+export type AuthEvent = 'INITIAL_SESSION' | 'SIGNED_IN' | 'SIGNED_OUT'
+  | 'TOKEN_REFRESHED' | 'USER_UPDATED' | 'PASSWORD_RECOVERY' | string;
+
+export function sbOnAuthChange(cb: (event: AuthEvent) => void): () => void {
   const c = getSupabase(); if (!c) return () => {};
-  const { data } = c.auth.onAuthStateChange(() => cb());
+  const { data } = c.auth.onAuthStateChange((event) => {
+    // OUT OF THE CALLBACK BEFORE ANYTHING ELSE HAPPENS. `setTimeout(…, 0)`
+    // rather than a microtask: a promise continuation can still run before the
+    // lock is released, and this must be a separate task.
+    setTimeout(() => cb(event), 0);
+  });
   return () => data.subscription.unsubscribe();
 }
 

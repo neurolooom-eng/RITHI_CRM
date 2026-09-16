@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.287',
+    date: '2026-09-16',
+    title: 'Your profile no longer empties itself a few seconds after you sign in',
+    changes: [
+      'REPORTED: sign in, and about ten seconds later the name and email go blank, the role drops to Engineer and the avatar turns into a “?”. It happened to whoever was signed in, on any account.',
+      'THE CAUSE: the app asked the database “who am I?” from inside the handler that listens for sign-in events — and that handler runs while the login library is holding a lock the question needs. It worked the first time, because the first ask happens before any event; it broke on the next one, which is the automatic token refresh a few seconds later. The question is now asked a moment after the handler finishes, and a plain token refresh no longer triggers it at all — the same person is signed in either way.',
+      'AND IF A PROFILE EVER GENUINELY CANNOT BE LOADED, the app now says so on My Profile instead of showing a nameless Engineer. You stay signed in, the “?” is marked, and the page tells you the role shown is a fallback rather than yours — so it reads as an account that needs setting up rather than as an app that is broken.',
+    ],
+  },
+  {
     version: '0.9.286',
     date: '2026-09-16',
     title: 'How RITHI Functions is now the shared diagram itself, and restricted to four roles',
