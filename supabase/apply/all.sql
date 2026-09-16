@@ -17667,6 +17667,30 @@ create trigger spare_request_lines_dispatch_guard
   before update on public.spare_request_lines
   for each row execute function public.spare_request_lines_dispatch_guard();
 
+-- THE REQUEST-LEVEL GUARD, PUT BACK — and this one is the whole argument for
+-- per-line approvals, so leaving it off is not a smaller version of the same
+-- mistake. Step 2 drops three triggers and the two above were restored; this
+-- third was not, and nothing said so: `check:replay` compares FUNCTIONS, and
+-- the function is untouched. Only the trigger was missing.
+--
+-- WHAT IT COSTS WHEN IT IS OFF, measured rather than reasoned about. An
+-- engineer holding `spare.request` and nothing else is the requester, so
+-- `sr_update` lets them write their own request; with this trigger absent a
+-- single UPDATE sets rm_approval, commercial_approval, nsm_approval,
+-- stores_status and received_at to whatever they like. RM, Commercial, NSM and
+-- Stores are all skipped, and the per-line RBAC in
+-- `spare_request_lines_guard()` never runs because no line was touched. The
+-- approval chain this very migration exists to LENGTHEN is bypassed entirely.
+--
+-- The function is not redefined here. 0016 gave it the last word — it refuses
+-- every approval written to the request rather than checking per-stage
+-- permissions — and re-stating an older body would open a wider hole than the
+-- one being closed. Only the trigger is restored.
+drop trigger if exists spare_requests_stage_guard on public.spare_requests;
+create trigger spare_requests_stage_guard
+  before update on public.spare_requests
+  for each row execute function public.spare_requests_stage_guard();
+
 -- ---------------------------------------------------------------------------
 -- 5. Recompute the cached stage from the repaired columns, and roll the
 --    requests up. Only lines that are still OPEN: a dispatched, received,

@@ -179,3 +179,69 @@ update public.spare_request_lines
 reset role;
 select 'after the NSM rejects it' as check, stage as should_be_Rejected
   from public.spare_request_lines where request_uid = 'SRQ-HS';
+
+\echo ''
+\echo '--- 7. THE TRIGGERS STEP 2 DROPPED ARE ALL BACK ---'
+-- Step 2 of 0210 drops three guards so the backfill can write approval columns
+-- that nobody decided, and puts them back afterwards. The FIRST version of this
+-- migration restored only two: `spare_requests_stage_guard` was dropped and
+-- never recreated, and nothing caught it — `check:replay` compares functions,
+-- and the function was untouched. Only the trigger was gone.
+--
+-- A migration that drops a guard to do its work and leaves it off is a class,
+-- not an incident, so this asks the DATABASE for all three by name.
+select 'guards restored after the backfill' as check,
+       count(*)::text || ' of 3' as should_be_3_of_3
+  from pg_trigger
+ where not tgisinternal
+   and (tgrelid, tgname) in (
+     ('public.spare_request_lines'::regclass, 'spare_request_lines_guard'),
+     ('public.spare_request_lines'::regclass, 'spare_request_lines_dispatch_guard'),
+     ('public.spare_requests'::regclass,      'spare_requests_stage_guard'));
+
+\echo ''
+\echo '--- 7b. ...and the request-level one still REFUSES a self-approval ---'
+-- What the missing trigger actually cost, as behaviour rather than a count.
+-- An engineer holding `spare.request` alone is the requester, so `sr_update`
+-- lets them write their own request; with the guard off, ONE update carried it
+-- past RM, Commercial, NSM and Stores to Received. The per-line RBAC never ran,
+-- because no line was touched.
+insert into public.app_roles (role, label, permissions) values
+ ('eng_selfapp', 'Engineer (self-approval probe)', '["spare.request"]'::jsonb)
+on conflict (role) do update set permissions = excluded.permissions;
+insert into auth.users (id, email) values
+ ('dd000000-0000-0000-0000-000000000009','selfapp@x.com') on conflict do nothing;
+insert into public.profiles (id, email, full_name, role) values
+ ('dd000000-0000-0000-0000-000000000009','selfapp@x.com','Self Approver','eng_selfapp')
+on conflict (id) do update set role = excluded.role;
+
+-- THE PROBE MUST OWN THE REQUEST, or this proves nothing. `sr_update` is
+-- `can_approve_spares() OR is_spare_requester(...)`, so pointing the probe at
+-- somebody else's request makes the UPDATE match ZERO rows and the assertion
+-- passes with the guard removed — which is what the first draft of this step
+-- did. The row has to be one RLS lets them write, so that the only thing left
+-- refusing it is the trigger under test.
+insert into public.spare_requests (uid, req_type, engineer, engineer_email, item_status, ucn)
+values ('SRQ-SELF', 'Call Based', 'Self Approver', 'selfapp@x.com', 'CMC', 'UCN-SELF')
+on conflict (uid) do update set engineer_email = excluded.engineer_email;
+insert into public.spare_request_lines (request_uid, part, qty)
+select 'SRQ-SELF', 'P-SELF|Widget', 1
+ where not exists (select 1 from public.spare_request_lines where request_uid = 'SRQ-SELF');
+
+call public.be('selfapp@x.com');
+set role authenticated;
+select 'the requester may not approve spares' as check,
+       public.can_approve_spares()::text as should_be_false;
+select 'but RLS does let them write their own request' as check,
+       public.is_spare_requester(r.*)::text as should_be_true
+  from public.spare_requests r where r.uid = 'SRQ-SELF';
+-- expect ERROR: Spare approvals are recorded per spare
+update public.spare_requests
+   set rm_approval = 'Approved', commercial_approval = 'Approved',
+       nsm_approval = 'Approved', stores_status = 'Dispatched', received_at = now()
+ where uid = 'SRQ-SELF';
+reset role;
+select 'SRQ-SELF after the attempt' as check,
+       coalesce(nullif(rm_approval,''),'Pending') as should_be_Pending,
+       case when received_at is null then 'not received' else 'RECEIVED' end as should_be_not_received
+  from public.spare_requests where uid = 'SRQ-SELF';

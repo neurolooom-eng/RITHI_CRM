@@ -11,11 +11,17 @@
 insert into auth.users (id,email) values
  ('22222222-2222-2222-2222-222222222222','rm@x.com'),
  ('33333333-3333-3333-3333-333333333333','st@x.com'),
- ('44444444-4444-4444-4444-444444444444','eng@x.com');
+ ('44444444-4444-4444-4444-444444444444','eng@x.com'),
+ -- AN NSM, because 0210 gave HandStock a stage that needs one. Without this
+ -- the fixtures below never reach Stores and the whole suite dispatches
+ -- NOTHING -- which it did, reporting 'Nothing to dispatch: no spares
+ -- selected' three times while still printing its headings.
+ ('55555555-5555-5555-5555-555555555555','nsm@x.com');
 insert into public.profiles (id,email,full_name,role) values
  ('22222222-2222-2222-2222-222222222222','rm@x.com','RM Ravi','rm'),
  ('33333333-3333-3333-3333-333333333333','st@x.com','Stores Sam','stores_incharge'),
- ('44444444-4444-4444-4444-444444444444','eng@x.com','Eng Anil','engineer');
+ ('44444444-4444-4444-4444-444444444444','eng@x.com','Eng Anil','engineer'),
+ ('55555555-5555-5555-5555-555555555555','nsm@x.com','NSM Nita','nsm');
 create or replace procedure public.be(p text) language plpgsql as $$
 begin update public.harness set uid=(select id from auth.users where email=p), email=p; end $$;
 
@@ -27,8 +33,22 @@ values ('D1','Anil','eng@x.com','HandStock','WARRANTY'),
 insert into public.spare_request_lines (request_uid, part, qty) values
  ('D1','P-A|Pump',2),('D1','P-B|Valve',1),('D2','P-C|Seal',3),('D3','P-A|Pump',5);
 call public.be('rm@x.com');
+-- The RM approves, and may wave through the stages that do not APPLY -- but
+-- only those. Commercial weighs whether somebody is being charged, so WGP does
+-- not need it; NSM weighs whether the stock is warranted, and after 0210 a
+-- HandStock request always does, whatever its cover. So the RM stamps NSM only
+-- on the Call Based line, and D1/D3 wait for somebody who holds the permission.
 update public.spare_request_lines set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
-       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved';
+       commercial_approval='Auto-Approved';
+update public.spare_request_lines l set nsm_approval='Auto-Approved'
+  from public.spare_requests r
+ where r.uid = l.request_uid and not public.spare_is_handstock(r.req_type);
+call public.be('nsm@x.com');
+update public.spare_request_lines l set nsm_approval='Approved', nsm_by='NSM Nita', nsm_at=now()
+  from public.spare_requests r
+ where r.uid = l.request_uid and public.spare_is_handstock(r.req_type);
+select 'every fixture line reached Stores' as check, count(*)::text || ' of 4' as should_be_4_of_4
+  from public.spare_request_lines where stage = 'Stores';
 
 \echo '--- 1. the pending-dispatch queue, with the engineer to group by ---'
 select engineer, or_no, row_no, part, qty from public.spare_pending_dispatch order by engineer, or_no, row_no;
@@ -66,9 +86,18 @@ values ('D4','Anil','eng@x.com','HandStock','WARRANTY'),('D5','Bala','bala@x.com
 insert into public.spare_request_lines (request_uid, part, qty) values ('D4','P-D|Hose',1),('D5','P-D|Hose',1);
 call public.be('rm@x.com');
 update public.spare_request_lines set rm_approval='Approved', rm_by='RM Ravi', rm_at=now(),
-       commercial_approval='Auto-Approved', nsm_approval='Auto-Approved'
+       commercial_approval='Auto-Approved'
+ where request_uid in ('D4','D5');
+-- Both are HandStock, so both need the NSM (0210). Without this the two lines
+-- sit at NSM, the queue below is EMPTY, and the 'one engineer' refusal that
+-- this step exists to prove never fires -- the call fails with 'nothing to
+-- dispatch' instead, which is a pass that proves nothing.
+call public.be('nsm@x.com');
+update public.spare_request_lines set nsm_approval='Approved', nsm_by='NSM Nita', nsm_at=now()
  where request_uid in ('D4','D5');
 call public.be('st@x.com');
+select 'D4 and D5 are waiting at Stores' as check, count(*)::text || ' of 2' as should_be_2_of_2
+  from public.spare_request_lines where request_uid in ('D4','D5') and stage = 'Stores';
 \echo 'expect ERROR: a stock out goes to one engineer'
 select uid from public.dispatch_spare_lines(
   (select array_agg(line_id) from public.spare_pending_dispatch), '', '', current_date, 'Stores Sam');
