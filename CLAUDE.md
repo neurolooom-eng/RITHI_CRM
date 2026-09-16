@@ -166,6 +166,17 @@ on testing the old shape. **When a migration replaces a definition, move the
   Re-run it after changing any requirement. It caught the first stale count it
   was pointed at: CLAUDE.md said the servicing reference had 37 requirements
   and it defines 44.
+- **`public/docs/spare-module-schema.html` IS THE SPARE MODULE'S SCHEMA, for a
+  reader rather than a generator** — the fields that carry a decision, who fills
+  each one, what it refuses in the words it refuses it, and the links up and
+  downstream. Its facts are INTROSPECTED the same way `DATABASE_SCHEMA.md`'s are,
+  for the same reason, and it must be re-checked against a database after any
+  migration touching the module. **It deliberately does not read "mandatory" off
+  `NOT NULL`**, because that is wrong in both directions here: most `NOT NULL`
+  columns in the module carry a default, and four of the genuinely required
+  fields on a reconciliation are NULLABLE and demanded by a trigger. The badge
+  answers "must I put something here?" and the rule beside it says what enforces
+  that. Writing it is what found the missing guard above.
 - **`docs/DATABASE_SCHEMA.md` is GENERATED — never hand-edit it.** 61 tables,
   24 views, 1,400+ columns, 117 policies. `npm run schema:doc -- "<psql args>"`
   introspects a database built from the migrations and writes the whole thing:
@@ -342,6 +353,59 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Substring search needs pg_trgm; `=`/`IN` needs a btree.** A trigram index
   does not serve equality, so `products.party_name =` (the request cascade) went
   on timing out until btree indexes were added alongside the trigram ones.
+- **THE TWO MIDDLE SPARE STAGES DO NOT SHARE A RULE** (0210). Commercial judges
+  whether somebody is being CHARGED — AMC or OGP; NSM judges whether the stock
+  is WARRANTED — AMC or OGP **or a HandStock request**, which has no machine
+  behind it and so no cover for Commercial to weigh. `spare_needs_commercial` /
+  `spare_needs_nsm` in SQL, `needsCommercial` / `needsNsm` in `spareflow.ts`.
+  **`spare_line_stage` KEEPS ITS SIX ARGUMENTS and no longer reads
+  `item_status`**: seven migrations call it (0016, 0025, 0031, 0055, 0116, 0118,
+  0154) and three define views whose current definitions live in later files, so
+  a seventh argument is a lot of surface — and a six-arg version left beside a
+  seven-arg one answers the OLD rule, correctly-looking, for whatever still
+  calls it. The rule lives in what gets STAMPED at RM approval instead, which
+  also makes the stage report the record rather than re-deriving it.
+  **That is only safe because 0210 first writes today's meaning into the data** —
+  every line the old rule waved through gets `Auto-Approved` in the columns it
+  waved through, with NO `_by`/`_at`, since nobody decided them. Without that
+  step every settled line marches backwards out of Stores.
+  **Approvals are PER LINE**: `spare_requests_stage_guard()` (0016) refuses any
+  approval written to the request itself, and redefining it is how a wider hole
+  than the one you are closing gets opened — `check:replay` caught exactly that
+  in 0210's first draft.
+- **A MIGRATION THAT DROPS A GUARD TO DO ITS WORK MUST PUT EVERY ONE BACK, AND
+  NOTHING EXISTING CHECKED THAT.** 0210's step 2 switches off three triggers so
+  the backfill can write approval columns nobody decided. Its first version
+  restored two and left `spare_requests_stage_guard` off the table — and every
+  check passed, because **`check:replay` compares FUNCTIONS and the function was
+  untouched**; only the TRIGGER was missing. Found by asking a database which
+  triggers `spare_requests` carries while documenting the table, not by reading
+  the file, which reads as correct (it even carries a comment about remembering
+  to restore the *second* one). What it cost was measured on two databases, one
+  built with 0210 and one without: an engineer holding `spare.request` alone is
+  the requester, so `sr_update` lets them write their own request, and with the
+  guard off **one UPDATE carried it past RM, Commercial, NSM and Stores to
+  Received** — the per-line RBAC never ran, because no line was touched. The
+  repair is in 0210; `_status.sql` row 162 now counts all **three** triggers and
+  `handstock_needs_nsm_test.sql` proves the refusal still fires. **The probe in
+  that suite must OWN the request** — pointed at somebody else's, RLS makes the
+  UPDATE match zero rows and the assertion passes with the guard removed, which
+  is what its first draft did.
+- **`user.name` DOES NOT EXIST — it is `fullName` — AND TYPESCRIPT CANNOT SAY
+  SO**, because `BaseRecord` carries `[key: string]: unknown`. `user?.name`
+  type-checks and is `undefined` at runtime, every time, with no error. It put
+  the wrong name on a DELIVERY CHALLAN (2026-09-16): `SpareDispatch.tsx` sent
+  `user?.name ?? user?.email`, so it never sent a name at all. `check:ui`
+  refuses it anywhere now.
+  **And `spare_dispatches.dispatched_by` is STAMPED from the session** (0211,
+  a `before insert` trigger), so what the client sends is discarded — the
+  0113/0114 rule. A caller-supplied value is DISCARDED, not refused: refusing
+  makes an honest client fail, discarding makes a buggy one harmless.
+  **The trigger exists rather than an edit to `dispatch_spare_lines` because
+  that function is four revisions past 0027** and carries partial dispatch;
+  0211's first draft rewrote it from the old body and would have deleted all of
+  it. **Read a function out of the DATABASE before replacing it**, not out of
+  the migration that first created it.
 - **Hand stock is derived, never stored** — issued − consumed ± transfers −
   returns. Consumption is therefore the control point: a DB trigger caps every
   consumption line at the engineer's balance. Reported lines are capped too;
@@ -494,6 +558,31 @@ on testing the old shape. **When a migration replaces a definition, move the
   import: 30 of the 53 lines are retired and those sales really happened.
   `product_line_sellable()` is the same rule in SQL; an UNKNOWN code is sellable,
   since an incomplete catalogue must not refuse a real sale.
+- **REMOVING A MENU ENTRY DOES NOT RESTRICT A PAGE**, and the rule below cuts
+  both ways: NARROWING a page needs the migration exactly as much as adding one
+  does. "How RITHI Functions" shipped `alwaysOpen` (no module, no key) and was
+  limited to four roles hours later — `admin: true` on the module keeps the key
+  out of `NON_ADMIN_MODULES`, leaving `SEES_EVERY_MODULE`'s three, and NSM is
+  named in its own `FUNCTIONAL_DEFAULTS`; **0209** puts it in `app_roles`,
+  without which the tick grants nobody anything. And the `_status.sql` row
+  checks BOTH halves — everyone named holds it, and nobody else does — because
+  "limit exposure" is two statements and a grant that leaks to a fifth role
+  passes every check that only looks at the four.
+- **THE SHARED DIAGRAMS AND THE IN-APP PAGE ARE THE SAME FILES.**
+  `public/docs/*.html` are in the repo — `how-a-call-works.html`,
+  `how-a-spare-moves.html`, `how-hand-stock-moves.html` and
+  `spare-module-schema.html` so far — framed from the app's own origin by
+  `HowRithiFunctions.tsx`, which lists them in `DOCS` and offers a chip per
+  module; each claude.ai artifact is PUBLISHED FROM its path. A third module is
+  a file and a line in `DOCS`. They share ONE shell: copy the head of an
+  existing document so the theme hand-off and the height message come with it
+  (`check:ui` checks every listed document for both, and that the file exists). **The artifact URL cannot be embedded** — that host answers
+  `x-frame-options: SAMEORIGIN` and the page is private, so an iframe at it
+  renders an empty box for everybody but its author. A frame keeps one copy of
+  the markup and one of the CSS; the two things it costs are handled and
+  checked: the host's theme is passed in (`?theme=`, from the app theme's
+  `scheme`) and the document posts its own height, accepted only from that
+  frame. A missing document says so rather than rendering blank.
 - **A NEW SCREEN, OR A RE-ARRANGED ONE, IS NOT DONE UNTIL ROLES & PERMISSIONS
   KNOWS** (the user's standing rule, 2026-09-14: *"Always when a New UI is
   introduced or when a UI is re-arranged — this is often missed"*). It had been

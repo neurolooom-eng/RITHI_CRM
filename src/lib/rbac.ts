@@ -71,6 +71,15 @@ export const MODULES: ModuleDef[] = [
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
   { path: '/masters', label: 'All Masters' },
+  // HOW RITHI FUNCTIONS — the two call flows and the masters behind them. It
+  // shipped `alwaysOpen` (not a module, open to everyone) and was RESTRICTED
+  // the same day at the user's request to Admin, NSM, Zoho Migration and
+  // Technical Support. `admin: true` is what does three quarters of that: it
+  // keeps the key out of NON_ADMIN_MODULES, so the code defaults give it to
+  // exactly the three roles in SEES_EVERY_MODULE; NSM is added by name below.
+  // 0209 is the other half — on a project in use, a code default reaches
+  // nobody, because every role already has a stored row.
+  { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', admin: true },
   { path: '/service-manuals', label: 'Service Manuals' },
   { path: '/qms', label: 'QMS Documents' },
   { path: '/warranties', label: 'Warranty Register' },
@@ -279,7 +288,11 @@ const FUNCTIONAL_DEFAULTS: Record<string, string[]> = {
   technical_support: ['calls.view', 'masters.view', 'consumption.view', 'reports.view',
                       'dashboard.view', 'feedback.view', 'audit.view', 'admin.view',
                       'export.data', 'data.view_all'],
-  nsm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
+  // NSM HOLDS THE KEY BY NAME. The module is marked `admin: true` so it stays
+  // out of NON_ADMIN_MODULES, which would otherwise hand it to all twelve
+  // roles; that leaves admin, technical_support and zoho_migration (the three
+  // in SEES_EVERY_MODULE), and the user asked for NSM as well.
+  nsm: ['mod:/knowledge-base/how-it-works', 'ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.cancel', 'docs.manage', 'masters.view', 'consumption.view', 'reports.view', 'dashboard.view', 'feedback.view', 'spare.approve_nsm', 'review.edit', 'indoor.receive', 'indoor.work', 'indoor.qc', 'indoor.dispatch'],
   rgm: ['ffr.view', 'ffr.manage', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   rm: ['ffr.view', 'ffr.manage', 'callreview.mark', 'calls.view', 'calls.create', 'calls.edit', 'calls.allot', 'calls.report', 'request.create', 'spare.request', 'spare.approve_rm', 'stock.transfer', 'stock.return', 'consumption.view', 'masters.view', 'reports.view', 'dashboard.view', 'feedback.view', 'review.edit'],
   // Engineers: view + report their calls; no create/edit, no spare requests.
@@ -419,6 +432,10 @@ export const PERM_TREE: PermHeader[] = [
   // everyone and there is nothing to grant, which is why this header has one
   // page rather than three.
   { title: 'Knowledge Base', pages: [
+    // NO ACTIONS OF ITS OWN: it is a document. Opening it is the whole right,
+    // which is why restricting it is a matter of who holds `mod:` and nothing
+    // else.
+    { path: '/knowledge-base/how-it-works', label: 'How RITHI Functions', actions: [] },
     { path: '/service-manuals', label: 'Service Manuals', actions: ['docs.manage'] },
   ] },
   { title: 'Service Calls', pages: [

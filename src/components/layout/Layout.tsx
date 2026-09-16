@@ -139,7 +139,12 @@ export const NAV: NavGroup[] = [
       // proceed without. `alwaysOpen` like its neighbours: there is nothing
       // here to grant, and a page explaining how the system works is of most
       // use to whoever has just been refused something by it.
-      { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭', alwaysOpen: true },
+      // NOT `alwaysOpen` ANY MORE (the user, 2026-09-16: "Limit Exposure to
+      // Admin, NSM, Zoho, Technical Support"). Dropping the flag is what makes
+      // the menu entry follow the permission; the permission itself is the
+      // module key, granted to those four roles by 0209. Removing a menu entry
+      // does not restrict a page — the route still answers.
+      { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭' },
       { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
       { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
     ],
@@ -538,7 +543,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
           <div className="header-user">
             <button className="user-chip" onClick={() => setMenuOpen((o) => !o)}>
-              <span className="user-avatar">{user?.fullName?.[0] ?? '?'}</span>
+              {/* "?" USED TO BE THE ONLY SIGN that a profile had not loaded, and
+                  it reads as a rendering glitch rather than as a problem with
+                  the account. It still shows — there is nothing else to draw —
+                  but it is now marked, and the menu below says what it means. */}
+              <span className={`user-avatar${user?.unresolved ? ' user-avatar-unresolved' : ''}`}
+                title={user?.unresolved ? 'Your profile did not load — open My Profile' : undefined}>
+                {user?.fullName?.[0] ?? '?'}</span>
               <span className="user-meta">
                 <span className="user-name">{user?.fullName}</span>
                 <span className="user-role">{roleLabel(user)}</span>

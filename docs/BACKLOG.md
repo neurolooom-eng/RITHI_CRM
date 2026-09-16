@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (the 2016 archive, folded into Machine History)_status.sql` rows 159 and 160)_
+_Last updated: 2026-09-16 (the 2016 archive, folded into Machine History)_1.sql` even if you already ran it**;
+0210 and 0211 otherwise BUILT AND NOT YET RUN — `_status.sql` rows 162 and 163;
+0207-0209 APPLIED, rows 159-161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
@@ -92,6 +94,361 @@ still carries `security_invoker`.
 
 
 
+
+
+## 2026-09-16 — The Spare module schema, and the guard 0210 was leaving off
+
+*"Build a Schema for every Table in the Spare Module - Highlight all important
+Variables, Type of Field, Mandatory / Optional, What is allowed, what is not
+allowed, How it flows to the Next Module, Down Stream / Up Stream links. Add
+this to "Schema" under How it Functions."*
+
+Shipped as `public/docs/spare-module-schema.html`, the **fourth** document in
+`DOCS` on How RITHI Functions. Sixteen table cards across six movements, every
+fact introspected from a Postgres with every migration applied — columns, types,
+defaults, generated expressions, CHECKs, unique indexes, foreign keys in BOTH
+directions, triggers and row-level policies — and every refusal quoted from the
+message the system actually raises.
+
+**It does not read "mandatory" off `NOT NULL`, deliberately.** That answer is
+wrong in both directions in this module: most `NOT NULL` columns carry a default
+and are never supplied by anybody, while four of the genuinely required fields
+on a reconciliation (UCN, part, engineer, reason) are NULLABLE in the DDL and
+demanded by a trigger. The badge answers the question somebody actually has —
+*must I put something here?* — and the rule beside it names what enforces it.
+
+### ⚠️ What writing it found — a hole in 0210, which had not yet been run
+
+Documenting `spare_requests` meant asking the database which triggers it
+carries. It carried four, and `spare_requests_stage_guard` was not among them.
+
+**0210 step 2 drops three guards** so the backfill can write approval columns
+nobody decided, and **restored only two**. Nothing caught it:
+`npm run check:replay` compares FUNCTIONS, and the function was untouched — only
+the TRIGGER was gone. The file reads as correct, and even carries a comment
+about remembering to restore the *second* of the three.
+
+Measured rather than reasoned about, on two databases built from the same
+migrations with and without 0210. An engineer holding `spare.request` and
+nothing else is the requester, so `sr_update` lets them write their own request.
+With the guard off, **one UPDATE** set `rm_approval`, `commercial_approval`,
+`nsm_approval`, `stores_status` and `received_at` — carrying their own request
+past RM, Commercial, NSM and Stores to Received. The per-line RBAC in
+`spare_request_lines_guard()` never ran, because no line was touched. With the
+guard on, the same statement raises *"Spare approvals are recorded per spare —
+update spare_request_lines, not the request."*
+
+The irony is the sharp part: this is the migration whose whole purpose is to
+**lengthen** the approval chain.
+
+Fixed in 0210 (the trigger restored; the function deliberately NOT redefined —
+0016 has the last word on it and re-stating an older body is how a wider hole
+gets opened). `_status.sql` row 162 now counts **all three** triggers rather
+than one, and `handstock_needs_nsm_test.sql` gained two steps: the count, and a
+behavioural probe. **That probe has to OWN the request** — pointed at somebody
+else's, RLS makes the UPDATE match zero rows and it passes with the guard
+removed, which is exactly what its first draft did. Mutation-tested both ways.
+
+### ⚠️ And a second thing, in the same migration's wake
+
+`spare_dispatch_test.sql` had **not been brought forward for 0210** either. Its
+fixtures approve every line as the RM and stamp `nsm_approval = 'Auto-Approved'`
+in the same write — which is exactly what 0210 stopped allowing on a HandStock
+request. So three of the four fixture lines sat at **NSM**, never reached
+Stores, and every dispatch in the suite failed with *"Nothing to dispatch: no
+spares selected"*.
+
+**The suite still printed all twelve of its headings.** Its result tables were
+empty and nothing said so. Worse, step 7's labelled `expect ERROR` — *"a stock
+out goes to one engineer"* — went on erroring, for the **wrong reason**: the
+queue was empty, so the call failed before it ever got as far as noticing two
+engineers. An expected error that fires for the wrong reason is indistinguishable
+from a passing test.
+
+Fixed by giving the suite an NSM and having them approve the HandStock lines, as
+the live system now requires. It dispatches again: stock outs created, SO and DC
+numbers assigned in series, hand stock counted from them. Two `of N` assertions
+were added at the fixture stage so an empty queue announces itself next time
+rather than quietly passing.
+
+### Still to run on the live project
+
+**`Spare_1.sql` has changed — run it again even if you already ran it.** It is
+idempotent, so a second run is safe, and it is the only thing that puts the
+guard back. `_status.sql` first: row **162** now tests all three triggers, so it
+reads NO until this is applied.
+
+---
+
+## 2026-09-16 — Hand Stock, and the five movements that were asked for separately
+
+Asked for as four documents — Spare Reconciliation, Material Return, Stock
+Transfer, Handstock — then: *"I think it has a flow to Handstock -- See if it
+can be merged."* Then *"Add Consumption & Stock Out as well."*
+
+**Merged, and it is the better document.** All of them are entries in ONE
+ledger, and the balance formula is what makes any of them make sense:
+
+    on hand = opening + stock out + transfers in − consumed − transfers out − returns
+
+Five separate pages would repeat that formula five times and hide the
+relationship. One document puts the balance at the centre and hangs each
+movement off it — which is also the order somebody needs to read them in.
+
+**The order is IN then OUT**, not the order they were asked for: Stock Out and
+the opening balance first, because the balance has to exist before a refusal
+against it means anything; then consumption (reported, reconciled, voided),
+transfers, returns.
+
+**Consumption is the control point and the document says why**: every other
+movement has a document and a second party behind it, so it is the one a person
+enters freely and the one the database guards with a hard refusal. Every
+refusal is quoted as the system actually words it.
+
+Shareable copy: <https://claude.ai/artifact/HWP2Hy2yEZmpJevgeffZvm>
+
+---
+
+## 2026-09-16 — The delivery challan named the wrong person
+
+*"dispatched_by -- Is not actually taking the Name based on the USer. Kasturi is
+Dispatching whereas it still shows Jagadesh."*
+
+**The app was never sending a name at all.** `SpareDispatch.tsx` read
+`user?.name` — and the `User` type has no `name`; it has `fullName`. It
+type-checked **only** because `BaseRecord` carries an index signature
+(`[key: string]: unknown`), so the expression was `undefined` at runtime every
+time and fell through to the email. No error anywhere.
+
+And `dispatched_by` came from the CALLER: `dispatch_spare_lines(..., p_actor)`
+writes whatever the app sends into `spare_dispatches.dispatched_by`, and the
+line rows copy it from there. So a fault in the app was a fault on a document
+that **leaves the building with the company's mark on it**.
+
+Fixed the way this project already fixes it for a call's registrant (0113/0114):
+**a caller-supplied value is DISCARDED, not refused.** Refusing makes an honest
+client fail; discarding makes a buggy one harmless.
+
+### A trigger rather than a rewrite — and why that matters
+
+The first draft of 0211 edited `dispatch_spare_lines` to resolve the name
+itself. It was written against **0027's version of that function, four revisions
+out of date**. The live one carries partial dispatch: per-line quantities, the
+outstanding balance, the refurbished flags and the `spare_dispatch_lines` rows.
+A tidied copy of the old body would have **silently deleted all of it**.
+
+Caught by reading the function out of the database before trusting the migration
+file — the same habit that this repo's own rule recommends and that I had not
+applied to a function I was about to replace. 0211 touches the function not at
+all: a `before insert` trigger on `spare_dispatches` overwrites the column, which
+also covers any other path that inserts a dispatch.
+
+`check:ui` now refuses `user.name` anywhere in the app, since TypeScript cannot.
+
+### Still to run on the live project
+
+`_status.sql` first; row **163**. Then `Spare_1.sql` (0211) — repository ROOT.
+The app-side fix alone puts the right name on new stock outs; the migration is
+what stops it ever being the app's to get wrong.
+
+---
+
+## 2026-09-16 — A HandStock request goes to NSM
+
+*"For Handstock request - NSM has to approve the request."*
+
+**Replenishment was leaving on one signature.** One rule decided both middle
+stages — `spare_needs_review(item_status)` = AMC or OGP — and a HandStock
+request has no machine, so no item status, so the rule was FALSE: the RM's
+approval stamped BOTH Commercial and NSM `Auto-Approved` in the same write and
+the line went straight to Stores.
+
+The two stages stop sharing a rule, because they no longer ask the same
+question. Commercial judges whether somebody is being CHARGED (AMC/OGP,
+unchanged); NSM judges whether the stock is WARRANTED — and replenishment is
+the case where only the second question has an answer.
+
+### The design decision worth recording
+
+The obvious change is a seventh argument on `spare_line_stage`. It is the wrong
+one: **seven migrations call that function** (0016, 0025, 0031, 0055, 0116,
+0118, 0154) and three define views whose current definitions live in the later
+files. And leaving a six-argument version beside a seven-argument one is the
+two-definitions trap — the short one cannot see `req_type`, so it answers the
+OLD rule, correctly-looking, for anything still calling it.
+
+So **the rule moved out of the stage and into what gets STAMPED**. The stage now
+follows the recorded columns alone, which is the more honest reading anyway: a
+stage should report the decisions on the record, not re-derive from the cover
+whether a decision was required. Whether a stage is needed is settled once, at
+RM approval.
+
+**Which is what makes step 2 of 0210 the important part.** Under the old rule a
+line could sit at Stores with BLANK middle columns — nothing was ever written,
+because nothing was needed. Read by the new rule those rows say "Commercial has
+not approved" and would march backwards out of Stores. So today's meaning is
+pinned into the data first: every line the old rule waved through gets
+`Auto-Approved` written into the columns it waved through — with **no `_by` or
+`_at`**, because nobody decided them and inventing an approver on a quality
+record is worse than an outcome with no name against it.
+
+### check:replay caught a regression in my own migration
+
+The first draft redefined `spare_requests_stage_guard()` with the old per-stage
+logic. That function was **superseded by 0016**, whose body refuses any approval
+written to `spare_requests` at all — *"Spare approvals are recorded per spare —
+update spare_request_lines, not the request"*. Redefining it would have quietly
+re-opened request-level approval writes: **a wider hole than the one this closes**.
+Caught before it shipped, by the check written for exactly that.
+
+Two more faults the suite caught in itself: an approver who is not the
+engineer's manager cannot SEE the rows, so every `UPDATE` matched nothing and
+read as "the guard refused it" (it refused nothing); and the request's stage is
+a ROLLUP of its lines, so a fixture with no lines rolls up to `RM Approval` for
+ever.
+
+### Still to run on the live project
+
+`_status.sql` first; row **162**. Then `Spare_1.sql` (0210) — at the repository
+ROOT, not in `supabase/apply/`.
+
+---
+
+## 2026-09-16 — The Spare module, documented
+
+*"Add Spare Module -- How it Functions, What are the Fields and Who can Do What
+-- Map Both Routes (Call Based, HandStock). Add Approvals, Logic and Also the
+Fields involved in every Approval Cycle."*
+
+A second document on **How RITHI Functions**, picked with a chip. The page was
+built for one module and now carries two; a third is a file and a line.
+
+Written from the running system rather than from memory —
+`spareflow.ts` for the state machine, `SpareRequests.tsx` for the form, the
+columns and triggers in `supabase/migrations/` (OR numbering 0017, the stock out
+and its challan 0027/0028, the hand-stock balance view, the consumption guard
+0059/0060) and `rbac.ts` for the rights.
+
+**The fork is the interesting part**, and it is not where people expect: the two
+ROUTES converge immediately, and what actually forks the chain is the **cover**.
+WGP and CMC go manager → Stores with Commercial and NSM stamped *Auto-Approved*
+in the same write; AMC and OGP bring both in, because those are the covers where
+the part is chargeable to somebody. Every HandStock request takes the short
+chain — with no machine there is no item status to review.
+
+Two distinctions the document spells out because the screens cannot:
+
+- **Rejected vs Dropped.** An approver refuses a request; Stores declines to
+  send an approved part. Both terminal, both need a reason, different questions.
+- **Dispatched vs Received.** Stores' claim against the engineer's. The gap is
+  stock that has left the building and not been confirmed as arrived.
+
+**A note on who can do what.** The document names the RIGHT for each stage and
+says Roles & Permissions is where it is set — deliberately, rather than listing
+holders. The CODE defaults and the live rows differ on a project in use, and a
+document asserting the defaults would be wrong the moment somebody tuned a role.
+
+`check:ui` now checks the LIST rather than one filename: every document the page
+offers must exist, and each must carry the theme hand-off and the height
+message. Mutation-tested with a typo'd filename.
+
+Shareable copy: <https://claude.ai/artifact/FS8jQLAENPVwnnmQZgynyz>
+
+---
+
+## 2026-09-16 — The profile emptied itself ten seconds after sign-in
+
+Reported: *"For 1 user alone - in 10Secs, it is going into ? instead of Profile
+Details -- User is Deepika, But no matter which user Logins in, it is the
+same."* Name and email blank, role fallen back to Engineer, avatar a "?".
+
+**Not the same fault as yesterday.** 0199 fixed a role that was WRONG (User
+Master and `profiles` disagreeing). This is the whole identity going blank
+AFTER it had loaded, for everyone — a different shape, and the delay is the
+clue.
+
+**`sbOnAuthChange` awaited Supabase calls from inside the
+`onAuthStateChange` listener.** That listener runs while the auth client holds
+its internal lock, and `getUser()` — like any PostgREST read, which needs the
+token — waits on that same lock. supabase-js documents it.
+
+It is easy to write by accident because **it works the first time**: the boot
+call is outside the callback and returns real data. Only a LATER event goes
+through the broken path — and the later event is the automatic token refresh, a
+few seconds in. Hence "10 secs", and hence every user on every device.
+
+Two changes, both small:
+
+- The listener hands its work to a fresh task (`setTimeout(…, 0)` — a microtask
+  is not enough, a promise continuation can still run before the lock is
+  released) and the EVENT is passed on instead of being swallowed.
+- `TOKEN_REFRESHED` no longer re-reads the profile at all. It fires on a timer
+  and carries the same person every time, so it was a round trip per tick for
+  an answer that cannot have changed.
+
+**And the identity stopped lying.** `sbCurrentProfile`'s last resort returned
+`full_name: user.email ?? ''` with the fallback role — so where the session
+carries no email, a person with no name anywhere: "—", "—", "Engineer", and
+nothing saying why. `supabase.ts` condemns precisely that fifteen lines above
+the line that did it. They stay signed in (locking somebody out of an app they
+can authenticate to is worse), but My Profile now says the profile did not load,
+the role shown is a fallback, and the "?" is marked.
+
+**Confidence, stated honestly:** the deadlock is a real defect that matches the
+symptom in every particular, but it could not be reproduced from here — there is
+no live Supabase in the sandbox. If it recurs, `_profile_names_check.sql` is the
+next step: it answers whether the `profiles` row exists at all.
+
+---
+
+## 2026-09-16 — The page IS the diagram, and it is no longer open to everyone
+
+Two asks on one page, a few hours after it shipped.
+
+**"Limit Exposure to Admin, NSM, Zoho, Technical Support."** It shipped
+`alwaysOpen` — not a module at all. It is one now, and the thing worth writing
+down is what would NOT have restricted it: **removing the menu entry**. The
+route still answers, and anyone sent the address still reaches it. The
+permission is the restriction; the menu follows it.
+
+`admin: true` on the module keeps the key out of `NON_ADMIN_MODULES`, which
+leaves the three roles in `SEES_EVERY_MODULE`; NSM is named in its own defaults.
+**0209** is the other half — on a project in use every role has a tuned row, so
+`permsForRole()` never reaches the code defaults and the tick grants nobody
+anything. That rule is usually quoted about ADDING a page; it applies identically
+to narrowing one.
+
+`_status.sql` row 161 checks **both halves**, because "limit exposure" is two
+statements: every one of the four holds it, and nobody outside them does. A
+migration that grants the four and leaks to a fifth passes every check that only
+looks at the four. Mutation-tested in both directions.
+
+**"Is it possible to embed the Artifact? I want the same Look and Feel."**
+Not the claude.ai URL — asked directly it answers `x-frame-options: SAMEORIGIN`
+and `cross-origin-resource-policy: same-origin`, and the page is private
+besides. An iframe at it renders an empty box for everybody but its author,
+which is the kind of thing that looks right to whoever built it.
+
+So the document itself lives in the repository at
+`public/docs/how-a-call-works.html` and is framed from this app's own origin.
+The look and feel is identical because it IS the file. The shared copy is now
+**published from that path**, so there is one document rather than two.
+
+What a frame costs is handled: the host's theme is passed in (every app theme
+declares `scheme`, so all the dark ones hand it `dark`), the document reports
+its own height so there is no scrollbar inside a scrollbar, and a missing
+document says so rather than rendering blank.
+
+A guard written for this caught a false positive in itself: the first version
+matched `<iframe` inside the comment EXPLAINING why claude.ai cannot be framed,
+and failed a file that was correct. It reads `code()` now — a check that treats
+documentation as code fails exactly where the reasoning is best written down.
+
+### Still to run on the live project
+
+`_status.sql` first; row **161**. Then `rbac.sql` (0209).
+
+---
 
 ## 2026-09-16 — Exporting the matrix, and a topic for "why does it already know that?"
 

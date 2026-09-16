@@ -616,3 +616,14 @@
     box-shadow: inset 3px 0 0 0 #fbbf24;
   }
 }
+
+/* A PROFILE THAT DID NOT LOAD, marked where it shows.
+   The avatar falls back to "?" when there is no name, and "?" reads as a
+   rendering glitch rather than as a problem with the account — which is exactly
+   how it was reported (2026-09-16): "it is going into ? instead of Profile
+   Details". The ring says the app knows, and My Profile says what to do.
+   CONTRAST, NOT A TINT: the standing rule here, and on a 28px circle a pale
+   wash would not read at all. */
+.user-avatar-unresolved {
+  box-shadow: 0 0 0 2px var(--danger, #d32f2f);
+}

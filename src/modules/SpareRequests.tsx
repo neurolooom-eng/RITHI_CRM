@@ -16,7 +16,7 @@ import {
 } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import {
-  deriveStage, buildPatch, receivePatch, dropPatch, actionable, needsReview, trail, awaitingReceipt,
+  deriveStage, buildPatch, receivePatch, dropPatch, actionable, needsCommercial, needsNsm, isHandStock, trail, awaitingReceipt,
   canBulkApprove, STAGES, stageTone, type Stage,
 } from '../lib/spareflow';
 import { logAudit } from '../lib/audit';
@@ -1230,7 +1230,20 @@ function RequestDetail({ row, lines, action, onChanged }: { row: Row; lines: Row
           {field('Request type', row.req_type)}
           {field('Item status', row.item_status)}
         </div>
-        {!needsReview(row.item_status) && <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>Commercial and NSM auto-approve — the item is neither AMC nor OGP.</p>}
+        {/* WHAT WILL ACTUALLY BE SKIPPED, per stage. This used to promise that
+            "Commercial and NSM auto-approve" for anything not AMC/OGP — which
+            became FALSE for a HandStock request the moment NSM started
+            reviewing them (0210). A note that is wrong about an approval is
+            worse than no note: somebody plans around it. */}
+        {(!needsCommercial(row.item_status) || !needsNsm(row.item_status, row.req_type)) && (
+          <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>
+            {!needsCommercial(row.item_status) && !needsNsm(row.item_status, row.req_type)
+              ? 'Commercial and NSM auto-approve — the item is neither AMC nor OGP.'
+              : isHandStock(row.req_type)
+                ? 'Commercial auto-approves; NSM reviews it because this is a HandStock request.'
+                : 'Commercial auto-approves — the item is neither AMC nor OGP.'}
+          </p>
+        )}
         {stage === 'Rejected' && !!String(row.reject_reason ?? '') && (
           <p className="muted" style={{ fontSize: 12.5, margin: '8px 0 0' }}>Rejected at {String(row.rejected_stage ?? '')}: {String(row.reject_reason)}</p>
         )}
@@ -1348,8 +1361,13 @@ function DecisionModal({
           {scope === 'or'
             ? `Applies to every spare on this OR still at ${deriveStage(row)} — ${lines} of them.`
             : `Applies to this spare only — ${String(row.line_uid ?? '')}: ${String(row.part ?? '')}.`}
-          {kind === 'approve' && !needsReview(row.item_status) && deriveStage(row) === 'RM Approval' &&
+          {kind === 'approve' && deriveStage(row) === 'RM Approval'
+            && !needsCommercial(row.item_status) && !needsNsm(row.item_status, row.req_type) &&
             <><br />Not AMC/OGP — approving clears Commercial and NSM automatically and sends it to Stores.</>}
+          {/* THE HANDSTOCK CASE, SAID BEFORE THEY APPROVE rather than discovered
+              afterwards when the line does not reach Stores. */}
+          {kind === 'approve' && deriveStage(row) === 'RM Approval' && isHandStock(row.req_type) &&
+            <><br />HandStock — approving clears Commercial and sends it to <b>NSM</b>, not to Stores.</>}
           {deriveStage(row) === 'RM Approval' &&
             <><br />Other spares on this OR are unaffected — the RM decides each one separately.</>}
         </p>

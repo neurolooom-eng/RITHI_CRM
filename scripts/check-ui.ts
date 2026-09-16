@@ -6899,5 +6899,220 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   eq('...and taking a copy is recorded', /action: 'rbac\.export'/.test(rp), true);
 }
 
+{
+  // -------------------------------------------------------------------------
+  // HOW RITHI FUNCTIONS — RESTRICTED, AND THE DOCUMENT IT EMBEDS IS PRESENT.
+  //
+  // The user, 2026-09-16: "Limit Exposure to Admin, NSM, Zoho, Technical
+  // Support", and "is it possible to embed the Artifact? I want the same Look
+  // and Feel".
+  //
+  // Two failure modes, both silent:
+  //   * A page "restricted" by dropping its menu entry is not restricted. The
+  //     route still answers and anyone sent the address still reaches it.
+  //   * A frame whose document is not deployed renders an EMPTY BOX, and looks
+  //     exactly like a page that is merely slow.
+  // -------------------------------------------------------------------------
+  const HOW = '/knowledge-base/how-it-works';
+
+  // 1. IT IS A MODULE, so there is a key to withhold at all.
+  eq('How RITHI Functions is a module with a key',
+    MODULES.some((m) => m.path === HOW), true);
+  eq('...and it is no longer alwaysOpen in the menu',
+    /to: '\/knowledge-base\/how-it-works', label: 'How RITHI Functions', icon: '🧭' \}/
+      .test(readFileSync('src/components/layout/Layout.tsx', 'utf8')), true);
+
+  // 2. THE CODE DEFAULTS REACH EXACTLY THE FOUR ROLES NAMED. Asserted as a SET,
+  //    so a fifth role gaining it fails here rather than being noticed on a
+  //    screen somebody happens to open.
+  const holders = ROLES.map((r) => r.key)
+    .filter((k) => (DEFAULT_PERMS[k] ?? []).includes(moduleAction(HOW))).sort();
+  eq('the defaults give it to exactly Admin, NSM, Zoho Migration and Technical Support',
+    holders, ['admin', 'nsm', 'technical_support', 'zoho_migration']);
+
+  // 3. ...AND A MIGRATION SAYS SO IN THE DATABASE. On a project in use every
+  //    role has a tuned row, so `permsForRole()` never reaches the defaults and
+  //    the tick above grants nobody anything. This is the standing rule, and it
+  //    applies to NARROWING a page just as much as to adding one.
+  const mig = 'supabase/migrations/0209_how_rithi_functions_key.sql';
+  eq('a migration grants the key on a live project', existsSync(mig), true);
+  const msql = readFileSync(mig, 'utf8');
+  eq('...to those four roles and no others',
+    /in \('admin', 'nsm', 'zoho_migration', 'technical_support'\)/.test(msql), true);
+  // MERGE, NEVER OVERWRITE — an administrator may have tuned the role — and
+  // leave a role with ZERO permissions alone, since an empty array means "not
+  // configured" and one key written into it turns the fallback off.
+  eq('...by merging, and skipping an unconfigured role',
+    /jsonb_agg\(distinct v\)/.test(msql) && /jsonb_array_length\(ar\.permissions\) > 0/.test(msql), true);
+  eq('...and a suite proves it grants the four and leaks to nobody',
+    existsSync('supabase/tests/how_rithi_functions_key_test.sql'), true);
+
+  // 4. THE EMBEDDED DOCUMENT IS IN THE REPOSITORY, not fetched from claude.ai.
+  //    That host answers `x-frame-options: SAMEORIGIN` and the page is private,
+  //    so an iframe at it would render an empty box for everybody but its
+  //    author — which is the kind of thing that looks right to whoever built it.
+  const hrf = readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8');
+  // EVERY DOCUMENT THE PAGE OFFERS IS A FILE THAT EXISTS. A listed document
+  // whose file is missing renders the error banner instead of the page — and
+  // the list is the only place the two are connected, so nothing else can
+  // catch a typo in a filename.
+  const listed = [...hrf.matchAll(/file: '([^']+)'/g)].map((m) => m[1]);
+  eq('the page offers more than one module', listed.length > 1, true);
+  eq('...and every document it offers ships with the app',
+    listed.filter((f) => !existsSync(`public/docs/${f}`)), []);
+  eq('...including the two written so far',
+    ['how-a-call-works.html', 'how-a-spare-moves.html'].filter((f) => !listed.includes(f)), []);
+  // ONE DESIGN, NOT TWO. The spare document reuses the call document's shell,
+  // so both carry the theme hand-off and the height message; a document that
+  // lost either would flash the wrong theme or scroll inside the frame.
+  listed.forEach((f) => {
+    const d = readFileSync(`public/docs/${f}`, 'utf8');
+    eq(`${f} honours the host theme`, /data-theme', t\)/.test(d), true);
+    eq(`${f} reports its own height`, /rithi-doc-height/.test(d), true);
+  });
+  // ASSERTED ON THE CODE, NOT THE PROSE. The first version of this line matched
+  // `<iframe` inside the comment that EXPLAINS why claude.ai cannot be framed,
+  // and failed on a file that was correct — a check that reads documentation as
+  // if it were code fails exactly where the reasoning is best written down.
+  const hrfCode = code(hrf);
+  eq('...not a claude.ai URL, which cannot be framed',
+    /claude\.ai/.test(hrfCode), false);
+  eq('...and the frame\u2019s src is the local document',
+    /src=\{`\$\{DOC\}\?theme=\$\{scheme\}`\}/.test(hrfCode), true);
+
+  // 5. THE TWO THINGS A FRAME COSTS, both handled. A framed page cannot see the
+  //    host's theme, and a fixed-height frame gives a scrollbar inside a
+  //    scrollbar.
+  eq('the host\u2019s theme is passed in', /\?theme=\$\{scheme\}/.test(hrf), true);
+  eq('...and the frame is sized to what the document reports',
+    /rithi-doc-height/.test(hrf), true);
+  // A NEW DOCUMENT IS A NEW HEIGHT. Keeping the last one's leaves a shorter
+  // document trailing blank space and a taller one clipped until its first
+  // message arrives.
+  eq('...and the height resets when the module changes',
+    /setHeight\(1400\); setFailed\(false\); \}, \[docId\]\)/.test(hrf), true);
+  // ONLY FROM THIS FRAME. A page that resizes itself on anyone's say-so is a
+  // page anyone can distort.
+  eq('...from this frame alone', /e\.source !== frame\.current\?\.contentWindow/.test(hrf), true);
+  // A MISSING DOCUMENT IS SAID, not left as an empty box.
+  eq('a missing document says so rather than rendering blank', /setFailed\(true\)/.test(hrf), true);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // NEVER CALL SUPABASE FROM INSIDE AN onAuthStateChange LISTENER.
+  //
+  // The listener runs while the auth client holds its internal lock, so an
+  // `await c.auth.getUser()` — or any PostgREST read, which needs the token —
+  // made from in there waits on a lock its own caller is holding. supabase-js
+  // documents it, and it is easy to write by accident because IT WORKS THE
+  // FIRST TIME: the direct call at boot is outside the callback and returns
+  // real data. Only a LATER event goes through the broken path.
+  //
+  // Reported from use (2026-09-16): "For 1 user alone - in 10Secs, it is going
+  // into ? instead of Profile Details ... no matter which user logins in, it is
+  // the same." The profile loaded, and seconds later the name and email went
+  // blank and the role fell back to Engineer.
+  // -------------------------------------------------------------------------
+  const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+  eq('the auth listener hands its work to a fresh task',
+    /onAuthStateChange\(\(event\) => \{[\s\S]{0,400}setTimeout\(\(\) => cb\(event\), 0\);/.test(sb), true);
+  // A MICROTASK IS NOT ENOUGH — a promise continuation can still run before the
+  // lock is released — so the deferral must be a real task.
+  eq('...a task, not a microtask',
+    /onAuthStateChange\([\s\S]{0,400}queueMicrotask|onAuthStateChange\([\s\S]{0,400}Promise\.resolve\(\)\.then/.test(sb), false);
+  // AND THE EVENT REACHES THE CALLER. It was swallowed, so every event looked
+  // alike and the identity was re-read on a timer tick that cannot change it.
+  eq('...and the event is passed on, not swallowed',
+    /export function sbOnAuthChange\(cb: \(event: AuthEvent\) => void\)/.test(sb), true);
+  const authx = readFileSync('src/lib/auth.tsx', 'utf8');
+  eq('...so a token refresh does not re-read the profile',
+    /if \(event === 'TOKEN_REFRESHED'\) return;/.test(authx), true);
+
+  // -------------------------------------------------------------------------
+  // AN IDENTITY THAT COULD NOT BE READ SAYS SO.
+  //
+  // The last-resort profile used to be `full_name: user.email ?? ''` with the
+  // fallback role — so where the session carries no email it is a person with
+  // NO NAME ANYWHERE, shown as "—", "—" and "Engineer" with nothing saying
+  // why. `supabase.ts` condemns exactly that fifteen lines above the line that
+  // did it: a person quietly downgraded is the worst kind of permission bug,
+  // because it looks like the app is broken rather than like access was never
+  // granted.
+  //
+  // They stay SIGNED IN — locking somebody out of an app they can authenticate
+  // to is worse — so the fix is that every screen showing who they are admits
+  // the profile did not load.
+  // -------------------------------------------------------------------------
+  eq('an unreadable profile is marked, not dressed up as a real one',
+    /unresolved: true,/.test(sb), true);
+  eq('...and it is never a blank name', /full_name: user\.email \|\| 'Profile not loaded'/.test(sb), true);
+  eq('...the flag reaches the app\u2019s own user', /unresolved: p\.unresolved === true/.test(authx), true);
+  eq('...My Profile says so outright',
+    /user\?\.unresolved && \(/.test(readFileSync('src/modules/Profile.tsx', 'utf8')), true);
+  eq('...and the "?" avatar is marked rather than left looking like a glitch',
+    /user\?\.unresolved \? ' user-avatar-unresolved' : ''/.test(readFileSync('src/components/layout/Layout.tsx', 'utf8')), true);
+  eq('...with a rule of its own',
+    /\.user-avatar-unresolved \{/.test(readFileSync('src/components/layout/layout.css', 'utf8')), true);
+}
+
+{
+  // -------------------------------------------------------------------------
+  // `user.name` DOES NOT EXIST, AND TYPESCRIPT CANNOT SAY SO.
+  //
+  // The `User` type has `fullName`. It has no `name` — but `BaseRecord` carries
+  // an index signature (`[key: string]: unknown`), so `user?.name` type-checks
+  // and is `undefined` at runtime, every time, with no error anywhere.
+  //
+  // Reported from use (2026-09-16): the name on a DELIVERY CHALLAN. Stores
+  // booked a stock out and `SpareDispatch.tsx` sent `user?.name ?? user?.email`
+  // — so it never sent a name at all. A document that leaves the building with
+  // the company's mark on it said the wrong thing, and nothing failed.
+  //
+  // The database stamps that column from the session now (0211), so the value
+  // the client sends no longer decides it — but the same phantom field would
+  // read as blank anywhere else it is used, so it is refused outright.
+  // -------------------------------------------------------------------------
+  const phantom: string[] = [];
+  ['src/modules', 'src/components', 'src/lib'].forEach((dir) => {
+    const walk = (d: string) => {
+      readdirSync(d, { withFileTypes: true }).forEach((e) => {
+        const full = `${d}/${e.name}`;
+        if (e.isDirectory()) { walk(full); return; }
+        if (!/\.tsx?$/.test(e.name)) return;
+        code(readFileSync(full, 'utf8')).split('\n').forEach((line, i) => {
+          // `user.name` / `user?.name`, but not `user.name_line`, `userName`,
+          // or a different object that happens to end in "user".
+          if (/\buser\s*\??\.\s*name\b(?!_)/.test(line)) {
+            phantom.push(`${full.replace(`${process.cwd()}/`, '')}:${i + 1}`);
+          }
+        });
+      });
+    };
+    walk(`${process.cwd()}/${dir}`);
+  });
+  eq('nothing reads user.name — the field is called fullName', phantom, []);
+
+  // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client
+  // no longer able to get it wrong. Same rule as a call's registrant (0113).
+  eq('who dispatched a stock out is stamped from the session',
+    existsSync('supabase/migrations/0211_dispatched_by_is_stamped.sql'), true);
+  const st = readFileSync('supabase/migrations/0211_dispatched_by_is_stamped.sql', 'utf8');
+  eq('...by a trigger, leaving the dispatch function alone',
+    /before insert on public\.spare_dispatches/.test(st), true);
+  // THE FUNCTION IS NOT REDEFINED. Its live version carries partial dispatch —
+  // per-line quantities, the outstanding balance, the refurbished flags — and
+  // this migration's first draft rewrote it from a four-revision-old copy,
+  // which would have deleted all of it.
+  eq('...and does NOT redefine dispatch_spare_lines',
+    /create or replace function public\.dispatch_spare_lines/.test(st), false);
+  // AN ADMINISTRATIVE CONNECTION HAS NO SESSION, and blanking there would lose
+  // the only record of who booked the stock out.
+  eq('...and keeps the supplied value when there is no session',
+    /if me is not null then/.test(st), true);
+  eq('...with a suite behind it',
+    existsSync('supabase/tests/dispatched_by_stamped_test.sql'), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

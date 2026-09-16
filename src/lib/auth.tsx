@@ -33,6 +33,9 @@ function profileToUser(p: Profile): User {
     regionalManager: p.regional_manager_email,
     rbacRole: (p.role || 'engineer').toLowerCase(),
     extraPermissions: Array.isArray(p.extra_permissions) ? p.extra_permissions : [],
+    // CARRIED, so a screen can say the profile did not load rather than
+    // showing a nameless Engineer and leaving the reader to guess.
+    unresolved: p.unresolved === true,
   } as User;
 }
 
@@ -77,6 +80,12 @@ export interface User extends BaseRecord {
   regionalManager?: string; // RGM — the regional (general) manager
   rbacRole?: string; // raw role key for RBAC (admin|rgm|rm|engineer|hotline|spare_coordinator|tally_coordinator|...)
   extraPermissions?: string[]; // per-user actions granted beyond the role
+  /** THE PROFILE DID NOT LOAD, and this identity is a stand-in. The person
+   *  stays signed in — locking somebody out of an app they can authenticate to
+   *  is worse — but any screen showing who they are must say so, because a
+   *  blank name beside the fallback Engineer role is indistinguishable from a
+   *  broken app. Reported exactly that way (2026-09-16). */
+  unresolved?: boolean;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -315,7 +324,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     void hydrate();
     void reloadRoles();
-    const off = sbOnAuthChange(() => { void hydrate(); });
+    // ONLY THE EVENTS THAT CAN CHANGE WHO IS SIGNED IN. `TOKEN_REFRESHED`
+    // fires on a timer and carries the same person every time, so re-reading
+    // the profile on it is a round trip per tick for an answer that cannot
+    // have changed — and it was the tick that exposed the deadlock this pair
+    // of changes fixes. `sbOnAuthChange` hands the callback out to a fresh
+    // task; calling Supabase from inside the listener waits on a lock the
+    // listener itself is holding.
+    const off = sbOnAuthChange((event) => {
+      if (event === 'TOKEN_REFRESHED') return;
+      void hydrate();
+    });
     return () => { alive = false; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supaMode]);

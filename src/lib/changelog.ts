@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.286',
+    version: '0.9.293',
     date: '2026-09-14',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,90 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.292',
+    date: '2026-09-16',
+    title: 'The Spare module schema — every table, and a hole found while writing it',
+    changes: [
+      'A FOURTH DOCUMENT under How RITHI Functions — “Schema”. Every table behind the eight Spare screens: the fields that carry a decision, whether you fill them in or the database does, what each one refuses in the words it refuses it, and where the value goes next — upstream and downstream.',
+      'NOT WRITTEN BY HAND. The columns, types, defaults, constraints, keys, triggers and permissions were read out of a database with every migration applied. A schema description that is wrong is worse than none.',
+      'It does NOT say “mandatory” by reading NOT NULL, because that is wrong in both directions here: most NOT NULL columns fill themselves in, and four of the genuinely required fields on a reconciliation accept a blank as far as the table is concerned and are demanded by a rule instead. The badge answers the question people actually have — must I put something here?',
+      'FOUND WHILE WRITING IT, AND FIXED: the HandStock/NSM migration switches three guards off to repair old rows and was putting only two back. The missing one is the rule that approvals are recorded per spare — with it off, an engineer could take their OWN request past RM, Commercial, NSM and Stores to Received in a single step. Measured, not guessed at. The migration now restores all three, and both the test suite and the health check count them.',
+      'THE SQL IS STILL YOURS TO RUN. Spare_1.sql now carries this fix as well — if you have not run it yet, nothing is exposed; if you have, run it again.',
+    ],
+  },
+  {
+    version: '0.9.291',
+    date: '2026-09-16',
+    title: 'How RITHI Functions: Hand Stock and every movement behind it',
+    changes: [
+      'A THIRD DOCUMENT — Hand Stock & movements. Stock Out, Consumption, Reconciliation, Stock Transfer and Material Return are all in it, as ONE ledger rather than five pages.',
+      'THEY ARE NOT SEPARATE SYSTEMS. Hand stock is derived, never stored: what an engineer holds is worked out, every time it is read, from the six movements that put it there and took it away. Reading any one of them on its own does not explain it — the balance is what they have in common.',
+      'STOCK OUT: the batch, one engineer per challan, the number the database mints so nobody types a DC by hand, sending fewer than were approved, and why Dispatched and Received are two different claims.',
+      'CONSUMPTION: on the visit report, or booked afterwards by the office as a RECONCILIATION — both move the stock identically, and the flag is what keeps them tellable apart. Plus why a wrong line is voided rather than deleted, and what a void keeps.',
+      'TRANSFER: one record read from both sides, so the two balances can never disagree. RETURN: good and defective counted apart, because they are not the same thing arriving back.',
+      'Every refusal is quoted as the system actually words it — including the one people meet most: “X has 2 of PART in hand — cannot book 3 against this call”.',
+    ],
+  },
+  {
+    version: '0.9.290',
+    date: '2026-09-16',
+    title: 'The delivery challan names the person who actually booked the stock out',
+    changes: [
+      'REPORTED: the name on Stock Out, the DC and the Declaration was not the person dispatching. Kasthuri books it out and the document still carries somebody else.',
+      'THE APP WAS NEVER SENDING A NAME. The dispatch screen read a field on the signed-in user that does not exist — the user record has a “full name”, and the code asked for “name”. It came back empty every time, with no error, so the name fell through to the email address.',
+      'IT IS NO LONGER THE APP’S TO GET WRONG. Who dispatched a stock out is now stamped by the database from the signed-in session, and whatever the app sends is ignored — the same rule already used for who registered a call.',
+      'OLD STOCK OUTS ARE UNCHANGED. A challan that has already gone out keeps the name it went out with; rewriting a despatch record after the fact would be worse than a name somebody can explain.',
+      'Needs migration 0211 (apply bundle: Spare_1.sql). Until it is run the app-side fix alone will put the right name on new stock outs.',
+    ],
+  },
+  {
+    version: '0.9.289',
+    date: '2026-09-16',
+    title: 'A HandStock request now goes to NSM',
+    changes: [
+      'REPLENISHMENT USED TO LEAVE ON ONE SIGNATURE. A HandStock request has no machine behind it, so it had no cover — and the rule that decided whether Commercial and NSM were needed only asked about the cover. With none, both were waved through and the request went from the manager straight to Stores.',
+      'NSM NOW REVIEWS EVERY HANDSTOCK REQUEST. The chain is manager → NSM → Stores. Commercial still auto-approves, because with no machine there is nothing chargeable to a customer — which is the question Commercial answers. The reason written on the request is what NSM is reading.',
+      'NOTHING ELSE CHANGED. A Call-Based request behaves exactly as before: AMC and OGP go through both Commercial and NSM, everything else goes straight to Stores.',
+      'The approval screen says so before you approve — “HandStock: approving clears Commercial and sends it to NSM, not to Stores” — rather than leaving you to notice the line did not arrive at Stores.',
+      'NOTHING ALREADY APPROVED IS RE-OPENED. Requests that were waved through under the old rule keep their approvals, including ones sitting at Stores or already dispatched.',
+      'Needs migration 0210 (apply bundle: Spare_1.sql).',
+    ],
+  },
+  {
+    version: '0.9.288',
+    date: '2026-09-16',
+    title: 'How RITHI Functions now carries the Spare module too',
+    changes: [
+      'A SECOND DOCUMENT on the same page, picked with a chip at the top: THE SPARE MODULE, written the same way as the Call module.',
+      'BOTH ROUTES IN. Call Based — against a UCN, carrying the call’s customer, product and cover. HandStock — no call, and a written reason instead, because that reason is the only thing an approver has to go on.',
+      'THE APPROVAL CHAIN, and why it forks: WGP and CMC go manager → Stores, while AMC and OGP bring in Commercial and NSM, because those are the covers where the part is chargeable to somebody. Every HandStock request takes the short chain — with no machine there is no cover to review.',
+      'WHAT EVERY CYCLE WRITES — a table of the three columns each stage stamps (the outcome, who, and when), what a rejection adds, and what a dispatch, a drop and a receipt each record besides.',
+      'AND WHAT HAPPENS AFTER IT LANDS: hand stock is derived and never stored, so consumption is the control point — you cannot book more than the engineer holds, a hand-booked line needs a reason, and a wrong line is voided rather than deleted.',
+      'Two pairs that are easy to confuse are spelled out: Rejected vs Dropped (an approver refuses, Stores declines to send), and Dispatched vs Received (Stores’ claim vs the engineer’s).',
+    ],
+  },
+  {
+    version: '0.9.287',
+    date: '2026-09-16',
+    title: 'Your profile no longer empties itself a few seconds after you sign in',
+    changes: [
+      'REPORTED: sign in, and about ten seconds later the name and email go blank, the role drops to Engineer and the avatar turns into a “?”. It happened to whoever was signed in, on any account.',
+      'THE CAUSE: the app asked the database “who am I?” from inside the handler that listens for sign-in events — and that handler runs while the login library is holding a lock the question needs. It worked the first time, because the first ask happens before any event; it broke on the next one, which is the automatic token refresh a few seconds later. The question is now asked a moment after the handler finishes, and a plain token refresh no longer triggers it at all — the same person is signed in either way.',
+      'AND IF A PROFILE EVER GENUINELY CANNOT BE LOADED, the app now says so on My Profile instead of showing a nameless Engineer. You stay signed in, the “?” is marked, and the page tells you the role shown is a fallback rather than yours — so it reads as an account that needs setting up rather than as an app that is broken.',
+    ],
+  },
+  {
+    version: '0.9.286',
+    date: '2026-09-16',
+    title: 'How RITHI Functions is now the shared diagram itself, and restricted to four roles',
+    changes: [
+      'THE PAGE IS THE DIAGRAM. Rather than a re-typed version of the shared flow chart, the page now carries that exact document — same layout, same typography, same colours — because it IS the file, not a copy of it. The shared link and the in-app page are one document, so they cannot drift into two that disagree.',
+      'It follows your theme: pick a dark theme and the document goes dark with the rest of the app. And “Open on its own” gives you the same page without the app around it, for printing or for a second screen.',
+      'RESTRICTED TO ADMIN, NSM, ZOHO MIGRATION AND TECHNICAL SUPPORT. It shipped open to everyone this morning; it now has a permission of its own, and Roles & Permissions can widen or narrow it like any other page.',
+      'Needs migration 0209 (apply bundle: rbac.sql) — until it is run, the page reaches nobody. Removing a menu entry does not restrict a page; the permission does.',
     ],
   },
   {

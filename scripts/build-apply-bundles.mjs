@@ -135,6 +135,10 @@ const MODULES = {
             // policies decide the rows, and neither role passed either. It
             // touches those two roles alone.
             '0207_analysis_roles_see_the_data.sql',
+            // The How RITHI Functions page, restricted to four roles. A module
+            // key is only a restriction once it is IN app_roles — a code
+            // default reaches nobody on a project whose roles are all tuned.
+            '0209_how_rithi_functions_key.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -685,6 +689,14 @@ const MODULES = {
       '0033_rm_approves_own_team.sql',
       '0040_spare_read_scope.sql',
       '0036_spare_drop.sql',
+      // A HANDSTOCK REQUEST GOES TO NSM. LAST in this module: it redefines
+      // spare_line_stage (0016/0025) and both stage guards (0012/0016), so
+      // replaying this bundle with it anywhere earlier would put the old
+      // AMC/OGP-only rule back — no error, and the bundle would report success.
+      '0210_handstock_needs_nsm.sql',
+      // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
+      // the (much-revised) dispatch function is not touched at all.
+      '0211_dispatched_by_is_stamped.sql',
       '0084_spare_request_import.sql',
       '0085_spare_request_or_no_key.sql',
       '0116_spare_bulk_approval.sql',
