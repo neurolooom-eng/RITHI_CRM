@@ -1,0 +1,81 @@
+/* How RITHI Functions — the flows, the masters each step reads, and what each
+   one refuses. Built on the Knowledge Base styles (kb-sec, kb-num, kb-note) so
+   the three topics under that heading read as one place; only what this page
+   adds is here. Every colour is a theme token, so it follows light and dark
+   like the rest of the app. */
+
+/* A flow is a band, not a heading. Two paths into the same record, and the
+   reader needs to know which one they are in BEFORE the first step. */
+.hf-flow { margin: 30px 0 0; }
+.hf-flow-head {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  border-top: 3px solid var(--text); padding-top: 16px; margin-bottom: 8px;
+}
+.hf-flow-n {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text); background: var(--surface-alt);
+  border-radius: 3px; padding: 3px 9px;
+}
+.hf-flow-head h2 { margin: 0; font-size: 22px; line-height: 1.2; }
+.hf-flow-lead {
+  color: var(--text-muted); font-size: 14.5px; max-width: 78ch; margin: 0 0 18px;
+}
+.hf-flow-lead b { color: var(--text); }
+
+/* The two gutters, side by side under each step: what it READS, and what it
+   REFUSES. Under 860px they stack — two 200px columns beside each other are
+   neither. */
+.hf-cols {
+  display: grid; gap: 14px; margin-top: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.hf-col > h3 {
+  margin: 0 0 8px; font-size: 11px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--text-muted);
+}
+.hf-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.hf-col li { font-size: 13.2px; line-height: 1.5; color: var(--text-muted); padding-left: 11px; }
+.hf-col li b { color: var(--text); font-weight: 600; }
+.hf-masters li { border-left: 2px solid var(--primary); }
+.hf-rules li.hf-refuses { border-left: 2px solid var(--danger, #d32f2f); }
+.hf-rules li.hf-demands { border-left: 2px solid var(--warning, #C77A0A); }
+/* THE LABEL SAYS WHICH KIND, not only the colour: "will not" and "must have"
+   are opposite instructions, and a reader who cannot separate two hues would
+   otherwise read a refusal as a requirement. */
+.hf-kind {
+  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; margin-right: 7px; color: var(--text);
+  background: var(--surface-alt); border-radius: 2px; padding: 1px 5px;
+}
+
+/* The ledger: which master answers which field. */
+.hf-scroll { overflow-x: auto; }
+.hf-table { width: 100%; border-collapse: collapse; font-size: 13.2px; }
+.hf-table th {
+  text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: .11em;
+  text-transform: uppercase; color: var(--text-muted);
+  padding: 0 14px 8px 0; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.hf-table td {
+  padding: 10px 14px 10px 0; border-bottom: 1px solid var(--border);
+  vertical-align: top; color: var(--text-muted);
+}
+.hf-table tr:last-child td { border-bottom: 0; }
+.hf-table td:first-child { color: var(--text); font-weight: 600; }
+/* INVERTED, not tinted — "highlight" means contrast here, and a locked field is
+   the answer to the commonest question this table gets asked. */
+.hf-table td.hf-locked {
+  color: var(--surface); background: var(--text);
+  font-weight: 600; white-space: nowrap; border-radius: 3px;
+  padding-left: 8px; padding-right: 8px;
+}
+
+.hf-chips { display: flex; flex-wrap: wrap; gap: 9px; margin: 4px 0 4px; }
+.hf-chip {
+  font-size: 12px; font-weight: 600; padding: 5px 11px;
+  border-radius: 3px; white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .hf-flow-head h2 { font-size: 19px; }
+}

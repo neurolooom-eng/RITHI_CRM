@@ -133,6 +133,13 @@ export const NAV: NavGroup[] = [
     flash: true,
     items: [
       { to: '/knowledge-base/how-to', label: 'How to Use RITHI CRM', icon: '📖', alwaysOpen: true },
+      // A DIFFERENT QUESTION FROM THE ONE ABOVE. How to Use answers "what do I
+      // click"; this answers "why does the form already know that" — the
+      // masters behind a call, what the system refuses, and what it will not
+      // proceed without. `alwaysOpen` like its neighbours: there is nothing
+      // here to grant, and a page explaining how the system works is of most
+      // use to whoever has just been refused something by it.
+      { to: '/knowledge-base/how-it-works', label: 'How RITHI Functions', icon: '🧭', alwaysOpen: true },
       { to: '/knowledge-base', label: 'Field Solutions', icon: '🧠', alwaysOpen: true },
       { to: '/service-manuals', label: 'Service Manuals', icon: '📘' },
     ],

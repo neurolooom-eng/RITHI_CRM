@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.285',
+    date: '2026-09-16',
+    title: 'Export the permission matrix, and a new Knowledge Base topic: How RITHI Functions',
+    changes: [
+      'THE PERMISSION MATRIX CAN BE EXPORTED — one button on Roles & Permissions, and a spreadsheet with every role against every permission. Available to anyone who can read the matrix, not only to those who can change it: reading it is how you answer “why can this person not see that page?”, and that reader is the one who needs to take it away.',
+      'The file says three things the screen only implies. Admin is Yes everywhere because Admin always holds everything, not because somebody ticked 400 boxes. A role whose stored list is EMPTY is marked NOT CONFIGURED — an empty list does not mean “no permissions”, the system falls back to the Engineer defaults, and that fallback is what those users actually get. And if you export mid-edit, the file says it contains unsaved changes.',
+      'NEW: HOW RITHI FUNCTIONS, under Knowledge Base. A different question from How to Use — that one answers “what do I click”, this answers “why does the form already know that”.',
+      'It carries two flows. FLOW 1 is registering a direct customer call on New Field Call: which master answers which field, in the order the form asks, and why the cover and the warranty arrive locked. There is a ledger of all fourteen fields — what is looked up, what is stamped by the database, and the four things you actually type. FLOW 2 is the longer life of a call raised from a request, through the visit, the closure and the review.',
+      'Open to everybody, like the other two Knowledge Base topics — a page explaining how the system works is of most use to whoever has just been refused something by it.',
+    ],
+  },
+  {
     version: '0.9.284',
     date: '2026-09-16',
     title: 'Stock Out is back, and a migration hint no longer cries wolf',
