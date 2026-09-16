@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.288',
+    date: '2026-09-16',
+    title: 'How RITHI Functions now carries the Spare module too',
+    changes: [
+      'A SECOND DOCUMENT on the same page, picked with a chip at the top: THE SPARE MODULE, written the same way as the Call module.',
+      'BOTH ROUTES IN. Call Based — against a UCN, carrying the call’s customer, product and cover. HandStock — no call, and a written reason instead, because that reason is the only thing an approver has to go on.',
+      'THE APPROVAL CHAIN, and why it forks: WGP and CMC go manager → Stores, while AMC and OGP bring in Commercial and NSM, because those are the covers where the part is chargeable to somebody. Every HandStock request takes the short chain — with no machine there is no cover to review.',
+      'WHAT EVERY CYCLE WRITES — a table of the three columns each stage stamps (the outcome, who, and when), what a rejection adds, and what a dispatch, a drop and a receipt each record besides.',
+      'AND WHAT HAPPENS AFTER IT LANDS: hand stock is derived and never stored, so consumption is the control point — you cannot book more than the engineer holds, a hand-booked line needs a reason, and a wrong line is voided rather than deleted.',
+      'Two pairs that are easy to confuse are spelled out: Rejected vs Dropped (an approver refuses, Stores declines to send), and Dispatched vs Received (Stores’ claim vs the engineer’s).',
+    ],
+  },
+  {
     version: '0.9.287',
     date: '2026-09-16',
     title: 'Your profile no longer empties itself a few seconds after you sign in',

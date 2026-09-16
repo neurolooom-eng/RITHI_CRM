@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a Spare Moves</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ink:#131a22;
+  --ink-2:#38434f;
+  --muted:#6a7885;
+  --surface:#ffffff;
+  --page:#f2f4f7;
+  --line:#d9dfe6;
+  --line-soft:#e7ebf0;
+  --rail:#9aa7b4;
+
+  /* THE CALL-STATUS CODE. Literal, and the same in both themes — these are the
+     hexes in src/lib/callstate.tsx. A colour people have learned to read is a
+     code, and a code that means something else in dark mode is not one. */
+  --st-unattended:#d32f2f;
+  --st-unsolved:#1565c0;
+  --st-pending:#c2185b;
+  --st-solved:#2e7d32;
+  --st-reopened:#ef6c00;
+  --st-cancelled:#546e7a;
+
+  --master:#00695c;      /* what flows IN  */
+  --rule:#8e2d8e;        /* what is REFUSED */
+  --mandate:#b25000;     /* what is DEMANDED */
+
+  --shadow:0 1px 2px rgba(19,26,34,.06), 0 8px 20px -12px rgba(19,26,34,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+    --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+    --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8edf3; --ink-2:#bcc7d3; --muted:#8b98a6;
+  --surface:#161c24; --page:#0e1319; --line:#2b3540; --line-soft:#212a34; --rail:#4b5763;
+  --master:#4db6ac; --rule:#d38fd3; --mandate:#ffab5e;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -14px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--page); color:var(--ink);
+  font-family:'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size:16px; line-height:1.55;
+}
+code, .mono{font-family:'IBM Plex Mono', ui-monospace, monospace}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 16px 88px}
+/* FRAMED IN THE APP, the page is already inside a padded shell, so it drops its
+   own bottom gutter and its top rule — the app's header is directly above. */
+body.framed .wrap{padding-bottom:28px}
+body.framed header.top{padding-top:8px}
+
+/* ---- masthead ---------------------------------------------------------- */
+header.top{padding:44px 0 26px; border-bottom:1px solid var(--line)}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 12px;
+}
+h1{
+  font-size:clamp(30px,5.2vw,46px); line-height:1.08; margin:0 0 14px;
+  letter-spacing:-.021em; font-weight:700; text-wrap:balance; max-width:20ch;
+}
+.standfirst{margin:0; max-width:64ch; color:var(--ink-2); font-size:17px}
+.standfirst b{color:var(--ink)}
+
+/* ---- the three-gutter key --------------------------------------------- */
+.key{
+  display:grid; gap:10px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+}
+.key div{
+  border-left:3px solid var(--k); padding:2px 0 2px 12px;
+  font-size:13.5px; color:var(--ink-2);
+}
+.key strong{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--k); font-weight:600;
+}
+
+/* ---- the spine --------------------------------------------------------- */
+.flow{margin-top:14px}
+.stage{
+  display:grid; gap:0 28px; padding:34px 0 6px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.32fr) minmax(0,1fr);
+  border-bottom:1px solid var(--line-soft);
+}
+.stage:last-child{border-bottom:0}
+
+/* the centre column carries the rail */
+.step{grid-column:2; position:relative; padding-left:38px}
+.step::before{           /* the rail */
+  content:""; position:absolute; left:11px; top:-34px; bottom:-40px; width:2px;
+  background:var(--line);
+}
+/* THE RAIL STOPS AT EACH FLOW'S EDGE. With two flows on one page it would
+   otherwise run straight through the band announcing the second one and the
+   ledger between them — drawing a line between two things that are not
+   sequential. A rail that lies about continuity is worse than no rail. */
+.stage:first-of-type .step::before{top:14px}
+.stage:last-of-type .step::before{bottom:auto; height:14px}
+.flowhead + .stage .step::before{top:14px}
+.stage:has(+ .flowhead) .step::before,
+.stage:has(+ .ledger) .step::before{bottom:auto; height:14px}
+.step::after{            /* the node */
+  content:""; position:absolute; left:4px; top:7px;
+  width:16px; height:16px; border-radius:50%;
+  background:var(--surface); border:3px solid var(--node,var(--rail));
+}
+.n{
+  font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.12em;
+  color:var(--muted); text-transform:uppercase; margin:0 0 4px;
+}
+h2{font-size:21px; line-height:1.25; margin:0 0 8px; letter-spacing:-.012em; font-weight:600}
+.step p{margin:0 0 10px; color:var(--ink-2); font-size:14.5px; max-width:52ch}
+.step p:last-child{margin-bottom:0}
+.step .who{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:11.5px;
+  color:var(--ink); background:var(--line-soft); border-radius:3px;
+  padding:2px 7px; margin:0 6px 8px 0;
+}
+
+/* side columns */
+.side{align-self:start; padding-top:22px}
+.side.in{grid-column:1; text-align:right}
+.side.out{grid-column:3}
+.side h3{
+  font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.13em;
+  text-transform:uppercase; margin:0 0 9px; font-weight:600; color:var(--c);
+}
+.side ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+.side.in ul{align-items:flex-end}
+.side li{font-size:13.2px; line-height:1.45; color:var(--ink-2); max-width:34ch}
+.side li b{color:var(--ink); font-weight:600}
+.side.in li{border-right:2px solid var(--c); padding-right:10px}
+.side.out li{border-left:2px solid var(--c); padding-left:10px}
+.side.in{--c:var(--master)}
+.side.out{--c:var(--rule)}
+.side.out li.mandate{--c:var(--mandate); border-left-color:var(--mandate)}
+.tag{
+  display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:10px;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--surface);
+  background:var(--mandate); border-radius:2px; padding:1px 5px; margin-right:6px;
+  vertical-align:1px; font-weight:600;
+}
+.tag.db{background:var(--rule)}
+
+/* ---- the status code --------------------------------------------------- */
+.states{
+  margin:38px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.states h2{margin-bottom:6px}
+.states > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+.chips{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px}
+.chip{
+  color:#fff; font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:500;
+  padding:5px 11px; border-radius:3px; white-space:nowrap;
+}
+.transitions{width:100%; border-collapse:collapse; font-size:13.5px}
+.transitions th{
+  text-align:left; font-family:'IBM Plex Mono',monospace; font-size:10.5px;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--muted);
+  font-weight:600; padding:0 14px 8px 0; border-bottom:1px solid var(--line);
+}
+.transitions td{padding:11px 14px 11px 0; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--ink-2)}
+.transitions tr:last-child td{border-bottom:0}
+.transitions td:first-child{color:var(--ink); font-weight:600; white-space:nowrap}
+.scroll{overflow-x:auto}
+
+/* ---- closing panels ---------------------------------------------------- */
+.panels{display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); margin-top:38px}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:22px; box-shadow:var(--shadow)}
+.panel h3{margin:0 0 10px; font-size:16.5px; font-weight:600; letter-spacing:-.008em}
+.panel p{margin:0 0 10px; font-size:14px; color:var(--ink-2)}
+.panel p:last-child{margin-bottom:0}
+.panel ul{margin:0; padding-left:18px; font-size:14px; color:var(--ink-2)}
+.panel li{margin-bottom:7px}
+.panel li:last-child{margin-bottom:0}
+.panel li b{color:var(--ink)}
+
+footer{margin-top:44px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
+footer code{font-size:12.5px}
+
+
+/* ---- the two flows ------------------------------------------------------ */
+/* TWO PATHS INTO THE SAME RECORD, and the reader needs to know which one they
+   are in before the first stage rather than after it — so each flow opens with
+   a full-width band, and the contents strip at the top says there are two. */
+.flownav{
+  display:grid; gap:12px; margin:26px 0 0;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.flownav a{
+  display:block; text-decoration:none; color:inherit;
+  border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.flownav a:hover{border-color:var(--rail)}
+.flownav a:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
+.flownav-n{
+  display:block; font-family:'IBM Plex Mono',monospace; font-size:11px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+}
+.flownav-t{display:block; font-weight:600; font-size:15.5px; line-height:1.3; margin-bottom:4px}
+.flownav-s{display:block; font-size:12.5px; color:var(--muted)}
+
+.flowhead{
+  margin:44px 0 0; padding:24px 0 22px;
+  border-top:3px solid var(--ink); border-bottom:1px solid var(--line);
+}
+.flowhead-n{
+  font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted); margin:0 0 8px;
+}
+.flowhead-t{font-size:clamp(22px,3.4vw,30px); line-height:1.15; margin:0 0 12px; letter-spacing:-.016em; text-wrap:balance}
+.flowhead-p{margin:0 0 10px; max-width:68ch; color:var(--ink-2); font-size:15px}
+.flowhead-p:last-child{margin-bottom:0}
+
+/* The ledger: which master answers which field. A table rather than prose
+   because that is the question people come back to this page with. */
+.ledger{
+  margin:34px 0 0; padding:24px; background:var(--surface);
+  border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow);
+}
+.ledger h2{margin:0 0 6px}
+.ledger > p{margin:0 0 18px; color:var(--ink-2); font-size:14.5px; max-width:70ch}
+
+/* ---- narrow ------------------------------------------------------------ */
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; gap:0; padding:28px 0 10px}
+  .step{grid-column:1}
+  .side.in, .side.out{grid-column:1; text-align:left; padding:16px 0 0 38px}
+  .side.in ul{align-items:flex-start}
+  .side.in li{border-right:0; padding-right:0; border-left:2px solid var(--c); padding-left:10px}
+  .side.in{order:2} .step{order:1} .side.out{order:3}
+  .stage{display:flex; flex-direction:column}
+  .step::before{display:none}
+  .step::after{left:0}
+  .step{padding-left:30px}
+}
+</style>
+</head>
+<body>
+<script>
+  // Set before paint, so a framed page never flashes its standalone padding.
+  try { if (window.parent !== window) document.body.className = 'framed'; } catch (e) {}
+</script>
+<div class="wrap">
+
+<header class="top">
+  <p class="eyebrow">RITHI CRM · Spares · process reference</p>
+  <h1>How a spare moves</h1>
+  <p class="standfirst">
+    From the moment an engineer needs a part to the moment it is fitted and booked against a call.
+    <b>Two routes in, one approval chain, one stock.</b> Read the middle column for what happens,
+    the left for <b>which master or record the step reads</b>, and the right for <b>what the system
+    refuses and what it demands</b>. Every field named is a real column; every refusal is enforced
+    by a form rule, an access policy or a database trigger, and the enforcement is named.
+  </p>
+
+  <div class="key">
+    <div style="--k:var(--master)"><strong>Reads</strong>The master or record the step draws on.</div>
+    <div style="--k:var(--rule)"><strong>Restrictions</strong>What the system will not allow.</div>
+    <div style="--k:var(--mandate)"><strong>Mandates</strong>What it will not proceed without.</div>
+  </div>
+</header>
+
+<nav class="flownav" aria-label="The two routes">
+  <a href="#route1">
+    <span class="flownav-n">Route 1</span>
+    <span class="flownav-t">Call Based — a part for a machine that has failed</span>
+    <span class="flownav-s">Against a UCN · carries the call's customer, product and cover</span>
+  </a>
+  <a href="#route2">
+    <span class="flownav-n">Route 2</span>
+    <span class="flownav-t">HandStock — replenishing what the engineer carries</span>
+    <span class="flownav-s">No call · needs a stated reason instead</span>
+  </a>
+  <a href="#approvals">
+    <span class="flownav-n">Then</span>
+    <span class="flownav-t">One approval chain, whichever route it came in by</span>
+    <span class="flownav-s">RM → Commercial → NSM → Stores → acknowledged</span>
+  </a>
+</nav>
+
+<main class="flow">
+
+  <!-- ===================== ROUTE 1 ===================== -->
+  <section class="flowhead" id="route1">
+    <p class="flowhead-n">Route 1</p>
+    <h2 class="flowhead-t">Call Based — a part for a machine that has failed</h2>
+    <p class="flowhead-p">
+      The engineer is on a call and needs a part for it. The request is raised <b>against the
+      UCN</b>, and the call's own particulars come with it — so the part is traceable to the
+      device it was fitted to, which is the whole reason this route exists separately.
+    </p>
+    <p class="flowhead-p">
+      <b>The cover comes with it too, and that is what decides the approval chain.</b> A part for a
+      machine under CMC or WGP goes straight to Stores after the manager; a part for an AMC or OGP
+      machine is somebody's money, and two more people look at it.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The call</b> — UCN, call number, customer, product, serial, complaint and <b>item status</b> (the cover)</li>
+        <li><b>Part Master</b> — the parts that may be asked for</li>
+        <li><b>User Master</b> — the engineer, where a manager is raising it for their team</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Route 1 · Raise</p>
+      <h2>Ask for the part, against the call</h2>
+      <span class="who">Engineer</span><span class="who">RM / RGM</span><span class="who">Spare Coordinator</span>
+      <p>
+        Pick the call, then the parts. <b>One request carries up to five spares</b>, each with its
+        own quantity — and each is decided separately from here on, so a request for five can go
+        forward with three.
+      </p>
+      <p>
+        A manager raising it for somebody else may only choose from <b>the engineers who report to
+        them</b>. Raising it for yourself fills the name from your login and leaves it read-only.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>A <b>UC Number</b>. A Call-Based request without a call is refused at the form — that is the difference between the two routes.</li>
+        <li class="mandate"><span class="tag">Mandate</span>An engineer, and <b>at least one part</b>; quantity is at least 1 and whole.</li>
+        <li>At most <b>five spares</b> on one request.</li>
+        <li>The part comes from the <b>Part Master</b> — a typed part is a master entry that does not exist.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The month's counter</b>, one per YY/MM, written only by the numbering function</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Route 1 · On submit</p>
+      <h2>The database numbers it</h2>
+      <p>
+        The request takes an <b>OR number</b> — <code>OR-26/09/41</code>, the forty-first request of
+        September 2026. The counter is one row per month and the increment is atomic, so two
+        requests submitted in the same instant cannot take the same number.
+      </p>
+      <p>
+        <b>OR Req Date</b> is the day it was asked for. It matters more than it looks: the audit
+        trail dates the request by it, and for requests loaded from the old system it is the only
+        honest date — <code>created_at</code> would be the day of the upload.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>The OR number is minted by the database. The app cannot supply one, and two cannot collide.</li>
+        <li>Status starts <b>Pending</b>, and the stage is <b>computed</b> from the approval columns rather than typed — so a stage can never disagree with the approvals underneath it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== ROUTE 2 ===================== -->
+  <section class="flowhead" id="route2">
+    <p class="flowhead-n">Route 2</p>
+    <h2 class="flowhead-t">HandStock — replenishing what the engineer carries</h2>
+    <p class="flowhead-p">
+      No call. The engineer is restocking the boot of the car: parts that get used often, so the
+      next call does not wait for a dispatch. Everything about the chain below is the same —
+      <b>what changes is what the request must justify itself with</b>.
+    </p>
+    <p class="flowhead-p">
+      A Call-Based request explains itself: there is a machine, it has failed, here is the part.
+      A HandStock request has no such evidence, so it <b>must carry a written reason</b> — and
+      that reason is what the approver is actually approving.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Part Master</b> — the parts that may be asked for</li>
+        <li><b>Hand Stock</b> — what this engineer already holds, which is what makes a reason checkable</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unattended)">
+      <p class="n">Route 2 · Raise</p>
+      <h2>Ask for the part, with a reason</h2>
+      <span class="who">Engineer</span><span class="who">RM / RGM</span><span class="who">Spare Coordinator</span>
+      <p>
+        Same form, request type <b>HandStock</b>. The call section disappears and a single field
+        takes its place: <b>Reason for HandStock Request</b>.
+      </p>
+      <p>
+        The call's fields are left <b>empty</b> rather than filled with something plausible — no
+        UCN, no customer, no cover. A HandStock part fitted later is booked to its call at
+        consumption, which is where that link genuinely exists.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li class="mandate"><span class="tag">Mandate</span>The <b>reason</b>. The form refuses a HandStock request without one — it is the only thing an approver has to go on.</li>
+        <li><b>No cover, so no AMC/OGP review.</b> With no machine there is no item status, so Commercial and NSM auto-approve and the request goes manager → Stores.</li>
+        <li>The customer and machine fields stay empty. A HandStock request is not evidence about any device.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ===================== THE CHAIN ===================== -->
+  <section class="flowhead" id="approvals">
+    <p class="flowhead-n">Both routes</p>
+    <h2 class="flowhead-t">One approval chain</h2>
+    <p class="flowhead-p">
+      <b>The state belongs to ONE SPARE, not to the request.</b> The manager approves or rejects
+      each part separately, so a request for five parts can go forward with three; the later stages
+      read the same per-line state, which is what lets them be actioned either part by part or for
+      a whole OR at once.
+    </p>
+    <p class="flowhead-p">
+      <b>The stage is computed, never typed</b> — it is derived from the approval columns, so it
+      cannot disagree with them. Reject at any stage and the whole line is Rejected; there is no
+      route onward from a refusal.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The reporting tree</b> — which engineers this manager may approve for</li>
+        <li><b>Item status</b> — whether Commercial and NSM will be needed</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Stage 1 of 4</p>
+      <h2>RM Approval</h2>
+      <span class="who">spare.approve_rm</span>
+      <p>
+        The manager decides <b>each spare on its own</b> — never in bulk across a whole OR. That is
+        deliberate: the later stages allow a whole-OR action, this one does not, because this is
+        where the judgement about whether a part is needed actually happens.
+      </p>
+      <p>
+        Approving here is also where the chain is decided: <b>if the item is not AMC or OGP, the
+        Commercial and NSM columns are stamped Auto-Approved in the same write</b> and the line
+        goes straight to Stores.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>A manager approves their own team's requests, and never their own.</b> Their request goes to <i>their</i> manager. Enforced in the database as well as the screen.</li>
+        <li>No bulk approval at this stage.</li>
+        <li class="mandate"><span class="tag">Mandate</span>A rejection carries a <b>reason</b>, and the stage it was rejected at is recorded with it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Item status</b> — <code>AMC</code> or <code>OGP</code> only</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-unsolved)">
+      <p class="n">Stages 2 and 3 of 4 · conditional</p>
+      <h2>Commercial, then NSM</h2>
+      <span class="who">spare.approve_commercial</span><span class="who">spare.approve_nsm</span>
+      <p>
+        <b>These two run only when the item is AMC or OGP</b> — the covers where the part is
+        chargeable to somebody. On WGP and CMC they are stamped Auto-Approved at the RM stage and
+        nobody waits.
+      </p>
+      <p>
+        Both may be actioned <b>for a whole OR at once</b>: by this point the question is
+        commercial rather than technical, and it is the same answer for every line on the order.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>Each is its own permission. Holding one does not imply the other, and neither implies the RM stage.</li>
+        <li><b>"Auto-Approved" is recorded, not blank.</b> A skipped stage says it was skipped — an empty column would read as "not yet done" for ever.</li>
+        <li class="mandate"><span class="tag">Mandate</span>A rejection carries a reason here too.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>The approved lines</b>, grouped by engineer</li>
+        <li><b>The day's counter</b> for the stock-out number</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-pending)">
+      <p class="n">Stage 4 of 4</p>
+      <h2>Stores books it out</h2>
+      <span class="who">spare.dispatch</span>
+      <p>
+        A stock out is a <b>batch</b>: many spares, one engineer, one delivery challan. The number
+        is generated by Postgres, so there is one way to book stock out and <b>no way to type a DC
+        number by hand</b>.
+      </p>
+      <p>
+        <b>The challan IS the stock out</b> — one series, not two. Stores may also send <b>fewer
+        than were approved</b>; the balance stays open and the line stays at Stores until the rest
+        goes.
+      </p>
+      <p>
+        Or Stores may <b>drop</b> a part instead of sending it — short supply, no longer needed,
+        superseded. That is terminal but it is <b>not a rejection</b>: an approver refuses a
+        request, Stores drops an approved part, and the two must not read alike.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span>The stock-out number and the DC are minted by the database, in one transaction, so a batch never half-lands.</li>
+        <li class="mandate"><span class="tag">Mandate</span>A drop carries a <b>reason</b>. Stock that went nowhere with no reason stated is not auditable.</li>
+        <li>Dropping is its own permission, separate from dispatching.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>What was dispatched against what has been acknowledged</b> — the difference is what is outstanding</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Closing</p>
+      <h2>The engineer acknowledges receipt</h2>
+      <span class="who">spare.receive</span>
+      <p>
+        The parts reached the field. <b>Only the person who raised the request may acknowledge
+        it</b> — so an approver's queue does not fill with other people's receipts.
+      </p>
+      <p>
+        <b>Receipt follows the stock, not the stage.</b> A partly-sent line has something to
+        acknowledge while it is still sitting at Stores waiting for its balance, and a spare counts
+        as received only when the <b>whole</b> quantity has been.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><b>Somebody else's request cannot be acknowledged</b>, whatever permission the reader holds.</li>
+        <li>Acknowledging closes the request — and puts the part into that engineer's <b>hand stock</b>, which is where the next section starts.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="ledger">
+    <h2>What every approval cycle writes</h2>
+    <p>
+      Three columns per stage — the outcome, <b>who</b>, and <b>when</b> — and the audit trail in
+      the detail drawer is built from exactly these. A stage with no outcome has not happened;
+      a stage that was skipped says <i>Auto-Approved</i> rather than staying blank.
+    </p>
+    <div class="scroll">
+      <table class="transitions">
+        <thead>
+          <tr><th>Stage</th><th>Permission</th><th>Outcome · who · when</th><th>Also written</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>RM Approval</td><td><code>spare.approve_rm</code></td>
+            <td><code>rm_approval</code> · <code>rm_by</code> · <code>rm_at</code></td>
+            <td>On approval of a non-AMC/OGP item, <code>commercial_approval</code> and <code>nsm_approval</code> are set to <i>Auto-Approved</i> in the same write</td>
+          </tr>
+          <tr>
+            <td>Commercial</td><td><code>spare.approve_commercial</code></td>
+            <td><code>commercial_approval</code> · <code>commercial_by</code> · <code>commercial_at</code></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>NSM</td><td><code>spare.approve_nsm</code></td>
+            <td><code>nsm_approval</code> · <code>nsm_by</code> · <code>nsm_at</code></td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>Any rejection</td><td>the stage's own</td>
+            <td>that stage's three columns, set to <i>Rejected</i></td>
+            <td><code>rejected_stage</code> and <code>reject_reason</code> — which stage refused it, and why</td>
+          </tr>
+          <tr>
+            <td>Stores — dispatch</td><td><code>spare.dispatch</code></td>
+            <td><code>stores_status</code> · <code>dispatched_by</code> · <code>dispatched_at</code></td>
+            <td><code>stock_out_no</code>, <code>dc_number</code>, <code>courier</code>, <code>dispatched_qty</code>, <code>dispatch_remarks</code></td>
+          </tr>
+          <tr>
+            <td>Stores — drop</td><td><code>spare.drop</code></td>
+            <td><code>stores_status</code> = <i>Dropped</i> · <code>dispatched_by</code> · <code>dispatched_at</code></td>
+            <td><code>dispatch_remarks</code> carries the required reason</td>
+          </tr>
+          <tr>
+            <td>Receipt</td><td><code>spare.receive</code></td>
+            <td><code>received_by</code> · <code>received_at</code></td>
+            <td><code>received_qty</code> and <code>receipt_remarks</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== STOCK ===================== -->
+  <section class="flowhead" id="stock">
+    <p class="flowhead-n">After it lands</p>
+    <h2 class="flowhead-t">Hand stock, and booking the part to a call</h2>
+    <p class="flowhead-p">
+      <b>Hand stock is derived, never stored.</b> There is no balance column anybody can edit — it
+      is computed every time it is read:
+    </p>
+    <p class="flowhead-p">
+      <code>on hand = stock out + transfers in − consumed − transfers out − returns</code>
+    </p>
+    <p class="flowhead-p">
+      Which makes <b>consumption the control point</b>. It is the only movement a person enters
+      freely, so it is the one the database guards.
+    </p>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Hand Stock</b> — this engineer's balance of this part, at this moment</li>
+        <li><b>The call</b> — the UCN the part was fitted on</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-solved)">
+      <p class="n">Stock · out</p>
+      <h2>The part is fitted, and booked against the call</h2>
+      <span class="who">Engineer, on the visit</span><span class="who">Spare Coordinator, reconciling</span>
+      <p>
+        Recorded on the visit as part of the report, or booked by hand afterwards by the Spare
+        Coordinator where something was missed. Either way the line names the <b>engineer whose
+        stock it came off</b>, the part, the quantity and the <b>call</b>.
+      </p>
+      <p>
+        A wrong line is <b>voided, never deleted</b>: the quantity goes to zero, the row is kept
+        with its original quantity, reason and author, and the stock comes back.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li><span class="tag db">Trigger</span><b>You cannot consume more than the engineer holds.</b> The database refuses it and says the balance: <i>"X has 2 of PART in hand — cannot book 3 against this call"</i>.</li>
+        <li><span class="tag db">Trigger</span>A hand-booked reconciliation needs the <b>engineer</b>, the <b>part</b>, a <b>real UCN</b> and a <b>written reason</b> — each refused separately by name. A stock adjustment with no stated reason is not auditable, which is the point of flagging these apart.</li>
+        <li><b>Quality records are never deleted.</b> The correction is a void, and it keeps what was originally claimed.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="stage">
+    <div class="side in">
+      <h3>Reads</h3>
+      <ul>
+        <li><b>Hand Stock</b> of both engineers, for a transfer</li>
+        <li><b>Part Master</b> — item code and name on a return</li>
+      </ul>
+    </div>
+    <div class="step" style="--node:var(--st-reopened)">
+      <p class="n">Stock · the other three movements</p>
+      <h2>Transfers, returns, and the opening balance</h2>
+      <span class="who">stock.transfer</span><span class="who">stock.return</span>
+      <p>
+        <b>Transfer</b> moves stock engineer to engineer — out of one balance and into the other,
+        one movement seen from both sides. <b>Material Return (MRN)</b> sends it back to Stores,
+        and it counts <b>good and defective separately</b>, because they are not the same thing
+        arriving back.
+      </p>
+      <p>
+        <b>Opening stock</b> is what an engineer already held when the system started, keyed so the
+        same figure cannot be loaded twice for one engineer and part.
+      </p>
+    </div>
+    <div class="side out">
+      <h3>Restrictions &amp; mandates</h3>
+      <ul>
+        <li>A return records <b>which equipment it was removed from</b> and the report it relates to, where there is one — a defective part with no origin cannot be investigated.</li>
+        <li>The engineer corrects nothing about the stock itself: <b>the Spare Coordinator corrects the stock, not the engineer</b>. A reported line is capped the same way as any other.</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<section class="states">
+  <h2>The eight stages a spare can be at</h2>
+  <p>
+    Computed from the approval columns, never typed. The first four are open; the last four are
+    terminal, and the difference between the last three matters — <b>Rejected</b> is an approver
+    refusing, <b>Dropped</b> is Stores not sending an approved part, and <b>Received</b> is the
+    only one that means the engineer has it.
+  </p>
+  <div class="chips">
+    <span class="chip" style="background:var(--st-cancelled)">RM Approval</span>
+    <span class="chip" style="background:var(--st-cancelled)">Commercial</span>
+    <span class="chip" style="background:var(--st-cancelled)">NSM</span>
+    <span class="chip" style="background:var(--st-reopened)">Stores</span>
+    <span class="chip" style="background:var(--st-unsolved)">Dispatched</span>
+    <span class="chip" style="background:var(--st-solved)">Received</span>
+    <span class="chip" style="background:var(--st-reopened)">Dropped</span>
+    <span class="chip" style="background:var(--st-unattended)">Rejected</span>
+  </div>
+  <div class="scroll">
+    <table class="transitions">
+      <thead><tr><th>At</th><th>What moves it</th><th>To</th><th>Who</th></tr></thead>
+      <tbody>
+        <tr><td>—</td><td>The request is submitted</td><td>RM Approval</td><td>Whoever raised it</td></tr>
+        <tr><td>RM Approval</td><td>Approved, item is AMC or OGP</td><td>Commercial</td><td>The engineer's own manager</td></tr>
+        <tr><td>RM Approval</td><td>Approved, any other cover — and on every HandStock request</td><td>Stores <span class="muted">(Commercial and NSM auto-approve)</span></td><td>The engineer's own manager</td></tr>
+        <tr><td>Commercial</td><td>Approved</td><td>NSM</td><td>Commercial</td></tr>
+        <tr><td>NSM</td><td>Approved</td><td>Stores</td><td>NSM</td></tr>
+        <tr><td>Stores</td><td>Booked out on a stock out / DC</td><td>Dispatched</td><td>Stores · Spare Coordinator</td></tr>
+        <tr><td>Stores</td><td>Part sent short</td><td>stays at Stores, with a balance outstanding</td><td>Stores · Spare Coordinator</td></tr>
+        <tr><td>Stores</td><td>Not sent at all, with a reason</td><td>Dropped <span class="muted">— terminal, and not a rejection</span></td><td>Holders of <code>spare.drop</code></td></tr>
+        <tr><td>Dispatched</td><td>The whole quantity acknowledged</td><td>Received</td><td><b>Only the person who raised it</b></td></tr>
+        <tr><td>Any approval stage</td><td>Refused, with a reason</td><td>Rejected <span class="muted">— terminal</span></td><td>That stage's approver</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="panels">
+  <div class="panel">
+    <h3>Why the cover decides the chain</h3>
+    <p>
+      <b>WGP</b> and <b>CMC</b> — the part is covered, so the only question is whether it is needed,
+      and the manager answers that. Commercial and NSM are stamped Auto-Approved and nobody waits.
+    </p>
+    <p>
+      <b>AMC</b> and <b>OGP</b> — the part is chargeable to somebody, so two more people look at it
+      before it leaves the building. That is the whole rule, and it is why the cover on the call is
+      worth getting right upstream.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>Who can do what</h3>
+    <p>
+      Every stage is its own permission, and holding one implies none of the others:
+    </p>
+    <ul>
+      <li><code>spare.request</code> — raise one</li>
+      <li><code>spare.approve_rm</code> — the manager stage, bounded by the reporting tree</li>
+      <li><code>spare.approve_commercial</code> · <code>spare.approve_nsm</code></li>
+      <li><code>spare.dispatch</code> — book stock out and raise the DC</li>
+      <li><code>spare.drop</code> — decline to send an approved part</li>
+      <li><code>spare.receive</code> — acknowledge, and only your own</li>
+      <li><code>stock.transfer</code> · <code>stock.return</code> · <code>consumption.reconcile</code></li>
+    </ul>
+    <p>
+      <b>Who actually holds each one is set in Roles &amp; Permissions</b>, not here — this page
+      names the rights, and that screen is where they live.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>Two pairs that are easy to confuse</h3>
+    <p>
+      <b>Rejected vs Dropped.</b> An approver refuses a request; Stores drops an approved part.
+      Both are terminal, both need a reason, and they answer different questions — one is about
+      whether the part was warranted, the other about whether it was available.
+    </p>
+    <p>
+      <b>Dispatched vs Received.</b> Dispatched is Stores' claim; Received is the engineer's. The
+      gap between them is stock that has left the building and not been confirmed as arrived, and
+      it is worth watching for exactly that reason.
+    </p>
+  </div>
+</div>
+<footer>
+  <p>
+    Drawn from the running system, not from memory: the state machine in
+    <code>src/lib/spareflow.ts</code>, the request form in
+    <code>src/modules/SpareRequests.tsx</code>, the columns and triggers in
+    <code>supabase/migrations/</code> — the OR numbering (0017), the stock out and its challan
+    (0027, 0028), the hand-stock balance view, and the consumption guard (0059, 0060) — and the
+    rights in <code>src/lib/rbac.ts</code>.
+    Where this page and the code disagree, the code is the fact and this page is the bug.
+  </p>
+</footer>
+
+</div>
+<script>
+// ===========================================================================
+// THIS FILE IS BOTH A SHARED DIAGRAM AND AN IN-APP PAGE, and it must behave
+// as either. Standalone it is an ordinary document. Framed by RITHI CRM it has
+// two more jobs, and both fail silently if left to chance:
+//
+//   1. FOLLOW THE HOST'S THEME. The app has its own light/dark toggle, and a
+//      framed document cannot see it — a viewer in dark mode would otherwise
+//      get a white page inside a dark one. The app passes ?theme= and this
+//      stamps it, which is the same attribute the CSS above already honours.
+//      With no parameter nothing is stamped and prefers-color-scheme decides,
+//      exactly as before.
+//   2. SAY HOW TALL IT IS. A fixed-height iframe gives the reader a second
+//      scrollbar inside the first, which on a long document is worse than no
+//      frame at all. The height is posted on load, on resize, and whenever the
+//      content changes.
+//
+// Everything here is guarded: a failure leaves a page that still reads.
+(function () {
+  try {
+    var t = new URLSearchParams(location.search).get('theme');
+    if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { /* no theme is not a broken page */ }
+
+  if (window.parent === window) return;   // standalone: nothing to report to
+  var last = 0;
+  function tell() {
+    var h = Math.ceil(document.documentElement.scrollHeight);
+    if (Math.abs(h - last) < 2) return;
+    last = h;
+    try { window.parent.postMessage({ type: 'rithi-doc-height', height: h }, '*'); } catch (e) { /* ignore */ }
+  }
+  window.addEventListener('load', tell);
+  window.addEventListener('resize', tell);
+  document.addEventListener('DOMContentLoaded', tell);
+  if (window.ResizeObserver) new ResizeObserver(tell).observe(document.documentElement);
+  setTimeout(tell, 60); setTimeout(tell, 400); setTimeout(tell, 1200);
+})();
+</script>
+</body>
+</html>

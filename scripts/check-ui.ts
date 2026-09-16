@@ -6947,10 +6947,24 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   //    so an iframe at it would render an empty box for everybody but its
   //    author — which is the kind of thing that looks right to whoever built it.
   const hrf = readFileSync('src/modules/HowRithiFunctions.tsx', 'utf8');
-  eq('the embedded document ships with the app',
-    existsSync('public/docs/how-a-call-works.html'), true);
-  eq('...and the page frames THAT file',
-    /docs\/how-a-call-works\.html/.test(hrf), true);
+  // EVERY DOCUMENT THE PAGE OFFERS IS A FILE THAT EXISTS. A listed document
+  // whose file is missing renders the error banner instead of the page — and
+  // the list is the only place the two are connected, so nothing else can
+  // catch a typo in a filename.
+  const listed = [...hrf.matchAll(/file: '([^']+)'/g)].map((m) => m[1]);
+  eq('the page offers more than one module', listed.length > 1, true);
+  eq('...and every document it offers ships with the app',
+    listed.filter((f) => !existsSync(`public/docs/${f}`)), []);
+  eq('...including the two written so far',
+    ['how-a-call-works.html', 'how-a-spare-moves.html'].filter((f) => !listed.includes(f)), []);
+  // ONE DESIGN, NOT TWO. The spare document reuses the call document's shell,
+  // so both carry the theme hand-off and the height message; a document that
+  // lost either would flash the wrong theme or scroll inside the frame.
+  listed.forEach((f) => {
+    const d = readFileSync(`public/docs/${f}`, 'utf8');
+    eq(`${f} honours the host theme`, /data-theme', t\)/.test(d), true);
+    eq(`${f} reports its own height`, /rithi-doc-height/.test(d), true);
+  });
   // ASSERTED ON THE CODE, NOT THE PROSE. The first version of this line matched
   // `<iframe` inside the comment that EXPLAINS why claude.ai cannot be framed,
   // and failed on a file that was correct — a check that reads documentation as
@@ -6964,11 +6978,14 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // 5. THE TWO THINGS A FRAME COSTS, both handled. A framed page cannot see the
   //    host's theme, and a fixed-height frame gives a scrollbar inside a
   //    scrollbar.
-  const doc = readFileSync('public/docs/how-a-call-works.html', 'utf8');
   eq('the host\u2019s theme is passed in', /\?theme=\$\{scheme\}/.test(hrf), true);
-  eq('...and the document honours it', /data-theme', t\)/.test(doc), true);
-  eq('the document reports its own height', /rithi-doc-height/.test(doc), true);
-  eq('...and the frame is sized to it', /rithi-doc-height/.test(hrf), true);
+  eq('...and the frame is sized to what the document reports',
+    /rithi-doc-height/.test(hrf), true);
+  // A NEW DOCUMENT IS A NEW HEIGHT. Keeping the last one's leaves a shorter
+  // document trailing blank space and a taller one clipped until its first
+  // message arrives.
+  eq('...and the height resets when the module changes',
+    /setHeight\(1400\); setFailed\(false\); \}, \[docId\]\)/.test(hrf), true);
   // ONLY FROM THIS FRAME. A page that resizes itself on anyone's say-so is a
   // page anyone can distort.
   eq('...from this frame alone', /e\.source !== frame\.current\?\.contentWindow/.test(hrf), true);

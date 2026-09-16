@@ -40,11 +40,49 @@ import './howrithifunctions.css';
 // migration 0209 — a page is not restricted by having a menu entry removed.
 // ===========================================================================
 
-/** In the repo at `public/docs/`, so it is served beside the app rather than
- *  from anywhere else. `BASE_URL` because the site is published under a path. */
-const DOC = `${import.meta.env.BASE_URL}docs/how-a-call-works.html`;
+/** THE DOCUMENTS, in the repo at `public/docs/` so they are served beside the
+ *  app rather than from anywhere else. `BASE_URL` because the site is published
+ *  under a path.
+ *
+ *  ONE PAGE, SEVERAL MODULES. The page is "How RITHI Functions", not "how a
+ *  call works" — a second module (spares, 2026-09-16) is another entry here and
+ *  nothing else. Each document is self-contained and shares one design, so
+ *  adding a third costs a file and a line. */
+const DOCS = [
+  {
+    id: 'call',
+    label: 'The Call module',
+    file: 'how-a-call-works.html',
+    blurb: 'Two flows: registering a direct customer call, and the whole life of a call raised from a request.',
+    title: 'How a call works — the two flows, the masters behind them, and what each step refuses',
+  },
+  {
+    id: 'spare',
+    label: 'The Spare module',
+    file: 'how-a-spare-moves.html',
+    blurb: 'Two routes in — Call Based and HandStock — one approval chain, and what each cycle writes.',
+    title: 'How a spare moves — the two routes, the approval chain, and what every stage records',
+  },
+] as const;
+
+const urlFor = (file: string) => `${import.meta.env.BASE_URL}docs/${file}`;
 
 export function HowRithiFunctions() {
+  // WHICH DOCUMENT, remembered per viewer. Somebody who came here for the
+  // spare chain is usually coming back for the spare chain; `localStorage` is
+  // the right home for that and the wrong one for anything that must persist —
+  // so every read and write is wrapped, and an empty answer is simply the
+  // first document.
+  const [docId, setDocId] = useState<string>(() => {
+    try { return localStorage.getItem('rithi.hrf.doc') ?? DOCS[0].id; } catch { return DOCS[0].id; }
+  });
+  const doc = DOCS.find((d) => d.id === docId) ?? DOCS[0];
+  const DOC = urlFor(doc.file);
+  const pick = (id: string) => {
+    setDocId(id);
+    try { localStorage.setItem('rithi.hrf.doc', id); } catch { /* private window: it just does not stick */ }
+  };
+
   // THE APP HAS SEVERAL THEMES, and the framed document has two. `scheme` is
   // the bridge: every theme declares whether it is a light or a dark one, so
   // "Midnight Dark" and "Slate Dark" both hand the document `dark` rather than
@@ -57,6 +95,11 @@ export function HowRithiFunctions() {
   // from a page that failed to load.
   const [height, setHeight] = useState(1400);
   const [failed, setFailed] = useState(false);
+
+  // A NEW DOCUMENT IS A NEW HEIGHT. Without this the frame keeps the last
+  // one's, so a shorter document trails a screen of blank space and a taller
+  // one is clipped until its first message arrives.
+  useEffect(() => { setHeight(1400); setFailed(false); }, [docId]);
 
   // The document posts its height on load, on resize and whenever its content
   // changes. Only messages from THIS frame are honoured — a page that resizes
@@ -83,7 +126,7 @@ export function HowRithiFunctions() {
       .then((r) => { if (live && !r.ok) setFailed(true); })
       .catch(() => { if (live) setFailed(true); });
     return () => { live = false; };
-  }, []);
+  }, [DOC]);
 
   return (
     <div>
@@ -94,10 +137,16 @@ export function HowRithiFunctions() {
       />
 
       <div className="hf-bar">
-        <span className="hf-bar-note">
-          Two flows: registering a direct customer call, and the whole life of a call raised from
-          a request.
-        </span>
+        {/* CHIPS RATHER THAN A DROPDOWN: there are two, and a picker that hides
+            one of two options hides the fact that the other exists. */}
+        <div className="hf-docs" role="tablist" aria-label="Module">
+          {DOCS.map((d) => (
+            <button key={d.id} role="tab" aria-selected={d.id === doc.id}
+              className={`chip ${d.id === doc.id ? 'chip-on' : ''}`}
+              onClick={() => pick(d.id)}>{d.label}</button>
+          ))}
+        </div>
+        <span className="hf-bar-note">{doc.blurb}</span>
         <span className="hf-bar-spacer" />
         {/* A LONG DOCUMENT IS OFTEN WANTED ON ITS OWN — printed, or beside the
             screen it describes. The same file, without the app around it. */}
@@ -121,9 +170,9 @@ export function HowRithiFunctions() {
           // THE HOST'S THEME TRAVELS WITH IT. The framed page cannot see the
           // app's toggle, so it is told; `key` on the theme reloads the frame
           // when somebody switches, which is cheap on a static file and exact.
-          key={scheme}
+          key={`${doc.id}-${scheme}`}
           src={`${DOC}?theme=${scheme}`}
-          title="How a call works — the two flows, the masters behind them, and what each step refuses"
+          title={doc.title}
           style={{ height }}
           loading="eager"
         />

@@ -4,12 +4,54 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (0209 is BUILT AND NOT YET RUN — `_status.sql` row
-161; 0207 and 0208 APPLIED, rows 159 and 160)_
+_Last updated: 2026-09-16 (the Spare module documented; 0207, 0208 and 0209 all
+APPLIED — `_status.sql` rows 159, 160 and 161)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-16 — The Spare module, documented
+
+*"Add Spare Module -- How it Functions, What are the Fields and Who can Do What
+-- Map Both Routes (Call Based, HandStock). Add Approvals, Logic and Also the
+Fields involved in every Approval Cycle."*
+
+A second document on **How RITHI Functions**, picked with a chip. The page was
+built for one module and now carries two; a third is a file and a line.
+
+Written from the running system rather than from memory —
+`spareflow.ts` for the state machine, `SpareRequests.tsx` for the form, the
+columns and triggers in `supabase/migrations/` (OR numbering 0017, the stock out
+and its challan 0027/0028, the hand-stock balance view, the consumption guard
+0059/0060) and `rbac.ts` for the rights.
+
+**The fork is the interesting part**, and it is not where people expect: the two
+ROUTES converge immediately, and what actually forks the chain is the **cover**.
+WGP and CMC go manager → Stores with Commercial and NSM stamped *Auto-Approved*
+in the same write; AMC and OGP bring both in, because those are the covers where
+the part is chargeable to somebody. Every HandStock request takes the short
+chain — with no machine there is no item status to review.
+
+Two distinctions the document spells out because the screens cannot:
+
+- **Rejected vs Dropped.** An approver refuses a request; Stores declines to
+  send an approved part. Both terminal, both need a reason, different questions.
+- **Dispatched vs Received.** Stores' claim against the engineer's. The gap is
+  stock that has left the building and not been confirmed as arrived.
+
+**A note on who can do what.** The document names the RIGHT for each stage and
+says Roles & Permissions is where it is set — deliberately, rather than listing
+holders. The CODE defaults and the live rows differ on a project in use, and a
+document asserting the defaults would be wrong the moment somebody tuned a role.
+
+`check:ui` now checks the LIST rather than one filename: every document the page
+offers must exist, and each must carry the theme hand-off and the height
+message. Mutation-tested with a typo'd filename.
+
+Shareable copy: <https://claude.ai/artifact/FS8jQLAENPVwnnmQZgynyz>
 
 ---
 

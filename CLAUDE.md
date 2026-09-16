@@ -504,10 +504,14 @@ on testing the old shape. **When a migration replaces a definition, move the
   checks BOTH halves — everyone named holds it, and nobody else does — because
   "limit exposure" is two statements and a grant that leaks to a fifth role
   passes every check that only looks at the four.
-- **THE SHARED DIAGRAM AND THE IN-APP PAGE ARE ONE FILE.**
-  `public/docs/how-a-call-works.html` is in the repo, framed from the app's own
-  origin by `HowRithiFunctions.tsx`, and the claude.ai artifact is PUBLISHED
-  FROM that path. **The artifact URL cannot be embedded** — that host answers
+- **THE SHARED DIAGRAMS AND THE IN-APP PAGE ARE THE SAME FILES.**
+  `public/docs/*.html` are in the repo — `how-a-call-works.html` and
+  `how-a-spare-moves.html` so far — framed from the app's own origin by
+  `HowRithiFunctions.tsx`, which lists them in `DOCS` and offers a chip per
+  module; each claude.ai artifact is PUBLISHED FROM its path. A third module is
+  a file and a line in `DOCS`. They share ONE shell: copy the head of an
+  existing document so the theme hand-off and the height message come with it
+  (`check:ui` checks every listed document for both, and that the file exists). **The artifact URL cannot be embedded** — that host answers
   `x-frame-options: SAMEORIGIN` and the page is private, so an iframe at it
   renders an empty box for everybody but its author. A frame keeps one copy of
   the markup and one of the CSS; the two things it costs are handled and
