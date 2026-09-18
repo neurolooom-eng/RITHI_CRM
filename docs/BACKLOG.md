@@ -4,13 +4,67 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (Stores Incharge + Spare Coordinator get data.view_all
-— 0213 BUILT AND NOT YET RUN, `_status.sql` row **165**, bundle `rbac.sql`.
-0212 APPLIED, row 164)_
+_Last updated: 2026-09-18 (report date format + a spare needs a visit — 0214
+BUILT AND NOT YET RUN, `_status.sql` row **166**, bundle `handstock.sql`.
+Everything before it is APPLIED: 0207-0213, rows 159-165)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — A download is not the wire, and a spare needs a visit
+
+*"Reports - Consumption Report - Date Format - When I download, Its showing like
+this - 2026-09-18T08:51:02.55+00:00 -- But i want it to be dd-mmm-yyyy
+hh:mm:ss"* and *"Visit Entry Date is Empty, Visit Date & Time is Empty -- No
+Consumption should be accepted without these Details."*
+
+### The dates
+
+`formatDayTime()` in `dates.ts` — the one formatter, beside `formatDay` —
+and `ReportBuilder` applies it to every cell on the way out, so **all three
+reports get it from one place** rather than the one that was reported.
+
+**By value, not by column name.** The columns differ per report and move with
+the picker, so a list of date-ish headings is a list to forget to update.
+
+**The offset is the point, not the punctuation.** The database stores UTC, so
+printing the front of that string put the wrong TIME on the row and, before
+05:30 IST, the wrong DAY. A value with no offset is a wall clock and is printed
+as written; a date with no time stays a date rather than gaining a midnight
+nobody recorded; anything unreadable comes back exactly as it arrived — the
+pattern is anchored at both ends so a remark beginning with a date survives.
+Eleven assertions.
+
+### The empty visit columns
+
+Those two are **not stored on the consumption row**. `consumption_report` LEFT
+JOINs the latest visit (`Visit Entry Date` ← `reports.updated_at`,
+`Visit Date & Time` ← `reports.visit_at`), so both blank means one thing: the
+call has no `reports` row and the visit was never filed.
+
+0214 refuses an insert whose UCN has no visit.
+
+**Establishing the ORDER was the thing to do before writing that guard at all.**
+Call Reporting saves the visit FIRST and the spares second — its own comment
+says *"the visit is already filed, so pressing Save Report again retries just
+this"* — so the everyday path passes untouched. Had it been the other way round,
+this trigger would have broken every report in the field.
+
+**It also stops the bulk Consumption upload** for rows whose call has no visit.
+Deliberate, and said out loud rather than discovered: those rows are refused
+rather than landing blank. Genuinely historical consumption has its own table.
+
+**Existing rows are not rewritten** — an insert-time rule applied backwards to a
+quality record would invent a visit that did not happen, which is worse than a
+blank that is true. `_consumption_without_a_visit.sql` lists them, with a
+diagnosis per UCN (call missing vs visit never filed — both branches proved).
+
+### Still to run on the live project
+
+`_status.sql` first — row **166**. Then `handstock.sql`.
 
 ---
 

@@ -1075,6 +1075,12 @@ with checks(sort_order, bundle, provides, present) as (
          and not exists (select 1 from public.app_roles
                           where permissions ? 'data.view_all'
                             and role in ('rgm', 'rm', 'engineer')))))
+,
+    (166, 'A spare needs a visit behind it', 'the zz_consumption_needs_visit trigger on spare_consumption (0214). The user, 2026-09-18: "Visit Entry Date is Empty, Visit Date & Time is Empty -- No Consumption should be accepted without these Details." Those two columns are NOT stored on the consumption row: consumption_report reaches them with a LEFT JOIN to the latest visit (Visit Entry Date is reports.updated_at, Visit Date & Time is reports.visit_at), so both are blank for exactly one reason -- the call has no row in reports and the visit was never filed. A consumption line then records a part fitted on a visit that, as far as this system is concerned, did not happen. IT DOES NOT BREAK THE NORMAL PATH, which was the thing to establish before writing any guard: Call Reporting saves the VISIT first and the spares second, so by the time a spare is inserted the report row exists and every ordinary save passes untouched. WHAT IT DOES STOP is a reconciliation against a never-visited call, and the BULK CONSUMPTION UPLOAD for rows whose call has no visit -- deliberate, and worth saying plainly rather than discovering: those rows are refused rather than landing blank. Genuinely historical consumption has its own table, spare_consumption_history, which this does not touch. It runs LAST among the before-insert guards (the zz_ prefix) so a typo''d UCN still gets consumption_reconcile_guard''s "No call found with UCN -- check the number", which is the better answer when the call does not exist at all. EXISTING ROWS ARE NOT REWRITTEN -- an insert-time rule applied backwards to a quality record would invent a visit that did not happen, which is worse than a blank that is true; _consumption_without_a_visit.sql lists them. NO means a spare can still be booked against a call nobody has visited. Restore: handstock.sql',
+        (to_regclass('public.spare_consumption') is null
+         or exists (select 1 from pg_trigger
+                     where tgrelid = 'public.spare_consumption'::regclass
+                       and tgname = 'zz_consumption_needs_visit' and not tgisinternal)))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -614,6 +614,10 @@ const MODULES = {
             '0061_cap_all_consumption.sql',
             '0062_adjust_consumption_qty.sql',
             '0063_void_consumption_line.sql',
+            // A spare cannot be booked against a call nobody has visited (the
+            // user, 2026-09-18). It sits beside the other consumption guards
+            // and reads `reports`, which `base` creates long before this.
+            '0214_consumption_needs_a_visit.sql',
             '0064_stock_out_lines_and_refurb.sql',
             '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql', '0081_part_product_keys_inferable.sql', '0082_part_key_is_item_detail.sql', '0089_spare_imports_load.sql', '0090_spare_issue_history.sql', '0091_handstock_read_indexes.sql', '0095_rls_initplans.sql', '0096_handstock_period_close.sql', '0100_spare_request_reassign.sql',
             '0102_handstock_balance_history_split.sql',

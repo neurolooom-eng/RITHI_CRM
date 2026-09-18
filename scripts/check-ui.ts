@@ -11,7 +11,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
-import { localIsoDate } from '../src/lib/dates';
+import { localIsoDate, formatDayTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
@@ -6876,6 +6876,39 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // form can submit is a corrupted date.
   eq('...and a date is reformatted for the VIEW only',
     /drawer\.mode === 'view' \? \{\s*\n\s*regDate: formatDay/.test(fc), true);
+
+  // 6. A TIMESTAMP IN A DOWNLOAD, as a person reads it. Reported 2026-09-18:
+  //    the Consumption Report carried `2026-09-18T08:51:02.55+00:00` — the wire
+  //    format, in a file somebody opens in Excel.
+  //    THE OFFSET IS THE POINT, not the punctuation. The database stores UTC,
+  //    so printing the front of that string puts the wrong TIME on the row and,
+  //    before 05:30 IST, the wrong DAY.
+  process.env.TZ = 'Asia/Kolkata';
+  eq('a stored timestamp reads in the reader\u2019s own time',
+    formatDayTime('2026-09-18T08:51:02.55+00:00'), '18-Sep-2026 14:21:02');
+  // The day rolls back across midnight, which is the case that makes this a
+  // correctness fix rather than a formatting one.
+  eq('...and the DAY rolls with it',
+    formatDayTime('2026-09-18T19:30:00+00:00'), '19-Sep-2026 01:00:00');
+  eq('Z is an offset too', formatDayTime('2026-09-18T08:51:02Z'), '18-Sep-2026 14:21:02');
+  // NO OFFSET IS A WALL CLOCK somebody already wrote down; shifting it would
+  // invent an hour it never had.
+  eq('a value with no offset is printed as written',
+    formatDayTime('2026-09-18 08:51:02'), '18-Sep-2026 08:51:02');
+  eq('...seconds default to 00 when absent',
+    formatDayTime('2026-09-18 08:51'), '18-Sep-2026 08:51:00');
+  // A DATE IS NOT A MIDNIGHT. Inventing 00:00:00 reads as a real instant.
+  eq('a date with no time stays a date', formatDayTime('2026-09-18'), '18-Sep-2026');
+  // ANYTHING ELSE COMES BACK UNTOUCHED — the same contract as formatDay. A
+  // report column holds part codes and remarks as well as dates.
+  eq('a part code is not a date', formatDayTime('MP-010'), 'MP-010');
+  eq('a UCN is not a date', formatDayTime('26I08F0006'), '26I08F0006');
+  // ...including a remark that merely BEGINS with one. The pattern is anchored
+  // at both ends for exactly this.
+  eq('a remark starting with a date survives',
+    formatDayTime('2026-09-18 pump replaced'), '2026-09-18 pump replaced');
+  eq('empty stays empty', formatDayTime(''), '');
+  eq('null stays empty', formatDayTime(null), '');
 }
 
 {

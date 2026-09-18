@@ -4,6 +4,7 @@ import { PageHeader, SectionCard } from '../components/ui/ui';
 import { xlsxDownload } from '../lib/xlsx';
 import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
+import { formatDayTime } from '../lib/dates';
 import './dccr.css';
 
 // ===========================================================================
@@ -123,8 +124,21 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
       // SHAPED TO THE CHOSEN COLUMNS, in the view's order — and a missing value
       // becomes '' rather than "undefined", which is what a spreadsheet shows
       // when a key is absent.
+      //
+      // EVERY TIMESTAMP IS FORMATTED ON THE WAY OUT. The database hands back the
+      // wire format — `2026-09-18T08:51:02.55+00:00` — and this file is opened
+      // in Excel by somebody who wants a date, not an encoding. Reported
+      // 2026-09-18 against the Consumption Report; it is fixed HERE rather than
+      // there because all three reports share this download, and fixing one
+      // would have left the other two carrying the same string.
+      //
+      // BY VALUE, NOT BY COLUMN NAME. The columns differ per report and change
+      // with the picker, so a list of date-ish headings would be a list to
+      // forget to update. `formatDayTime` recognises the ISO shape, anchored at
+      // both ends, and returns anything else exactly as it arrived — a part
+      // code, a UCN and a remark that begins with a date all survive it.
       const shaped = rows.map((r) =>
-        Object.fromEntries(columns.map((c) => [c, r[c] ?? ''])));
+        Object.fromEntries(columns.map((c) => [c, formatDayTime(r[c] ?? '')])));
       const stamp = new Date().toISOString().slice(0, 10);
 
       if (kind === 'csv') {
@@ -142,7 +156,8 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
               { Item: 'Rows', Value: rows.length },
               { Item: 'Columns',
                 Value: `${columns.length} (${spec.mandatory.length} mandatory + ${columns.length - spec.mandatory.length} chosen)` },
-              { Item: 'Downloaded', Value: new Date().toISOString() },
+              // The sheet that travels with the file reads like the file.
+              { Item: 'Downloaded', Value: formatDayTime(new Date().toISOString()) },
               ...(spec.notes?.length ? [{ Item: '', Value: '' }, ...spec.notes] : []),
             ],
           },
