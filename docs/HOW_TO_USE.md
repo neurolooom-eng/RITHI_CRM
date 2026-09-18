@@ -95,9 +95,19 @@ restored) or **closed without a visit**; neither deletes anything.
   > type them into and re-uploading the consumption file cannot fill them.
   > They are blank for one reason: the call has no visit report.
   >
-  > **Load the visits.** *Bulk Uploads → Visit Reports → Field Reports* (or
-  > *Installation* / *PM* — all three write the same table). One row per visit,
-  > with these headings:
+  > **If your consumption file carries `Visit Date & Time`, just load it.**
+  > The Consumption upload files the visit from that column BEFORE it writes the
+  > spares, so both dates and the **Visit UID** fill in on their own. One visit
+  > per UCN, not one per spare line. A row whose call has no visit and no date in
+  > the file is **held back and named** — the rest of the file still loads.
+  >
+  > Two things that load also does: a `Call Status` in the file becomes the
+  > call's status, and where the file gives none the call reads **Report
+  > pending**. Re-loading the same file does not make a second visit.
+  >
+  > **Otherwise, load the visits separately.** *Bulk Uploads → Visit Reports →
+  > Field Reports* (or *Installation* / *PM* — all three write the same table).
+  > One row per visit, with these headings:
   >
   > | Heading | Needed | Becomes |
   > | --- | --- | --- |

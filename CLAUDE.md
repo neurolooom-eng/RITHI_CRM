@@ -709,6 +709,27 @@ on testing the old shape. **When a migration replaces a definition, move the
   visit date when the file has none, so a re-load updates instead of
   duplicating — and several consumption rows sharing a UCN and date collapse
   into the one visit they were.
+- **A GUARD THAT IS RIGHT CAN STILL BE USELESS AS AN ANSWER.** 0214 refuses a
+  spare booked against a call with no visit — the user's own rule — and on a
+  bulk load it arrived as *"No visit has been filed on 26H26F0029 (row ~1)
+  (0 written before it stopped.)"*. Correct, and it stops everything while the
+  visit it wants IS IN THE FILE: `Visit Date & Time` is the column the
+  Consumption upload already maps onto `created_at`, and `Visit Entry Date`
+  falls into `data`. So the register gained `prepare: 'consumption-visits'`,
+  which FILES THE VISIT FIRST from the file's own values — recording the guard's
+  requirement rather than evading it — and holds back BY NAME only the rows
+  whose call the file cannot date, which is the one thing an all-or-nothing
+  refusal cannot do. **Nothing is invented**: no date in the file means no
+  visit. Three rules it must keep, each pinned by `check:uploads`:
+  ONE VISIT PER UCN (three parts fitted on one visit are one event, and per-row
+  keying makes the call's status come from whichever row was written last); the
+  **FIRST** dated row wins, so a re-run is stable; and the uid is
+  `REPORT_COLS`' own derivation, compared against that function rather than a
+  literal — drift does not error, it quietly makes a SECOND visit of one call on
+  one day. **The planner lives in `uploads.ts`, not `supabase.ts`**, for the
+  `paging.ts` reason: that module reads `import.meta.env`, so nothing in it can
+  be tested as behaviour. `prepareUpload` keeps the two round trips and nothing
+  else; `check:ui` refuses a decision drifting back into it.
 - **A SPARE NEEDS A VISIT BEHIND IT** (0214). `Visit Entry Date` and
   `Visit Date & Time` are NOT stored on the consumption row —
   `consumption_report` LEFT JOINs the latest visit — so both blank means one

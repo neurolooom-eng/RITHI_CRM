@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.303',
+    date: '2026-09-18',
+    title: 'The Consumption upload files the visit from your file, instead of stopping on row 1',
+    changes: [
+      'YOUR RE-UPLOAD WORKS NOW. \u201cNo visit has been filed on 26H26F0029\u201d stopped the whole file with nothing written \u2014 correct, since a spare has to belong to a visit, and useless as an answer, because the visit was in your file all along. The upload now FILES THE VISIT FIRST from the file\u2019s own Visit Date & Time, then writes the spares.',
+      'SO THE TWO DATE COLUMNS FILL THEMSELVES, and so does Visit UID. That is the same question from earlier today answered at the source: you do not have to load a separate Visit Reports file first, as long as your consumption file carries Visit Date & Time.',
+      'NOTHING IS INVENTED. A call with no visit AND no date in the file gets no visit \u2014 those rows are HELD BACK and listed by UCN, and the rest of the file still loads. That is the part the old all-or-nothing refusal could not do.',
+      'ONE VISIT PER CALL, not one per spare line: three parts fitted on one visit stay one visit. Re-loading the same file updates it rather than adding a second visit of the same call on the same day.',
+      'TWO THINGS THAT LOAD ALSO DOES, worth knowing before you run it: a Call Status in your file becomes the call\u2019s status, and a call whose status the file does not give will read Report pending \u2014 which is more accurate than the Unattended it reads today, but it is a change you will see on the call register.',
+      'No SQL for this one. Everything you ran earlier today is in.',
+    ],
+  },
+  {
     version: '0.9.302',
     date: '2026-09-18',
     title: 'A spare can no longer be marked received before it was sent \u2014 and view-all for every role but three',
