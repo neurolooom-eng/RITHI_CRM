@@ -5336,6 +5336,30 @@ console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
   }
   eq('no hand-run SQL file uses a psql meta-command', bad, []);
 
+  // ...AND A BUNDLE NAMED IN THE DOCS MUST EXIST.
+  //
+  // CLAUDE.md claimed this check "resolves every SQL path in the docs". It did
+  // not — it checked meta-commands and nothing else, which is the exact fault
+  // that file warns about elsewhere: a comment claiming a check exists is worse
+  // than no comment, because it is the reason nobody looks.
+  //
+  // Written after doing it TWICE in one week: a raw link to a file that was
+  // only on a branch (404), and `_status.sql` row 166 plus a changelog entry
+  // telling somebody to run `handstock.sql` — a bundle whose real name is
+  // `HandStock_X.sql`, at the repository ROOT. A name in a "Restore:" clause is
+  // read by somebody deciding WHAT TO RUN, so a wrong one sends them looking
+  // for a file that has never existed.
+  const bundles = new Set([
+    ...readdirSync('supabase/apply').filter((f) => f.endsWith('.sql')),
+    ...readdirSync('.').filter((f) => /^(Spare|HandStock)_\w+\.sql$/.test(f)),
+  ]);
+  const named: string[] = [];
+  const status = readFileSync('supabase/apply/_status.sql', 'utf8');
+  for (const m of status.matchAll(/Restore:\s*([A-Za-z0-9_]+\.sql)/g)) named.push(m[1]);
+  eq('_status.sql names a bundle to restore from', named.length > 0, true);
+  eq('...and every one of those bundles exists',
+    [...new Set(named)].filter((f) => !bundles.has(f)), []);
+
   // A DESTRUCTIVE HAND-RUN FILE MAY ONLY TOUCH WHAT IT SAYS IT TOUCHES.
   // `_dccr_undo.sql` is pasted whole into the SQL Editor and its deletes are
   // the DCCR register's alone — the user's own scoping, 2026-09-14: "this is

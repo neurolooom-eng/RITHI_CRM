@@ -125,8 +125,16 @@ on testing the old shape. **When a migration replaces a definition, move the
   migration is live because it is merged.
   **`Spare_1.sql` and `HandStock_X.sql` are at the REPOSITORY ROOT**, not in
   `supabase/apply/` — they are the two numbered consolidated files handed round.
-  A link to the wrong path 404'd once; `check:ui` now resolves every SQL path in
-  the docs.
+  A link to the wrong path 404'd once, and **that claim was false when it was
+  written**: `check:ui` checked meta-commands and nothing else, which is the
+  fault this file warns about elsewhere — a comment claiming a check exists is
+  the reason nobody looks. It is true now, for one specific thing: every
+  `Restore: <file>` named in `_status.sql` must exist, as a bundle in
+  `supabase/apply/` or one of the two root files. Written after doing it twice
+  in one week — a raw link to a file only on a branch, and row 166 plus a
+  changelog entry naming `handstock.sql`, whose real name is `HandStock_X.sql`
+  at the repository ROOT. A name in a Restore clause is read by somebody
+  deciding WHAT TO RUN.
   **THE SUPABASE SQL EDITOR IS NOT psql.** Everything in `supabase/apply/` is
   pasted into that editor, so a psql meta-command (`\set`, `\echo`, `\i`) is
   not a command there but a syntax error on its own line —

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.298',
+    version: '0.9.299',
     date: '2026-09-18',
     title: 'Report downloads show real dates, and a spare needs a visit behind it',
     changes: [
@@ -22,7 +22,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'NO SPARE CAN BE BOOKED AGAINST A CALL NOBODY HAS VISITED. That is why Visit Entry Date and Visit Date & Time came out blank: those two columns are not stored on the spare, they are read from the visit, so a call with no visit report leaves both empty. Filing the visit first is now required, and the refusal says so.',
       'This does NOT change how you report a call: the visit is saved before the spares already, so an ordinary Save Report is untouched. What it stops is booking a spare by hand against a call that was never visited \u2014 and the bulk Consumption upload for those same rows.',
       'Spares already booked are left exactly as they are. Rewriting them would mean inventing a visit that did not happen; their visit columns stay blank, which is the truth about them. File the missing visit and the columns fill themselves.',
-      'SQL to run: handstock.sql (check _status.sql row 166 first).',
+      'SQL to run: HandStock_X.sql, at the top of the repository (check _status.sql row 166 first).',
     ],
   },
   {

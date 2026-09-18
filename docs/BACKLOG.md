@@ -5,7 +5,7 @@ section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
 _Last updated: 2026-09-18 (report date format + a spare needs a visit — 0214
-BUILT AND NOT YET RUN, `_status.sql` row **166**, bundle `handstock.sql`.
+BUILT AND NOT YET RUN, `_status.sql` row **166**, bundle `HandStock_X.sql` (repository ROOT).
 Everything before it is APPLIED: 0207-0213, rows 159-165)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
@@ -64,7 +64,7 @@ diagnosis per UCN (call missing vs visit never filed — both branches proved).
 
 ### Still to run on the live project
 
-`_status.sql` first — row **166**. Then `handstock.sql`.
+`_status.sql` first — row **166**. Then `HandStock_X.sql`, at the repository ROOT.
 
 ---
 
