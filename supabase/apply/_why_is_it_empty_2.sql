@@ -32,8 +32,36 @@
 --   * the numbers matching the first file -> the database is serving this user
 --     correctly and the fault is in the browser: a stale cached list, or a
 --     request that failed and was turned into an empty list on the way back.
+--
+-- IT ONLY IMPERSONATES ON THE REAL PROJECT, and that is worth knowing before
+-- you run it anywhere else: it works by setting `request.jwt.claims`, which is
+-- what Supabase's own `auth.uid()` reads. The throwaway database the tests are
+-- built on replaces `auth.uid()` with a stand-in that reads a table instead, so
+-- there the claims are ignored, `can_view_all_calls()` comes back NULL, every
+-- count reads 0 — and NONE of that says anything about anybody's access. Run
+-- this against the Supabase project.
+--
+-- READ ROWS 6 AND 7 TOGETHER, and 4 with 5. Each pair is "what this person is
+-- shown" beside "what exists", because ONE OF THOSE NUMBERS ALONE ANSWERS
+-- NOTHING: an empty screen looks identical whether the queue is clear or the
+-- reader is being filtered, and only the pair tells them apart.
 -- ===========================================================================
 begin;
+
+-- WHAT IS THERE AT ALL, measured BEFORE becoming anybody. The SQL editor runs
+-- as the service role here, so these are the true totals, and they are stashed
+-- in settings rather than a temp table because a temp table made as this role
+-- is not readable once we switch to `authenticated` below.
+--
+-- THEY ARE THE HALF THAT MAKES AN EMPTY SCREEN READABLE. A count of 0 further
+-- down means "this person is refused" only if the total here is not 0 as well;
+-- if both are 0 the screen is right and nothing is broken. Reported
+-- 2026-09-18, Pending Registrations showing none for a Hotline Engineer.
+select set_config('rithi.all_requests',
+       (select count(*)::text from public.call_requests), true);
+select set_config('rithi.all_pending',
+       (select count(*)::text from public.call_requests
+         where coalesce(btrim(ucn), '') = '' and coalesce(status, '') <> 'Cancelled'), true);
 
 -- Become the person. `sub` and `email` are what the visibility rules read
 -- through auth.uid() and auth.email().
@@ -63,16 +91,29 @@ union all
 select 4, 'call requests I can see',
        (select count(*)::text from public.call_requests)
 union all
-select 5, 'field calls I can see',
+select 5, '   ...and how many exist in total',
+       current_setting('rithi.all_requests', true)
+union all
+-- THE PENDING PAIR. This is the Pending Registrations screen's own question:
+-- a request with no UCN that has not been cancelled. Read the two together --
+-- 0 of 0 is an empty queue and correct; 0 of 40 is this person being refused.
+select 6, 'PENDING registrations I can see (no UCN, not cancelled)',
+       (select count(*)::text from public.call_requests
+         where coalesce(btrim(ucn), '') = '' and coalesce(status, '') <> 'Cancelled')
+union all
+select 7, '   ...and how many exist in total',
+       current_setting('rithi.all_pending', true)
+union all
+select 8, 'field calls I can see',
        (select count(*)::text from public.field_calls)
 union all
-select 6, 'am I treated as an office role',
+select 9, 'am I treated as an office role',
        (select coalesce(public.can_view_all_calls()::text, 'NULL — the test could not be evaluated'))
 union all
-select 7, 'do I hold calls.view',
+select 10, 'do I hold calls.view',
        (select coalesce(public.has_perm('calls.view')::text, 'NULL — the test could not be evaluated'))
 union all
-select 8, 'do I hold masters.view',
+select 11, 'do I hold masters.view',
        (select coalesce(public.has_perm('masters.view')::text, 'NULL — the test could not be evaluated'))
 order by 1;
 

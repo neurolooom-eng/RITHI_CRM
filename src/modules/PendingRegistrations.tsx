@@ -120,7 +120,9 @@ export function PendingRegistrations() {
     setBusy(true);
     setMsg({ tone: 'info', text: 'Loading pending registrations…' });
     try {
-      const r = await listPending(300);
+      // NO CAP. The Supabase read pages in full (see `listCallRequestsAsPending`),
+      // so this list is EVERY pending request and the counts below are exact.
+      const r = await listPending();
       const mapped = r.map((p, i) => ({ ...p, id: String((p as { _row?: number })._row ?? i) })) as Row[];
       setRows(mapped);
       setMsg({ tone: 'ok', text: `${r.length} pending call registration${r.length === 1 ? '' : 's'} (no UCN yet).` });
