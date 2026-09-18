@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.297',
+    date: '2026-09-18',
+    title: 'Stores Incharge and Spare Coordinator see every row',
+    changes: [
+      '\u201cView all data (every record)\u201d is now set on Stores Incharge and Spare Coordinator, so both see every row on every register rather than only their own and their team\u2019s.',
+      'THOSE TWO ROLES ONLY. Nothing else was touched \u2014 Regional Manager, Reporting Manager and Engineer keep exactly the permissions you set, and Commercial is unchanged. Every existing tick on the two roles is kept; the permission is added to what is there, never written over it.',
+      'A role left with NO permissions is skipped on purpose: an empty list means \u201cnot configured yet\u201d, and writing a single permission into it would quietly switch off everything else that role could do.',
+      'WORTH KNOWING: both roles could already see every call and every spare request \u2014 that comes from the role itself and has since office roles were introduced. This states it on the Roles & Permissions screen and keeps working if somebody is given a differently-named role key. So if rows are still missing, the permission was not the cause, and the person\u2019s role on their profile is the next thing to check.',
+      'SQL to run: rbac.sql (check _status.sql row 165 first).',
+    ],
+  },
+  {
     version: '0.9.296',
     date: '2026-09-18',
     title: 'Pending Dispatch was telling Stores Incharge the wrong thing about their own access',
