@@ -4,14 +4,79 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-16 (contract renewal prices the new contract, and the
-period double-count fixed — no SQL. Still outstanding: **0210 CHANGED, so re-run
-`Spare_1.sql` even if you already ran it**; 0210 and 0211 otherwise BUILT AND NOT
-YET RUN — `_status.sql` rows 162 and 163; 0207-0209 APPLIED, rows 159-161)_
+_Last updated: 2026-09-18 (a Regional Manager could see strangers' calls — 0212
+BUILT AND NOT YET RUN, `_status.sql` row **164**, bundle `user_directory.sql`.
+Also outstanding: **re-run `Spare_1.sql` even if you already ran it** (0210
+changed); 0211 likewise — rows 162 and 163)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — A blank name is not a manager
+
+*"Too many bugs. Why is a Regional Manager able to see everyone's call and every
+spare request?"*
+
+**There are only three ways anybody sees work that is not their own**, and the
+first job was telling them apart rather than guessing:
+
+1. **An office role.** hotline, nsm, commercial, spare_coordinator,
+   stores_incharge, tally_coordinator — by design, written into
+   `can_view_all_calls()`. A Regional Manager is **not** on that list.
+2. **`data.view_all`.** One permission, and `can_view_all_calls()` is true for
+   any role holding it. **No migration grants it to `rgm`**, so a Regional
+   Manager holding it was ticked by hand on Roles & Permissions. That is a
+   configuration answer, not a bug.
+3. **The directory genuinely says they manage that many people.** A regional
+   manager covers a region; a long list is not by itself wrong.
+
+### ⚠️ And while checking (3), a real leak
+
+`visible_engineer_names()` walks `user_directory` downwards from the caller, by
+`reporting_manager` **and** `regional_manager`. The walk compared names with
+**nothing excluding the empty string from either side.**
+
+So a caller whose own directory row has a blank `name` — a partial import, a
+trimmed cell, a row keyed only by email — asks for everyone whose manager is
+`''`, and gets **every row with no manager recorded**.
+
+Measured on a fixture, both ways:
+
+```
+name present : ENG ONE, ENG TWO, ENG THREE, HARSH RM       <- correct
+name blank   : ENG TWO, ENG THREE, STRANGER A, STRANGER B  <- wrong BOTH ways
+```
+
+Read the second line carefully. It is not "sees everyone" — it is worse to
+diagnose than that. Two strangers are pulled **in**, and one of his own team is
+pushed **out**, because the root no longer matches the people who name him.
+Nobody reading that list could tell it was a fault rather than a region.
+
+**The fix is one condition and only ever narrows.** A tree node with a blank
+name stops recursing, so a caller the directory cannot name sees no team at all
+— the honest answer; they still see their own work through the read policies'
+id and email branches. The comparison itself is left exactly as it was: adding
+`btrim()` to both sides would also make `' X '` match `'X'`, which is a
+**widening** and a different decision from closing a leak.
+
+0212 sits in the `user_directory` module **after 0092**, which owned the
+previous definition — same module, so no mirror is needed and a replay of that
+bundle alone still ends on the newest body. `check:replay` confirms.
+
+Suite `visible_engineers_blank_test.sql`, mutation-tested: with 0092's body
+restored the blank case leaks strangers and the suite says so.
+
+### Still to run on the live project
+
+`_status.sql` first — row **164**. Then `user_directory.sql`.
+
+**And check the permission first**, because it is quicker and more likely:
+`supabase/apply/_who_can_this_person_see.sql` says in one grid whether this is
+`data.view_all` ticked on the role (untick it on Roles & Permissions, no SQL
+needed) or the directory.
 
 ---
 

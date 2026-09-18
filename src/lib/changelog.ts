@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.294',
+    date: '2026-09-18',
+    title: 'A manager with no name on the directory was seeing strangers\u2019 calls',
+    changes: [
+      'FIXED: who a manager can see is worked out by walking the User Master downwards \u2014 everyone who names them as reporting manager or regional manager, then everyone under those. The walk compared names without ever excluding a BLANK one, so a manager whose own User Master row had an empty Name matched every person with no manager recorded against them.',
+      'It was wrong in BOTH directions, which is why it did not look like a fault: strangers appeared in the list, and some of the manager\u2019s own team dropped out of it. It just read as a different region.',
+      'A manager the directory cannot name now sees no team at all rather than the wrong one. They still see their own calls and their own spare requests \u2014 those are matched on who they are, not on their name.',
+      'NOTE, AND CHECK THIS FIRST: there is a second and more likely reason somebody sees everything \u2014 the \u201cSee all data\u201d permission ticked on their role in Roles & Permissions. That single tick shows any role every call and every spare request in the company. No update grants it to a Regional Manager, so if it is there somebody set it. Untick it there; no SQL needed.',
+      'SQL to run: user_directory.sql (check _status.sql row 164 first).',
+    ],
+  },
+  {
     version: '0.9.293',
     date: '2026-09-16',
     title: 'Renew a contract at the new price — and a renewal that was doubling the period',
