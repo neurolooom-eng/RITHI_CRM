@@ -474,6 +474,20 @@ on testing the old shape. **When a migration replaces a definition, move the
   that suite must OWN the request** — pointed at somebody else's, RLS makes the
   UPDATE match zero rows and the assertion passes with the guard removed, which
   is what its first draft did.
+- **THE DESIGNATION AND THE RITHI ROLE ARE DIFFERENT THINGS AND ROUTINELY
+  DIFFER** (the user, 2026-09-18, pointing at a User Master row reading
+  Designation *"Regional Manager"* beside Role *"Reporting Manager"*). The
+  DESIGNATION is the job somebody holds in the company; the RITHI ROLE is what
+  this application grants. The header chip showed only `roleLabel(user)`,
+  unlabelled, in the place a reader looks for a job title — so the two were read
+  as one. It shows the designation under the name and the role beneath it
+  **saying which it is**; an unlabelled second line would have recreated the
+  confusion rather than fixed it. `user.designation` comes from the User Master
+  through `profiles` — **0199 syncs it on write**, where the login has ONE
+  directory row — so nothing has to be re-typed, and a person whose row carries
+  none gets no empty line. `check:ui` holds the field name too: `user?.jobTitle`
+  TYPE-CHECKS and BUILDS CLEAN (the `BaseRecord` index signature again) and
+  renders blank for ever, which is the `user.name` trap in a third place.
 - **`user.name` DOES NOT EXIST — it is `fullName` — AND TYPESCRIPT CANNOT SAY
   SO**, because `BaseRecord` carries `[key: string]: unknown`. `user?.name`
   type-checks and is `undefined` at runtime, every time, with no error. It put
