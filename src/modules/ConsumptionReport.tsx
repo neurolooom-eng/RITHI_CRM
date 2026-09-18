@@ -2,7 +2,7 @@ import { ReportBuilder, type ReportSpec } from './ReportBuilder';
 import { supabaseConfigured, countConsumptionReport, listConsumptionReport } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import {
-  CONSUMPTION_MANDATORY, CONSUMPTION_OPTIONAL, EMPTY_CONSUMPTION_FILTER,
+  CONSUMPTION_DEFAULT_ON, CONSUMPTION_MANDATORY, CONSUMPTION_OPTIONAL, EMPTY_CONSUMPTION_FILTER,
   describeFilter, exportColumns, type ConsumptionFilter,
 } from '../lib/reports';
 
@@ -37,6 +37,7 @@ export function ConsumptionReport() {
     rowMeaning: "One row per spare booked, with its call and that call’s latest visit around it.",
     mandatory: CONSUMPTION_MANDATORY,
     optional: CONSUMPTION_OPTIONAL,
+    defaults: CONSUMPTION_DEFAULT_ON,
     emptyFilter: EMPTY_CONSUMPTION_FILTER,
     describe: describeFilter,
     columns: exportColumns,
@@ -64,9 +65,17 @@ export function ConsumptionReport() {
       { Item: 'A note on dates',
         Value: 'Visit Entry Date is when the register was told; Visit Date & Time is when the '
           + 'engineer was there. They differ, and both are here on purpose.' },
+      { Item: 'A note on the three default columns',
+        Value: 'Line ID, Source Ref Key and Created At are ticked to start with. Source Ref Key '
+          + 'is the row id from the file a line was IMPORTED from, so it is blank on anything '
+          + 'booked here; Created At is when the line was written, which on an imported row is '
+          + 'the date the file gave.' },
       { Item: 'A note on the visit',
         Value: 'A consumption line is booked against the CALL, not against one visit, so the two '
-          + 'dates are the call’s LATEST visit. A call with no visit yet leaves them blank.' },
+          + 'dates are the call’s LATEST visit. Where there is no visit they fall back to what '
+          + 'the import file said, and then to when the spare was first booked — read those as '
+          + '“no later than”, not “on”. Visit UID is blank on exactly those rows, '
+          + 'which is how to tell them apart.' },
     ],
     deniedNote: (
       <p className="muted" style={{ fontSize: 12.5, marginTop: 8 }}>

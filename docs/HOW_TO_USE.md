@@ -415,6 +415,15 @@ typed into a form that reads it.
     machines is undefined and stays blank.
 - **Reports — Consumption Report** `/exports/consumption` — one row per spare
   booked, with its call and that call's latest visit.
+  > The first sixteen columns are the report's own format and are **locked**.
+  > **Line ID, Source Ref Key and Created At are ticked to start with** and can
+  > be unticked — *Back to the default columns* puts them back. Source Ref Key
+  > is the row id from the file a line was IMPORTED from, so it is blank on
+  > anything booked here; that is correct, not a gap.
+  > Where a call has no visit report, the two visit dates fall back to what the
+  > import said and then to when the spare was first booked — read those as
+  > **"no later than"**, not "on". **Visit UID is blank on exactly those rows**,
+  > which is how to tell them apart.
 - **Reports — Call Report** `/exports/calls` — **one row per call**, never per
   visit, with its latest visit and what was fitted. Narrow it, tick the extra
   columns you want, take Excel or CSV.
