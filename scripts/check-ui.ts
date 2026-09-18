@@ -7341,6 +7341,28 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     };
     walk(`${process.cwd()}/${dir}`);
   });
+  {
+    // THE DESIGNATION AND THE RITHI ROLE ARE DIFFERENT THINGS (the user,
+    // 2026-09-18, pointing at a User Master row reading Designation "Regional
+    // Manager" beside Role "Reporting Manager"). The header used to show only
+    // the role, unlabelled, in the place a reader looks for a job title -- so
+    // the two were read as one. Both are shown now and the ROLE says which it
+    // is; an unlabelled second line would have recreated the confusion.
+    const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+    eq('the header shows the designation', /className="user-designation">\{designation\}/.test(lay), true);
+    // It comes off the USER, from the User Master through `profiles` (0199).
+    // Naming a field that does not exist type-checks here -- `BaseRecord` carries
+    // an index signature -- and renders blank for ever, which is the `user.name`
+    // trap in a third place.
+    eq('...read from the user\'s own field, not invented',
+      /const designation = String\(user\?\.designation \?\? ''\)\.trim\(\)/.test(lay), true);
+    eq('...and the role line says it is the RITHI role',
+      /RITHI role · \{roleLabel\(user\)\}/.test(lay), true);
+    // Blank for most of a part-filled directory, so it must not leave a gap.
+    eq('...a person with no designation gets no empty line',
+      /\{!!designation && <span className="user-designation">/.test(lay), true);
+    eq('...and the menu labels both', /<dt>Designation<\/dt>/.test(lay) && /<dt>RITHI role<\/dt>/.test(lay), true);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.304',
+    date: '2026-09-18',
+    title: 'Your designation and your RITHI role, both shown and told apart',
+    changes: [
+      'THE TOP-RIGHT CORNER NOW SHOWS YOUR DESIGNATION \u2014 the job you hold \u2014 under your name, taken straight from the User Master.',
+      'AND THE RITHI ROLE SITS BELOW IT, SAYING SO. The two are different things and routinely differ: MAHESH M is a Regional Manager by designation and a Reporting Manager in RITHI. Only the role was shown before, unlabelled, in the place a reader looks for a job title \u2014 so the two were being read as one.',
+      'Somebody whose User Master row carries no designation sees no empty line: the name and the RITHI role, as before.',
+      'Opening the menu shows both again with their labels, beside your email \u2014 and says plainly when a designation has not been set in the User Master.',
+      'A designation set in the User Master reaches the sign-in on its own; nobody has to re-type it anywhere.',
+      'No SQL for this one.',
+    ],
+  },
+  {
     version: '0.9.303',
     date: '2026-09-18',
     title: 'The Consumption upload files the visit from your file, instead of stopping on row 1',
