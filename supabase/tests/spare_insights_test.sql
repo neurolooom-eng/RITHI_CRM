@@ -41,6 +41,15 @@ insert into public.handstock_opening (engineer, part, qty, as_of, source) values
  ('SI ENG','SIP-2|O2 SENSOR',100,current_date-60,'Opening'),
  ('SI ENG','SIP-3|UNKNOWN THING',100,current_date-60,'Opening');
 
+-- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
+-- consumption row whose call has no `reports` entry, so without these the
+-- inserts below are REFUSED and every assertion after them reads as the failure
+-- it is testing for. Added when 0214 shipped and this fixture was not brought
+-- forward with it.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('SI-1'), ('SI-2'), ('SI-3'), ('SI-4'), ('SI-5')) v(u)
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer) values
  ('SI-1','C1','SIP-1|HEPA FILTER',  5,'SI ENG'),
  ('SI-1','C1','SIP-2|O2 SENSOR',    2,'SI ENG'),

@@ -193,7 +193,17 @@ for (const name of Object.keys(pkg.scripts).filter((k) => k.startsWith('check:')
     : kind === 'nodb' ? ` -- "${PSQL_ARGS.join(' ')}"` : '';
   try {
     const out = execSync(`npm run ${name}${arg}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    results.checks.push({ name, ok: !/FAILED/.test(out), detail: (out.trim().split('\n').pop() || '').slice(0, 200) });
+    // ANCHORED, NOT A SUBSTRING. Every check ends with either `all passed` or
+    // `<n> FAILED` on a line of its own, and `execSync` has already thrown if
+    // the script exited non-zero -- so reaching here means it succeeded. A bare
+    // /FAILED/ over the whole output reads the check's own PROSE: `check:ui`
+    // has a PASSING assertion labelled "a failure is dated by when it FAILED",
+    // and that one word marked the entire check failed in this record while it
+    // passed everywhere else. Same fault as the GST check that matched "18%"
+    // in its own comment -- a harness must match what a tool REPORTS, never
+    // what it happens to mention.
+    results.checks.push({ name, ok: !/^\s*\d+ FAILED\s*$/m.test(out),
+      detail: (out.trim().split('\n').pop() || '').slice(0, 200) });
   } catch (e) {
     const out = `${e.stdout || ''}${e.stderr || ''}`;
     const lines = out.split('\n').filter((l) => /✗|FAILED|Error|error/.test(l)).slice(0, 4);

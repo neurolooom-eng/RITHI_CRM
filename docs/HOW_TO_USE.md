@@ -87,6 +87,43 @@ restored) or **closed without a visit**; neither deletes anything.
   where the register allows it.
 - **Bulk Report Mapping** `/report-mapping` — attaches a batch of visit reports to
   their calls.
+
+  > ### Filling Visit Date & Time and Visit Entry Date on consumption data
+  >
+  > **Those two are not fields on the consumption row.** The Consumption Report
+  > reads them from the **visit**, so there is nothing on the spare line to
+  > type them into and re-uploading the consumption file cannot fill them.
+  > They are blank for one reason: the call has no visit report.
+  >
+  > **Load the visits.** *Bulk Uploads → Visit Reports → Field Reports* (or
+  > *Installation* / *PM* — all three write the same table). One row per visit,
+  > with these headings:
+  >
+  > | Heading | Needed | Becomes |
+  > | --- | --- | --- |
+  > | `UCN` | **required** | which call the visit is for |
+  > | `Visit Date & Time` | **required** | **Visit Date & Time** |
+  > | `Visit Entry Date` | optional | **Visit Entry Date** |
+  > | `Call Status` | **do not leave out** | the call's status |
+  > | `Visiting Service Engineer`, `Email ID` | optional | who attended |
+  >
+  > Every spare booked on that call then shows both dates — and its **Visit
+  > UID** — because the report joins them. Nothing on the consumption side is
+  > re-entered.
+  >
+  > **Three things worth knowing before you load it:**
+  >
+  > - **`Call Status` decides the call's status.** A visit row with that column
+  >   blank leaves the call reading *Report pending*, because a call with a
+  >   visit and no status can be nothing else. Carry it through from your file.
+  > - **A re-load does not duplicate.** With no `UID` column one is derived from
+  >   the UCN and the visit date, so the same file loaded twice updates the same
+  >   visit. It also means several consumption rows sharing one UCN and date
+  >   collapse into the one visit they actually were — which is correct, and
+  >   why you can build the visit file straight out of your consumption file.
+  > - **A row with no `Visit Date & Time` is refused**, deliberately: a call is
+  >   *Unattended* only until it has a visit, so loading a visit that did not
+  >   happen would mark an unattended call as attended.
 - **PM Bulk Upload** `/pm-bulk-upload` — loads a maintenance schedule in one go.
 
 ## Spares

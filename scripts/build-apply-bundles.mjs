@@ -150,6 +150,15 @@ const MODULES = {
             // explicit on Roles & Permissions and survives a role key that is
             // not one of the six hard-coded names. Those two roles only.
             '0213_stores_and_spare_coordinator_see_all.sql',
+            // THE RULE rather than a list (the user, 2026-09-18): every role
+            // EXCEPT Regional Manager, Reporting Manager and Engineer. It
+            // supersedes the open question 0213 left about Commercial. Written
+            // as "grant, minus the three" so a role added later is covered by
+            // default, which is the failure mode 0207 was: a role the list did
+            // not know about saw nothing. It never REMOVES the key from the
+            // three, since those are the roles the user has said not to touch —
+            // it reports one holding it instead.
+            '0216_view_all_except_the_three.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -713,6 +722,12 @@ const MODULES = {
       // replaying this bundle with it anywhere earlier would put the old
       // AMC/OGP-only rule back — no error, and the bundle would report success.
       '0210_handstock_needs_nsm.sql',
+      // AND THE THREE RULES 0210 DELETED, PUT BACK. It rebuilt this guard from
+      // an OLD revision and kept only RM/Commercial/NSM, losing dispatch,
+      // rejection, receipt and the parts rule — so a line could be marked
+      // received before it was dispatched, by an engineer who did not raise it.
+      // IMMEDIATELY AFTER 0210 and before anything else touches the function.
+      '0217_restore_the_line_guard_rules.sql',
       // WHO DISPATCHED IS STAMPED, NOT SENT. A trigger on spare_dispatches, so
       // the (much-revised) dispatch function is not touched at all.
       '0211_dispatched_by_is_stamped.sql',

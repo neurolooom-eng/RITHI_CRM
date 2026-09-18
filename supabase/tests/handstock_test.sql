@@ -54,6 +54,15 @@ select direction, movement, engineer, part, qty, ref, ref_type
 
 \echo '--- 3. consuming one filter on a call takes it back out ---'
 call public.be('eng@x.com');
+-- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
+-- consumption row whose call has no `reports` entry, so without these the
+-- inserts below are REFUSED and every assertion after them reads as the failure
+-- it is testing for. Added when 0214 shipped and this fixture was not brought
+-- forward with it.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('U-1'), ('U-2'), ('U-3'), ('U-4'), ('U-5'), ('U-6'), ('U-77')) v(u)
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer, engineer_email)
   values ('U-1','CL2600001','SP-100|Filter assembly',1,'Eng Elan','eng@x.com');
 select engineer, part_code, stock_out, consumed, on_hand from public.handstock_balance

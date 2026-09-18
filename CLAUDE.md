@@ -391,6 +391,33 @@ on testing the old shape. **When a migration replaces a definition, move the
   because the result looks complete. `paging.ts` is a module of its own for one
   reason: `supabase.ts` reads `import.meta.env` and no node script can import
   it, so nothing in it can be tested as behaviour.
+- **READ A `validate` FAILURE BY RE-RUNNING THE SUITE, NOT BY TRUSTING THE
+  LABELS.** The harness pairs each `expect ERROR` with the NEXT error IN ORDER,
+  so when a guard stops firing early in a file every later pairing shifts and
+  the report names the WRONG expectations as unmet. It did exactly that for
+  0210's truncated guard: it blamed two Commercial-approval labels at the end of
+  `spare_workflow_test`, and the guards that had actually stopped working were
+  *"not dispatched yet"* and *"not the raiser"*, twenty lines earlier. The
+  COUNTS were right and the NAMES were not.
+  **And an `expect ERROR` written as a SQL comment is invisible** — the harness
+  reads the suite's OUTPUT, and `--` never reaches it. Use `\echo`.
+  **A HARNESS MUST MATCH WHAT A TOOL REPORTS, NEVER WHAT IT MENTIONS.** The
+  check runner tested `/FAILED/` against the whole output, and `check:ui` has a
+  PASSING assertion labelled *"a failure is dated by when it FAILED"* — so that
+  one word recorded the entire check as failed in `VALIDATION_RUN.md` while it
+  passed everywhere else. It is anchored to `^<n> FAILED$` now. Same fault as the
+  GST check that matched "18%" in its own comment.
+- **A NEW GUARD BREAKS EVERY FIXTURE THAT PREDATES IT, AND THE SUITES ARE NOT
+  OPTIONAL WORK.** 0214 (`zz_consumption_needs_visit`) broke NINE suites at
+  once — every one that books a spare against a fixture call with no visit — and
+  0210's NSM rule broke a tenth. Each read as an unexpected error where the
+  suite was actually proving something else, which is the failure the suites
+  exist to prevent. **Run `npm run validate` after adding a trigger or changing
+  a rule**, not only the suite you wrote. Where a fixture must keep the OLD
+  shape because that is what it tests — `consumption_report_test`'s CR-2 has no
+  visit on purpose — lift that ONE trigger by name
+  (`alter table ... disable trigger <name>`) rather than
+  `session_replication_role = replica`, which switches off the lot.
 - **`npm run validate -- "<psql args>"` RUNS EVERYTHING** — a template database
   from every migration, all 77 suites EACH ON ITS OWN COPY, all 13 checks, and a
   dated record in `docs/VALIDATION_RUN.md` written whatever happens. Two things
@@ -462,6 +489,21 @@ on testing the old shape. **When a migration replaces a definition, move the
   0211's first draft rewrote it from the old body and would have deleted all of
   it. **Read a function out of the DATABASE before replacing it**, not out of
   the migration that first created it.
+  **AND IT HAPPENED AGAIN THE SAME WEEK, SHIPPED THIS TIME.** 0210 rewrote
+  `spare_request_lines_guard()` from an OLD revision to add the HandStock NSM
+  rule: three rules went in and **three came out** — the dispatch permission,
+  the rejection permission, the whole RECEIPT block and the parts rule. Measured
+  on a database built from every migration: an engineer marked a line RECEIVED
+  that had never been dispatched (`UPDATE 1`, no refusal, stage straight to
+  Received), a DIFFERENT engineer acknowledged somebody else's spare, and any
+  engineer could change the PART or QUANTITY on another engineer's line — which
+  no test covered at all. `0217` is the repair and **`_status.sql` row 168
+  counts all six rules by name**, so a rewrite that drops one answers NO however
+  plausible the file reads. **`check:replay` cannot see this class**: it compares
+  each bundle against `all.sql` and both are built from the same migrations, so
+  a function truncated in the migration is truncated identically in both and
+  they agree perfectly — the blind spot `check:generated` exists for, one level
+  down.
 - **Hand stock is derived, never stored** — issued − consumed ± transfers −
   returns. Consumption is therefore the control point: a DB trigger caps every
   consumption line at the engineer's balance. Reported lines are capped too;
@@ -628,6 +670,45 @@ on testing the old shape. **When a migration replaces a definition, move the
   direction: a Serial No, Call Number, Contract No or UCN of all digits would
   lose its leading zeros and stop being an identifier. Proved by building a
   workbook and unzipping it — `0012345` is still `0012345` in the bytes.
+- **A DIAGNOSTIC THE USER RUNS TO DECIDE WHETHER TO RUN SOMETHING MUST NOT
+  DEPEND ON THAT SOMETHING.** `_do_i_need_to_reupload.sql` called
+  `public.imported_ts()`, which **0215 creates** — and 0215 was exactly what was
+  still waiting to be applied, so the one file whose job was to answer "do I
+  need to run anything?" came back
+  `ERROR: 42883: function public.imported_ts(jsonb, unknown) does not exist`.
+  Every check here passed it, because every check builds its database from
+  **all** the migrations: the gap is between the repository and the LIVE
+  project, and nothing in the repository knows which migrations the user has
+  actually run. **So write a probe against the state the user has, not the
+  state `main` describes** — inline the rule rather than calling a helper a
+  pending migration introduces — and test it on a database built with the
+  pending migrations LEFT OUT, which is a two-line change to the apply loop:
+
+  ```bash
+  psql ... $(for f in supabase/migrations/*.sql; do
+    case "$f" in *0214_*|*0215_*) ;; *) echo -n " -f $f";; esac; done)
+  ```
+
+  No check is offered for this and one is not claimed: which migrations are live
+  is a fact about the Supabase project, not about this tree. `_state_check.sql`
+  is how to ask.
+- **THE TWO VISIT COLUMNS ON THE CONSUMPTION REPORT CANNOT BE FILLED FROM THE
+  CONSUMPTION SIDE AT ALL** (the user, 2026-09-18: *"I need to Fill the Visit
+  Date and Visit Entry Date Field in my Consumption Data -- How Do I do that?"*).
+  They are not columns of `spare_consumption`; `consumption_report` LEFT JOINs
+  `public.reports`. So re-uploading consumption cannot fill them and there is no
+  field to type them into — **the answer is to load the VISITS**: Bulk Uploads →
+  Visit Reports → Field / Installation / PM Reports, all three `REPORT_COLS`
+  into `public.reports`, where `Visit Date & Time` → `visit_at` (**required**)
+  and `Visit Entry Date` → `updated_at`. Every spare on that call then fills,
+  including `Visit UID`, which the 0215 fallbacks deliberately cannot supply.
+  **Say what else that load does, because it is not only two dates**: `Call
+  Status` from the file becomes the call's status via `sync_call_last_visit()`,
+  and a blank one leaves the call reading **Report pending** (0032's expression:
+  a visit with no status can be nothing else). The `uid` is DERIVED from UCN +
+  visit date when the file has none, so a re-load updates instead of
+  duplicating — and several consumption rows sharing a UCN and date collapse
+  into the one visit they were.
 - **A SPARE NEEDS A VISIT BEHIND IT** (0214). `Visit Entry Date` and
   `Visit Date & Time` are NOT stored on the consumption row —
   `consumption_report` LEFT JOINs the latest visit — so both blank means one
