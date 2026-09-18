@@ -599,6 +599,35 @@ on testing the old shape. **When a migration replaces a definition, move the
   every date in India a 05:30 fraction. **Both were found by building a workbook
   and reading the bytes**, which is the only thing that was ever going to show
   them.
+- **A REPORT IS A VIEW PLUS TWO LISTS, AND THEY CAN DISAGREE SILENTLY IN BOTH
+  DIRECTIONS.** The file is built from `CONSUMPTION_MANDATORY` /
+  `CONSUMPTION_OPTIONAL` in `src/lib/reports.ts` (and the CALL_ / FEEDBACK_
+  pairs), never from the view — so a column IN THE VIEW AND IN NEITHER LIST can
+  be exported by nobody, and a column IN A LIST the view no longer has exports
+  an EMPTY column under a heading that promises a value. The first happened the
+  day it was written about: `Visit UID` was added to `consumption_report` (0215)
+  for the user, announced as added, and was unreachable from the picker for a
+  day. Nothing could have caught it — `tsc` sees two lists of strings, and
+  reading the migration is the method that missed it. **`npm run check:reports
+  -- "<psql args>"` asks a DATABASE**, for all three reports, both ways.
+  **A THIRD STATE EXISTS AND IS NOT MANDATORY**: `ReportSpec.defaults` (the
+  user, 2026-09-18: *"Add Default Columns - Line ID , Source Ref Key , Created
+  At"*) is ticked to start with and still removable, which is exactly what
+  `mandatory` is not — that list is shown ticked and DISABLED because it is the
+  format that was handed over. **Every default must also be in OPTIONAL**, or it
+  is ticked in the picker and dropped by `exportColumns` on the way out; both
+  `check:ui` and `check:reports` refuse that.
+- **A NUMBER IN THE .XLSX MUST STAY A NUMBER, and the test is `typeof v ===
+  'number'` — never whether a STRING looks numeric.** Same argument as the
+  dates: Excel cannot sort, sum or filter a number handed to it as text, and
+  each of those returns something WRONG rather than refusing — Line ID sorted
+  1, 10, 100, 2 and a SUM over QTY answered 0. PostgREST sends Postgres's
+  numeric columns as JSON numbers and its text columns as strings, so the
+  `typeof` test converts exactly the columns the database calls numbers.
+  Widening it to numeric-looking strings is the `MP-010` mistake in the other
+  direction: a Serial No, Call Number, Contract No or UCN of all digits would
+  lose its leading zeros and stop being an identifier. Proved by building a
+  workbook and unzipping it — `0012345` is still `0012345` in the bytes.
 - **A SPARE NEEDS A VISIT BEHIND IT** (0214). `Visit Entry Date` and
   `Visit Date & Time` are NOT stored on the consumption row —
   `consumption_report` LEFT JOINs the latest visit — so both blank means one

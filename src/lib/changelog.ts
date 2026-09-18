@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.301',
+    date: '2026-09-18',
+    title: 'Three columns ticked to start with on the Consumption Report \u2014 and Visit UID is reachable',
+    changes: [
+      'LINE ID, SOURCE REF KEY AND CREATED AT ARE TICKED TO START WITH on the Consumption Report. They are a starting point, not a rule: untick any of them, and \u201cBack to the default columns\u201d puts them back. The sixteen above are still locked, because those are the format that was handed over.',
+      'NOTHING TO RE-UPLOAD FOR THEM. All three are already on every row that exists. Source Ref Key is the row id from the file a line was imported from, so it is blank on anything booked in the app \u2014 that is correct, not a gap. Created At on an imported row is the date the FILE gave, not the day it was loaded.',
+      'VISIT UID WAS ADDED TO THE DATABASE YESTERDAY AND THE REPORT COULD NOT OFFER IT. The column picker is built from a list that was not updated with it, so it was invisible to everybody for a day. It is in the picker now, at the end with the other optional columns.',
+      'NUMBERS IN THE .XLSX ARE REAL NUMBERS NOW, the same fix the dates had. Line ID used to sort 1, 10, 100, 2 and a SUM over QTY answered 0, because both were being written as text. Identifiers are left alone on purpose \u2014 a serial number like 0012345 keeps its leading zeros instead of becoming 12345.',
+      'A check asks the database which columns each of the three reports actually has, and fails if the picker and the view disagree either way \u2014 a column the picker cannot offer, or one it offers that would come out empty. That is what went wrong with Visit UID, and nothing in the project could have seen it.',
+      'No SQL to run for this one. Still outstanding from yesterday: HandStock_X.sql, at the top of the repository (check _status.sql rows 166 and 167 first).',
+    ],
+  },
+  {
     version: '0.9.300',
     date: '2026-09-18',
     title: 'Excel treats the report dates as dates, and the visit columns fill in',

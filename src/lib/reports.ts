@@ -81,6 +81,30 @@ export const CONSUMPTION_OPTIONAL: string[] = [
   'Warranty No',
   'Contract No',
   'Contract Type',
+  // The VISIT this spare belongs to (0215). Last, because `create or replace
+  // view` can only append — and this list is the view's order, so it goes last
+  // here too. IT WAS MISSING FOR A DAY: the column was added to the view and
+  // not to this list, and a column the picker does not offer cannot be
+  // exported by anybody, whatever the database carries. `check:reports` asks a
+  // DATABASE for the view's columns now, in both directions.
+  'Visit UID',
+];
+
+// TICKED BY DEFAULT, AND STILL REMOVABLE (the user, 2026-09-18: "Add Default
+// Columns - Line ID , Source Ref Key , Created At to the Consumption Report").
+//
+// A THIRD STATE, deliberately, rather than adding these to MANDATORY: the
+// mandatory list IS the handed-over format and is shown ticked and DISABLED, so
+// putting them there would say the report cannot be taken without them. The ask
+// was for a default, which is a starting point somebody may change.
+//
+// Every entry must also appear in CONSUMPTION_OPTIONAL, or it would be ticked
+// in the picker and dropped on the way out — `exportColumns` builds the file
+// from the OPTIONAL list. `check:ui` refuses that.
+export const CONSUMPTION_DEFAULT_ON: string[] = [
+  'Line ID',
+  'Source Ref Key',
+  'Created At',
 ];
 
 export const CONSUMPTION_COLUMNS: ReportColumn[] = [

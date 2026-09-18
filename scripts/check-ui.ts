@@ -2354,7 +2354,43 @@ console.log('\n-- Reports: access one report at a time --');
     // Switching report must not carry a filter across — a date typed for calls
     // silently applied to feedback is a wrong file that looks right.
     eq('...and switching report starts from a clean filter',
-      /setFilter\(spec\.emptyFilter\); setPicked\(new Set\(\)\)/.test(rb), true);
+      /setFilter\(spec\.emptyFilter\); setPicked\(new Set\(spec\.defaults \?\? \[\]\)\)/.test(rb), true);
+
+    // DEFAULT-ON COLUMNS (the user, 2026-09-18: "Add Default Columns - Line ID,
+    // Source Ref Key, Created At"). A third state between mandatory and
+    // optional: ticked to start with, and still removable — which is why they
+    // are NOT in the mandatory list, where they would be shown locked.
+    eq('the picker starts from the spec\'s default columns',
+      /useState<Set<string>>\(\(\) => new Set\(spec\.defaults \?\? \[\]\)\)/.test(rb), true);
+    eq('...and the consumption report names its three',
+      /defaults: CONSUMPTION_DEFAULT_ON/.test(readFileSync('src/modules/ConsumptionReport.tsx', 'utf8')), true);
+    {
+      // A DEFAULT THAT IS NOT OPTIONAL IS TICKED AND THEN DROPPED, because the
+      // file is built from the OPTIONAL list (`exportColumns`) and not from
+      // whatever happens to be ticked. Nothing would error: the reader sees the
+      // tick, the column is missing from the workbook, and the only way to find
+      // out is to open the file and count. `check:reports` holds this too,
+      // against a database; it is here as well so `npm run build`'s own checks
+      // catch it with no Postgres to hand.
+      const rep = readFileSync('src/lib/reports.ts', 'utf8');
+      const listOf = (name: string) => (rep.match(
+        new RegExp(`export const ${name}: string\\[\\] = \\[([\\s\\S]*?)\\n\\];`)) ?? ['', ''])[1]
+        .split('\n').map((l) => l.replace(/\/\/.*$/, '').trim())
+        .map((l) => (l.match(/^'((?:[^'\\]|\\.)*)',?$/) ?? [])[1])
+        .filter((v): v is string => v !== undefined);
+      const defaults = listOf('CONSUMPTION_DEFAULT_ON');
+      const optional = listOf('CONSUMPTION_OPTIONAL');
+      eq('the three default columns are read back from the file',
+        defaults, ['Line ID', 'Source Ref Key', 'Created At']);
+      eq('...and every default is an OPTIONAL column, or it would never reach the file',
+        defaults.filter((c) => !optional.includes(c)), []);
+      // The column added for the user on 2026-09-18 and offered to nobody for a
+      // day: it was in the view and in neither list, so the picker could not
+      // show it and `exportColumns` could not emit it. `check:reports` is the
+      // one that asks a DATABASE for the whole set; this names the one that got
+      // away, so it cannot get away the same way twice.
+      eq('...and Visit UID is offered at all', optional.includes('Visit UID'), true);
+    }
 
     // THE FEEDBACK REPORT'S DATE IS THE FEEDBACK'S OWN (0190), never the day
     // the row was loaded — on a migrated row the two differ by up to two years.

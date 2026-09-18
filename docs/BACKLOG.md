@@ -4,13 +4,71 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (Excel-native dates, visit-date precedence and the
-Visit UID — 0214 and 0215 BUILT AND NOT YET RUN, `_status.sql` rows **166** and
-**167**, bundle `HandStock_X.sql` at the repository ROOT. 0207-0213 APPLIED)_
+_Last updated: 2026-09-18 (default report columns, and the Visit UID the picker
+could not offer — CLIENT ONLY, no SQL. Still to run: 0214 and 0215, `_status.sql`
+rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
+0207-0213 APPLIED)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — Default columns, and a column the report could not offer
+
+> *"Add Default Columns - Line ID , Source Ref Key , Created At to the
+> Consumption Report. Shall I re-upload the Import Data?"*
+
+**Shipped, client only — v0.9.301. No SQL.** All three columns already exist on
+every row; nothing needed loading.
+
+### A third state, between mandatory and optional
+
+`ReportSpec.defaults` — ticked to start with, and still removable. Deliberately
+NOT added to `mandatory`, which is shown ticked and **disabled** because it is
+the format that was handed over; a default is a starting point somebody may
+change. A **Back to the default columns** button sits beside the two that were
+already there.
+
+Every default must also be in `OPTIONAL`, because the file is built from that
+list and not from whatever happens to be ticked — a default outside it would be
+ticked in the picker and silently missing from the workbook. `check:ui` and
+`check:reports` both refuse it.
+
+### The bug this turned up: `Visit UID` was unreachable
+
+0215 added it to `consumption_report` yesterday, it was announced as added, and
+`CONSUMPTION_OPTIONAL` was never updated — so the picker could not show it and
+`exportColumns` could not emit it. **Invisible to every user for a day**, with
+the column sitting in the database the whole time.
+
+Nothing in the repository could have caught it: `tsc` sees two lists of strings,
+`check:ui` does not know what a view is called, and reading the migration is the
+method that missed it. **`npm run check:reports -- "<psql args>"`** asks a
+database instead, for all three reports and in both directions — a view column
+nobody offers, and an offered column the view does not have (which would export
+an empty column under a heading that promises a value). Mutation-tested on all
+three failures; it is in `validate` and in `NEEDS_DB`.
+
+### Numbers, while the dates were in hand
+
+`Line ID` sorted 1, 10, 100, 2 and a `SUM` over `QTY` answered 0 — both were
+being written as text, which is the same fault the dates had. `asCell` now
+returns a JS number untouched. The test is `typeof v === 'number'` and nothing
+looser: PostgREST sends numeric columns as numbers and text columns as strings,
+so a Serial No of `0012345` keeps its leading zeros instead of becoming 12345.
+Proved by building a workbook and unzipping it.
+
+### "Shall I re-upload the Import Data?"
+
+**No, not for these three.** `_do_i_need_to_reupload.sql` answers it against the
+real rows rather than in principle: Line ID and Created At are on every row;
+Source Ref Key is the file's own row id and is blank on anything booked in the
+app, which is correct. The only thing a re-upload can still add is
+`Visit Entry Date` — and only if the file in hand carries a heading the loaded
+one did not. Row 4 of that probe is the count that says which case the project
+is in; row 3 says how many lines a re-upload would UPDATE rather than duplicate.
 
 ---
 

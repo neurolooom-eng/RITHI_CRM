@@ -152,7 +152,15 @@ const NEEDS_DB = { 'check:views': 'db', 'check:status': 'db', 'check:upserts': '
                    // in a chained call, and only the database knows what a
                    // view actually publishes (`dl.id as line_id` reads like an
                    // `id` until you look twice).
-                   'check:orders': 'db' };
+                   'check:orders': 'db',
+                   // Every report's column picker against the view it exports.
+                   // Same argument as the line above: the lists are strings in
+                   // a TypeScript file and the view is in Postgres, so only a
+                   // database can say whether they still agree. Both directions
+                   // are silent — an unlisted view column can be exported by
+                   // nobody, and a listed one the view lost exports an empty
+                   // column under a heading that promises a value.
+                   'check:reports': 'db' };
 // `check:safe-updates` and `check:mapping` take no connection — the first
 // version handed them psql arguments and they read them as a DIRECTORY.
 // THE CHECKS' DATABASE IS BUILT BY APPLYING THE MIGRATIONS, NOT BY COPYING THE
