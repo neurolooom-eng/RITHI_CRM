@@ -255,6 +255,33 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // Data" clone). The DB honours it in can_view_all_calls / spare read policies.
   { group: 'Admin', key: 'data.view_all', label: 'View all data (every record)' },
 ];
+// ---------------------------------------------------------------------------
+// WHO SEES EVERY RECORD — the client's copy of `can_view_all_calls()` (0034,
+// 0035), which the read policies on calls, spare requests, consumption, stock
+// and returns all consult.
+//
+// IT IS HERE SO A SCREEN CAN TELL THE TRUTH WHEN IT HAS NOTHING TO SHOW.
+// "Nothing is waiting" and "nothing is waiting THAT YOU MAY SEE" are different
+// facts, and a zero-row read only ever supports the second. Asserting the first
+// to somebody holding the second is how an empty screen becomes a bug report
+// that costs a day — which it did, twice, in one week.
+//
+// A SECOND COPY OF A RULE GOES STALE, so `check:ui` compares this list with the
+// one inside 0035's SQL and fails if they drift. Change one, change both.
+export const ROLES_THAT_SEE_EVERY_RECORD = [
+  'hotline', 'nsm', 'commercial', 'spare_coordinator', 'stores_incharge', 'tally_coordinator',
+] as const;
+
+/** Does this reader see every record, or only their own and their team's?
+ *  Mirrors `can_view_all_calls()`: an admin, the `data.view_all` grant, or one
+ *  of the office roles above. */
+export function seesEveryRecord(role: string | undefined, can: (a: string) => boolean): boolean {
+  const r = String(role ?? '').trim().toLowerCase();
+  if (r === 'admin') return true;
+  if (can('data.view_all')) return true;
+  return (ROLES_THAT_SEE_EVERY_RECORD as readonly string[]).includes(r);
+}
+
 export const ACTIONS: ActionDef[] = [
   ...FUNCTIONAL_ACTIONS,
   ...MODULES.map((m) => ({ group: 'Modules', key: moduleAction(m.path), label: `Open: ${m.label}` })),

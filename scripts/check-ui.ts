@@ -2622,6 +2622,39 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 
+console.log('\n-- who sees every record: the client copy matches the SQL --');
+{
+  // A SECOND COPY OF A RULE GOES STALE. `can_view_all_calls()` (0035) decides
+  // what the database shows; `ROLES_THAT_SEE_EVERY_RECORD` decides what an
+  // empty screen is allowed to CLAIM. If they drift, a screen tells somebody
+  // "every approved spare has been booked out" while the database is showing
+  // them a slice — which is the exact sentence that cost a day on 2026-09-18.
+  const sql = readFileSync('supabase/migrations/0035_data_view_all.sql', 'utf8');
+  const m = sql.match(/lower\(coalesce\(p\.role, ''\)\) in\s*\(([^)]*)\)/);
+  eq('0035 still states the office roles in one place', !!m, true);
+  const inSql = (m ? m[1] : '').match(/'([a-z_]+)'/g)?.map((x) => x.replace(/'/g, '')).sort() ?? [];
+  const ts = readFileSync('src/lib/rbac.ts', 'utf8');
+  const t = ts.match(/ROLES_THAT_SEE_EVERY_RECORD = \[([\s\S]*?)\]/);
+  const inTs = (t ? t[1] : '').match(/'([a-z_]+)'/g)?.map((x) => x.replace(/'/g, '')).sort() ?? [];
+  eq('...and the client lists exactly the same roles', inTs, inSql);
+  eq('...which is six of them', inSql.length, 6);
+  // stores_incharge is the one this was reported about: it is an office role
+  // and does see every spare request.
+  eq('stores_incharge is one of them', inSql.includes('stores_incharge'), true);
+}
+
+console.log('\n-- the update banner does not offer you the version you have --');
+{
+  // It compares BUILD IDS and used to print the VERSION, so a deploy that
+  // changed no version announced "a newer version (v0.9.293) is out -- this
+  // tab is still on v0.9.293".
+  const lay = code(readFileSync('src/components/layout/Layout.tsx', 'utf8'));
+  eq('the banner checks whether the version actually differs',
+    /newBuild !== __APP_VERSION__/.test(lay), true);
+  eq('...and says something else when it does not',
+    /running an earlier build/.test(lay), true);
+}
+
 console.log('\n-- the role list does not promise Super Admin --');
 {
   const rb = readFileSync('src/lib/rbac.ts', 'utf8');

@@ -11,6 +11,7 @@ import {
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
+import { seesEveryRecord } from '../lib/rbac';
 import {
   toPendingLine, groupByEngineer, daysWaiting, ageTone, selectionProblem, selectedFrom, summarise,
   type PendingLine, type EngineerQueue,
@@ -50,6 +51,10 @@ type Tab = 'queue' | 'sent';
 
 export function SpareDispatch() {
   const { user, can } = useAuth();
+  // Whether this reader is shown the WHOLE queue or a slice of it — the client
+  // copy of can_view_all_calls(). Used only to decide which of two true things
+  // an empty queue is allowed to say.
+  const seesAll = seesEveryRecord(String(user?.role ?? ''), can);
   const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const mayDispatch = can('spare.dispatch');
@@ -83,9 +88,19 @@ export function SpareDispatch() {
       setLines(mapped);
       setPicked((cur) => new Set([...cur].filter((id) => mapped.some((l) => l.line_id === id))));
       setLastSync(saveCache(CACHE_KEY, mapped.map((l) => ({ ...l, id: String(l.line_id) }))));
+      // A ZERO-ROW READ DOES NOT PROVE THE QUEUE IS EMPTY. It proves this
+      // reader was shown nothing, and the queue is bounded by the spare read
+      // policies: an office role sees every request, everybody else sees their
+      // own and their team's. "Every approved spare has been booked out" is the
+      // strong claim and only an office role's empty queue supports it.
+      // Reported 2026-09-18 — a Stores Incharge looking at this message could
+      // not tell whether the queue was clear or whether he was being shown a
+      // slice of it, and neither could anybody he asked.
       setMsg(mapped.length
         ? { tone: 'ok', text: `${mapped.length} spare${mapped.length === 1 ? '' : 's'} waiting to go out.` }
-        : { tone: 'ok', text: 'Nothing waiting — every approved spare has been booked out.' });
+        : seesAll
+          ? { tone: 'ok', text: 'Nothing waiting — every approved spare has been booked out.' }
+          : { tone: 'info', text: 'Nothing waiting to go out that you can see. Your role is shown its own and its team\u2019s spares, not the whole queue.' });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
       setMsg({
