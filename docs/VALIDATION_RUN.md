@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-18T12:48:10.047Z
-- **Took** 60s
-- **Commit** `bc129c9` on `claude/tender-rubin-8ian45`
-- **Version** 0.9.306
+- **Run at** 2026-09-18T13:51:19.814Z
+- **Took** 61s
+- **Commit** `f6e3c75` on `claude/tender-rubin-8ian45`
+- **Version** 0.9.308
 
 ## Result
 
@@ -40,7 +40,7 @@ stopped working produces a suite that runs clean.
 | `check:dberror` | ✅ pass | all passed |
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (53 checked) |
 | `check:mapping` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 109 order columns across 53 relations |
+| `check:orders` | ✅ pass |   ✓ 110 order columns across 53 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (22) replays with no change to the schema |

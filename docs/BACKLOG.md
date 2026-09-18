@@ -23,6 +23,67 @@ up)_
 
 ---
 
+## 2026-09-18 — ⚠️ The probe answered about the wrong person, and a correction
+
+The probe was run and came back as `rajendraawasthi961@gmail.com` — **not** the
+Hotline Engineer it was meant to describe. Both `_why_is_it_empty*.sql` files
+shipped with a live address on the line the reader is meant to change, so an
+unchanged run returns a complete, plausible, confidently wrong grid about
+somebody else. Row 1 printing the matched email is the only thing that gave it
+away. Default is `CHANGE-ME@example.com` now (RFC 2606 — matches nobody), and
+`check:ui` refuses any other default in a hand-run probe.
+
+**A CORRECTION TO THE ENTRY BELOW.** That entry concluded the pending queue was
+"genuinely clear". **It is not: 41 pending registrations exist.** That was
+asserted from the local fixture test rather than from the project, and the local
+run could not have shown it. What the live run does confirm is that an ENGINEER
+sees 2 of 4,400 requests and 2 of 41 pending with `can_view_all_calls() = false`
+— exactly right for that role, and proof the probe works on the real project.
+
+**STILL OPEN**: why a Hotline Engineer saw 0 of those 41. Hotline is named in
+`can_view_all_calls()` and was measured seeing everything on a fixture, so the
+next thing is the same probe run with HER email — the one question that
+separates a filtered reader from a stale screen.
+
+---
+
+## 2026-09-18 — "All Data should be Visible" for the Hotline Engineer
+
+> *"HotLine Engineer -- All Data should be Visible for this user"* — with
+> Pending Registrations showing 0.
+
+**The permissions were already right, and that was measured rather than
+assumed.** On a database built from every migration, a `hotline` profile gets
+`can_view_all_calls() = true` and reads all four call requests including both
+pending ones raised by a different engineer. Nothing to grant.
+
+**What was actually wrong is the CAP.** `cr_read`'s first branch is
+`can_view_all_calls()`, which names hotline — so the Hotline desk's pending list
+is the whole company's, not one person's, and that read was `.limit(300)` and
+unpaged. `check:ui`'s `.limit(n > 1000)` rule cannot see it: 300 is *under* the
+PostgREST cap, so nothing lied about truncation; the screen stopped at 300 and
+called it *"300 pending call registrations"* with no `+`. Paged in full now,
+with `id` as a tiebreaker after `submitted_at` — a bulk import makes ties
+certain and a tie puts a row on two pages or on neither.
+
+So the reported 0 means the queue is genuinely clear: every request registered,
+mapped or cancelled.
+
+**`_why_is_it_empty_2.sql` now prints SEEN beside EXISTS** (rows 4/5 and 6/7),
+because either number alone answers nothing — "0 of 0" is an empty queue,
+"0 of 40" is somebody being filtered.
+
+⚠️ **The probe only impersonates on the REAL project.** It sets
+`request.jwt.claims`, which Supabase's `auth.uid()` reads; `_stub.sql` replaces
+`auth.uid()` with a stand-in reading the `harness` TABLE, so run locally it
+ignores the claims, `can_view_all_calls()` returns NULL and every count reads 0.
+That looks exactly like a damning finding and is an artefact — it was nearly
+reported as one. Use `call public.be(...)` against the harness instead.
+
+Client only, no SQL. validate: 93/93 suites, 16/16 checks.
+
+---
+
 ## 2026-09-18 — Designation in the header, and that line is called Permission
 
 > *"Display the Designation here, Add a New Place Holder for RITHI Role."*

@@ -7370,6 +7370,42 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
       /\{!!designation && <span className="user-designation">/.test(lay), true);
     eq('...and the menu labels both', /<dt>Designation<\/dt>/.test(lay) && /<dt>Permission<\/dt>/.test(lay), true);
   }
+  {
+    // PENDING REGISTRATIONS IS REGISTER-SIZED FOR AN OFFICE ROLE, so it pages.
+    // The Hotline desk sees EVERY engineer's requests -- `cr_read` consults
+    // `can_view_all_calls()`, which names hotline -- so this one screen's list
+    // is the whole company's rather than one person's. It was capped at 300 and
+    // unpaged, which `check:ui`'s `.limit(n > 1000)` rule cannot see: 300 is
+    // UNDER the PostgREST cap, so nothing was lying about truncation, the
+    // screen simply stopped at 300 and called it "300 pending call
+    // registrations" with no `+` on the badge.
+    const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+    const fn = sb.split('export async function listCallRequestsAsPending')[1]?.split('export ')[0] ?? '';
+    eq('the pending register pages rather than capping', /allRows</.test(fn), true);
+    // Without a tiebreaker `submitted_at` ties -- which a bulk import makes
+    // certain -- and a tie can put one row on two pages or on neither.
+    eq('...with a tiebreaker after submitted_at',
+      /order\('submitted_at'[^)]*\)\s*\.order\('id'/.test(fn), true);
+    eq('...and the screen asks for no cap of its own',
+      /await listPending\(\)/.test(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8')), true);
+  }
+  {
+    // A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL. Two of
+    // these carried a live address, so running the file unchanged returned a
+    // complete, plausible grid ABOUT THE WRONG PERSON -- worse than no answer,
+    // because nothing in it reads as an error. `example.com` is reserved for
+    // exactly this (RFC 2606) and can match no profile, so an unchanged run
+    // says so instead.
+    const probes = readdirSync('supabase/apply').filter((f) => f.startsWith('_') && f.endsWith('.sql'));
+    const bad: string[] = [];
+    for (const f of probes) {
+      const body = readFileSync(`supabase/apply/${f}`, 'utf8');
+      for (const m of body.matchAll(/lower\('([^']*@[^']*)'\)/g)) {
+        if (!/@example\.(com|org|net)$/i.test(m[1])) bad.push(`${f}: ${m[1]}`);
+      }
+    }
+    eq('no hand-run probe defaults to a real person\'s email', bad, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

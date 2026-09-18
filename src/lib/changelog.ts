@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.306',
+    version: '0.9.308',
     date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,27 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.307',
+    date: '2026-09-18',
+    title: 'The diagnostic no longer answers about the wrong person',
+    changes: [
+      'THE TWO \u201cwhy is it empty\u201d FILES CARRIED A REAL EMAIL on the line you are meant to change, so running one unchanged gave a complete, believable answer ABOUT SOMEBODY ELSE. They now say CHANGE-ME@example.com, which matches nobody \u2014 so an unchanged run tells you it matched no profile instead of quietly profiling a stranger.',
+      'Row 1 prints the email it actually matched. Read that line first.',
+      'No SQL to run, and nothing about your data changed.',
+    ],
+  },
+  {
+    version: '0.9.306',
+    date: '2026-09-18',
+    title: 'Pending Registrations shows every request, not the first 300',
+    changes: [
+      'THE HOTLINE DESK SEES EVERY ENGINEER\u2019S REQUESTS \u2014 it always did \u2014 which makes this the one screen where that list is the whole company\u2019s rather than one person\u2019s. It was loading only the first 300 and calling that \u201c300 pending call registrations\u201d, with no sign there were more. It loads all of them now and the count is exact.',
+      'ON THE EMPTY SCREEN IN THE REPORT: the permissions were already right. A Hotline Engineer is an office role, sees every call request and every pending one, and we proved that against a database rather than assuming it. So \u201cno pending registrations\u201d means the queue really is clear \u2014 every request has been registered, mapped or cancelled.',
+      'TO CONFIRM THAT ON YOUR OWN DATA rather than take our word: _why_is_it_empty_2.sql now prints what a named person can see BESIDE what exists \u2014 \u201c0 of 0\u201d is an empty queue and correct, \u201c0 of 40\u201d would be somebody being filtered. One of those numbers on its own answers nothing, which is why they are now side by side.',
+      'No SQL to run.',
     ],
   },
   {
