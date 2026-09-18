@@ -2392,6 +2392,20 @@ console.log('\n-- Reports: access one report at a time --');
       eq('...and Visit UID is offered at all', optional.includes('Visit UID'), true);
     }
 
+    // THE BULK LOAD FILES THE VISIT BEFORE THE SPARES (0214 + the prepare step).
+    // The planner is in `uploads.ts` rather than `supabase.ts` for the
+    // `paging.ts` reason -- that module reads `import.meta.env`, so no node
+    // script can import it and nothing in it can be tested as behaviour.
+    {
+      const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+      eq('the consumption upload files its visits through the tested planner',
+        /planConsumptionVisits\(rows, have\)/.test(sb), true);
+      eq('...and supabase.ts does not decide any of it itself',
+        /IMP-\$\{ucn\}/.test(sb), false);
+      eq('...the register asks for the step',
+        /prepare: 'consumption-visits'/.test(readFileSync('src/lib/uploads.ts', 'utf8')), true);
+    }
+
     // THE FEEDBACK REPORT'S DATE IS THE FEEDBACK'S OWN (0190), never the day
     // the row was loaded — on a migrated row the two differ by up to two years.
     const sb = readFileSync('src/lib/supabase.ts', 'utf8');

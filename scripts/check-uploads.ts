@@ -1,6 +1,7 @@
 // Checks for src/lib/uploads.ts — the shaping behind the individual register
 // uploads. No test runner in this repo, so: `npm run check:uploads`.
-import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups } from '../src/lib/uploads';
+import { shapeUpload, byColumnSet, UPLOADS, masterUpload, toDate, toTs, coerce, uploadGroups,
+  planConsumptionVisits } from '../src/lib/uploads';
 import { parseDateParts, toIsoDate, toIsoTimestamp, parseAnyDate } from '../src/lib/dates';
 import { findHeaderFor, strict, loose, squash } from '../src/lib/headers';
 import { toDate as coverDate, toTimestamp as coverTs } from '../src/lib/coverImport';
@@ -751,6 +752,120 @@ console.log('\n-- who a new call is allotted to: the machine wins, the party ans
      { partyName: 'APOLLO HOSPITAL', allocatedTo: 'SIVAKUMAR' });
   eq('...and a party nobody looks after writes no name over the form',
      partyToCallPrefill({ partyName: 'APOLLO HOSPITAL' }).allocatedTo, '');
+}
+
+{
+  // -------------------------------------------------------------------------
+  // THE VISIT BEHIND A BULK-LOADED SPARE (0214). The consumption upload files
+  // the visit from the FILE's own Visit Date & Time before writing the spares,
+  // because otherwise the database refuses row 1 and nothing loads at all.
+  // What must hold: nothing is invented, one visit per UCN rather than per
+  // line, and a call the file cannot date is held back BY NAME with the rest of
+  // the file still going in.
+  // -------------------------------------------------------------------------
+  console.log('\n-- a bulk-loaded spare gets the visit its file describes --');
+
+  const row = (ucn: string, created_at: string, data: Record<string, unknown> = {}) =>
+    ({ ucn, created_at, data, call_number: 'C1', engineer: 'ENG A', engineer_email: 'a@x.com' });
+
+  {
+    const p = planConsumptionVisits([row('U-1', '2026-03-04T10:00:00+05:30')], new Set());
+    eq('a call with no visit gets one from the file', p.visits.length, 1);
+    eq('...keyed by REPORT_COLS\' own convention, so Visit Reports dedupes onto it',
+       p.visits[0].uid, 'IMP-U-1-20260304100000');
+    eq('...the visit date is the file\'s', p.visits[0].visit_at, '2026-03-04T10:00:00+05:30');
+    eq('...and with no Visit Entry Date in the file, the entry IS the visit',
+       p.visits[0].updated_at, '2026-03-04T10:00:00+05:30');
+    eq('...no call_status is sent, so open_state decides', 'call_status' in p.visits[0], false);
+    eq('...nothing is held back', p.holdBack.size, 0);
+  }
+  {
+    const p = planConsumptionVisits(
+      [row('U-1', '2026-03-04T10:00:00+05:30', { 'Visit Entry Date': '05/03/2026', 'Call Status': 'Solved' })],
+      new Set());
+    eq('the file\'s Visit Entry Date becomes the ENTRY date, read day-first',
+       String(p.visits[0].updated_at).slice(0, 10), '2026-03-05');
+    eq('...and its Call Status is carried, not guessed', p.visits[0].call_status, 'Solved');
+  }
+  {
+    // The heading is whatever somebody typed. Same squash as `imported_ts` in
+    // 0215, so the two halves of this feature agree on what the column is.
+    const p = planConsumptionVisits(
+      [row('U-1', '2026-03-04T10:00:00+05:30', { 'VISIT_ENTRY_DATE': '05/03/2026' })], new Set());
+    eq('the heading is matched with case and punctuation squashed',
+       String(p.visits[0].updated_at).slice(0, 10), '2026-03-05');
+  }
+  {
+    // THE ONE THAT MATTERS: a visit is ONE event. Three parts fitted on it must
+    // not become three visits, or the call's status comes from whichever was
+    // written last.
+    const p = planConsumptionVisits([
+      row('U-1', '2026-03-04T10:00:00+05:30'),
+      row('U-1', '2026-03-04T10:00:00+05:30'),
+      row('U-1', '2026-03-04T10:00:00+05:30'),
+    ], new Set());
+    eq('three spares on one visit file ONE visit', p.visits.length, 1);
+  }
+  {
+    // AND WHICH ROW'S DATE WINS IS FIXED: the FIRST dated row in file order.
+    // The Map dedupes by UCN whatever the guard says, so this is the only thing
+    // that pins it -- without it the last row would win instead, and a file
+    // whose rows disagree would file a different visit on a re-run.
+    const p = planConsumptionVisits([
+      row('U-1', '2026-03-04T10:00:00+05:30'),
+      row('U-1', '2026-03-09T18:00:00+05:30'),
+    ], new Set());
+    eq('the FIRST dated row decides the visit, so a re-run is stable',
+       p.visits[0].visit_at, '2026-03-04T10:00:00+05:30');
+  }
+  {
+    const p = planConsumptionVisits([row('U-1', '2026-03-04T10:00:00+05:30')], new Set(['U-1']));
+    eq('a call that already has a visit is left alone', p.visits.length, 0);
+    eq('...and its rows still load', p.holdBack.size, 0);
+  }
+  {
+    // NOTHING IS INVENTED. No visit and no date is the one case with nothing
+    // truthful to record, so those rows are named and the rest still go in.
+    const rows = [row('U-1', '2026-03-04T10:00:00+05:30'), row('U-9', ''), row('U-9', '')];
+    const p = planConsumptionVisits(rows, new Set());
+    eq('a call the file cannot date gets NO invented visit',
+       p.visits.map((v) => v.ucn), ['U-1']);
+    eq('...its rows are held back by name', [...p.holdBack], ['U-9']);
+    eq('...and the rest of the file still loads', p.visits.length, 1);
+    eq('...the note says both halves',
+       /1 visit filed/.test(p.note) && /2 rows held back/.test(p.note) && /U-9/.test(p.note), true);
+  }
+  {
+    // A row with a date and a row without, on the SAME call: the call can be
+    // dated, so nothing is held back.
+    const p = planConsumptionVisits([row('U-1', ''), row('U-1', '2026-03-04T10:00:00+05:30')], new Set());
+    eq('one dated row is enough to file the call\'s visit', p.visits.length, 1);
+    eq('...so the undated sibling is NOT held back', p.holdBack.size, 0);
+  }
+  {
+    const p = planConsumptionVisits([], new Set());
+    eq('an empty batch files nothing and says nothing', [p.visits.length, p.note], [0, '']);
+  }
+  {
+    // The register must actually ASK for this, or the planner is dead code.
+    const def = UPLOADS.find((d) => d.key === 'spare_consumption');
+    eq('the Consumption register runs the step', def?.prepare, 'consumption-visits');
+  }
+  {
+    // TIED TO THE OTHER PATH, not merely equal to a literal today. The Visit
+    // Reports upload DERIVES the same uid from UCN + visit date, so loading the
+    // same data either way must land on ONE visit. Drift here does not error --
+    // it quietly makes a second visit of the same call on the same day, and the
+    // call's status then comes from whichever was written last.
+    const derive = UPLOADS.find((d) => d.key === 'field_reports')
+      ?.cols.find((c) => c.to === 'uid')?.derive;
+    eq('the Visit Reports upload still derives a uid', typeof derive, 'function');
+    const shaped = { ucn: 'U-1', visit_at: '2026-03-04T10:00:00+05:30' };
+    const viaReports = derive ? String(derive(shaped, 0)) : '';
+    const viaSpares = String(planConsumptionVisits(
+      [row('U-1', '2026-03-04T10:00:00+05:30')], new Set()).visits[0].uid);
+    eq('...and both paths build the SAME visit uid', viaSpares, viaReports);
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
