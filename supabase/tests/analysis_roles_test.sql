@@ -177,6 +177,16 @@ on conflict (id) do update set role = excluded.role, email = excluded.email;
 insert into public.handstock_opening (engineer, part, qty, as_of, source)
  values ('Some Engineer', 'O-RING', 5, current_date - 1, 'Opening');
 
+-- AND THE CALL MUST HAVE A VISIT (0214). `zz_consumption_needs_visit` refuses a
+-- spare booked against a call nobody has visited, which is the same argument as
+-- the hand-stock balance above: without this row the insert is REFUSED, every
+-- reader below sees zero, and the suite reads as a visibility failure it is not.
+-- It broke exactly that way the day 0214 shipped, in the suite whose own comment
+-- warns about it -- the guard was added and this fixture was not brought forward.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+ values ('CONS-VP-1', 'VP-VISIT-1', now(), now())
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (ucn, engineer, engineer_email, part, qty, created_by)
  values ('CONS-VP-1','Some Engineer','eng@x.com','O-RING', 2,
          'cc000000-0000-0000-0000-000000000002');

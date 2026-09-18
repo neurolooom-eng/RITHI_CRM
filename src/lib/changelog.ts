@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.302',
+    date: '2026-09-18',
+    title: 'A spare can no longer be marked received before it was sent \u2014 and view-all for every role but three',
+    changes: [
+      'A HOLE WE OPENED YESTERDAY, CLOSED. Three rules had been dropped from the spare-line guard by mistake: a line could be marked RECEIVED before Stores had dispatched it, ANY engineer could acknowledge another engineer\u2019s spare, and any engineer could change the PART or QUANTITY on somebody else\u2019s line. All three refusals are back. Nothing you did wrong, and nothing to correct at your end \u2014 but worth knowing it was open for a day.',
+      'DATA.VIEW_ALL NOW APPLIES TO EVERY ROLE EXCEPT Regional Manager, Reporting Manager and Engineer \u2014 those three keep seeing their own work and their team\u2019s, which is what the reporting tree is for. It is written as that RULE rather than as a list of roles, so a role added later is covered without anybody remembering to add it.',
+      'IT DOES NOT TAKE THE PERMISSION AWAY from any of the three. If one of them is holding it from a hand tick on Roles & Permissions, the SQL says so in its output, clearly marked \u2014 removing it is your decision, not something a migration does quietly to a role you asked us not to touch.',
+      'A role with NO permissions ticked at all is left alone, and the output says which. An empty list means \u201cnot configured\u201d, and writing a single permission into it would switch off everything else that role could do.',
+      'THE RE-UPLOAD CHECK NOW RUNS BEFORE THE SQL IT ASKS ABOUT. _do_i_need_to_reupload.sql used a function that 0215 creates \u2014 so the one file whose job is to tell you whether you need to run anything could only run after you had run it. It stands on its own now.',
+      'HOW TO FILL VISIT DATE & TIME AND VISIT ENTRY DATE on consumption data, written up in the handbook: they are not fields on the spare line, they come from the VISIT \u2014 so load the visits under Bulk Uploads \u2192 Visit Reports, keyed by UCN, and every spare on that call fills in, Visit UID included.',
+      'Every test in the project now runs clean again \u2014 93 suites and 16 checks. Ten of them had been failing since yesterday, which is how the hole above was found.',
+      'SQL to run: Spare_1.sql (the receipt fix \u2014 please run this one first) and rbac.sql (the permission). Still outstanding from yesterday: HandStock_X.sql, after _status.sql rows 166, 167 and 168.',
+    ],
+  },
+  {
     version: '0.9.301',
     date: '2026-09-18',
     title: 'Three columns ticked to start with on the Consumption Report \u2014 and Visit UID is reachable',

@@ -42,9 +42,19 @@ insert into public.reports (uid, ucn, call_number, call_status, engineer, visit_
 insert into public.handstock_opening (engineer, part, qty, as_of, source) values
  ('CR ENG','MP-010|OXYGEN SENSOR-Envitec-T50,T60,T75(HSN:90189099)', 10, date '2026-01-01','test'),
  ('CR ENG','KY632200|EXPIRATORY FLOW SENSOR-MT50,MT75,MT60', 10, date '2026-01-01','test');
+-- CR-2 HAS NO VISIT ON PURPOSE -- it is the case this suite exists to pin down,
+-- and after 0214 it can no longer be created the ordinary way: the guard refuses
+-- a spare booked against a call nobody has visited. So the guard is lifted for
+-- this one statement, which is exactly what CR-2 REPRESENTS: a row that predates
+-- the rule. 0214 deliberately did not rewrite those, and they are what 0215's
+-- fallback dates are for. Lifting only THIS trigger, by name, leaves every other
+-- guard on the table doing its job -- `session_replication_role = replica` would
+-- switch off the lot, including the ones that compute the row.
+alter table public.spare_consumption disable trigger zz_consumption_needs_visit;
 insert into public.spare_consumption (ucn, call_number, part, qty, engineer) values
  ('CR-1','R18471','MP-010|OXYGEN SENSOR-Envitec-T50,T60,T75(HSN:90189099)', 1, 'CR ENG'),
  ('CR-2','R18999','KY632200|EXPIRATORY FLOW SENSOR-MT50,MT75,MT60', 1, 'CR ENG');
+alter table public.spare_consumption enable trigger zz_consumption_needs_visit;
 
 \echo '--- 1. THE FIRST SIXTEEN ARE THE USER''S SHEET, IN ITS ORDER ---'
 \echo 'expect: UC Number, Call Number, Call Type, Visit Entry Date,'

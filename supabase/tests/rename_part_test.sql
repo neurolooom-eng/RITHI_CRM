@@ -37,6 +37,15 @@ values ('RP-1', 'LOUDSPEAKR V2', 'RP-1|LOUDSPEAKR V2', 'SPARE'),   -- the typo
 
 insert into public.spare_issue_history (engineer, part, qty, source)
 values ('RP ENGINEER', 'RP-1|LOUDSPEAKR V2', 5, 'stock out');
+-- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
+-- consumption row whose call has no `reports` entry, so without these the
+-- inserts below are REFUSED and every assertion after them reads as the failure
+-- it is testing for. Added when 0214 shipped and this fixture was not brought
+-- forward with it.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('26A02F0001')) v(u)
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (engineer, part, qty, ucn)
 values ('RP ENGINEER', 'RP-1|LOUDSPEAKR V2', 2, '26A02F0001');
 -- STORED WITH DIFFERENT SPACING AND CASE. This is the row a rename matching on

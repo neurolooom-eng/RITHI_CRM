@@ -4,14 +4,108 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (default report columns, and the Visit UID the picker
-could not offer — CLIENT ONLY, no SQL. Still to run: 0214 and 0215, `_status.sql`
+_Last updated: 2026-09-18 (⚠️ 0217 restores three rules 0210 dropped from the
+spare line guard — RUN Spare_1.sql; data.view_all for every role but three;
+the re-upload probe no longer needs 0215 to run;
+how to fill the two visit columns. Before that: default report columns, and the
+Visit UID the picker could not offer — CLIENT ONLY, no SQL. Still to run: 0214 and 0215, `_status.sql`
 rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 0207-0213 APPLIED)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — ⚠️ 0210 deleted three rules from the spare line guard
+
+**Shipped yesterday, open for a day, repaired by `0217`.** 0210 rewrote
+`spare_request_lines_guard()` from an OLD revision to add the HandStock NSM
+rule. Six rules went in; three came out. It kept RM / Commercial / NSM approval
+and lost:
+
+- dispatch / DC requires `spare.dispatch` (a drop needs `spare.drop`)
+- recording a REJECTION requires an approval permission
+- RECEIPT: needs `spare.receive`, only by the engineer who RAISED it, and only
+  AFTER the line is dispatched
+- only the engineer who raised the request may change its PARTS
+
+**Measured, not reasoned about.** On a database built from every migration, an
+engineer marked a line received that had never been dispatched — `UPDATE 1`, no
+refusal, stage straight to Received while its sibling still read Dispatched —
+and a different engineer acknowledged somebody else's spare. The parts rule was
+covered by no test at all.
+
+**Why nothing caught it.** `check:replay` compares each bundle against
+`all.sql`, and both are built from the same migrations: a function truncated in
+the migration is truncated identically in both and they agree perfectly. The
+suite DID fail, and `VALIDATION_RUN.md` named the **wrong two expectations** —
+the harness pairs `expect ERROR` with the next error in order, so two guards
+failing early shifted every later pairing. Counts right, names wrong.
+
+`_status.sql` **row 168** counts all six rules by name now, and reads NO against
+0210's shipped guard (mutation-tested). It is the 0211 lesson a second time:
+**read a function out of the DATABASE before replacing it.**
+
+## 2026-09-18 — Ten broken suites, and a check that failed on its own prose
+
+`npm run validate` was not run after 0210 and 0214. It should have been.
+
+- **0214** (`zz_consumption_needs_visit`) broke **nine** suites — every one that
+  books a spare against a fixture call with no visit. Each now creates the visit
+  first, except `consumption_report_test`'s **CR-2**, which has no visit *on
+  purpose*: that one lifts the single trigger by name, because those rows are
+  exactly what "predates the rule" means.
+- **0210**'s NSM rule broke `stock_transfer_test`, whose fixture had an RM
+  waving NSM through on a HandStock request.
+- `handstock_needs_nsm_test` had an `expect ERROR` written as a **SQL comment**,
+  so the harness never saw it and counted its error as unexpected.
+- `check:ui` was recorded as FAILED in every run while passing everywhere else:
+  the runner tested `/FAILED/` against the whole output, and one PASSING
+  assertion is labelled *"a failure is dated by when it FAILED"*. Anchored now.
+
+**Now: 93/93 suites, 16/16 checks, 165/165 expectations matched.**
+
+---
+
+## 2026-09-18 — The probe that needed the SQL it was asked about
+
+> *"Failed to run the SQL — ERROR: 42883: function public.imported_ts(jsonb,
+> unknown) does not exist"*
+
+`_do_i_need_to_reupload.sql` called `public.imported_ts()`, **which 0215
+creates** — and 0215 is exactly what is still waiting to be applied. The one
+file whose job was to say whether anything needed running could only run after
+it had been run.
+
+Every check passed it: they all build their database from **all** the
+migrations, so the gap is between this tree and the LIVE project, and nothing
+here knows which migrations have actually been applied. The key match is written
+out inline now (same rule, case and punctuation squashed), and it was tested on
+a database built with **0214 and 0215 left out** — the live state — where the
+old version reproduces the user's error exactly and the new one returns its six
+rows.
+
+Row 4 now counts the heading being PRESENT and non-empty rather than parsing it,
+which is the fact that decides a re-upload, and is the half that does not need
+0215.
+
+## 2026-09-18 — "How do I fill Visit Date and Visit Entry Date?"
+
+Neither is a column of `spare_consumption` — `consumption_report` LEFT JOINs
+`public.reports` — so **re-uploading consumption cannot fill them** and there is
+no field to type them into. The answer is to load the **visits**: Bulk Uploads →
+Visit Reports → Field / Installation / PM Reports, one row per visit keyed by
+UCN, where `Visit Date & Time` → `visit_at` (required) and `Visit Entry Date` →
+`updated_at`. Every spare on that call then fills, `Visit UID` included — which
+0215's fallbacks deliberately cannot supply.
+
+Written up in `docs/HOW_TO_USE.md` with the three consequences that are easy to
+walk into: a blank `Call Status` leaves the call reading *Report pending*; the
+derived `uid` means a re-load updates rather than duplicates (and collapses the
+several consumption rows sharing a UCN and date into the one visit they were);
+and a row with no visit date is refused on purpose.
 
 ---
 

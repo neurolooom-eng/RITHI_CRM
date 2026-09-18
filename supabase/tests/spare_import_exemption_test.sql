@@ -18,6 +18,15 @@ update public.harness set uid='11111111-1111-1111-1111-111111111111', email='adm
 select count(*) as movements from public.handstock_movements;
 
 \echo '--- 2. a HAND-ENTERED consumption is still capped (expect ERROR) ---'
+-- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
+-- consumption row whose call has no `reports` entry, so without these the
+-- inserts below are REFUSED and every assertion after them reads as the failure
+-- it is testing for. Added when 0214 shipped and this fixture was not brought
+-- forward with it.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('26A02F0001')) v(u)
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (engineer, part, qty, ucn) values ('RAVI','MP-010|SENSOR',1,'26A02F0001');
 
 \echo '--- 3. an IMPORTED one loads: it carries the export row id ---'

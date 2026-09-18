@@ -71,6 +71,15 @@ insert into public.handstock_opening (engineer, part, qty, as_of, source) values
  ('ENG A','PCB-999|Other board', 10, current_date - 400, 'test')
 on conflict do nothing;
 
+-- 0214: A SPARE NEEDS A VISIT BEHIND IT. `zz_consumption_needs_visit` refuses a
+-- consumption row whose call has no `reports` entry, so without these the
+-- inserts below are REFUSED and every assertion after them reads as the failure
+-- it is testing for. Added when 0214 shipped and this fixture was not brought
+-- forward with it.
+insert into public.reports (ucn, uid, visit_at, updated_at)
+select v.u, 'T-VISIT-' || v.u, now(), now() from (values ('FF-NOW'), ('FF-P1'), ('FF-B1'), ('FF-C1'), ('FF-V1')) v(u)
+on conflict (uid) do nothing;
+
 insert into public.spare_consumption (ucn, part, qty, engineer) values
  ('FF-NOW','PCB-100|Main board', 1, 'ENG A'),   -- the part fitted on the call in review
  ('FF-P1', 'PCB-100|Main board', 1, 'ENG A'),   -- the SAME part, different complaint
