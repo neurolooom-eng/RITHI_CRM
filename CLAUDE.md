@@ -251,6 +251,17 @@ on testing the old shape. **When a migration replaces a definition, move the
   has produced were a migration that had not been run, and `docs/BACKLOG.md`
   claimed the opposite twice — once nearly causing a needless rebuild of the
   live `calls` tables. The backlog is a record, not evidence.
+- **A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL.**
+  `_why_is_it_empty.sql` and `_why_is_it_empty_2.sql` both shipped with a live
+  address on that line, so running either unchanged returned a COMPLETE,
+  PLAUSIBLE, CONFIDENTLY WRONG grid about a DIFFERENT PERSON — worse than no
+  answer, because nothing in it reads as an error. It happened (2026-09-18): the
+  file was run to check a Hotline Engineer and reported an ENGINEER's numbers,
+  and the only thing that gave it away was row 1 printing the email it matched.
+  **`CHANGE-ME@example.com`** is the default now — `example.com` is reserved for
+  this (RFC 2606) and can match no profile, so an unchanged run SAYS SO.
+  `check:ui` refuses any other default in `supabase/apply/_*.sql`, and **row 1
+  is read first, every time**.
 - **AN OFFICE ROLE MAKES A "SMALL" SCREEN REGISTER-SIZED** (reported
   2026-09-18: *"HotLine Engineer -- All Data should be Visible for this user"*).
   Pending Registrations reads `call_requests` through `cr_read`, whose FIRST

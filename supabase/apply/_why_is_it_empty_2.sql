@@ -33,6 +33,15 @@
 --     correctly and the fault is in the browser: a stale cached list, or a
 --     request that failed and was turned into an empty list on the way back.
 --
+-- IF ROW 1 SAYS "NO CLAIMS", YOU DID NOT CHANGE THE EMAIL, and that is
+-- deliberate: the line below is `CHANGE-ME@example.com` rather than somebody
+-- real. It used to carry a live address, so running the file unchanged returned
+-- a complete, plausible, confidently-wrong grid ABOUT A DIFFERENT PERSON — the
+-- one failure mode worse than no answer, because nothing in it looks like an
+-- error. It happened (2026-09-18): the file was run to check a Hotline
+-- Engineer and reported an Engineer's numbers instead. Row 1 prints the email
+-- it matched; read it first, every time.
+--
 -- IT ONLY IMPERSONATES ON THE REAL PROJECT, and that is worth knowing before
 -- you run it anywhere else: it works by setting `request.jwt.claims`, which is
 -- what Supabase's own `auth.uid()` reads. The throwaway database the tests are
@@ -72,7 +81,7 @@ select set_config('request.jwt.claims',
             'role',  'authenticated')::text
      from public.profiles p
      -- >>> CHANGE THIS ONE LINE
-    where lower(p.email) = lower('rajendraawasthi961@gmail.com')
+    where lower(p.email) = lower('CHANGE-ME@example.com')
     limit 1), true);
 
 set local role authenticated;
