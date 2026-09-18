@@ -4,13 +4,66 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (report date format + a spare needs a visit — 0214
-BUILT AND NOT YET RUN, `_status.sql` row **166**, bundle `HandStock_X.sql` (repository ROOT).
-Everything before it is APPLIED: 0207-0213, rows 159-165)_
+_Last updated: 2026-09-18 (Excel-native dates, visit-date precedence and the
+Visit UID — 0214 and 0215 BUILT AND NOT YET RUN, `_status.sql` rows **166** and
+**167**, bundle `HandStock_X.sql` at the repository ROOT. 0207-0213 APPLIED)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — Excel-native dates, and where a visit date comes from
+
+Three asks in a row, all on the Consumption Report.
+
+### "not Complaint with the Long Date Format of Excel"
+
+The formatted string was still **text** to Excel: it cannot be sorted into date
+order, filtered by month, subtracted from another, or given the reader's own
+format — and every one of those returns something wrong rather than refusing.
+
+The `.xlsx` now carries real date cells: a serial number plus a `numFmt` in a
+`styles.xml` the writer did not previously have at all. The CSV keeps the
+readable text, which is all a CSV can carry.
+
+**Two bugs in my own first version, both found by building a workbook and
+reading the bytes** — neither would have shown up by reading the code:
+
+- `excelSerial` used `parseAnyDate`, the lenient DISPLAY parser, and turned the
+  part code `MP-010` into serial **37165**. In a spreadsheet that is not a
+  wrong-looking string but a NUMBER under a date format, so the column silently
+  stops being a part code.
+- A date-only value went through `new Date('2026-09-18')` — UTC midnight read
+  back locally — giving every date in India a **05:30** fraction.
+
+It uses the strict ISO test now, the same one `formatDayTime` uses.
+
+### "Map the first booked date" / "as in from the Import"
+
+Three sources, and **the order is the rule**: the real visit, then what the file
+said, then the first booking on that call. An imported date is a recorded fact
+from the system the data came from; the first booking is only an approximation.
+
+The Consumption upload already maps `Visit Date & Time` onto `created_at`, so
+the first-booked fallback was surfacing that one; everything it does not map
+falls into `data` keyed by the header as typed, which is where
+`Visit Entry Date` lands. `imported_ts()` reads it with case and punctuation
+squashed — and **returns nothing rather than raising** on a cell holding "n/a",
+because a bare cast there would not spoil one cell, it would take the whole
+report down.
+
+### "Give me the UID"
+
+`Visit UID`, appended at the end (`create or replace view` can only add columns,
+and only after the existing ones). Blank where there is no visit: **a date can
+be approximated, an identifier cannot.**
+
+### Still to run on the live project
+
+`_status.sql` first — rows **166** and **167**. Then `HandStock_X.sql`, at the
+repository ROOT.
 
 ---
 

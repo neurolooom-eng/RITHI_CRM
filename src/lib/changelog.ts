@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.300',
+    date: '2026-09-18',
+    title: 'Excel treats the report dates as dates, and the visit columns fill in',
+    changes: [
+      'DATES IN THE .XLSX ARE REAL DATES NOW, not text that looks like one. You can sort a column into date order, filter it by month, subtract one from another, and apply Excel\u2019s own Long Date \u2014 none of which worked while they were strings, and all of which quietly gave a wrong answer rather than refusing. The CSV keeps the readable text, which is all a CSV can carry.',
+      'A date with no time stays a whole day rather than picking up a 5:30 that came from the timezone, and anything that is not a date \u2014 a part code, a UCN, a remark \u2014 stays text. That last one matters: a part code turning into a number under a date format is the kind of thing nobody notices.',
+      'WHERE A CALL HAS NO VISIT REPORT, Visit Entry Date and Visit Date & Time now show when the spare was FIRST booked on that call rather than nothing. Where a visit exists its own dates win, exactly as before.',
+      'The booking date is per CALL, not per row, so three spares fitted on one visit all read the same date instead of three different ones. Worth knowing when auditing: on those older rows it is a booking date under a heading that says Visit \u2014 read it as \u201cno later than\u201d. Everything booked from now on has a real visit behind it.',
+      'NEW COLUMN \u2014 Visit UID, at the end of the report: which visit record each spare belongs to. It is blank on the older rows, because a date can be approximated and an identifier cannot.',
+      'SQL to run: HandStock_X.sql, at the top of the repository (check _status.sql row 166 first).',
+    ],
+  },
+  {
     version: '0.9.299',
     date: '2026-09-18',
     title: 'Report downloads show real dates, and a spare needs a visit behind it',

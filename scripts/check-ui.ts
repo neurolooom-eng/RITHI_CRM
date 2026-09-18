@@ -11,7 +11,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
-import { localIsoDate, formatDayTime } from '../src/lib/dates';
+import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
@@ -6933,6 +6933,31 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     formatDayTime('2026-09-18 pump replaced'), '2026-09-18 pump replaced');
   eq('empty stays empty', formatDayTime(''), '');
   eq('null stays empty', formatDayTime(null), '');
+
+  // 7. A DATE IN AN .XLSX IS A NUMBER, NOT A STRING THAT LOOKS LIKE ONE.
+  //    Reported 2026-09-18: "those Date Fields are not Complaint with the Long
+  //    Date Format of Excel". A formatted string is TEXT — it cannot be sorted
+  //    into order, filtered by month, subtracted, or given the reader's own
+  //    format, and each of those quietly returns something rather than
+  //    refusing.
+  //    Serial 46283 is 18-Sep-2026; the fraction is the time of day.
+  eq('a timestamp becomes a serial, in local time',
+    Math.round((excelSerial('2026-09-18T08:51:02+00:00') ?? 0) * 1e5) / 1e5, 46283.59794);
+  // A DATE-ONLY VALUE IS A WHOLE DAY. The first version went through
+  // `new Date('2026-09-18')` — UTC midnight read back locally — and gave every
+  // date-only value a 05:30 fraction in India.
+  eq('a date with no time is a whole day', excelSerial('2026-09-18'), 46283);
+  eq('...and is formatted without a clock', hasClockTime('2026-09-18'), false);
+  eq('...while a timestamp asks for one', hasClockTime('2026-09-18T08:51:02Z'), true);
+  // A PART CODE MUST NOT BECOME A NUMBER. The first version used
+  // `parseAnyDate` — the lenient DISPLAY parser — and turned MP-010 into the
+  // serial 37165. In a spreadsheet that is not a wrong-looking string but a
+  // NUMBER under a date format: the column stops being a part code silently.
+  eq('a part code is not a serial', excelSerial('MP-010'), null);
+  eq('a UCN is not a serial', excelSerial('26I08F0006'), null);
+  eq('a remark starting with a date is not a serial',
+    excelSerial('2026-09-18 pump replaced'), null);
+  eq('empty is not a serial', excelSerial(''), null);
 }
 
 {

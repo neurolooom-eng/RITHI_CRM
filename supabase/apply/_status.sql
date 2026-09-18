@@ -1081,6 +1081,14 @@ with checks(sort_order, bundle, provides, present) as (
          or exists (select 1 from pg_trigger
                      where tgrelid = 'public.spare_consumption'::regclass
                        and tgname = 'zz_consumption_needs_visit' and not tgisinternal)))
+,
+    (167, 'The report''s visit dates have three sources, in order', 'consumption_report + imported_ts() (0215). Two asks on 2026-09-18: "Map the first booked date to Visit Entry Date, Visit Date & Time", then "For Imported Data - I need the Visit Entry Date; Visit Date & Time as in from the Import." THE ORDER IS THE RULE: the REAL visit first, then what the FILE said, then the first booking on that call. An imported date is a recorded fact from the system the data came out of; the first booking is only an approximation, so it goes last, and a real visit beats both. WHERE THE IMPORTED VALUES ARE: the Consumption upload maps Visit Date & Time straight onto created_at, so the first-booked fallback was already surfacing that one; everything it does not map falls into `data` keyed by the header as typed, which is where Visit Entry Date lands. imported_ts() reads it with case and punctuation squashed, so VISIT_ENTRY_DATE is the same column -- and returns NOTHING rather than raising on a cell holding "n/a", because a bare cast there would not spoil one cell, it would take the WHOLE REPORT down. The view also gains "Visit UID" at the END (create or replace can only append), which stays blank on rows with no visit: a date can be approximated and an identifier cannot. NO means the two visit columns are blank again on every row whose call was never visited. Restore: HandStock_X.sql',
+        (to_regclass('public.consumption_report') is null
+         or (to_regprocedure('public.imported_ts(jsonb,text)') is not null
+         and exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'consumption_report'
+                        and column_name = 'Visit UID')
+         and pg_get_viewdef('public.consumption_report'::regclass, true) ~ 'imported_ts')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

@@ -27,6 +27,53 @@ export interface Sheet {
   rows: Record<string, unknown>[];
 }
 
+// ---------------------------------------------------------------------------
+// A DATE CELL, so Excel holds a date rather than a string that looks like one.
+//
+// Reported from use (2026-09-18): "those Date Fields are not Complaint with the
+// Long Date Format of Excel". A formatted string is TEXT to Excel — it cannot
+// be sorted into order, filtered by month, subtracted from another, or given
+// the reader's own date format. Worse, every one of those operations quietly
+// returns something rather than refusing, so a column of dates that is really
+// text is wrong in a way nobody sees.
+//
+// A real date cell is a NUMBER plus a format: the serial goes in `<v>`, and `s`
+// points at an entry in styles.xml that tells Excel to render it as a date.
+// Both formats below are the ones the user asked for.
+// ---------------------------------------------------------------------------
+export interface XlsxDate { __xlsxDate: number; withTime: boolean }
+export const xlsxDate = (serial: number, withTime: boolean): XlsxDate =>
+  ({ __xlsxDate: serial, withTime });
+const isXlsxDate = (v: unknown): v is XlsxDate =>
+  typeof v === 'object' && v !== null && typeof (v as XlsxDate).__xlsxDate === 'number';
+
+// Style indexes into cellXfs below: 0 general, 1 date+time, 2 date only.
+const STYLE_DATETIME = 1;
+const STYLE_DATE = 2;
+
+// Excel is strict about this part: `fills` must carry BOTH the none and the
+// gray125 entries or it calls the file corrupt, and the custom formats have to
+// start at 164 because everything below is reserved.
+const STYLES_XML =
+  '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+  + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+  + '<numFmts count="2">'
+  + '<numFmt numFmtId="164" formatCode="dd-mmm-yyyy hh:mm:ss"/>'
+  + '<numFmt numFmtId="165" formatCode="dd-mmm-yyyy"/>'
+  + '</numFmts>'
+  + '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
+  + '<fills count="2"><fill><patternFill patternType="none"/></fill>'
+  + '<fill><patternFill patternType="gray125"/></fill></fills>'
+  + '<borders count="1"><border/></borders>'
+  + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+  + '<cellXfs count="3">'
+  + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+  + '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+  + '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+  + '</cellXfs>'
+  + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+  + '</styleSheet>';
+
 
 
 // XML text. `&` is replaced FIRST or it would escape the escapes. Control
@@ -52,6 +99,11 @@ const colRef = (n: number) => {
 function sheetXml(sheet: Sheet): string {
   const cell = (r: number, c: number, v: unknown) => {
     const ref = `${colRef(c)}${r}`;
+    // A DATE IS A NUMBER WITH A FORMAT, not a string that reads like one.
+    if (isXlsxDate(v)) {
+      const st = v.withTime ? STYLE_DATETIME : STYLE_DATE;
+      return `<c r="${ref}" s="${st}"><v>${v.__xlsxDate}</v></c>`;
+    }
     if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
     const s = String(v ?? '');
     if (s === '') return '';
@@ -74,6 +126,7 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
       + '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
       + '<Default Extension="xml" ContentType="application/xml"/>'
       + '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+      + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
       + sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')
       + '</Types>') },
     { path: '_rels/.rels', data: enc(
@@ -91,7 +144,11 @@ export function buildXlsx(sheets: Sheet[]): Uint8Array {
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
       + sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')
+      // The styles part needs a relationship id of its own, AFTER the sheets so
+      // theirs still line up with the sheetId in workbook.xml.
+      + `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`
       + '</Relationships>') },
+    { path: 'xl/styles.xml', data: enc(STYLES_XML) },
     ...sheets.map((s, i) => ({ path: `xl/worksheets/sheet${i + 1}.xml`, data: enc(sheetXml(s)) })),
   ];
 
