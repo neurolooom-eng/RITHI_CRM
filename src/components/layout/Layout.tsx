@@ -452,7 +452,23 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className={`app-shell ${collapsed ? 'app-collapsed' : ''} ${mobileOpen ? 'app-mobile-open' : ''}`}>
       {newBuild && (
         <div className="app-newbuild">
-          <span>A newer version{newBuild ? ` (v${newBuild})` : ''} is out — this tab is still on v{__APP_VERSION__}.</span>
+          {/* THE CHECK COMPARES BUILD IDS; THE MESSAGE USED TO PRINT THE
+              VERSION. A deploy that changes no version — SQL, a document, a
+              diagnostic — therefore announced "A newer version (v0.9.293) is
+              out — this tab is still on v0.9.293", telling somebody to update
+              to exactly what they already have. Reported 2026-09-18.
+
+              That is not a cosmetic slip: this banner exists because a fix can
+              be merged, deployed and still invisible to the person who
+              reported the fault, and a banner that cries wolf is one people
+              learn to dismiss — which costs the round trip it was built to
+              save. So it names a version only when the version actually
+              differs, and otherwise says what IS true: the build is older. */}
+          <span>
+            {newBuild && newBuild !== __APP_VERSION__
+              ? `A newer version (v${newBuild}) is out — this tab is still on v${__APP_VERSION__}.`
+              : `An update is out — this tab is running an earlier build of v${__APP_VERSION__}.`}
+          </span>
           <button className="btn btn-sm" disabled={refreshing} onClick={() => void forceRefresh()}>
             {refreshing ? 'Updating…' : '🧹 Clear Cache and Update'}
           </button>

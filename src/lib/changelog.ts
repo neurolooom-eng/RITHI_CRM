@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.295',
+    version: '0.9.297',
     date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,28 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.296',
+    date: '2026-09-18',
+    title: 'Pending Dispatch was telling Stores Incharge the wrong thing about their own access',
+    changes: [
+      'FIXED, and this one was mine from yesterday. Yesterday\u2019s change made the empty Pending Dispatch queue say whether you were seeing the whole queue or only part of it. It then read the wrong field and got the answer backwards: a Stores Incharge was told \u201cyour role is shown its own and its team\u2019s spares\u201d when in fact they are shown every spare request in the company.',
+      'Nothing about what they could SEE was ever restricted \u2014 Stores Incharge, Hotline, NSM, Commercial, Spare Coordinator and Tally Coordinator have been shown every spare request since office roles were introduced. Only the sentence on the screen was wrong.',
+      'An empty Pending Dispatch queue now says plainly, for those roles, that every approved spare has been booked out \u2014 which is what it means.',
+      'Nothing to run \u2014 no database change.',
+    ],
+  },
+  {
+    version: '0.9.295',
+    date: '2026-09-18',
+    title: 'Two screens that told you something they could not know',
+    changes: [
+      'PENDING DISPATCH no longer claims \u201cevery approved spare has been booked out\u201d to somebody who is only shown part of the queue. An empty list proves what YOU were shown, not what exists. Stores Incharge, Hotline, NSM, Commercial, Spare Coordinator and Tally Coordinator are shown every spare request, so for them the old wording was true and still appears. Everyone else now reads \u201cnothing waiting that you can see\u201d, and is told their role is shown its own and its team\u2019s spares.',
+      'THE UPDATE BANNER no longer offers you the version you are already running. It watches the BUILD, not the version number, so a release that changed only database scripts or documents was announcing \u201ca newer version (v0.9.293) is out \u2014 this tab is still on v0.9.293\u201d. It now names a version only when the version actually differs, and otherwise says the build is older. A banner that cries wolf is one people stop reading, and this one exists to save a round trip.',
+      'For the record: Stores Incharge has always been allowed to see every spare request \u2014 that has been true in the database since the office roles were introduced, and nothing about it changed here.',
+      'Nothing to run \u2014 no database change.',
     ],
   },
   {

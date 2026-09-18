@@ -340,6 +340,40 @@ export const SEE_ALL_ROLES = new Set([
 ]);
 export const roleSeesAllCalls = (role?: string): boolean => SEE_ALL_ROLES.has((role ?? '').toLowerCase());
 
+/** Does this reader see every record, or only their own and their team's?
+ *
+ *  IT TAKES THE USER, NOT A ROLE STRING, AND THAT IS THE WHOLE POINT. A `User`
+ *  carries TWO role fields and only one of them is the RBAC key:
+ *
+ *    user.rbacRole  — the profile's role verbatim ('stores_incharge')   <- this
+ *    user.role      — a COARSE app role, and `roleFromProfile()` collapses
+ *                     everything that is not admin / rm / rgm / viewer into
+ *                     'engineer'
+ *
+ *  So a Stores Incharge has `user.role === 'engineer'`. Passing that to a
+ *  role test is not a near miss, it is the wrong answer for four of the six
+ *  office roles — and it type-checks perfectly, exactly like `user.name`.
+ *  Shipped that way on 2026-09-18: Pending Dispatch told a Stores Incharge his
+ *  role was "shown its own and its team's spares" while the database was
+ *  showing him everything.
+ *
+ *  Taking the user removes the choice, so no call site can pick the wrong
+ *  field. `check:ui` also refuses `seesEveryRecord(user.role)` outright.
+ *
+ *  Mirrors `can_view_all_calls()`: an admin, the `data.view_all` grant, or one
+ *  of the office roles in SEE_ALL_ROLES above. It exists so a screen can tell
+ *  the truth when it has nothing to show — an empty list proves what the READER
+ *  was shown, never what exists. */
+export function seesEveryRecord(
+  user: { rbacRole?: string; role?: string } | null | undefined,
+  can: (action: string) => boolean,
+): boolean {
+  const key = String(user?.rbacRole ?? '').trim().toLowerCase();
+  if (key === 'admin') return true;
+  if (can('data.view_all')) return true;
+  return roleSeesAllCalls(key);
+}
+
 // A role's permissions. An EMPTY stored list means "not configured", so fall
 // back to the code defaults rather than leaving the role with no access — this
 // mirrors the server's has_perm() fallback and stops a blank app_roles row from

@@ -2622,6 +2622,63 @@ console.log('\n-- renewing a contract: the dates continue, they do not overlap -
   eq('...and each machine carries its own history', /last_contract_number:/.test(renew), true);
 }
 
+console.log('\n-- who sees every record: the client copy matches the SQL --');
+{
+  // A SECOND COPY OF A RULE GOES STALE — and this list already had two copies
+  // in the client before a third was added on top of them on 2026-09-18.
+  // SEE_ALL_ROLES is the one; everything else must go through it.
+  const sql = readFileSync('supabase/migrations/0035_data_view_all.sql', 'utf8');
+  const m = sql.match(/lower\(coalesce\(p\.role, ''\)\) in\s*\(([^)]*)\)/);
+  eq('0035 still states the office roles in one place', !!m, true);
+  const inSql = (m ? m[1] : '').match(/'([a-z_]+)'/g)?.map((x) => x.replace(/'/g, '')).sort() ?? [];
+  const ts = readFileSync('src/lib/rbac.ts', 'utf8');
+  const t = ts.match(/SEE_ALL_ROLES = new Set\(\[([\s\S]*?)\]\)/);
+  const inTs = (t ? t[1] : '').match(/'([a-z_]+)'/g)?.map((x) => x.replace(/'/g, '')).sort() ?? [];
+  eq('...and the client lists exactly the same roles', inTs, inSql);
+  eq('...which is six of them', inSql.length, 6);
+  eq('stores_incharge is one of them', inSql.includes('stores_incharge'), true);
+  // ONE list in the client, not two. A duplicate was added and removed the
+  // same day; this is what stops the third. It counts the six-role SEQUENCE —
+  // counting the word 'spare_coordinator' instead failed on correct code,
+  // because that name also appears as a role definition and in DEFAULT_PERMS.
+  const seq = /'hotline',\s*'nsm',\s*'commercial',\s*'spare_coordinator',\s*'stores_incharge',\s*'tally_coordinator'/g;
+  eq('the client states those six roles in exactly one place',
+    (code(ts).match(seq) ?? []).length, 1);
+}
+
+console.log('\n-- the scope test reads rbacRole, never the coarse role --');
+{
+  // `User` carries TWO role fields and only `rbacRole` is the RBAC key:
+  // `roleFromProfile()` collapses everything that is not admin/rm/rgm/viewer
+  // into 'engineer', so a Stores Incharge has `user.role === 'engineer'`.
+  // Passing that to a role test type-checks and is wrong for four of the six
+  // office roles — which shipped, and told a Stores Incharge his role saw only
+  // its own team while the database was showing him everything.
+  const rb = code(readFileSync('src/lib/rbac.ts', 'utf8'));
+  eq('seesEveryRecord takes the USER, so no call site can pick the wrong field',
+    /export function seesEveryRecord\(\s*user:/.test(rb), true);
+  eq('...and reads rbacRole', /user\?\.rbacRole/.test(rb), true);
+  eq('...and never the coarse one', /user\?\.role\b/.test(rb), false);
+  for (const f of readdirSync('src/modules').filter((x) => x.endsWith('.tsx'))) {
+    const src = code(readFileSync(`src/modules/${f}`, 'utf8'));
+    if (!/seesEveryRecord\(/.test(src)) continue;
+    eq(`${f} passes the user, not user.role`,
+      /seesEveryRecord\(\s*user\s*,/.test(src) && !/seesEveryRecord\(\s*String\(/.test(src), true);
+  }
+}
+
+console.log('\n-- the update banner does not offer you the version you have --');
+{
+  // It compares BUILD IDS and used to print the VERSION, so a deploy that
+  // changed no version announced "a newer version (v0.9.293) is out -- this
+  // tab is still on v0.9.293".
+  const lay = code(readFileSync('src/components/layout/Layout.tsx', 'utf8'));
+  eq('the banner checks whether the version actually differs',
+    /newBuild !== __APP_VERSION__/.test(lay), true);
+  eq('...and says something else when it does not',
+    /running an earlier build/.test(lay), true);
+}
+
 console.log('\n-- the role list does not promise Super Admin --');
 {
   const rb = readFileSync('src/lib/rbac.ts', 'utf8');
