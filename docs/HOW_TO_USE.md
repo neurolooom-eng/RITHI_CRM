@@ -373,11 +373,11 @@ typed into a form that reads it.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
   > **DESIGNATION AND ROLE ARE DIFFERENT THINGS, and they often differ.** The
-  > **Designation** is the job somebody holds in the company; the **RITHI role**
+  > **Designation** is the job somebody holds in the company; the **Permission**
   > is what this application lets them do. One person can be a *Regional
-  > Manager* by designation and a *Reporting Manager* in RITHI. Both now appear
-  > under your name in the top-right corner — the designation first, then the
-  > RITHI role, labelled so the two cannot be read as one. A designation set
+  > Manager* by designation and a *Reporting Manager* by permission. Both now
+  > appear under your name in the top-right corner — the designation first, then
+  > the permission, labelled so the two cannot be read as one. A designation set
   > here reaches the sign-in by itself; nobody has to re-type it.
   > **The role on this screen IS their access.** Change it here and it applies
   > to their sign-in straight away; they see it the next time they load the app.

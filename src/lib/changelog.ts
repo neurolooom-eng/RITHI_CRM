@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.305',
+    date: '2026-09-18',
+    title: 'That second line is called Permission',
+    changes: [
+      'THE LINE UNDER YOUR DESIGNATION NOW READS \u201cPermission\u201d instead of \u201cRITHI role\u201d \u2014 your word, and the better one: it says what the value DOES rather than which system it belongs to.',
+      'My Profile matches, and shows the two in the same order as the corner \u2014 Designation first, then Permission \u2014 so nobody has to work out that the two screens mean one thing.',
+      'The ROLE column in User Master is unchanged, as you asked.',
+      'No SQL.',
+    ],
+  },
+  {
     version: '0.9.304',
     date: '2026-09-18',
     title: 'Your designation and your RITHI role, both shown and told apart',

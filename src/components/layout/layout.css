@@ -261,7 +261,7 @@
   flex-direction: column;
   align-items: flex-start;
   line-height: 1.2;
-  /* CAPPED. "National Service Manager" beside "RITHI role · Spare Coordinator"
+  /* CAPPED. "National Service Manager" beside "Permission · Spare Coordinator"
      would otherwise widen the chip and push the rest of the header along; three
      lines at these sizes come to ~40px, which fits the 56px header with room. */
   max-width: 190px;
@@ -277,7 +277,7 @@
   font-weight: 600;
 }
 /* THE JOB SOMEBODY HOLDS. It sits directly under the name because that is what
-   a reader expects there, and the RITHI role moves below it wearing its own
+   a reader expects there, and the permission moves below it wearing its own
    label — the two differ often enough that an unlabelled line would be read as
    whichever the reader had in mind. Three lines at these sizes come to ~38px
    inside a 56px header, so nothing grows. */

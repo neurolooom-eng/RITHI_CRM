@@ -474,11 +474,14 @@ on testing the old shape. **When a migration replaces a definition, move the
   that suite must OWN the request** — pointed at somebody else's, RLS makes the
   UPDATE match zero rows and the assertion passes with the guard removed, which
   is what its first draft did.
-- **THE DESIGNATION AND THE RITHI ROLE ARE DIFFERENT THINGS AND ROUTINELY
+- **THE DESIGNATION AND THE PERMISSION ARE DIFFERENT THINGS AND ROUTINELY
   DIFFER** (the user, 2026-09-18, pointing at a User Master row reading
   Designation *"Regional Manager"* beside Role *"Reporting Manager"*). The
-  DESIGNATION is the job somebody holds in the company; the RITHI ROLE is what
-  this application grants. The header chip showed only `roleLabel(user)`,
+  DESIGNATION is the job somebody holds in the company; the second line is what
+  this application grants, and the user named it **PERMISSION** rather than
+  "RITHI role" (*"Instead of Rithi Role, Name it as Permission"*) — their word,
+  and the clearer one: it says what the value DOES rather than which system it
+  belongs to. The header chip showed only `roleLabel(user)`,
   unlabelled, in the place a reader looks for a job title — so the two were read
   as one. It shows the designation under the name and the role beneath it
   **saying which it is**; an unlabelled second line would have recreated the
