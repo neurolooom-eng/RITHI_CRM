@@ -4,14 +4,68 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (a Regional Manager could see strangers' calls — 0212
-BUILT AND NOT YET RUN, `_status.sql` row **164**, bundle `user_directory.sql`.
-Also outstanding: **re-run `Spare_1.sql` even if you already ran it** (0210
-changed); 0211 likewise — rows 162 and 163)_
+_Last updated: 2026-09-18 (Stores Incharge + Spare Coordinator get data.view_all
+— 0213 BUILT AND NOT YET RUN, `_status.sql` row **165**, bundle `rbac.sql`.
+0212 APPLIED, row 164)_
 
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — Stores Incharge and Spare Coordinator see every row
+
+*"data.view_all --- Stores In Charge, Spare Co-ordinator should be able to view
+all Rows. Fix this. I am working to Fix the Spares Module for Stores In Charge,
+Spare Coordinator, Commercial."*
+
+0213 merges `data.view_all` into **exactly those two roles**.
+
+**Commercial is named in that message as part of the MODULE being worked on, not
+as a role to grant**, so it is deliberately not included — and the suite asserts
+it did not pick the permission up by association.
+
+### What it does and does not change — worth stating before judging it by the screen
+
+Both roles **already** pass `can_view_all_calls()`, which names them directly,
+and every policy in this database consulting `data.view_all` consults that
+function too — all three of them (`handstock_opening`,
+`spare_consumption_history`, `spare_issue_history`). **There is no policy where
+this permission is the only way in.**
+
+So the grant is belt and braces, and worth having for that: it states the intent
+on Roles & Permissions, and it keeps working for somebody given a role KEY that
+is not one of the six names hard-coded in that function.
+
+**Which means: if rows are still missing after this, the permission was not the
+cause.** Both routes read `profiles.role`, so a person whose profile says
+`stores` or `Stores Incharge` rather than `stores_incharge` matches neither.
+`_who_can_this_person_see.sql` row 2 prints what their profile actually holds.
+
+### The negatives are the point
+
+The standing rule is that Regional Manager, Reporting Manager and Engineer are
+as the user set them. A grant reaching a fourth role is a worse failure than one
+reaching none, so the suite asserts each of those three is untouched, and
+`_status.sql` row 165 checks **both halves** — the two hold it, and those three
+do not. Mutation-tested each way.
+
+Two things needed a second attempt and both are the same lesson:
+
+- **The suite was vacuous first time.** Its fixture inserts run *after* the
+  migrations, replacing the rows 0213 had already granted — so it reported
+  "(none) hold it", which reads as a broken migration and was a broken test. It
+  re-runs 0213 after its fixtures now (the migration is idempotent, which is
+  what the live project does anyway).
+- **Row 165 read NO on a correct database.** Its first version policed a
+  whitelist of everyone else, and `technical_support` and `zoho_migration` hold
+  `data.view_all` legitimately from 0145. It names the three protected roles
+  instead — narrower, and the actual requirement.
+
+### Still to run on the live project
+
+`_status.sql` first — row **165**. Then `rbac.sql`.
 
 ---
 

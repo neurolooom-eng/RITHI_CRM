@@ -143,6 +143,13 @@ const MODULES = {
             // key is only a restriction once it is IN app_roles — a code
             // default reaches nobody on a project whose roles are all tuned.
             '0209_how_rithi_functions_key.sql',
+            // Stores Incharge and Spare Coordinator see every row (the user,
+            // 2026-09-18). Belt and braces rather than a new capability: both
+            // roles already pass can_view_all_calls() by NAME, and every policy
+            // consulting data.view_all consults that too. It makes the intent
+            // explicit on Roles & Permissions and survives a role key that is
+            // not one of the six hard-coded names. Those two roles only.
+            '0213_stores_and_spare_coordinator_see_all.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
