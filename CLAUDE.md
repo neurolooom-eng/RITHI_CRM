@@ -256,9 +256,9 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
-  **`ROLES_THAT_SEE_EVERY_RECORD` + `seesEveryRecord()` in `rbac.ts` are the
-  CLIENT copy of that list**, and they exist so a screen can tell the truth
-  when it has nothing to show. An empty list proves what the READER was shown,
+  **`SEE_ALL_ROLES` + `roleSeesAllCalls()` in `rbac.ts` are the CLIENT copy of
+  that list — ONE copy, and `seesEveryRecord(user, can)` is the wrapper a
+  screen uses**, so it can tell the truth when it has nothing to show. An empty list proves what the READER was shown,
   never what exists, so "nothing is waiting" and "nothing is waiting THAT YOU
   MAY SEE" are different claims and only an office role's empty screen supports
   the first. Pending Dispatch asserted the strong one to everybody (*"every
@@ -266,6 +266,22 @@ on testing the old shape. **When a migration replaces a definition, move the
   at an empty queue on 2026-09-18 could not tell whether it was clear or
   filtered — and neither could anybody he asked. `check:ui` compares the client
   list with 0035's SQL word for word; change one, change both.
+- **`user.role` IS NOT THE RBAC KEY — `user.rbacRole` IS**, and this is the
+  `user.name`/`fullName` trap in a second place. A `User` carries both, and
+  `roleFromProfile()` collapses everything that is not admin / rm / rgm /
+  viewer into **`'engineer'`** — so a Stores Incharge, an NSM, a Commercial and
+  a Tally Coordinator all have `user.role === 'engineer'`. Passing that to a
+  role test type-checks, reads correctly, and is the wrong answer for four of
+  the six office roles. It shipped on 2026-09-18 in the fix for the line above:
+  Pending Dispatch told a Stores Incharge his role was "shown its own and its
+  team's spares" while the database was showing him everything — the screen was
+  wrong in the opposite direction from the bug it was fixing.
+  **`seesEveryRecord()` takes the USER rather than a role string** precisely so
+  no call site can pick the wrong field, and `check:ui` refuses both halves (the
+  helper reading `user.role`, and any module passing it).
+  **And it was a THIRD copy of a list that already existed twice.** `access.ts`
+  had been calling `roleSeesAllCalls(identity.rbacRole)` correctly all along.
+  Look for the helper before writing one.
 - **A BLANK NAME IS NOT A MANAGER, and it used to match one** (0212, reported
   2026-09-18: *"Why is a Regional Manager able to see everyone's call and every
   spare request?"*). `visible_engineer_names()` walks `user_directory` DOWNWARDS

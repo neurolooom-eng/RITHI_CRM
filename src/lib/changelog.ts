@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.296',
+    date: '2026-09-18',
+    title: 'Pending Dispatch was telling Stores Incharge the wrong thing about their own access',
+    changes: [
+      'FIXED, and this one was mine from yesterday. Yesterday\u2019s change made the empty Pending Dispatch queue say whether you were seeing the whole queue or only part of it. It then read the wrong field and got the answer backwards: a Stores Incharge was told \u201cyour role is shown its own and its team\u2019s spares\u201d when in fact they are shown every spare request in the company.',
+      'Nothing about what they could SEE was ever restricted \u2014 Stores Incharge, Hotline, NSM, Commercial, Spare Coordinator and Tally Coordinator have been shown every spare request since office roles were introduced. Only the sentence on the screen was wrong.',
+      'An empty Pending Dispatch queue now says plainly, for those roles, that every approved spare has been booked out \u2014 which is what it means.',
+      'Nothing to run \u2014 no database change.',
+    ],
+  },
+  {
     version: '0.9.295',
     date: '2026-09-18',
     title: 'Two screens that told you something they could not know',
