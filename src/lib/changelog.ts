@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.301',
+    version: '0.9.303',
     date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,34 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.302',
+    date: '2026-09-18',
+    title: 'A spare can no longer be marked received before it was sent \u2014 and view-all for every role but three',
+    changes: [
+      'A HOLE WE OPENED YESTERDAY, CLOSED. Three rules had been dropped from the spare-line guard by mistake: a line could be marked RECEIVED before Stores had dispatched it, ANY engineer could acknowledge another engineer\u2019s spare, and any engineer could change the PART or QUANTITY on somebody else\u2019s line. All three refusals are back. Nothing you did wrong, and nothing to correct at your end \u2014 but worth knowing it was open for a day.',
+      'DATA.VIEW_ALL NOW APPLIES TO EVERY ROLE EXCEPT Regional Manager, Reporting Manager and Engineer \u2014 those three keep seeing their own work and their team\u2019s, which is what the reporting tree is for. It is written as that RULE rather than as a list of roles, so a role added later is covered without anybody remembering to add it.',
+      'IT DOES NOT TAKE THE PERMISSION AWAY from any of the three. If one of them is holding it from a hand tick on Roles & Permissions, the SQL says so in its output, clearly marked \u2014 removing it is your decision, not something a migration does quietly to a role you asked us not to touch.',
+      'A role with NO permissions ticked at all is left alone, and the output says which. An empty list means \u201cnot configured\u201d, and writing a single permission into it would switch off everything else that role could do.',
+      'THE RE-UPLOAD CHECK NOW RUNS BEFORE THE SQL IT ASKS ABOUT. _do_i_need_to_reupload.sql used a function that 0215 creates \u2014 so the one file whose job is to tell you whether you need to run anything could only run after you had run it. It stands on its own now.',
+      'HOW TO FILL VISIT DATE & TIME AND VISIT ENTRY DATE on consumption data, written up in the handbook: they are not fields on the spare line, they come from the VISIT \u2014 so load the visits under Bulk Uploads \u2192 Visit Reports, keyed by UCN, and every spare on that call fills in, Visit UID included.',
+      'Every test in the project now runs clean again \u2014 93 suites and 16 checks. Ten of them had been failing since yesterday, which is how the hole above was found.',
+      'SQL to run: Spare_1.sql (the receipt fix \u2014 please run this one first) and rbac.sql (the permission). Still outstanding from yesterday: HandStock_X.sql, after _status.sql rows 166, 167 and 168.',
+    ],
+  },
+  {
+    version: '0.9.301',
+    date: '2026-09-18',
+    title: 'Three columns ticked to start with on the Consumption Report \u2014 and Visit UID is reachable',
+    changes: [
+      'LINE ID, SOURCE REF KEY AND CREATED AT ARE TICKED TO START WITH on the Consumption Report. They are a starting point, not a rule: untick any of them, and \u201cBack to the default columns\u201d puts them back. The sixteen above are still locked, because those are the format that was handed over.',
+      'NOTHING TO RE-UPLOAD FOR THEM. All three are already on every row that exists. Source Ref Key is the row id from the file a line was imported from, so it is blank on anything booked in the app \u2014 that is correct, not a gap. Created At on an imported row is the date the FILE gave, not the day it was loaded.',
+      'VISIT UID WAS ADDED TO THE DATABASE YESTERDAY AND THE REPORT COULD NOT OFFER IT. The column picker is built from a list that was not updated with it, so it was invisible to everybody for a day. It is in the picker now, at the end with the other optional columns.',
+      'NUMBERS IN THE .XLSX ARE REAL NUMBERS NOW, the same fix the dates had. Line ID used to sort 1, 10, 100, 2 and a SUM over QTY answered 0, because both were being written as text. Identifiers are left alone on purpose \u2014 a serial number like 0012345 keeps its leading zeros instead of becoming 12345.',
+      'A check asks the database which columns each of the three reports actually has, and fails if the picker and the view disagree either way \u2014 a column the picker cannot offer, or one it offers that would come out empty. That is what went wrong with Visit UID, and nothing in the project could have seen it.',
+      'No SQL to run for this one. Still outstanding from yesterday: HandStock_X.sql, at the top of the repository (check _status.sql rows 166 and 167 first).',
     ],
   },
   {

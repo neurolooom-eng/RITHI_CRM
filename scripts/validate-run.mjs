@@ -152,7 +152,15 @@ const NEEDS_DB = { 'check:views': 'db', 'check:status': 'db', 'check:upserts': '
                    // in a chained call, and only the database knows what a
                    // view actually publishes (`dl.id as line_id` reads like an
                    // `id` until you look twice).
-                   'check:orders': 'db' };
+                   'check:orders': 'db',
+                   // Every report's column picker against the view it exports.
+                   // Same argument as the line above: the lists are strings in
+                   // a TypeScript file and the view is in Postgres, so only a
+                   // database can say whether they still agree. Both directions
+                   // are silent — an unlisted view column can be exported by
+                   // nobody, and a listed one the view lost exports an empty
+                   // column under a heading that promises a value.
+                   'check:reports': 'db' };
 // `check:safe-updates` and `check:mapping` take no connection — the first
 // version handed them psql arguments and they read them as a DIRECTORY.
 // THE CHECKS' DATABASE IS BUILT BY APPLYING THE MIGRATIONS, NOT BY COPYING THE
@@ -185,7 +193,17 @@ for (const name of Object.keys(pkg.scripts).filter((k) => k.startsWith('check:')
     : kind === 'nodb' ? ` -- "${PSQL_ARGS.join(' ')}"` : '';
   try {
     const out = execSync(`npm run ${name}${arg}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    results.checks.push({ name, ok: !/FAILED/.test(out), detail: (out.trim().split('\n').pop() || '').slice(0, 200) });
+    // ANCHORED, NOT A SUBSTRING. Every check ends with either `all passed` or
+    // `<n> FAILED` on a line of its own, and `execSync` has already thrown if
+    // the script exited non-zero -- so reaching here means it succeeded. A bare
+    // /FAILED/ over the whole output reads the check's own PROSE: `check:ui`
+    // has a PASSING assertion labelled "a failure is dated by when it FAILED",
+    // and that one word marked the entire check failed in this record while it
+    // passed everywhere else. Same fault as the GST check that matched "18%"
+    // in its own comment -- a harness must match what a tool REPORTS, never
+    // what it happens to mention.
+    results.checks.push({ name, ok: !/^\s*\d+ FAILED\s*$/m.test(out),
+      detail: (out.trim().split('\n').pop() || '').slice(0, 200) });
   } catch (e) {
     const out = `${e.stdout || ''}${e.stderr || ''}`;
     const lines = out.split('\n').filter((l) => /✗|FAILED|Error|error/.test(l)).slice(0, 4);

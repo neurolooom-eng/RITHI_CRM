@@ -235,7 +235,12 @@ select 'the requester may not approve spares' as check,
 select 'but RLS does let them write their own request' as check,
        public.is_spare_requester(r.*)::text as should_be_true
   from public.spare_requests r where r.uid = 'SRQ-SELF';
--- expect ERROR: Spare approvals are recorded per spare
+-- AN `\echo`, NOT A SQL COMMENT. The validation harness reads the suite's
+-- OUTPUT and pairs each `expect ERROR` line with the next error; a `--` comment
+-- never reaches the output, so this expectation was invisible and its error was
+-- counted as an unexpected one. Written as a comment here when the suite was
+-- added with 0210.
+\echo 'expect ERROR: Spare approvals are recorded per spare'
 update public.spare_requests
    set rm_approval = 'Approved', commercial_approval = 'Approved',
        nsm_approval = 'Approved', stores_status = 'Dispatched', received_at = now()

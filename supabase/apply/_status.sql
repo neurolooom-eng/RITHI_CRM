@@ -1089,6 +1089,17 @@ with checks(sort_order, bundle, provides, present) as (
                       where table_schema = 'public' and table_name = 'consumption_report'
                         and column_name = 'Visit UID')
          and pg_get_viewdef('public.consumption_report'::regclass, true) ~ 'imported_ts')))
+,
+    (168, 'The spare line guard still carries all six of its rules', 'spare_request_lines_guard() (0016 -> 0036, repaired by 0217). 0210 rewrote this function to add the HandStock NSM rule and rebuilt its body from an OLD revision: three rules went in and three came out. It kept RM, Commercial and NSM approval and silently lost the dispatch permission, the rejection permission, the whole RECEIPT block and the parts rule. MEASURED, not reasoned about -- on a database built from every migration, an engineer marked a line RECEIVED that had never been dispatched (UPDATE 1, no refusal, stage straight to Received), a DIFFERENT engineer acknowledged somebody else''s spare, and any engineer could change the PART or QUANTITY on another engineer''s line, which no test covered at all. WHY NOTHING SAW IT: check:replay compares each bundle against all.sql and both are built from the same migrations, so a function truncated in the migration is truncated identically in both and they agree perfectly. The suite DID fail and the validation record named the WRONG two expectations, because the harness pairs each expect ERROR with the next error IN ORDER -- two guards stopped firing early in the file, so every later pairing shifted and the report blamed the last two labels. THIS ROW COUNTS THE RULES rather than reading the file: six raise-exception clauses, named individually, so a rewrite that drops any one of them answers NO here however plausible the file looks. It is the 0211 lesson a second time -- READ A FUNCTION OUT OF THE DATABASE BEFORE REPLACING IT, not out of the migration that first created it. NO means receipt, dispatch, rejection or the parts rule is unguarded. Restore: Spare_1.sql',
+        (to_regprocedure('public.spare_request_lines_guard()') is null
+         or (pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'spare.approve_rm'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'spare.approve_commercial'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'spare.approve_nsm'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'dispatch / DC requires'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'recording a rejection requires'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'only be acknowledged after it is dispatched'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'may acknowledge it'
+         and pg_get_functiondef(to_regprocedure('public.spare_request_lines_guard()')) ~ 'may change its parts')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

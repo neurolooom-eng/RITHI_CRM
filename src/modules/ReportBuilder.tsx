@@ -62,6 +62,13 @@ export interface ReportSpec<F extends Record<string, string>> {
   rowMeaning: string;
   mandatory: string[];
   optional: string[];
+  /** Optional columns that start TICKED. A starting point, not a rule — the
+   *  reader can untick any of them, which is the whole difference between this
+   *  and `mandatory`. Every entry must also be in `optional`, or it would be
+   *  ticked here and dropped by `columns()` on the way out; `check:ui` refuses
+   *  that, because a column that is ticked and absent from the file is the kind
+   *  of wrong nobody looks for. */
+  defaults?: string[];
   emptyFilter: F;
   fields: ReportFilterField<F>[];
   describe: (f: F) => string;
@@ -80,7 +87,7 @@ export interface ReportSpec<F extends Record<string, string>> {
 
 export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec: ReportSpec<F> }) {
   const [filter, setFilter] = useState<F>(spec.emptyFilter);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(spec.defaults ?? []));
   const [count, setCount] = useState<number | null>(null);
   const [countErr, setCountErr] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -104,7 +111,7 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
 
   // A report is rebuilt from scratch when the reader switches to another one,
   // so a filter typed for calls is never silently applied to feedback.
-  useEffect(() => { setFilter(spec.emptyFilter); setPicked(new Set()); setMsg(''); },
+  useEffect(() => { setFilter(spec.emptyFilter); setPicked(new Set(spec.defaults ?? [])); setMsg(''); },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [spec.key]);
 
@@ -147,6 +154,18 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
       // refusing. Reported 2026-09-18, after the string itself was fixed.
       const asText = (v: unknown) => formatDayTime(v ?? '');
       const asCell = (v: unknown) => {
+        // A NUMBER STAYS A NUMBER. The same argument as the dates below: a
+        // spreadsheet cannot sort, sum or filter a number it was handed as
+        // text, and each of those returns something WRONG rather than refusing
+        // — Line ID sorts 1, 10, 100, 2, and SUM over QTY answers 0.
+        // `typeof v === 'number'` is the whole test on purpose: PostgREST sends
+        // the database's numeric columns as JSON numbers and its text columns
+        // as strings, so this converts exactly the columns Postgres calls
+        // numbers. Testing whether a STRING looks numeric would be the MP-010
+        // mistake in the other direction — a Serial No, Call Number, Contract
+        // No or UCN of all digits would lose its leading zeros and stop being
+        // an identifier.
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
         const serial = excelSerial(v ?? '');
         // Not a date — a part code, a UCN, a remark. Text, untouched.
         if (serial === null) return formatDayTime(v ?? '');
@@ -242,6 +261,15 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
           included — shown here ticked and locked so it is clear they are a rule rather than an
           omission.
         </p>
+        {!!spec.defaults?.length && (
+          <p className="muted" style={{ marginTop: 0, fontSize: 12.5 }}>
+            {spec.defaults.join(', ')} {spec.defaults.length === 1 ? 'is' : 'are'} ticked to start
+            with. Untick {spec.defaults.length === 1 ? 'it' : 'any of them'} if you do not want
+            {spec.defaults.length === 1 ? ' it' : ' them'} — unlike the {spec.mandatory.length}{' '}
+            above, {spec.defaults.length === 1 ? 'it is' : 'they are'} a starting point rather than
+            a rule.
+          </p>
+        )}
         <div className="obj-cutoff-grid">
           {spec.mandatory.map((c) => (
             <label key={c} className="muted" style={{ fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -266,6 +294,12 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
                   onClick={() => setPicked(new Set())}>
             Just the report format
           </button>
+          {!!spec.defaults?.length && (
+            <button className="btn btn-ghost btn-sm" disabled={busy}
+                    onClick={() => setPicked(new Set(spec.defaults ?? []))}>
+              Back to the default columns
+            </button>
+          )}
         </div>
 
         <div className="row" style={{ gap: 8, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
