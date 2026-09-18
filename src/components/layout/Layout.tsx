@@ -336,6 +336,10 @@ function ThemeMenu() {
 
 export function Layout({ children }: { children: ReactNode }) {
   const { user, logout, can, managerViewMode, setManagerViewMode } = useAuth();
+  // FROM THE USER MASTER, and blank for anybody whose row does not carry one —
+  // which is most of a part-filled directory. The chip then shows the name and
+  // the permission alone rather than an empty line where a job title should be.
+  const designation = String(user?.designation ?? '').trim();
   const navCounts = useModuleCounts();
   const navigate = useNavigate();
   const isManagerRole = user?.rbacRole === 'rm' || user?.rbacRole === 'rgm';
@@ -566,9 +570,20 @@ export function Layout({ children }: { children: ReactNode }) {
               <span className={`user-avatar${user?.unresolved ? ' user-avatar-unresolved' : ''}`}
                 title={user?.unresolved ? 'Your profile did not load — open My Profile' : undefined}>
                 {user?.fullName?.[0] ?? '?'}</span>
+              {/* THE DESIGNATION AND THE PERMISSION ARE DIFFERENT THINGS AND
+                  ROUTINELY DIFFER (the user, 2026-09-18, pointing at a User
+                  Master row reading Designation "Regional Manager" beside Role
+                  "Reporting Manager"). The DESIGNATION is the job somebody
+                  holds in the company; the second line is what this application
+                  grants them, and the user named it PERMISSION rather than
+                  "RITHI role" — their word, and the clearer one, since it says
+                  what the value DOES rather than which system it belongs to.
+                  Showing one unlabelled where the other used to be is how they
+                  get read as the same thing, so the line SAYS which it is. */}
               <span className="user-meta">
                 <span className="user-name">{user?.fullName}</span>
-                <span className="user-role">{roleLabel(user)}</span>
+                {!!designation && <span className="user-designation">{designation}</span>}
+                <span className="user-role">Permission · {roleLabel(user)}</span>
               </span>
               <span>▾</span>
             </button>
@@ -577,6 +592,14 @@ export function Layout({ children }: { children: ReactNode }) {
                 <div className="user-menu-head">
                   <b>{user?.fullName}</b>
                   <div className="muted">{user?.email}</div>
+                  {/* Both, LABELLED, where there is room to label them. The chip
+                      has to be terse; this does not. */}
+                  <dl className="user-menu-facts">
+                    <dt>Designation</dt>
+                    <dd>{designation || <span className="muted">not set in User Master</span>}</dd>
+                    <dt>Permission</dt>
+                    <dd>{roleLabel(user)}</dd>
+                  </dl>
                 </div>
                 <button className="user-menu-item" onClick={() => { setMenuOpen(false); navigate('/profile'); }}>My Profile</button>
                 <button className="user-menu-item" disabled={refreshing} onClick={() => void forceRefresh()}>

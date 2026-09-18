@@ -14,7 +14,7 @@ import { machineKey } from './machine';
 import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
-import { byColumnSet } from './uploads';
+import { byColumnSet, planConsumptionVisits } from './uploads';
 import { callTable } from './calltype';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { manualMatchesCall } from './docmatch';
@@ -3640,10 +3640,57 @@ export async function saveAdditionalEntry(e: Partial<AdditionalEntry>): Promise<
 const IN_CHUNK = 200;   // keeps the request URL well inside every gateway's limit
 
 export async function prepareUpload(
-  kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers',
+  kind: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
+    | 'consumption-visits',
   rows: Record<string, unknown>[],
 ): Promise<{ ok: boolean; note?: string; error?: string }> {
   const c = getSupabase(); if (!c) return { ok: false, error: 'Database not connected.' };
+
+  // ---- A SPARE NEEDS A VISIT, AND THE FILE USUALLY SAYS WHAT IT WAS -------
+  //
+  // 0214 refuses a consumption row whose call has no `reports` entry. On a bulk
+  // load that arrived as a failure on ROW 1 with nothing written, which is
+  // correct and unhelpful: the visit those rows describe is IN THE FILE.
+  // `Visit Date & Time` is mapped onto `created_at` by this upload already, and
+  // `Visit Entry Date` falls into `data` with the other unmapped headings.
+  //
+  // So the visit is FILED FIRST, from the file's own values. Nothing is
+  // invented -- a UCN the file gives no date for keeps no visit, and its rows
+  // are held back BY NAME so the rest of the file still loads. That is the
+  // whole gain over the database's refusal, which could only stop everything.
+  //
+  // THE UID CONVENTION IS `REPORT_COLS`' OWN, character for character:
+  // `IMP-<ucn>-<yyyymmddhhmmss>`. Loading the same data through Bulk Uploads ->
+  // Visit Reports then lands on the SAME row rather than a second visit of the
+  // same call on the same day, and re-running either is idempotent.
+  if (kind === 'consumption-visits') {
+    const ucns = [...new Set(rows.map((r) => String(r.ucn ?? '').trim()).filter(Boolean))];
+    if (!ucns.length) return { ok: true };
+
+    // Which calls already have a visit. Chunked like every other `in` here.
+    const have = new Set<string>();
+    for (let i = 0; i < ucns.length; i += IN_CHUNK) {
+      const { data, error } = await c.from('reports').select('ucn').in('ucn', ucns.slice(i, i + IN_CHUNK));
+      if (error) return { ok: false, error: `Could not read the visits: ${errMsg(error)}` };
+      (data ?? []).forEach((r) => have.add(String(r.ucn ?? '').trim()));
+    }
+
+    // WHAT to write and what to hold back is decided in `uploads.ts`, where a
+    // node script can import it and `check:uploads` can prove it. Only the two
+    // round trips are here.
+    const plan = planConsumptionVisits(rows, have);
+
+    for (let i = 0; i < plan.visits.length; i += 200) {
+      const { error } = await c.from('reports')
+        .upsert(plan.visits.slice(i, i + 200), { onConflict: 'uid' });
+      if (error) return { ok: false, error: `Could not file the visits these spares belong to: ${errMsg(error)}` };
+    }
+
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      if (plan.holdBack.has(String(rows[i].ucn ?? '').trim())) rows.splice(i, 1);
+    }
+    return { ok: true, note: plan.note || undefined };
+  }
 
   // ---- Hand stock belongs to an ACTIVE ENGINEER ---------------------------
   //

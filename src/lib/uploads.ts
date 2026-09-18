@@ -126,7 +126,8 @@ export interface UploadDef {
    *  cannot see the parent it is being asked about and refuses the row — which
    *  is what "Your role does not have permission for this action." on row 1
    *  was. Prepared here, the upload no longer depends on that at all. */
-  prepare?: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers';
+  prepare?: 'spare-line-parents' | 'stock-transfer-parents' | 'handstock-engineers'
+    | 'consumption-visits';
   /** How rows that collide on the DATABASE's key are folded together, where the
    *  key is COMPUTED and the raw columns do not show the collision. Hand stock
    *  is keyed on the part CODE, so two WinMax lines for ACC-081 with different
@@ -535,6 +536,103 @@ const ARCHIVE_LABEL = {
   hint: 'Written on every row as its source. A batch loaded in error is deleted by this label, so make it specific — "AppSheet calls 2016-2019", not "old data".',
 };
 
+// ---------------------------------------------------------------------------
+// THE VISIT BEHIND A BULK-LOADED SPARE — the pure half, so it can be TESTED.
+//
+// 0214 refuses a consumption row whose call has no `reports` entry (the user:
+// "No Consumption should be accepted without these Details"). On a bulk load
+// that arrived as a failure on ROW 1 with nothing written — correct, and
+// useless as an answer, because the visit those rows describe is IN THE FILE:
+// `Visit Date & Time` is already mapped onto `created_at` by this register, and
+// `Visit Entry Date` falls into `data` with the other unmapped headings.
+//
+// So the visit is RECORDED rather than the guard evaded, and NOTHING IS
+// INVENTED: a call the file gives no date for gets no visit, and its rows are
+// held back BY NAME so the rest of the file still loads. That last part is the
+// whole gain over the database's refusal, which can only stop everything.
+//
+// IT LIVES HERE, NOT IN `supabase.ts`, FOR THE `paging.ts` REASON: that module
+// reads `import.meta.env`, so no node script can import it and nothing in it
+// can be tested as behaviour. `prepareUpload` keeps the two round trips and
+// this decides what they should say — `check:uploads` proves it.
+// ---------------------------------------------------------------------------
+export interface ConsumptionVisitPlan {
+  /** One row per UCN to upsert into `reports`, keyed on `uid`. */
+  visits: Record<string, unknown>[];
+  /** UCNs whose rows must be dropped: no visit, and no date to file one from. */
+  holdBack: Set<string>;
+  /** What to tell the reader — both halves, in their words. */
+  note: string;
+}
+
+const squashKey = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export function planConsumptionVisits(
+  rows: Record<string, unknown>[],
+  haveVisit: Set<string>,
+): ConsumptionVisitPlan {
+  // ONE VISIT PER UCN, never one per spare line. Three parts fitted on one
+  // visit are ONE event; keyed per row they become three visits of the same
+  // call, and its status then comes from whichever was written last.
+  const wanted = new Map<string, Record<string, unknown>>();
+  const noDate = new Set<string>();
+
+  for (const r of rows) {
+    const ucn = String(r.ucn ?? '').trim();
+    if (!ucn || haveVisit.has(ucn) || wanted.has(ucn)) continue;
+    const visitAt = String(r.created_at ?? '').trim();
+    if (!visitAt) { noDate.add(ucn); continue; }
+
+    const extra = (r.data ?? {}) as Record<string, unknown>;
+    let entry = '';
+    let status = '';
+    for (const [k, v] of Object.entries(extra)) {
+      const t = String(v ?? '').trim();
+      if (!t) continue;
+      if (squashKey(k) === 'visitentrydate') entry = toIsoTimestamp(t) ?? '';
+      if (squashKey(k) === 'callstatus') status = t;
+    }
+
+    wanted.set(ucn, {
+      // `REPORT_COLS`' OWN CONVENTION, character for character, so loading the
+      // same data through Bulk Uploads -> Visit Reports lands on the SAME row
+      // rather than a second visit of one call on one day.
+      uid: `IMP-${ucn}-${visitAt.slice(0, 19).replace(/[:T-]/g, '')}`,
+      ucn,
+      call_number: String(r.call_number ?? '').trim(),
+      engineer: String(r.engineer ?? '').trim(),
+      engineer_email: String(r.engineer_email ?? '').trim(),
+      visit_at: visitAt,
+      // The file's entry date if it carried one, else the visit date — NEVER
+      // `now()`, which would let the moment of the import decide the call's
+      // status through `sync_call_last_visit()` (0032 takes the latest ENTRY).
+      updated_at: entry || visitAt,
+      // BLANK IS NOT NEUTRAL: `open_state` reads a visit with no status as
+      // "Report pending". A file that carries one is believed; one that does
+      // not leaves the call to that rule rather than to a guess of ours.
+      ...(status ? { call_status: status } : {}),
+    });
+  }
+
+  const holdBack = new Set([...noDate].filter((u) => !wanted.has(u)));
+  const dropped = rows.filter((r) => holdBack.has(String(r.ucn ?? '').trim())).length;
+
+  const bits: string[] = [];
+  if (wanted.size) {
+    bits.push(`${wanted.size} visit${wanted.size === 1 ? '' : 's'} filed from this file\u2019s`
+      + ' Visit Date & Time, so the spares have a visit behind them \u2014 they carry a Visit UID'
+      + ' now, and any call whose status the file did not give reads as Report pending.');
+  }
+  if (dropped) {
+    const shown = [...holdBack].sort().slice(0, 6).join(', ');
+    bits.push(`${dropped} row${dropped === 1 ? '' : 's'} held back \u2014 their call has no visit and`
+      + ` the file gives no Visit Date & Time (${shown}`
+      + `${holdBack.size > 6 ? `, and ${holdBack.size - 6} more` : ''}).`
+      + ' Add that column, or file those visits, and load them again.');
+  }
+  return { visits: [...wanted.values()], holdBack, note: bits.join(' ') };
+}
+
 export const UPLOADS: UploadDef[] = [
   // ---- calls. One table behind three registers; the call type is STAMPED
   // from the register you picked, so a PM sheet cannot land as a field call.
@@ -679,7 +777,21 @@ export const UPLOADS: UploadDef[] = [
     ] },
   { key: 'spare_consumption', label: 'Consumption', group: 'Spares', table: 'spare_consumption',
     requires: 'Field Calls', extraInto: 'data', conflict: 'source_ref_key', conflictFrom: ['source_ref'],
-    note: 'Matched on the export\u2019s own row id, so re-loading a corrected sheet updates those lines rather than adding them again. GRIR / Traceability is carried through — it is which part was actually fitted, not just which kind.',
+    // THE VISIT IS FILED FROM THE FILE'S OWN DATES, BEFORE THE SPARES.
+    //
+    // 0214 refuses a spare booked against a call nobody has visited (the user:
+    // "No Consumption should be accepted without these Details"), and a bulk
+    // load hit that on ROW 1 with nothing written -- correct, and useless as an
+    // answer, because the visit those rows describe is right there in the file:
+    // `Visit Date & Time` is the column this upload already maps onto
+    // `created_at`, and `Visit Entry Date` lands in `data`.
+    //
+    // So the visit is RECORDED rather than the guard evaded. Nothing is
+    // invented: a row whose file gives no visit date is held back BY NAME and
+    // the rest of the file loads, which is the one thing the all-or-nothing
+    // refusal could not do.
+    prepare: 'consumption-visits',
+    note: 'Matched on the export\u2019s own row id, so re-loading a corrected sheet updates those lines rather than adding them again. GRIR / Traceability is carried through — it is which part was actually fitted, not just which kind. A call with no visit yet has one FILED FROM THIS FILE\u2019s Visit Date & Time before the spares are written (0214 refuses a spare with no visit behind it); a row that gives no visit date is held back and named, and the rest still loads.',
     cols: [
       { to: 'part', from: ['spares used', 'part', 'part no', 'spare'], required: true },
       // `Consumed Qty` is the authoritative one where both are present.

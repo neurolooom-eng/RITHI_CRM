@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.303',
+    version: '0.9.306',
     date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,43 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.305',
+    date: '2026-09-18',
+    title: 'That second line is called Permission',
+    changes: [
+      'THE LINE UNDER YOUR DESIGNATION NOW READS \u201cPermission\u201d instead of \u201cRITHI role\u201d \u2014 your word, and the better one: it says what the value DOES rather than which system it belongs to.',
+      'My Profile matches, and shows the two in the same order as the corner \u2014 Designation first, then Permission \u2014 so nobody has to work out that the two screens mean one thing.',
+      'The ROLE column in User Master is unchanged, as you asked.',
+      'No SQL.',
+    ],
+  },
+  {
+    version: '0.9.304',
+    date: '2026-09-18',
+    title: 'Your designation and your RITHI role, both shown and told apart',
+    changes: [
+      'THE TOP-RIGHT CORNER NOW SHOWS YOUR DESIGNATION \u2014 the job you hold \u2014 under your name, taken straight from the User Master.',
+      'AND THE RITHI ROLE SITS BELOW IT, SAYING SO. The two are different things and routinely differ: MAHESH M is a Regional Manager by designation and a Reporting Manager in RITHI. Only the role was shown before, unlabelled, in the place a reader looks for a job title \u2014 so the two were being read as one.',
+      'Somebody whose User Master row carries no designation sees no empty line: the name and the RITHI role, as before.',
+      'Opening the menu shows both again with their labels, beside your email \u2014 and says plainly when a designation has not been set in the User Master.',
+      'A designation set in the User Master reaches the sign-in on its own; nobody has to re-type it anywhere.',
+      'No SQL for this one.',
+    ],
+  },
+  {
+    version: '0.9.303',
+    date: '2026-09-18',
+    title: 'The Consumption upload files the visit from your file, instead of stopping on row 1',
+    changes: [
+      'YOUR RE-UPLOAD WORKS NOW. \u201cNo visit has been filed on 26H26F0029\u201d stopped the whole file with nothing written \u2014 correct, since a spare has to belong to a visit, and useless as an answer, because the visit was in your file all along. The upload now FILES THE VISIT FIRST from the file\u2019s own Visit Date & Time, then writes the spares.',
+      'SO THE TWO DATE COLUMNS FILL THEMSELVES, and so does Visit UID. That is the same question from earlier today answered at the source: you do not have to load a separate Visit Reports file first, as long as your consumption file carries Visit Date & Time.',
+      'NOTHING IS INVENTED. A call with no visit AND no date in the file gets no visit \u2014 those rows are HELD BACK and listed by UCN, and the rest of the file still loads. That is the part the old all-or-nothing refusal could not do.',
+      'ONE VISIT PER CALL, not one per spare line: three parts fitted on one visit stay one visit. Re-loading the same file updates it rather than adding a second visit of the same call on the same day.',
+      'TWO THINGS THAT LOAD ALSO DOES, worth knowing before you run it: a Call Status in your file becomes the call\u2019s status, and a call whose status the file does not give will read Report pending \u2014 which is more accurate than the Unattended it reads today, but it is a change you will see on the call register.',
+      'No SQL for this one. Everything you ran earlier today is in.',
     ],
   },
   {

@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (⚠️ 0217 restores three rules 0210 dropped from the
+_Last updated: 2026-09-18 (the Consumption upload files the visit from the file,
+so a bulk load no longer stops on row 1 — CLIENT ONLY. Before that: ⚠️ 0217
+restores three rules 0210 dropped from the
 spare line guard — RUN Spare_1.sql; data.view_all for every role but three;
 the re-upload probe no longer needs 0215 to run;
 how to fill the two visit columns. Before that: default report columns, and the
@@ -18,6 +20,69 @@ in the ARCHIVE project and `ProdHistory_05.sql` in the LIVE one — none run yet
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — Designation in the header, and that line is called Permission
+
+> *"Display the Designation here, Add a New Place Holder for RITHI Role."*
+> …then: *"Not Required. Instead of Rithi Role, Name it as Permission."*
+
+The header chip showed only the role, unlabelled, in the place a reader looks
+for a job title — so the DESIGNATION (the job somebody holds) and what the app
+grants were being read as one. Both are shown now, and the second line is
+labelled **Permission**, the user's own word: it says what the value DOES rather
+than which system it belongs to.
+
+My Profile carries the same pair in the same order (Designation, then
+Permission), since it is the other place both appear.
+
+**DECIDED AND CLOSED: the `ROLE` column in User Master is NOT renamed** — asked,
+answered "Not Required". Do not re-propose it.
+
+The deeper block on My Profile still says "Role in effect (rm)" and talks about
+the role *as configured under Roles & Permissions*. That is deliberate: it is
+that admin screen's own vocabulary, and renaming half of it would read worse
+than leaving it whole.
+
+Client only, no SQL.
+
+---
+
+## 2026-09-18 — The Consumption upload files the visit it needs
+
+> *"Unable to re-upload — No visit has been filed on 26H26F0029 yet … (row ~1)
+> (0 written before it stopped.)"*
+
+0214 is right and, as an answer, was useless: it stopped the whole file while
+the visit it wants was **in the file**. `Visit Date & Time` is the column this
+register already maps onto `created_at`; `Visit Entry Date` lands in `data`.
+
+`prepare: 'consumption-visits'` files the visit first, from the file's own
+values — **recording** the guard's requirement rather than evading it. Both date
+columns and **Visit UID** then fill themselves, which answers this morning's
+"how do I fill these?" at the source.
+
+**Nothing is invented.** No visit and no date in the file means no visit, and
+those rows are held back **by name** while the rest loads — the one thing the
+all-or-nothing refusal could not do.
+
+Three rules pinned by `check:uploads`, each a silent fault if it drifts:
+
+- **one visit per UCN**, not per line — per-row keying makes the call's status
+  come from whichever row was written last
+- the **first** dated row wins, so a re-run is stable
+- the uid is `REPORT_COLS`' own derivation, compared **against that function**
+  rather than a literal: drift does not error, it makes a second visit of one
+  call on one day
+
+The planner sits in `uploads.ts`, not `supabase.ts`, for the `paging.ts`
+reason — that module reads `import.meta.env`, so nothing in it can be tested as
+behaviour. Proved end to end against Postgres: the user's exact error
+reproduced, then the same insert accepted with the visit filed, the report
+showing both dates and the UID, and a re-file leaving one visit.
+
+Client only, **no SQL**.
 
 ---
 

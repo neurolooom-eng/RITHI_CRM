@@ -2392,6 +2392,20 @@ console.log('\n-- Reports: access one report at a time --');
       eq('...and Visit UID is offered at all', optional.includes('Visit UID'), true);
     }
 
+    // THE BULK LOAD FILES THE VISIT BEFORE THE SPARES (0214 + the prepare step).
+    // The planner is in `uploads.ts` rather than `supabase.ts` for the
+    // `paging.ts` reason -- that module reads `import.meta.env`, so no node
+    // script can import it and nothing in it can be tested as behaviour.
+    {
+      const sb = readFileSync('src/lib/supabase.ts', 'utf8');
+      eq('the consumption upload files its visits through the tested planner',
+        /planConsumptionVisits\(rows, have\)/.test(sb), true);
+      eq('...and supabase.ts does not decide any of it itself',
+        /IMP-\$\{ucn\}/.test(sb), false);
+      eq('...the register asks for the step',
+        /prepare: 'consumption-visits'/.test(readFileSync('src/lib/uploads.ts', 'utf8')), true);
+    }
+
     // THE FEEDBACK REPORT'S DATE IS THE FEEDBACK'S OWN (0190), never the day
     // the row was loaded — on a migrated row the two differ by up to two years.
     const sb = readFileSync('src/lib/supabase.ts', 'utf8');
@@ -7332,6 +7346,30 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     };
     walk(`${process.cwd()}/${dir}`);
   });
+  {
+    // THE DESIGNATION AND THE PERMISSION ARE DIFFERENT THINGS (the user,
+    // 2026-09-18, pointing at a User Master row reading Designation "Regional
+    // Manager" beside Role "Reporting Manager"). The header used to show only
+    // the role, unlabelled, in the place a reader looks for a job title -- so
+    // the two were read as one. Both are shown now and the ROLE says which it
+    // is; an unlabelled second line would have recreated the confusion.
+    const lay = readFileSync('src/components/layout/Layout.tsx', 'utf8');
+    eq('the header shows the designation', /className="user-designation">\{designation\}/.test(lay), true);
+    // It comes off the USER, from the User Master through `profiles` (0199).
+    // Naming a field that does not exist type-checks here -- `BaseRecord` carries
+    // an index signature -- and renders blank for ever, which is the `user.name`
+    // trap in a third place.
+    eq('...read from the user\'s own field, not invented',
+      /const designation = String\(user\?\.designation \?\? ''\)\.trim\(\)/.test(lay), true);
+    // "Permission", the user's own word (2026-09-18), not "RITHI role" — it
+    // says what the value DOES rather than which system it belongs to.
+    eq('...and the role line is labelled Permission',
+      /Permission · \{roleLabel\(user\)\}/.test(lay), true);
+    // Blank for most of a part-filled directory, so it must not leave a gap.
+    eq('...a person with no designation gets no empty line',
+      /\{!!designation && <span className="user-designation">/.test(lay), true);
+    eq('...and the menu labels both', /<dt>Designation<\/dt>/.test(lay) && /<dt>Permission<\/dt>/.test(lay), true);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

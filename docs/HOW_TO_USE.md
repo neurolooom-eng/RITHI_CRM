@@ -95,9 +95,19 @@ restored) or **closed without a visit**; neither deletes anything.
   > type them into and re-uploading the consumption file cannot fill them.
   > They are blank for one reason: the call has no visit report.
   >
-  > **Load the visits.** *Bulk Uploads → Visit Reports → Field Reports* (or
-  > *Installation* / *PM* — all three write the same table). One row per visit,
-  > with these headings:
+  > **If your consumption file carries `Visit Date & Time`, just load it.**
+  > The Consumption upload files the visit from that column BEFORE it writes the
+  > spares, so both dates and the **Visit UID** fill in on their own. One visit
+  > per UCN, not one per spare line. A row whose call has no visit and no date in
+  > the file is **held back and named** — the rest of the file still loads.
+  >
+  > Two things that load also does: a `Call Status` in the file becomes the
+  > call's status, and where the file gives none the call reads **Report
+  > pending**. Re-loading the same file does not make a second visit.
+  >
+  > **Otherwise, load the visits separately.** *Bulk Uploads → Visit Reports →
+  > Field Reports* (or *Installation* / *PM* — all three write the same table).
+  > One row per visit, with these headings:
   >
   > | Heading | Needed | Becomes |
   > | --- | --- | --- |
@@ -362,6 +372,13 @@ typed into a form that reads it.
   > regardless.
 - **User Master** `/user-master` — people, roles and the reporting line. A
   manager's team is worked out from here.
+  > **DESIGNATION AND ROLE ARE DIFFERENT THINGS, and they often differ.** The
+  > **Designation** is the job somebody holds in the company; the **Permission**
+  > is what this application lets them do. One person can be a *Regional
+  > Manager* by designation and a *Reporting Manager* by permission. Both now
+  > appear under your name in the top-right corner — the designation first, then
+  > the permission, labelled so the two cannot be read as one. A designation set
+  > here reaches the sign-in by itself; nobody has to re-type it.
   > **The role on this screen IS their access.** Change it here and it applies
   > to their sign-in straight away; they see it the next time they load the app.
   > Set it before they ever sign in and they arrive with it. **Access** on a row
