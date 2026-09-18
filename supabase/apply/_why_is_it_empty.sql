@@ -26,7 +26,7 @@ with u as (
   select p.id, p.email, p.full_name, lower(btrim(coalesce(p.role, ''))) as role
     from public.profiles p
     -- >>> CHANGE THIS ONE LINE to the email of the person seeing the empty screen
-   where lower(p.email) = lower('rajendraawasthi961@gmail.com')
+   where lower(p.email) = lower('CHANGE-ME@example.com')
 ),
 r as (
   select a.role, coalesce(jsonb_array_length(a.permissions), 0) as perms

@@ -7384,6 +7384,23 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     eq('...and the screen asks for no cap of its own',
       /await listPending\(\)/.test(readFileSync('src/modules/PendingRegistrations.tsx', 'utf8')), true);
   }
+  {
+    // A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL. Two of
+    // these carried a live address, so running the file unchanged returned a
+    // complete, plausible grid ABOUT THE WRONG PERSON -- worse than no answer,
+    // because nothing in it reads as an error. `example.com` is reserved for
+    // exactly this (RFC 2606) and can match no profile, so an unchanged run
+    // says so instead.
+    const probes = readdirSync('supabase/apply').filter((f) => f.startsWith('_') && f.endsWith('.sql'));
+    const bad: string[] = [];
+    for (const f of probes) {
+      const body = readFileSync(`supabase/apply/${f}`, 'utf8');
+      for (const m of body.matchAll(/lower\('([^']*@[^']*)'\)/g)) {
+        if (!/@example\.(com|org|net)$/i.test(m[1])) bad.push(`${f}: ${m[1]}`);
+      }
+    }
+    eq('no hand-run probe defaults to a real person\'s email', bad, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

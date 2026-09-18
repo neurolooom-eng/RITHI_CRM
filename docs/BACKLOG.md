@@ -20,6 +20,30 @@ up)_
 
 ---
 
+## 2026-09-18 — ⚠️ The probe answered about the wrong person, and a correction
+
+The probe was run and came back as `rajendraawasthi961@gmail.com` — **not** the
+Hotline Engineer it was meant to describe. Both `_why_is_it_empty*.sql` files
+shipped with a live address on the line the reader is meant to change, so an
+unchanged run returns a complete, plausible, confidently wrong grid about
+somebody else. Row 1 printing the matched email is the only thing that gave it
+away. Default is `CHANGE-ME@example.com` now (RFC 2606 — matches nobody), and
+`check:ui` refuses any other default in a hand-run probe.
+
+**A CORRECTION TO THE ENTRY BELOW.** That entry concluded the pending queue was
+"genuinely clear". **It is not: 41 pending registrations exist.** That was
+asserted from the local fixture test rather than from the project, and the local
+run could not have shown it. What the live run does confirm is that an ENGINEER
+sees 2 of 4,400 requests and 2 of 41 pending with `can_view_all_calls() = false`
+— exactly right for that role, and proof the probe works on the real project.
+
+**STILL OPEN**: why a Hotline Engineer saw 0 of those 41. Hotline is named in
+`can_view_all_calls()` and was measured seeing everything on a fixture, so the
+next thing is the same probe run with HER email — the one question that
+separates a filtered reader from a stale screen.
+
+---
+
 ## 2026-09-18 — "All Data should be Visible" for the Hotline Engineer
 
 > *"HotLine Engineer -- All Data should be Visible for this user"* — with

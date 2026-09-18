@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.307',
+    date: '2026-09-18',
+    title: 'The diagnostic no longer answers about the wrong person',
+    changes: [
+      'THE TWO \u201cwhy is it empty\u201d FILES CARRIED A REAL EMAIL on the line you are meant to change, so running one unchanged gave a complete, believable answer ABOUT SOMEBODY ELSE. They now say CHANGE-ME@example.com, which matches nobody \u2014 so an unchanged run tells you it matched no profile instead of quietly profiling a stranger.',
+      'Row 1 prints the email it actually matched. Read that line first.',
+      'No SQL to run, and nothing about your data changed.',
+    ],
+  },
+  {
     version: '0.9.306',
     date: '2026-09-18',
     title: 'Pending Registrations shows every request, not the first 300',
