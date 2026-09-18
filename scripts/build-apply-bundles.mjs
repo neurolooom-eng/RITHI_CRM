@@ -143,6 +143,13 @@ const MODULES = {
             // key is only a restriction once it is IN app_roles — a code
             // default reaches nobody on a project whose roles are all tuned.
             '0209_how_rithi_functions_key.sql',
+            // Stores Incharge and Spare Coordinator see every row (the user,
+            // 2026-09-18). Belt and braces rather than a new capability: both
+            // roles already pass can_view_all_calls() by NAME, and every policy
+            // consulting data.view_all consults that too. It makes the intent
+            // explicit on Roles & Permissions and survives a role key that is
+            // not one of the six hard-coded names. Those two roles only.
+            '0213_stores_and_spare_coordinator_see_all.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -454,7 +461,11 @@ const MODULES = {
       // The consumption report. Here rather than in a spares module because it
       // reads the `calls` view and `reports` as well as `spare_consumption`, and
       // this module already runs after everything it needs exists.
-      '0142_consumption_report.sql', '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql',
+      '0142_consumption_report.sql',
+      // Re-defines that view: the visit dates fall back to the first booking,
+      // and it gains the visit UID. Must follow 0142, which owns the original.
+      '0215_visit_dates_fall_back_to_first_booked.sql',
+      '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql',
       // AFTER 0148 and it must stay there: 0148 adds the category check and
       // this drops it, so a bundle replayed on its own has to see them in that
       // order or the constraint comes back.
@@ -607,6 +618,10 @@ const MODULES = {
             '0061_cap_all_consumption.sql',
             '0062_adjust_consumption_qty.sql',
             '0063_void_consumption_line.sql',
+            // A spare cannot be booked against a call nobody has visited (the
+            // user, 2026-09-18). It sits beside the other consumption guards
+            // and reads `reports`, which `base` creates long before this.
+            '0214_consumption_needs_a_visit.sql',
             '0064_stock_out_lines_and_refurb.sql',
             '0065_refurb_stock_and_part_master.sql', '0074_handstock_opening.sql', '0075_spare_history.sql', '0078_consumption_grir.sql', '0081_part_product_keys_inferable.sql', '0082_part_key_is_item_detail.sql', '0089_spare_imports_load.sql', '0090_spare_issue_history.sql', '0091_handstock_read_indexes.sql', '0095_rls_initplans.sql', '0096_handstock_period_close.sql', '0100_spare_request_reassign.sql',
             '0102_handstock_balance_history_split.sql',

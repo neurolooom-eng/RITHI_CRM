@@ -11,7 +11,7 @@ import { metaFromFileName } from '../src/lib/docname';
 import { alarmNumber, withAlarm } from '../src/lib/alarm';
 import { dayAfter, addPeriod } from '../src/lib/dates';
 import { configFor } from '../src/lib/cover';
-import { localIsoDate } from '../src/lib/dates';
+import { localIsoDate, formatDayTime, excelSerial, hasClockTime } from '../src/lib/dates';
 import { periodKey } from '../src/modules/FieldFailureInsights';
 import { periodYears, periodEnd, warrantyPmVisits, contractPmVisits, itemTaxAmount, totalAfterTax,
          splitProductDetails, itemDetailsLong, itemDetails, addCallPrefix, coverStatus,
@@ -5341,6 +5341,30 @@ console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
   }
   eq('no hand-run SQL file uses a psql meta-command', bad, []);
 
+  // ...AND A BUNDLE NAMED IN THE DOCS MUST EXIST.
+  //
+  // CLAUDE.md claimed this check "resolves every SQL path in the docs". It did
+  // not — it checked meta-commands and nothing else, which is the exact fault
+  // that file warns about elsewhere: a comment claiming a check exists is worse
+  // than no comment, because it is the reason nobody looks.
+  //
+  // Written after doing it TWICE in one week: a raw link to a file that was
+  // only on a branch (404), and `_status.sql` row 166 plus a changelog entry
+  // telling somebody to run `handstock.sql` — a bundle whose real name is
+  // `HandStock_X.sql`, at the repository ROOT. A name in a "Restore:" clause is
+  // read by somebody deciding WHAT TO RUN, so a wrong one sends them looking
+  // for a file that has never existed.
+  const bundles = new Set([
+    ...readdirSync('supabase/apply').filter((f) => f.endsWith('.sql')),
+    ...readdirSync('.').filter((f) => /^(Spare|HandStock)_\w+\.sql$/.test(f)),
+  ]);
+  const named: string[] = [];
+  const status = readFileSync('supabase/apply/_status.sql', 'utf8');
+  for (const m of status.matchAll(/Restore:\s*([A-Za-z0-9_]+\.sql)/g)) named.push(m[1]);
+  eq('_status.sql names a bundle to restore from', named.length > 0, true);
+  eq('...and every one of those bundles exists',
+    [...new Set(named)].filter((f) => !bundles.has(f)), []);
+
   // A DESTRUCTIVE HAND-RUN FILE MAY ONLY TOUCH WHAT IT SAYS IT TOUCHES.
   // `_dccr_undo.sql` is pasted whole into the SQL Editor and its deletes are
   // the DCCR register's alone — the user's own scoping, 2026-09-14: "this is
@@ -6881,6 +6905,64 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
   // form can submit is a corrupted date.
   eq('...and a date is reformatted for the VIEW only',
     /drawer\.mode === 'view' \? \{\s*\n\s*regDate: formatDay/.test(fc), true);
+
+  // 6. A TIMESTAMP IN A DOWNLOAD, as a person reads it. Reported 2026-09-18:
+  //    the Consumption Report carried `2026-09-18T08:51:02.55+00:00` — the wire
+  //    format, in a file somebody opens in Excel.
+  //    THE OFFSET IS THE POINT, not the punctuation. The database stores UTC,
+  //    so printing the front of that string puts the wrong TIME on the row and,
+  //    before 05:30 IST, the wrong DAY.
+  process.env.TZ = 'Asia/Kolkata';
+  eq('a stored timestamp reads in the reader\u2019s own time',
+    formatDayTime('2026-09-18T08:51:02.55+00:00'), '18-Sep-2026 14:21:02');
+  // The day rolls back across midnight, which is the case that makes this a
+  // correctness fix rather than a formatting one.
+  eq('...and the DAY rolls with it',
+    formatDayTime('2026-09-18T19:30:00+00:00'), '19-Sep-2026 01:00:00');
+  eq('Z is an offset too', formatDayTime('2026-09-18T08:51:02Z'), '18-Sep-2026 14:21:02');
+  // NO OFFSET IS A WALL CLOCK somebody already wrote down; shifting it would
+  // invent an hour it never had.
+  eq('a value with no offset is printed as written',
+    formatDayTime('2026-09-18 08:51:02'), '18-Sep-2026 08:51:02');
+  eq('...seconds default to 00 when absent',
+    formatDayTime('2026-09-18 08:51'), '18-Sep-2026 08:51:00');
+  // A DATE IS NOT A MIDNIGHT. Inventing 00:00:00 reads as a real instant.
+  eq('a date with no time stays a date', formatDayTime('2026-09-18'), '18-Sep-2026');
+  // ANYTHING ELSE COMES BACK UNTOUCHED — the same contract as formatDay. A
+  // report column holds part codes and remarks as well as dates.
+  eq('a part code is not a date', formatDayTime('MP-010'), 'MP-010');
+  eq('a UCN is not a date', formatDayTime('26I08F0006'), '26I08F0006');
+  // ...including a remark that merely BEGINS with one. The pattern is anchored
+  // at both ends for exactly this.
+  eq('a remark starting with a date survives',
+    formatDayTime('2026-09-18 pump replaced'), '2026-09-18 pump replaced');
+  eq('empty stays empty', formatDayTime(''), '');
+  eq('null stays empty', formatDayTime(null), '');
+
+  // 7. A DATE IN AN .XLSX IS A NUMBER, NOT A STRING THAT LOOKS LIKE ONE.
+  //    Reported 2026-09-18: "those Date Fields are not Complaint with the Long
+  //    Date Format of Excel". A formatted string is TEXT — it cannot be sorted
+  //    into order, filtered by month, subtracted, or given the reader's own
+  //    format, and each of those quietly returns something rather than
+  //    refusing.
+  //    Serial 46283 is 18-Sep-2026; the fraction is the time of day.
+  eq('a timestamp becomes a serial, in local time',
+    Math.round((excelSerial('2026-09-18T08:51:02+00:00') ?? 0) * 1e5) / 1e5, 46283.59794);
+  // A DATE-ONLY VALUE IS A WHOLE DAY. The first version went through
+  // `new Date('2026-09-18')` — UTC midnight read back locally — and gave every
+  // date-only value a 05:30 fraction in India.
+  eq('a date with no time is a whole day', excelSerial('2026-09-18'), 46283);
+  eq('...and is formatted without a clock', hasClockTime('2026-09-18'), false);
+  eq('...while a timestamp asks for one', hasClockTime('2026-09-18T08:51:02Z'), true);
+  // A PART CODE MUST NOT BECOME A NUMBER. The first version used
+  // `parseAnyDate` — the lenient DISPLAY parser — and turned MP-010 into the
+  // serial 37165. In a spreadsheet that is not a wrong-looking string but a
+  // NUMBER under a date format: the column stops being a part code silently.
+  eq('a part code is not a serial', excelSerial('MP-010'), null);
+  eq('a UCN is not a serial', excelSerial('26I08F0006'), null);
+  eq('a remark starting with a date is not a serial',
+    excelSerial('2026-09-18 pump replaced'), null);
+  eq('empty is not a serial', excelSerial(''), null);
 }
 
 {

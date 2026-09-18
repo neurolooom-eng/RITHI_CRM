@@ -215,6 +215,124 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 /** `2026-09-12` → `12-Sep-2026`. Anything this cannot read comes back EXACTLY
  *  as it arrived — a value that is not a date is not improved by being
  *  rewritten, and showing it unchanged is what lets somebody see it is wrong. */
+/** THE SAME INSTANT AS A NUMBER EXCEL UNDERSTANDS — days since 1899-12-30.
+ *
+ *  Reported from use (2026-09-18): *"those Date Fields are not Complaint with
+ *  the Long Date Format of Excel"*. `formatDayTime` produces a correct-LOOKING
+ *  string, and a string is all Excel sees: it cannot sort it, filter it by
+ *  month, subtract one from another, or apply its own Long Date to it. A
+ *  spreadsheet column of dates that is really text is worse than it looks,
+ *  because every one of those operations quietly gives the wrong answer rather
+ *  than refusing.
+ *
+ *  THE SERIAL CARRIES THE LOCAL WALL CLOCK, deliberately. The cell holds a bare
+ *  number with no timezone in it, so whatever is encoded is what Excel shows —
+ *  and the reader is in the office, not in UTC. This converts through the
+ *  browser's own calendar first (the same choice `formatDayTime` makes), then
+ *  encodes those local components. Encoding the UTC instant instead would put
+ *  the number back an hour or five and lose the whole point of the conversion.
+ *
+ *  Returns null for anything that is not a date, so the caller writes it as
+ *  text — a part code must never become a number.
+ *
+ *  1899-12-30 rather than 1900-01-01 is not an error: Excel believes 1900 was a
+ *  leap year, and the two-day offset is the standard way to agree with it. */
+export function excelSerial(v: unknown): number | null {
+  const raw = String(v ?? '').trim();
+  if (!raw) return null;
+
+  // IT USES THE SAME STRICT TEST AS `formatDayTime`, NOT `parseAnyDate`.
+  // The first version reached for `parseAnyDate` — the lenient DISPLAY parser,
+  // which falls through to `new Date(s)` — and turned the part code `MP-010`
+  // into the serial 37165. In a spreadsheet that is not a wrong-looking string,
+  // it is a NUMBER under a date format: the column stops being a part code
+  // silently. Found by building a workbook and reading the bytes, which is the
+  // only way it was ever going to show up.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (dateOnly) {
+    const [, y, mo, d] = dateOnly;
+    // WHOLE DAYS, no fraction. Going through `new Date('2026-09-18')` parses it
+    // as UTC midnight and then reads it back in local time, which added 05:30
+    // to every date-only value in India — a date that is really 05:30.
+    return Date.UTC(+y, +mo - 1, +d) / 86400000 + 25569;
+  }
+
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+    .exec(raw);
+  if (!m) return null;
+
+  const [, y, mo, d, hh, mi, ss, zone] = m;
+  if (zone) {
+    // It names an instant: show it where the reader is, then encode THOSE
+    // components — a bare serial has no timezone, so what is encoded is what
+    // Excel displays.
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return null;
+    return Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate(),
+                    dt.getHours(), dt.getMinutes(), dt.getSeconds()) / 86400000 + 25569;
+  }
+  // No offset: a wall clock already written down, encoded as written.
+  return Date.UTC(+y, +mo - 1, +d, +hh, +mi, ss ? +ss : 0) / 86400000 + 25569;
+}
+
+/** Does this value carry a TIME, or is it a date on its own? Decides which
+ *  number format the cell gets: a date-only value must not gain a 00:00:00. */
+export function hasClockTime(v: unknown): boolean {
+  return /[T ]\d{1,2}:\d{2}/.test(String(v ?? '').trim());
+}
+
+/** A TIMESTAMP AS A PERSON READS IT: `18-Sep-2026 14:21:02`.
+ *
+ *  Reported from use (2026-09-18): the Consumption Report download carried
+ *  `2026-09-18T08:51:02.55+00:00` — the wire format, straight out of PostgREST,
+ *  in a file somebody opens in Excel. The month is named here for the same
+ *  reason `formatDay` names it: `09-18` and `18-09` are the same eight
+ *  characters read two ways, and a report that crosses a desk cannot rely on
+ *  the reader guessing which.
+ *
+ *  IT SHOWS THE INSTANT IN THE READER'S OWN TIME, and that is the whole point
+ *  of the conversion rather than a tidy-up of the text. The database stores UTC:
+ *  a spare booked at 14:21 in India is written `T08:51:02+00:00`. Printing the
+ *  front of that string would put the wrong TIME on the row, and for anything
+ *  logged before 05:30 IST the wrong DAY as well — the same trap `localIsoDate`
+ *  exists for.
+ *
+ *  A VALUE CARRYING NO OFFSET IS NOT SHIFTED. `2026-09-18 08:51:02` is a wall
+ *  clock somebody already wrote down; moving it by the browser's timezone would
+ *  invent an hour it never had.
+ *
+ *  A DATE WITH NO TIME STAYS A DATE. `2026-09-18` becomes `18-Sep-2026`, not
+ *  `18-Sep-2026 00:00:00` — a midnight nobody recorded reads as a real instant.
+ *
+ *  Anything this cannot read comes back EXACTLY as it arrived, the same
+ *  contract as `formatDay`: a value that is not a date is not improved by being
+ *  rewritten, and leaving it is what lets somebody see it is wrong. */
+export function formatDayTime(v: unknown): string {
+  const raw = String(v ?? '').trim();
+  if (!raw) return '';
+
+  // Date only — no time was recorded, so none is shown.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return formatDay(raw);
+
+  // A full ISO timestamp, the shape PostgREST sends. Anchored at BOTH ends: a
+  // remark that merely begins with a date ("2026-09-18 pump replaced") is text
+  // and must survive untouched.
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+    .exec(raw);
+  if (!m) return raw;
+
+  const [, y, mo, d, hh, mi, ss, zone] = m;
+  if (zone) {
+    // It names an instant, so show it where the reader is.
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return raw;
+    return `${pad(dt.getDate())}-${MONTH_NAMES[dt.getMonth()] ?? dt.getMonth() + 1}-${dt.getFullYear()}`
+      + ` ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+  }
+  // No offset: a wall clock already written down. Printed as written.
+  return `${d}-${MONTH_NAMES[Number(mo) - 1] ?? mo}-${y} ${hh}:${mi}:${ss ?? '00'}`;
+}
+
 export function formatDay(v: unknown): string {
   const raw = String(v ?? '').trim();
   if (!raw) return '';

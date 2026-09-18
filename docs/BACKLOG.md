@@ -4,10 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (a Regional Manager could see strangers' calls — 0212
-BUILT AND NOT YET RUN, `_status.sql` row **164**, bundle `user_directory.sql`.
-Also outstanding: **re-run `Spare_1.sql` even if you already ran it** (0210
-changed); 0211 likewise — rows 162 and 163)_
+_Last updated: 2026-09-18 (Excel-native dates, visit-date precedence and the
+Visit UID — 0214 and 0215 BUILT AND NOT YET RUN, `_status.sql` rows **166** and
+**167**, bundle `HandStock_X.sql` at the repository ROOT. 0207-0213 APPLIED)_
 
 _This branch also has the 2016 archive pending: `ProdHistory_01/02/03/06.sql`
 in the ARCHIVE project and `ProdHistory_05.sql` in the LIVE one — none run yet._
@@ -15,6 +14,168 @@ in the ARCHIVE project and `ProdHistory_05.sql` in the LIVE one — none run yet
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-18 — Excel-native dates, and where a visit date comes from
+
+Three asks in a row, all on the Consumption Report.
+
+### "not Complaint with the Long Date Format of Excel"
+
+The formatted string was still **text** to Excel: it cannot be sorted into date
+order, filtered by month, subtracted from another, or given the reader's own
+format — and every one of those returns something wrong rather than refusing.
+
+The `.xlsx` now carries real date cells: a serial number plus a `numFmt` in a
+`styles.xml` the writer did not previously have at all. The CSV keeps the
+readable text, which is all a CSV can carry.
+
+**Two bugs in my own first version, both found by building a workbook and
+reading the bytes** — neither would have shown up by reading the code:
+
+- `excelSerial` used `parseAnyDate`, the lenient DISPLAY parser, and turned the
+  part code `MP-010` into serial **37165**. In a spreadsheet that is not a
+  wrong-looking string but a NUMBER under a date format, so the column silently
+  stops being a part code.
+- A date-only value went through `new Date('2026-09-18')` — UTC midnight read
+  back locally — giving every date in India a **05:30** fraction.
+
+It uses the strict ISO test now, the same one `formatDayTime` uses.
+
+### "Map the first booked date" / "as in from the Import"
+
+Three sources, and **the order is the rule**: the real visit, then what the file
+said, then the first booking on that call. An imported date is a recorded fact
+from the system the data came from; the first booking is only an approximation.
+
+The Consumption upload already maps `Visit Date & Time` onto `created_at`, so
+the first-booked fallback was surfacing that one; everything it does not map
+falls into `data` keyed by the header as typed, which is where
+`Visit Entry Date` lands. `imported_ts()` reads it with case and punctuation
+squashed — and **returns nothing rather than raising** on a cell holding "n/a",
+because a bare cast there would not spoil one cell, it would take the whole
+report down.
+
+### "Give me the UID"
+
+`Visit UID`, appended at the end (`create or replace view` can only add columns,
+and only after the existing ones). Blank where there is no visit: **a date can
+be approximated, an identifier cannot.**
+
+### Still to run on the live project
+
+`_status.sql` first — rows **166** and **167**. Then `HandStock_X.sql`, at the
+repository ROOT.
+
+---
+
+## 2026-09-18 — A download is not the wire, and a spare needs a visit
+
+*"Reports - Consumption Report - Date Format - When I download, Its showing like
+this - 2026-09-18T08:51:02.55+00:00 -- But i want it to be dd-mmm-yyyy
+hh:mm:ss"* and *"Visit Entry Date is Empty, Visit Date & Time is Empty -- No
+Consumption should be accepted without these Details."*
+
+### The dates
+
+`formatDayTime()` in `dates.ts` — the one formatter, beside `formatDay` —
+and `ReportBuilder` applies it to every cell on the way out, so **all three
+reports get it from one place** rather than the one that was reported.
+
+**By value, not by column name.** The columns differ per report and move with
+the picker, so a list of date-ish headings is a list to forget to update.
+
+**The offset is the point, not the punctuation.** The database stores UTC, so
+printing the front of that string put the wrong TIME on the row and, before
+05:30 IST, the wrong DAY. A value with no offset is a wall clock and is printed
+as written; a date with no time stays a date rather than gaining a midnight
+nobody recorded; anything unreadable comes back exactly as it arrived — the
+pattern is anchored at both ends so a remark beginning with a date survives.
+Eleven assertions.
+
+### The empty visit columns
+
+Those two are **not stored on the consumption row**. `consumption_report` LEFT
+JOINs the latest visit (`Visit Entry Date` ← `reports.updated_at`,
+`Visit Date & Time` ← `reports.visit_at`), so both blank means one thing: the
+call has no `reports` row and the visit was never filed.
+
+0214 refuses an insert whose UCN has no visit.
+
+**Establishing the ORDER was the thing to do before writing that guard at all.**
+Call Reporting saves the visit FIRST and the spares second — its own comment
+says *"the visit is already filed, so pressing Save Report again retries just
+this"* — so the everyday path passes untouched. Had it been the other way round,
+this trigger would have broken every report in the field.
+
+**It also stops the bulk Consumption upload** for rows whose call has no visit.
+Deliberate, and said out loud rather than discovered: those rows are refused
+rather than landing blank. Genuinely historical consumption has its own table.
+
+**Existing rows are not rewritten** — an insert-time rule applied backwards to a
+quality record would invent a visit that did not happen, which is worse than a
+blank that is true. `_consumption_without_a_visit.sql` lists them, with a
+diagnosis per UCN (call missing vs visit never filed — both branches proved).
+
+### Still to run on the live project
+
+`_status.sql` first — row **166**. Then `HandStock_X.sql`, at the repository ROOT.
+
+---
+
+## 2026-09-18 — Stores Incharge and Spare Coordinator see every row
+
+*"data.view_all --- Stores In Charge, Spare Co-ordinator should be able to view
+all Rows. Fix this. I am working to Fix the Spares Module for Stores In Charge,
+Spare Coordinator, Commercial."*
+
+0213 merges `data.view_all` into **exactly those two roles**.
+
+**Commercial is named in that message as part of the MODULE being worked on, not
+as a role to grant**, so it is deliberately not included — and the suite asserts
+it did not pick the permission up by association.
+
+### What it does and does not change — worth stating before judging it by the screen
+
+Both roles **already** pass `can_view_all_calls()`, which names them directly,
+and every policy in this database consulting `data.view_all` consults that
+function too — all three of them (`handstock_opening`,
+`spare_consumption_history`, `spare_issue_history`). **There is no policy where
+this permission is the only way in.**
+
+So the grant is belt and braces, and worth having for that: it states the intent
+on Roles & Permissions, and it keeps working for somebody given a role KEY that
+is not one of the six names hard-coded in that function.
+
+**Which means: if rows are still missing after this, the permission was not the
+cause.** Both routes read `profiles.role`, so a person whose profile says
+`stores` or `Stores Incharge` rather than `stores_incharge` matches neither.
+`_who_can_this_person_see.sql` row 2 prints what their profile actually holds.
+
+### The negatives are the point
+
+The standing rule is that Regional Manager, Reporting Manager and Engineer are
+as the user set them. A grant reaching a fourth role is a worse failure than one
+reaching none, so the suite asserts each of those three is untouched, and
+`_status.sql` row 165 checks **both halves** — the two hold it, and those three
+do not. Mutation-tested each way.
+
+Two things needed a second attempt and both are the same lesson:
+
+- **The suite was vacuous first time.** Its fixture inserts run *after* the
+  migrations, replacing the rows 0213 had already granted — so it reported
+  "(none) hold it", which reads as a broken migration and was a broken test. It
+  re-runs 0213 after its fixtures now (the migration is idempotent, which is
+  what the live project does anyway).
+- **Row 165 read NO on a correct database.** Its first version policed a
+  whitelist of everyone else, and `technical_support` and `zoho_migration` hold
+  `data.view_all` legitimately from 0145. It names the three protected roles
+  instead — narrower, and the actual requirement.
+
+### Still to run on the live project
+
+`_status.sql` first — row **165**. Then `rbac.sql`.
 
 ---
 

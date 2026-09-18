@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.297',
+    version: '0.9.301',
     date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,45 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.300',
+    date: '2026-09-18',
+    title: 'Excel treats the report dates as dates, and the visit columns fill in',
+    changes: [
+      'DATES IN THE .XLSX ARE REAL DATES NOW, not text that looks like one. You can sort a column into date order, filter it by month, subtract one from another, and apply Excel\u2019s own Long Date \u2014 none of which worked while they were strings, and all of which quietly gave a wrong answer rather than refusing. The CSV keeps the readable text, which is all a CSV can carry.',
+      'A date with no time stays a whole day rather than picking up a 5:30 that came from the timezone, and anything that is not a date \u2014 a part code, a UCN, a remark \u2014 stays text. That last one matters: a part code turning into a number under a date format is the kind of thing nobody notices.',
+      'WHERE A CALL HAS NO VISIT REPORT, Visit Entry Date and Visit Date & Time now show when the spare was FIRST booked on that call rather than nothing. Where a visit exists its own dates win, exactly as before.',
+      'The booking date is per CALL, not per row, so three spares fitted on one visit all read the same date instead of three different ones. Worth knowing when auditing: on those older rows it is a booking date under a heading that says Visit \u2014 read it as \u201cno later than\u201d. Everything booked from now on has a real visit behind it.',
+      'NEW COLUMN \u2014 Visit UID, at the end of the report: which visit record each spare belongs to. It is blank on the older rows, because a date can be approximated and an identifier cannot.',
+      'SQL to run: HandStock_X.sql, at the top of the repository (check _status.sql row 166 first).',
+    ],
+  },
+  {
+    version: '0.9.299',
+    date: '2026-09-18',
+    title: 'Report downloads show real dates, and a spare needs a visit behind it',
+    changes: [
+      'DATES IN A DOWNLOAD NOW READ AS DATES. The Consumption Report was carrying 2026-09-18T08:51:02.55+00:00 \u2014 the raw database format \u2014 into a file you open in Excel. Every date and time now reads dd-MMM-yyyy hh:mm:ss, with the month NAMED so 09-18 and 18-09 cannot be read the wrong way round.',
+      'AND IT SHOWS YOUR TIME, not the database\u2019s. Times are stored in UTC, so a spare booked at 14:21 was being written as 08:51 \u2014 and anything logged before 5:30am was showing the WRONG DAY. That is corrected, not just reformatted. All three reports get this, since they share one download.',
+      'A date with no time stays a date rather than gaining a 00:00:00 nobody recorded, and anything that is not a date \u2014 a part code, a UCN, a remark \u2014 comes through exactly as it was.',
+      'NO SPARE CAN BE BOOKED AGAINST A CALL NOBODY HAS VISITED. That is why Visit Entry Date and Visit Date & Time came out blank: those two columns are not stored on the spare, they are read from the visit, so a call with no visit report leaves both empty. Filing the visit first is now required, and the refusal says so.',
+      'This does NOT change how you report a call: the visit is saved before the spares already, so an ordinary Save Report is untouched. What it stops is booking a spare by hand against a call that was never visited \u2014 and the bulk Consumption upload for those same rows.',
+      'Spares already booked are left exactly as they are. Rewriting them would mean inventing a visit that did not happen; their visit columns stay blank, which is the truth about them. File the missing visit and the columns fill themselves.',
+      'SQL to run: HandStock_X.sql, at the top of the repository (check _status.sql row 166 first).',
+    ],
+  },
+  {
+    version: '0.9.297',
+    date: '2026-09-18',
+    title: 'Stores Incharge and Spare Coordinator see every row',
+    changes: [
+      '\u201cView all data (every record)\u201d is now set on Stores Incharge and Spare Coordinator, so both see every row on every register rather than only their own and their team\u2019s.',
+      'THOSE TWO ROLES ONLY. Nothing else was touched \u2014 Regional Manager, Reporting Manager and Engineer keep exactly the permissions you set, and Commercial is unchanged. Every existing tick on the two roles is kept; the permission is added to what is there, never written over it.',
+      'A role left with NO permissions is skipped on purpose: an empty list means \u201cnot configured yet\u201d, and writing a single permission into it would quietly switch off everything else that role could do.',
+      'WORTH KNOWING: both roles could already see every call and every spare request \u2014 that comes from the role itself and has since office roles were introduced. This states it on the Roles & Permissions screen and keeps working if somebody is given a differently-named role key. So if rows are still missing, the permission was not the cause, and the person\u2019s role on their profile is the next thing to check.',
+      'SQL to run: rbac.sql (check _status.sql row 165 first).',
     ],
   },
   {

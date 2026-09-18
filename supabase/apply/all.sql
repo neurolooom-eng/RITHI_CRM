@@ -41,6 +41,7 @@
 --   0206_saved_charts.sql
 --   0207_analysis_roles_see_the_data.sql
 --   0209_how_rithi_functions_key.sql
+--   0213_stores_and_spare_coordinator_see_all.sql
 --   0199_user_master_is_the_master.sql
 --   0087_spare_line_stub_rls.sql
 --   0088_spare_line_parent_visible.sql
@@ -171,6 +172,7 @@
 --   0061_cap_all_consumption.sql
 --   0062_adjust_consumption_qty.sql
 --   0063_void_consumption_line.sql
+--   0214_consumption_needs_a_visit.sql
 --   0064_stock_out_lines_and_refurb.sql
 --   0065_refurb_stock_and_part_master.sql
 --   0074_handstock_opening.sql
@@ -237,6 +239,7 @@
 --   0128_kpi_field_inst.sql
 --   0131_kpi_phase2.sql
 --   0142_consumption_report.sql
+--   0215_visit_dates_fall_back_to_first_booked.sql
 --   0147_unused_spare_report.sql
 --   0148_spare_insights.sql
 --   0149_part_master_fields.sql
@@ -2889,6 +2892,107 @@ begin
   ) then
     raise notice '0209: WARNING — a role outside the four holds this key. '
                  'Check Roles & Permissions; this file never granted it.';
+  end if;
+end $$;
+
+-- ------------------------------------------------------------------------
+-- 0213_stores_and_spare_coordinator_see_all.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- STORES INCHARGE AND SPARE COORDINATOR SEE EVERY ROW.
+--
+--   The user, 2026-09-18: "data.view_all --- Stores In Charge, Spare
+--   Co-ordinator should be able to view all Rows. Fix this."
+--
+-- EXACTLY TWO ROLES. Commercial was named in the same message as a module the
+-- user is working on, NOT as a role to grant, so it is not touched here. Nor is
+-- anything else: the standing rule is that Regional Manager, Reporting Manager
+-- and Engineer are as the user set them.
+--
+-- MERGE, NEVER OVERWRITE. The permissions column is rebuilt as the union of
+-- what is already there and the one new key, so a role an administrator has
+-- tuned keeps every tick. Re-running changes nothing.
+--
+-- A ROLE WITH ZERO PERMISSIONS IS LEFT ALONE. An empty array means "not
+-- configured", and `has_perm()` falls back to the engineer defaults only while
+-- it stays empty — writing one key into it would silently switch that fallback
+-- off and take away everything else the role could do.
+--
+-- ---------------------------------------------------------------------------
+-- WHAT THIS DOES AND DOES NOT CHANGE — read this before judging it by the
+-- screen afterwards.
+--
+-- Both roles ALREADY pass `can_view_all_calls()`, which names them directly:
+--
+--     ... or exists (select 1 from profiles p where p.id = auth.uid()
+--                     and lower(p.role) in ('hotline','nsm','commercial',
+--                         'spare_coordinator','stores_incharge','tally_coordinator'))
+--
+-- and every policy in this database that consults `data.view_all` consults
+-- `can_view_all_calls()` as well — checked, all three of them
+-- (handstock_opening, spare_consumption_history, spare_issue_history). There is
+-- no policy anywhere where this permission is the only way in.
+--
+-- SO THE GRANT IS BELT AND BRACES, and it is worth having for exactly that
+-- reason: it makes the intent explicit on the Roles & Permissions screen, and
+-- it keeps working if somebody is given a role KEY that is not one of the six
+-- names hard-coded in that function.
+--
+-- WHICH MEANS: IF ROWS ARE STILL MISSING AFTER THIS, THE PERMISSION WAS NOT THE
+-- CAUSE. Both routes read the person's role from `profiles.role`
+-- (`my_role()` lowercases and trims it), so somebody whose profile says
+-- `stores` or `Stores Incharge` rather than `stores_incharge` matches NEITHER
+-- the hard-coded list NOR this app_roles row. `_who_can_this_person_see.sql`
+-- row 2 prints the value their profile actually holds.
+-- ===========================================================================
+do $$
+declare
+  n      int;
+  who    text;
+  missed text;
+begin
+  if to_regclass('public.app_roles') is null then
+    raise notice '0213: app_roles is missing -- run rbac.sql first';
+    return;
+  end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select jsonb_agg(distinct p)
+             from jsonb_array_elements(ar.permissions || '["data.view_all"]'::jsonb) p)
+   where ar.role in ('stores_incharge', 'spare_coordinator')
+     -- Not configured: leave it, so the engineer fallback keeps working.
+     and jsonb_array_length(coalesce(ar.permissions, '[]'::jsonb)) > 0
+     -- Idempotent: a role that already holds it is not rewritten.
+     and not (ar.permissions ? 'data.view_all');
+  get diagnostics n = row_count;
+
+  select string_agg(ar.role || ' (' || jsonb_array_length(ar.permissions)::text || ' perms)',
+                    ', ' order by ar.role)
+    into who
+    from public.app_roles ar
+   where ar.role in ('stores_incharge', 'spare_coordinator')
+     and ar.permissions ? 'data.view_all';
+
+  -- SAY WHAT WAS NOT DONE, and why. A role that is absent, or that has zero
+  -- permissions, is skipped by design above -- and a migration that skips
+  -- silently is one somebody re-runs looking for an effect it never had.
+  select string_agg(r.want || ': ' || r.why, '; ' order by r.want) into missed
+    from (
+      select w.want,
+             case when ar.role is null then 'no such role on this project'
+                  else 'zero permissions (not configured) -- left alone on purpose' end as why
+        from (values ('stores_incharge'), ('spare_coordinator')) w(want)
+        left join public.app_roles ar on ar.role = w.want
+       where ar.role is null
+          or jsonb_array_length(coalesce(ar.permissions, '[]'::jsonb)) = 0
+    ) r;
+
+  raise notice '0213: % role(s) granted data.view_all; now holding it: %',
+    n, coalesce(who, 'none');
+  if missed is not null then
+    raise notice '0213: NOT granted -- %', missed;
   end if;
 end $$;
 
@@ -20586,6 +20690,81 @@ begin
 end $$;
 
 -- ------------------------------------------------------------------------
+-- 0214_consumption_needs_a_visit.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A SPARE CANNOT BE BOOKED AGAINST A CALL NOBODY HAS VISITED.
+--
+--   The user, 2026-09-18: "Visit Entry Date is Empty, Visit Date & Time is
+--   Empty -- No Consumption should be accepted without these Details."
+--
+-- WHERE THOSE TWO COLUMNS COME FROM, because the fix has to be at the cause
+-- rather than the column. `consumption_report` reaches the visit with a LEFT
+-- JOIN on the UCN:
+--
+--     "Visit Entry Date"   <- reports.updated_at
+--     "Visit Date & Time"  <- reports.visit_at
+--     ... left join last_visit v on v.ucn = sc.ucn
+--
+-- so BOTH are blank for exactly one reason: the call has no row in `reports`
+-- at all. Neither column can be filled in on the consumption row, and neither
+-- is missing because of a formatting or a join fault -- the visit was never
+-- filed. A consumption line then records a part fitted on a visit that, as far
+-- as this system is concerned, never happened.
+--
+-- IT DOES NOT BREAK THE NORMAL PATH, and that was the thing to establish
+-- before writing a guard at all. Call Reporting saves the VISIT first and the
+-- spares second (`saveReport` then `addConsumptionRows`, and its own comment
+-- says "the visit is already filed, so pressing Save Report again retries just
+-- this"). By the time a spare is inserted the report row exists, so every
+-- ordinary save passes this untouched.
+--
+-- WHAT IT DOES STOP:
+--   * a RECONCILIATION booked against a call that has never been visited --
+--     the case that produced the blank columns;
+--   * the BULK CONSUMPTION UPLOAD, for rows whose call has no visit. That is
+--     deliberate and it is the rule the user asked for, but it is worth saying
+--     plainly: those rows are refused rather than silently landing blank.
+--     Genuinely historical consumption has its own table,
+--     `spare_consumption_history`, which this does not touch.
+--
+-- EXISTING ROWS ARE NOT TOUCHED. This is an insert-time rule, so anything
+-- already booked stays exactly as it is -- rewriting a quality record to satisfy
+-- a rule written afterwards would be worse than the blank. They will go on
+-- showing empty visit columns, which is the truth about them.
+-- `_consumption_without_a_visit.sql` lists them.
+--
+-- IT RUNS LAST among the before-insert guards (the `zz_` prefix), so a typo'd
+-- UCN still gets `consumption_reconcile_guard`'s "No call found with UCN ... --
+-- check the number", which is the more useful answer when the call does not
+-- exist at all.
+-- ===========================================================================
+create or replace function public.consumption_needs_a_visit()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'public'
+as $$
+begin
+  -- A blank UCN is the reconciliation guard's to refuse, with a better message.
+  if btrim(coalesce(new.ucn, '')) = '' then return new; end if;
+
+  if not exists (select 1 from public.reports r where r.ucn = new.ucn) then
+    raise exception
+      'No visit has been filed on % yet, so a spare cannot be booked against it. '
+      'File the visit report first — the spare is recorded on the visit it was used on.',
+      new.ucn;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists zz_consumption_needs_visit on public.spare_consumption;
+create trigger zz_consumption_needs_visit
+  before insert on public.spare_consumption
+  for each row execute function public.consumption_needs_a_visit();
+
+-- ------------------------------------------------------------------------
 -- 0064_stock_out_lines_and_refurb.sql
 -- ------------------------------------------------------------------------
 
@@ -30719,6 +30898,183 @@ grant select on public.consumption_report to authenticated;
 
 comment on view public.consumption_report is
   'One row per spare booked, with its call and that call''s latest visit around it. The first sixteen columns are the user''s own report format, in their order; everything after is the rest of spare_consumption plus the call fields worth filtering on. `part` is split into code and description here so no consumer repeats it. security_invoker, so a reader sees only the calls their role allows.';
+
+-- ------------------------------------------------------------------------
+-- 0215_visit_dates_fall_back_to_first_booked.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- WHERE THERE IS NO VISIT, THE REPORT SHOWS WHEN THE SPARE WAS FIRST BOOKED.
+--
+--   The user, 2026-09-18: "Map the first booked date to Visit Entry Date,
+--   Visit Date & Time."
+--
+-- 0214 stopped NEW consumption being booked against a call nobody has visited.
+-- It deliberately did not touch what was already there, so those rows go on
+-- showing two blank columns. This fills them from the one date those rows do
+-- carry: the first time a spare was booked on that call.
+--
+-- AND AN IMPORTED VALUE COMES BEFORE THE FALLBACK (the user, same day: "For
+-- Imported Data - I need the Visit Entry Date; Visit Date & Time as in from the
+-- Import"). The order is: the REAL visit, then what the FILE said, then the
+-- first booking. An imported date is a recorded fact from the system the data
+-- came out of; the first booking is only an approximation, so it goes last.
+--
+-- WHERE THE IMPORTED VALUES ACTUALLY ARE. The Consumption upload maps
+-- `Visit Date & Time` straight onto `created_at` (uploads.ts), so for an
+-- imported row the first-booked fallback was ALREADY surfacing it. Everything
+-- the upload does not map falls into `data` keyed by the header as typed, which
+-- is where `Visit Entry Date` lands — read here through `imported_ts()`, which
+-- squashes case and punctuation so "VISIT_ENTRY_DATE" is the same column, and
+-- returns NOTHING rather than raising on a cell holding "n/a". A bare cast
+-- there would not spoil one cell: it would take the whole report down.
+--
+-- A FALLBACK, NEVER A REPLACEMENT. Where a visit exists its dates win, exactly
+-- as before — `coalesce(v.updated_at, fb.at)`. The booking date is reached only
+-- when the join found nothing, which after 0214 means a row that predates the
+-- rule. The set it applies to is closed and shrinking; it cannot grow.
+--
+-- PER UCN, NOT PER ROW. A visit is ONE event, so every spare fitted on it has
+-- to carry the same date. Using each row's own `created_at` would give three
+-- different "visit dates" to three spares fitted on the same visit, which is a
+-- worse answer than the blank it replaces.
+--
+-- SAY THIS PLAINLY, BECAUSE THE COLUMN HEADING DOES NOT: a booking date is not
+-- a visit date. It is the closest thing on the record and it is usually the
+-- same day, but a spare reconciled a week later carries the reconciliation's
+-- date under a heading that says "Visit". Anyone auditing a visit date from
+-- this report on a pre-0214 row should read it as "no later than", not as "on".
+-- `_consumption_without_a_visit.sql` lists exactly which rows those are, which
+-- is the honest way to tell the two apart.
+--
+-- `create or replace` KEEPS THE COLUMN LIST IDENTICAL — only two expressions
+-- change — so nothing that selects from this view has to be rebuilt. It DROPS
+-- `security_invoker`, which is re-asserted below: without it the view reads as
+-- its owner and row-level security stops applying to whoever is reading, with
+-- no error and no warning.
+-- ===========================================================================
+
+-- A TIMESTAMP OUT OF AN IMPORTED CELL, or nothing.
+--
+-- The value came from somebody's spreadsheet, so it can be anything: a real
+-- date, a dash, a note, an empty string. A bare `::timestamptz` on that would
+-- not spoil one cell -- it would raise, and the WHOLE REPORT would fail to
+-- read. Returning null lets the coalesce below fall through to the next
+-- candidate, which is the behaviour a blank cell should have anyway.
+--
+-- The key is matched with its punctuation and case squashed, because the header
+-- in the file is whatever somebody typed: "Visit Entry Date", "VISIT ENTRY
+-- DATE" and "Visit_Entry_Date" are one column.
+create or replace function public.imported_ts(payload jsonb, want text)
+returns timestamptz
+language plpgsql
+immutable
+as $$
+declare k text; v text;
+begin
+  if payload is null or jsonb_typeof(payload) <> 'object' then return null; end if;
+  for k in select jsonb_object_keys(payload) loop
+    if regexp_replace(lower(k), '[^a-z0-9]', '', 'g')
+       = regexp_replace(lower(want), '[^a-z0-9]', '', 'g') then
+      v := btrim(coalesce(payload ->> k, ''));
+      if v = '' then return null; end if;
+      begin
+        return v::timestamptz;
+      exception when others then
+        return null;
+      end;
+    end if;
+  end loop;
+  return null;
+end $$;
+
+create or replace view public.consumption_report as
+with first_booked as (
+  -- THE FIRST TIME A SPARE WAS BOOKED ON THIS CALL. Per UCN, not per row: a
+  -- visit is ONE event, so every spare fitted on it must carry the same date —
+  -- using each row's own created_at would give three "visit dates" to three
+  -- spares fitted on one visit.
+  select ucn, min(created_at) as at
+    from public.spare_consumption
+   where coalesce(btrim(ucn), '') <> ''
+   group by ucn
+),
+last_visit as (
+  -- The LATEST entry, not the latest visit date: a call's state comes from the
+  -- last thing somebody wrote, which is `sync_call_last_visit()`'s ordering in
+  -- 0032 and has to stay the same here.
+  select distinct on (ucn) ucn, uid, visit_at, updated_at, engineer
+    from public.reports
+   order by ucn, updated_at desc, id desc
+)
+select
+  -- ---- the sixteen the screenshot asks for, in its order --------------------
+  sc.ucn                                             as "UC Number",
+  sc.call_number                                     as "Call Number",
+  c.call_type                                        as "Call Type",
+  coalesce(v.updated_at,
+           public.imported_ts(sc.data, 'Visit Entry Date'),
+           fb.at)                                    as "Visit Entry Date",
+  coalesce(v.visit_at,
+           public.imported_ts(sc.data, 'Visit Date & Time'),
+           fb.at)                                    as "Visit Date & Time",
+  coalesce(nullif(btrim(sc.engineer), ''), v.engineer, '')
+                                                     as "Visiting Service Engineer",
+  -- `part` is "CODE|Description"; split once here so no consumer has to.
+  btrim(split_part(sc.part, '|', 1))                 as "Spares Used",
+  btrim(substr(sc.part, strpos(sc.part, '|') + 1))   as "Part name",
+  sc.qty                                             as "QTY",
+  c.product_name                                     as "Product",
+  c.serial                                           as "Serial No",
+  c.party_name                                       as "Customer",
+  c.city                                             as "City",
+  c.standard_complaint                               as "Complaint",
+  c.item_status                                      as "Item Status",
+  c.reg_date                                         as "Call Date",
+  -- ---- then every other column of spare_consumption -------------------------
+  sc.id                                              as "Line ID",
+  sc.part                                            as "Part (code|description)",
+  sc.source                                          as "Source",
+  sc.remarks                                         as "Remarks",
+  sc.recorded_by                                     as "Recorded By",
+  sc.engineer_email                                  as "Engineer Email",
+  sc.original_qty                                    as "Original Qty",
+  sc.adjusted_by                                     as "Adjusted By",
+  sc.adjusted_at                                     as "Adjusted At",
+  sc.adjustment_reason                               as "Adjustment Reason",
+  sc.grir                                            as "GRIR",
+  sc.source_ref                                      as "Source Ref",
+  sc.source_ref_key                                  as "Source Ref Key",
+  sc.created_at                                      as "Created At",
+  sc.created_by                                      as "Created By",
+  sc.data                                            as "Extra (import)",
+  -- ---- and the call's, for filtering and for anyone who wants them ----------
+  c.complaint_reported                               as "Nature of Complaint",
+  c.state                                            as "State",
+  c.allocated_to                                     as "Allocated To",
+  c.open_state                                       as "Call Status",
+  c.warranty_number                                  as "Warranty No",
+  c.contract_number                                  as "Contract No",
+  c.contract_type                                    as "Contract Type",
+  -- ---- and the visit this spare belongs to ---------------------------------
+  -- The user, 2026-09-18: "Give me the UID in Consumption Report." The row's
+  -- own id is already here as "Line ID", so the one that adds something is the
+  -- VISIT's — `reports.uid` — which ties each spare to the visit record its
+  -- dates come from. APPENDED at the end because `create or replace view` can
+  -- only add columns, and only after the existing ones; inserting it beside the
+  -- visit dates would need a drop, and everything selecting from this view
+  -- rebuilt with it.
+  -- Empty on the pre-0214 rows, for the same reason their dates were: there is
+  -- no visit. Their dates now fall back to the first booking, but a UID cannot
+  -- be invented, so it stays blank — which is the honest difference between a
+  -- date we can approximate and an identifier we cannot.
+  v.uid                                              as "Visit UID"
+  from public.spare_consumption sc
+  left join public.calls c    on c.ucn = sc.ucn
+  left join last_visit v      on v.ucn = sc.ucn
+  left join first_booked fb   on fb.ucn = sc.ucn;
+-- RE-ASSERTED. `create or replace view` drops it, every time.
+alter view public.consumption_report set (security_invoker = on);
 
 -- ------------------------------------------------------------------------
 -- 0147_unused_spare_report.sql
