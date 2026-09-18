@@ -584,6 +584,21 @@ on testing the old shape. **When a migration replaces a definition, move the
   time stays a date rather than gaining a midnight nobody recorded; anything
   unreadable comes back exactly as it arrived, anchored at BOTH ends so a remark
   beginning with a date survives.
+- **AN .XLSX DATE IS A NUMBER PLUS A FORMAT, NEVER A FORMATTED STRING** (the
+  user, 2026-09-18: *"those Date Fields are not Complaint with the Long Date
+  Format of Excel"*). A string Excel cannot sort, filter by month, subtract or
+  re-format — and each of those returns something wrong rather than refusing.
+  `excelSerial()` in `dates.ts` + `xlsxDate()` and `styles.xml` in `xlsx.ts`;
+  the CSV still gets `formatDayTime`, which is all a CSV can carry.
+  **`excelSerial` uses the STRICT ISO test, never `parseAnyDate`.** Its first
+  version used the lenient DISPLAY parser and turned the part code `MP-010` into
+  serial 37165 — in a spreadsheet that is not a wrong-looking string but a
+  NUMBER under a date format, so the column silently stops being a part code.
+  And a date-only value must be a WHOLE day: going through
+  `new Date('2026-09-18')` parses UTC midnight and reads it back locally, giving
+  every date in India a 05:30 fraction. **Both were found by building a workbook
+  and reading the bytes**, which is the only thing that was ever going to show
+  them.
 - **A SPARE NEEDS A VISIT BEHIND IT** (0214). `Visit Entry Date` and
   `Visit Date & Time` are NOT stored on the consumption row —
   `consumption_report` LEFT JOINs the latest visit — so both blank means one

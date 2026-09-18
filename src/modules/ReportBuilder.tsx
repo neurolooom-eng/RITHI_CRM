@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { xlsxDownload } from '../lib/xlsx';
+import { xlsxDownload, xlsxDate } from '../lib/xlsx';
 import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
-import { formatDayTime } from '../lib/dates';
+import { formatDayTime, excelSerial, hasClockTime } from '../lib/dates';
 import './dccr.css';
 
 // ===========================================================================
@@ -137,15 +137,32 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
       // forget to update. `formatDayTime` recognises the ISO shape, anchored at
       // both ends, and returns anything else exactly as it arrived — a part
       // code, a UCN and a remark that begins with a date all survive it.
-      const shaped = rows.map((r) =>
-        Object.fromEntries(columns.map((c) => [c, formatDayTime(r[c] ?? '')])));
+      //
+      // THE TWO FORMATS WANT DIFFERENT THINGS, and giving both the same value
+      // is what made the dates unusable. A CSV has only text, so it gets the
+      // readable string. An .xlsx can hold a real DATE, and a string that looks
+      // like one is text to Excel — it cannot be sorted into order, filtered by
+      // month, subtracted from another, or given the reader's own Long Date
+      // format, and every one of those quietly returns something rather than
+      // refusing. Reported 2026-09-18, after the string itself was fixed.
+      const asText = (v: unknown) => formatDayTime(v ?? '');
+      const asCell = (v: unknown) => {
+        const serial = excelSerial(v ?? '');
+        // Not a date — a part code, a UCN, a remark. Text, untouched.
+        if (serial === null) return formatDayTime(v ?? '');
+        return xlsxDate(serial, hasClockTime(v));
+      };
+      const shapedText = rows.map((r) =>
+        Object.fromEntries(columns.map((c) => [c, asText(r[c])])));
+      const shapedCells = rows.map((r) =>
+        Object.fromEntries(columns.map((c) => [c, asCell(r[c])])));
       const stamp = new Date().toISOString().slice(0, 10);
 
       if (kind === 'csv') {
-        csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shaped);
+        csvExport(`${spec.key}-${stamp}.csv`, columns.map((c) => ({ key: c, header: c })), shapedText);
       } else {
         xlsxDownload(`${spec.key}-${stamp}.xlsx`, [
-          { name: spec.title.slice(0, 28), columns, rows: shaped },
+          { name: spec.title.slice(0, 28), columns, rows: shapedCells },
           {
             name: 'Filter',
             columns: ['Item', 'Value'],

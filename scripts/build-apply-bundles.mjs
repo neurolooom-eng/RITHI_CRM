@@ -461,7 +461,11 @@ const MODULES = {
       // The consumption report. Here rather than in a spares module because it
       // reads the `calls` view and `reports` as well as `spare_consumption`, and
       // this module already runs after everything it needs exists.
-      '0142_consumption_report.sql', '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql',
+      '0142_consumption_report.sql',
+      // Re-defines that view: the visit dates fall back to the first booking,
+      // and it gains the visit UID. Must follow 0142, which owns the original.
+      '0215_visit_dates_fall_back_to_first_booked.sql',
+      '0147_unused_spare_report.sql', '0148_spare_insights.sql', '0149_part_master_fields.sql',
       // AFTER 0148 and it must stay there: 0148 adds the category check and
       // this drops it, so a bundle replayed on its own has to see them in that
       // order or the constraint comes back.
