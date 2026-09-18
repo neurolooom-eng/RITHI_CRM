@@ -20,6 +20,32 @@ up)_
 
 ---
 
+## 2026-09-18 — Designation in the header, and that line is called Permission
+
+> *"Display the Designation here, Add a New Place Holder for RITHI Role."*
+> …then: *"Not Required. Instead of Rithi Role, Name it as Permission."*
+
+The header chip showed only the role, unlabelled, in the place a reader looks
+for a job title — so the DESIGNATION (the job somebody holds) and what the app
+grants were being read as one. Both are shown now, and the second line is
+labelled **Permission**, the user's own word: it says what the value DOES rather
+than which system it belongs to.
+
+My Profile carries the same pair in the same order (Designation, then
+Permission), since it is the other place both appear.
+
+**DECIDED AND CLOSED: the `ROLE` column in User Master is NOT renamed** — asked,
+answered "Not Required". Do not re-propose it.
+
+The deeper block on My Profile still says "Role in effect (rm)" and talks about
+the role *as configured under Roles & Permissions*. That is deliberate: it is
+that admin screen's own vocabulary, and renaming half of it would read worse
+than leaving it whole.
+
+Client only, no SQL.
+
+---
+
 ## 2026-09-18 — The Consumption upload files the visit it needs
 
 > *"Unable to re-upload — No visit has been filed on 26H26F0029 yet … (row ~1)

@@ -7342,7 +7342,7 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     walk(`${process.cwd()}/${dir}`);
   });
   {
-    // THE DESIGNATION AND THE RITHI ROLE ARE DIFFERENT THINGS (the user,
+    // THE DESIGNATION AND THE PERMISSION ARE DIFFERENT THINGS (the user,
     // 2026-09-18, pointing at a User Master row reading Designation "Regional
     // Manager" beside Role "Reporting Manager"). The header used to show only
     // the role, unlabelled, in the place a reader looks for a job title -- so
@@ -7356,12 +7356,14 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     // trap in a third place.
     eq('...read from the user\'s own field, not invented',
       /const designation = String\(user\?\.designation \?\? ''\)\.trim\(\)/.test(lay), true);
-    eq('...and the role line says it is the RITHI role',
-      /RITHI role · \{roleLabel\(user\)\}/.test(lay), true);
+    // "Permission", the user's own word (2026-09-18), not "RITHI role" — it
+    // says what the value DOES rather than which system it belongs to.
+    eq('...and the role line is labelled Permission',
+      /Permission · \{roleLabel\(user\)\}/.test(lay), true);
     // Blank for most of a part-filled directory, so it must not leave a gap.
     eq('...a person with no designation gets no empty line',
       /\{!!designation && <span className="user-designation">/.test(lay), true);
-    eq('...and the menu labels both', /<dt>Designation<\/dt>/.test(lay) && /<dt>RITHI role<\/dt>/.test(lay), true);
+    eq('...and the menu labels both', /<dt>Designation<\/dt>/.test(lay) && /<dt>Permission<\/dt>/.test(lay), true);
   }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 

@@ -23,8 +23,13 @@ export function Profile() {
     // things that looked identical on this screen. The banner above says which.
     ['Name', user?.unresolved ? '— not loaded —' : (user?.fullName || '—')],
     ['Email', user?.unresolved ? '— not loaded —' : (user?.email || '—')],
-    ['Role', user?.unresolved ? 'Engineer (a fallback, not your role)' : (roleLabel(user) || '—')],
+    // DESIGNATION FIRST, THEN PERMISSION — the same order and the same words as
+    // the header chip, because this is the other place both appear and a person
+    // comparing the two should not have to work out that "Role" here and
+    // "Permission" there are one thing. "Permission" is the user's own name for
+    // it (2026-09-18).
     ...(user?.designation ? [['Designation', user.designation] as [string, string]] : []),
+    ['Permission', user?.unresolved ? 'Engineer (a fallback, not your permission)' : (roleLabel(user) || '—')],
     ...(user?.region ? [['Region', user.region] as [string, string]] : []),
   ];
 
