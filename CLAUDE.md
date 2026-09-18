@@ -256,6 +256,16 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
+  **`ROLES_THAT_SEE_EVERY_RECORD` + `seesEveryRecord()` in `rbac.ts` are the
+  CLIENT copy of that list**, and they exist so a screen can tell the truth
+  when it has nothing to show. An empty list proves what the READER was shown,
+  never what exists, so "nothing is waiting" and "nothing is waiting THAT YOU
+  MAY SEE" are different claims and only an office role's empty screen supports
+  the first. Pending Dispatch asserted the strong one to everybody (*"every
+  approved spare has been booked out"*), which is why a Stores Incharge looking
+  at an empty queue on 2026-09-18 could not tell whether it was clear or
+  filtered — and neither could anybody he asked. `check:ui` compares the client
+  list with 0035's SQL word for word; change one, change both.
 - **A BLANK NAME IS NOT A MANAGER, and it used to match one** (0212, reported
   2026-09-18: *"Why is a Regional Manager able to see everyone's call and every
   spare request?"*). `visible_engineer_names()` walks `user_directory` DOWNWARDS
@@ -512,6 +522,15 @@ on testing the old shape. **When a migration replaces a definition, move the
   surface instead of sitting slightly on top of it. Both work in either theme
   by construction, which a hand-picked highlighter colour does not.
 
+- **THE UPDATE BANNER WATCHES THE BUILD AND MUST NOT PRINT THE VERSION
+  BLINDLY.** It compares `buildId`, so a deploy that changes no version — SQL,
+  a document, a diagnostic — announced *"A newer version (v0.9.293) is out —
+  this tab is still on v0.9.293"*, telling somebody to update to exactly what
+  they already have. It names a version only when the version DIFFERS, and
+  otherwise says the build is older. Not cosmetic: the banner exists because a
+  fix can be merged, deployed and still invisible to whoever reported the
+  fault, and a banner that cries wolf is one people learn to dismiss — which
+  costs the round trip it was built to save. `check:ui` holds both halves.
 - **A count over partly-loaded data is a LOWER BOUND and must show `+`.**
   Every register loads in pages, so a chip reading "MAYANK GUPTA 90" over the
   first 800 rows means *at least* 90. A number that looks exact and is not is

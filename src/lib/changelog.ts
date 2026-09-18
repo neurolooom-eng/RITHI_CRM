@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.295',
+    date: '2026-09-18',
+    title: 'Two screens that told you something they could not know',
+    changes: [
+      'PENDING DISPATCH no longer claims \u201cevery approved spare has been booked out\u201d to somebody who is only shown part of the queue. An empty list proves what YOU were shown, not what exists. Stores Incharge, Hotline, NSM, Commercial, Spare Coordinator and Tally Coordinator are shown every spare request, so for them the old wording was true and still appears. Everyone else now reads \u201cnothing waiting that you can see\u201d, and is told their role is shown its own and its team\u2019s spares.',
+      'THE UPDATE BANNER no longer offers you the version you are already running. It watches the BUILD, not the version number, so a release that changed only database scripts or documents was announcing \u201ca newer version (v0.9.293) is out \u2014 this tab is still on v0.9.293\u201d. It now names a version only when the version actually differs, and otherwise says the build is older. A banner that cries wolf is one people stop reading, and this one exists to save a round trip.',
+      'For the record: Stores Incharge has always been allowed to see every spare request \u2014 that has been true in the database since the office roles were introduced, and nothing about it changed here.',
+      'Nothing to run \u2014 no database change.',
+    ],
+  },
+  {
     version: '0.9.294',
     date: '2026-09-18',
     title: 'A manager with no name on the directory was seeing strangers\u2019 calls',
