@@ -215,6 +215,58 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 /** `2026-09-12` → `12-Sep-2026`. Anything this cannot read comes back EXACTLY
  *  as it arrived — a value that is not a date is not improved by being
  *  rewritten, and showing it unchanged is what lets somebody see it is wrong. */
+/** A TIMESTAMP AS A PERSON READS IT: `18-Sep-2026 14:21:02`.
+ *
+ *  Reported from use (2026-09-18): the Consumption Report download carried
+ *  `2026-09-18T08:51:02.55+00:00` — the wire format, straight out of PostgREST,
+ *  in a file somebody opens in Excel. The month is named here for the same
+ *  reason `formatDay` names it: `09-18` and `18-09` are the same eight
+ *  characters read two ways, and a report that crosses a desk cannot rely on
+ *  the reader guessing which.
+ *
+ *  IT SHOWS THE INSTANT IN THE READER'S OWN TIME, and that is the whole point
+ *  of the conversion rather than a tidy-up of the text. The database stores UTC:
+ *  a spare booked at 14:21 in India is written `T08:51:02+00:00`. Printing the
+ *  front of that string would put the wrong TIME on the row, and for anything
+ *  logged before 05:30 IST the wrong DAY as well — the same trap `localIsoDate`
+ *  exists for.
+ *
+ *  A VALUE CARRYING NO OFFSET IS NOT SHIFTED. `2026-09-18 08:51:02` is a wall
+ *  clock somebody already wrote down; moving it by the browser's timezone would
+ *  invent an hour it never had.
+ *
+ *  A DATE WITH NO TIME STAYS A DATE. `2026-09-18` becomes `18-Sep-2026`, not
+ *  `18-Sep-2026 00:00:00` — a midnight nobody recorded reads as a real instant.
+ *
+ *  Anything this cannot read comes back EXACTLY as it arrived, the same
+ *  contract as `formatDay`: a value that is not a date is not improved by being
+ *  rewritten, and leaving it is what lets somebody see it is wrong. */
+export function formatDayTime(v: unknown): string {
+  const raw = String(v ?? '').trim();
+  if (!raw) return '';
+
+  // Date only — no time was recorded, so none is shown.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return formatDay(raw);
+
+  // A full ISO timestamp, the shape PostgREST sends. Anchored at BOTH ends: a
+  // remark that merely begins with a date ("2026-09-18 pump replaced") is text
+  // and must survive untouched.
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/
+    .exec(raw);
+  if (!m) return raw;
+
+  const [, y, mo, d, hh, mi, ss, zone] = m;
+  if (zone) {
+    // It names an instant, so show it where the reader is.
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return raw;
+    return `${pad(dt.getDate())}-${MONTH_NAMES[dt.getMonth()] ?? dt.getMonth() + 1}-${dt.getFullYear()}`
+      + ` ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+  }
+  // No offset: a wall clock already written down. Printed as written.
+  return `${d}-${MONTH_NAMES[Number(mo) - 1] ?? mo}-${y} ${hh}:${mi}:${ss ?? '00'}`;
+}
+
 export function formatDay(v: unknown): string {
   const raw = String(v ?? '').trim();
   if (!raw) return '';

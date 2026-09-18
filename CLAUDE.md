@@ -563,6 +563,32 @@ on testing the old shape. **When a migration replaces a definition, move the
   the other direction. That screen wants an exact count AND a Load more button,
   so `PageHeader` separates them: `countMore` adds the `+`, `moreAvailable`
   shows the button, and it defaults to `countMore` where the two coincide.
+- **A DOWNLOAD IS NOT THE WIRE.** The Consumption Report carried
+  `2026-09-18T08:51:02.55+00:00` into a file opened in Excel (reported
+  2026-09-18). `formatDayTime()` in `dates.ts` is the one formatter —
+  `dd-MMM-yyyy HH:mm:ss`, month NAMED — and `ReportBuilder` applies it to every
+  cell on the way out, so all three reports get it from one place. **BY VALUE,
+  NOT BY COLUMN NAME**: the columns differ per report and move with the picker,
+  so a list of date-ish headings is a list to forget. **THE OFFSET IS THE POINT,
+  not the punctuation** — the database stores UTC, so printing the front of that
+  string puts the wrong TIME on the row and, before 05:30 IST, the wrong DAY. A
+  value with NO offset is a wall clock and is printed as written; a date with no
+  time stays a date rather than gaining a midnight nobody recorded; anything
+  unreadable comes back exactly as it arrived, anchored at BOTH ends so a remark
+  beginning with a date survives.
+- **A SPARE NEEDS A VISIT BEHIND IT** (0214). `Visit Entry Date` and
+  `Visit Date & Time` are NOT stored on the consumption row —
+  `consumption_report` LEFT JOINs the latest visit — so both blank means one
+  thing: the call has no `reports` row. The fix is at the cause:
+  `zz_consumption_needs_visit` refuses an insert whose UCN has no visit.
+  **Establish the ORDER before writing a guard like this**: Call Reporting saves
+  the visit FIRST and the spares second, so the everyday path passes untouched —
+  had it been the other way round the trigger would have broken every report.
+  It runs LAST among the before-insert guards so a typo'd UCN still gets the
+  reconcile guard's better message. It also stops the BULK CONSUMPTION UPLOAD
+  for rows whose call has no visit, which is deliberate and worth saying out
+  loud. Existing rows are NOT rewritten; `_consumption_without_a_visit.sql`
+  lists them. `_status.sql` row 166.
 - **One parser, one FORMATTER, one matcher.** Every importer reads dates through
   `src/lib/dates.ts` (day-first, always) and every screen DISPLAYS one through
   `formatDay()` in the same file — `dd-MMM-yyyy`, the month NAMED so it cannot

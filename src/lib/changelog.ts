@@ -12,6 +12,20 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.298',
+    date: '2026-09-18',
+    title: 'Report downloads show real dates, and a spare needs a visit behind it',
+    changes: [
+      'DATES IN A DOWNLOAD NOW READ AS DATES. The Consumption Report was carrying 2026-09-18T08:51:02.55+00:00 \u2014 the raw database format \u2014 into a file you open in Excel. Every date and time now reads dd-MMM-yyyy hh:mm:ss, with the month NAMED so 09-18 and 18-09 cannot be read the wrong way round.',
+      'AND IT SHOWS YOUR TIME, not the database\u2019s. Times are stored in UTC, so a spare booked at 14:21 was being written as 08:51 \u2014 and anything logged before 5:30am was showing the WRONG DAY. That is corrected, not just reformatted. All three reports get this, since they share one download.',
+      'A date with no time stays a date rather than gaining a 00:00:00 nobody recorded, and anything that is not a date \u2014 a part code, a UCN, a remark \u2014 comes through exactly as it was.',
+      'NO SPARE CAN BE BOOKED AGAINST A CALL NOBODY HAS VISITED. That is why Visit Entry Date and Visit Date & Time came out blank: those two columns are not stored on the spare, they are read from the visit, so a call with no visit report leaves both empty. Filing the visit first is now required, and the refusal says so.',
+      'This does NOT change how you report a call: the visit is saved before the spares already, so an ordinary Save Report is untouched. What it stops is booking a spare by hand against a call that was never visited \u2014 and the bulk Consumption upload for those same rows.',
+      'Spares already booked are left exactly as they are. Rewriting them would mean inventing a visit that did not happen; their visit columns stay blank, which is the truth about them. File the missing visit and the columns fill themselves.',
+      'SQL to run: handstock.sql (check _status.sql row 166 first).',
+    ],
+  },
+  {
     version: '0.9.297',
     date: '2026-09-18',
     title: 'Stores Incharge and Spare Coordinator see every row',
