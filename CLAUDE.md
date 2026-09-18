@@ -251,6 +251,29 @@ on testing the old shape. **When a migration replaces a definition, move the
   has produced were a migration that had not been run, and `docs/BACKLOG.md`
   claimed the opposite twice — once nearly causing a needless rebuild of the
   live `calls` tables. The backlog is a record, not evidence.
+- **AN OFFICE ROLE MAKES A "SMALL" SCREEN REGISTER-SIZED** (reported
+  2026-09-18: *"HotLine Engineer -- All Data should be Visible for this user"*).
+  Pending Registrations reads `call_requests` through `cr_read`, whose FIRST
+  branch is `can_view_all_calls()` — which NAMES hotline — so the Hotline desk's
+  pending list is the WHOLE COMPANY'S, not one person's. It was `.limit(300)`,
+  unpaged, and `check:ui`'s `.limit(n > 1000)` rule cannot see that: 300 is
+  UNDER the PostgREST cap, so nothing was lying about truncation — the screen
+  simply stopped at 300 and reported it as *"300 pending call registrations"*
+  with no `+`. **When a role sees everything, re-ask which reads are
+  register-sized**; `allRows()` with a tiebreaker after `submitted_at`, because
+  a bulk import makes ties certain and a tie puts a row on two pages or neither.
+  **AND THE PERMISSIONS WERE NOT THE FAULT.** Measured on a database: a
+  `hotline` profile gets `can_view_all_calls() = true` and sees all four
+  requests including both pending ones raised by somebody else. An empty screen
+  there means the queue is clear. `_why_is_it_empty_2.sql` now prints what a
+  person SEES beside what EXISTS, because either number alone answers nothing.
+  **THAT PROBE ONLY IMPERSONATES ON THE REAL PROJECT**: it sets
+  `request.jwt.claims`, which Supabase's `auth.uid()` reads, while
+  `supabase/tests/_stub.sql` replaces `auth.uid()` with a stand-in reading the
+  `harness` TABLE. Run it locally and the claims are ignored,
+  `can_view_all_calls()` comes back NULL and every count reads 0 — which looks
+  exactly like a damning finding and is an artefact. Use `call public.be(...)`
+  for the harness; the probe is for the live project.
 - **Pending Registrations reads `call_requests`, not `pending_registrations`.**
   `listPending()` → `listCallRequestsAsPending()`. Two fixes were aimed at the
   wrong table before this surfaced; `pending_registrations` is the sheet-era

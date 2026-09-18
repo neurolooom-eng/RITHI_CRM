@@ -20,6 +20,43 @@ up)_
 
 ---
 
+## 2026-09-18 — "All Data should be Visible" for the Hotline Engineer
+
+> *"HotLine Engineer -- All Data should be Visible for this user"* — with
+> Pending Registrations showing 0.
+
+**The permissions were already right, and that was measured rather than
+assumed.** On a database built from every migration, a `hotline` profile gets
+`can_view_all_calls() = true` and reads all four call requests including both
+pending ones raised by a different engineer. Nothing to grant.
+
+**What was actually wrong is the CAP.** `cr_read`'s first branch is
+`can_view_all_calls()`, which names hotline — so the Hotline desk's pending list
+is the whole company's, not one person's, and that read was `.limit(300)` and
+unpaged. `check:ui`'s `.limit(n > 1000)` rule cannot see it: 300 is *under* the
+PostgREST cap, so nothing lied about truncation; the screen stopped at 300 and
+called it *"300 pending call registrations"* with no `+`. Paged in full now,
+with `id` as a tiebreaker after `submitted_at` — a bulk import makes ties
+certain and a tie puts a row on two pages or on neither.
+
+So the reported 0 means the queue is genuinely clear: every request registered,
+mapped or cancelled.
+
+**`_why_is_it_empty_2.sql` now prints SEEN beside EXISTS** (rows 4/5 and 6/7),
+because either number alone answers nothing — "0 of 0" is an empty queue,
+"0 of 40" is somebody being filtered.
+
+⚠️ **The probe only impersonates on the REAL project.** It sets
+`request.jwt.claims`, which Supabase's `auth.uid()` reads; `_stub.sql` replaces
+`auth.uid()` with a stand-in reading the `harness` TABLE, so run locally it
+ignores the claims, `can_view_all_calls()` returns NULL and every count reads 0.
+That looks exactly like a damning finding and is an artefact — it was nearly
+reported as one. Use `call public.be(...)` against the harness instead.
+
+Client only, no SQL. validate: 93/93 suites, 16/16 checks.
+
+---
+
 ## 2026-09-18 — Designation in the header, and that line is called Permission
 
 > *"Display the Designation here, Add a New Place Holder for RITHI Role."*

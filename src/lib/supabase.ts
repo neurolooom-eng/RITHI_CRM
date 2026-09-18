@@ -1591,11 +1591,29 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
 
 // Pending call registrations (no UCN yet), mapped to the header keys the
 // Pending Registrations screen already reads.
-export async function listCallRequestsAsPending(limit = 500): Promise<Record<string, unknown>[]> {
-  const { data, error } = await must().from('call_requests').select('*')
-    .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
-    .order('submitted_at', { ascending: false }).limit(limit);
-  if (error) throw new Error(errMsg(error));
+// EVERY PENDING REQUEST, NOT THE FIRST 300 (the user, 2026-09-18: "HotLine
+// Engineer -- All Data should be Visible for this user").
+//
+// This read was capped and unpaged, and the cap is the thing "all data should
+// be visible" runs into: the Hotline desk sees EVERY engineer's requests
+// (`cr_read` consults `can_view_all_calls()`, which names hotline), so this is
+// the one register where that person's list is the whole company's rather than
+// their own. At 301 pending requests the screen showed 300, called it
+// "300 pending call registrations" and gave the badge no `+` — a number that
+// looks exact, is a LOWER BOUND, and is acted on.
+//
+// Paged in full now, so the count is EXACT and takes no `+`, the same shape as
+// `countCallReviews`. ORDER IS NOT OPTIONAL WHEN PAGING: `submitted_at` alone
+// ties whenever two requests share a timestamp — which a bulk import makes
+// certain — and a tie can put the same row on two pages, or neither. `id`
+// breaks it.
+export async function listCallRequestsAsPending(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  const data = await allRows<Record<string, unknown>>((from, to) =>
+    c.from('call_requests').select('*')
+      .or('ucn.is.null,ucn.eq.').neq('status', 'Cancelled')
+      .order('submitted_at', { ascending: false }).order('id', { ascending: false })
+      .range(from, to));
   return (data ?? []).map((r) => ({
     _row: r.id, 'REQID': r.reqid, 'UNIQUE ID': r.unique_key,
     'Timestamp': r.submitted_at, 'ENGINEER': r.engineer, 'E-Mail ID': r.email, 'CALL TYPE': r.call_type,

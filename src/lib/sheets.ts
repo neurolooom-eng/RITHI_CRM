@@ -324,8 +324,14 @@ export async function checkConfig(): Promise<Record<string, ConfigCheck>> {
 }
 
 // ---- Call Registration Request workflow ------------------------------------
-export async function listPending(limit = 200): Promise<Record<string, unknown>[]> {
-  if (sb.supabaseConfigured()) return sb.listCallRequestsAsPending(limit);
+// `limit` IS THE APPS SCRIPT PATH'S, and only that path's: it is a parameter of
+// the sheet endpoint. The Supabase read PAGES IN FULL, so it has no limit to
+// take — the Hotline desk sees every engineer's pending requests and a cap
+// there is the difference between "none are waiting" and "none of the first
+// 300 are waiting".
+export async function listPending(sheetLimit = 200): Promise<Record<string, unknown>[]> {
+  if (sb.supabaseConfigured()) return sb.listCallRequestsAsPending();
+  const limit = sheetLimit;
   const r = await getJson({ action: 'pending', limit: String(limit) });
   if (!r.ok) throw new Error(String(r.error ?? 'pending failed'));
   return (r.rows as Record<string, unknown>[]) ?? [];
