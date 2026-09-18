@@ -3,6 +3,7 @@ import { useCollection } from '../lib/hooks';
 import { TemplatePlaceholder } from './TemplatePlaceholder';
 import { SheetConnection } from './SheetConnection';
 import { DbConnection } from './DbConnection';
+import { ArchiveConnection } from './ArchiveConnection';
 import { useAuth } from '../lib/auth';
 
 // ===========================================================================
@@ -57,6 +58,12 @@ export function Settings() {
       )}
 
       <DbConnection readOnly={!mayManage} />
+
+      {/* The second project, read-only: the 2016 history behind Product
+          History. Directly under the live connection because it is the same
+          kind of setting, and the card itself explains why its key is not the
+          same kind of key. */}
+      <ArchiveConnection readOnly={!mayManage} />
 
       <div style={{ height: 16 }} />
 

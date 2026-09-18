@@ -14,6 +14,9 @@ Visit UID the picker could not offer — CLIENT ONLY, no SQL. Still to run: 0214
 rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 0207-0213 APPLIED)_
 
+_This branch also has the 2016 archive pending: `ProdHistory_01/02/03/06.sql`
+in the ARCHIVE project and `ProdHistory_05.sql` in the LIVE one — none run yet._
+
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
@@ -518,6 +521,89 @@ restored the blank case leaks strangers and the suite says so.
 needed) or the directory.
 
 ---
+
+## 2026-09-14 — The 2016 archive, folded into Machine History
+
+### Two screens were being built for one question
+
+This branch started before `/machine-history` existed and grew its own
+`/product-history` doing the same job on the live registers. **#335 shipped the
+better one** — eleven registers against four, and `machineHistory.ts` names the
+gap this branch actually fills:
+
+> WHAT THIS CANNOT SEE: anything before the migration into this system. That
+> lives in a separate archive project and is not reachable from here.
+
+So the duplicate screen is **gone** — `ProductHistory.tsx`, `prodhistory.ts`,
+`prodhistory.css`, its route and its module key — and the archive is folded into
+Machine History instead. Two screens answering one question is a defect however
+good each one is, and the module key would have been a second thing to grant.
+
+`ProdHistory_04.sql` went with it: it granted `mod:/product-history`, and 0195
+already grants `mod:/machine-history` to every role.
+
+### What the archive adds
+
+A SECOND Supabase project (`sxcccaghpvznllvdebcb`) holding the closed history
+from 2016 to the cut-over. `src/lib/archive.ts` is the ONLY file that knows how
+it is reached — so moving to `postgres_fdw` or an Edge Function later is one
+file, not a rewrite.
+
+- **Keyed on `machineKey`, never the serial.** The archive computes it as a
+  generated column whose SQL mirrors `squash()` in `headers.ts` step for step;
+  the two were diffed on twelve cases and agree on all of them. A disagreement
+  raises no error — it empties the list.
+- **Every row says which database it came from**, and an archive UCN renders
+  PLAIN. The archive cannot know a call's current state, and `useCallStates` is
+  asked about live UCNs only.
+- **No de-duplication between the halves.** The cut-over date is a fact about
+  the migration, not about the machine.
+
+### The access question, which does not carry across
+
+Your users exist in the LIVE project's auth, so a JWT signed there cannot be
+verified by the archive: `auth.uid()` is null for everybody and no policy can
+test who is asking. **The archive key IS the credential** — so it is not baked
+into the repository, has no default, and is pasted per device in Settings.
+
+⚠️ **The better fix is to stop letting the browser talk to that project at
+all**: `postgres_fdw` foreign tables on the live project wrapped in
+`security_invoker` views gated by `has_perm('mod:/machine-history')`, or an Edge
+Function that verifies the caller's JWT. Both need a setup step nobody has
+taken.
+
+### Loading it (ProdHistory_06)
+
+Five registers on **Bulk Uploads**, under a `2016 Archive` heading — on that
+screen rather than in a loader of their own because a second importer for one
+table is how a good file comes back as "0 rows".
+
+`ProdHistory_06.sql` grants **INSERT and nothing else**: no UPDATE policy, no
+DELETE policy, both privileges revoked. The worst a leaked key does is append
+rubbish NEXT TO the real data rather than over it. The insert policy's
+`with check` **refuses a row whose `source_system` is blank**, because that
+label is the only way back out — these registers have no natural key, so a
+re-run adds rows, and the undo is `delete ... where source_system = '<label>'`.
+
+### Status — SQL still to run
+
+| File | Run it on | What it does |
+| --- | --- | --- |
+| [`ProdHistory_01.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_01.sql) | **Archive** `sxcccaghpvznllvdebcb` | The five history tables, the machine key, the indexes |
+| [`ProdHistory_02.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_02.sql) | **Archive** | RLS: read-only, and the argument for why. **Read before running** |
+| [`ProdHistory_03.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_03.sql) | **Archive** | `history_load()`, the day-first date parser, the load ledger |
+| [`ProdHistory_06.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_06.sql) | **Archive** | INSERT only, and only for a labelled row — what Bulk Uploads needs |
+| [`ProdHistory_05.sql`](https://github.com/neurolooom-eng/RITHI_CRM/blob/main/ProdHistory_05.sql) | **Live** `issxxmgsffszqbxugqis` | `serial_key` on the three call tables, so the lookup is an indexed equality |
+
+**PENDING — none has been run on either project.** All apply and re-apply
+idempotently against a throwaway Postgres; `_status.sql` still reads yes on a
+database built from every migration, `check:views` passes, and `public.calls`
+still carries `security_invoker`.
+
+
+
+
+
 
 ## 2026-09-16 — Renewing a contract at the new price
 

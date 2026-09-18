@@ -143,6 +143,19 @@ export interface UploadDef {
    *  Re-declaring that as columns would have been a worse copy of it. */
   shape?: (raw: Record<string, unknown>[]) => Record<string, unknown>[];
   note?: string;
+  /** WHICH DATABASE. Everything here writes to the live project unless it says
+   *  otherwise; `archive` means the separate 2016 history project, reached
+   *  through src/lib/archive.ts. A register in one database cannot point at a
+   *  table in the other, so this is read at write time and nowhere else. */
+  db?: 'live' | 'archive';
+  /** A value the OPERATOR stamps, asked for once before the upload runs.
+   *
+   *  `stamp` is a constant the register knows; this is a constant only the
+   *  person loading knows — which export this file is. The archive registers
+   *  need it because it is the only way back out: they have no natural key, so
+   *  a batch loaded in error is undone by deleting its label, and the archive's
+   *  own policy refuses a row without one. */
+  askStamp?: { col: string; label: string; hint: string };
 }
 
 // ---- coercion -------------------------------------------------------------
@@ -510,6 +523,18 @@ const REPORT_COLS: Col[] = [
   // to turn those into Drive links; here it is at least kept rather than lost.
   TEXT('manual_report', 'manual report', 'service report', 'attachment'),
 ];
+
+// THE LABEL EVERY ARCHIVE LOAD CARRIES. Asked once per upload, written to
+// `source_system` on every row, and the archive's own policy REFUSES a row
+// without one (ProdHistory_06). It is the undo button: these registers have no
+// natural key, so a batch that went in wrong is removed by its label and no
+// other way — and a mistaken load that is indistinguishable from the real data
+// leaves reloading the whole archive as the only honest answer.
+const ARCHIVE_LABEL = {
+  col: 'source_system',
+  label: 'Which export is this?',
+  hint: 'Written on every row as its source. A batch loaded in error is deleted by this label, so make it specific — "AppSheet calls 2016-2019", not "old data".',
+};
 
 // ---------------------------------------------------------------------------
 // THE VISIT BEHIND A BULK-LOADED SPARE — the pure half, so it can be TESTED.
@@ -1392,6 +1417,120 @@ export const UPLOADS: UploadDef[] = [
     note: 'The AppSheet export loads as exported — every column into the table\u2019s own column where there is one, and into `extra` otherwise. Any order works: a machine whose entry has not been loaded yet gets a stub entry, which the entry file then fills in.',
     shape: (raw) => shapeCoverRows('contract_items' as CoverTable, raw as Record<string, string>[]),
     cols: [] },
+  // ---- THE 2016 ARCHIVE. A DIFFERENT DATABASE (`db: 'archive'`).
+  //
+  // These five write to the history project, not the live one. They are here
+  // rather than in a loader of their own because this screen already knows how
+  // to read a sheet, find its header row, match spellings, parse dates
+  // day-first and show what it is about to write BEFORE it writes it — and a
+  // second importer for one table is how a good file comes back as "0 rows".
+  //
+  // NONE OF THEM HAS A CONFLICT KEY, and that is deliberate rather than
+  // unfinished: an upsert needs a key, and the one thing a ten-year-old export
+  // reliably lacks is a unique column. `feedback` is what a guessed key costs —
+  // it turned an upload into an UPDATE at row 24,092 against a table with no
+  // UPDATE policy. So a second run ADDS rows, the screen says so in as many
+  // words, and the way back is the label.
+  //
+  // EVERY ONE REQUIRES THE MODEL AND THE SERIAL. A row without both cannot be
+  // found by machine, which is the only question this database is ever asked —
+  // so it is not a record with a gap in it, it is a row nothing can ever reach.
+  { key: 'history_machines', label: 'Archive — Machines', group: '2016 Archive',
+    table: 'history_machines', db: 'archive', extraInto: 'extra',
+    askStamp: ARCHIVE_LABEL,
+    note: 'One row per machine the old system knew about: whose it was, where, and when it went in. Not a master — the live Product Master still owns that. This is what the OLD system believed, kept as it was.',
+    cols: [
+      { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
+      { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
+      TEXT('party_name', 'customer name', 'party name', 'hospital', 'customer'),
+      TEXT('city', 'location'),
+      TEXT('state'),
+      TEXT('address', 'site address'),
+      // THROUGH THE COVER RULE, like every other register that carries one.
+      // The archive is the likeliest source of the split it exists to stop: the
+      // old system wrote "WARRANTY" where this one writes "WGP", and Machine
+      // History shows the two side by side on one machine's timeline.
+      COVER('item_status', 'status', 'machine status'),
+      DATE('installed_on', 'install date', 'installation date', 'date of installation', 'commissioning date'),
+    ] },
+
+  { key: 'history_calls', label: 'Archive — Calls', group: '2016 Archive',
+    table: 'history_calls', db: 'archive', extraInto: 'extra',
+    askStamp: ARCHIVE_LABEL,
+    note: 'Closed calls from before the cut-over. `Closing status` is what the old system was told when somebody closed the call — the archive cannot derive a state the way the live register does, so it shows what it was given and nothing more.',
+    cols: [
+      { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
+      { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
+      TEXT('ucn', 'uc number', 'ucn number', 'unique call number'),
+      TEXT('call_number', 'call no', 'call number', 'complaint no'),
+      DATE('reg_date', 'call date', 'registration date', 'reg date', 'date of call'),
+      DATE('complaint_date', 'complaint date', 'breakdown date'),
+      DATE('closed_date', 'close date', 'closed on', 'closing date', 'date closed'),
+      TEXT('party_name', 'customer name', 'party name', 'hospital'),
+      TEXT('city', 'location'),
+      TEXT('state'),
+      COVER('item_status'),
+      TEXT('call_type', 'type of call', 'service type'),
+      TEXT('standard_complaint', 'standard complaint', 'complaint type', 'fault'),
+      TEXT('complaint_reported', 'complaint', 'problem reported', 'complaint reported', 'nature of complaint'),
+      TEXT('allocated_to', 'engineer', 'allocated to', 'service engineer', 'attended by'),
+      TEXT('status', 'record status', 'row status'),
+      TEXT('closing_status', 'closing status', 'call status', 'final status'),
+    ] },
+
+  { key: 'history_visits', label: 'Archive — Visits', group: '2016 Archive',
+    table: 'history_visits', db: 'archive', extraInto: 'extra',
+    askStamp: ARCHIVE_LABEL,
+    note: 'One row per visit the old system recorded. The UCN ties it back to its call within the archive; where the export has no visit id, everything it does carry is still kept on the row.',
+    cols: [
+      { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
+      { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
+      TEXT('uid', 'visit id', 'report id', 'row id'),
+      TEXT('ucn', 'uc number', 'ucn number'),
+      TEXT('call_number', 'call no', 'call number'),
+      TEXT('party_name', 'customer name', 'party name', 'hospital'),
+      TS('visit_at', 'visit date', 'visit date time', 'service date', 'date of visit'),
+      TEXT('engineer', 'service engineer', 'attended by'),
+      TEXT('call_status', 'visit status', 'status'),
+      TEXT('work_done', 'action taken', 'job done', 'work carried out', 'remarks'),
+      TEXT('root_cause', 'cause', 'reason for failure'),
+    ] },
+
+  { key: 'history_parts', label: 'Archive — Parts fitted', group: '2016 Archive',
+    table: 'history_parts', db: 'archive', extraInto: 'extra',
+    askStamp: ARCHIVE_LABEL,
+    note: 'What was fitted, and when. This is the question Machine History is opened for most often — "has this board been changed before?" — and a part with no date cannot answer it, so load the date column if the export has one.',
+    cols: [
+      { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
+      { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
+      { to: 'part', from: ['part', 'part code', 'part no', 'part number', 'material code', 'spare code'], required: true },
+      TEXT('part_name', 'part description', 'description', 'spare name'),
+      TEXT('ucn', 'uc number', 'ucn number'),
+      TEXT('call_number', 'call no', 'call number'),
+      NUM('qty', 'quantity', 'qty used', 'consumed qty'),
+      DATE('consumed_on', 'date', 'consumption date', 'fitted on', 'date of consumption'),
+      TEXT('engineer', 'service engineer'),
+    ] },
+
+  { key: 'history_cover', label: 'Archive — Cover', group: '2016 Archive',
+    table: 'history_cover', db: 'archive', extraInto: 'extra',
+    askStamp: ARCHIVE_LABEL,
+    note: 'Warranty and contract periods as the old system held them — one row per period per machine, so a machine that ran warranty then CMC then AMC has three rows and the timeline can show which cover a call fell under.',
+    cols: [
+      { to: 'product_name', from: ['product name', 'item name', 'product', 'model', 'machine'], required: true },
+      { to: 'serial', from: ['serial', 'item serial number', 'serial number', 'serial no', 'sr no'], required: true },
+      TEXT('party_name', 'customer name', 'party name', 'hospital'),
+      // NOT through the cover rule, and this is the one place that matters:
+      // `cover_kind` says WARRANTY or CONTRACT — a KIND, not a code — and
+      // coverCode maps "warranty" to WGP. Normalising here would turn the kind
+      // into one of the codes it is supposed to contain.
+      TEXT('cover_kind', 'cover type', 'type', 'warranty or contract'),
+      TEXT('cover_number', 'warranty number', 'mc number', 'contract number', 'cover no'),
+      TEXT('contract_type', 'cmc amc', 'amc cmc'),
+      DATE('cover_start', 'start date', 'warranty start date', 'contract start date', 'from date'),
+      DATE('cover_end', 'end date', 'warranty end date', 'contract end date', 'to date'),
+      TEXT('status', 'cover status'),
+    ] },
 ];
 
 // ---- master value lists ---------------------------------------------------
@@ -1433,7 +1572,11 @@ export function masterUpload(list: { key: string; label: string; value_label?: s
 }
 
 export const uploadGroups = (defs: UploadDef[]): { title: string; items: UploadDef[] }[] => {
-  const order = ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Master Value Lists', 'Cover'];
+  // LAST, and deliberately: everything above writes to the live project and
+  // this one does not. A register that writes to a different database sitting
+  // between two that do not is a mistake waiting to be made at speed.
+  const order = ['Calls', 'Visit Reports', 'Spares', 'Quality', 'Masters', 'Master Value Lists', 'Cover',
+    '2016 Archive'];
   const by = new Map<string, UploadDef[]>();
   defs.forEach((d) => { by.set(d.group, [...(by.get(d.group) ?? []), d]); });
   return order.filter((g) => by.has(g)).map((title) => ({ title, items: by.get(title)! }));

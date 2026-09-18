@@ -5371,7 +5371,12 @@ console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
   // and was simply not written down anywhere a check could see.
   const files = [
     ...readdirSync('supabase/apply').filter((f) => f.endsWith('.sql')).map((f) => `supabase/apply/${f}`),
-    ...readdirSync('.').filter((f) => /^(Spare|HandStock)_\w+\.sql$/.test(f)),
+    // EVERY hand-run file at the root, not a list of the ones that existed when
+    // this check was written. `ProdHistory_01..06` are pasted into the same
+    // editor and were outside the pattern — clean, as it happens, which is the
+    // only reason it did not matter. A check that names yesterday's files is
+    // the drift it exists to catch.
+    ...readdirSync('.').filter((f) => /^(Spare|HandStock|ProdHistory)_\w+\.sql$/.test(f)),
   ];
   eq('there are hand-run SQL files to check', files.length > 0, true);
   const bad: string[] = [];

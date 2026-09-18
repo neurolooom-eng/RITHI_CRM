@@ -1,5 +1,6 @@
 import { getSupabase } from './supabase';
 import { machineKey } from './machine';
+import { archiveConfigured, archiveHistory } from './archive';
 
 // ===========================================================================
 // ONE MACHINE'S WHOLE LIFE, gathered from every register that records one.
@@ -24,8 +25,20 @@ import { machineKey } from './machine';
 // different policies and filled by different people; a single undifferentiated
 // list would promise one standard of evidence for all of them.
 //
-// WHAT THIS CANNOT SEE: anything before the migration into this system. That
-// lives in a separate archive project and is not reachable from here.
+// WHAT CAME BEFORE THE MIGRATION: a SECOND Supabase project holds the closed
+// history from 2016 up to the cut-over, and this reads it alongside the
+// registers (src/lib/archive.ts is the only file that knows how). Those rows
+// are marked `archive` and are NOT equivalent evidence: a live call's state is
+// derived from its latest visit under policies that decide whether you may see
+// it at all, while an archived one carries whatever the old system was told
+// when somebody closed it. That is why an archived UCN renders PLAIN — its
+// state cannot be known, and a wrong colour on a code people read is worse
+// than no colour.
+//
+// AN ARCHIVE THAT IS NOT THERE IS A LINE, NOT A FAILURE. Unconfigured,
+// unreachable or simply not loaded yet, the registers still render and
+// `archiveNote()` says what is missing. A history that shows 2024 and admits it
+// cannot see 2016 is useful; an error instead of both halves is not.
 // ===========================================================================
 
 export interface MachineEvent {
@@ -42,7 +55,17 @@ export interface MachineEvent {
   ucn: string;
   party: string;
   detail: string;
+  /** From the 2016 archive project rather than the registers here. Optional so
+   *  every existing push stays as it was: absent means live. */
+  archive?: boolean;
 }
+
+// WHY THE ARCHIVE HALF IS MISSING, when it is. Set by every machineHistory()
+// call and read by the screen straight afterwards. A module-level value rather
+// than a return-shape change so nothing else that calls machineHistory() has to
+// know the archive exists at all.
+let _archiveNote = '';
+export const archiveNote = (): string => _archiveNote;
 
 const s = (v: unknown) => String(v ?? '').trim();
 const day = (v: unknown) => s(v).slice(0, 10);
@@ -266,6 +289,58 @@ export async function machineHistory(product: string, serial: string): Promise<M
     detail: [s(r.activity), s(r.work_done), s(r.disposition) && `disposition: ${s(r.disposition)}`]
       .filter(Boolean).join(' · '),
   });
+
+  // ---- and the years before this system ---------------------------------
+  // Everything above is the live registers. This is the archive project, and
+  // it can fail without taking them with it.
+  if (!archiveConfigured()) {
+    _archiveNote = 'not-connected';
+  } else {
+    const arc = await archiveHistory(product, ser);
+    _archiveNote = arc.ok ? '' : `unreadable: ${arc.reason}`;
+    const h = arc.history;
+
+    for (const r of h.calls) out.push({
+      on: day(r.reg_date) || day(r.complaint_date), source: 'Call',
+      what: r.call_type || 'Call',
+      ref: r.call_number || r.ucn, ucn: r.ucn, party: r.party_name, archive: true,
+      // The old system's closing status, NOT a derived state: the archive has
+      // no guarantee its visits came across, so it shows what it was told.
+      detail: [r.closing_status || r.status, r.standard_complaint || r.complaint_reported,
+               r.allocated_to && `engineer ${r.allocated_to}`].filter(Boolean).join(' · '),
+    });
+
+    for (const r of h.visits) out.push({
+      on: day(r.visit_at), source: 'Visit', what: r.call_status || 'Visit',
+      ref: r.uid || r.ucn, ucn: r.ucn, party: '', archive: true,
+      detail: [r.work_done, r.root_cause, r.engineer && `engineer ${r.engineer}`]
+        .filter(Boolean).join(' · '),
+    });
+
+    for (const r of h.parts) out.push({
+      on: day(r.consumed_on), source: 'Spare', what: r.part || r.part_name,
+      ref: r.ucn, ucn: r.ucn, party: '', archive: true,
+      detail: [r.part_name && r.part_name !== r.part ? r.part_name : '',
+               r.qty ? `${r.qty} fitted` : '', r.engineer].filter(Boolean).join(' · '),
+    });
+
+    for (const r of h.cover) out.push({
+      on: day(r.cover_start),
+      source: /contract/i.test(r.cover_kind) ? 'Contract' : 'Sale / warranty',
+      what: r.status || r.cover_kind || 'Cover',
+      ref: r.cover_number, ucn: '', party: r.party_name, archive: true,
+      detail: [r.contract_type, `${day(r.cover_start) || '—'} to ${day(r.cover_end) || '—'}`]
+        .filter(Boolean).join(' · '),
+    });
+
+    if (h.machine) out.push({
+      on: day(h.machine.installed_on), source: 'Product Database',
+      what: h.machine.item_status || 'On the old system',
+      ref: h.machine.serial, ucn: '', party: h.machine.party_name, archive: true,
+      detail: [h.machine.city, h.machine.state, h.machine.source_system]
+        .filter(Boolean).join(' · '),
+    });
+  }
 
   // NEWEST FIRST, and a row with no date sorts LAST rather than first: an
   // undated row is one the register never dated, and putting it at the top
