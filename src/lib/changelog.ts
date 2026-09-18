@@ -12,8 +12,8 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.294',
-    date: '2026-09-14',
+    version: '0.9.295',
+    date: '2026-09-18',
     title: 'Machine History reaches back to 2016',
     changes: [
       'Machine History now shows the years BEFORE this system. The service history from 2016 up to the cut-over lives in a separate database, and the screen reads it alongside the registers \u2014 so a machine with nine years of faults behind it stops looking new.',
@@ -23,6 +23,18 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.294',
+    date: '2026-09-18',
+    title: 'A manager with no name on the directory was seeing strangers\u2019 calls',
+    changes: [
+      'FIXED: who a manager can see is worked out by walking the User Master downwards \u2014 everyone who names them as reporting manager or regional manager, then everyone under those. The walk compared names without ever excluding a BLANK one, so a manager whose own User Master row had an empty Name matched every person with no manager recorded against them.',
+      'It was wrong in BOTH directions, which is why it did not look like a fault: strangers appeared in the list, and some of the manager\u2019s own team dropped out of it. It just read as a different region.',
+      'A manager the directory cannot name now sees no team at all rather than the wrong one. They still see their own calls and their own spare requests \u2014 those are matched on who they are, not on their name.',
+      'NOTE, AND CHECK THIS FIRST: there is a second and more likely reason somebody sees everything \u2014 the \u201cSee all data\u201d permission ticked on their role in Roles & Permissions. That single tick shows any role every call and every spare request in the company. No update grants it to a Regional Manager, so if it is there somebody set it. Untick it there; no SQL needed.',
+      'SQL to run: user_directory.sql (check _status.sql row 164 first).',
     ],
   },
   {

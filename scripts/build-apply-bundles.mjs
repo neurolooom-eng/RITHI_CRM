@@ -94,6 +94,10 @@ const MODULES = {
     // everything it defines, or re-running one is not safe.
     files: ['0004_user_directory.sql', '0029_engineer_address.sql', '0068_app_user_names.sql',
             '0092_visible_engineers_by_name.sql',
+            // AFTER 0092, which owns the previous definition. Same module, so
+            // no mirror is needed: a replay of this bundle alone still ends on
+            // the newest body.
+            '0212_visible_engineers_no_blank_match.sql',
       // LAST: 0004 above creates `ud_admin_write` and 0008 (rbac) drops it. A
       // replay of this bundle alone put it back, and policies are OR'd.
       '0122_user_directory_replay_tail.sql'],

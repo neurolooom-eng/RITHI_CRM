@@ -256,6 +256,28 @@ on testing the old shape. **When a migration replaces a definition, move the
 - **Office-role visibility lives in `can_view_all_calls()`** (hotline, nsm,
   commercial, spare_coordinator, stores_incharge, tally_coordinator). A read
   policy only benefits from it if it actually calls it — `cr_read` did not.
+- **A BLANK NAME IS NOT A MANAGER, and it used to match one** (0212, reported
+  2026-09-18: *"Why is a Regional Manager able to see everyone's call and every
+  spare request?"*). `visible_engineer_names()` walks `user_directory` DOWNWARDS
+  from the caller by `reporting_manager` AND `regional_manager`, and the walk
+  compared names with nothing excluding the EMPTY STRING from either side. A
+  caller whose own directory row had a blank `name` therefore asked for everyone
+  whose manager is `''` — every row with no manager recorded, which is what a
+  partial import or a trimmed cell leaves. Measured both ways on a fixture:
+  with the name present he saw his three and himself; with it blank he saw two
+  STRANGERS **and lost one of his own**, because the root stopped matching the
+  people who name him. The second list is the dangerous one — it is not
+  obviously wrong, it reads as a different region. The fix is one condition and
+  **only ever narrows**: a tree node with a blank name stops recursing, so a
+  caller the directory cannot name sees no team and still sees their own work
+  through the policies' id/email branches. The comparison is left EXACTLY as it
+  was — adding `btrim()` to both sides would also make `' X '` match `'X'`,
+  which is a WIDENING and a different decision. `_status.sql` row 164.
+  **THE OTHER WAY THIS HAPPENS IS A PERMISSION, NOT A BUG**: `data.view_all`
+  turns `can_view_all_calls()` true for ANY role, no migration grants it to
+  `rgm`, so a Regional Manager holding it was ticked by hand on Roles &
+  Permissions. `supabase/apply/_who_can_this_person_see.sql` tells the two
+  apart.
 - **`create or replace view` DROPS `security_invoker`, and a view without it
   reads as its OWNER — so row-level security stops applying to whoever is
   reading, with no error and no warning.** 0040 set it on `calls`, 0050
