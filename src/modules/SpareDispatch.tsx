@@ -54,7 +54,7 @@ export function SpareDispatch() {
   // Whether this reader is shown the WHOLE queue or a slice of it — the client
   // copy of can_view_all_calls(). Used only to decide which of two true things
   // an empty queue is allowed to say.
-  const seesAll = seesEveryRecord(String(user?.role ?? ''), can);
+  const seesAll = seesEveryRecord(user, can);
   const navigate = useNavigate();
   const onDb = supabaseConfigured();
   const mayDispatch = can('spare.dispatch');
