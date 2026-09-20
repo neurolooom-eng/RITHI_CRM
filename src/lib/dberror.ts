@@ -99,3 +99,64 @@ export function loadFailure(e: unknown, opts: { tables: string[]; hint: string }
   if (isRefused(e)) return 'Your role does not have permission to read this.';
   return `Load failed: ${errText(e)}`;
 }
+
+// ===========================================================================
+// WHAT AN EMPTY REGISTER-BACKED LIST IS ALLOWED TO CLAIM.
+//
+// Product Database 2.0 came back empty and the screen said "No machine appears
+// in the warranty sale register, the contract register or the additional
+// entries yet" — the strong claim, and the one thing an empty list cannot
+// support. That view lists a machine only where a register row records BOTH a
+// model and a serial (a machine is its model PLUS its serial; a serial-only key
+// merges the eleven machines numbered 219 into one row), so an empty list is
+// equally consistent with thousands of rows carrying a serial and no model.
+// The two need OPPOSITE actions — load the registers, or fix the model column —
+// so the screen asks the registers and reports what it measured.
+//
+// THE VERDICT LIVES HERE, NOT IN THE SCREEN, for the `paging.ts` reason: the
+// module that fetches the counts reads `import.meta.env` and no node script can
+// import it, so a decision left beside the fetch cannot be tested as behaviour.
+// This one is pure, and `check:dberror` mutation-tests every branch.
+//
+// IT MAY ONLY CONCLUDE FROM AN EQUALITY. The counts are NULL-or-EMPTY, which is
+// a LOWER bound on blank — a whitespace-only cell is blank to the view and
+// counted as present here. `noModel === rows` therefore still PROVES no row in
+// that register can be listed, while `noModel < rows` proves nothing in either
+// direction and gets the numbers alone. The bound runs the safe way, and the
+// verdict never leans on the side it can be wrong about.
+// ===========================================================================
+
+/** One register's counts. `rows === null` means it could not be counted at all. */
+export type RegisterCount = {
+  rows: number | null;
+  noSerial: number | null;
+  noModel: number | null;
+  error?: string;
+};
+
+export type EmptyVerdict =
+  /** The counts have not come back yet. */
+  | 'counting'
+  /** Not one register could be counted — so nothing at all may be said. */
+  | 'uncountable'
+  /** Every register that could be counted holds no rows. */
+  | 'registers-empty'
+  /** Every counted row records no serial, so no machine can be identified. */
+  | 'no-serial'
+  /** Every counted row records no model, so there is nothing to key on. */
+  | 'no-model'
+  /** Rows with both DO exist, so the emptiness is something else. */
+  | 'elsewhere';
+
+export function emptyRegisterVerdict(counts: RegisterCount[] | null): EmptyVerdict {
+  if (counts === null) return 'counting';
+  const counted = counts.filter((c) => c.rows !== null);
+  if (counted.length === 0) return 'uncountable';
+  const withRows = counted.filter((c) => (c.rows ?? 0) > 0);
+  if (withRows.length === 0) return 'registers-empty';
+  // Serial before model: where both are wholly blank both sentences are true,
+  // and the serial is the more fundamental of the two to have lost.
+  if (withRows.every((c) => c.noSerial === c.rows)) return 'no-serial';
+  if (withRows.every((c) => c.noModel === c.rows)) return 'no-model';
+  return 'elsewhere';
+}

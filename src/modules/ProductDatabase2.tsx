@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
 import { formatDay } from '../lib/dates';
-import { listProductDatabaseV2, supabaseConfigured } from '../lib/supabase';
-import { loadFailure } from '../lib/dberror';
+import { listProductDatabaseV2, diagnoseProductDatabaseV2, supabaseConfigured,
+         type RegisterGap } from '../lib/supabase';
+import { loadFailure, emptyRegisterVerdict } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
 
@@ -65,6 +66,8 @@ export function ProductDatabase2() {
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  // Only ever filled when the list comes back EMPTY — see the banner below.
+  const [gaps, setGaps] = useState<RegisterGap[] | null>(null);
 
   const load = async () => {
     if (!supabaseConfigured()) return;
@@ -72,6 +75,10 @@ export function ProductDatabase2() {
     try {
       const r = await listProductDatabaseV2();
       setRows(r.map((x, i) => ({ ...x, id: String(x.machine_key ?? i) } as Row)));
+      // AN EMPTY LIST IS A QUESTION, NOT AN ANSWER. Ask the registers what they
+      // hold before saying anything about them; nine head requests, and only
+      // when there is nothing to show.
+      setGaps(r.length === 0 ? await diagnoseProductDatabaseV2() : null);
     } catch (e) {
       // The three answers, and the error VERBATIM — the real fault is usually
       // readable in the message and a hint written over it costs the round trip.
@@ -113,15 +120,7 @@ export function ProductDatabase2() {
 
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
 
-      {!err && !busy && rows.length === 0 && (
-        <div className="sheet-banner sheet-banner-info">
-          <span>
-            {seesEveryRecord(user, can)
-              ? 'No machine appears in the warranty sale register, the contract register or the additional entries yet.'
-              : 'Nothing here that you may see — this shows the machines your role is allowed to read, which may not be all of them.'}
-          </span>
-        </div>
-      )}
+      {!err && !busy && rows.length === 0 && <EmptyBecause gaps={gaps} everything={seesEveryRecord(user, can)} />}
 
       <Toolbar>
         <SearchBox value={q} onChange={setQ} placeholder="Product, serial, party, contract or SA number" />
@@ -140,6 +139,118 @@ export function ProductDatabase2() {
             ⭳ Export CSV
           </button>
         )} />
+    </div>
+  );
+}
+
+// ===========================================================================
+// WHY THERE IS NOTHING HERE — measured, and never claimed beyond the measurement.
+//
+// The banner used to say "No machine appears in the warranty sale register, the
+// contract register or the additional entries yet", which is the strong claim
+// and is the one thing an empty list cannot support. 2.0 lists a machine only
+// where a register row records BOTH a model and a serial — a machine is its
+// model PLUS its serial, and a serial-only key merges the eleven machines
+// numbered 219 into one row — so an empty list is equally consistent with
+// thousands of rows that carry a serial and no model. Those need opposite
+// actions, so the screen asks the registers instead of picking one.
+//
+// WHAT IT IS ALLOWED TO CONCLUDE. `noModel === rows` proves that NO row in that
+// register can be listed; anything short of that proves nothing either way, and
+// is reported as the numbers alone. The counts are NULL-or-EMPTY, so each is a
+// LOWER bound on what is blank — which is why the conclusion is only drawn from
+// the equality, where the bound cannot be hiding anything.
+// ===========================================================================
+// Styled from the tokens rather than a class, because there is no shared
+// `mini-table` rule and a class with no rule behind it renders as a plain
+// table — the `sheet-banner-warn` fault, one file over.
+const cell1: React.CSSProperties = { padding: '3px 14px 3px 0', textAlign: 'left' };
+const cellN: React.CSSProperties = { padding: '3px 0 3px 14px', textAlign: 'right' };
+const head1: React.CSSProperties = { ...cell1, fontWeight: 600, borderBottom: '1px solid var(--border)' };
+const headN: React.CSSProperties = { ...cellN, fontWeight: 600, borderBottom: '1px solid var(--border)' };
+
+function EmptyBecause({ gaps, everything }: { gaps: RegisterGap[] | null; everything: boolean }) {
+  // The verdict is decided in `dberror.ts`, where `check:dberror` can prove
+  // every branch of it — not here, beside the fetch, where nothing can.
+  const verdict = emptyRegisterVerdict(gaps);
+  const n = (v: number | null) => (v === null ? '—' : v.toLocaleString());
+
+  return (
+    <div className="sheet-banner sheet-banner-info" style={{ display: 'block' }}>
+      <div style={{ fontWeight: 600, marginBottom: 6 }}>
+        {everything
+          ? 'Nothing to list. Here is what the three registers actually hold.'
+          : 'Nothing here that you may see — and these counts are your slice too, not the company\'s.'}
+      </div>
+      <div>
+        A machine is listed here only where a register row records <strong>both a model and a
+        serial</strong>, so an empty list does not mean the registers are empty.
+      </div>
+
+      {gaps === null ? (   /* === verdict 'counting'; written so the narrowing holds */
+        <div style={{ marginTop: 6, opacity: 0.8 }}>Counting the registers…</div>
+      ) : (
+        <div style={{ overflowX: 'auto', marginTop: 8 }}>
+          <table style={{ borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
+            <thead>
+              <tr>
+                <th style={head1}>Register</th>
+                <th style={headN}>Rows</th>
+                <th style={headN}>No serial</th>
+                <th style={headN}>No model</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gaps.map((g) => (
+                <tr key={g.table}>
+                  <td style={cell1}>{g.register}</td>
+                  {g.error
+                    // Uncounted is said, never shown as zero: a zero would read
+                    // as "this register is empty", which is a claim.
+                    ? <td colSpan={3} style={{ ...cell1, opacity: 0.8 }}>could not be counted — {g.error}</td>
+                    : <>
+                        <td style={cellN}>{n(g.rows)}</td>
+                        <td style={cellN}>{n(g.noSerial)}</td>
+                        <td style={cellN}>{n(g.noModel)}</td>
+                      </>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {verdict === 'no-model' && (
+        <div style={{ marginTop: 8 }}>
+          <strong>Every row in every register counted above records no model</strong>, so there is
+          nothing 2.0 can key on. The registers need their model column filled — re-uploading them
+          with it is what puts machines on this screen.
+        </div>
+      )}
+      {verdict === 'no-serial' && (
+        <div style={{ marginTop: 8 }}>
+          <strong>Every row in every register counted above records no serial number</strong>, so no
+          machine can be identified at all.
+        </div>
+      )}
+      {verdict === 'elsewhere' && (
+        <div style={{ marginTop: 8 }}>
+          Those registers do hold rows with a model and a serial, so the blanks above are not the
+          whole story — run <code>_why_is_product_database_2_empty.sql</code> as an administrator,
+          which asks the same question without the row-level filtering this screen is subject to.
+        </div>
+      )}
+      {verdict === 'registers-empty' && (
+        <div style={{ marginTop: 8 }}>
+          The three registers are empty. Load them under Bulk Uploads and the machines appear here.
+        </div>
+      )}
+      {verdict === 'uncountable' && (
+        <div style={{ marginTop: 8 }}>
+          None of the three registers could be counted, so nothing can be concluded from this screen
+          being empty — the errors beside each are the thing to fix first.
+        </div>
+      )}
     </div>
   );
 }
