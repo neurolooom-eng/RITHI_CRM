@@ -1117,7 +1117,17 @@ with checks(sort_order, bundle, provides, present) as (
          -- "permission denied for materialized view". A project that ran 0220
          -- and not 0221 has all four objects above and a screen that refuses
          -- everybody, so the four are not enough to answer this row.
-         and has_table_privilege('authenticated','public.product_database_v2_mv','select')))
+         and has_table_privilege('authenticated','public.product_database_v2_mv','select'))),
+    (171, 'Product Database 2.0 is ALIVE, and its status is not stored', 'product_database_v2_state.stale + pdv2_mark_stale() on 8 sources + refresh_product_database_2_if_stale() (0223), and the cover status computed on READ (0222). TWO FAULTS IN 0220, BOTH FOUND BY THE USER ASKING "Should I Re-build it everytime?". FIRST: item_status, item_status_reason, warranty_state and contract_state all read current_date, and a MATERIALISED VIEW EVALUATES ITS EXPRESSIONS AT REFRESH TIME AND STORES THE ANSWER -- so every machine''s cover was frozen at whenever somebody last pressed Rebuild. A warranty lapsing overnight went on reading WGP indefinitely, beside a "Built <time>" caption that looks like it accounts for exactly this and does not. Measured on a loaded fixture: 209 machines of 10,000 wrong after thirty days, ~2% a month, silently. The four are computed on every read now and the matview no longer mentions current_date at all -- asserted on the DEFINITION rather than on a value, because a value read the day it was built agrees either way, which is precisely why it shipped. SECOND: "alive data" (the user) cannot mean a button somebody has to remember, least of all on a screen about to become the primary product list. The five registers plus the installation calls and feedback now MARK IT STALE on change -- a STATEMENT-level trigger, so a 12,000-row upload costs ONE flag write rather than 12,000, a structural property of "for each statement" and not an optimisation to hope for -- and pg_cron rebuilds every five minutes ONLY IF something moved. The refresh is deliberately NOT fired from the trigger: that would rebuild once per statement of a bulk load and make somebody''s upload wait on it. NO means the screen still needs rebuilding by hand, or still freezes its cover status at the last rebuild. Restore: product_database_2.sql',
+        (to_regprocedure('public.refresh_product_database_2_if_stale()') is not null
+         and to_regprocedure('public.pdv2_mark_stale()') is not null
+         and exists (select 1 from information_schema.columns
+                      where table_name = 'product_database_v2_state' and column_name = 'stale')
+         -- The status must NOT be stored: a matview mentioning current_date
+         -- freezes it at the last rebuild.
+         and not exists (select 1 from pg_matviews
+                          where matviewname = 'product_database_v2_mv'
+                            and definition ilike '%current_date%')))
     -- worse than no row: this report is read to decide WHAT TO RUN.
 )
 select bundle,

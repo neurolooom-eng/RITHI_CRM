@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.318',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 keeps itself up to date \u2014 no more Rebuild button to remember',
+    changes: [
+      'YOU ASKED WHETHER YOU HAVE TO REBUILD IT EVERY TIME. You do not, and now you do not have to at all: the five registers tell it when they have changed, and it rebuilds itself within five minutes. The button is still there for when you want it now rather than soon.',
+      'The screen says which it is \u2014 \u201cLive as of \u2026\u201d, or \u201cA register has changed since \u2026 \u2014 updating within 5 minutes\u201d. A time on its own could not tell you whether you were looking at the current picture or one waiting on an update, and those read the same while meaning opposite things.',
+      'AND THE COVER STATUS WAS BEING FROZEN \u2014 a real fault, found by your question. WGP / AMC / CMC / OGP depend on TODAY\u2019S DATE, and storing them meant they were stuck at whenever the screen was last built: a machine whose warranty ran out overnight went on reading WGP. Measured: about 2% of machines a month would have drifted \u2014 roughly 400 of your 19,229. The status is now worked out fresh every time you look, so it is right the morning after, with or without a rebuild.',
+      'Nothing else changes: the same columns, the same speed.',
+      'Separately, a test that checked \u201ca visit cannot be dated in the future\u201d was passing by day and failing by night \u2014 it measured \u201ctomorrow\u201d on a different clock from the rule it was testing (the rule uses India\u2019s date). Fixed, so it no longer sends anybody looking at innocent code.',
+    ],
+  },
+  {
     version: '0.9.317',
     date: '2026-09-20',
     title: 'Click a machine in Product Database 2.0 \u2014 and click straight through to its documents',

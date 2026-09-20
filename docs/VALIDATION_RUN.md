@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-20T14:30:20.073Z
-- **Took** 57s
-- **Commit** `2dcdcee` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.315
+- **Run at** 2026-09-20T20:36:35.653Z
+- **Took** 44s
+- **Commit** `591c61b` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.317
 
 ## Result
 
@@ -29,13 +29,13 @@ stopped working produces a suite that runs clean.
 
 | | Result | |
 | --- | --- | --- |
-| `244 migrations applied to a fresh database` | ✅ pass |  |
+| `246 migrations applied to a fresh database` | ✅ pass |  |
 
 ## Automated checks
 
 | | Result | |
 | --- | --- | --- |
-| `check:bundles` | ✅ pass | no NEW object is split across modules (365 checked, 37 known and listed) |
+| `check:bundles` | ✅ pass | no NEW object is split across modules (367 checked, 37 known and listed) |
 | `check:columns` | ✅ pass | every column of all 33 registers exists |
 | `check:dberror` | ✅ pass | all passed |
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (56 checked) |
@@ -45,7 +45,7 @@ stopped working produces a suite that runs clean.
 | `check:picklist` | ✅ pass | all passed |
 | `check:replay` | ✅ pass | every bundle (23) replays with no change to the schema |
 | `check:reports` | ✅ pass | all passed |
-| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 205 functions |
+| `check:safe-updates` | ✅ pass | no WHERE-less update or delete in any of the 207 functions |
 | `check:status` | ✅ pass | every one of the 179 _status.sql rows reads yes on a fully-applied database (1 skipped) |
 | `check:ui` | ✅ pass | all passed |
 | `check:uploads` | ✅ pass | all passed |
