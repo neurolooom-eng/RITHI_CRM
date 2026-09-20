@@ -20,6 +20,48 @@ up)_
 
 ---
 
+## 2026-09-20 — ⚠️ The Restore clauses were pointing at the wrong bundles
+
+> *"Failed to run sql query: ERROR: 42883: function public.imported_ts(jsonb,
+> unknown) does not exist"*
+
+**Two faults, one of them a week old.**
+
+**1. `product_database_2.sql` did not declare its dependencies.** It reads
+`imported_ts()` (0215, `performance`) and `cover_code()` (0208,
+`data_integrity`) and installs neither, so it died part-way through on a
+function name — which says nothing about what to run. It now opens with the
+`preflight()` guard: *"Apply these first, then re-run this bundle:
+imported_ts() — 0215… (apply bundle: performance)"*. Proved by building a
+database with 0215 deliberately left out.
+
+**2. `_status.sql` row 167 named the wrong file, and had since 2026-09-18.** It
+said `Restore: HandStock_X.sql` for **0215**, which lives in the `performance`
+module and is in no other bundle. So the row read NO however many times that
+file was run. Now `performance.sql`.
+
+**3. Five more rows were wrong, and that one is mine from yesterday.** `sed -i
+"s|Restore: data_integrity.sql|Restore: product_database_2.sql|"` is a GLOBAL
+replace: it rewrote **all five** rows that legitimately named
+`data_integrity.sql` — 132, 139, 142, 145, 160 — not the one intended. The same
+mistake hit `validation.ts` two days earlier. Corrected by row.
+
+**The durable fix.** `check:ui` now refuses a `Restore:` naming a bundle that
+does not CARRY the migration; it only checked the file EXISTED, which is how all
+six got past. Matched on the parenthesised convention `(0215)` against the
+bundle's section header `^-- 0215_….sql`. Two traps found while writing it, each
+of which would have made the check lie: a bare number in prose is not the row's
+migration (row 81: *"notify_spare_dispatched carries 0064"*), and a bare
+`includes` reads a bundle's own preflight comment as proof it carries what it
+merely names. Mutation-tested against both faults — all six rows caught.
+
+**To run, in this order:** `performance.sql`, then `product_database_2.sql`,
+then `rbac.sql`. Nothing about the data changes.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
 ## 2026-09-20 — Cover requirements, and Product Database 2.0
 
 > *"Write requirements inline with ISO guidelines for contract, warranty,

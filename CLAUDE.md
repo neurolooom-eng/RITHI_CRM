@@ -292,6 +292,31 @@ on testing the old shape. **When a migration replaces a definition, move the
   0218_product_database_v2.sql"*, naming two files that share no module). Widened
   to `[a-z0-9_]+`. A check that silently absorbs a module into its neighbour is
   worse than one that refuses it.
+- **A `Restore:` CLAUSE MUST NAME A BUNDLE THAT CARRIES THE MIGRATION, AND
+  "THE FILE EXISTS" WAS THE ONLY THING CHECKED.** Row 167 told somebody to run
+  `HandStock_X.sql` to restore **0215**, which lives in the `performance`
+  module and is in no other bundle — so the row went on reading NO however many
+  times they ran what it named, and `product_database_2.sql` then died on
+  `function public.imported_ts(jsonb, unknown) does not exist`. `check:ui` now
+  matches the row's own migration — the PARENTHESISED convention, `(0215)` —
+  against the bundle's SECTION HEADER (`^-- 0215_….sql`). Two traps found while
+  writing it, both of which would have made the check lie: a bare number in the
+  prose is not the row's migration (row 81 says *"notify_spare_dispatched
+  carries 0064"*), and a bare `includes` reads a bundle's own PREFLIGHT COMMENT
+  — which names what it needs — as proof it carries it.
+- **NEVER `sed` A SHARED STRING ACROSS `_status.sql`.** `sed -i
+  "s|Restore: data_integrity.sql|Restore: product_database_2.sql|"` rewrote
+  **all five** rows that legitimately named `data_integrity.sql`, not the one
+  intended — rows 132, 139, 142, 145 and 160 all began telling people to run a
+  bundle that has nothing to do with them. The same mistake hit `validation.ts`
+  two days earlier, where a global rename of `URS-053` silently renumbered a
+  pre-existing requirement and orphaned three FRS links. **Edit by ROW, splitting
+  on the row opener**, and diff the `Restore:` tally before and after.
+- **A BUNDLE WITH A CROSS-MODULE DEPENDENCY MUST DECLARE IT IN `needs`.** The
+  `preflight()` guard turns a mid-file Postgres error into *"Apply these first,
+  then re-run this bundle: imported_ts() — 0215… (apply bundle: performance)"*.
+  `product_database_2` declares `importedTs` and `coverCode`; proved by building
+  a database with 0215 deliberately left out and running the bundle at it.
 - **A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL.**
   `_why_is_it_empty.sql` and `_why_is_it_empty_2.sql` both shipped with a live
   address on that line, so running either unchanged returned a COMPLETE,
