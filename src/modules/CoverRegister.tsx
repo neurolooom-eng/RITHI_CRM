@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation} from 'react-router-dom';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { coverStatus, deriveHeader, deriveItem } from '../lib/coverspec';
 import { listProductLines, sellableNames, sellableCodes, retiredNames, type ProductLine } from '../lib/productLines';
@@ -501,6 +501,20 @@ export function CoverRegister({ kind }: { kind: CoverKind }) {
   const [tab, setTab] = useState<Tab>('entries');
   const [q, setQ] = useState('');
   const [state, setState] = useState('');
+
+  // ARRIVING FROM SOMEWHERE THAT NAMED A DOCUMENT. Product Database 2.0 shows
+  // an SA number and an MC number on every machine it assembles, and those are
+  // the register's own keys — so they are LINKS there and this is the other
+  // half. Without it the link lands on an unfiltered register and the reader
+  // does the search again by hand, which is the same as no link.
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as { search?: string; tab?: Tab } | null;
+    if (!st) return;
+    if (st.tab) setTab(st.tab);
+    if (st.search !== undefined) setQ(st.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(

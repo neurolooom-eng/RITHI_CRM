@@ -357,6 +357,13 @@ typed into a form that reads it.
   > from the registers** to bring it up to date. Nobody is locked out of the
   > screen while it rebuilds, and anyone who may edit masters or cover can do
   > it.
+  > **Click a row for the whole record.** The drawer shows every field, and
+  > every reference on it opens the document behind it: the **SA number** goes
+  > to the Warranty Register, the **contract number** to the Contract Register,
+  > the **transfer reference** to Ownership Transfer, the **installation call**
+  > to Installation Calls, and the serial to **Machine History** — each one
+  > already searched. A number the machine does not carry is shown as plain
+  > text rather than a link that goes nowhere.
   > **Who can see it:** anyone signed in who can open the screen, the same as
   > the Product Database beside it. **Who can rebuild it:** anyone who may edit
   > masters or cover.
