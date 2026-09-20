@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.321',
+    date: '2026-09-21',
+    title: 'Visit Reports exports EVERY column, and the answer on spares',
+    changes: [
+      'VISIT REPORTS \u2192 EXCEL / CSV now exports every column a visit actually carries \u2014 including every question the engineer answered on the form, the entry date, the engineer\u2019s email, the service report and the row id. It was writing six columns while each row held far more.',
+      'The columns come from the visits you loaded, not from a fixed list \u2014 an installation is asked different questions from a breakdown, so a fixed list would be short for one and full of blanks for the other. The Excel file says how many columns it found and why.',
+      'YES \u2014 SPARES COULD BE BOOKED ONTO A CLOSED CALL, and that is now measured rather than assumed. Between 5 and 18 September a call closed with \u201cClose call\u201d took spares with no complaint at all. Since 18 September the database refuses it: \u201cNo visit has been filed on \u2026 yet, so a spare cannot be booked against it.\u201d',
+      'The rows booked in that window were never rewritten \u2014 deliberately, because inventing a visit that did not happen is worse than a blank that is true. They are exactly the rows showing empty Visit Date and Visit Entry Date on the Consumption Report. _consumption_without_a_visit.sql lists them.',
+    ],
+  },
+  {
     version: '0.9.320',
     date: '2026-09-21',
     title: 'Solved Without a Report exports properly \u2014 and why there are 4,222 of them',
