@@ -4,7 +4,10 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (Product Database 2.0: a drawer per machine with its
+_Last updated: 2026-09-20 (QUEUED: Product Database 2.0 as the primary product
+list — what it involves and the four decisions it needs. Before that:
+⚠️ NEW REPORT Solved Without a Report — RUN reports.sql,
+_status.sql row 172. Before that: Product Database 2.0: a drawer per machine with its
 references as working links. Before that: ⚠️ 0220 refused EVERY reader including admins —
 0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
 Product Database 2.0 was TIMING OUT and is now
@@ -31,6 +34,131 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## QUEUED — Product Database 2.0 becomes the PRIMARY product list
+
+> *"Once it is Streamlined, i want to move this as the Primary Source for
+> Product List -- Which will be used everywhere -- Calls, Age of the Machine --
+> ideally everywhere."* (the user, 2026-09-20)
+
+**Not started. This is the record of what it involves, so it can be decided
+rather than discovered halfway through.**
+
+### Why it is not a find-and-replace
+
+`public.products` is a TABLE of ~19,229 machines, keyed on
+`serial_key` — **the serial ALONE**. `product_database_v2` is DERIVED from five
+registers and keyed on **product + serial**. That difference is the whole point
+of 2.0 and it is also the whole difficulty: the eleven machines numbered 219 are
+ONE row in `products` and ELEVEN in 2.0. Any screen switched over will start
+returning a different number of rows for the same question, and for the right
+reason.
+
+### What reads the install base today
+
+Eight call sites in `src/lib/supabase.ts`, and they do four different jobs:
+
+| Reader | Used by | What it wants |
+|---|---|---|
+| `sbListProductNames` / `sbListProductSerials` | Machine History, call forms | the PICKER: product first, then its serials |
+| `sbProductBySerial` | call registration | one machine BY SERIAL ALONE — the hard case |
+| `sbSearchProducts` / `sbSearchMachines` | Product & Party Search, call forms | search across party / product / serial |
+| `sbSearchProductParties` | the request cascade | which customers hold a product |
+
+`machine_cover` and `cover.ts` are a fifth path, and Age of the Machine reads
+the warranty start.
+
+### The four decisions, none of which is mine to make
+
+1. **What happens to `products`.** The standing rule is *"Do Not disturb the
+   current product Database"*. Does it stay as the sales/import record with 2.0
+   layered over it, or does it eventually go? Everything else depends on this.
+2. **Serial-only lookups.** Call registration knows a serial before it knows a
+   model. Against 2.0 that can return more than one machine. Options: ask the
+   user to pick the model; accept it only where exactly ONE machine has that
+   serial and report the rest; or keep a serial-only index for this one path.
+3. **A machine 2.0 does not know.** 2.0 lists a machine only where a REGISTER
+   names it. A machine in `products` from a source that never reached the
+   registers would vanish from the pickers. **Measure the overlap before
+   anything moves** — that number decides whether this is a switch or a
+   migration.
+4. **Age of the Machine.** 2.0's warranty start comes from the installation
+   call, falling back to the selling register. `products` has its own. Where
+   they disagree, 2.0 is the better answer AND the number will change on
+   screens people already read.
+
+### The order it should go in
+
+1. **Measure first** (a probe, not a change): how many machines are in
+   `products` and not in 2.0, and the reverse; how many serials are ambiguous
+   without a model. Nothing is designed until those three numbers exist.
+2. Switch **one read** — the Machine History picker is the safest, it already
+   asks product-then-serial, which is 2.0's own key.
+3. Then Product & Party Search, which is a search rather than a decision.
+4. **Call registration LAST**, because that is where a wrong machine becomes a
+   wrong quality record.
+
+### What is already in place
+
+The blockers are gone: 2.0 is fast (3–6 ms a page), it keeps itself current
+(0223), its cover status is computed live rather than frozen (0222), and every
+row links through to the documents behind it. That is what *"once it is
+streamlined"* was waiting on.
+
+## 2026-09-20 — ⚠️ New report: Solved Without a Report — RUN `reports.sql`
+
+> *"Create a Report - Call is Solved, but Report or Visit Entry is missing -
+> View only for Admins and Super Admins."*
+
+Administration → **Solved Without a Report**. The list of what to re-upload,
+instead of loading every report again and hoping.
+
+**FOUR GAPS, NOT ONE**, because each needs a different fix and a report that
+lumps them together cannot be acted on: *no visit at all* · *no visit date* ·
+*no service report* · *entry date is an import stamp*. Every gap on a row is
+listed, not the first — being told, fixing it, and being told the next is three
+round trips for one call.
+
+**THE FOURTH GAP IS THE INTERESTING ONE, AND A TEST FOUND IT.** The first draft
+looked for a null `updated_at`. `reports.updated_at` is **NOT NULL and DEFAULTS
+TO `now()`** — so a file with no Visit Entry Date does not leave a blank, it
+silently takes the moment of the import, and the gap **cannot be found by
+looking for a null at all**. The branch would have shipped as a condition that
+can never fire: a claim about the data that is simply false. So the report looks
+for the signature instead — how many visits share that timestamp **to the
+microsecond**. Twenty-five genuinely entered at the same instant does not
+happen; a batch load does. The count is published as a column either way, so the
+reader sees the evidence and not only the verdict. It matters because
+`updated_at` is what decides a call's status (0032 takes the LATEST ENTRY), so a
+whole batch sharing one stamp lets an arbitrary row decide every call in it.
+
+**"Solved" includes "Solved - Report Pending" and the row says which.** They are
+different findings: Report Pending is the system stating a known absence; a plain
+Solved with no report is the system contradicting itself. Filtering to one would
+hide half the problem, merging them silently would misrepresent it.
+
+**THE VIEW INVENTS NO PERMISSION RULE.** It is `security_invoker`, so the
+ordinary call policies decide the rows; the SCREEN is what is restricted, by
+`mod:/missing-visit-reports` — `admin: true` on the module plus 0224 merging the
+key into the three roles in `SEES_EVERY_MODULE` (`admin`, `technical_support`,
+`zoho_migration`). That is the 0209 pattern, not a new mechanism. **Note for the
+user:** this system has no separate "super admin" role — those three are what
+see every module. Say the word and it narrows to `admin` alone.
+
+**Filed in the `reports` bundle, not `daily_review`**, because a view is resolved
+AT CREATION and `daily_review` runs first in `ALL_ORDER`. And
+`create or replace view` could not be used: the definition inserts a column in
+the middle, which fails with "cannot change name of view column".
+
+**The requirement is DECLARED on URS-065**, whose own last clause is what the
+screen is for — *"a gap that is visible as a gap"* — but whose words name no
+route and say "recovered" rather than "missing". `check:ui` refused the screen
+until it was tied to one, which is the mechanism working.
+
+**TO RUN:** `_status.sql` (row **172**), then
+[`supabase/apply/reports.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/reports.sql).
+
+validate: **96/96 suites, 16/16 checks.**
 
 ## 2026-09-20 — Product Database 2.0: a drawer per machine, and the references are links
 

@@ -12,9 +12,9 @@ came from, because some are authoritative and one is a floor.
 
 | | |
 | --- | --- |
-| Screens in `MODULES` | **58** |
-| …with a component this script could resolve | 58 |
-| …on the menu | 56 |
+| Screens in `MODULES` | **59** |
+| …with a component this script could resolve | 59 |
+| …on the menu | 57 |
 | …naming a table in their own source | 1 |
 | Redirects (not screens of their own) | 5 |
 
@@ -329,6 +329,13 @@ that guessed would be read as a census.
 - **Opened by** `mod:/bulk-uploads` · administrator-only screen
 - **Source** `src/modules/BulkUploads.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
+
+### Solved Without a Report `/missing-visit-reports`
+
+- **Opened by** `mod:/missing-visit-reports` · administrator-only screen
+- **Source** `src/modules/SolvedWithoutReport.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Buttons** “⭳ Export CSV”
 
 ### Tracker `/tracker`
 

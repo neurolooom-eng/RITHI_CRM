@@ -242,6 +242,7 @@ export const NAV: NavGroup[] = [
   {
     title: 'Administration',
     items: [
+      { to: '/missing-visit-reports', label: 'Solved Without a Report', icon: '📭', adminOnly: true },
       { to: '/tracker', label: 'Tracker', icon: '🧭' },
       { to: '/roles', label: 'Roles & Permissions', icon: '🔐', adminOnly: true },
       { to: '/audit', label: 'Audit Log', icon: '🧾', adminOnly: true },

@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.318',
+    version: '0.9.320',
     date: '2026-09-20',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,31 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.319',
+    date: '2026-09-20',
+    title: 'New report \u2014 Solved Without a Report (administrators only)',
+    changes: [
+      'ADMINISTRATION \u2192 SOLVED WITHOUT A REPORT lists every call that reads Solved while its visit record is incomplete. It is the list of what to re-upload, instead of loading every report again and hoping.',
+      'IT NAMES THE GAP, and there are four, because each needs a different fix: no visit at all \u00b7 no visit date \u00b7 no service report \u00b7 the entry date is the import moment rather than a recorded one. A call showing more than one gap lists all of them, not just the first.',
+      'THAT LAST ONE IS WORTH KNOWING ABOUT. Visit Entry Date can never come through as blank \u2014 when your file does not carry it, the row quietly takes the time of the upload. So it cannot be found by looking for an empty cell. The report finds it the only way it can be found: by counting how many visits share the same timestamp to the microsecond. Twenty-five visits entered at the same instant does not happen; a batch load does. The count is shown, so you can see the evidence rather than take the verdict on trust.',
+      'It matters because the entry date is what decides a call\u2019s status \u2014 the LATEST entry wins \u2014 so a whole batch sharing one stamp lets an arbitrary row decide every call in it.',
+      '\u201cSolved\u201d includes \u201cSolved - Report Pending\u201d and the row says which: Report Pending is the system telling you something is missing, a plain Solved with no report is the system contradicting itself.',
+      'Filter by gap, search, and export the lot to CSV.',
+    ],
+  },
+  {
+    version: '0.9.318',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 keeps itself up to date \u2014 no more Rebuild button to remember',
+    changes: [
+      'YOU ASKED WHETHER YOU HAVE TO REBUILD IT EVERY TIME. You do not, and now you do not have to at all: the five registers tell it when they have changed, and it rebuilds itself within five minutes. The button is still there for when you want it now rather than soon.',
+      'The screen says which it is \u2014 \u201cLive as of \u2026\u201d, or \u201cA register has changed since \u2026 \u2014 updating within 5 minutes\u201d. A time on its own could not tell you whether you were looking at the current picture or one waiting on an update, and those read the same while meaning opposite things.',
+      'AND THE COVER STATUS WAS BEING FROZEN \u2014 a real fault, found by your question. WGP / AMC / CMC / OGP depend on TODAY\u2019S DATE, and storing them meant they were stuck at whenever the screen was last built: a machine whose warranty ran out overnight went on reading WGP. Measured: about 2% of machines a month would have drifted \u2014 roughly 400 of your 19,229. The status is now worked out fresh every time you look, so it is right the morning after, with or without a rebuild.',
+      'Nothing else changes: the same columns, the same speed.',
+      'Separately, a test that checked \u201ca visit cannot be dated in the future\u201d was passing by day and failing by night \u2014 it measured \u201ctomorrow\u201d on a different clock from the rule it was testing (the rule uses India\u2019s date). Fixed, so it no longer sends anybody looking at innocent code.',
     ],
   },
   {

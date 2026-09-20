@@ -134,6 +134,7 @@
 --   0010_reports_ordering.sql
 --   0071_report_source_ref.sql
 --   0115_visit_date_sanity.sql
+--   0224_solved_without_a_report.sql
 --   0006_spare_workflow.sql
 --   0009_spare_receipt.sql
 --   0011_spare_intake.sql
@@ -254,6 +255,8 @@
 --   0218_product_database_v2.sql
 --   0220_product_database_2_is_materialised.sql
 --   0221_product_database_2_needs_no_gate.sql
+--   0222_status_is_computed_when_read.sql
+--   0223_product_database_2_keeps_itself_alive.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -15817,6 +15820,148 @@ create trigger reports_visit_date_guard
 
 comment on function public.reports_visit_date_guard() is
   'A visit entered on the Visit Update form (uid WEB-...) cannot be dated in the future or before its call''s complaint date. Imported history is exempt by design — see the migration header.';
+
+-- ------------------------------------------------------------------------
+-- 0224_solved_without_a_report.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- SOLVED, BUT NOBODY FILED THE REPORT.
+--
+--   The user, 2026-09-20: "Create a Report - Call is Solved, but Report or
+--   Visit Entry is missing - View only for Admins and Super Admins."
+--
+-- This is the list that says WHICH visits to re-upload, and it exists because
+-- the answer was previously "load them all again and hope".
+--
+-- THE FOUR GAPS ARE NOT THE SAME GAP, and a report that lumps them together
+-- cannot be acted on — each needs a different fix:
+--
+--   no visit at all ....... the call has NO `reports` row. Nothing recorded
+--                           that anybody attended. The visit must be loaded.
+--   no visit date ......... a visit row with no `visit_at`. It cannot be
+--                           placed in time, so it cannot date the call.
+--   entry date is an ....... `reports.updated_at` is NOT NULL and DEFAULTS TO
+--   import stamp            `now()`, so a file with no Visit Entry Date does
+--                           not leave a blank — it silently takes the MOMENT
+--                           OF THE IMPORT. A missing entry date therefore
+--                           cannot be found by looking for a null, which is
+--                           why this report looks for the signature instead:
+--                           the number of visits sharing that timestamp TO THE
+--                           MICROSECOND. Twenty-five visits genuinely entered
+--                           at the same instant is not a thing that happens;
+--                           a batch load is. The COUNT is published either way
+--                           (`visits_sharing_entry_stamp`), so the reader sees
+--                           the evidence and not only the verdict.
+--                           It matters because that column decides a call's
+--                           status — 0032 takes the LATEST ENTRY — so a whole
+--                           batch sharing one stamp lets an arbitrary row
+--                           decide every call in it.
+--   no service report ..... no `manual_report`. The visit is recorded, the
+--                           document behind it is not.
+--
+-- A call can be missing more than one, so `missing` lists every one of them
+-- rather than the first — being told about a gap, fixing it, and being told
+-- about the next one is three round trips for one row.
+--
+-- "SOLVED" INCLUDES "SOLVED - REPORT PENDING", AND THE ROW SAYS WHICH. They
+-- are different findings: Report Pending is the system stating a known
+-- absence, and a plain Solved with no report is the system contradicting
+-- itself. Filtering to one of them would hide half the problem; merging them
+-- without saying which would misrepresent it. `open_state` is carried through.
+--
+-- IT IS A `security_invoker` VIEW over `calls` and `reports`, so the call
+-- policies decide the rows exactly as they do everywhere else. The SCREEN is
+-- what is restricted to administrators (`mod:/missing-visit-reports`, below);
+-- the view does not invent a second, different rule, which is how a screen and
+-- its data come to disagree.
+-- ===========================================================================
+-- Dropped first: `create or replace view` can only APPEND a column, and this
+-- definition inserts one in the middle. The view is new here, so nothing
+-- depends on it and the drop is idempotent.
+drop view if exists public.solved_without_report;
+create view public.solved_without_report as
+with latest as (
+  -- THE LATEST ENTRY, not the latest visit date — the same ordering
+  -- `sync_call_last_visit()` uses (0032), because this report is about what
+  -- that function had to work with.
+  select distinct on (r.ucn)
+         r.ucn, r.visit_at, r.updated_at, r.manual_report, r.uid, r.engineer,
+         count(*) over (partition by r.updated_at) as sharing
+    from public.reports r
+   order by r.ucn, r.updated_at desc nulls last, r.id desc
+)
+select
+  c.ucn,
+  c.call_number,
+  c.reg_date,
+  c.open_state,
+  c.party_name,
+  c.product_name,
+  c.serial,
+  c.state,
+  c.last_visit_at,
+  l.uid            as visit_uid,
+  l.visit_at       as visit_date,
+  l.updated_at     as visit_entry_date,
+  l.sharing        as visits_sharing_entry_stamp,
+  nullif(btrim(coalesce(l.manual_report, '')), '') as service_report,
+  coalesce(nullif(btrim(coalesce(l.engineer, '')), ''), '') as visit_engineer,
+  -- EVERY gap on the row, in the order they have to be fixed in.
+  array_to_string(
+    array_remove(array[
+      case when l.ucn is null                                        then 'no visit at all' end,
+      case when l.ucn is not null and l.visit_at is null             then 'no visit date' end,
+      case when l.ucn is not null and l.sharing >= 25
+             then 'entry date looks like an import stamp (' || l.sharing || ' visits share it)' end,
+      case when l.ucn is not null
+            and coalesce(btrim(l.manual_report), '') = ''            then 'no service report' end
+    ], null), ' · ')                                                 as missing
+from public.calls c
+left join latest l on l.ucn = c.ucn
+where coalesce(c.open_state, '') like 'Solved%'
+  and (l.ucn is null
+       or l.visit_at is null
+       or l.sharing >= 25
+       or coalesce(btrim(l.manual_report), '') = '');
+alter view public.solved_without_report set (security_invoker = on);
+grant select on public.solved_without_report to authenticated;
+comment on view public.solved_without_report is
+  'Calls reading Solved whose visit record is incomplete — no visit at all, no visit date, no visit entry date, or no service report. `missing` names every gap on the row. Administrators only, by the module key rather than by a rule of its own (0224).';
+
+-- ---------------------------------------------------------------------------
+-- THE KEY REACHES NOBODY WITHOUT THIS. `permsForRole()` is
+-- `if (stored && stored.length) return stored;` — the code defaults apply ONLY
+-- to a role whose stored set is EMPTY, and on a project in use every role has
+-- a tuned row. So a new screen's key must be MERGED into `app_roles` or the
+-- page is invisible to everybody with no error anywhere. 0195 and 0209 are the
+-- pattern; this is the same shape.
+--
+-- ADMINISTRATORS ONLY: the three roles that see every module. MERGED, never
+-- overwritten, and a role with ZERO permissions is left alone — an empty array
+-- means "not configured" and writing one key into it turns the fallback off.
+-- ---------------------------------------------------------------------------
+do $$
+declare n integer;
+begin
+  if to_regclass('public.app_roles') is null then return; end if;
+
+  update public.app_roles ar
+     set permissions = (
+           select coalesce(jsonb_agg(distinct v), '[]'::jsonb)
+             from (
+               select jsonb_array_elements_text(ar.permissions) as v
+               union
+               select unnest(array['mod:/missing-visit-reports']) as v
+             ) u
+         ),
+         updated_at = now()
+   where jsonb_array_length(ar.permissions) > 0
+     and ar.role in ('admin', 'technical_support', 'zoho_migration')
+     and not (ar.permissions ? 'mod:/missing-visit-reports');
+  get diagnostics n = row_count;
+  raise notice '0224: % of 3 role(s) given mod:/missing-visit-reports', n;
+end $$;
 
 -- ------------------------------------------------------------------------
 -- 0006_spare_workflow.sql
@@ -33238,5 +33383,452 @@ do $$ begin
   create policy pdv2_state_read_all on public.product_database_v2_state for select
     using (auth.role() = 'authenticated');
 exception when duplicate_object then null; end $$;
+
+-- ------------------------------------------------------------------------
+-- 0222_status_is_computed_when_read.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- A STATUS THAT DEPENDS ON TODAY MUST NOT BE STORED AS OF LAST TUESDAY.
+--
+--   The user, 2026-09-20: "Should I Re-build it everytime?"
+--
+-- The honest answer is no -- only when one of the five registers changes. But
+-- answering it exposed a defect in 0220: `item_status`, `item_status_reason`,
+-- `warranty_state` and `contract_state` are all derived from `current_date`,
+-- and 0220 MATERIALISED them. A materialised view evaluates its expressions AT
+-- REFRESH TIME and stores the answer, so the cover status of every machine was
+-- frozen at whenever somebody last pressed Rebuild.
+--
+-- A machine whose warranty lapsed the next morning would have gone on reading
+-- WGP indefinitely -- with a "Built <time>" caption beside it that looks like
+-- it accounts for exactly this and does not. MEASURED on the loaded fixture:
+-- 209 machines of 10,000 carry the wrong status after thirty days without a
+-- rebuild, about 2% a month. Against the live install base of 19,229 that is
+-- roughly 400 machines a month quietly reading the wrong cover.
+--
+-- IT WOULD ALSO HAVE MADE THE ANSWER TO THE QUESTION WRONG. "Rebuild when a
+-- register changes" is right for the assembly and useless for the clock: cover
+-- lapses on its own, with nothing uploaded and nothing to notice. The answer is
+-- not "rebuild daily" -- it is to stop storing the part that moves.
+--
+-- SO THE TWO HALVES ARE SPLIT ALONG THE LINE THAT ACTUALLY DIVIDES THEM:
+--
+--   STORED, because it is expensive and only changes when a register does:
+--     which machines exist, whose they are, the warranty and contract dates,
+--     the periods, the numbers, and which register said so. That is the part
+--     that measured 2,936 ms a page to derive.
+--
+--   COMPUTED ON EVERY READ, because it depends on the date and on nothing
+--     else: the four columns above. They are CASE expressions over columns
+--     already on the row -- no joins, no registers -- so the screen keeps the
+--     speed and stops being wrong the morning after it was built.
+--
+-- THE PUBLISHED COLUMNS ARE UNCHANGED in name, order and meaning, so nothing
+-- reading this view has to know anything happened.
+--
+-- AND THEY ARE REMOVED FROM THE MATVIEW RATHER THAN LEFT THERE STALE. A frozen
+-- `item_status` sitting in `product_database_v2_mv` for whoever queries it
+-- directly is the trap this project keeps writing down: a value that is wrong
+-- is worse than one that is absent, because nothing about it reads as an error.
+-- ===========================================================================
+
+drop view if exists public.product_database_v2 cascade;
+drop materialized view if exists public.product_database_v2_mv cascade;
+
+create materialized view public.product_database_v2_mv as
+
+with w as (
+  -- THE WARRANTY SALE — the machine's birth record. Latest by the cover it
+  -- grants, so a re-sale or a corrected row wins over the one it replaced.
+  select distinct on (public.machine_key(product_name, serial_number))
+         public.machine_key(product_name, serial_number) as mkey,
+         id, product_name, product_code, serial_number, party_name, sa_number,
+         warranty_start, warranty_end, warranty_years, warranty_months,
+         sale_entry_date, invoice_date, state, city, engineer
+    from public.warranty_sale_details
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(product_name), '')  <> ''
+   order by 1, warranty_end desc nulls last, id desc
+), c as (
+  -- THE CONTRACT — latest by the cover it grants, so a renewal wins over the
+  -- contract it succeeded (0187/FRS-056: the successor starts the day after).
+  select distinct on (public.machine_key(product_name, serial_number))
+         public.machine_key(product_name, serial_number) as mkey,
+         id, product_name, product_code, serial_number, party_name, mc_number,
+         contract_type, contract_start, contract_end, contract_years,
+         contract_months, contract_entry_date
+    from public.contract_details
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(product_name), '')  <> ''
+   order by 1, contract_end desc nulls last, id desc
+), a as (
+  -- ADDITIONAL ENTRIES (0073) — the machines recovered by hand because neither
+  -- register had them. Already one row per machine by its own unique index.
+  select public.machine_key(item_name, serial_number) as mkey,
+         id, item_name, serial_number, party_name,
+         warranty_number, warranty_start, warranty_end,
+         contract_number, contract_type, contract_start, contract_end, created_at
+    from public.product_additional_entries
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(item_name), '')     <> ''
+), o as (
+  -- OWNERSHIP TRANSFER (0072) — the explicit, dated record that the machine
+  -- changed hands. Latest transfer wins; a machine can move more than once.
+  select distinct on (public.machine_key(item_name, serial_number))
+         public.machine_key(item_name, serial_number) as mkey,
+         id, to_party, from_party, transfer_date, reference_no
+    from public.ownership_transfers
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(item_name), '')     <> ''
+   order by 1, transfer_date desc nulls last, id desc
+), inst as (
+  -- THE INSTALLATION CALL — now read through `machine_install_start()`, a
+  -- DEFINER function. See the header: this is both the speed and the
+  -- correctness half of 0220.
+  select mkey, ucn, answered_start, solved_on from public.machine_install_start()
+), keys as (
+  select mkey from w union select mkey from c union select mkey from a
+), base as (
+  select
+    k.mkey,
+    coalesce(w.product_name, c.product_name, a.item_name)        as product_name,
+    coalesce(w.serial_number, c.serial_number, a.serial_number)  as serial_number,
+    coalesce(w.product_code, c.product_code)                     as product_code,
+    -- ---- the warranty, in the order the user gave -------------------------
+    coalesce(i.answered_start, i.solved_on, a.warranty_start, w.warranty_start) as warranty_start,
+    coalesce(w.warranty_months, (w.warranty_years * 12)::int)                   as warranty_months,
+    a.warranty_end  as a_warranty_end,
+    w.warranty_end  as w_warranty_end,
+    case when i.answered_start is not null then 'Installation call ' || i.ucn
+         when i.solved_on      is not null then 'Installation call ' || i.ucn || ' (solved date)'
+         when a.warranty_start is not null then 'Additional entry'
+         when w.warranty_start is not null then 'Warranty sale ' || coalesce(w.sa_number, '')
+         else null end                                           as warranty_from,
+    -- ---- the contract -----------------------------------------------------
+    coalesce(c.contract_start, a.contract_start)                 as contract_start,
+    coalesce(c.contract_months, (c.contract_years * 12)::int)    as contract_months,
+    coalesce(c.contract_end, a.contract_end)                     as contract_end_stored,
+    coalesce(c.contract_type, a.contract_type)                   as contract_type_raw,
+    coalesce(c.mc_number, a.contract_number)                     as contract_number,
+    case when c.id is not null then 'Contract ' || coalesce(c.mc_number, '')
+         when a.contract_start is not null or a.contract_end is not null then 'Additional entry'
+         else null end                                           as contract_from,
+    -- ---- who owns it ------------------------------------------------------
+    p.party_name, p.party_from,
+    w.sa_number, w.state, w.city, w.engineer,
+    o.from_party, o.to_party, o.transfer_date, o.reference_no,
+    (w.mkey is not null) as in_warranty_register,
+    (c.mkey is not null) as in_contract_register,
+    (a.mkey is not null) as in_additional_entries,
+    i.ucn as installation_ucn
+  from keys k
+  left join w on w.mkey = k.mkey
+  left join c on c.mkey = k.mkey
+  left join a on a.mkey = k.mkey
+  left join o on o.mkey = k.mkey
+  left join inst i on i.mkey = k.mkey
+  -- WHOSE MACHINE IS IT: the LATEST DATED EVIDENCE wins, not a fixed order of
+  -- registers. A machine sold in 2020, transferred in 2021 and then put under a
+  -- new contract in 2024 belongs to whoever the 2024 contract names -- an
+  -- ownership transfer is not permanently the last word, it is one dated claim
+  -- among several. Ties break towards the record that exists SPECIFICALLY to
+  -- say the machine changed hands.
+  left join lateral (
+    select v.party_name, v.party_from
+      from (values
+        (o.to_party,    'Ownership transfer ' || coalesce(o.reference_no, ''), o.transfer_date,           1),
+        (a.party_name,  'Additional entry',                                    a.created_at::date,        2),
+        (c.party_name,  'Contract ' || coalesce(c.mc_number, ''),              c.contract_start,          3),
+        (w.party_name,  'Warranty sale ' || coalesce(w.sa_number, ''),
+                        coalesce(w.sale_entry_date::date, w.invoice_date),                                4)
+      ) as v(party_name, party_from, on_date, rank)
+     where coalesce(btrim(v.party_name), '') <> ''
+     order by v.on_date desc nulls last, v.rank
+     limit 1
+  ) p on true
+)
+select
+  b.mkey                                   as machine_key,
+  b.product_name,
+  b.serial_number,
+  b.product_code,
+  b.party_name,
+  b.party_from,
+  -- ---- warranty ----------------------------------------------------------
+  b.warranty_start,
+  b.warranty_months,
+  -- DERIVED where the start and the period are both known -- which is what the
+  -- user asked for ("derive at the warranty end date") -- and the register's
+  -- own end date otherwise, so a machine whose period nobody recorded still
+  -- shows the cover it was sold.
+  case when b.warranty_start is not null and b.warranty_months is not null
+       then public.cover_period_end(b.warranty_start, b.warranty_months)
+       else coalesce(b.a_warranty_end, b.w_warranty_end) end     as warranty_end,
+  b.warranty_from,
+  -- ---- contract ----------------------------------------------------------
+  b.contract_number,
+  b.contract_type_raw                                            as contract_type_as_recorded,
+  public.contract_cover_code(b.contract_type_raw)                as contract_type,
+  b.contract_start,
+  b.contract_months,
+  coalesce(b.contract_end_stored,
+           public.cover_period_end(b.contract_start, b.contract_months)) as contract_end,
+  b.contract_from,
+  -- ---- where it came from, so the row can be checked ---------------------
+  b.sa_number, b.state, b.city, b.engineer,
+  b.from_party, b.to_party, b.transfer_date, b.reference_no,
+  b.in_warranty_register, b.in_contract_register, b.in_additional_entries,
+  b.installation_ucn
+  from base b;
+
+-- RE-ASSERTED, as it must be on every rebuild: without it the view reads as its
+-- OWNER and row-level security stops applying to whoever is reading, with no
+-- error and no warning (0040/0050/0057).;
+
+-- CONCURRENTLY needs a unique index, and CONCURRENTLY is what keeps a rebuild
+-- from blocking every reader of the screen. `machine_key` is the view's own
+-- identity, so it is unique by construction.
+;
+
+create unique index if not exists product_database_v2_mv_key
+  on public.product_database_v2_mv (machine_key);
+
+-- Granted, because the view over it is `security_invoker` and so reads AS THE
+-- CALLER. 0220 revoked this while leaving the view invoker and refused every
+-- reader, administrators included (0221).
+grant select on public.product_database_v2_mv to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- THE FOUR LIVE COLUMNS, in the SAME positions this view has always published
+-- them in. `current_date` is read HERE -- which is on every read, rather than
+-- at the last rebuild.
+-- ---------------------------------------------------------------------------
+create view public.product_database_v2 as
+select
+  m.machine_key, m.product_name, m.serial_number, m.product_code,
+  m.party_name, m.party_from,
+  m.warranty_start, m.warranty_months, m.warranty_end, m.warranty_from,
+  public.cover_state(m.warranty_end)                     as warranty_state,
+  m.contract_number, m.contract_type_as_recorded, m.contract_type,
+  m.contract_start, m.contract_months, m.contract_end, m.contract_from,
+  public.cover_state(m.contract_end)                     as contract_state,
+  -- WARRANTY FIRST -- the user's rule, and the opposite of `machine_cover`: a
+  -- machine inside its warranty is not being billed under its contract.
+  case
+    when coalesce(m.warranty_end, '-infinity'::date) >= current_date then 'WGP'
+    when coalesce(m.contract_end, '-infinity'::date) >= current_date
+      -- A CONTRACT WITH NO TYPE IS NOT GUESSED AT (0208): `machine_cover` calls
+      -- it CMC, which upgrades a labour contract to comprehensive on a blank
+      -- cell. This says so instead, because that row needs fixing.
+      then coalesce(public.contract_cover_code(m.contract_type_as_recorded),
+                    'CONTRACT (TYPE NOT RECORDED)')
+    else 'OGP'
+  end                                                    as item_status,
+  case
+    when coalesce(m.warranty_end, '-infinity'::date) >= current_date
+      then 'inside warranty — ' || coalesce(m.warranty_from, 'source not recorded')
+    when coalesce(m.contract_end, '-infinity'::date) >= current_date
+      then 'under contract — ' || coalesce(m.contract_from, 'source not recorded')
+    else 'no warranty and no contract covers today'
+  end                                                    as item_status_reason,
+  m.sa_number, m.state, m.city, m.engineer,
+  m.from_party, m.to_party, m.transfer_date, m.reference_no,
+  m.in_warranty_register, m.in_contract_register, m.in_additional_entries,
+  m.installation_ucn,
+  s.refreshed_at
+from public.product_database_v2_mv m
+cross join public.product_database_v2_state s;
+alter view public.product_database_v2 set (security_invoker = on);
+grant select on public.product_database_v2 to authenticated;
+comment on view public.product_database_v2 is
+  'Product Database 2.0 — one row per machine. The ASSEMBLY is stored (refreshed_at says when); the cover STATUS is computed on every read, because it depends on today''s date and storing it froze it at the last rebuild (0222).';
+
+-- The matview was just rebuilt from scratch, so date the storage honestly.
+update public.product_database_v2_state
+   set refreshed_at = now(),
+       rows_built   = (select count(*) from public.product_database_v2_mv)
+ where only_row;
+
+-- ------------------------------------------------------------------------
+-- 0223_product_database_2_keeps_itself_alive.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- "IT SHOULD BE ALIVE DATA" (the user, 2026-09-20), and a Rebuild button is
+-- not alive — it is a chore that somebody has to remember, on a screen they
+-- are about to make the primary product list for the whole application.
+--
+-- THE CONFLICT IS REAL AND THIS IS HOW IT IS RESOLVED. Deriving these machines
+-- on demand measured 2,936 ms a page and timed out (0220); storing them
+-- measured 3 ms and goes stale. So the storage stays, and what changes is WHO
+-- NOTICES: the five registers now tell the storage when they have moved, and a
+-- scheduled job acts on it. Nobody presses anything.
+--
+--   1. A STATEMENT-LEVEL trigger on each source sets `stale`. Statement-level,
+--      not row-level, and that is the whole reason this is affordable: a bulk
+--      upload of 12,000 warranty items is ONE statement, so it costs ONE flag
+--      write, not 12,000 — a structural property of `for each statement`, not
+--      an optimisation to be hoped for. Timed against a 12,000-row load it is
+--      not distinguishable from noise, which is the point; a row-level trigger
+--      here would have made every register upload slower than the problem it
+--      was added to solve.
+--   2. `refresh_product_database_2_if_stale()` rebuilds only when the flag is
+--      set, CONCURRENTLY, so no reader is ever blocked.
+--   3. pg_cron runs it every five minutes. Worst case the machines are five
+--      minutes behind a register upload; typically far less, and the screen
+--      SAYS which it is rather than leaving it to be guessed.
+--
+-- WHAT IS NOT DONE, DELIBERATELY: the refresh is not fired from the trigger
+-- itself. That would rebuild once per statement of a bulk load — ten uploads
+-- in a minute is ten full rebuilds, each of them wasted but the last — and a
+-- `refresh materialized view` inside somebody's INSERT transaction makes their
+-- upload wait on it. The flag separates "something changed" from "act on it",
+-- which is the only reason this is cheap.
+--
+-- THE COVER STATUS IS ALREADY LIVE (0222) and is not what this file is about:
+-- that half is computed on every read, so a warranty lapsing overnight is
+-- visible immediately whether or not anything has been refreshed. This is
+-- about the ASSEMBLY — a machine sold, transferred or put under contract.
+-- ===========================================================================
+
+alter table public.product_database_v2_state
+  add column if not exists stale boolean not null default true;
+
+comment on column public.product_database_v2_state.stale is
+  'Set by the source registers when they change (0223); cleared by a refresh. The screen reads it to say whether it is showing live figures or figures waiting on the next rebuild.';
+
+-- ---------------------------------------------------------------------------
+-- "A REGISTER MOVED." Definer, because `product_database_v2_state` carries RLS
+-- and has no UPDATE policy — deliberately, nobody should be writing it by
+-- hand. Without definer every insert into a register would fail on the flag.
+--
+-- The conditional keeps a long bulk load off the row once it is already
+-- flagged, so concurrent uploads do not queue on one row's lock.
+-- ---------------------------------------------------------------------------
+create or replace function public.pdv2_mark_stale()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  update public.product_database_v2_state
+     set stale = true
+   where only_row and not stale;
+  return null;   -- statement-level: there is no row to return
+end $$;
+comment on function public.pdv2_mark_stale() is
+  'Marks Product Database 2.0 as needing a rebuild. STATEMENT-level, so a 12,000-row upload costs one write (0223).';
+
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'sale_entries', 'sale_items',                 -- the warranty sale register
+    'contract_entries', 'contract_items',         -- the contract register
+    'product_additional_entries',                 -- the machines recovered by hand
+    'ownership_transfers',                        -- who owns it now
+    'installation_calls', 'feedback'              -- where a warranty actually starts
+  ] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('drop trigger if exists zz_pdv2_stale on public.%I', t);
+      execute format(
+        'create trigger zz_pdv2_stale after insert or update or delete on public.%I '
+        'for each statement execute function public.pdv2_mark_stale()', t);
+    end if;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- THE SCHEDULED REBUILD. Returns what it did, so the job's history says
+-- whether it is working rather than only that it ran.
+-- ---------------------------------------------------------------------------
+create or replace function public.refresh_product_database_2_if_stale()
+returns text language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if not exists (select 1 from public.product_database_v2_state where only_row and stale) then
+    return 'up to date';
+  end if;
+  refresh materialized view concurrently public.product_database_v2_mv;
+  select count(*) into n from public.product_database_v2_mv;
+  update public.product_database_v2_state
+     set refreshed_at = now(), rows_built = n, stale = false
+   where only_row;
+  return 'rebuilt ' || n || ' machines';
+end $$;
+comment on function public.refresh_product_database_2_if_stale() is
+  'Rebuild Product Database 2.0 only if a register has changed since the last one. Run every five minutes by pg_cron (0223).';
+revoke all on function public.refresh_product_database_2_if_stale() from public;
+grant execute on function public.refresh_product_database_2_if_stale() to authenticated;
+
+-- The manual rebuild clears the flag too, or the scheduler would do the same
+-- work again five minutes later.
+create or replace function public.refresh_product_database_2()
+returns timestamptz language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if not (public.has_perm('masters.edit') or public.has_perm('cover.edit') or public.is_admin()) then
+    raise exception 'Your role may not rebuild Product Database 2.0.' using errcode = '42501';
+  end if;
+  refresh materialized view concurrently public.product_database_v2_mv;
+  select count(*) into n from public.product_database_v2_mv;
+  update public.product_database_v2_state
+     set refreshed_at = now(), rows_built = n, refreshed_by = auth.uid(), stale = false
+   where only_row;
+  return (select refreshed_at from public.product_database_v2_state where only_row);
+end $$;
+
+do $$
+begin
+  if exists (select 1 from pg_extension where extname = 'pg_cron') then
+    if exists (select 1 from cron.job where jobname = 'refresh-product-database-2') then
+      perform cron.unschedule('refresh-product-database-2');
+    end if;
+    perform cron.schedule('refresh-product-database-2', '*/5 * * * *',
+                          'select public.refresh_product_database_2_if_stale();');
+  end if;
+end $$;
+
+-- Built by this migration, so it starts clean rather than claiming to be stale.
+update public.product_database_v2_state set stale = false where only_row;
+
+-- ---------------------------------------------------------------------------
+-- THE SCREEN HAS TO BE ABLE TO SAY WHICH IT IS. "Built 20-Sep 22:57" on its own
+-- cannot tell somebody whether that is the current picture or one waiting on a
+-- rebuild, and those read identically while meaning opposite things. APPENDED
+-- at the end, which is the only place `create or replace view` accepts a new
+-- column.
+-- ---------------------------------------------------------------------------
+create or replace view public.product_database_v2 as
+select
+  m.machine_key, m.product_name, m.serial_number, m.product_code,
+  m.party_name, m.party_from,
+  m.warranty_start, m.warranty_months, m.warranty_end, m.warranty_from,
+  public.cover_state(m.warranty_end)                     as warranty_state,
+  m.contract_number, m.contract_type_as_recorded, m.contract_type,
+  m.contract_start, m.contract_months, m.contract_end, m.contract_from,
+  public.cover_state(m.contract_end)                     as contract_state,
+  case
+    when coalesce(m.warranty_end, '-infinity'::date) >= current_date then 'WGP'
+    when coalesce(m.contract_end, '-infinity'::date) >= current_date
+      then coalesce(public.contract_cover_code(m.contract_type_as_recorded),
+                    'CONTRACT (TYPE NOT RECORDED)')
+    else 'OGP'
+  end                                                    as item_status,
+  case
+    when coalesce(m.warranty_end, '-infinity'::date) >= current_date
+      then 'inside warranty — ' || coalesce(m.warranty_from, 'source not recorded')
+    when coalesce(m.contract_end, '-infinity'::date) >= current_date
+      then 'under contract — ' || coalesce(m.contract_from, 'source not recorded')
+    else 'no warranty and no contract covers today'
+  end                                                    as item_status_reason,
+  m.sa_number, m.state, m.city, m.engineer,
+  m.from_party, m.to_party, m.transfer_date, m.reference_no,
+  m.in_warranty_register, m.in_contract_register, m.in_additional_entries,
+  m.installation_ucn,
+  s.refreshed_at,
+  s.stale
+from public.product_database_v2_mv m
+cross join public.product_database_v2_state s;
+alter view public.product_database_v2 set (security_invoker = on);
+grant select on public.product_database_v2 to authenticated;
 
 commit;

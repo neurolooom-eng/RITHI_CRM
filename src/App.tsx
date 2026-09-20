@@ -42,6 +42,7 @@ import { FieldFailureReport } from './modules/FieldFailureReport';
 import { KpiAnalytics } from './modules/KpiAnalytics';
 import { Objective } from './modules/Objective';
 import { MachineHistory } from './modules/MachineHistory';
+import { SolvedWithoutReport } from './modules/SolvedWithoutReport';
 import { ReportsHub } from './modules/ReportsHub';
 import { SpareInsights } from './modules/SpareInsights';
 import { Workload } from './modules/Workload';
@@ -174,6 +175,7 @@ function Shell() {
             instead of hiding it behind a tab strip. */}
         <Route path="/exports/:tab" element={<ReportsHub />} />
         <Route path="/indoor" element={<IndoorService />} />
+        <Route path="/missing-visit-reports" element={<SolvedWithoutReport />} />
         <Route path="/tracker" element={<Tracker />} />
         <Route path="/users" element={<Navigate to="/user-master" replace />} />
         <Route path="/settings" element={<Settings />} />

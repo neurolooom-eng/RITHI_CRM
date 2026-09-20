@@ -348,15 +348,17 @@ typed into a form that reads it.
   > wearing that number, and is left out rather than guessed at. That is why 2.0
   > can show fewer machines than the older cover view, which needs only a serial
   > and merges the ones that share one.
-  > **The figures are AS OF THE LAST REBUILD**, and the screen says when —
-  > *"Built <date and time>"* beside the title. Working every machine out from
-  > five registers on demand took about **3 seconds per page** and the screen
-  > needs ten pages, so it was timing out and showing nothing; it is worked out
-  > **once** now and read back in milliseconds. After loading a warranty,
-  > contract, additional-entry or ownership-transfer file, press **⟳ Rebuild
-  > from the registers** to bring it up to date. Nobody is locked out of the
-  > screen while it rebuilds, and anyone who may edit masters or cover can do
-  > it.
+  > **It keeps itself up to date.** The five registers tell it when they have
+  > changed and it rebuilds itself within five minutes; the screen says which
+  > it is — *"Live as of …"* or *"A register has changed since … — updating
+  > within 5 minutes"*. **⟳ Rebuild from the registers** is there for when you
+  > want it now rather than soon.
+  > **The cover status is never stale**, whatever the line above says: WGP /
+  > AMC / CMC / OGP depend on today's date and are worked out fresh every time
+  > you look, so a warranty that ran out overnight shows immediately. Working every machine out from five registers on
+  > demand took about **3 seconds per page** and the screen needs ten pages, so
+  > it was timing out and showing nothing; it is worked out **once** now and
+  > read back in milliseconds. Nobody is locked out while it rebuilds.
   > **Click a row for the whole record.** The drawer shows every field, and
   > every reference on it opens the document behind it: the **SA number** goes
   > to the Warranty Register, the **contract number** to the Contract Register,
@@ -575,6 +577,25 @@ typed into a form that reads it.
   5. Dispatch
   > A job does not need a call — a demo unit has none. A harvested part cannot go
   > back into stock until decontamination is recorded.
+- **Solved Without a Report** `/missing-visit-reports` — **administrators
+  only.** Every call that reads Solved while its visit record is incomplete —
+  the list of what to re-upload.
+  > **It names the gap**, and there are four, each needing a different fix:
+  > *no visit at all* · *no visit date* · *no service report* · *entry date
+  > looks like an import stamp*. A call with more than one shows all of them.
+  > **Visit Entry Date can never arrive blank.** If your file does not carry
+  > that column the row takes the **time of the upload** instead, so a missing
+  > one cannot be found by looking for an empty cell. This report finds it by
+  > counting how many visits share the same timestamp to the microsecond — 25
+  > visits entered at the same instant does not happen, a batch load does — and
+  > shows you the count rather than only the verdict.
+  > It matters because the entry date decides a call's status: the **latest
+  > entry** wins, so a whole batch sharing one stamp lets an arbitrary row
+  > decide every call in it.
+  > **Solved includes "Solved - Report Pending"**, and the row says which.
+  > Report Pending is the system telling you something is missing; a plain
+  > Solved with no report is the system contradicting itself.
+
 - **Tracker** `/tracker` — the shared activity list. Anyone who can open it can
   add and edit. Who raised an item is stamped and cannot be rewritten. Nothing is
   auto-deleted; Done and Dropped stay and the page hides them.

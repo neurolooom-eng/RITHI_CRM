@@ -144,6 +144,11 @@ export const MODULES: ModuleDef[] = [
   // the call is an optional link, not the other way round.
   { path: '/machine-history', label: 'Machine History' },
   { path: '/indoor', label: 'Indoor Service Register' },
+  // SOLVED WITHOUT A REPORT — administrators only (the user, 2026-09-20:
+  // "View only for Admins and Super Admins"). `admin: true` keeps the key out
+  // of NON_ADMIN_MODULES, leaving SEES_EVERY_MODULE's three; 0224 is the other
+  // half, because on a project in use a code default reaches nobody.
+  { path: '/missing-visit-reports', label: 'Solved Without a Report', admin: true },
   { path: '/tracker', label: 'Tracker' },
   { path: '/users', label: 'User Access', admin: true },
   { path: '/roles', label: 'Roles & Permissions', admin: true },
@@ -532,6 +537,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/masters', label: 'All Masters (overview)', actions: ['masters.view', 'masters.edit'] },
   ] },
   { title: 'Administration', pages: [
+    { path: '/missing-visit-reports', label: 'Solved Without a Report', actions: [] },
     { path: '/tracker', label: 'Tracker', actions: [] },
     { path: '/users', label: 'User Access', actions: [] },
     { path: '/roles', label: 'Roles & Permissions', actions: ['rbac.manage'] },
