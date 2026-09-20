@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.317',
+    date: '2026-09-20',
+    title: 'Click a machine in Product Database 2.0 \u2014 and click straight through to its documents',
+    changes: [
+      'CLICK ANY ROW and the whole record opens in a drawer: the machine, whose it is and what decided that, the warranty, the contract, the ownership transfer, and which registers named it \u2014 thirty-three fields rather than the ten the table has room for.',
+      'EVERY REFERENCE ON IT IS A LINK. The SA number opens the Warranty Register on that sale. The contract number opens the Contract Register on that contract. The transfer reference opens Ownership Transfer on it. The installation call opens the Installation Calls register on that UCN. And the serial opens the machine\u2019s full history.',
+      'THEY LAND ON THE RECORD, not on an unfiltered register \u2014 all four registers were taught to open already searched, in the same change. A link that makes you search again is not a link.',
+      'A NUMBER THAT IS NOT THERE IS NOT A LINK. Most machines carry some of these and none carries all of them, so anything missing is shown as plain text or left out. A dead link on a record claims a document exists.',
+      'Machine History gets the same treatment and keeps its own rule: it sets the product first and only then the serial, and only if that serial really belongs to that product \u2014 a link may not type in a serial from another model any more than a person may.',
+    ],
+  },
+  {
     version: '0.9.316',
     date: '2026-09-20',
     title: 'Product Database 2.0 refused everybody \u2014 including you. Fixed, and the gate is gone',

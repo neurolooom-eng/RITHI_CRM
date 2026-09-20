@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
-import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
+import { useNavigate } from 'react-router-dom';
+import { PageHeader, Toolbar, SearchBox, FacetChips, SectionCard, Drawer } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { listProductDatabaseV2, diagnoseProductDatabaseV2, refreshProductDatabaseV2,
@@ -73,6 +74,9 @@ export function ProductDatabase2() {
   // is the fault this project has written down more than once.
   const [builtAt, setBuiltAt] = useState<string>('');
   const [rebuilding, setRebuilding] = useState(false);
+  // The machine whose full record is open. The table shows ten columns of a
+  // thirty-three column view; this is the rest of it.
+  const [open, setOpen] = useState<Row | null>(null);
 
   const load = async () => {
     if (!supabaseConfigured()) return;
@@ -159,6 +163,7 @@ export function ProductDatabase2() {
 
       <DataTable<Row>
         columns={COLUMNS} rows={visible} getRowId={(r) => r.id}
+        onRowClick={(r) => setOpen(r)}
         toolbar={(
           <button className="btn btn-ghost btn-sm" onClick={() => csvExport(
             `product-database-2-${new Date().toISOString().slice(0, 10)}.csv`,
@@ -166,9 +171,137 @@ export function ProductDatabase2() {
             ⭳ Export CSV
           </button>
         )} />
+
+      <MachineDrawer row={open} onClose={() => setOpen(null)} />
     </div>
   );
 }
+
+// ===========================================================================
+// ONE MACHINE, WHOLE — and every reference on it is a way through to the
+// document that says it.
+//
+//   The user, 2026-09-20: "On clicking it, i need the Data to Load in a Drawer
+//   and all Relevant Links should be Clickable -- like if it has an SA No, If i
+//   click on that - it should open. Same for Contract, Ownership Transfer."
+//
+// EVERY LINK GOES TO A REGISTER THAT IS EXPECTING IT. Each one carries the
+// number in `location.state.search`, and the Warranty Register, the Contract
+// Register and Ownership Transfer were taught to read it in the same change —
+// a link that lands on an unfiltered register is not a link, it is a
+// suggestion that you go and search again.
+//
+// A NUMBER THAT IS NOT THERE IS NOT A LINK. Most machines carry some of these
+// and no machine carries all of them, so each one renders as plain text (or
+// not at all) unless there is something to open. A dead link on a record is
+// worse than a blank: it says a document exists.
+// ===========================================================================
+function MachineDrawer({ row, onClose }: { row: Row | null; onClose: () => void }) {
+  const navigate = useNavigate();
+  const go = (path: string, state: Record<string, unknown>) => { onClose(); navigate(path, { state }); };
+  const v = (k: string) => {
+    const x = row?.[k];
+    return x === null || x === undefined || x === '' ? '' : String(x);
+  };
+  const D = ({ label, k }: { label: string; k: string }) =>
+    v(k) ? <Fact label={label} value={day(row?.[k])} /> : null;
+  const F = ({ label, k }: { label: string; k: string }) =>
+    v(k) ? <Fact label={label} value={v(k)} /> : null;
+  const Link = ({ label, k, to, state }: { label: string; k: string; to: string; state: Record<string, unknown> }) =>
+    v(k) ? (
+      <div>
+        <div className="field-label">{label}</div>
+        <button className="btn-link" onClick={() => go(to, state)}>{v(k)} ↗</button>
+      </div>
+    ) : null;
+
+  return (
+    <Drawer open={!!row} onClose={onClose} width={720}
+      title={row ? `${v('product_name')} · ${v('serial_number')}` : ''}>
+      {row && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          <SectionCard title="The machine">
+            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+              <F label="Product" k="product_name" />
+              <F label="Product code" k="product_code" />
+              <F label="Serial" k="serial_number" />
+              <Fact label="Status today" value={v('item_status')} />
+              <Fact label="Because" value={v('item_status_reason')} />
+              <Link label="Full history of this machine" k="serial_number" to="/machine-history"
+                state={{ product: v('product_name'), serial: v('serial_number') }} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Whose it is">
+            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+              <F label="Party" k="party_name" />
+              <F label="Decided by" k="party_from" />
+              <F label="State" k="state" />
+              <F label="City" k="city" />
+              <F label="Engineer" k="engineer" />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Warranty">
+            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+              <D label="From" k="warranty_start" />
+              <D label="To" k="warranty_end" />
+              <F label="Period (months)" k="warranty_months" />
+              <F label="State" k="warranty_state" />
+              <F label="Source" k="warranty_from" />
+              <Link label="Sale (SA number)" k="sa_number" to="/warranties"
+                state={{ search: v('sa_number'), tab: 'entries' }} />
+              <Link label="Installation call" k="installation_ucn" to="/installations"
+                state={{ search: { ucn: v('installation_ucn') } }} />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Contract">
+            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+              <Link label="Contract number" k="contract_number" to="/contracts"
+                state={{ search: v('contract_number'), tab: 'entries' }} />
+              <F label="Type" k="contract_type" />
+              <F label="Type as recorded" k="contract_type_as_recorded" />
+              <D label="From" k="contract_start" />
+              <D label="To" k="contract_end" />
+              <F label="Period (months)" k="contract_months" />
+              <F label="State" k="contract_state" />
+              <F label="Source" k="contract_from" />
+            </div>
+          </SectionCard>
+
+          {(v('to_party') || v('reference_no')) && (
+            <SectionCard title="Ownership transfer">
+              <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+                <F label="From" k="from_party" />
+                <F label="To" k="to_party" />
+                <D label="On" k="transfer_date" />
+                <Link label="Reference" k="reference_no" to="/ownership-transfer"
+                  state={{ search: v('reference_no'), tab: 'transfers' }} />
+              </div>
+            </SectionCard>
+          )}
+
+          <SectionCard title="Which registers named it">
+            <div className="sf-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+              <Fact label="Warranty sale register" value={row.in_warranty_register ? 'yes' : 'no'} />
+              <Fact label="Contract register" value={row.in_contract_register ? 'yes' : 'no'} />
+              <Fact label="Additional entries" value={row.in_additional_entries ? 'yes' : 'no'} />
+              <F label="Machine key" k="machine_key" />
+            </div>
+          </SectionCard>
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
+const Fact = ({ label, value }: { label: string; value: string }) => (
+  <div>
+    <div className="field-label">{label}</div>
+    <div>{value || '—'}</div>
+  </div>
+);
 
 // ===========================================================================
 // WHY THERE IS NOTHING HERE — measured, and never claimed beyond the measurement.

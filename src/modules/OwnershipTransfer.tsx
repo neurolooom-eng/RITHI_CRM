@@ -1,5 +1,6 @@
 import { isMissingTable } from '../lib/dberror';
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageHeader, SectionCard, Drawer, Toolbar } from '../components/ui/ui';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { useAuth } from '../lib/auth';
@@ -38,6 +39,17 @@ export function OwnershipTransfer() {
   const [transfers, setTransfers] = useState<OT[]>([]);
   const [entries, setEntries] = useState<AE[]>([]);
   const [search, setSearch] = useState('');
+
+  // The other half of the links on Product Database 2.0: a machine that changed
+  // hands names its transfer REFERENCE there, and this opens the register on it.
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as { search?: string; tab?: Tab } | null;
+    if (!st) return;
+    if (st.tab) setTab(st.tab);
+    if (st.search !== undefined) setSearch(st.search);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'ok' | 'error' | 'info'; text: string } | null>(null);
   const [moveForm, setMoveForm] = useState<Partial<OT> | null>(null);

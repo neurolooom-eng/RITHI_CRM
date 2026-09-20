@@ -4,7 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (⚠️ 0220 refused EVERY reader including admins —
+_Last updated: 2026-09-20 (Product Database 2.0: a drawer per machine with its
+references as working links. Before that: ⚠️ 0220 refused EVERY reader including admins —
 0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
 Product Database 2.0 was TIMING OUT and is now
 materialised — RUN product_database_2.sql, _status.sql row 170. Before that:
@@ -27,6 +28,55 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-20 — Product Database 2.0: a drawer per machine, and the references are links
+
+> *"On clicking it, i need the Data to Load in a Drawer and all Relevant Links
+> should be Clickable -- like if it has an SA No, If i click on that - it should
+> open. Same for Contract, Ownership Transfer."*
+
+**Shipped, and the second half is the part that took the work.** The drawer is
+one component; making the links LAND somewhere useful meant teaching four
+registers to open already searched. Passing a number to a screen that ignores it
+is not a link — the reader does the search again by hand, which is the same as
+no link at all.
+
+| clicking | opens | how |
+|---|---|---|
+| SA number | Warranty Register | `location.state.search` → its `q`, which drives the server read |
+| Contract number | Contract Register | same component, same mechanism |
+| Transfer reference | Ownership Transfer | `location.state.search` → its `search` |
+| Installation call | Installation Calls | `location.state.search.ucn`, which `CallSheetModule` already read |
+| Serial | Machine History | `{ product, serial }` |
+
+**Machine History could not simply be handed both boxes.** Choosing a product
+CLEARS the serial there — deliberately, it is the guard the whole screen is
+arranged around (serials repeat across models; 3,794 appear more than once). So
+the incoming serial is held in a ref and applied only once the serial list for
+that product has arrived, **and only if that list contains it**; otherwise the
+screen says so. A link must not be able to type in a serial from another model
+any more than a person can.
+
+**A number that is not there is NOT rendered as a link.** Most machines carry
+some of these and none carries all of them. A dead link on a record is worse
+than a blank cell, because it asserts a document exists.
+
+**Two classes that did not exist were nearly used.** `fact-grid` and
+`btn btn-link btn-sm` — this codebase has `sf-grid` (Machine History's own fact
+layout) and a standalone `btn-link`. A class with no rule behind it renders as
+an unstyled stack, which is the `sheet-banner-warn` fault written elsewhere in
+this file; checked against the stylesheet rather than assumed.
+
+**Noticed on the live screen and NOT a defect:** the status chips read
+`All 19229 · OGP 14706 · CMC 3134 · WGP 1237 · AMC 151 · Warranty 2 years 1`.
+That last one is a CONTRACT whose recorded type is literally *"Warranty 2
+years"*. `contract_cover_code()` returns an unrecognised type UNCHANGED rather
+than bucketing it (the 0208 rule — a guess written into a quality record is
+worse than a value that reads as odd), so it is showing exactly as recorded.
+It is one contract row worth correcting, and the design surfacing it is the
+mechanism working.
+
+Client only; **no SQL**. v0.9.317.
 
 ## 2026-09-20 — ⚠️ 0220 REFUSED EVERY READER. 0221 repairs it — RE-RUN `product_database_2.sql`
 
