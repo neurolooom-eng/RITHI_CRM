@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.320',
+    date: '2026-09-21',
+    title: 'Solved Without a Report exports properly \u2014 and why there are 4,222 of them',
+    changes: [
+      'EXCEL AND CSV, with readable headings. The first version exported the database\u2019s own column names (open_state, visits_sharing_entry_stamp) and wrote raw timestamps like 2026-09-07T00:00:00+00:00 into the CSV \u2014 the same fault the Consumption Report had. Dates are now real Excel dates you can sort and filter by month, and numbers stay numbers.',
+      'The Excel file carries an ABOUT sheet: what each gap means, what filter was applied, how many rows and when it was taken \u2014 because this file is meant to be handed to other people.',
+      'ONE SHAPER FOR EVERY EXPORT. The date and number handling was written inside the Reports screen; this screen grew its own and got it wrong. It is one shared piece now, so a third export cannot repeat it.',
+      'AND WHY 4,222 CALLS HAVE NO VISIT: the \u201cClose call\u201d button. It existed from 5 to 15 September, set a call to Solved and deliberately wrote NO visit \u2014 you removed it on the 15th saying it \u201cdoesn\u2019t make sense\u201d, and this report is showing exactly what it left behind. Nothing in the app calls it today.',
+      'Three other explanations are ruled out by how the system works, not by guesswork: a bulk call upload carries no call-status column at all, deleting a visit puts the call back to Unattended rather than leaving it Solved, and a visit filed later simply takes over. Run _why_no_visit.sql to see how many of the 4,222 fall in those ten days and what accounts for the rest.',
+    ],
+  },
+  {
     version: '0.9.319',
     date: '2026-09-20',
     title: 'New report \u2014 Solved Without a Report (administrators only)',
