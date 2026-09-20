@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.311',
+    date: '2026-09-20',
+    title: 'A file that says WHY Product Database 2.0 is empty',
+    changes: [
+      'IF 2.0 IS EMPTY, RUN _why_is_product_database_2_empty.sql \u2014 it answers with your own numbers instead of a guess. It counts, for each of the three registers, how many rows carry a SERIAL, how many carry a PRODUCT NAME, and how many carry BOTH. Only rows with both can be listed.',
+      'WHY BOTH ARE NEEDED: a machine is its model AND its serial. Serials repeat across models \u2014 there are eleven machines numbered 219 \u2014 so a register row with a serial and no model cannot be identified as a machine, and is left out rather than guessed at. That is also why 2.0 can legitimately show fewer machines than the older cover view, which needs only a serial and merges the ones that share one.',
+      'THE VIEW WAS ALSO MISSING ITS GRANT. 28 of the 30 views in this system explicitly grant read access to the signed-in role and this one did not \u2014 usually invisible, because the database hands it out by default, but not something to rely on. Added, and a check now refuses a new view without one.',
+      'SQL to run: product_database_2.sql again (it now carries the grant). Then _why_is_product_database_2_empty.sql and send us the grid.',
+    ],
+  },
+  {
     version: '0.9.310',
     date: '2026-09-20',
     title: 'performance.sql stopped on a rule that was deleted a year ago',
