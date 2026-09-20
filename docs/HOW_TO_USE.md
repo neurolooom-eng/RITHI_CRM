@@ -357,6 +357,9 @@ typed into a form that reads it.
   > from the registers** to bring it up to date. Nobody is locked out of the
   > screen while it rebuilds, and anyone who may edit masters or cover can do
   > it.
+  > **Who can see it:** anyone signed in who can open the screen, the same as
+  > the Product Database beside it. **Who can rebuild it:** anyone who may edit
+  > masters or cover.
   > **If the screen is empty it tells you why**, counting the three registers
   > — rows, rows with no serial, rows with no model — and saying which of
   > those it is. It says *every* row is missing something only where every

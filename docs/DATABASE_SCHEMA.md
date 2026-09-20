@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**75 tables · 30 views · 1923 columns · 145 policies · 50 foreign keys.**
+**75 tables · 30 views · 1923 columns · 146 policies · 50 foreign keys.**
 
 ## How to read this
 
@@ -1765,6 +1765,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 | Command | Policy | Using | With check |
 | --- | --- | --- | --- |
 | SELECT | `pdv2_state_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
+| SELECT | `pdv2_state_read_all` | `(auth.role() = 'authenticated'::text)` | — |
 
 ---
 
@@ -2891,7 +2892,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
 
-**`product_database_v2`** — Product Database 2.0 — one row per machine, as of refreshed_at. A thin gate over product_database_v2_mv (0220); the matview is granted to nobody.
+**`product_database_v2`** — Product Database 2.0 — one row per machine, as of refreshed_at. Readable by any signed-in user, like the Product Database beside it; the SCREEN is gated by mod:/product-database-2 (0219). 0220 gated the view itself and, by revoking the matview it reads as the caller, refused everybody including administrators (0221).
 
 **`product_party_names`** — Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).
 

@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.316',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 refused everybody \u2014 including you. Fixed, and the gate is gone',
+    changes: [
+      '\u201cYour role does not have permission to read this\u201d as a SUPER ADMIN was not a permission decision. It was a bug in yesterday\u2019s speed fix: the screen\u2019s view was set to read AS THE PERSON ASKING, while the stored table underneath it had deliberately been closed to everyone. Those two things contradict each other, so it refused EVERY reader \u2014 administrators included. No role was missing anything.',
+      'AND THE PERMISSION CHECK IS GONE RATHER THAN REPAIRED. 2.0 was the only screen of its kind carrying a permission rule of its own, and that rule is what broke. It is gated the same way every other screen is now \u2014 by whether your role can open Product Database 2.0 at all.',
+      'WHAT THAT MEANS, PLAINLY: the warranty and contract detail on this screen is now readable by anyone signed in who can open it. That matches the Product Database sitting beside it, whose 20,000 machines and their cover have always been readable by everyone signed in. Say the word and the stricter rule goes back.',
+      'The test that should have caught this could not: it said \u201cSET LOCAL ROLE\u201d, which does nothing at all outside a transaction, so every check that claimed to run as an ordinary user was really running as the database owner \u2014 who is never refused anything. It now actually changes role, and asserts that an administrator CAN read the screen.',
+    ],
+  },
+  {
     version: '0.9.315',
     date: '2026-09-20',
     title: 'Product Database 2.0 was timing out \u2014 it is built once now, not on every page',
