@@ -335,7 +335,7 @@ that guessed would be read as a census.
 - **Opened by** `mod:/missing-visit-reports` · administrator-only screen
 - **Source** `src/modules/SolvedWithoutReport.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
-- **Buttons** “⭳ Export CSV”
+- **Buttons** “⭳ Excel”, “⭳ CSV”
 
 ### Tracker `/tracker`
 

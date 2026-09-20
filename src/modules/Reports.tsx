@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar } from '../components/ui/ui';
 import { csvExport, fmtLongDate, timeAgo } from '../lib/format';
+import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { queryReports, supabaseConfigured, type ReportFilter } from '../lib/supabase';
 import { loadCache, saveCache, isStale, SYNC_TTL_MS } from '../lib/cache';
 import { ReportDetail } from './ReportDetail';
@@ -42,6 +43,51 @@ const COLUMNS: Column<Row>[] = [
 
 // Placed on the base list too, so the column behaves the same whether a reader
 // turned on `manual_report` or the report form's own `Manual Report` field.
+// ===========================================================================
+// EVERY COLUMN THE VISIT ACTUALLY CARRIES (the user, 2026-09-21: "I need to be
+// able to Export all Columns from Visit Entry / Report").
+//
+// The export wrote SIX hard-coded columns -- the ones the grid happens to show
+// -- while each row carries far more: `toRows` FLATTENS the report's `data`
+// jsonb up onto the row, so every question the engineer answered is already
+// there, plus the stored columns the grid has no room for (engineer_email, the
+// entry date, the uid, the bulk-mapping source_ref, the attachment).
+// Those are exactly the fields somebody exporting a visit report wants, and
+// they were the ones being dropped.
+//
+// TAKEN FROM THE ROWS RATHER THAN A LIST, because the answers differ per visit
+// -- an installation is asked different questions from a breakdown -- so a
+// fixed list is either short for one kind or full of blanks for the other. A
+// column the loaded rows do not have is not invented, and one they do have is
+// never silently left out. THE SAME FAULT AS A REPORT'S TWO LISTS (reports.ts)
+// and it is avoided here by not having a list at all.
+//
+// `data` ITSELF IS EXCLUDED: it is the raw blob and every one of its keys is
+// already a column of its own, so exporting it would repeat the whole visit in
+// one unreadable cell. `id` and the grid's private `_` keys go too.
+const EXPORT_FIRST = ['visit_at', 'updated_at', 'ucn', 'call_number', 'call_status',
+                      'pending_reason', 'engineer', 'engineer_email', 'manual_report',
+                      'uid', 'source_ref', 'mapped_at'];
+const EXPORT_HEADERS: Record<string, string> = {
+  visit_at: 'Visit Date & Time', updated_at: 'Visit Entry Date', ucn: 'UCN',
+  call_number: 'Call Number', call_status: 'Call Status', pending_reason: 'Call Pending Reason',
+  engineer: 'Visiting Service Engineer', engineer_email: 'Email ID',
+  manual_report: 'Service Report', uid: 'Row ID', source_ref: 'Source Ref', mapped_at: 'Mapped At',
+};
+function exportColumns(rows: Record<string, unknown>[]): { key: string; header: string }[] {
+  const seen = new Set<string>();
+  rows.forEach((r) => Object.keys(r).forEach((k) => {
+    if (k === 'data' || k === 'id' || k.startsWith('_')) return;
+    seen.add(k);
+  }));
+  // The stored columns first, in the order the upload names them, then every
+  // answer the engineer filled -- alphabetical, so two exports of the same
+  // register put the same column in the same place.
+  const known = EXPORT_FIRST.filter((k) => seen.has(k));
+  const rest = [...seen].filter((k) => !EXPORT_FIRST.includes(k)).sort((a, b) => a.localeCompare(b));
+  return [...known, ...rest].map((key) => ({ key, header: EXPORT_HEADERS[key] ?? key }));
+}
+
 const REPORT_KEYS = ['manual_report', 'Manual Report'];
 
 // Flatten the report's `data` jsonb up to the row so every field the engineer
@@ -66,6 +112,43 @@ export function Reports() {
   );
   const set = (k: keyof ReportFilter, v: string) => setFilter((c) => ({ ...c, [k]: v }));
   const hasFilter = !!(filter.ucn || filter.callNumber || filter.engineer || filter.status);
+
+  // EVERY COLUMN, BOTH FORMATS. A DOWNLOAD IS NOT THE WIRE: the dates go out as
+  // real Excel dates (a number plus a format, so they sort and filter by month)
+  // and as dd-MMM-yyyy HH:mm:ss in the CSV, which is all a CSV can carry.
+  // Shaped by the one helper every export here uses.
+  const downloadVisits = (kind: 'xlsx' | 'csv') => {
+    const src = rows as unknown as Record<string, unknown>[];
+    if (!src.length) return;
+    const cols = exportColumns(src);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const scope = hasFilter
+      ? [filter.ucn && `UCN ${filter.ucn}`, filter.callNumber && `call ${filter.callNumber}`,
+         filter.engineer && `engineer ${filter.engineer}`, filter.status && `status ${filter.status}`]
+        .filter(Boolean).join(' · ')
+      : 'every visit loaded';
+    if (kind === 'csv') {
+      csvExport(`visit-reports-${stamp}.csv`, cols,
+        src.map((r) => Object.fromEntries(cols.map((c) => [c.key, xlsxText(r[c.key])]))));
+      return;
+    }
+    xlsxDownload(`visit-reports-${stamp}.xlsx`, [
+      { name: 'Visit Reports',
+        columns: cols.map((c) => c.header),
+        rows: src.map((r) => Object.fromEntries(cols.map((c) => [c.header, xlsxCell(r[c.key])]))) },
+      { name: 'About',
+        columns: ['Item', 'Value'],
+        rows: [
+          { Item: 'Report', Value: 'Visit Reports / Service Reports' },
+          { Item: 'Columns', Value: `${cols.length} — every field these visits carry, including the answers on the visit form` },
+          { Item: 'Why the count varies', Value: 'An installation is asked different questions from a breakdown, so the columns come from the visits loaded rather than from a fixed list.' },
+          { Item: 'Scope of this file', Value: scope },
+          { Item: 'Rows', Value: String(src.length) },
+          { Item: 'Loaded so far', Value: more ? 'More visits are available — press Load more before exporting for the whole register.' : 'This is every visit matching the filter.' },
+          { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
+        ] },
+    ]);
+  };
 
   const refresh = async () => {
     if (!supabaseConfigured()) return;
@@ -215,7 +298,10 @@ export function Reports() {
             </div>
             <div className="spacer" />
             {rows.length > 0 && (
-              <button className="btn btn-sm" onClick={() => csvExport('reports.csv', COLUMNS.filter((c) => !c.key.startsWith('_')).map((c) => ({ key: c.key, header: c.header })), rows as unknown as Record<string, unknown>[])}>⭳ Export CSV</button>
+              <>
+                <button className="btn btn-sm" onClick={() => downloadVisits('xlsx')}>⭳ Excel</button>
+                <button className="btn btn-sm" onClick={() => downloadVisits('csv')}>⭳ CSV</button>
+              </>
             )}
           </Toolbar>
         }

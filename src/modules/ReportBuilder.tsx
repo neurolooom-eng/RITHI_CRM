@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { PageHeader, SectionCard } from '../components/ui/ui';
-import { xlsxDownload, xlsxDate } from '../lib/xlsx';
+import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
 import { csvExport } from '../lib/format';
 import { logAudit } from '../lib/audit';
-import { formatDayTime, excelSerial, hasClockTime } from '../lib/dates';
+import { formatDayTime } from '../lib/dates';
 import './dccr.css';
 
 // ===========================================================================
@@ -152,25 +152,11 @@ export function ReportBuilder<F extends Record<string, string>>({ spec }: { spec
       // month, subtracted from another, or given the reader's own Long Date
       // format, and every one of those quietly returns something rather than
       // refusing. Reported 2026-09-18, after the string itself was fixed.
-      const asText = (v: unknown) => formatDayTime(v ?? '');
-      const asCell = (v: unknown) => {
-        // A NUMBER STAYS A NUMBER. The same argument as the dates below: a
-        // spreadsheet cannot sort, sum or filter a number it was handed as
-        // text, and each of those returns something WRONG rather than refusing
-        // — Line ID sorts 1, 10, 100, 2, and SUM over QTY answers 0.
-        // `typeof v === 'number'` is the whole test on purpose: PostgREST sends
-        // the database's numeric columns as JSON numbers and its text columns
-        // as strings, so this converts exactly the columns Postgres calls
-        // numbers. Testing whether a STRING looks numeric would be the MP-010
-        // mistake in the other direction — a Serial No, Call Number, Contract
-        // No or UCN of all digits would lose its leading zeros and stop being
-        // an identifier.
-        if (typeof v === 'number' && Number.isFinite(v)) return v;
-        const serial = excelSerial(v ?? '');
-        // Not a date — a part code, a UCN, a remark. Text, untouched.
-        if (serial === null) return formatDayTime(v ?? '');
-        return xlsxDate(serial, hasClockTime(v));
-      };
+      const asText = xlsxText;
+      // SHAPED IN ONE PLACE (xlsx.ts). It was inlined here, and a second export
+      // screen then grew its own -- and got it wrong, writing raw ISO into a
+      // CSV. The reasoning lives with the helper.
+      const asCell = xlsxCell;
       const shapedText = rows.map((r) =>
         Object.fromEntries(columns.map((c) => [c, asText(r[c])])));
       const shapedCells = rows.map((r) =>

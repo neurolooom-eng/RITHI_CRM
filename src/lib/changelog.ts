@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.320',
+    version: '0.9.323',
     date: '2026-09-20',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,41 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.322',
+    date: '2026-09-21',
+    title: '\u26a0 Calls that went back to Unattended \u2014 what happened, and the one file that fixes it',
+    changes: [
+      'MY FAULT, AND I AM SORRY. Running call_requests.sql set every call that had no visit record back to Unattended \u2014 about 4,222 of them. I told you to run that bundle without spotting that it carries a data-rewriting statement.',
+      'WHY: a line at the end of migration 0032 says \u201ca call whose reports have all gone is Unattended again\u201d. It sits outside any function, so it runs EVERY time the bundle is applied. When it was written that was correct. Four months later the \u201cClose call\u201d button made it possible for a call to be Solved with no visit ON PURPOSE \u2014 and nobody went back and updated that line.',
+      'RUN _restore_call_status.sql AND IT PUTS THEM BACK, in one go. Your call imports kept every column the file carried, including its own Call Status, so the statuses are still on the rows and it restores from there. Calls closed with the old button are restored from the audit trail as well. It only touches calls that are blank AND have no visit, so it cannot overwrite anything correct, and running it twice does nothing the second time.',
+      'THE LINE IS GUARDED NOW and cannot do this again \u2014 proved by closing 50 calls, re-running the bundle, and finding all 50 still Solved.',
+      'A call with a report in Drive is a separate thing: Drive holds the document, the system holds the VISIT, and only the visit sets a status. Administration \u2192 Bulk Report Mapping turns those documents into visits, which fixes the cause rather than the symptom.',
+    ],
+  },
+  {
+    version: '0.9.321',
+    date: '2026-09-21',
+    title: 'Visit Reports exports EVERY column, and the answer on spares',
+    changes: [
+      'VISIT REPORTS \u2192 EXCEL / CSV now exports every column a visit actually carries \u2014 including every question the engineer answered on the form, the entry date, the engineer\u2019s email, the service report and the row id. It was writing six columns while each row held far more.',
+      'The columns come from the visits you loaded, not from a fixed list \u2014 an installation is asked different questions from a breakdown, so a fixed list would be short for one and full of blanks for the other. The Excel file says how many columns it found and why.',
+      'YES \u2014 SPARES COULD BE BOOKED ONTO A CLOSED CALL, and that is now measured rather than assumed. Between 5 and 18 September a call closed with \u201cClose call\u201d took spares with no complaint at all. Since 18 September the database refuses it: \u201cNo visit has been filed on \u2026 yet, so a spare cannot be booked against it.\u201d',
+      'The rows booked in that window were never rewritten \u2014 deliberately, because inventing a visit that did not happen is worse than a blank that is true. They are exactly the rows showing empty Visit Date and Visit Entry Date on the Consumption Report. _consumption_without_a_visit.sql lists them.',
+    ],
+  },
+  {
+    version: '0.9.320',
+    date: '2026-09-21',
+    title: 'Solved Without a Report exports properly \u2014 and why there are 4,222 of them',
+    changes: [
+      'EXCEL AND CSV, with readable headings. The first version exported the database\u2019s own column names (open_state, visits_sharing_entry_stamp) and wrote raw timestamps like 2026-09-07T00:00:00+00:00 into the CSV \u2014 the same fault the Consumption Report had. Dates are now real Excel dates you can sort and filter by month, and numbers stay numbers.',
+      'The Excel file carries an ABOUT sheet: what each gap means, what filter was applied, how many rows and when it was taken \u2014 because this file is meant to be handed to other people.',
+      'ONE SHAPER FOR EVERY EXPORT. The date and number handling was written inside the Reports screen; this screen grew its own and got it wrong. It is one shared piece now, so a third export cannot repeat it.',
+      'AND WHY 4,222 CALLS HAVE NO VISIT: the \u201cClose call\u201d button. It existed from 5 to 15 September, set a call to Solved and deliberately wrote NO visit \u2014 you removed it on the 15th saying it \u201cdoesn\u2019t make sense\u201d, and this report is showing exactly what it left behind. Nothing in the app calls it today.',
+      'Three other explanations are ruled out by how the system works, not by guesswork: a bulk call upload carries no call-status column at all, deleting a visit puts the call back to Unattended rather than leaving it Solved, and a visit filed later simply takes over. Run _why_no_visit.sql to see how many of the 4,222 fall in those ten days and what accounts for the rest.',
     ],
   },
   {

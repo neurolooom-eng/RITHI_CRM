@@ -1,3 +1,4 @@
+import { excelSerial, formatDayTime, hasClockTime } from './dates';
 // ===========================================================================
 // A WORKBOOK WITH SHEETS, WITHOUT A DEPENDENCY.
 //
@@ -44,6 +45,43 @@ export interface Sheet {
 export interface XlsxDate { __xlsxDate: number; withTime: boolean }
 export const xlsxDate = (serial: number, withTime: boolean): XlsxDate =>
   ({ __xlsxDate: serial, withTime });
+
+
+// ===========================================================================
+// ONE VALUE, TWO DESTINATIONS — and neither of them is the wire.
+//
+// Extracted from ReportBuilder (0.9.320) so a second export screen cannot
+// quietly grow a third opinion about what a date is. The Consumption Report
+// carried `2026-09-18T08:51:02.55+00:00` into a file opened in Excel once
+// already; "Solved Without a Report" shipped with the same fault a day later,
+// because its CSV was built from `String(value)`. Two screens, one bug, twice
+// — which is the definition of a thing that belongs in one place.
+//
+// A DATE IN AN .XLSX IS A NUMBER PLUS A FORMAT, never a formatted string:
+// Excel cannot sort, filter by month, subtract or re-format a string, and each
+// of those returns something WRONG rather than refusing.
+//
+// A NUMBER MUST STAY A NUMBER, and `typeof v === 'number'` is the whole test.
+// PostgREST sends Postgres's numeric columns as JSON numbers and its text
+// columns as strings, so this converts exactly the columns the database calls
+// numbers. Widening it to numeric-LOOKING strings is the MP-010 mistake in the
+// other direction: a Serial No, Call Number, Contract No or UCN of all digits
+// would lose its leading zeros and stop being an identifier.
+// ===========================================================================
+
+/** The cell an .xlsx should carry: a real number, a real date, or text. */
+export function xlsxCell(v: unknown): unknown {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const serial = excelSerial(v ?? '');
+  // Not a date -- a part code, a UCN, a remark. Text, untouched.
+  if (serial === null) return formatDayTime(v ?? '');
+  return xlsxDate(serial, hasClockTime(v));
+}
+
+/** The same value for a CSV, which can only carry text. */
+export function xlsxText(v: unknown): string {
+  return formatDayTime(v ?? '');
+}
 const isXlsxDate = (v: unknown): v is XlsxDate =>
   typeof v === 'object' && v !== null && typeof (v as XlsxDate).__xlsxDate === 'number';
 

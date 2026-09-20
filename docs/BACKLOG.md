@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (QUEUED: Product Database 2.0 as the primary product
+_Last updated: 2026-09-21 (RCA on 4,222 calls Solved with no visit — the
+"Close call" button, 5-15 Sep; plus a proper Excel/CSV export. Before that:
+QUEUED: Product Database 2.0 as the primary product
 list — what it involves and the four decisions it needs. Before that:
 ⚠️ NEW REPORT Solved Without a Report — RUN reports.sql,
 _status.sql row 172. Before that: Product Database 2.0: a drawer per machine with its
@@ -34,6 +36,61 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-21 — RCA: 4,222 calls Solved with no visit, and a proper export
+
+> *"Provision to Export"* · *"How come there are 4222 Calls without report? Can
+> you deep dive and come up with RCA"*
+
+### The RCA is in the code, and it is the "Close call" button
+
+`close_call()` (0109, 2026-09-05) sets `last_status = 'Solved'` and
+**deliberately writes no visit row**. Its own header says so: *"What it does NOT
+do is invent a visit: `last_visit_at` is left alone, so the visit history stays
+empty and honest."* The user removed the button on 2026-09-15 — *"Remove the
+Close call option doesn't make sense"* — and the note left behind in
+`FieldCalls.tsx` describes precisely what this report now surfaces: *"a call
+whose own history says nobody ever went, indistinguishable afterwards from one
+that was actually attended."* Nothing in the application calls it today.
+
+### Three other explanations ruled out from the code, not guessed at
+
+| candidate | why not |
+|---|---|
+| A bulk call upload set them Solved | The Field / Installation / PM call uploads carry **no call-status column at all** — the "Item Status" they do carry is the COVER (WGP/AMC/CMC/OGP). An imported call arrives with `last_status = ''` and reads Unattended. |
+| The visits were deleted | `sync_call_last_visit` (0032) resets `last_status` to `''` and `last_visit_at` to null when the last report for a UCN goes. A call whose visits were deleted reads **Unattended**, not Solved. |
+| A visit will not take over later | It does — the same trigger recomputes from the newest report, including back to Unsolved. |
+
+### What the data still has to settle
+
+The user's own decision of 2026-09-05 is why this cannot be answered by a flag:
+*"IT IS NOT RECORDED DIFFERENTLY. A call closed this way is Solved, like any
+other closed call."* So `supabase/apply/_why_no_visit.sql` dates and groups them
+instead: how many fall inside the ten days the button existed, what is outside
+it, the shape by month and by row-creation day (a button pressed by hand
+spreads; a bulk operation spikes), the split by register, whether any carry a
+DCCR review — and **orphan visits**, the one candidate the code cannot rule out:
+a visit loaded under a UCN that differs by case or spacing exists and is
+invisible to its call, which looks identical to no visit at all. Proved against
+fixtures reproducing both patterns.
+
+### The export was worse than no export
+
+It wrote the database's own column names as headings (`open_state`,
+`visits_sharing_entry_stamp`) and raw ISO timestamps into the CSV — **the exact
+fault recorded in CLAUDE.md for the Consumption Report**, shipped again a day
+later. Now Excel and CSV, readable headings, real Excel dates (number + format,
+so they sort and filter by month), numbers still numbers, and an About sheet
+carrying the scope — a report whose filter is not written down is one somebody
+later mistakes for the whole register.
+
+**AND THE SHAPING IS SHARED NOW.** `asCell`/`asText` lived inside
+`ReportBuilder`; this screen grew its own and got it wrong. One screen, one bug,
+twice — which is the definition of a thing that belongs in one place. Extracted
+to `xlsxCell()` / `xlsxText()` in `xlsx.ts`, with the reasoning, and
+`ReportBuilder` now calls them.
+
+Client only apart from the probe; **no migration**. v0.9.320.
 
 ## QUEUED — Product Database 2.0 becomes the PRIMARY product list
 
