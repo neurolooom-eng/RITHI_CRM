@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
-import { csvExport } from '../lib/format';
+import { csvExport, fmtLongDate } from '../lib/format';
+import { xlsxDownload, xlsxCell, xlsxText } from '../lib/xlsx';
+import { logAudit } from '../lib/audit';
 import { formatDay, formatDayTime } from '../lib/dates';
 import { listSolvedWithoutReport, supabaseConfigured } from '../lib/supabase';
 import { loadFailure } from '../lib/dberror';
@@ -48,10 +50,27 @@ const COLUMNS: Column<Row>[] = [
     render: (r) => (r.visit_entry_date ? formatDayTime(r.visit_entry_date) : '') },
 ];
 
-const ALL_COLUMNS = [
-  'ucn', 'call_number', 'reg_date', 'open_state', 'missing', 'party_name',
-  'product_name', 'serial', 'state', 'last_visit_at', 'visit_uid', 'visit_date',
-  'visit_entry_date', 'visits_sharing_entry_stamp', 'service_report', 'visit_engineer',
+// THE FILE'S HEADINGS ARE THE SCREEN'S, NOT THE DATABASE'S. The first version
+// exported `visits_sharing_entry_stamp` and `open_state` as column names,
+// because it passed the view's own keys through as headers — which is fine for
+// a developer and useless to whoever is handed the file to work through.
+const EXPORT: { key: string; header: string }[] = [
+  { key: 'ucn', header: 'UCN' },
+  { key: 'call_number', header: 'Call No' },
+  { key: 'reg_date', header: 'Registered' },
+  { key: 'open_state', header: 'Status' },
+  { key: 'missing', header: 'Missing' },
+  { key: 'party_name', header: 'Party' },
+  { key: 'product_name', header: 'Product' },
+  { key: 'serial', header: 'Serial' },
+  { key: 'state', header: 'State' },
+  { key: 'visit_engineer', header: 'Engineer on the visit' },
+  { key: 'visit_date', header: 'Visit Date & Time' },
+  { key: 'visit_entry_date', header: 'Visit Entry Date' },
+  { key: 'visits_sharing_entry_stamp', header: 'Visits sharing that entry stamp' },
+  { key: 'service_report', header: 'Service Report' },
+  { key: 'visit_uid', header: 'Visit UID' },
+  { key: 'last_visit_at', header: 'Call’s last visit at' },
 ];
 
 export function SolvedWithoutReport() {
@@ -74,6 +93,50 @@ export function SolvedWithoutReport() {
       }));
     } finally { setBusy(false); }
   };
+  // WHAT IS ON SCREEN, WHICH IS WHAT WAS ASKED FOR. The read already pages
+  // until the view is exhausted, so `visible` is every matching row and not a
+  // page of them — the filter and the search narrow it, and the file says so
+  // rather than leaving somebody to wonder whether they got the lot.
+  const download = (kind: 'xlsx' | 'csv') => {
+    if (!visible.length) return;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const name = `solved-without-a-report-${stamp}`;
+    const scope = [gap ? `gap: ${gap}` : '', q.trim() ? `search: ${q.trim()}` : '']
+      .filter(Boolean).join(' · ') || 'every row';
+    if (kind === 'csv') {
+      // A DOWNLOAD IS NOT THE WIRE: a CSV can only carry text, so the dates go
+      // out as dd-MMM-yyyy HH:mm:ss rather than the ISO string the API sent.
+      csvExport(`${name}.csv`, EXPORT,
+        visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.key, xlsxText(r[c.key])]))));
+    } else {
+      xlsxDownload(`${name}.xlsx`, [
+        { name: 'Solved Without a Report',
+          columns: EXPORT.map((c) => c.header),
+          rows: visible.map((r) => Object.fromEntries(EXPORT.map((c) => [c.header, xlsxCell(r[c.key])]))) },
+        // THE FILE CARRIES ITS OWN SCOPE, like the other reports: one whose
+        // filter is not written down is one somebody later mistakes for the
+        // whole register — and this one exists to be handed to other people.
+        { name: 'About',
+          columns: ['Item', 'Value'],
+          rows: [
+            { Item: 'Report', Value: 'Solved Without a Report' },
+            { Item: 'What it lists', Value: 'Calls reading Solved whose visit record is incomplete.' },
+            { Item: 'no visit at all', Value: 'The call has no visit record. The visit must be loaded.' },
+            { Item: 'no visit date', Value: 'A visit was filed with no Visit Date & Time, so it cannot be placed in time.' },
+            { Item: 'no service report', Value: 'A visit was filed with no report attached.' },
+            { Item: 'entry date looks like an import stamp',
+              Value: 'Visit Entry Date is NOT NULL and defaults to the moment of the upload, so a file that omits it leaves no blank. This flags an entry timestamp shared by 25 or more visits to the microsecond — a batch load, not 25 people typing at one instant. The count is in its own column.' },
+            { Item: 'Why the entry date matters', Value: 'A call takes its status from the LATEST entry, so a whole batch sharing one stamp lets an arbitrary row decide every call in it.' },
+            { Item: 'Solved includes Report Pending', Value: 'Both appear and the Status column says which. Report Pending is the system stating a known absence; a plain Solved with no report is the system contradicting itself.' },
+            { Item: 'Scope of this file', Value: scope },
+            { Item: 'Rows', Value: String(visible.length) },
+            { Item: 'Taken', Value: fmtLongDate(new Date().toISOString()) },
+          ] },
+      ]);
+    }
+    logAudit({ action: 'report.solved_without_report', meta: { rows: visible.length, scope, kind } });
+  };
+
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   // ONE ROW CAN CARRY SEVERAL GAPS, so a row counts towards each chip it has.
@@ -133,11 +196,10 @@ export function SolvedWithoutReport() {
       <DataTable<Row>
         columns={COLUMNS} rows={visible} getRowId={(r) => r.id}
         toolbar={(
-          <button className="btn btn-ghost btn-sm" onClick={() => csvExport(
-            `solved-without-a-report-${new Date().toISOString().slice(0, 10)}.csv`,
-            ALL_COLUMNS.map((k) => ({ key: k, header: k })), visible)}>
-            ⭳ Export CSV
-          </button>
+          <>
+            <button className="btn btn-ghost btn-sm" onClick={() => download('xlsx')}>⭳ Excel</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => download('csv')}>⭳ CSV</button>
+          </>
         )} />
     </div>
   );
