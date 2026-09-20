@@ -4,7 +4,8 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (Product Database 2.0: a drawer per machine with its
+_Last updated: 2026-09-20 (⚠️ NEW REPORT Solved Without a Report — RUN reports.sql,
+_status.sql row 172. Before that: Product Database 2.0: a drawer per machine with its
 references as working links. Before that: ⚠️ 0220 refused EVERY reader including admins —
 0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
 Product Database 2.0 was TIMING OUT and is now
@@ -28,6 +29,61 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-20 — ⚠️ New report: Solved Without a Report — RUN `reports.sql`
+
+> *"Create a Report - Call is Solved, but Report or Visit Entry is missing -
+> View only for Admins and Super Admins."*
+
+Administration → **Solved Without a Report**. The list of what to re-upload,
+instead of loading every report again and hoping.
+
+**FOUR GAPS, NOT ONE**, because each needs a different fix and a report that
+lumps them together cannot be acted on: *no visit at all* · *no visit date* ·
+*no service report* · *entry date is an import stamp*. Every gap on a row is
+listed, not the first — being told, fixing it, and being told the next is three
+round trips for one call.
+
+**THE FOURTH GAP IS THE INTERESTING ONE, AND A TEST FOUND IT.** The first draft
+looked for a null `updated_at`. `reports.updated_at` is **NOT NULL and DEFAULTS
+TO `now()`** — so a file with no Visit Entry Date does not leave a blank, it
+silently takes the moment of the import, and the gap **cannot be found by
+looking for a null at all**. The branch would have shipped as a condition that
+can never fire: a claim about the data that is simply false. So the report looks
+for the signature instead — how many visits share that timestamp **to the
+microsecond**. Twenty-five genuinely entered at the same instant does not
+happen; a batch load does. The count is published as a column either way, so the
+reader sees the evidence and not only the verdict. It matters because
+`updated_at` is what decides a call's status (0032 takes the LATEST ENTRY), so a
+whole batch sharing one stamp lets an arbitrary row decide every call in it.
+
+**"Solved" includes "Solved - Report Pending" and the row says which.** They are
+different findings: Report Pending is the system stating a known absence; a plain
+Solved with no report is the system contradicting itself. Filtering to one would
+hide half the problem, merging them silently would misrepresent it.
+
+**THE VIEW INVENTS NO PERMISSION RULE.** It is `security_invoker`, so the
+ordinary call policies decide the rows; the SCREEN is what is restricted, by
+`mod:/missing-visit-reports` — `admin: true` on the module plus 0224 merging the
+key into the three roles in `SEES_EVERY_MODULE` (`admin`, `technical_support`,
+`zoho_migration`). That is the 0209 pattern, not a new mechanism. **Note for the
+user:** this system has no separate "super admin" role — those three are what
+see every module. Say the word and it narrows to `admin` alone.
+
+**Filed in the `reports` bundle, not `daily_review`**, because a view is resolved
+AT CREATION and `daily_review` runs first in `ALL_ORDER`. And
+`create or replace view` could not be used: the definition inserts a column in
+the middle, which fails with "cannot change name of view column".
+
+**The requirement is DECLARED on URS-065**, whose own last clause is what the
+screen is for — *"a gap that is visible as a gap"* — but whose words name no
+route and say "recovered" rather than "missing". `check:ui` refused the screen
+until it was tied to one, which is the mechanism working.
+
+**TO RUN:** `_status.sql` (row **172**), then
+[`supabase/apply/reports.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/reports.sql).
+
+validate: **96/96 suites, 16/16 checks.**
 
 ## 2026-09-20 — Product Database 2.0: a drawer per machine, and the references are links
 

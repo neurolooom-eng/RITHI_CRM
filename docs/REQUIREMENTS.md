@@ -769,6 +769,18 @@ A reporting manager shall be able to allot a call to, or move a call between, th
 
 Opened by `mod:/reports`.
 
+### URS-065 — A recovered quality record is reviewed before it is written
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-077** — Bulk Report Mapping reads, resolves and only then writes | High | OQ-58 |
+
+**FRS-077.** The screen runs in three stated steps and in this order: READ the sheet and work out which call each row belongs to; RESOLVE the superseded system’s file references into links; WRITE only the rows that came through both cleanly. Nothing is written until the operator has SEEN what each row resolved to, and rows that did not resolve are listed with the reason and are not written. The register it writes into is the visit history, whose records are never deleted, so a wrong write cannot be taken back — which is why the review is a step rather than a confirmation dialogue.
+
 ### URS-004 — Record a visit / call report
 
 *Risk: High. Filed here because the requirement declares this screen.*
@@ -1558,6 +1570,22 @@ Loading a file shall change only the fields that file supplies. A value the file
 
 **FRS-046.** The API writes a batch of rows as ONE insert whose column list is the union of the rows’ keys; a row lacking one of those keys is written as NULL, not as the column default. The loader therefore groups rows by their column set and sends each group separately, so a column no row in the group carries genuinely defaults. Filling absent values in was rejected as a fix: it would defeat a default that carries meaning. A load that violates a NOT NULL constraint fails the batch and writes nothing of it.
 
+## Solved Without a Report `/missing-visit-reports`
+
+Opened by `mod:/missing-visit-reports`.
+
+### URS-065 — A recovered quality record is reviewed before it is written
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-077** — Bulk Report Mapping reads, resolves and only then writes | High | OQ-58 |
+
+**FRS-077.** The screen runs in three stated steps and in this order: READ the sheet and work out which call each row belongs to; RESOLVE the superseded system’s file references into links; WRITE only the rows that came through both cleanly. Nothing is written until the operator has SEEN what each row resolved to, and rows that did not resolve are listed with the reason and are not written. The register it writes into is the visit history, whose records are never deleted, so a wrong write cannot be taken back — which is why the review is a step rather than a confirmation dialogue.
+
 ## Tracker `/tracker`
 
 Opened by `mod:/tracker`.
@@ -1874,7 +1902,7 @@ text alone.
 
 ## Screens no user requirement governs
 
-**2 of 58.** Each is written down with its reason in
+**2 of 59.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
@@ -1887,7 +1915,7 @@ questions for a person.
 
 ---
 
-**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **111** of 70 user requirements tied to a module.
+**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **113** of 70 user requirements tied to a module.
 
 ---
 
