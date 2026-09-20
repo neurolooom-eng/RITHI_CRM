@@ -4,7 +4,11 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (Daily Complaint Review Register (R/SER/35): renamed,
+_Last updated: 2026-09-20 (⚠️ 0220 refused EVERY reader including admins —
+0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
+Product Database 2.0 was TIMING OUT and is now
+materialised — RUN product_database_2.sql, _status.sql row 170. Before that:
+Daily Complaint Review Register (R/SER/35): renamed,
 two master tabs removed, and the Review Desk loads every call instead of stopping
 at 500 with no button. Before that: Product Database 2.0 says WHY it is empty on the
 screen itself, and only claims what it measured. Before that: the missing view
@@ -26,6 +30,145 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-20 — ⚠️ 0220 REFUSED EVERY READER. 0221 repairs it — RE-RUN `product_database_2.sql`
+
+> *"Your role does not have permission to read this."* — as **Rithi Admin ·
+> Permission · Admin**
+> *"And how does a Super Admin not have access to something???"*
+> *"RBAC is creaking my setup, so i am not running it."*
+
+**They do, and it was never a permission decision.** 0220 made
+`product_database_v2` a `security_invoker` view — which reads **as the caller** —
+over a materialised view it had, in the same file, **revoked from
+`authenticated`**. The two lines contradict each other: the caller is required
+to hold a privilege that was deliberately taken away. The result is
+`permission denied for materialized view product_database_v2_mv` for **every**
+reader, administrators included. Reproduced on a database before writing a line
+of the fix.
+
+**Why the tests did not catch it, which matters more than the bug.** The suite
+said `set local role authenticated` — and **`SET LOCAL` outside a transaction
+block is a no-op**, a warning and nothing else. Every "as authenticated"
+assertion therefore ran as `postgres`, a superuser, which bypasses exactly the
+privilege check that was broken. It passed twice while proving nothing about
+roles at all. It uses `set role` now and asserts **an administrator CAN read** —
+an assertion that fails against 0220 and passes against 0221. Mutation-tested
+by putting the revoke back.
+
+**And the gate is GONE, not repaired**, at the user's direction. 0220 invented a
+permission predicate for this one screen that nothing else in its family has,
+and it is the thing that broke. Four of the five sources 2.0 assembles are
+already readable by any signed-in user — `products` (the OLD Product Database
+and its ~20,000 machines), `product_additional_entries`, `ownership_transfers`,
+and `machine_cover`, which publishes the same machine and cover facts to
+everybody. The screen is gated where every other screen is: `mod:/product-database-2`
+(0219).
+
+**Said plainly, because it is a real change:** the warranty and contract detail
+assembled here is now readable by any signed-in user who can open the screen,
+where 0220 asked for `masters.view`, `cover.edit` or admin. That brings 2.0 into
+line with the Product Database beside it. Putting the gate back is one predicate
+and a grant — a decision for the user, not for a migration.
+
+**`_status.sql` row 170 now asserts the grant itself**, so a project that ran
+0220 and not 0221 reads NO rather than looking complete while refusing
+everybody. Mutation-tested both ways.
+
+Speed is unaffected: 3 ms / 3.5 ms / 5.8 ms for the count and two pages on the
+loaded fixture, measured after the repair.
+
+**TO RUN:** `_status.sql` (row **170**), then re-run
+[`supabase/apply/product_database_2.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/product_database_2.sql).
+It is idempotent, so running it again over 0220 is the repair.
+
+validate: **95/95 suites, 16/16 checks.**
+
+## 2026-09-20 — ⚠️ Product Database 2.0 TIMED OUT. Now materialised — RUN `product_database_2.sql`
+
+> *"Load failed: canceling statement due to statement timeout"*
+
+**I had the cause wrong and said so.** The hypothesis on this page yesterday was
+blank product names in the registers. It was not: the query never finished. The
+screen was neither refused nor looking at empty registers.
+
+**Measured, on a throwaway Postgres built from every migration and loaded to the
+live project's order of magnitude** (12,000 warranty sale items, 5,000 contract
+items, 22,000 calls, 24,000 feedback rows, 10,000 machines), as `postgres` and
+again under RLS as `authenticated` with an admin profile:
+
+| read | no RLS | under RLS |
+|---|---:|---:|
+| `count(*)` | 164 ms | 1,361 ms |
+| one page — `select *`, `order by machine_key`, `limit 1000` | 517 ms | **2,936 ms** |
+
+The screen PAGES the view, so all five registers were re-derived for every page:
+ten pages is ~30 s, and one page already exceeds Supabase's statement timeout on
+live volumes.
+
+**Where it went.** The installation-call lookup alone, isolated and timed both
+ways: **24 ms without RLS, 1,255 ms with it — fifty-two times.** `calls` is the
+only source in this view whose read policy is per ROW (`can_view_all_calls() OR
+mine OR my team's`, and the team branch walks `user_directory` recursively). The
+other four have whole-table predicates that cost the same on one row or a
+million.
+
+**The fix is 0220 and it has two parts; the first is about correctness.**
+
+1. **`machine_install_start()` is SECURITY DEFINER.** A machine's warranty start
+   is a fact about the MACHINE, and reading it through a per-row policy made it a
+   fact about the READER — two people got different warranty dates for the same
+   machine, and whoever could not see the installation call silently got the
+   selling register's date instead. On a quality record that is worse than the
+   slowness.
+2. **The view is MATERIALISED.** The definer function alone took a page to
+   1,764 ms — better and still hopeless, because the cost is re-deriving 10,000
+   machines out of eight tables on every page. With `product_database_v2_mv` and
+   a unique index on `machine_key`: **5 ms / 3 ms / 6 ms**.
+
+**What it costs, said plainly:** the figures are as of the last rebuild.
+`refreshed_at` is a column of the view, the screen prints *"Built <time>"*, and
+anyone who may edit masters or cover can press **⟳ Rebuild from the registers**.
+`refresh ... concurrently`, so no reader is blocked.
+
+**Two holes the tests found that reading the file would not have.**
+
+- **Supabase's default privileges grant `authenticated` SELECT on new tables,
+  and a MATERIALISED VIEW CANNOT CARRY RLS** — so the matview inherited that
+  grant and every authenticated caller could have read it directly, round the
+  gate. `revoke all ... from authenticated, anon, public` is the whole fence.
+  Mutation-tested: put the grant back and the suite fails.
+- **A `WHERE` clause is not bypassed by superuser.** The gate is a predicate in
+  the view body (a matview has no RLS), so the **Supabase SQL editor**, running
+  as `postgres` with no JWT, read ZERO ROWS and reported it as an empty grid —
+  the 0170 lesson in a second place. A direct session with no
+  `request.jwt.claims` is admitted; PostgREST sets that GUC on every request
+  including anon, so no API caller matches it.
+
+**The gate is otherwise unchanged and widens nobody's reach**: the same
+whole-table predicate as `sale_items_read` (`masters.view` OR `cover.edit` OR
+admin), the narrowest of its sources. Proved by measurement — an engineer
+holding neither reads 0 rows and is refused the rebuild.
+
+**Also:** `create or replace view` in 0218 had to become a drop-and-create,
+because replaying the bundle runs 0218 then 0220 and the old definition cannot
+`create or replace` over a view with an appended column. `check:replay` caught
+it.
+
+**And every fixture-based suite reading this view now has to rebuild it first** —
+that is the honest price of materialising, and `product_database_v2_test.sql`
+says so where it does it.
+
+**TO RUN (the user's step):** `_status.sql` first — row **170** reads NO until
+this is applied — then
+[`supabase/apply/product_database_2.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/product_database_2.sql).
+
+**Also in this change:** the Review Desk reported *"500+ of 0"* — the deep load
+added earlier that day sets the rows only at the END, so the previous tab's 500
+sat on screen with a stale total for the whole load. Rows are painted as each
+page arrives, and an uncounted total says *"still counting"* rather than 0.
+
+validate: **95/95 suites, 16/16 checks.**
 
 ## 2026-09-20 — Daily Complaint Review Register (R/SER/35)
 

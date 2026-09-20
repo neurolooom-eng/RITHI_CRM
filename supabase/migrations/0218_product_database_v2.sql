@@ -139,7 +139,15 @@ comment on function public.cover_period_end(date, numeric) is
 -- is assembled around that row, and every assembled value carries the name of
 -- the register it came from.
 -- ===========================================================================
-create or replace view public.product_database_v2 as
+-- DROPPED FIRST, AND NOT FOR TIDINESS. 0220 replaces this name with a THIN
+-- gating view over a materialised one, which publishes a column this
+-- definition does not — so on a REPLAY of this bundle (which runs 0218 then
+-- 0220, one file at a time) `create or replace view` hits "cannot drop columns
+-- from view" and the whole bundle stops. `check:replay` caught exactly that.
+-- The drop is safe in both directions: nothing depends on this view, and 0220
+-- rebuilds the matview and the gate straight after.
+drop view if exists public.product_database_v2 cascade;
+create view public.product_database_v2 as
 with w as (
   -- THE WARRANTY SALE — the machine's birth record. Latest by the cover it
   -- grants, so a re-sale or a corrected row wins over the one it replaced.

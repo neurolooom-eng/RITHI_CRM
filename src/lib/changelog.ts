@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.315',
+    version: '0.9.317',
     date: '2026-09-20',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,31 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.316',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 refused everybody \u2014 including you. Fixed, and the gate is gone',
+    changes: [
+      '\u201cYour role does not have permission to read this\u201d as a SUPER ADMIN was not a permission decision. It was a bug in yesterday\u2019s speed fix: the screen\u2019s view was set to read AS THE PERSON ASKING, while the stored table underneath it had deliberately been closed to everyone. Those two things contradict each other, so it refused EVERY reader \u2014 administrators included. No role was missing anything.',
+      'AND THE PERMISSION CHECK IS GONE RATHER THAN REPAIRED. 2.0 was the only screen of its kind carrying a permission rule of its own, and that rule is what broke. It is gated the same way every other screen is now \u2014 by whether your role can open Product Database 2.0 at all.',
+      'WHAT THAT MEANS, PLAINLY: the warranty and contract detail on this screen is now readable by anyone signed in who can open it. That matches the Product Database sitting beside it, whose 20,000 machines and their cover have always been readable by everyone signed in. Say the word and the stricter rule goes back.',
+      'The test that should have caught this could not: it said \u201cSET LOCAL ROLE\u201d, which does nothing at all outside a transaction, so every check that claimed to run as an ordinary user was really running as the database owner \u2014 who is never refused anything. It now actually changes role, and asserts that an administrator CAN read the screen.',
+    ],
+  },
+  {
+    version: '0.9.315',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 was timing out \u2014 it is built once now, not on every page',
+    changes: [
+      'THE REAL REASON IT WAS EMPTY, and it was not the one I gave you: \u201cLoad failed: canceling statement due to statement timeout\u201d. The screen was not being refused and the registers were not blank \u2014 the query never finished.',
+      'WHY. The page worked the whole machine list out from five registers EVERY TIME it was asked, and it asks once per page of results. Measured on a database loaded to your order of magnitude: one page took 2.9 SECONDS, and the screen needs ten of them. The single worst part was reading the installation call \u2014 24 ms on its own, 1,255 ms once per-person visibility rules were applied to it.',
+      'IT IS NOW WORKED OUT ONCE AND STORED. The same three reads measure 5 ms, 3 ms and 6 ms \u2014 about 600 times faster on the page you actually wait for.',
+      'SO THE FIGURES ARE AS OF THE LAST REBUILD, and the screen SAYS WHEN: \u201cBuilt <date and time>\u201d beside the title. After loading a register, press \u27f3 Rebuild from the registers to bring it up to date. Nobody is locked out of the screen while it rebuilds.',
+      'AND ONE THING IT FIXES BEYOND SPEED: the warranty start date used to depend on WHO WAS LOOKING. Somebody who could not see the installation call silently got the selling register\u2019s date instead, so two people could read different warranty dates for the same machine. A machine\u2019s warranty start is a fact about the machine, and it is now the same for everyone.',
+      'WHO CAN SEE IT is unchanged \u2014 the same people as the warranty and contract registers it is built from. Who can REBUILD it: anyone who may edit masters or cover.',
+      'DAILY COMPLAINT REVIEW REGISTER: the Review Desk said \u201c500+ of 0\u201d while it was still loading. It now fills in front of you as the pages arrive, and says \u201cstill counting\u201d instead of printing a total of 0 that has not been worked out yet.',
     ],
   },
   {

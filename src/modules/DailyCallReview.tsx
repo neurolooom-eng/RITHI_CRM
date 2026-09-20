@@ -167,6 +167,7 @@ export function DailyCallReview() {
   // The counters could not be read. Kept apart from the numbers themselves so
   // the screen can say so rather than showing a figure it does not stand behind.
   const [countErr, setCountErr] = useState(false);
+  const [counted, setCounted] = useState(false);
   const [counts, setCounts] = useState<{ total: number; byStatus: Record<string, number>; effects: number; solvedPending: number }>(
     { total: 0, byStatus: {}, effects: 0, solvedPending: 0 },
   );
@@ -342,9 +343,16 @@ export function DailyCallReview() {
       // path is exactly what it was.
       let all = page;
       if (deep && page.length === PAGE) {
+        // SHOWN AS IT ARRIVES. Reported as "500+ of 0": loading 4,000 calls is
+        // eight round trips, and setting the rows only at the END left the
+        // PREVIOUS tab's 500 on screen with its "+" and its stale total for
+        // the whole of it — numbers that were about to change, with nothing
+        // saying so. Painting each page keeps the figure honest while it grows.
+        setRows(all);
         while (all.length < MAX_DESK) {
           const next = (await listCallReviews(f, all.length, PAGE)) as ReviewRow[];
           all = all.concat(next);
+          setRows(all);
           if (next.length < PAGE) break;
         }
       }
@@ -374,9 +382,14 @@ export function DailyCallReview() {
       // previous one — or a row of zeros that reads as "no calls". A number
       // nobody can tell is stale is worse than an admission.
       setCountErr(false);
+      // NOT COUNTED YET IS NOT ZERO. The count walks every page of the
+      // register, so it lands well after the rows do — and "of 0" beside 500
+      // loaded rows is a number nobody can tell is unfinished, which is the
+      // fault this file already records for a stale total.
+      setCounted(false);
       void countCallReviews({ ...countFilterRef.current, status: undefined, statuses: undefined })
-        .then((c) => { setCounts(c); setCountErr(false); })
-        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); });
+        .then((c) => { setCounts(c); setCountErr(false); setCounted(true); })
+        .catch(() => { setCounts({ total: 0, byStatus: {}, effects: 0, solvedPending: 0 }); setCountErr(true); setCounted(true); });
     } catch (e) {
       setMsg({ tone: 'error', text: `Could not read the review register: ${e instanceof Error ? e.message : String(e)}` });
     } finally { setBusy(false); }
@@ -583,7 +596,8 @@ export function DailyCallReview() {
                 here that IS partial, so it carries the "+". */}
             <span className="conn-dot conn-off">
               showing {rows.length.toLocaleString()}{more ? '+' : ''}
-              {countErr ? ' — total could not be counted' : ` of ${inView.toLocaleString()}`}
+              {countErr ? ' — total could not be counted'
+                : counted ? ` of ${inView.toLocaleString()}` : ' — still counting'}
             </span>
           </>
         ) : undefined}
@@ -658,8 +672,9 @@ export function DailyCallReview() {
               {/* LOADED (a lower bound, so "+") against the EXACT total for
                   whatever this tab is scoped to. */}
               <span className="muted">
-                {deskShown.toLocaleString()}{more ? '+' : ''}
-                {countErr ? ' — total could not be counted' : ` of ${inView.toLocaleString()}`}
+                {deskShown.toLocaleString()}{more || busy ? '+' : ''}
+                {countErr ? ' — total could not be counted'
+                  : counted ? ` of ${inView.toLocaleString()}` : ' — still counting'}
               </span>
               {more && (
                 <button className="btn btn-sm btn-ghost" onClick={() => void loadMore()} disabled={loadingMore}>
