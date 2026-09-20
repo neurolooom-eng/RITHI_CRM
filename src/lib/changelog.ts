@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.309',
+    date: '2026-09-20',
+    title: 'The SQL now tells you what to run first, instead of failing on a function name',
+    changes: [
+      'PRODUCT DATABASE 2.0\u2019s SQL FAILED WITH \u201cfunction public.imported_ts(jsonb, unknown) does not exist\u201d. It needs two things other bundles install, and said so only by dying part-way through. It now stops at the top with the list: run performance.sql first, then this.',
+      'AND THE FILE IT TOLD YOU TO RUN FOR THAT WAS WRONG. _status.sql row 167 named HandStock_X.sql, which does not contain that migration at all \u2014 so the row went on reading NO however many times you ran what it named. It says performance.sql now.',
+      'FIVE OTHER ROWS WERE POINTING AT THE WRONG FILE TOO, from a careless edit of ours yesterday: rows 132, 139, 142, 145 and 160 all said Product Database 2.0 when they meant data_integrity.sql. Corrected.',
+      'A check now refuses any \u201cRestore:\u201d line naming a file that does not actually carry the migration \u2014 it only checked the file EXISTED before, which is how all six got past.',
+      'SQL to run, in this order: performance.sql, then product_database_2.sql, then rbac.sql. Nothing about your data changes; these are the same objects, applied in an order that works.',
+    ],
+  },
+  {
     version: '0.9.308',
     date: '2026-09-20',
     title: 'Product Database 2.0, and the cover requirements behind it',

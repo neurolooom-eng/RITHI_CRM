@@ -38,6 +38,16 @@ const NEEDS = {
   approvers: [`to_regprocedure('public.can_approve_spares()')`, 'can_approve_spares()', '0008_rbac_enforcement.sql (apply bundle: rbac)'],
   callTables: [`to_regclass('public.calls')`, 'the calls table', '0001_init.sql'],
   reportTables: [`to_regclass('public.reports')`, 'the reports table', '0001_init.sql'],
+  // Product Database 2.0's two cross-module dependencies. It does not install
+  // either, and BOTH a SQL function body and a view are resolved AT CREATION —
+  // so without these the bundle dies mid-file on a Postgres error naming a
+  // function, which says nothing about WHAT TO RUN. Reported from use
+  // (2026-09-20): `ERROR: 42883: function public.imported_ts(jsonb, unknown)
+  // does not exist`.
+  importedTs: [`to_regprocedure('public.imported_ts(jsonb,text)')`, 'imported_ts()',
+               '0215_visit_dates_fall_back_to_first_booked.sql (apply bundle: performance)'],
+  coverCode: [`to_regprocedure('public.cover_code(text)')`, 'cover_code()',
+              '0208_cover_code_normalised.sql (apply bundle: data_integrity)'],
   spareLineStages: [`to_regprocedure('public.spare_line_stage(text,text,text,text,timestamptz,text)')`,
                     'per-spare approvals (spare_request_lines.dispatched_at)',
                     '0016_spare_line_approvals.sql (apply bundle: Spare_X.sql)'],
@@ -761,7 +771,7 @@ const MODULES = {
             'registers it reads it died twice, first on cover_code and then on',
             'imported_ts. Everything it needs exists only after the last module,',
             'so it runs after the last module. `check:replay` found both.'],
-    needs: [],
+    needs: ['importedTs', 'coverCode'],
     files: ['0218_product_database_v2.sql'],
   },
 };

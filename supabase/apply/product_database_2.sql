@@ -27,7 +27,12 @@
 do $$
 declare missing text[] := '{}';
 begin
-
+  if to_regprocedure('public.imported_ts(jsonb,text)') is null then
+    missing := array_append(missing, 'imported_ts() — 0215_visit_dates_fall_back_to_first_booked.sql (apply bundle: performance)');
+  end if;
+  if to_regprocedure('public.cover_code(text)') is null then
+    missing := array_append(missing, 'cover_code() — 0208_cover_code_normalised.sql (apply bundle: data_integrity)');
+  end if;
   if array_length(missing, 1) is not null then
     raise exception E'Apply these first, then re-run this bundle:\n  - %',
       array_to_string(missing, E'\n  - ');

@@ -7419,6 +7419,46 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
       /export const machineKey = \(product: unknown, serial: unknown\): string =>/
         .test(readFileSync('src/lib/machine.ts', 'utf8')), true);
   }
+  {
+    // A `Restore:` CLAUSE MUST NAME A BUNDLE THAT ACTUALLY CARRIES THE
+    // MIGRATION. Checking only that the FILE EXISTS is what let row 167 tell
+    // somebody to run `HandStock_X.sql` to restore 0215, which lives in the
+    // `performance` module and is in no other bundle — so the row went on
+    // reading NO however many times they ran what it named, and the Product
+    // Database 2.0 bundle then died on `function public.imported_ts(jsonb,
+    // unknown) does not exist`.
+    //
+    // MATCHED ON THE PARENTHESISED CONVENTION ONLY — `(0215)`, which is how a
+    // row names its OWN migration. A bare number in the prose is not one: row
+    // 81 says "notify_spare_dispatched carries 0064", and a rule reading that
+    // as its migration would fail a correct row, which is the one thing a
+    // check here must never do.
+    const statusSql = readFileSync('supabase/apply/_status.sql', 'utf8');
+    const rows = statusSql.split(/\n    \((?=\d+, ')/);
+    const wrong: string[] = [];
+    for (const row of rows) {
+      const head = /^(\d+), '((?:[^']|'')*)', '((?:[^']|'')*)'/.exec(row);
+      if (!head) continue;
+      const restore = /Restore: ([A-Za-z_0-9.]+)/.exec(head[3]);
+      const named = [...head[3].matchAll(/\((0\d{3})[),]/g)].map((m) => m[1]);
+      if (!restore || !named.length) continue;
+      const file = restore[1];
+      const path = existsSync(file) ? file : `supabase/apply/${file}`;
+      if (!existsSync(path)) { wrong.push(`row ${head[1]}: ${file} does not exist`); continue; }
+      const body = readFileSync(path, 'utf8');
+      // ANCHORED TO THE SECTION HEADER a bundle emits per migration
+      // (`-- 0208_cover_code_normalised.sql` at line start), not to any mention
+      // of the name. A bare `includes` reads the bundle's own PREFLIGHT
+      // COMMENT — which names the migrations it needs — as proof it carries
+      // them, and row 160 passed on exactly that.
+      const carries = (n: string) =>
+        new RegExp(`^-- ${n}_[a-z0-9_]+\\.sql\\s*$`, 'm').test(body);
+      if (named.every((n) => !carries(n))) {
+        wrong.push(`row ${head[1]}: ${file} carries none of ${named.join(', ')}`);
+      }
+    }
+    eq('every Restore: names a bundle that CARRIES the migration', wrong, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client
