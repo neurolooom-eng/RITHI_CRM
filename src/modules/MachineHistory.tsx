@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader, SectionCard, Toolbar } from '../components/ui/ui';
 import { SelectPicker } from '../components/ui/SelectPicker';
 import { DataTable, type Column } from '../components/table/DataTable';
@@ -51,6 +52,23 @@ export function MachineHistory() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
+  // ARRIVING FROM A MACHINE SOMEWHERE ELSE (Product Database 2.0 links every
+  // row here). IT CANNOT SET BOTH BOXES AT ONCE: choosing a product CLEARS the
+  // serial on purpose — the guard this screen is arranged around — and the
+  // serial list is fetched for the product afterwards. So the serial is held
+  // and applied once its list has arrived, and only if the list actually
+  // contains it: a serial that belongs to another model must not be typed in
+  // by a link any more than by a person.
+  const location = useLocation();
+  const wanted = useRef<string | null>(null);
+  useEffect(() => {
+    const st = location.state as { product?: string; serial?: string } | null;
+    if (!st?.product) return;
+    wanted.current = st.serial ?? null;
+    setProduct(st.product);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
   useEffect(() => {
     if (!live) return;
     void sbListProductNames()
@@ -66,6 +84,24 @@ export function MachineHistory() {
     if (!live || !product) return;
     void sbListProductSerials(product).then(setSerials).catch(() => setSerials([]));
   }, [product, live]);
+
+  // The serial list has arrived — apply the one the link asked for, and look it
+  // up, so a link lands on the ANSWER rather than on a filled-in form.
+  useEffect(() => {
+    const want = wanted.current;
+    if (!want || !serials.length) return;
+    wanted.current = null;
+    if (serials.includes(want)) { setSerial(want); setPending(true); }
+    else setMsg(`${product} has no serial ${want} on the master.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serials]);
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (!pending || !product || !serial) return;
+    setPending(false);
+    void look();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending, product, serial]);
 
   const look = async () => {
     if (!product || !serial) return;
