@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**75 tables · 30 views · 1923 columns · 146 policies · 50 foreign keys.**
+**75 tables · 30 views · 1925 columns · 146 policies · 50 foreign keys.**
 
 ## How to read this
 
@@ -454,7 +454,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `contract_items.mc_number`
 
-**Triggers:** `contract_entries_sync_cover` → `cover_header_sync()` · `contract_entries_touch` → `touch_updated_at()`
+**Triggers:** `contract_entries_sync_cover` → `cover_header_sync()` · `contract_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -510,7 +510,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `created_by` → **users**(`id`) · on delete no action _(contract_items_created_by_fkey)_
 - `mc_number` → **contract_entries**(`mc_number`) · on delete cascade _(contract_items_mc_number_fkey)_
 
-**Triggers:** `contract_items_cover_code` → `present_cover_code_stamp()` · `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()`
+**Triggers:** `contract_items_cover_code` → `present_cover_code_stamp()` · `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -594,7 +594,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(feedback_created_by_fkey)_
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -1178,7 +1178,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -1431,7 +1431,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `ownership_transfer_parties_differ` — `CHECK ((btrim(lower(from_party)) IS DISTINCT FROM btrim(lower(to_party))))`
 
-**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()`
+**Triggers:** `ownership_transfer_aiu` → `ownership_transfer_move()` · `ownership_transfer_biu` → `ownership_transfer_apply()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -1734,7 +1734,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 - `recorded_by` → **users**(`id`) · on delete no action _(product_additional_entries_recorded_by_fkey)_
 
-**Triggers:** `product_additional_entry_aiu` → `product_additional_entry_apply()` · `product_additional_entry_biu` → `product_additional_entry_biu()`
+**Triggers:** `product_additional_entry_aiu` → `product_additional_entry_apply()` · `product_additional_entry_biu` → `product_additional_entry_biu()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -1755,6 +1755,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 2 | `refreshed_at` | timestamp with time zone | **no** | `now()` |  |
 | 3 | `rows_built` | integer | **no** | `0` |  |
 | 4 | `refreshed_by` | uuid | yes |  |  |
+| 5 | `stale` | boolean | **no** | `true` | Set by the source registers when they change (0223); cleared by a refresh. The screen reads it to say whether it is showing live figures or figures waiting on the next rebuild. |
 
 **Constraints:**
 
@@ -2086,7 +2087,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 **Referenced by:** `sale_items.sa_number`
 
-**Triggers:** `sale_entries_sync_cover` → `cover_header_sync()` · `sale_entries_touch` → `touch_updated_at()`
+**Triggers:** `sale_entries_sync_cover` → `cover_header_sync()` · `sale_entries_touch` → `touch_updated_at()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -2144,7 +2145,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 - `created_by` → **users**(`id`) · on delete no action _(sale_items_created_by_fkey)_
 - `sa_number` → **sale_entries**(`sa_number`) · on delete cascade _(sale_items_sa_number_fkey)_
 
-**Triggers:** `sale_items_defaults` → `sale_items_defaults()` · `sale_items_stub_header` → `sale_items_stub_header()` · `sale_items_sync_cover` → `cover_item_sync()`
+**Triggers:** `sale_items_defaults` → `sale_items_defaults()` · `sale_items_stub_header` → `sale_items_stub_header()` · `sale_items_sync_cover` → `cover_item_sync()` · `zz_pdv2_stale` → `pdv2_mark_stale()`
 
 **Permissions**
 
@@ -2872,7 +2873,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 49 |
-| `product_database_v2` | **on** | 34 |
+| `product_database_v2` | **on** | 35 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
 | `spare_pending_dispatch` | **on** | 31 |
@@ -2892,7 +2893,7 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 
 **`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
 
-**`product_database_v2`** — Product Database 2.0 — one row per machine, as of refreshed_at. Readable by any signed-in user, like the Product Database beside it; the SCREEN is gated by mod:/product-database-2 (0219). 0220 gated the view itself and, by revoking the matview it reads as the caller, refused everybody including administrators (0221).
+**`product_database_v2`** — Product Database 2.0 — one row per machine. The ASSEMBLY is stored (refreshed_at says when); the cover STATUS is computed on every read, because it depends on today's date and storing it froze it at the last rebuild (0222).
 
 **`product_party_names`** — Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).
 

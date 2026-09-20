@@ -1683,6 +1683,19 @@ export async function diagnoseProductDatabaseV2(): Promise<RegisterGap[]> {
   }));
 }
 
+// SOLVED, BUT THE VISIT RECORD IS INCOMPLETE (0224). Register-sized — the
+// whole point is to hand somebody the list of what to re-upload — so it pages,
+// with a tiebreaker after `reg_date` because a bulk import makes ties certain
+// and a tie puts a row on two pages or neither.
+export async function listSolvedWithoutReport(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.from('solved_without_report').select('*')
+      .order('reg_date', { ascending: false, nullsFirst: false })
+      .order('ucn', { ascending: false })
+      .range(from, to));
+}
+
 export async function listCallRequestsAsPending(): Promise<Record<string, unknown>[]> {
   const c = must();
   const data = await allRows<Record<string, unknown>>((from, to) =>

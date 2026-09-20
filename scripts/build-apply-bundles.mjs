@@ -601,7 +601,12 @@ const MODULES = {
     // 0115 belongs HERE and not in call_requests: it is a trigger on `reports`.
     // The `reports` module runs AFTER call_requests in ALL_ORDER, so the `calls`
     // view it reads already exists on a fresh apply.
-    files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql', '0115_visit_date_sanity.sql'],
+    files: ['0010_reports_ordering.sql', '0071_report_source_ref.sql', '0115_visit_date_sanity.sql',
+            // HERE RATHER THAN daily_review, AND THAT IS NOT FILING TIDINESS: the
+            // view reads `public.reports`, a VIEW IS RESOLVED AT CREATION, and
+            // `daily_review` runs BEFORE `reports` in ALL_ORDER. Filed there it
+            // would die on a fresh apply.
+            '0224_solved_without_a_report.sql'],
   },
   handstock: {
     // Written to the repo root as HandStock_X.sql, alongside Spare_1.sql — it

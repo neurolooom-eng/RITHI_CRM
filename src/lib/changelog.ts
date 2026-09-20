@@ -12,6 +12,19 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.319',
+    date: '2026-09-20',
+    title: 'New report \u2014 Solved Without a Report (administrators only)',
+    changes: [
+      'ADMINISTRATION \u2192 SOLVED WITHOUT A REPORT lists every call that reads Solved while its visit record is incomplete. It is the list of what to re-upload, instead of loading every report again and hoping.',
+      'IT NAMES THE GAP, and there are four, because each needs a different fix: no visit at all \u00b7 no visit date \u00b7 no service report \u00b7 the entry date is the import moment rather than a recorded one. A call showing more than one gap lists all of them, not just the first.',
+      'THAT LAST ONE IS WORTH KNOWING ABOUT. Visit Entry Date can never come through as blank \u2014 when your file does not carry it, the row quietly takes the time of the upload. So it cannot be found by looking for an empty cell. The report finds it the only way it can be found: by counting how many visits share the same timestamp to the microsecond. Twenty-five visits entered at the same instant does not happen; a batch load does. The count is shown, so you can see the evidence rather than take the verdict on trust.',
+      'It matters because the entry date is what decides a call\u2019s status \u2014 the LATEST entry wins \u2014 so a whole batch sharing one stamp lets an arbitrary row decide every call in it.',
+      '\u201cSolved\u201d includes \u201cSolved - Report Pending\u201d and the row says which: Report Pending is the system telling you something is missing, a plain Solved with no report is the system contradicting itself.',
+      'Filter by gap, search, and export the lot to CSV.',
+    ],
+  },
+  {
     version: '0.9.318',
     date: '2026-09-20',
     title: 'Product Database 2.0 keeps itself up to date \u2014 no more Rebuild button to remember',

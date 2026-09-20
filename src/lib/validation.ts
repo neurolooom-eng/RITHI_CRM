@@ -255,6 +255,13 @@ export interface Req {
 export const URS: Req[] = [
   { id: 'URS-065', title: 'A recovered quality record is reviewed before it is written', risk: 'High',
     text: 'Where records of work already done are recovered from a superseded system, each shall be resolved to the record it belongs to AND SHOWN TO AN OPERATOR BEFORE ANY OF IT IS WRITTEN, and only rows that resolved cleanly shall be written. A visit attached to the wrong call, or carrying another machine’s photograph, is a worse outcome than a visit still missing: the first is a false record of what was done to a device, the second is a gap that is visible as a gap. Rows that did not resolve shall be reported with the reason and left unwritten rather than written with a guess.',
+    // DECLARED, with its reason. This requirement's own last clause is what
+    // the screen is for -- "a gap that is visible as a gap" -- but its words
+    // name no route, and it says "recovered", not "missing". `/reports` is
+    // where a visit is loaded; `/missing-visit-reports` is the list of the
+    // ones that are not there, which is the same requirement read from the
+    // other end.
+    modules: ['/reports', '/missing-visit-reports'],
     refs: ['ISO 13485 \u00a74.2.4', 'ISO 13485 \u00a77.5.4', 'MDR-2017 Fifth Schedule'] },
   { id: 'URS-066', title: 'A request awaiting registration is visible and is dispositioned', risk: 'Medium',
     // My Workload is where a request waiting on somebody becomes visible as
