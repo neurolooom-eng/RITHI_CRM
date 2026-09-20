@@ -125,24 +125,9 @@ A user shall be able to identify the customer holding a given product and serial
 
 # Quality & Analytics
 
-## Daily Call Review `/daily-review`
+## Daily Complaint Review Register (R/SER/35) `/daily-review`
 
 Opened by `mod:/daily-review`.
-
-### URS-055 — The report on a closed call is reviewed
-
-*Risk: Medium. Filed here because its own words name this screen.*
-
-A closed call’s service report shall be subject to review by a competent person other than routine daily coding of the failure, with the reviewer and the time recorded. The reviewer shall be able to return the call to open where the report does not close it, and to correct consumption where a part was fitted and not booked.
-
-| Implemented by | Risk | Proved by |
-| --- | --- | --- |
-| **FRS-063** — Call Review register | Medium | OQ-49 |
-| **FRS-064** — Correction and re-opening from the review | Medium | OQ-49 |
-
-**FRS-063.** A register (call_report_reviews, one row per call) records that a closed call’s report has been reviewed, with the reviewer taken from the authenticated session and a caller-supplied identity discarded. Writing requires the callreview.mark permission and visibility of the call; reading follows the call’s own visibility. The register lists solved calls only — a report-pending call has no report to review — filtered in the database.
-
-**FRS-064.** From the review the reviewer may book a Reconciliation consumption line against the call, off the ATTENDING engineer’s hand stock and capped at what that engineer holds by the same database trigger as any other consumption; or re-open the call with a recorded reason, after which it leaves the review list. Consumption shown for a call is matched on the call number OR the unique call number, so a call predating the call-number series still shows its parts.
 
 ### URS-058 — A judgement on a quality record names the person who made it
 
@@ -1902,7 +1887,7 @@ questions for a person.
 
 ---
 
-**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **112** of 70 user requirements tied to a module.
+**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **111** of 70 user requirements tied to a module.
 
 ---
 

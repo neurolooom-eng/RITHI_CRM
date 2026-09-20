@@ -211,20 +211,20 @@ const SECTIONS: Sec[] = [
     go: [{ to: '/mrn', label: 'Material Returns' }, { to: '/stock-transfer', label: 'Stock Transfer' }, { to: '/stock-out', label: 'Stock Out' }],
   },
   {
-    id: 'dccr', group: 'Quality', n: '14', title: 'Complete the Daily Call Review', who: 'Hotline, NSM, RM, Commercial',
+    id: 'dccr', group: 'Quality', n: '14', title: 'Complete the Daily Complaint Review Register', who: 'Hotline, NSM, RM, Commercial',
     lead: <>Every solved call is reviewed. <b>Review 1</b> is the vigilance answer taken at registration. <b>Review 2</b> asks what the failure was, <b>Review 3</b> classifies it.</>,
     steps: [
-      <>Open <b>Quality &amp; Analytics → Daily Call Review</b>.</>,
+      <>Open <b>Quality &amp; Analytics → Daily Complaint Review Register (R/SER/35)</b>.</>,
       <>Answer <b>Review 2</b>: Risk to Patient, Warranty Failure, Frequent Failure. All three must be answered before the stage counts as complete.</>,
       <>Answer <b>Review 3</b>: Complaint Grouping, Root Cause Key Word, Spare Category.</>,
       <>To answer many calls at once, tick them and use the bulk answer.<Hint>It refuses any call that failed inside the first year, or whose age is unknown — review those one at a time.</Hint></>,
     ],
-    go: [{ to: '/daily-review', label: 'Daily Call Review' }],
+    go: [{ to: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)' }],
     note: { tone: 'warn', icon: '⚠', body: <>Answering <b>Yes</b> to any of the three Review 2 questions <b>raises a Field Failure Report automatically</b>. Your name is recorded as the reviewer, on every path — including auto-save.</> },
   },
   {
     id: 'callreview', n: '15', title: 'Review a closed call’s report', who: 'Hotline, NSM, RM',
-    lead: <>A second look at the <b>report</b> on a solved call — a different question from the Daily Call Review, which asks what the failure was.</>,
+    lead: <>A second look at the <b>report</b> on a solved call — a different question from the Daily Complaint Review Register, which asks what the failure was.</>,
     steps: [
       <>Open <b>Quality &amp; Analytics → Call Review</b>. It lists solved calls only.</>,
       <>Read the visit and what was booked against it.</>,
@@ -244,7 +244,7 @@ const SECTIONS: Sec[] = [
       <>Set the report status to <b>Closed</b> when the investigation is done.</>,
     ],
     go: [{ to: '/failure-report', label: 'Field Failure Register' }],
-    note: { tone: 'tip', icon: '↩', body: <>You do not create an FFR by hand — the Daily Call Review raises it. If the review is later changed to <b>No</b>, the report still stands and shows as <b>withdrawn</b>: a quality record is never deleted, and the withdrawal is itself worth seeing.</> },
+    note: { tone: 'tip', icon: '↩', body: <>You do not create an FFR by hand — the Daily Complaint Review Register raises it. If the review is later changed to <b>No</b>, the report still stands and shows as <b>withdrawn</b>: a quality record is never deleted, and the withdrawal is itself worth seeing.</> },
   },
   {
     id: 'ffr-insights', n: '17', title: 'Ask the Field Failure Insights a question', who: 'NSM, RA/QA',

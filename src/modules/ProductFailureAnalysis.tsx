@@ -1,7 +1,7 @@
 // ===========================================================================
 // PRODUCT FAILURE ANALYSIS.
 //
-// Asked for as an analytics page over the Daily Call Review (2026-09-15), then
+// Asked for as an analytics page over the Daily Complaint Review Register (2026-09-15), then
 // narrowed — "focus on the product failure analysis in this new page" — and
 // then NAMED for what it had become. The title is the honest one: this answers
 // what fails and why, not what the review process is doing.
@@ -10,7 +10,7 @@
 // REVIEWED CALL, so a failure nobody has reviewed is not on this page at all —
 // which is worth knowing before reading any of it as "all our failures".
 //
-// WHAT THIS ANSWERS THAT THE REGISTER DOES NOT. The Daily Call Review is a
+// WHAT THIS ANSWERS THAT THE REGISTER DOES NOT. The Daily Complaint Review Register is a
 // worklist: one call at a time, answered and moved on from. These are the
 // questions asked ACROSS it — what is actually failing, why, under whose cover,
 // how long a review waits before somebody looks at it, and how much of the

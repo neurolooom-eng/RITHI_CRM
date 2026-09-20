@@ -254,7 +254,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* ---------------------------------------------------------------------------
    THE SERVICE REPORT LINK — the signed report, wherever a visit is shown: the
-   Daily Call Review, a call's visit history, and the top of a closed call.
+   Daily Complaint Review Register, a call's visit history, and the top of a closed call.
    ONE class, because it is one thing, and a document that looks like a button
    on one screen and a faint blue word on another reads as two different things.
 

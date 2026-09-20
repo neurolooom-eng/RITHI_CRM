@@ -226,7 +226,7 @@ export async function stockTransferSection(): Promise<WorkloadSection> {
   };
 }
 
-/** Daily Call Review — the only section whose counts are EXACT.
+/** Daily Complaint Review Register — the only section whose counts are EXACT.
  *
  *  `countCallReviews` walks every page in the database rather than counting
  *  what a screen has loaded, so this section never says `more` and its cards
@@ -237,7 +237,7 @@ export async function reviewSection(): Promise<WorkloadSection> {
   const open = (status: string, opens: string) =>
     ({ path: '/daily-review', state: { status }, opens });
   return {
-    key: 'review', title: 'Daily Call Review', path: '/daily-review', needs: 'mod:/daily-review',
+    key: 'review', title: 'Daily Complaint Review Register (R/SER/35)', path: '/daily-review', needs: 'mod:/daily-review',
     more: false,
     cards: [
       { label: 'Review 1 Pending', value: at('Review 1 Pending'), sub: 'the first look', icon: '1️⃣',
@@ -251,7 +251,7 @@ export async function reviewSection(): Promise<WorkloadSection> {
         to: open('Review 3 Pending', 'the calls awaiting review 3') },
       { label: 'Any Potential Effect', value: c.effects, sub: 'FFR to be raised', icon: '⚠️',
         tone: c.effects ? 'danger' : 'neutral',
-        to: open('', 'the Daily Call Review') },
+        to: open('', 'the Daily Complaint Review Register') },
       { label: 'Review Completed', value: at('Review Completed'), sub: 'nothing left to answer', icon: '✅',
         tone: 'success', to: open('Review Completed', 'the completed reviews') },
       { label: 'Calls in view', value: c.total, sub: 'on the register', icon: '📋', tone: 'neutral' },
