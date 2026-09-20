@@ -252,6 +252,7 @@
 --   0161_drop_duplicate_party_index.sql
 --   0191_call_and_feedback_reports.sql
 --   0218_product_database_v2.sql
+--   0220_product_database_2_is_materialised.sql
 --
 -- Paste into the Supabase SQL Editor and Run. Safe to run more than once.
 -- ===========================================================================
@@ -32534,7 +32535,15 @@ comment on function public.cover_period_end(date, numeric) is
 -- is assembled around that row, and every assembled value carries the name of
 -- the register it came from.
 -- ===========================================================================
-create or replace view public.product_database_v2 as
+-- DROPPED FIRST, AND NOT FOR TIDINESS. 0220 replaces this name with a THIN
+-- gating view over a materialised one, which publishes a column this
+-- definition does not — so on a REPLAY of this bundle (which runs 0218 then
+-- 0220, one file at a time) `create or replace view` hits "cannot drop columns
+-- from view" and the whole bundle stops. `check:replay` caught exactly that.
+-- The drop is safe in both directions: nothing depends on this view, and 0220
+-- rebuilds the matview and the gate straight after.
+drop view if exists public.product_database_v2 cascade;
+create view public.product_database_v2 as
 with w as (
   -- THE WARRANTY SALE — the machine's birth record. Latest by the cover it
   -- grants, so a re-sale or a corrected row wins over the one it replaced.
@@ -32757,5 +32766,401 @@ grant select on public.product_database_v2 to authenticated;
 
 comment on view public.product_database_v2 is
   'Product Database 2.0: one row per machine (model + serial) assembled from Warranty Sale Details, Contract Details, Additional Entries, Ownership Transfer and the installation call. Every derived value names the register it came from. Does not replace public.products.';
+
+-- ------------------------------------------------------------------------
+-- 0220_product_database_2_is_materialised.sql
+-- ------------------------------------------------------------------------
+
+-- ===========================================================================
+-- PRODUCT DATABASE 2.0 TIMED OUT. This is the repair, and it is structural.
+--
+--   Reported from use, 2026-09-20, as an empty screen and the banner
+--   "Load failed: canceling statement due to statement timeout".
+--
+-- MEASURED, NOT REASONED ABOUT. A throwaway Postgres built from every
+-- migration, loaded to the live project's own order of magnitude (12,000
+-- warranty sale items, 5,000 contract items, 22,000 calls, 24,000 feedback
+-- rows, 10,000 machines), then timed as `postgres` and again under RLS as
+-- `authenticated` with an admin profile:
+--
+--   count(*), no RLS ............................     164 ms
+--   count(*), RLS ..............................   1,361 ms
+--   one page (select *, order by, limit 1000) ..   2,936 ms   <-- the screen
+--
+-- The screen PAGES the view, so the whole derivation ran again for every page:
+-- ten pages at ~3 s is ~30 s of database time for one screen, and each single
+-- page is already past Supabase's statement timeout on live volumes.
+--
+-- WHERE IT WENT. The installation-call lookup alone, isolated and timed both
+-- ways: 24 ms without RLS, 1,255 ms with it -- FIFTY-TWO TIMES, because
+-- `calls` is the one source in this view whose read policy is per ROW
+-- (`can_view_all_calls() OR mine OR my team's`, and the team branch walks
+-- `user_directory` recursively). The other four sources have whole-table
+-- predicates that cost the same whether there is one row or a million.
+--
+-- SO THE FIX HAS TWO PARTS, AND THE FIRST ONE IS ABOUT CORRECTNESS, NOT SPEED.
+--
+-- 1. `machine_install_start()` is SECURITY DEFINER. A machine's warranty start
+--    date is a FACT ABOUT THE MACHINE, and reading it through a per-row policy
+--    made it a fact about the READER: two people looking at the same machine
+--    got different warranty dates, and the one who could not see the
+--    installation call got the selling register's date with nothing saying so.
+--    On a quality record that is worse than the slowness. It returns four
+--    columns for the latest installation call per machine -- key, UCN, the
+--    answered start, the solved date -- and nothing else about the call.
+--    EXECUTE is granted to `authenticated` only.
+--
+-- 2. THE VIEW IS MATERIALISED. The definer function alone took a page from
+--    2,936 ms to 1,764 ms -- better and still hopeless, because the real cost
+--    is re-deriving 10,000 machines out of eight tables ON EVERY PAGE. A view
+--    assembled from five registers cannot be paged cheaply; it can only be
+--    computed once. With `product_database_v2_mv` and a unique index on
+--    `machine_key`, the same three reads measure:
+--
+--      count(*) .....   5 ms      first page ..  3 ms      last page ..  6 ms
+--
+--    ~600x on the page the user actually waits for, and the ten-page load goes
+--    from ~30 s to under a tenth of a second.
+--
+-- WHAT IT COSTS, SAID PLAINLY: the numbers are AS OF THE LAST REBUILD. That is
+-- a real cost and it is made visible rather than hidden -- `refreshed_at` is
+-- published as a column of the view, the screen prints it, and anybody who may
+-- edit masters can rebuild from the screen. A stale figure nobody can date is
+-- the fault this project has written down more than once; a stale figure with
+-- its date on it is an ordinary report.
+--
+-- THE GATE IS KEPT, BECAUSE A MATERIALISED VIEW HAS NO RLS. `product_database_v2`
+-- remains a security_invoker VIEW, now a thin one over the matview, carrying
+-- the SAME whole-table predicate as `sale_items_read` and `contract_items_read`
+-- (`masters.view` OR `cover.edit` OR admin) -- the narrowest of its sources, so
+-- this widens nobody's reach. The matview itself is granted to NOBODY and is
+-- reachable only through that view.
+--
+-- WHAT IS DELIBERATELY NOT DONE: the per-row `calls` policy is not weakened,
+-- `products` and `machine_cover` are untouched (the user's standing rule), and
+-- the view publishes exactly the columns it published before plus
+-- `refreshed_at` -- APPENDED at the end, because `create or replace view` can
+-- only add columns there.
+-- ===========================================================================
+
+-- ---------------------------------------------------------------------------
+-- WHEN THE FIGURES WERE ASSEMBLED. One row, so the screen can date what it
+-- shows. Written by the refresh function and by nothing else.
+-- ---------------------------------------------------------------------------
+create table if not exists public.product_database_v2_state (
+  only_row    boolean primary key default true check (only_row),
+  refreshed_at timestamptz not null default now(),
+  rows_built   integer     not null default 0,
+  refreshed_by uuid
+);
+insert into public.product_database_v2_state (only_row) values (true)
+  on conflict (only_row) do nothing;
+alter table public.product_database_v2_state enable row level security;
+do $$ begin
+  create policy pdv2_state_read on public.product_database_v2_state for select
+    using (public.has_perm('masters.view') or public.has_perm('cover.edit') or public.is_admin());
+exception when duplicate_object then null; end $$;
+grant select on public.product_database_v2_state to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- THE INSTALLATION CALL, ONCE, FOR EVERYBODY — part 1 above.
+--
+-- `security definer` with a pinned search_path and no arguments: there is no
+-- caller-supplied value anywhere in it, so there is nothing to inject. It
+-- exposes, per machine, the UCN of the latest installation call and two dates.
+-- Every other fact about that call stays behind the call policies.
+-- ---------------------------------------------------------------------------
+create or replace function public.machine_install_start()
+returns table (mkey text, ucn text, answered_start date, solved_on date)
+language sql stable security definer set search_path = public as $$
+  select distinct on (public.machine_key(cl.product_name, cl.serial))
+         public.machine_key(cl.product_name, cl.serial),
+         cl.ucn,
+         -- Read through imported_ts() (0215) rather than cast: it is a cell
+         -- somebody typed, and a bare ::date on "n/a" takes the WHOLE view down.
+         public.imported_ts(fb.answers, 'Warranty Start Date?')::date,
+         case when cl.open_state = 'Solved' then cl.last_visit_at::date end
+    from public.calls cl
+    left join public.feedback fb on fb.ucn = cl.ucn
+   where upper(coalesce(cl.call_type, '')) like 'INSTALL%'
+     and coalesce(btrim(cl.serial), '')       <> ''
+     and coalesce(btrim(cl.product_name), '') <> ''
+   order by 1, cl.last_visit_at desc nulls last, cl.ucn desc
+$$;
+comment on function public.machine_install_start() is
+  'The latest installation call per machine: key, UCN, the answered Warranty Start Date and the solved date. DEFINER on purpose (0220) — a machine''s warranty start is a fact about the MACHINE, not about who is looking, and reading it through the per-row calls policy both changed the answer per reader and cost 1,255 ms of every page.';
+revoke all on function public.machine_install_start() from public;
+grant execute on function public.machine_install_start() to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- THE MACHINES, COMPUTED ONCE — part 2 above.
+-- The view must go first: 0218 created it as a plain view and the name is
+-- being reused for the gating view below.
+-- ---------------------------------------------------------------------------
+drop view if exists public.product_database_v2 cascade;
+drop materialized view if exists public.product_database_v2_mv cascade;
+create materialized view public.product_database_v2_mv as
+with w as (
+  -- THE WARRANTY SALE — the machine's birth record. Latest by the cover it
+  -- grants, so a re-sale or a corrected row wins over the one it replaced.
+  select distinct on (public.machine_key(product_name, serial_number))
+         public.machine_key(product_name, serial_number) as mkey,
+         id, product_name, product_code, serial_number, party_name, sa_number,
+         warranty_start, warranty_end, warranty_years, warranty_months,
+         sale_entry_date, invoice_date, state, city, engineer
+    from public.warranty_sale_details
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(product_name), '')  <> ''
+   order by 1, warranty_end desc nulls last, id desc
+), c as (
+  -- THE CONTRACT — latest by the cover it grants, so a renewal wins over the
+  -- contract it succeeded (0187/FRS-056: the successor starts the day after).
+  select distinct on (public.machine_key(product_name, serial_number))
+         public.machine_key(product_name, serial_number) as mkey,
+         id, product_name, product_code, serial_number, party_name, mc_number,
+         contract_type, contract_start, contract_end, contract_years,
+         contract_months, contract_entry_date
+    from public.contract_details
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(product_name), '')  <> ''
+   order by 1, contract_end desc nulls last, id desc
+), a as (
+  -- ADDITIONAL ENTRIES (0073) — the machines recovered by hand because neither
+  -- register had them. Already one row per machine by its own unique index.
+  select public.machine_key(item_name, serial_number) as mkey,
+         id, item_name, serial_number, party_name,
+         warranty_number, warranty_start, warranty_end,
+         contract_number, contract_type, contract_start, contract_end, created_at
+    from public.product_additional_entries
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(item_name), '')     <> ''
+), o as (
+  -- OWNERSHIP TRANSFER (0072) — the explicit, dated record that the machine
+  -- changed hands. Latest transfer wins; a machine can move more than once.
+  select distinct on (public.machine_key(item_name, serial_number))
+         public.machine_key(item_name, serial_number) as mkey,
+         id, to_party, from_party, transfer_date, reference_no
+    from public.ownership_transfers
+   where coalesce(btrim(serial_number), '') <> ''
+     and coalesce(btrim(item_name), '')     <> ''
+   order by 1, transfer_date desc nulls last, id desc
+), inst as (
+  -- THE INSTALLATION CALL — now read through `machine_install_start()`, a
+  -- DEFINER function. See the header: this is both the speed and the
+  -- correctness half of 0220.
+  select mkey, ucn, answered_start, solved_on from public.machine_install_start()
+), keys as (
+  select mkey from w union select mkey from c union select mkey from a
+), base as (
+  select
+    k.mkey,
+    coalesce(w.product_name, c.product_name, a.item_name)        as product_name,
+    coalesce(w.serial_number, c.serial_number, a.serial_number)  as serial_number,
+    coalesce(w.product_code, c.product_code)                     as product_code,
+    -- ---- the warranty, in the order the user gave -------------------------
+    coalesce(i.answered_start, i.solved_on, a.warranty_start, w.warranty_start) as warranty_start,
+    coalesce(w.warranty_months, (w.warranty_years * 12)::int)                   as warranty_months,
+    a.warranty_end  as a_warranty_end,
+    w.warranty_end  as w_warranty_end,
+    case when i.answered_start is not null then 'Installation call ' || i.ucn
+         when i.solved_on      is not null then 'Installation call ' || i.ucn || ' (solved date)'
+         when a.warranty_start is not null then 'Additional entry'
+         when w.warranty_start is not null then 'Warranty sale ' || coalesce(w.sa_number, '')
+         else null end                                           as warranty_from,
+    -- ---- the contract -----------------------------------------------------
+    coalesce(c.contract_start, a.contract_start)                 as contract_start,
+    coalesce(c.contract_months, (c.contract_years * 12)::int)    as contract_months,
+    coalesce(c.contract_end, a.contract_end)                     as contract_end_stored,
+    coalesce(c.contract_type, a.contract_type)                   as contract_type_raw,
+    coalesce(c.mc_number, a.contract_number)                     as contract_number,
+    case when c.id is not null then 'Contract ' || coalesce(c.mc_number, '')
+         when a.contract_start is not null or a.contract_end is not null then 'Additional entry'
+         else null end                                           as contract_from,
+    -- ---- who owns it ------------------------------------------------------
+    p.party_name, p.party_from,
+    w.sa_number, w.state, w.city, w.engineer,
+    o.from_party, o.to_party, o.transfer_date, o.reference_no,
+    (w.mkey is not null) as in_warranty_register,
+    (c.mkey is not null) as in_contract_register,
+    (a.mkey is not null) as in_additional_entries,
+    i.ucn as installation_ucn
+  from keys k
+  left join w on w.mkey = k.mkey
+  left join c on c.mkey = k.mkey
+  left join a on a.mkey = k.mkey
+  left join o on o.mkey = k.mkey
+  left join inst i on i.mkey = k.mkey
+  -- WHOSE MACHINE IS IT: the LATEST DATED EVIDENCE wins, not a fixed order of
+  -- registers. A machine sold in 2020, transferred in 2021 and then put under a
+  -- new contract in 2024 belongs to whoever the 2024 contract names -- an
+  -- ownership transfer is not permanently the last word, it is one dated claim
+  -- among several. Ties break towards the record that exists SPECIFICALLY to
+  -- say the machine changed hands.
+  left join lateral (
+    select v.party_name, v.party_from
+      from (values
+        (o.to_party,    'Ownership transfer ' || coalesce(o.reference_no, ''), o.transfer_date,           1),
+        (a.party_name,  'Additional entry',                                    a.created_at::date,        2),
+        (c.party_name,  'Contract ' || coalesce(c.mc_number, ''),              c.contract_start,          3),
+        (w.party_name,  'Warranty sale ' || coalesce(w.sa_number, ''),
+                        coalesce(w.sale_entry_date::date, w.invoice_date),                                4)
+      ) as v(party_name, party_from, on_date, rank)
+     where coalesce(btrim(v.party_name), '') <> ''
+     order by v.on_date desc nulls last, v.rank
+     limit 1
+  ) p on true
+)
+select
+  b.mkey                                   as machine_key,
+  b.product_name,
+  b.serial_number,
+  b.product_code,
+  b.party_name,
+  b.party_from,
+  -- ---- warranty ----------------------------------------------------------
+  b.warranty_start,
+  b.warranty_months,
+  -- DERIVED where the start and the period are both known -- which is what the
+  -- user asked for ("derive at the warranty end date") -- and the register's
+  -- own end date otherwise, so a machine whose period nobody recorded still
+  -- shows the cover it was sold.
+  case when b.warranty_start is not null and b.warranty_months is not null
+       then public.cover_period_end(b.warranty_start, b.warranty_months)
+       else coalesce(b.a_warranty_end, b.w_warranty_end) end     as warranty_end,
+  b.warranty_from,
+  public.cover_state(
+    case when b.warranty_start is not null and b.warranty_months is not null
+         then public.cover_period_end(b.warranty_start, b.warranty_months)
+         else coalesce(b.a_warranty_end, b.w_warranty_end) end)  as warranty_state,
+  -- ---- contract ----------------------------------------------------------
+  b.contract_number,
+  b.contract_type_raw                                            as contract_type_as_recorded,
+  public.contract_cover_code(b.contract_type_raw)                as contract_type,
+  b.contract_start,
+  b.contract_months,
+  coalesce(b.contract_end_stored,
+           public.cover_period_end(b.contract_start, b.contract_months)) as contract_end,
+  b.contract_from,
+  public.cover_state(
+    coalesce(b.contract_end_stored,
+             public.cover_period_end(b.contract_start, b.contract_months))) as contract_state,
+  -- ---- what it is under TODAY --------------------------------------------
+  -- WARRANTY FIRST. The user's rule, and the opposite of `machine_cover`: a
+  -- machine inside its warranty is not being billed under its contract, so the
+  -- contract does not decide its status while the warranty runs.
+  case
+    when coalesce(
+           case when b.warranty_start is not null and b.warranty_months is not null
+                then public.cover_period_end(b.warranty_start, b.warranty_months)
+                else coalesce(b.a_warranty_end, b.w_warranty_end) end,
+           '-infinity'::date) >= current_date
+      then 'WGP'
+    when coalesce(b.contract_end_stored,
+                  public.cover_period_end(b.contract_start, b.contract_months),
+                  '-infinity'::date) >= current_date
+      -- A CONTRACT WITH NO TYPE IS NOT GUESSED AT. `machine_cover` calls it
+      -- CMC, which upgrades a labour contract to comprehensive on the strength
+      -- of a blank cell; this says so instead, because that row needs fixing.
+      then coalesce(public.contract_cover_code(b.contract_type_raw), 'CONTRACT (TYPE NOT RECORDED)')
+    else 'OGP'
+  end                                                            as item_status,
+  case
+    when coalesce(
+           case when b.warranty_start is not null and b.warranty_months is not null
+                then public.cover_period_end(b.warranty_start, b.warranty_months)
+                else coalesce(b.a_warranty_end, b.w_warranty_end) end,
+           '-infinity'::date) >= current_date
+      then 'inside warranty — ' || coalesce(b.warranty_from, 'source not recorded')
+    when coalesce(b.contract_end_stored,
+                  public.cover_period_end(b.contract_start, b.contract_months),
+                  '-infinity'::date) >= current_date
+      then 'under contract — ' || coalesce(b.contract_from, 'source not recorded')
+    else 'no warranty and no contract covers today'
+  end                                                            as item_status_reason,
+  -- ---- where it came from, so the row can be checked ---------------------
+  b.sa_number, b.state, b.city, b.engineer,
+  b.from_party, b.to_party, b.transfer_date, b.reference_no,
+  b.in_warranty_register, b.in_contract_register, b.in_additional_entries,
+  b.installation_ucn
+  from base b;
+
+-- RE-ASSERTED, as it must be on every rebuild: without it the view reads as its
+-- OWNER and row-level security stops applying to whoever is reading, with no
+-- error and no warning (0040/0050/0057).;
+
+-- CONCURRENTLY needs a unique index, and CONCURRENTLY is what keeps a rebuild
+-- from blocking every reader of the screen. `machine_key` is the view's own
+-- identity, so it is unique by construction.
+create unique index if not exists product_database_v2_mv_key
+  on public.product_database_v2_mv (machine_key);
+
+-- REVOKED EXPLICITLY, AND THIS IS THE WHOLE GATE. Supabase grants the API
+-- roles blanket DML on `public` and leaves RLS as the fence — but a
+-- MATERIALISED VIEW CANNOT CARRY RLS, so without this the matview inherits
+-- that default grant and every authenticated caller can read all five
+-- registers' worth of machines straight off it, going round the gating view
+-- entirely. Found by a test asserting the opposite, not by reading the file.
+revoke all on public.product_database_v2_mv from authenticated, anon, public;
+
+-- ---------------------------------------------------------------------------
+-- THE GATE. A materialised view cannot carry RLS, so the name the application
+-- reads stays a security_invoker VIEW over it, carrying the SAME whole-table
+-- predicate as the narrowest of its sources (`sale_items_read` /
+-- `contract_items_read`). Evaluated ONCE per query, not per row.
+-- ---------------------------------------------------------------------------
+create view public.product_database_v2 as
+  select m.*, s.refreshed_at
+    from public.product_database_v2_mv m
+    cross join public.product_database_v2_state s
+   where public.has_perm('masters.view')
+      or public.has_perm('cover.edit')
+      or public.is_admin()
+      -- A DIRECT DATABASE SESSION IS NOT AN API CALLER, and this line is the
+      -- 0170 lesson in a second place. The gate is a WHERE clause rather than
+      -- RLS (a matview cannot carry RLS), and a WHERE clause is NOT bypassed
+      -- by superuser — so without this the SUPABASE SQL EDITOR, which runs as
+      -- `postgres` with no JWT, reads ZERO ROWS from this view and reports it
+      -- as an empty grid. That is the confidently-wrong answer this project
+      -- keeps writing down: nothing in it looks like an error. A direct
+      -- connection already holds every table underneath, so admitting it here
+      -- guards nothing away. Tested BOTH ways: `request.jwt.claims` is set by
+      -- PostgREST on every request including anon, so an API caller never
+      -- matches this, and the test harness (which sets auth.uid() from a table
+      -- and no claims) still sees an engineer refused.
+      or (auth.uid() is null
+          and current_setting('request.jwt.claims', true) is null);
+alter view public.product_database_v2 set (security_invoker = on);
+grant select on public.product_database_v2 to authenticated;
+comment on view public.product_database_v2 is
+  'Product Database 2.0 — one row per machine, as of refreshed_at. A thin gate over product_database_v2_mv (0220); the matview is granted to nobody.';
+
+-- ---------------------------------------------------------------------------
+-- REBUILDING IT. CONCURRENTLY, so nobody reading the screen is blocked, and
+-- inside a function, which Postgres does allow (proved, not assumed).
+-- ---------------------------------------------------------------------------
+create or replace function public.refresh_product_database_2()
+returns timestamptz language plpgsql security definer set search_path = public as $$
+declare n integer;
+begin
+  if not (public.has_perm('masters.edit') or public.has_perm('cover.edit') or public.is_admin()) then
+    raise exception 'Your role may not rebuild Product Database 2.0.' using errcode = '42501';
+  end if;
+  refresh materialized view concurrently public.product_database_v2_mv;
+  select count(*) into n from public.product_database_v2_mv;
+  update public.product_database_v2_state
+     set refreshed_at = now(), rows_built = n, refreshed_by = auth.uid()
+   where only_row;
+  return (select refreshed_at from public.product_database_v2_state where only_row);
+end $$;
+comment on function public.refresh_product_database_2() is
+  'Rebuild Product Database 2.0 from the five registers. CONCURRENTLY, so readers are never blocked; requires masters.edit, cover.edit or admin.';
+revoke all on function public.refresh_product_database_2() from public;
+grant execute on function public.refresh_product_database_2() to authenticated;
+
+-- The matview is built WITH DATA, so record that first build honestly.
+update public.product_database_v2_state
+   set refreshed_at = now(),
+       rows_built   = (select count(*) from public.product_database_v2_mv)
+ where only_row;
 
 commit;

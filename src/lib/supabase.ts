@@ -1616,6 +1616,15 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
 // the pages cannot overlap. Ordering by product or party would tie in their
 // thousands and a tie puts a row on two pages or on neither.
 // ---------------------------------------------------------------------------
+// REBUILDING PRODUCT DATABASE 2.0 (0220). The figures are AS OF the last
+// rebuild — the view is materialised because deriving it per page timed out —
+// so the screen needs both a way to say WHEN and a way to do it again.
+export async function refreshProductDatabaseV2(): Promise<string> {
+  const { data, error } = await must().rpc('refresh_product_database_2');
+  if (error) throw error;
+  return String(data ?? '');
+}
+
 export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]> {
   const c = must();
   return allRows<Record<string, unknown>>((from, to) =>

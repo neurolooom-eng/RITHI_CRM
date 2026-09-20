@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { PageHeader, Toolbar, SearchBox, FacetChips } from '../components/ui/ui';
 import { csvExport } from '../lib/format';
-import { formatDay } from '../lib/dates';
-import { listProductDatabaseV2, diagnoseProductDatabaseV2, supabaseConfigured,
-         type RegisterGap } from '../lib/supabase';
+import { formatDay, formatDayTime } from '../lib/dates';
+import { listProductDatabaseV2, diagnoseProductDatabaseV2, refreshProductDatabaseV2,
+         supabaseConfigured, type RegisterGap } from '../lib/supabase';
 import { loadFailure, emptyRegisterVerdict } from '../lib/dberror';
 import { useAuth } from '../lib/auth';
 import { seesEveryRecord } from '../lib/rbac';
@@ -56,7 +56,7 @@ const ALL_COLUMNS: string[] = [
   'sa_number', 'state', 'city', 'engineer',
   'from_party', 'to_party', 'transfer_date', 'reference_no',
   'in_warranty_register', 'in_contract_register', 'in_additional_entries',
-  'installation_ucn', 'machine_key',
+  'installation_ucn', 'machine_key', 'refreshed_at',
 ];
 
 export function ProductDatabase2() {
@@ -68,6 +68,11 @@ export function ProductDatabase2() {
   const [status, setStatus] = useState('');
   // Only ever filled when the list comes back EMPTY — see the banner below.
   const [gaps, setGaps] = useState<RegisterGap[] | null>(null);
+  // WHEN THE FIGURES WERE BUILT. The view is materialised (0220), so every
+  // number on this screen is as of a moment — and a figure nobody can date
+  // is the fault this project has written down more than once.
+  const [builtAt, setBuiltAt] = useState<string>('');
+  const [rebuilding, setRebuilding] = useState(false);
 
   const load = async () => {
     if (!supabaseConfigured()) return;
@@ -78,6 +83,7 @@ export function ProductDatabase2() {
       // AN EMPTY LIST IS A QUESTION, NOT AN ANSWER. Ask the registers what they
       // hold before saying anything about them; nine head requests, and only
       // when there is nothing to show.
+      setBuiltAt(String(r[0]?.refreshed_at ?? ''));
       setGaps(r.length === 0 ? await diagnoseProductDatabaseV2() : null);
     } catch (e) {
       // The three answers, and the error VERBATIM — the real fault is usually
@@ -88,6 +94,16 @@ export function ProductDatabase2() {
       }));
     } finally { setBusy(false); }
   };
+  // A REBUILD IS NOT A REFRESH, and the button says which. Refresh re-reads what
+  // is stored; this re-derives it from the five registers, which is what has to
+  // happen after a register is loaded.
+  const rebuild = async () => {
+    setRebuilding(true); setErr(null);
+    try { await refreshProductDatabaseV2(); await load(); }
+    catch (e) { setErr(loadFailure(e, { tables: ['product_database_v2'], hint: 'Product Database 2.0 is not on this project yet — run product_database_2.sql.' })); }
+    finally { setRebuilding(false); }
+  };
+
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const visible = useMemo(() => {
@@ -116,7 +132,18 @@ export function ProductDatabase2() {
       <PageHeader
         title="Product Database 2.0" icon="🧬"
         subtitle="One row per machine — model and serial — assembled from the warranty sale, the contract, the additional entries, the ownership transfer and the installation call."
-        count={visible.length} onRefresh={() => void load()} refreshing={busy} />
+        count={visible.length} onRefresh={() => void load()} refreshing={busy}
+        actions={(
+          <>
+            {builtAt && <span className="muted" style={{ fontSize: 12.5 }}>Built {formatDayTime(builtAt)}</span>}
+            {can('masters.edit') && (
+              <button className="btn btn-sm" disabled={rebuilding} onClick={() => void rebuild()}
+                title="Re-derive every machine from the five registers. Readers are not blocked while it runs.">
+                {rebuilding ? 'Rebuilding…' : '⟳ Rebuild from the registers'}
+              </button>
+            )}
+          </>
+        )} />
 
       {err && <div className="sheet-banner sheet-banner-error"><span>{err}</span></div>}
 
