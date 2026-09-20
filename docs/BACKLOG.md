@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (the Consumption upload files the visit from the file,
+_Last updated: 2026-09-20 (Product Database 2.0 says WHY it is empty on the
+screen itself, and only claims what it measured. Before that: the missing view
+grant; 0148 no longer re-adds a constraint 0152 deletes. Before that: the Consumption upload files the visit from the file,
 so a bulk load no longer stops on row 1 — CLIENT ONLY. Before that: ⚠️ 0217
 restores three rules 0210 dropped from the
 spare line guard — RUN Spare_1.sql; data.view_all for every role but three;
@@ -58,10 +60,40 @@ the fix is a real design question rather than a bug: fall back to the model in
 that serial, and reporting the ambiguous ones rather than guessing. Not built,
 because it must not rest on an assumption about the data.
 
-**To run:** `product_database_2.sql` again (it now carries the grant), then
-`_why_is_product_database_2_empty.sql`.
+**And the screen now asks the same question itself — no SQL to run.** The empty
+banner used to read *"No machine appears in the warranty sale register, the
+contract register or the additional entries yet"*, which is the STRONG claim and
+the one thing an empty list cannot support: it is equally consistent with
+thousands of rows carrying a serial and no model, and the two need opposite
+actions. When the list comes back empty the screen now counts the three
+registers — rows, rows recording no serial, rows recording no model — and prints
+them.
 
-validate: 94/94 suites, 16/16 checks.
+**It may only conclude from an EQUALITY.** The counts are NULL-or-EMPTY, which
+PostgREST can express and `btrim` is not, so each "missing" number is a LOWER
+bound — a whitespace-only cell is blank to the view and counted as present here.
+`noModel === rows` therefore still PROVES no row in that register can be listed,
+while `noModel < rows` proves nothing either way and gets the numbers alone.
+The bound runs the safe way and the verdict never leans on the side it can be
+wrong about. A register that could not be counted is reported as uncounted,
+never as zero — a zero there reads as *"this register is empty"*, which is a
+claim nobody measured.
+
+**The verdict lives in `dberror.ts`, not in the screen** — the `paging.ts`
+reason: `supabase.ts` reads `import.meta.env`, so a decision left beside the
+fetch cannot be tested as behaviour. `emptyRegisterVerdict()` is pure and
+`check:dberror` covers every branch, including the three refusals. Mutation-
+tested: dropping the uncountable guard, `every`→`some`, and removing the serial
+branch are each caught.
+
+**To run:** `product_database_2.sql` again (it now carries the grant), then
+`_why_is_product_database_2_empty.sql` — or simply open the screen, which now
+prints the same three numbers per register.
+
+validate: 94/94 suites, 16/16 checks (the grant). The banner that followed is
+CLIENT ONLY and changes no SQL, so it was proved by `npm run build`, the five
+database-free checks and `check:dberror` — ten new assertions, three mutations
+caught — rather than by a second full run.
 
 ---
 

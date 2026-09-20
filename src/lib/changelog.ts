@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.312',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 now says why it is empty, on the screen',
+    changes: [
+      'AN EMPTY 2.0 USED TO SAY \u201cNo machine appears in the warranty sale register, the contract register or the additional entries yet\u201d. That was the one thing it could not know. The screen now COUNTS the three registers when it has nothing to show \u2014 rows, how many record no serial, how many record no model \u2014 and prints what it found, so you do not have to run SQL to find out.',
+      'AND IT ONLY CLAIMS WHAT IT MEASURED. It says \u201cevery row records no model\u201d only when every counted row really does; where some rows carry both a model and a serial it says so and points at the probe, and where a register could not be counted at all it says THAT rather than showing a zero \u2014 a zero there would read as \u201cthis register is empty\u201d, which is a different claim.',
+      'WHY A ROW NEEDS BOTH is unchanged and worth repeating: a machine is its model AND its serial, serials repeat across models, and a row with a serial alone cannot be told from the other machines wearing that number.',
+    ],
+  },
+  {
     version: '0.9.311',
     date: '2026-09-20',
     title: 'A file that says WHY Product Database 2.0 is empty',

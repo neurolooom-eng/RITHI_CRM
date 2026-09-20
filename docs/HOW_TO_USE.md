@@ -338,6 +338,16 @@ typed into a form that reads it.
   > **The warranty starts at the installation**: the *Warranty Start Date* the
   > engineer is asked for on an installation call, or failing that the date that
   > call was solved, and only then the selling register.
+  > **A machine needs BOTH a model and a serial to be listed.** Serial numbers
+  > repeat across models — there are eleven machines numbered 219 — so a
+  > register row carrying a serial and no model cannot be told from the others
+  > wearing that number, and is left out rather than guessed at. That is why 2.0
+  > can show fewer machines than the older cover view, which needs only a serial
+  > and merges the ones that share one.
+  > **If the screen is empty it tells you why**, counting the three registers
+  > — rows, rows with no serial, rows with no model — and saying which of
+  > those it is. It says *every* row is missing something only where every
+  > counted row really is; otherwise it gives you the numbers and stops there.
 
 - **Product Master** `/product-master` — the list of **product lines**, one row
   per product code: type, category, short form, and whether it is still sold.
