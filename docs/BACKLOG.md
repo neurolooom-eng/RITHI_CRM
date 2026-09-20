@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (⚠️ Drive storage RE-ROUTED to the "Reports" shared
+_Last updated: 2026-09-21 (⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
+RUN record_audit.sql, _status.sql row 60. Take _backup_before_repair.sql first.
+Before that: ⚠️ Drive storage RE-ROUTED to the "Reports" shared
 drive, one folder per kind of document — NEEDS A CallReg REDEPLOY, no SQL.
 Before that: RCA on 4,222 calls Solved with no visit — the
 "Close call" button, 5-15 Sep; plus a proper Excel/CSV export. Before that:
@@ -33,6 +35,53 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-21 — ⚠️ The database-enforced audit trail is back on (0225)
+
+> *"Turn on Audit. Take a back up. Then let's do all fundas."*
+
+0112 switched `record_audit` off on 2026-09-05, on the reasoning that it
+existed for 21 CFR Part 11 and `audit_log` was trail enough. It named the cost
+in its own header, and that is what 2026-09-20 collected:
+
+> `audit_log` is written by the CLIENT: it can be bypassed by a direct API call
+> and it is purged on the retention window. `record_audit` could not be
+> bypassed and was not purged.
+
+A re-applied bundle set 4,222 calls back to Unattended and **nothing in the
+system could say what they had been** — the write did not come through the
+client, so the client's trail never saw it. **0225 re-arms it.**
+
+- **0103's shape, verbatim** — three STATEMENT-level triggers per table, so a
+  bulk load stays ONE attributable event rather than ten thousand rows.
+- `record_audit_fn()` was never removed; 0112 left it unattached on purpose and
+  said re-attaching would be one `create trigger`. It was.
+- **`_status.sql` row 60 moved with it** and now COUNTS all thirty triggers
+  rather than testing that any exist — a partly-armed table audits some writes
+  and not others, which reads as covered. Mutation-tested: dropping one of the
+  thirty makes it read NO.
+- **The validation package records the restoration** the way 0112 recorded the
+  reduction — FRS-021, the ISO control statement, the controls table, and R-14
+  back to Low residual. **The 05-Sep to 21-Sep gap is real and is stated**; it
+  is not recoverable.
+
+**Proved end to end**: armed, ran the 144-call repair, and the trail carried
+the visit's before/after image and the status sync it caused. **96/96 suites
+and 16/16 checks** on a database built from every migration.
+
+### Two files to run BEFORE any repair
+
+- **`_backup_before_repair.sql`** — copies the eight tables a repair can touch
+  into a `backup_before_repair` schema, and REFUSES to overwrite an existing
+  snapshot. It is not a backup of the project; Supabase's own is, and its
+  point-in-time window EXPIRES, which is how the 4,222 became unrecoverable.
+- **`_audit_status.sql`** — what each trail holds and how far back.
+  **It also corrects something I said**: I told the user the Close-call entries
+  had expired on a 7-day retention. That is 0033's figure; 0047 replaced it
+  with `audit_retention_days`, defaulted to 3650. Row 5 says which is in force
+  on the live project, because only the project knows.
 
 ---
 

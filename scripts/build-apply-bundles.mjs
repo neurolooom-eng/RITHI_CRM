@@ -429,10 +429,15 @@ const MODULES = {
     title: 'Data Integrity (audit trail & retention)',
     blurb: ['Database-enforced audit trail (record_audit) on the quality-record tables',
             'and a record-retention guard blocking application deletion of quality',
-            'records. Read by admins / audit.view; written only by triggers.'],
+            'records. Read by admins / audit.view; written only by triggers.',
+            'ARMED by 0225 --- a before/after image of every row, which the client-',
+            'written audit_log cannot give you because it can be bypassed and purged.'],
     needs: ['profiles', 'rbac', 'isAdmin'],
     files: ['0048_record_audit.sql', '0049_record_retention_guard.sql', '0103_record_audit_not_bulk.sql',
             '0112_stop_record_audit.sql',
+            // 0225 REVERSES 0112 and must stay AFTER it: replaying this bundle
+            // otherwise re-runs the drop and leaves the trail off.
+            '0225_record_audit_on.sql',
             // The FFR register's retention trigger. HERE, not beside the table
             // in 0165: block_hard_delete() is defined in this module, which runs
             // after daily_review — check:replay caught the fresh apply failing.

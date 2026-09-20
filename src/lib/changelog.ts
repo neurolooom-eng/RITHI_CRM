@@ -24,6 +24,19 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.324',
+    date: '2026-09-21',
+    title: 'The audit trail is back on',
+    changes: [
+      'EVERY CHANGE TO A QUALITY RECORD IS NOW PHOTOGRAPHED BY THE DATABASE \u2014 what the row was, what it became, who did it and when \u2014 on calls, visit reports, spare requests, spare lines, consumption, feedback and call requests.',
+      'WHY IT MATTERS: the other trail is written by the app, so anything that does not go through the app is invisible to it. That is exactly what happened on 20 Sep \u2014 4,222 calls went back to Unattended and nothing could say what they had been. This is the record that answers that question.',
+      'A BULK UPLOAD IS STILL ONE ENTRY, not one per row. The trail says who loaded what, how many rows and when \u2014 it does not fill up with a copy of every row you import.',
+      'Nothing is deleted from it and nothing expires out of it.',
+      'RUN record_audit.sql, then check _status.sql row 60 \u2014 it counts all thirty triggers, so a half-armed table reads as NO rather than passing.',
+      'Two files to run before any data repair: _backup_before_repair.sql takes a snapshot first, and _audit_status.sql says what the trail is holding and how far back it goes.',
+    ],
+  },
+  {
     version: '0.9.323',
     date: '2026-09-21',
     title: 'Reports are filed in the right Drive folder',
