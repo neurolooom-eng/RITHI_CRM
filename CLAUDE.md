@@ -995,6 +995,24 @@ on testing the old shape. **When a migration replaces a definition, move the
   the INSERT policy VERBATIM so nobody gains reach; say in the migration what
   the UPDATE does and does not allow, because on a stock or quality record that
   is the whole argument.
+- **A CONSTRAINT ADDED BY ONE MIGRATION AND DROPPED BY A LATER ONE IS DEAD CODE
+  THAT STILL EXECUTES — ON EVERY RE-APPLY.** 0148 added `parts_category_check`;
+  0152 drops it four files later, deliberately (a check there aborts a bulk
+  import part-written). The `add` stayed, guarded by
+  `if not exists (... conname = 'parts_category_check')` — and after 0152 the
+  constraint's ABSENCE is the correct state, so every re-run of
+  `performance.sql` tried to put it back. **On an empty database that succeeds
+  and 0152 removes it again, which is why every check passed for months.** On
+  the live project, where a part had since been loaded with a category outside
+  the five words, the bundle stopped at 0148 with
+  `ERROR: 23514: check constraint "parts_category_check" ... is violated by
+  some row` — BEFORE reaching the file that would have dropped it (reported
+  2026-09-20). `IF NOT EXISTS` guards a NAME, never an INTENTION. The `add` is
+  gone from 0148; 0152 still drops it defensively and `_status.sql` row 115
+  asserts it is absent. `check:ui` refuses the pattern now — it was the only
+  instance in 219 migrations, and the offending part row is LEFT AS IT IS,
+  because that column is the Item Master's own word and an unexpected one is a
+  bar in Spare Insights, not something to rewrite.
 - **`IF NOT EXISTS` GUARDS A NAME, NEVER A DEFINITION** — it makes a migration
   re-runnable, it does NOT make it corrective. `add column if not exists x ...
   generated always as (<new expr>)` is a silent no-op when the column exists:

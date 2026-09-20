@@ -7459,6 +7459,40 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     }
     eq('every Restore: names a bundle that CARRIES the migration', wrong, []);
   }
+  {
+    // A CONSTRAINT ADDED BY ONE MIGRATION AND DROPPED BY A LATER ONE IS DEAD
+    // CODE THAT STILL EXECUTES — and a bundle is re-run WHOLE, so it executes
+    // on EVERY re-apply. 0148 added `parts_category_check`; 0152 drops it four
+    // files later, deliberately, because a check there aborts a bulk import
+    // part-written. The `add` stayed, guarded by `if not exists` — and after
+    // 0152 the constraint's ABSENCE is the correct state, so every re-run tried
+    // to put it back.
+    //
+    // ON AN EMPTY DATABASE THAT SUCCEEDS and 0152 removes it again, which is
+    // why every check here passed for months. On the live project, where a part
+    // had since been loaded with a category outside the five words, the bundle
+    // stopped at 0148 with `check constraint ... is violated by some row` —
+    // BEFORE reaching the file that would have dropped it.
+    const migDir = 'supabase/migrations';
+    const migs = readdirSync(migDir).filter((f) => f.endsWith('.sql')).sort();
+    const added = new Map<string, string[]>();
+    const dropped = new Map<string, string[]>();
+    for (const f of migs) {
+      const body = readFileSync(`${migDir}/${f}`, 'utf8');
+      for (const m of body.matchAll(/add\s+constraint\s+([a-z0-9_]+)/gi)) {
+        added.set(m[1], [...(added.get(m[1]) ?? []), f]);
+      }
+      for (const m of body.matchAll(/drop\s+constraint\s+(?:if\s+exists\s+)?([a-z0-9_]+)/gi)) {
+        dropped.set(m[1], [...(dropped.get(m[1]) ?? []), f]);
+      }
+    }
+    const zombies: string[] = [];
+    for (const [name, addFiles] of added) {
+      const later = (dropped.get(name) ?? []).filter((d) => addFiles.some((a) => d > a));
+      if (later.length) zombies.push(`${name}: added in ${addFiles.join(', ')}, dropped later in ${later.join(', ')}`);
+    }
+    eq('no constraint is added by one migration and dropped by a later one', zombies, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

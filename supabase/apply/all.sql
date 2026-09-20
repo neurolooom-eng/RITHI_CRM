@@ -31664,19 +31664,29 @@ comment on view public.unused_spare_report is
 -- ---- the category, as data -------------------------------------------------
 alter table public.parts add column if not exists category text not null default '';
 
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'parts_category_check') then
-    -- FIVE VALUES, NOT TWO, because the Item Master's own column has four and
-    -- 86% of its rows are blank. "Spare / Consumable" turned out to be
-    -- SPARE (131), PRODUCT (45), CONSUMABLE (7), LABOUR (5) and empty (1,136)
-    -- across 1,324 parts -- so a two-value vocabulary would have rejected the
-    -- import, and a required one would have forced somebody to invent 1,136
-    -- answers. Empty stays legal and reads as Unclassified.
-    alter table public.parts add constraint parts_category_check
-      check (category in ('', 'Consumable', 'Spare', 'Product', 'Labour'));
-  end if;
-end $$;
+-- THE CHECK CONSTRAINT THAT USED TO BE HERE IS GONE, AND ITS ABSENCE IS THE
+-- POINT. It read `check (category in ('', 'Consumable', 'Spare', 'Product',
+-- 'Labour'))`, and 0152 DROPS it four files later for a reason argued out in
+-- that file: a check on this column aborts a bulk import PART-WRITTEN the day
+-- the Item Master gains a fifth word.
+--
+-- Leaving the `add` here was still wrong, because a bundle is RE-RUN WHOLE.
+-- Its guard was `if not exists (... conname = 'parts_category_check')` — and
+-- after 0152 the constraint's ABSENCE IS THE CORRECT STATE, so every re-run
+-- saw it missing and tried to put it back. On an empty database that succeeds
+-- and 0152 removes it again, which is why every check here passed. On the live
+-- project, where a part had since been loaded with a category outside those
+-- five words, it failed (reported 2026-09-20):
+--
+--   ERROR: 23514: check constraint "parts_category_check" of relation "parts"
+--   is violated by some row
+--
+-- and the bundle stopped there — BEFORE reaching 0152, which would have
+-- dropped it. `IF NOT EXISTS` guards a NAME, never an INTENTION.
+--
+-- Removing it changes no end state: 0152 still drops the constraint
+-- defensively for any project that ran an older copy of this file, and
+-- `_status.sql` row 115 asserts it is absent.
 
 comment on column public.parts.category is
   'Consumable | Spare | Product | Labour | '''' (unclassified) -- the Item Master''s own vocabulary. Set on Part Master or loaded from that file. Empty means nobody has said yet, and Spare Insights reports it as Unclassified rather than folding it into either bucket.';

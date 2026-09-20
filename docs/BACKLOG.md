@@ -20,6 +20,47 @@ up)_
 
 ---
 
+## 2026-09-20 — ⚠️ performance.sql re-added a constraint 0152 deleted
+
+> *"ERROR: 23514: check constraint `parts_category_check` of relation `parts`
+> is violated by some row"*
+
+**0148 added it; 0152 drops it four files later, deliberately** — a check on
+`parts.category` aborts a bulk import part-written the day the Item Master
+gains a sixth word. The `add` stayed behind, guarded by
+`if not exists (... conname = 'parts_category_check')`.
+
+**After 0152 the constraint's ABSENCE is the correct state**, so every re-run of
+the bundle saw it missing and tried to put it back. On an empty database that
+succeeds and 0152 removes it again — which is why `check:replay`,
+`check:status` and 94 suites all passed for months. On the live project, where
+a part had since been loaded with a category outside the five words, the bundle
+**stopped at 0148, before reaching the file that would have dropped it**.
+
+Reproduced here exactly: built a database from every migration, inserted a part
+with `category = 'Accessory'`, ran `performance.sql`, got the user's error
+verbatim. Removed the `add` from 0148, re-ran on the SAME database — clean, and
+the Accessory part untouched.
+
+**The part row is not touched, and that is deliberate.** That column is the Item
+Master's own word; an unexpected one appears in Spare Insights as its own bar,
+which is how somebody notices it and decides what it should be. Rewriting it
+would destroy the evidence.
+
+**The check.** `check:ui` now refuses any constraint added by one migration and
+dropped by a later one — dead code that still executes on every re-apply and
+cannot fail until it meets real data. It was the only instance in 219
+migrations; mutation-tested by putting the `add` back.
+
+`_status.sql` row 115 already asserted the constraint is ABSENT, and still does.
+
+**To run:** `performance.sql` again (it goes through now), then
+`product_database_2.sql`, then `rbac.sql`.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
 ## 2026-09-20 — ⚠️ The Restore clauses were pointing at the wrong bundles
 
 > *"Failed to run sql query: ERROR: 42883: function public.imported_ts(jsonb,
