@@ -12,6 +12,16 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.314',
+    date: '2026-09-20',
+    title: 'The register comes first, and the tab carries the form\u2019s own name',
+    changes: [
+      'TAB ORDER, as you numbered them: Daily Complaint Review Register (R/SER/35), Review Desk, To be Reviewed, Review 2 Pending, Review 3 Pending, Export. The register leads because it is the record \u2014 and it is what the screen already opened on, so the first tab and the tab you land on finally agree.',
+      'THE REGISTER TAB IS NAMED IN FULL: \u201cReview Register\u201d is now \u201cDaily Complaint Review Register (R/SER/35)\u201d, matching the screen and the controlled form. The tab row wraps, so the longer name costs nothing.',
+      'The menu entry keeps the full name across two lines, as you asked.',
+    ],
+  },
+  {
     version: '0.9.313',
     date: '2026-09-20',
     title: 'Daily Complaint Review Register (R/SER/35), and the Review Desk loads the lot',

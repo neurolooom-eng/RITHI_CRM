@@ -30,7 +30,7 @@ import { DocPreview } from '../components/doc/DocPreview';
 import { listProductLines } from '../lib/productLines';
 
 // ===========================================================================
-// DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
+// DAILY COMPLAINT REVIEW REGISTER (R/SER/35) — the DCCR.
 //
 // Every FIELD call is reviewed, every day, in three stages:
 //
@@ -53,7 +53,23 @@ import { listProductLines } from '../lib/productLines';
 
 type Tab = 'desk' | 'todo' | 'r2' | 'r3' | 'register' | 'export';
 
+// THE ORDER IS THE USER'S, GIVEN AS NUMBERS ON THE TAB BAR (2026-09-20):
+// the REGISTER first, then the desk and its three worklists, then the export.
+// The register leads because it is the record — the thing the form is — and the
+// worklists behind it are how it gets filled in. It is also what the screen
+// already opened on, so the first tab and the default tab now agree; they did
+// not before, which is its own small lie about where you are.
+//
+// DCCR COMPLAINT GROUPING AND ROOT CAUSE KEY WORD ARE NO LONGER HERE (the user,
+// same day). They are MASTERS, not review work, and remain fully editable on
+// Masters → All Masters, which builds itself from `masterLists.ts` — so nothing
+// is stranded by taking them off this bar.
 const TABS: { key: Tab; label: string; icon: string }[] = [
+  // NAMED IN FULL, like the screen (the user, 2026-09-20). This tab IS the
+  // controlled form, so it carries the form's own name and number rather than
+  // an in-house shorthand for it; `.dccr-tabs` wraps, so the long label costs
+  // the row nothing.
+  { key: 'register', label: 'Daily Complaint Review Register (R/SER/35)', icon: '📋' },
   { key: 'desk', label: 'Review Desk', icon: '🗂️' },
   // TO BE REVIEWED — the work that is FINISHED but not signed off (the user,
   // 2026-09-08). Solved calls still waiting on Review 2 or Review 3, which is
@@ -62,12 +78,6 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'todo', label: 'To be Reviewed', icon: '📋' },
   { key: 'r2', label: 'Review 2 Pending', icon: '②' },
   { key: 'r3', label: 'Review 3 Pending', icon: '③' },
-  { key: 'register', label: 'Review Register', icon: '📋' },
-  // DCCR COMPLAINT GROUPING AND ROOT CAUSE KEY WORD ARE NO LONGER TABS HERE
-  // (the user, 2026-09-20). They are MASTERS, not review work, and they are
-  // still fully editable on Masters → All Masters, which builds itself from
-  // `masterLists.ts` — so nothing is stranded by taking them off this bar,
-  // and the tab row is the review's own stages again.
   { key: 'export', label: 'Export', icon: '⭳' },
 ];
 
@@ -670,7 +680,7 @@ export function DailyCallReview() {
                 <button className="btn btn-sm" title="Close every group"
                   onClick={() => setExpanded(new Set())}>⌃ Collapse all</button>
                 {/* THE BULK BUTTON BELONGS WHERE THE WORK IS. It shipped on the
-                    Review Register only, and the first question asked was
+                    the register tab only, and the first question asked was
                     "where is it?" — from somebody standing on the Review 2
                     Pending tab, which is the list they were clearing. Same
                     confirmation, same function, same first-year rule; on this
@@ -818,7 +828,7 @@ export function DailyCallReview() {
             </div>
           </div>
 
-          <SectionCard title="Review Register">
+          <SectionCard title="Daily Complaint Review Register (R/SER/35)">
             <DataTable<ReviewRow>
               columns={columns}
               rows={rows}
@@ -910,7 +920,7 @@ export function DailyCallReview() {
         <SectionCard title="Export — DCCR format">
           <p className="muted" style={{ marginTop: 0 }}>
             The register's own columns, in its own order and under its own headings, so the file
-            drops straight into the workbook. It exports <b>every call the Review Register's
+            drops straight into the workbook. It exports <b>every call the register’s
             filters match</b> — not just the pages loaded on screen — so set the date range and
             the filters there first.
           </p>

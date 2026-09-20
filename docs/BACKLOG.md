@@ -96,6 +96,13 @@ inside the package.json script, as `docs:reqs` always had it.
 Client only; **no SQL**. `npm run build`, seven database-free checks, and the
 four generated documents re-run.
 
+**Follow-up the same day, at the user's direction** (numbers drawn on the tab
+bar): the tab order is now **Register · Desk · To be Reviewed · Review 2
+Pending · Review 3 Pending · Export**, and the register tab carries the form's
+full name rather than "Review Register". The screen already defaulted to
+`register`, so the first tab and the default now agree — they did not before.
+The menu entry keeps the full name over two lines, confirmed by the user.
+
 ## 2026-09-20 — Product Database 2.0 is empty: diagnose, do not guess
 
 > *"Ran all sql, but still the list is empty"*
