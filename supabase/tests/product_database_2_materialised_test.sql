@@ -53,21 +53,39 @@ select case when warranty_end = date '2024-03-01' then 'PASS' else 'FAIL ' || wa
 select case when refreshed_at is not null then 'PASS' else 'FAIL' end
   from public.product_database_v2 where serial_number = 'PDV2-9001';
 
-\echo '--- an ENGINEER (no masters.view, no cover.edit) reads NOTHING ---'
+-- ===========================================================================
+-- `set role`, NEVER `set local role`. **SET LOCAL OUTSIDE A TRANSACTION BLOCK
+-- IS A NO-OP** — a warning and nothing else — so every "as authenticated"
+-- assertion in this suite's first version actually ran as `postgres`, which is
+-- a superuser and bypasses privilege checks entirely. It passed twice while
+-- proving nothing about roles, and 0220 shipped a view that refused EVERY
+-- reader, administrators included.
+-- ===========================================================================
+\echo '--- AN ADMINISTRATOR CAN READ IT. The assertion that was missing: 0220'
+\echo '--- made this a security_invoker view over a matview it had revoked, so'
+\echo '--- it refused everybody with "permission denied for materialized view". ---'
+call public.be('pdv2_admin@x.com');
+set role authenticated;
+select case when count(*) > 0 then 'PASS' else 'FAIL admin saw nothing' end
+  from public.product_database_v2 where serial_number = 'PDV2-9001';
+reset role;
+
+\echo '--- AND SO CAN AN ENGINEER. There is no permission gate on this view'
+\echo '--- (0221): the SCREEN is gated by mod:/product-database-2, exactly like'
+\echo '--- the Product Database beside it, whose sources are world-readable to'
+\echo '--- any signed-in user. The gate 0220 invented is what broke. ---'
 call public.be('pdv2_eng@x.com');
-set local role authenticated;
-select case when count(*) = 0 then 'PASS' else 'FAIL saw ' || count(*) end
-  from public.product_database_v2;
+set role authenticated;
+select case when count(*) > 0 then 'PASS' else 'FAIL engineer saw nothing' end
+  from public.product_database_v2 where serial_number = 'PDV2-9001';
 
 \echo 'expect ERROR: an engineer may not rebuild it'
 select public.refresh_product_database_2();
 
 reset role;
-\echo '--- an ADMIN reads it and may rebuild ---'
+\echo '--- REBUILDING is still an authorised act, and an admin may ---'
 call public.be('pdv2_admin@x.com');
-set local role authenticated;
-select case when count(*) > 0 then 'PASS' else 'FAIL saw nothing' end
-  from public.product_database_v2 where serial_number = 'PDV2-9001';
+set role authenticated;
 select case when public.refresh_product_database_2() is not null then 'PASS' else 'FAIL' end;
 reset role;
 
@@ -76,6 +94,8 @@ reset role;
 select case when (select warranty_start from public.product_database_v2 where serial_number='PDV2-9001')
               = date '2024-01-31' then 'PASS' else 'FAIL' end;
 
-\echo '--- the matview itself is reachable by NOBODY but the gate ---'
+\echo '--- THE MATVIEW MUST BE READABLE BY THE CALLER, and this is the exact'
+\echo '--- line 0220 got backwards: a security_invoker view reads AS THE CALLER,'
+\echo '--- so revoking its storage from `authenticated` refuses every reader. ---'
 select case when has_table_privilege('authenticated','public.product_database_v2_mv','select')
-             then 'FAIL granted' else 'PASS' end;
+             then 'PASS' else 'FAIL revoked — the view cannot read its own storage' end;

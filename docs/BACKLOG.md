@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (⚠️ Product Database 2.0 was TIMING OUT and is now
+_Last updated: 2026-09-20 (⚠️ 0220 refused EVERY reader including admins —
+0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
+Product Database 2.0 was TIMING OUT and is now
 materialised — RUN product_database_2.sql, _status.sql row 170. Before that:
 Daily Complaint Review Register (R/SER/35): renamed,
 two master tabs removed, and the Review Desk loads every call instead of stopping
@@ -25,6 +27,59 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-20 — ⚠️ 0220 REFUSED EVERY READER. 0221 repairs it — RE-RUN `product_database_2.sql`
+
+> *"Your role does not have permission to read this."* — as **Rithi Admin ·
+> Permission · Admin**
+> *"And how does a Super Admin not have access to something???"*
+> *"RBAC is creaking my setup, so i am not running it."*
+
+**They do, and it was never a permission decision.** 0220 made
+`product_database_v2` a `security_invoker` view — which reads **as the caller** —
+over a materialised view it had, in the same file, **revoked from
+`authenticated`**. The two lines contradict each other: the caller is required
+to hold a privilege that was deliberately taken away. The result is
+`permission denied for materialized view product_database_v2_mv` for **every**
+reader, administrators included. Reproduced on a database before writing a line
+of the fix.
+
+**Why the tests did not catch it, which matters more than the bug.** The suite
+said `set local role authenticated` — and **`SET LOCAL` outside a transaction
+block is a no-op**, a warning and nothing else. Every "as authenticated"
+assertion therefore ran as `postgres`, a superuser, which bypasses exactly the
+privilege check that was broken. It passed twice while proving nothing about
+roles at all. It uses `set role` now and asserts **an administrator CAN read** —
+an assertion that fails against 0220 and passes against 0221. Mutation-tested
+by putting the revoke back.
+
+**And the gate is GONE, not repaired**, at the user's direction. 0220 invented a
+permission predicate for this one screen that nothing else in its family has,
+and it is the thing that broke. Four of the five sources 2.0 assembles are
+already readable by any signed-in user — `products` (the OLD Product Database
+and its ~20,000 machines), `product_additional_entries`, `ownership_transfers`,
+and `machine_cover`, which publishes the same machine and cover facts to
+everybody. The screen is gated where every other screen is: `mod:/product-database-2`
+(0219).
+
+**Said plainly, because it is a real change:** the warranty and contract detail
+assembled here is now readable by any signed-in user who can open the screen,
+where 0220 asked for `masters.view`, `cover.edit` or admin. That brings 2.0 into
+line with the Product Database beside it. Putting the gate back is one predicate
+and a grant — a decision for the user, not for a migration.
+
+**`_status.sql` row 170 now asserts the grant itself**, so a project that ran
+0220 and not 0221 reads NO rather than looking complete while refusing
+everybody. Mutation-tested both ways.
+
+Speed is unaffected: 3 ms / 3.5 ms / 5.8 ms for the count and two pages on the
+loaded fixture, measured after the repair.
+
+**TO RUN:** `_status.sql` (row **170**), then re-run
+[`supabase/apply/product_database_2.sql`](https://raw.githubusercontent.com/neurolooom-eng/RITHI_CRM/main/supabase/apply/product_database_2.sql).
+It is idempotent, so running it again over 0220 is the repair.
+
+validate: **95/95 suites, 16/16 checks.**
 
 ## 2026-09-20 — ⚠️ Product Database 2.0 TIMED OUT. Now materialised — RUN `product_database_2.sql`
 

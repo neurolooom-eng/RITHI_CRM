@@ -780,7 +780,8 @@ const MODULES = {
             'THE FIGURES ARE AS OF THE LAST REBUILD -- `refreshed_at` is a',
             'column of the view and the screen prints it.'],
     needs: ['importedTs', 'coverCode'],
-    files: ['0218_product_database_v2.sql', '0220_product_database_2_is_materialised.sql'],
+    files: ['0218_product_database_v2.sql', '0220_product_database_2_is_materialised.sql',
+            '0221_product_database_2_needs_no_gate.sql'],
   },
 };
 
