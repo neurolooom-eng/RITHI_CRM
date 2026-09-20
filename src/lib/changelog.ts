@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.322',
+    date: '2026-09-21',
+    title: '\u26a0 Calls that went back to Unattended \u2014 what happened, and the one file that fixes it',
+    changes: [
+      'MY FAULT, AND I AM SORRY. Running call_requests.sql set every call that had no visit record back to Unattended \u2014 about 4,222 of them. I told you to run that bundle without spotting that it carries a data-rewriting statement.',
+      'WHY: a line at the end of migration 0032 says \u201ca call whose reports have all gone is Unattended again\u201d. It sits outside any function, so it runs EVERY time the bundle is applied. When it was written that was correct. Four months later the \u201cClose call\u201d button made it possible for a call to be Solved with no visit ON PURPOSE \u2014 and nobody went back and updated that line.',
+      'RUN _restore_call_status.sql AND IT PUTS THEM BACK, in one go. Your call imports kept every column the file carried, including its own Call Status, so the statuses are still on the rows and it restores from there. Calls closed with the old button are restored from the audit trail as well. It only touches calls that are blank AND have no visit, so it cannot overwrite anything correct, and running it twice does nothing the second time.',
+      'THE LINE IS GUARDED NOW and cannot do this again \u2014 proved by closing 50 calls, re-running the bundle, and finding all 50 still Solved.',
+      'A call with a report in Drive is a separate thing: Drive holds the document, the system holds the VISIT, and only the visit sets a status. Administration \u2192 Bulk Report Mapping turns those documents into visits, which fixes the cause rather than the symptom.',
+    ],
+  },
+  {
     version: '0.9.321',
     date: '2026-09-21',
     title: 'Visit Reports exports EVERY column, and the answer on spares',
