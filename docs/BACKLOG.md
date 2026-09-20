@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (RCA on 4,222 calls Solved with no visit — the
+_Last updated: 2026-09-21 (⚠️ Drive storage RE-ROUTED to the "Reports" shared
+drive, one folder per kind of document — NEEDS A CallReg REDEPLOY, no SQL.
+Before that: RCA on 4,222 calls Solved with no visit — the
 "Close call" button, 5-15 Sep; plus a proper Excel/CSV export. Before that:
 QUEUED: Product Database 2.0 as the primary product
 list — what it involves and the four decisions it needs. Before that:
@@ -31,6 +33,62 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-21 — ⚠️ Drive storage re-routed — NEEDS A CallReg REDEPLOY
+
+> *"RE-route the File Storage to …/folders/0AEcWDaijkhs_Uk9PVA — Map it to the
+> appropriate folders. Field to Field, Installation to Installation, PM to PM --
+> KYC to Call Request [Installation KYC], Additional Reports to Call Request
+> [Report - Installation]"*
+
+Everything the app uploaded landed in ONE flat folder, so a Field report, an
+Installation KYC and a PM report were indistinguishable the moment they were
+stored. Storage is now the **"Reports" shared drive** (`0AEcWDaijkhs_Uk9PVA`),
+with five folders:
+
+| what | folder |
+|---|---|
+| Field call → service report | `Field Reports` |
+| Installation call → report | `Installation Reports` |
+| PM call → report | `PM Reports` |
+| Call Request → KYC | `KYC` |
+| Call Request → Installation Report | `Additional Reports` |
+
+**NOT LIVE UNTIL THE CallReg WEB APP IS REDEPLOYED.** The script that writes to
+Drive is a separate deployment from the site, and merging this changes nothing
+on its own. Re-deploy the SAME deployment so the `/exec` URL stays the same
+(`apps-script/DEPLOY.md`). **No SQL.**
+
+### Three decisions worth keeping
+
+- **Folders are resolved BY NAME, not by a pasted id.** A shared drive's
+  subfolder ids cannot be read from outside the drive — they could not be read
+  from here either, which is the point: an id copied off a screenshot is a guess,
+  and a wrong one does not fail, it files the document somewhere nobody looks.
+  Each id is resolved once and remembered in a script property, and a remembered
+  id that stops resolving is dropped rather than trusted.
+- **Nothing can be refused.** A folder that will not resolve falls back to the
+  drive root, then to the old flat folder. Losing an engineer's signed report is
+  worse than filing it one level up.
+- **The old flat folder is still READ and no longer written.** Every report
+  uploaded before today lives in it and stays in `_isAppDocument()`'s list —
+  drop it and all of them stop opening in the app with no error to explain why.
+
+### The rule lives where it can be tested
+
+`driveFolderForCall()` is in **`src/lib/drivefolders.ts`**, a module that
+imports nothing — the `paging.ts` reason in a second place: `sheets.ts` reaches
+`supabase.ts` and its `import.meta.env`, so nothing defined there can be
+imported by a node script. It is `call_table_for()` (0040) word for word —
+`INSTALL%` as written, then `PM%` with the spaces removed — **proved against
+Postgres** over 14 call types, with the mutation (equality instead of prefix)
+disagreeing on 5 of them, so the comparison is not vacuous.
+
+`check:ui` holds both copies of the folder list word for word, that the legacy
+folder is still in the serve guard, and that every document field on the request
+form names a folder. All five mutations tried were caught.
 
 ---
 

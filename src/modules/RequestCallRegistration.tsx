@@ -5,6 +5,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
+import type { DriveFolder } from '../lib/drivefolders';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
@@ -803,6 +804,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 label="Installation Report (if available)"
                 doc={docs.installationReport}
                 prefix={`${f.partyName || 'Request'} - Installation Report`}
+                folder="additional"
                 onBusy={(b) => setUploading((n) => n + (b ? 1 : -1))}
                 onChange={(d) => setDocs((c) => ({ ...c, installationReport: d }))}
               />
@@ -810,6 +812,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 label="KYC"
                 doc={docs.kyc}
                 prefix={`${f.partyName || 'Request'} - KYC`}
+                folder="kyc"
                 onBusy={(b) => setUploading((n) => n + (b ? 1 : -1))}
                 onChange={(d) => setDocs((c) => ({ ...c, kyc: d }))}
               />
@@ -844,11 +847,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 // → the request stores the resulting link.
 // ---------------------------------------------------------------------------
 function DriveFileField({
-  label, doc, prefix, onChange, onBusy,
+  label, doc, prefix, folder, onChange, onBusy,
 }: {
   label: string;
   doc: Doc;
   prefix: string;
+  // REQUIRED, not optional: these two documents are the whole reason the KYC
+  // and Additional Reports folders exist, and a field added later without one
+  // would silently go back to heaping them in the drive root.
+  folder: DriveFolder;
   onChange: (d: Doc) => void;
   onBusy: (busy: boolean) => void;
 }) {
@@ -859,7 +866,7 @@ function DriveFileField({
     if (!file) return;
     setErr(''); setBusy(true); onBusy(true);
     try {
-      const res = await uploadToDrive(file, prefix);
+      const res = await uploadToDrive(file, prefix, folder);
       if (res.ok && res.url) onChange({ name: file.name, url: res.url });
       else setErr(res.error ?? 'Upload failed.');
     } catch (e) {

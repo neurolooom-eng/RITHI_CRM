@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { recordToRow, rowToRecord } from './fieldcall';
+import type { DriveFolder } from './drivefolders';
 import * as sb from './supabase';
 
 const URL_KEY = 'rithi.sheets.url';
@@ -509,7 +510,15 @@ export async function uploadManualReport(ucn: string, column: string, file: File
 // is read back over GET (which is CORS-safe).
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: boolean; url?: string; error?: string }> {
+// WHERE THE FILE GOES: `DriveFolder` and the rule that picks one live in
+// `./drivefolders`, which imports nothing — this module reaches `supabase.ts`
+// and its `import.meta.env`, so anything defined here cannot be tested.
+//
+// Omitting the key is a real answer, not an oversight: an upload with no folder
+// lands in the drive root. The Document Library uses that deliberately — a
+// service manual is not a visit report and has no folder of its own yet.
+
+export async function uploadToDrive(file: File, prefix = '', folder?: DriveFolder): Promise<{ ok: boolean; url?: string; error?: string }> {
   const base = getSheetsUrl();
   if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
@@ -519,7 +528,7 @@ export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: bool
     await fetch(base, {
       method: 'POST',
       mode: 'no-cors',
-      body: JSON.stringify({ action: 'driveupload', ref, prefix, filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
+      body: JSON.stringify({ action: 'driveupload', ref, prefix, folder: folder ?? '', filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
       redirect: 'follow',
     });
   } catch (e) {

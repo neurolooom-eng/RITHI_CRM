@@ -473,16 +473,93 @@ function _master(name, limit) {
 // travels in the request body. The browser can't read this response (opaque
 // cross-origin), so the app confirms by re-reading the report afterwards.
 // ---------------------------------------------------------------------------
-// Reports are stored in this specific Drive folder. Falls back to a named
-// folder only if the id is unreachable (permissions / wrong account).
+// ---------------------------------------------------------------------------
+// WHERE A FILE GOES — one shared drive, five folders, chosen by what the file IS.
+//
+// The user, 2026-09-20: "RE-route the File Storage ... Map it to the appropriate
+// folders". Everything used to land in ONE flat folder, which is why a Field
+// report, an Installation KYC and a PM report were indistinguishable the moment
+// they were uploaded. Storage is now the AIR LIQUIDE "Reports" shared drive and
+// each kind of document gets the folder that already exists for it.
+//
+// RESOLVED BY NAME, NOT BY A PASTED ID, and that is the load-bearing decision:
+// a shared drive's subfolder ids cannot be read from outside the drive, so an
+// id copied off a screenshot is a GUESS — and a wrong one does not fail, it
+// files the document somewhere nobody thinks to look. The names below are the
+// folders as that drive lists them. Each id is resolved once and remembered in
+// script properties, so this costs one lookup per folder per deployment, and a
+// remembered id that stops resolving (folder moved, renamed, deleted) is
+// dropped and looked up again rather than trusted.
+//
+// A KEY THAT CANNOT BE RESOLVED FALLS BACK TO THE DRIVE ROOT — never to an
+// error and never to nothing. Losing an engineer's signed report is worse than
+// filing it one level up, and the root is still inside the shared drive.
+// ---------------------------------------------------------------------------
+var DRIVE_ROOT_ID = '0AEcWDaijkhs_Uk9PVA';   // "Reports" shared drive (AIR LIQUIDE)
+
+var DRIVE_FOLDERS = {
+  field:        'Field Reports',          // a Field call's service report
+  installation: 'Installation Reports',   // an Installation call's report
+  pm:           'PM Reports',             // a PM call's report
+  kyc:          'KYC',                    // Call Request -> KYC
+  additional:   'Additional Reports'      // Call Request -> Installation Report
+};
+
+// The flat folder everything went to before today. STILL READ, NEVER WRITTEN:
+// every report uploaded until now lives in it, and dropping it from here would
+// make all of them unservable through `drivefile` — see _isAppDocument.
 var REPORT_FOLDER_ID = '1-46Ud9j3mXnInzlYr_zfFGEL-xx4z2La';
-function _reportFolder() {
+
+function _legacyFolder() {
   try { return DriveApp.getFolderById(REPORT_FOLDER_ID); }
   catch (e) {
     var name = 'RITHI Manual Reports';
     var it = DriveApp.getFoldersByName(name);
     return it.hasNext() ? it.next() : DriveApp.createFolder(name);
   }
+}
+
+function _driveRoot() {
+  try { return DriveApp.getFolderById(DRIVE_ROOT_ID); } catch (e) { return null; }
+}
+
+// The id of one mapped folder, remembered between runs. '' when the drive or
+// the folder is out of reach — the caller falls back, it does not throw.
+function _folderIdFor(key) {
+  var name = DRIVE_FOLDERS[key];
+  if (!name) return '';
+  var props = null, cached = '';
+  try { props = PropertiesService.getScriptProperties(); cached = props.getProperty('folder_' + key) || ''; }
+  catch (e) { /* properties optional */ }
+  if (cached) {
+    try { DriveApp.getFolderById(cached); return cached; }
+    catch (e) { try { if (props) props.deleteProperty('folder_' + key); } catch (e2) { /* ignore */ } }
+  }
+  var root = _driveRoot();
+  if (!root) return '';
+  var it = root.getFoldersByName(name);
+  if (!it.hasNext()) return '';
+  var id = it.next().getId();
+  try { if (props) props.setProperty('folder_' + key, id); } catch (e) { /* properties optional */ }
+  return id;
+}
+
+// The named folder, else the drive root, else the flat folder this system used
+// before — in that order, so an upload is never lost.
+function _driveFolder(key) {
+  var id = key ? _folderIdFor(key) : '';
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) { /* fall through */ } }
+  return _driveRoot() || _legacyFolder();
+}
+
+// WHICH FOLDER A VISIT REPORT BELONGS IN, read off the UCN. `next_ucn` builds
+// <YY><MonthLetter><DD><TypeLetter><nnnn>, so the SIXTH character is the type:
+// I installation, P PM, anything else field. Mirrors call_table_for() in SQL.
+function _folderKeyForUcn(ucn) {
+  var t = String(ucn || '').charAt(5).toUpperCase();
+  if (t === 'I') return 'installation';
+  if (t === 'P') return 'pm';
+  return 'field';
 }
 
 function _uploadReport(body) {
@@ -492,7 +569,8 @@ function _uploadReport(body) {
   if (!ucn || !b64) return { ok: false, error: 'ucn and file required' };
   var bytes = Utilities.base64Decode(b64);
   var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', body.filename || ('report-' + ucn));
-  var file = _reportFolder().createFile(blob);
+  // The caller may name the folder; otherwise the UCN says which call this is.
+  var file = _driveFolder(body.folder || _folderKeyForUcn(ucn)).createFile(blob);
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy may forbid */ }
   var url = file.getUrl();
   var patch = {}; patch[column] = url;
@@ -506,14 +584,10 @@ function _uploadReport(body) {
 // has no UCN yet. The browser can't read the POST response, so the client sends
 // a `ref` and picks the link up afterwards with the `driveref` GET action.
 // ---------------------------------------------------------------------------
-var REQUEST_DOC_FOLDER_ID = ''; // optional; empty = share the report folder
-
-function _requestDocFolder() {
-  if (REQUEST_DOC_FOLDER_ID) {
-    try { return DriveApp.getFolderById(REQUEST_DOC_FOLDER_ID); } catch (e) { /* fall through */ }
-  }
-  return _reportFolder();
-}
+// A folder that overrides the mapping entirely, for a deployment that wants one
+// place for the request documents. Empty is the normal case: `body.folder`
+// decides, and Request Call Registration sends 'kyc' or 'additional'.
+var REQUEST_DOC_FOLDER_ID = '';
 
 function _driveUpload(body) {
   var b64 = body.dataBase64 || '';
@@ -522,7 +596,13 @@ function _driveUpload(body) {
   if (body.prefix) name = String(body.prefix).replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) + ' - ' + name;
   var bytes = Utilities.base64Decode(b64);
   var blob = Utilities.newBlob(bytes, body.mimeType || 'application/octet-stream', name);
-  var file = _requestDocFolder().createFile(blob);
+  // WHICH FOLDER: whatever the caller asked for. An unknown key is not an
+  // error — _driveFolder falls back to the drive root rather than refusing a
+  // document somebody is standing there waiting to attach.
+  var folder = REQUEST_DOC_FOLDER_ID
+    ? (function () { try { return DriveApp.getFolderById(REQUEST_DOC_FOLDER_ID); } catch (e) { return _driveFolder(body.folder); } })()
+    : _driveFolder(body.folder);
+  var file = folder.createFile(blob);
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) { /* domain policy may forbid */ }
   var url = file.getUrl();
   if (body.ref) _putRef(String(body.ref), url);
@@ -592,7 +672,15 @@ function _driveFile(id) {
 // folder a file sits in is the only thing that says the app put it there.
 function _isAppDocument(file) {
   var want = {};
-  try { want[_reportFolder().getId()] = true; } catch (err) { /* folder unreachable */ }
+  // EVERY folder this app writes to, and the one it used to write to. Leaving
+  // the old one out would refuse every report uploaded before the re-route —
+  // they would stop opening in the app with no error to explain it.
+  try { want[_legacyFolder().getId()] = true; } catch (err) { /* folder unreachable */ }
+  try { var r = _driveRoot(); if (r) want[r.getId()] = true; } catch (err) { /* drive unreachable */ }
+  for (var key in DRIVE_FOLDERS) {
+    var id = _folderIdFor(key);
+    if (id) want[id] = true;
+  }
   if (REQUEST_DOC_FOLDER_ID) want[REQUEST_DOC_FOLDER_ID] = true;
   try {
     var it = file.getParents();
