@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.314",
+  "version": "0.9.315",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -24,7 +24,7 @@
     "db:migrate:dry": "node scripts/apply-migrations.mjs --dry-run",
     "db:baseline": "node scripts/apply-migrations.mjs --baseline",
     "db:baseline:through": "node scripts/apply-migrations.mjs --baseline-through",
-    "schema:doc": "node scripts/schema-doc.mjs",
+    "schema:doc": "node scripts/schema-doc.mjs > docs/DATABASE_SCHEMA.md",
     "check:picklist": "node scripts/check-picklist.mjs",
     "check:status": "node scripts/check-status.mjs",
     "check:dberror": "esbuild scripts/check-dberror.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-dberror.mjs --log-level=error && node node_modules/.cache/check-dberror.mjs",

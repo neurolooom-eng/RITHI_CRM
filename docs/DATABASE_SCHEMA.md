@@ -12,7 +12,7 @@ worse than none — somebody plans around it. Reading 156 migration files to
 describe a default is the method that has produced wrong answers in this
 project before.
 
-**72 tables · 29 views · 1844 columns · 141 policies · 48 foreign keys.**
+**75 tables · 30 views · 1923 columns · 145 policies · 50 foreign keys.**
 
 ## How to read this
 
@@ -69,6 +69,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [notifications](#notifications)
 - [objective_cutoffs](#objective-cutoffs)
 - [ownership_transfers](#ownership-transfers)
+- [part_rename_ticket](#part-rename-ticket)
 - [parties](#parties)
 - [parts](#parts)
 - [party_key_seq](#party-key-seq)
@@ -76,6 +77,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [pending_registrations](#pending-registrations)
 - [pm_calls](#pm-calls)
 - [product_additional_entries](#product-additional-entries)
+- [product_database_v2_state](#product-database-v2-state)
 - [product_master](#product-master)
 - [products](#products)
 - [profiles](#profiles)
@@ -85,6 +87,7 @@ rule — and a table with RLS on and **no** policy for a command denies everyone
 - [role_table_views](#role-table-views)
 - [sale_entries](#sale-entries)
 - [sale_items](#sale-items)
+- [saved_charts](#saved-charts)
 - [sla_rules](#sla-rules)
 - [spare_consumption](#spare-consumption)
 - [spare_consumption_history](#spare-consumption-history)
@@ -349,6 +352,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 20 | `any_potential_effect` | text _(generated)_ | yes |  |  |
 | 21 | `review2_by_uid` | uuid | yes |  | → users(id) · WHO completed Review 2, from auth.uid() at the moment it was completed. The text column beside it is the display name; this is the identity. |
 | 22 | `review3_by_uid` | uuid | yes |  | → users(id) |
+| 23 | `actual_product` | text | **no** | `''::text` | Set in Review 2 where the thing that failed is not the product the call names — an accessory logged against the machine it is fitted to. Empty means the call was right. The call is never rewritten: this is what the review determined, and field_failure_register.live_product_name is the one the counts use. |
 
 **References:**
 
@@ -506,7 +510,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 - `created_by` → **users**(`id`) · on delete no action _(contract_items_created_by_fkey)_
 - `mc_number` → **contract_entries**(`mc_number`) · on delete cascade _(contract_items_mc_number_fkey)_
 
-**Triggers:** `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()`
+**Triggers:** `contract_items_cover_code` → `present_cover_code_stamp()` · `contract_items_defaults` → `contract_items_defaults()` · `contract_items_stub_header` → `contract_items_stub_header()` · `contract_items_sync_cover` → `cover_item_sync()`
 
 **Permissions**
 
@@ -714,7 +718,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `field_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'field'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `calls_biu` → `calls_before_insert()` · `field_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
 
 **Permissions**
 
@@ -1092,8 +1096,8 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Constraints:**
 
-- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 - `indoor_jobs_condemned_needs_reason` — `CHECK (((status <> 'Condemned'::text) OR (btrim(condemned_reason) <> ''::text)))`
+- `indoor_jobs_other_needs_note` — `CHECK (((activity <> 'Other'::text) OR (btrim(activity_note) <> ''::text)))`
 
 **Triggers:** `zz_indoor_jobs_guard` → `indoor_jobs_guard()` · `zz_indoor_jobs_stamp` → `indoor_jobs_stamp()`
 
@@ -1174,7 +1178,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `installation_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'installation'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `calls_biu` → `calls_before_insert()` · `installation_calls_cover_code` → `cover_code_stamp()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
 
 **Permissions**
 
@@ -1438,6 +1442,25 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 ---
 
+## part_rename_ticket
+
+> The capability that lets rename_part() move a consumption line. RLS on with NO policy and no grants, so only the definer-owned functions can write or read one — a set_config flag was forgeable by anybody who could update the line.
+
+**Primary key:** `txid` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `txid` | bigint | **no** |  |  |
+| 2 | `old_key` | text | **no** |  |  |
+| 3 | `new_detail` | text | **no** |  |  |
+| 4 | `at` | timestamp with time zone | **no** | `now()` |  |
+
+**Permissions**
+
+_RLS is ON and there is no policy — **nothing is permitted** to a normal role. Reached only by the owner or a `security definer` function._
+
+---
+
 ## parties
 
 **Primary key:** `id` · **Row-level security:** **on**
@@ -1454,10 +1477,30 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 8 | `created_at` | timestamp with time zone | **no** | `now()` |  |
 | 9 | `party_key` | text | yes |  |  |
 | 10 | `name_key` | text _(generated)_ | yes |  |  |
+| 11 | `service_engineer` | text | yes | `''::text` | The Serviceman on the Party Master — who looks after this customer. Prefills "Call Allocated To" where the machine has no Service Engineer of its own. |
+| 12 | `profile` | text | yes | `''::text` | PRIVATE / GOVERNMENT — the export's own Profile column, which Type used to swallow. |
+| 13 | `route` | text | yes | `''::text` |  |
+| 14 | `pincode` | text | yes | `''::text` |  |
+| 15 | `phone` | text | yes | `''::text` |  |
+| 16 | `phone_2` | text | yes | `''::text` |  |
+| 17 | `fax` | text | yes | `''::text` |  |
+| 18 | `email` | text | yes | `''::text` |  |
+| 19 | `billing_address` | text | yes | `''::text` |  |
+| 20 | `billing_pincode` | text | yes | `''::text` |  |
+| 21 | `billing_phone` | text | yes | `''::text` |  |
+| 22 | `billing_phone_2` | text | yes | `''::text` |  |
+| 23 | `billing_fax` | text | yes | `''::text` |  |
+| 24 | `billing_email` | text | yes | `''::text` |  |
+| 25 | `gstin` | text | yes | `''::text` | GSTIN, 15 characters. Parsed out of the export's free-text Tax columns. |
+| 26 | `pan` | text | yes | `''::text` | PAN, 10 characters. A GSTIN contains one at characters 3-12, so it is derived where only a GSTIN is known. |
+| 27 | `kyc_status` | text | yes | `'Pending'::text` | (empty) · Pending · Verified · Rejected · Pending / Verified / Rejected. Every party starts Pending: nobody has verified anything yet. |
+| 28 | `kyc_notes` | text | yes | `''::text` |  |
+| 29 | `kyc_verified_by` | uuid | yes |  |  |
+| 30 | `kyc_verified_at` | timestamp with time zone | yes |  |  |
 
 **Unique:** `name_key` _(parties_name_key_uniq)_ · `party_key) WHERE (party_key IS NOT NULL` _(partial)_ _(parties_party_key_uniq)_
 
-**Triggers:** `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()`
+**Triggers:** `parties_aii` → `parties_after_insert()` · `parties_biu` → `parties_before_write()` · `parties_kyc_stamp` → `parties_kyc_stamp()`
 
 **Permissions**
 
@@ -1645,7 +1688,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 - `pm_calls_type_ck` — `CHECK ((call_table_for(call_type) = 'pm'::text))`
 
-**Triggers:** `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
+**Triggers:** `calls_biu` → `calls_before_insert()` · `no_hard_delete` → `block_hard_delete()` · `notify_alloc` → `notify_call_allotted()` · `pm_calls_cover_code` → `cover_code_stamp()` · `zz_calls_allot_guard` → `calls_allot_guard()` · `zz_calls_edit_section_guard` → `calls_edit_section_guard()` · `zz_calls_stamp_creator` → `calls_stamp_creator()`
 
 **Permissions**
 
@@ -1699,6 +1742,29 @@ _No policies, RLS off — reachable by anything with table privileges._
 | --- | --- | --- | --- |
 | ALL | `pae_write` | `has_perm('cover.edit'::text)` | `has_perm('cover.edit'::text)` |
 | SELECT | `pae_read` | `(auth.role() = 'authenticated'::text)` | — |
+
+---
+
+## product_database_v2_state
+
+**Primary key:** `only_row` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `only_row` | boolean | **no** | `true` |  |
+| 2 | `refreshed_at` | timestamp with time zone | **no** | `now()` |  |
+| 3 | `rows_built` | integer | **no** | `0` |  |
+| 4 | `refreshed_by` | uuid | yes |  |  |
+
+**Constraints:**
+
+- `product_database_v2_state_only_row_check` — `CHECK (only_row)`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| SELECT | `pdv2_state_read` | `(has_perm('masters.view'::text) OR has_perm('cover.edit'::text) OR is_admin())` | — |
 
 ---
 
@@ -1785,6 +1851,8 @@ _No policies, RLS off — reachable by anything with table privileges._
 | 38 | `associated_accessory` | text | **no** | `''::text` |  |
 
 **Unique:** `machine_key` _(products_machine_key_uniq)_
+
+**Triggers:** `products_cover_code` → `cover_code_stamp()`
 
 **Permissions**
 
@@ -2086,6 +2154,44 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 ---
 
+## saved_charts
+
+> A chart somebody built and kept. role NULL = private to owner; '' = everyone; otherwise that role key. The spec holds a dimension and a chart type — never data.
+
+**Primary key:** `id` · **Row-level security:** **on**
+
+| # | Column | Type | Null | Default | Allowed values / reference |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `id` | bigint _(identity)_ | **no** |  |  |
+| 2 | `page` | text | **no** |  |  |
+| 3 | `name` | text | **no** |  |  |
+| 4 | `role` | text | yes |  |  |
+| 5 | `owner` | uuid | yes |  | → users(id) |
+| 6 | `spec` | jsonb | **no** | `'{}'::jsonb` |  |
+| 7 | `set_at` | bigint | **no** | `((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint` |  |
+| 8 | `created_at` | timestamp with time zone | **no** | `now()` |  |
+| 9 | `updated_at` | timestamp with time zone | **no** | `now()` |  |
+| 10 | `updated_by` | uuid | yes |  | → users(id) |
+
+**Unique:** `page, owner, name) WHERE (role IS NULL` _(partial)_ _(saved_charts_mine_uniq)_ · `page, role, name) WHERE (role IS NOT NULL` _(partial)_ _(saved_charts_shared_uniq)_
+
+**References:**
+
+- `owner` → **users**(`id`) · on delete no action _(saved_charts_owner_fkey)_
+- `updated_by` → **users**(`id`) · on delete no action _(saved_charts_updated_by_fkey)_
+
+**Triggers:** `saved_charts_stamp` → `saved_charts_stamp()`
+
+**Permissions**
+
+| Command | Policy | Using | With check |
+| --- | --- | --- | --- |
+| ALL | `sc_write_mine` | `((role IS NULL) AND (owner = auth.uid()))` | `((role IS NULL) AND (owner = auth.uid()))` |
+| ALL | `sc_write_shared` | `((role IS NOT NULL) AND (is_admin() OR has_perm('config.manage'::text)))` | `((role IS NOT NULL) AND (is_admin() OR has_perm('config.manage'::text)))` |
+| SELECT | `sc_read` | `(((role IS NULL) AND (owner = auth.uid())) OR (role = ''::text) OR (role = my_role()))` | — |
+
+---
+
 ## sla_rules
 
 **Primary key:** `key` · **Row-level security:** **on**
@@ -2143,7 +2249,7 @@ _No policies, RLS off — reachable by anything with table privileges._
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_consumption_created_by_fkey)_
 
-**Triggers:** `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `no_hard_delete` → `block_hard_delete()`
+**Triggers:** `consumption_adjust_guard` → `consumption_adjust_guard()` · `consumption_biu` → `consumption_before_insert()` · `consumption_reconcile_guard` → `consumption_reconcile_guard()` · `no_hard_delete` → `block_hard_delete()` · `zz_consumption_needs_visit` → `consumption_needs_a_visit()`
 
 **Permissions**
 
@@ -2275,7 +2381,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 - `created_by` → **users**(`id`) · on delete no action _(spare_dispatches_created_by_fkey)_
 
-**Triggers:** `spare_dispatches_assign_no` → `spare_dispatches_assign_no()`
+**Triggers:** `spare_dispatches_assign_no` → `spare_dispatches_assign_no()` · `spare_dispatches_stamp_actor` → `spare_dispatches_stamp_actor()`
 
 **Permissions**
 
@@ -2496,7 +2602,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 
 **Referenced by:** `spare_request_engineer_log.request_uid` · `spare_request_lines.request_uid`
 
-**Triggers:** `no_hard_delete` → `block_hard_delete()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()`
+**Triggers:** `no_hard_delete` → `block_hard_delete()` · `spare_request_engineer_guard` → `spare_request_engineer_guard()` · `spare_requests_assign_or_no` → `spare_requests_assign_or_no()` · `spare_requests_cover_code` → `cover_code_stamp()` · `spare_requests_number_immutable` → `spare_requests_number_immutable()` · `spare_requests_stage_guard` → `spare_requests_stage_guard()`
 
 **Permissions**
 
@@ -2667,7 +2773,7 @@ _RLS is ON and there is no policy — **nothing is permitted** to a normal role.
 | 14 | `phone` | text | yes | `''::text` |  |
 | 15 | `role` | text | yes | `''::text` | RBAC role key (app_roles.role) granted when this person first signs in. |
 
-**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()`
+**Triggers:** `user_directory_address_guard` → `user_directory_address_guard()` · `user_directory_profile_sync` → `sync_profile_from_user_directory()`
 
 **Permissions**
 
@@ -2750,21 +2856,22 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 | `call_report` | **on** | 51 |
 | `call_state` | **on** | 6 |
 | `calls` | **on** | 49 |
-| `consumption_report` | **on** | 39 |
+| `consumption_report` | **on** | 40 |
 | `contract_details` | **on** | 33 |
 | `engineer_stock` | _not set_ | 3 |
 | `failure_modes_by_product` | **on** | 4 |
 | `failure_rate_by_product` | **on** | 6 |
 | `feedback_report` | **on** | 28 |
-| `field_call_review` | **on** | 54 |
+| `field_call_review` | **on** | 57 |
 | `field_call_review_summary` | **on** | 11 |
-| `field_failure_register` | **on** | 55 |
+| `field_failure_register` | **on** | 57 |
 | `handstock_balance` | **on** | 20 |
 | `handstock_movements` | **on** | 16 |
 | `indoor_job_list` | **on** | 83 |
 | `kpi_field_inst` | **on** | 34 |
 | `machine_cover` | **on** | 19 |
 | `pending_calls` | **on** | 49 |
+| `product_database_v2` | **on** | 34 |
 | `product_party_names` | **on** | 2 |
 | `product_register_names` | **on** | 2 |
 | `spare_pending_dispatch` | **on** | 31 |
@@ -2783,6 +2890,8 @@ silently, with no error. `npm run check:views` fails any that lacks it.
 **`feedback_report`** — One row per customer feedback, with the export's own questions as named columns. A blank on a question is "not asked of that kind of visit", not a missing answer. security_invoker, so it shows a reader exactly the feedback they may see.
 
 **`kpi_field_inst`** — The KPI workbook's Field_INST tab, columns A-AG. The per-call lookups into reports and spare_requests are LATERAL so the caller's date range narrows the calls FIRST — pre-aggregating the whole of reports made a 455-call export scan 55,000 visits three times, which under RLS re-ran the call-visibility stack per row and timed out (0159).
+
+**`product_database_v2`** — Product Database 2.0 — one row per machine, as of refreshed_at. A thin gate over product_database_v2_mv (0220); the matview is granted to nobody.
 
 **`product_party_names`** — Distinct party names FROM THE PRODUCT REGISTER, with how many machines each holds — the source for every Party→Product→Serial picker. The Party Master is a maintained list; this is the record of what exists, and a party with no machines cannot answer "whose machine is this?". Installation call requests are the one exception and fall back to the Party Master and free text, because an installation reaches a customer who has no machine yet (0160).
 

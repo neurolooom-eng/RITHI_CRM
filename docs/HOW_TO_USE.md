@@ -348,6 +348,15 @@ typed into a form that reads it.
   > wearing that number, and is left out rather than guessed at. That is why 2.0
   > can show fewer machines than the older cover view, which needs only a serial
   > and merges the ones that share one.
+  > **The figures are AS OF THE LAST REBUILD**, and the screen says when —
+  > *"Built <date and time>"* beside the title. Working every machine out from
+  > five registers on demand took about **3 seconds per page** and the screen
+  > needs ten pages, so it was timing out and showing nothing; it is worked out
+  > **once** now and read back in milliseconds. After loading a warranty,
+  > contract, additional-entry or ownership-transfer file, press **⟳ Rebuild
+  > from the registers** to bring it up to date. Nobody is locked out of the
+  > screen while it rebuilds, and anyone who may edit masters or cover can do
+  > it.
   > **If the screen is empty it tells you why**, counting the three registers
   > — rows, rows with no serial, rows with no model — and saying which of
   > those it is. It says *every* row is missing something only where every

@@ -104,6 +104,16 @@ insert into public.ownership_transfers (item_name, serial_number, from_party, to
  -- M3 changed hands and NOTHING later says otherwise -> the transfer decides.
         ('ORION-G','1003','ALPHA HOSPITAL','EPSILON LAB', current_date - 20, 'OT-2');
 
+
+-- THE VIEW IS MATERIALISED (0220), SO A FIXTURE IS NOT VISIBLE UNTIL IT IS
+-- REBUILT. That is the price of the speed fix and it is real: after loading a
+-- register, Product Database 2.0 shows the PREVIOUS figures until somebody
+-- rebuilds it — which is why the screen prints "Built <time>" and carries a
+-- Rebuild button. Refreshed directly here rather than through
+-- refresh_product_database_2(), which quite rightly refuses a session with no
+-- identity; the permission on that function is proved in
+-- product_database_2_materialised_test.sql.
+refresh materialized view public.product_database_v2_mv;
 \echo '--- 3. the assembled rows ---'
 select serial_number, product_name, party_name, party_from, item_status, item_status_reason
   from public.product_database_v2 order by product_name, serial_number;
@@ -191,6 +201,7 @@ update public.installation_calls
    set last_visit_at = (current_date - 20)::timestamptz, last_status = 'Solved'
  where ucn = 'INST-2';
 
+refresh materialized view public.product_database_v2_mv;
 do $$
 declare r record;
 begin
@@ -217,6 +228,7 @@ begin
   raise notice 'PASS: answered > solved date > register, and "n/a" neither reads as a date nor breaks the view';
 end $$;
 
+refresh materialized view public.product_database_v2_mv;
 \echo '--- 5. every machine, one row each ---'
 select count(*) as machines,
        count(*) filter (where item_status = 'WGP') as wgp,

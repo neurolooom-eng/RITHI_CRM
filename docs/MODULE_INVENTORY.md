@@ -216,6 +216,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/ProductDatabase2.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `masters.view` — View masters
+- **Also tested in the screen** (not offered under this page in the matrix): `masters.edit`
 - **Buttons** “⭳ Export CSV”
 
 ### Product Master (product lines) `/product-master`
