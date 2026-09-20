@@ -20,6 +20,67 @@ up)_
 
 ---
 
+## 2026-09-20 — Cover requirements, and Product Database 2.0
+
+> *"Write requirements inline with ISO guidelines for contract, warranty,
+> ownership transfer, then write test cases, then the current module and tell me
+> the gaps."* … *"Do Not disturb the current product Database, create this as
+> Product Database 2.0."*
+
+**`docs/COVER_REQUIREMENTS.md`** — 20 requirements (CW-001…CW-020) across
+identification, warranty, contract, ownership and the assembled record, each
+mapped to the ISO 13485:2016 clause it serves with a status line. The third
+hand-maintained reference after CR and SR; `requirements-doc.ts` folds it into
+`REQUIREMENTS.md`. Test cases CWT-01…CWT-15 (executable) plus OQ-64…OQ-66, and
+URS-068/069/070 → FRS-080/081/082 in the validation package.
+
+**The gaps, ranked by consequence** — and quantifiable on live data with
+`_product_database_2_vs_1.sql`, because this repository can rank them and cannot
+count them:
+
+1. `machine_cover` keys on the **serial alone** and merges machines that share
+   one under different models.
+2. An **ownership transfer changes nothing** about cover anywhere.
+3. Machines recovered into **Additional Entries are invisible** to cover.
+4. A machine **inside warranty reads as its contract** (contract asked first).
+5. A **blank contract type becomes CMC** — a labour contract read as
+   comprehensive.
+6. `products.item_status` is **stored and never recomputed**.
+7. The **Warranty Start Date captured at installation is never read back**.
+8. **Two spellings of the machine key** — generated columns lower/trim, the
+   client and 0218 squash.
+
+1–5 and 7 are closed *for anything reading the new view*. 6 and 8 belong to the
+stored table and are open.
+
+**Product Database 2.0** — `product_database_v2` (0218), a VIEW beside
+`products` and `machine_cover`, both untouched. Warranty decides before
+contract; labour→AMC, comprehensive→CMC, anything else unchanged; a typeless
+contract is flagged, never guessed. `cover_period_end()` reproduces
+`addPeriod()`'s JavaScript month overflow — **26 of 458 start/period pairs
+differ** from a plain Postgres interval, proved against the app.
+
+Screen at `/product-database-2`, `PERM_TREE` entry, and **0219** copies the
+module key onto whoever already holds the Product Database.
+
+### Two things `check:replay` and `check:bundles` caught
+
+- 0218 was filed with the registers it reads and **died twice** — once on
+  `cover_code()` (0208, `data_integrity`), once on `imported_ts()` (0215,
+  `performance`) — because a SQL function body *and* a view are resolved at
+  creation. It has its own bundle, last in `ALL_ORDER`.
+- ⚠️ **A module name containing a DIGIT was invisible to `check:bundles`**: its
+  parser matched `[a-z_]+`, so `product_database_2`'s files fell into the
+  preceding module's chunk and the mirror rule was reported against a module
+  that does not own them. Widened to `[a-z0-9_]+`.
+
+**To run:** `product_database_2.sql`, then `rbac.sql` (0219). Then
+`_status.sql` row **169**.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
 ## 2026-09-18 — ⚠️ The probe answered about the wrong person, and a correction
 
 The probe was run and came back as `rajendraawasthi961@gmail.com` — **not** the

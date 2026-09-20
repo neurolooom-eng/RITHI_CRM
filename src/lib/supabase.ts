@@ -1607,6 +1607,21 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
 // ties whenever two requests share a timestamp — which a bulk import makes
 // certain — and a tie can put the same row on two pages, or neither. `id`
 // breaks it.
+// ---------------------------------------------------------------------------
+// PRODUCT DATABASE 2.0 (0218) — one row per machine, assembled from the five
+// registers. PAGED, because this is the install base: ~20,000 machines, and a
+// capped read here would be the Product & Party Search fault again.
+//
+// ORDERED BY `machine_key`, which the view derives and is unique per row -- so
+// the pages cannot overlap. Ordering by product or party would tie in their
+// thousands and a tie puts a row on two pages or on neither.
+// ---------------------------------------------------------------------------
+export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.from('product_database_v2').select('*').order('machine_key').range(from, to));
+}
+
 export async function listCallRequestsAsPending(): Promise<Record<string, unknown>[]> {
   const c = must();
   const data = await allRows<Record<string, unknown>>((from, to) =>

@@ -14,6 +14,7 @@ goes stale while reading as authoritative.
 | **FRS** | `src/lib/validation.ts` | **System requirements** — how this system does it. Each names the URS it implements |
 | **CR** | [`docs/CALL_REQUEST_REQUIREMENTS.md`](CALL_REQUEST_REQUIREMENTS.md) | The CALL REQUEST module, in full |
 | **SR** | [`docs/ISO13485_SERVICING.md`](ISO13485_SERVICING.md) | The SERVICING PROCESS against ISO 13485 §7.5.4 — a DRAFT, not approved |
+| **CW** | [`docs/COVER_REQUIREMENTS.md`](COVER_REQUIREMENTS.md) | WARRANTY, CONTRACT, OWNERSHIP TRANSFER and the assembled machine record — a DRAFT |
 | **OQ / PQ** | `src/lib/validation.ts` | The tests that prove each one |
 
 ## How to read it
@@ -293,6 +294,30 @@ Warranty and contract cover per machine shall be maintained and reflected on cal
 
 **FRS-016.** Warranty (Sale Entry) and Contract (Contract Entry) registers hold the parent record; machines inherit its values unless individually pinned.
 
+### URS-068 — One identified record per machine, assembled from every register that names it
+
+*Risk: High. Filed here because its own words name this screen.*
+
+Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-080** — Product Database 2.0 assembles one row per machine from five registers | High | OQ-64 |
+
+**FRS-080.** `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are.
+
+### URS-070 — A warranty starts when the machine was installed
+
+*Risk: High. Filed here because its own words name this screen.*
+
+The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-082** — Warranty start comes from the installation, and the end is computed like the app | High | OQ-66 |
+
+**FRS-082.** Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two.
+
 ## Contract Register `/contracts`
 
 Opened by `mod:/contracts`.
@@ -321,6 +346,18 @@ A maintenance contract shall be renewable from its predecessor without the machi
 
 **FRS-056.** A contract raises its successor from the register: the machines (each removable before saving), contract type, party, period, PM visit count and billing schedule are carried; `prev_mc_number` on the header and `last_contract_number` / `last_contract_end` on each item record the link back. The successor starts the day AFTER the predecessor ends and a period ends the day BEFORE its anniversary, so `machine_cover` has one unambiguous answer per day. The MC number is entered, never generated, and is refused if it already exists — renewing into an existing number would merge two contracts. Rate, tax and total are left empty on every machine.
 
+### URS-068 — One identified record per machine, assembled from every register that names it
+
+*Risk: High. Filed here because its own words name this screen.*
+
+Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-080** — Product Database 2.0 assembles one row per machine from five registers | High | OQ-64 |
+
+**FRS-080.** `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are.
+
 ## Ownership Transfer `/ownership-transfer`
 
 Opened by `mod:/ownership-transfer`.
@@ -336,6 +373,18 @@ Warranty and contract cover per machine shall be maintained and reflected on cal
 | **FRS-016** — Cover registers | Medium | OQ-27 |
 
 **FRS-016.** Warranty (Sale Entry) and Contract (Contract Entry) registers hold the parent record; machines inherit its values unless individually pinned.
+
+### URS-068 — One identified record per machine, assembled from every register that names it
+
+*Risk: High. Filed here because its own words name this screen.*
+
+Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-080** — Product Database 2.0 assembles one row per machine from five registers | High | OQ-64 |
+
+**FRS-080.** `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are.
 
 # Knowledge Base
 
@@ -640,6 +689,18 @@ Creation of installation calls shall be restricted to the Commercial function; i
 **FRS-006.** Field, Installation and PM calls are stored in separate physical tables (field_calls / installation_calls / pm_calls) behind a compatibility view with routing triggers; a CHECK constraint prevents mis-filing.
 
 **FRS-008.** Insertion into installation_calls requires the install.create permission (Commercial, Hotline, admin); enforced by RLS.
+
+### URS-070 — A warranty starts when the machine was installed
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-082** — Warranty start comes from the installation, and the end is computed like the app | High | OQ-66 |
+
+**FRS-082.** Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two.
 
 ## Preventive (PM) `/pm-calls`
 
@@ -1292,6 +1353,46 @@ A user shall be able to identify the customer holding a given product and serial
 
 **FRS-037.** A dedicated screen answers the question from either end. By product: the product list is the distinct set of item names in the PRODUCT REGISTER (view `product_register_names`, security_invoker) with the machine count beside each, and choosing one narrows Serial Number to that product’s serials — an equality match on `products.item_name`, served by the btree index of 0052, so a product name is never a prefix of another. By party: the party list opens the master and the box beside it takes any part of a name. Both land on one answer — the party, its recorded details, and every machine held against it. Export is deliberately absent from this screen.
 
+## Product Database 2.0 `/product-database-2`
+
+Opened by `mod:/product-database-2`.
+
+### URS-068 — One identified record per machine, assembled from every register that names it
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-080** — Product Database 2.0 assembles one row per machine from five registers | High | OQ-64 |
+
+**FRS-080.** `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are.
+
+### URS-069 — What a machine is covered by today is derived, not typed
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+Whether a machine is inside its warranty, under a maintenance contract, or covered by neither shall be DERIVED from the recorded warranty and contract periods rather than stored as an opinion that ages. A machine inside its warranty is under warranty (WGP) even where a contract also covers it; a labour contract is AMC and a comprehensive contract is CMC; a machine covered by neither is OGP. A contract whose type was never recorded shall be reported as such and shall never be assumed to be either kind.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-081** — Item status is derived warranty-first, and a typeless contract is flagged | High | OQ-65 |
+
+**FRS-081.** `product_database_v2.item_status` is WGP where the warranty period covers today; otherwise `contract_cover_code(type)` where the contract period covers today — labour/labor to AMC, comprehensive/CMC to CMC, anything else returned UNCHANGED rather than bucketed; otherwise OGP. A contract covering today whose type is blank reads `CONTRACT (TYPE NOT RECORDED)`. This differs from `machine_cover` in both directions on purpose: that view asks the contract FIRST (so a machine inside warranty reads as its contract type) and defaults a blank type to CMC (so a labour contract silently reads as comprehensive).
+
+### URS-070 — A warranty starts when the machine was installed
+
+*Risk: High. Filed here because the requirement declares this screen.*
+
+The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses.
+
+| Implemented by | Risk | Proved by |
+| --- | --- | --- |
+| **FRS-082** — Warranty start comes from the installation, and the end is computed like the app | High | OQ-66 |
+
+**FRS-082.** Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two.
+
 ## Product Master (product lines) `/product-master`
 
 Opened by `mod:/product-master`.
@@ -1747,6 +1848,29 @@ them under a screen would say something the requirement does not.
 - **SR-043** — A quality check is performed on completion, before the equipment goes back, and the record is kept · [full text](ISO13485_SERVICING.md)
 - **SR-044** — A call that moves between departments keeps its identity and its history · [full text](ISO13485_SERVICING.md)
 
+## Cover — warranty, contract, ownership
+
+- **CW-001** — A machine is identified by its model together with its serial · [full text](COVER_REQUIREMENTS.md)
+- **CW-002** — One machine is one row · [full text](COVER_REQUIREMENTS.md)
+- **CW-003** — The identifier is normalised the same way everywhere · [full text](COVER_REQUIREMENTS.md)
+- **CW-004** — A warranty has a recorded start, a recorded period and a derived end · [full text](COVER_REQUIREMENTS.md)
+- **CW-005** — The end of a period is computed the same way everywhere · [full text](COVER_REQUIREMENTS.md)
+- **CW-006** — A warranty starts when the machine was installed · [full text](COVER_REQUIREMENTS.md)
+- **CW-007** — An unreadable answer is not a date · [full text](COVER_REQUIREMENTS.md)
+- **CW-008** — A contract's type is one of two families, and is never guessed · [full text](COVER_REQUIREMENTS.md)
+- **CW-009** — A contract covering today with no recorded type is reported, not assumed · [full text](COVER_REQUIREMENTS.md)
+- **CW-010** — Cover is continuous across a renewal · [full text](COVER_REQUIREMENTS.md)
+- **CW-011** — A change of owner is a dated record, and it is read · [full text](COVER_REQUIREMENTS.md)
+- **CW-012** — The most recently dated evidence decides the party · [full text](COVER_REQUIREMENTS.md)
+- **CW-013** — A machine may not be transferred to the party that already owns it · [full text](COVER_REQUIREMENTS.md)
+- **CW-014** — Every register that names a machine contributes to its record · [full text](COVER_REQUIREMENTS.md)
+- **CW-015** — A machine recovered by hand is a machine · [full text](COVER_REQUIREMENTS.md)
+- **CW-016** — What a machine is covered by today is derived, not stored · [full text](COVER_REQUIREMENTS.md)
+- **CW-017** — Warranty decides before contract · [full text](COVER_REQUIREMENTS.md)
+- **CW-018** — A derived value names the register that decided it · [full text](COVER_REQUIREMENTS.md)
+- **CW-019** — The derived record does not overwrite the registers · [full text](COVER_REQUIREMENTS.md)
+- **CW-020** — The record is readable only by those entitled to the underlying rows · [full text](COVER_REQUIREMENTS.md)
+
 # Where the set is not complete
 
 Stated rather than left to be noticed. None of these is a defect on its own —
@@ -1765,7 +1889,7 @@ text alone.
 
 ## Screens no user requirement governs
 
-**2 of 57.** Each is written down with its reason in
+**2 of 58.** Each is written down with its reason in
 `src/lib/validation.ts` (`MODULES_WITHOUT_REQUIREMENT`), so it is a decision
 somebody made rather than a drift nobody saw — and `check:ui` fails when a
 screen joins this list without one. Neither is a defect on its own; both are
@@ -1778,7 +1902,7 @@ questions for a person.
 
 ---
 
-**67** user requirements · **79** system requirements · **30** call-request · **44** servicing · **71** tests · **2** recorded as non-auditable · **104** of 67 user requirements tied to a module.
+**70** user requirements · **82** system requirements · **30** call-request · **44** servicing · **74** tests · **2** recorded as non-auditable · **112** of 70 user requirements tied to a module.
 
 ---
 
@@ -1899,8 +2023,11 @@ not.
 | **URS-051** | **A quality check separable from the work it checks** — Work performed on equipment before it is returned shall be subject to a recorded quality check held as its own record, attributable to the person who performed it. The authority to sign the check shall be grantable separately from the authority to do the work, so that the two may be different people. Equipment whose check has failed, and work of a kind that requires a check and has none, shall not leave. _(Risk: High.)_ | **FRS-059** | `qc_result` / `qc_by` / `qc_at` / `qc_notes` are columns of the job, not sentences in the work text. `indoor.qc` is a permission distinct from `indoor.work` and is enforced by a BEFORE UPDATE trigger, so a person holding every other authority in the module is refused the check by the database rather than by a hidden button. A trigger refuses any move to Ready, Dispatched or Closed while `qc_result` is Fail, refuses a Repair or Rework reaching Dispatched with no result at all, and refuses a failed pre-delivery inspection leaving. Whether the check must be signed by somebody OTHER than the person who received the unit is NOT enforced: the procedure does not require it, both identities are recorded, and the screen states plainly when they are the same. | **OQ-45** | OQ · The check is separable from the work, and equipment does not leave without one. Expected: The first is refused by the database naming the missing permission — not hidden, refused. The check records with the signer and time stamped. A failed check refuses Dispatched. A repair with no result refuses Dispatched; a demonstration unit does not, having no repair to verify. Where signer and receiver are the same person the record shows both names and the screen states it, the procedure not requiring otherwise. |
 | **URS-052** | **Scrapping equipment is an authorised act** — Condemning equipment shall require an authority granted for that purpose alone, shall record who condemned it and why, and shall be refused to anybody not holding that authority. Parts recovered from condemned equipment shall be recorded with their condition, and shall not enter usable stock in a way that makes them indistinguishable from new parts. _(Risk: High.)_ | **FRS-060** | `indoor.condemn` is a permission of its own, enforced by a trigger on insert and update, and granted to the administrator role alone when the schema is applied — so no role acquires the ability to scrap equipment merely by being given the page. `condemned_reason` is required by a CHECK constraint before the status may be Condemned, and `condemned_by` / `condemned_at` are stamped by the database. Recovered parts are rows in `indoor_job_parts` with a condition grade and a destination in words; NO stock balance is altered, because a recovered part entering stock under its ordinary code cannot afterwards be told from a new one. | **OQ-46** | OQ · Equipment is not scrapped without authority, and no recovered part reaches stock. Expected: The first is refused by the database. A condemnation with no reason is refused by a constraint. The administrator succeeds, and who condemned it and when are stamped. The recovered parts are recorded with their grades and destinations. NO hand-stock balance changes. Only the administrator role holds the permission after a fresh apply. |
 | **URS-026** | **Preventive-maintenance scheduling** — The monthly preventive-maintenance batch shall be created for a stated due month, retaining the date it was uploaded, and shall support loading earlier months. _(Risk: Medium.)_ | **FRS-032** | The PM bulk upload dates every call in a batch to the first of a chosen due month (reg_date), records the upload date as added_on, and sequences a registration date-and-time (reg_at) so the batch holds a stable order. Call numbering is unchanged. | **OQ-19** | OQ · Call re-opening and the preventive-maintenance batch. Expected: The re-open and subsequent closure are recorded without creating a visit; every call in the batch is dated the first of the chosen month, carries the upload date, and holds a stable order; call numbering is unchanged. |
+| **URS-068** | **One identified record per machine, assembled from every register that names it** — Every machine the organisation has sold, contracted or recovered shall appear exactly once in a register of machines, identified by its MODEL together with its SERIAL — never by the serial alone, which repeats across models. That record shall be assembled from the warranty sale register, the contract register, the additional entries, the ownership transfer register and the installation call, and shall state for each of the party, the warranty and the contract WHICH register decided it, so the record can be checked against its evidence. Where the registers disagree, the most recently dated evidence shall decide. _(Risk: High.)_ | **FRS-080** | `product_database_v2` (0218) lists every machine named by `warranty_sale_details`, `contract_details` or `product_additional_entries`, keyed by `machine_key(product, serial)` — the SQL twin of `machineKey()` in `src/lib/machine.ts`, squashed so ORION-G and ORION G are one model, and MODEL-plus-SERIAL so the eleven machines numbered 219 stay eleven rows. Ownership Transfer and the installation call are joined in. The party is the most recently DATED claim among the ownership transfer, the additional entry, the contract and the sale, ties breaking towards the transfer. `party_from`, `warranty_from`, `contract_from` and `item_status_reason` name the deciding register on every row. It does not replace `public.products` or `machine_cover`, both of which are left exactly as they are. | **OQ-64** | OQ · One row per machine, assembled from five registers, each value naming its source. Expected: Every machine appears exactly once. The two sharing a serial are TWO rows, not one. The party is the one named by the later contract, and party_from says so. machine_cover merges the same-serial pair into one row, which is the difference this register exists to remove. |
+| **URS-069** | **What a machine is covered by today is derived, not typed** — Whether a machine is inside its warranty, under a maintenance contract, or covered by neither shall be DERIVED from the recorded warranty and contract periods rather than stored as an opinion that ages. A machine inside its warranty is under warranty (WGP) even where a contract also covers it; a labour contract is AMC and a comprehensive contract is CMC; a machine covered by neither is OGP. A contract whose type was never recorded shall be reported as such and shall never be assumed to be either kind. _(Risk: High.)_ | **FRS-081** | `product_database_v2.item_status` is WGP where the warranty period covers today; otherwise `contract_cover_code(type)` where the contract period covers today — labour/labor to AMC, comprehensive/CMC to CMC, anything else returned UNCHANGED rather than bucketed; otherwise OGP. A contract covering today whose type is blank reads `CONTRACT (TYPE NOT RECORDED)`. This differs from `machine_cover` in both directions on purpose: that view asks the contract FIRST (so a machine inside warranty reads as its contract type) and defaults a blank type to CMC (so a labour contract silently reads as comprehensive). | **OQ-65** | OQ · Item status is derived warranty-first and never guesses a contract type. Expected: WGP, AMC, CONTRACT (TYPE NOT RECORDED) and OGP respectively, each with a reason naming the deciding register. machine_cover answers the contract type for the first and CMC for the third, which are the two differences. |
+| **URS-070** | **A warranty starts when the machine was installed** — The warranty period of a machine shall start from the date recorded on its installation — the Warranty Start Date captured when the installation call is reported, or failing that the date that call was solved — and shall fall back to the selling register only where no installation was recorded. The end of the period shall be derived from that start and the recorded period, by the same arithmetic the rest of the application uses. _(Risk: High.)_ | **FRS-082** | Warranty start is the `Warranty Start Date?` answer on the installation call’s feedback, read through `imported_ts()` so a cell holding "n/a" yields nothing rather than failing the whole view; failing that the installation call’s solved date; failing that the additional entry; failing that the warranty sale. Where a start and a period are both known the end is `cover_period_end(start, months)`, which reproduces `addPeriod()` in `src/lib/dates.ts` INCLUDING its JavaScript month overflow — 31 January plus one month is 2 March, where Postgres’s own interval arithmetic clamps to 27 February. 26 of 458 start/period combinations differ between the two. | **OQ-66** | OQ · The warranty starts at the installation and ends by the application’s own arithmetic. Expected: The answered date, then the solved date, then the selling register — warranty_from names which. The end equals start plus period minus a day. "n/a" neither reads as a date nor fails the view. 31 January plus one month is 2 March, matching addPeriod(), where a plain Postgres interval gives 27 February. |
 
-**98** links · **67** user requirements · **79** system requirements · **70** tests · **67** requirements traced end to end, **0** in part, **0** not yet.
+**101** links · **70** user requirements · **82** system requirements · **73** tests · **70** requirements traced end to end, **0** in part, **0** not yet.
 
 **Outside this matrix:** OQ-38 — it proves a
 requirement recorded as NON-AUDITABLE, which sits outside the

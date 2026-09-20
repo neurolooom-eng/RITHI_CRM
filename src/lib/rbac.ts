@@ -67,6 +67,11 @@ export const MODULES: ModuleDef[] = [
   // screen: leaving it pointing at a new thing without moving the audience
   // would have been a silent change of what a role can see.
   { path: '/product-database', label: 'Product Database' },
+  // PRODUCT DATABASE 2.0 — the same machines DERIVED from the five registers
+  // rather than stored. A SECOND screen on purpose (the user, 2026-09-20: "Do
+  // Not disturb the current product Database"), so the two can be compared on
+  // live data before either moves.
+  { path: '/product-database-2', label: 'Product Database 2.0' },
   { path: '/product-master', label: 'Product Master (product lines)' },
   { path: '/user-master', label: 'User Master' },
   { path: '/parts', label: 'Part Master' },
@@ -514,6 +519,7 @@ export const PERM_TREE: PermHeader[] = [
   { title: 'Master', lists: true, pages: [
     { path: '/parties', label: 'Party Master', actions: ['masters.view', 'masters.edit'] },
     { path: '/product-database', label: 'Product Database', actions: ['masters.view', 'calls.create'] },
+    { path: '/product-database-2', label: 'Product Database 2.0', actions: ['masters.view'] },
     { path: '/product-master', label: 'Product Master (product lines)', actions: ['masters.view', 'masters.edit'] },
     { path: '/user-master', label: 'User Master', actions: ['users.manage'] },
     { path: '/parts', label: 'Part Master', actions: ['masters.view', 'masters.edit'] },

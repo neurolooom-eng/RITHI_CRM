@@ -228,6 +228,8 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/parties', label: 'Party Master', icon: '🏥' },
       { to: '/product-database', label: 'Product Database', icon: '🩺' },
+      // 2.0 — the same machines derived from the registers rather than stored.
+      { to: '/product-database-2', label: 'Product Database 2.0', icon: '🧬' },
       // THE CATALOGUE, beside the register of machines it describes. One row
       // per product LINE; the Database is one row per MACHINE.
       { to: '/product-master', label: 'Product Master', icon: '📖' },

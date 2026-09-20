@@ -36,7 +36,16 @@ const moduleFiles = new Map();
 {
   const src = readFileSync('scripts/build-apply-bundles.mjs', 'utf8');
   const body = src.slice(src.indexOf('const MODULES = {'));
-  const re = /^  ([a-z_]+): \{/gm;
+  // `[a-z0-9_]+`, NOT `[a-z_]+`. A module whose name carries a DIGIT was not
+  // matched here, so it was not merely unchecked — it was INVISIBLE: its files
+  // fell into the PRECEDING module's chunk, and the mirror rule was then
+  // reported against a module that does not own them. That is how adding
+  // `product_database_2` produced "0122_spare_requests_replay_tail.sql must be
+  // the LAST file in module spare_requests — it is followed by
+  // 0218_product_database_v2.sql", naming two files that share no module at
+  // all. A check that silently absorbs a module into its neighbour is worse
+  // than one that refuses it.
+  const re = /^  ([a-z0-9_]+): \{/gm;
   const starts = [...body.matchAll(re)].map((m) => ({ name: m[1], at: m.index }));
   starts.forEach((s0, i) => {
     const chunk = body.slice(s0.at, i + 1 < starts.length ? starts[i + 1].at : body.length);

@@ -159,6 +159,9 @@ const MODULES = {
             // three, since those are the roles the user has said not to touch —
             // it reports one holding it instead.
             '0216_view_all_except_the_three.sql',
+            // The Product Database 2.0 module key, copied onto whoever already
+            // holds the Product Database. app_roles lives in THIS module.
+            '0219_product_database_2_key.sql',
             // User Master is the master: a role set there reaches the
             // sign-in by itself. It redefines nothing, but it needs BOTH
             // app_roles (0005, this module) and user_directory, so this is
@@ -744,6 +747,23 @@ const MODULES = {
       // reverting them. Guarded, so a fresh apply skips it.
       '0122_spare_requests_replay_tail.sql'],
   },
+  product_database_2: {
+    title: 'Product Database 2.0',
+    blurb: ['One row per MACHINE — model and serial — assembled from the warranty',
+            'sale register, the contract register, the additional entries, the',
+            'ownership transfer register and the installation call. A VIEW beside',
+            '`products` and `machine_cover`, which it does not touch.',
+            '',
+            'A MODULE OF ITS OWN BECAUSE OF WHERE IT HAS TO RUN, not because it is',
+            'big. It reads `imported_ts()` (0215, in `performance`) and',
+            '`cover_code()` (0208, in `data_integrity`), and both a SQL-language',
+            'function body and a view are resolved AT CREATION — so filed with the',
+            'registers it reads it died twice, first on cover_code and then on',
+            'imported_ts. Everything it needs exists only after the last module,',
+            'so it runs after the last module. `check:replay` found both.'],
+    needs: [],
+    files: ['0218_product_database_v2.sql'],
+  },
 };
 
 // Read queries for the objects above, kept with them so whoever applies the
@@ -875,7 +895,7 @@ function build(name) {
 // that is behind on several. Generated from the same lists, so it cannot drift
 // from the per-module bundles.
 // Dependency order: base, then the shared foundations, then the modules.
-const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance'];
+const ALL_ORDER = ['base', 'user_directory', 'rbac', 'audit', 'tracker', 'indoor', 'masters', 'documents', 'call_requests', 'daily_review', 'reports', 'spare_requests', 'stock_transfer', 'handstock', 'sales_contracts', 'sla', 'knowledge_base', 'notifications', 'validation', 'objective', 'data_integrity', 'performance', 'product_database_2'];
 
 MODULES.all = {
   title: 'Everything, in dependency order',

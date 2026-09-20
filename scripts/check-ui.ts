@@ -7401,6 +7401,24 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     }
     eq('no hand-run probe defaults to a real person\'s email', bad, []);
   }
+  {
+    // WHICH MACHINE — ONE DEFINITION, TWO LANGUAGES. `machineKey()` in
+    // `src/lib/machine.ts` and `public.machine_key()` (0218) must squash the
+    // same way, or Product Database 2.0 groups machines the client would not
+    // and the two disagree about which rows are one machine. Same argument as
+    // `coverCode`/`cover_code`: the SQL is compared with the client here.
+    const sqlKey = readFileSync('supabase/migrations/0218_product_database_v2.sql', 'utf8')
+      .split('create or replace function public.machine_key')[1]?.split('$$')[1] ?? '';
+    eq('the SQL machine key squashes to letters and digits, like machineKey()',
+      (sqlKey.match(/\[\^a-z0-9\]/g) ?? []).length, 2);
+    eq('...and joins the two halves with a pipe', /\|\|\s*'\|'\s*\|\|/.test(sqlKey), true);
+    eq('...and it is MODEL then SERIAL, never the serial alone',
+      sqlKey.indexOf('p_product') < sqlKey.indexOf('p_serial')
+      && sqlKey.includes('p_product') && sqlKey.includes('p_serial'), true);
+    eq('the client key is still the one it is being matched against',
+      /export const machineKey = \(product: unknown, serial: unknown\): string =>/
+        .test(readFileSync('src/lib/machine.ts', 'utf8')), true);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client
