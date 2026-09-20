@@ -312,8 +312,8 @@ obsolete revisions prevented from unintended use.** *§4.2.4.*
 **SR-026 — Servicing records are systematically ANALYSED — not merely filed.**
 *§7.5.4.* This is an explicit obligation and it is the one most easily missed:
 the analysis must happen, and there must be a record that it happened.
-**Status: Partial — the strongest partial in this set.** The Daily Call Review
-walks the register call by call and records Review 1 (public health threat,
+**Status: Partial — the strongest partial in this set.** The Daily Complaint Review Register
+(R/SER/35) walks the register call by call and records Review 1 (public health threat,
 death, serious incident) and Review 2 (risk to patient, warranty failure,
 frequent failure → potential effect), with an auto-answer rule and a reviewer.
 That *is* an analysis with a record. What is missing is the explicit output
@@ -571,7 +571,7 @@ arrived that the decision created.
 ### What I would build first, and why
 
 **1. The complaint determination, and with it the handoff (SR-027 + SR-039).**
-One controlled field and a reason on the Daily Call Review, plus a reference and
+One controlled field and a reason on the Daily Complaint Review Register, plus a reference and
 a date recording that a finding was raised in the quality system that holds CAPA.
 Smallest change on the list; it closes an explicit sub-clause; and now that the
 register is the complaint register it is what makes the complaint population

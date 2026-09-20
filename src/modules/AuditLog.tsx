@@ -100,7 +100,7 @@ export function AuditLog() {
   // It used to sit above four of them, so this screen ran six hooks without
   // `audit.view` and ten with it. Permissions arrive asynchronously, so the
   // first render can be the one without — and a hook count that changes
-  // between renders is React error #310, a white screen. The Daily Call Review
+  // between renders is React error #310, a white screen. The Daily Complaint Review Register
   // hit exactly that on 2026-09-12; this is the same fault, found by the check
   // written for it rather than by somebody opening the page.
   if (!can('audit.view')) {

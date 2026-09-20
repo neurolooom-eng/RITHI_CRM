@@ -1,5 +1,7 @@
 // ---------------------------------------------------------------------------
-// Daily Call Review — DCCR (Daily Customer Complaint Review Register).
+// Daily Complaint Review Register (R/SER/35) — the DCCR.
+// RENAMED 2026-09-20 to the controlled form's own name, which is also what
+// the abbreviation always stood for: Daily Customer Complaint Review Register.
 //
 // Every FIELD call goes through a review, every day, in three stages:
 //

@@ -11,7 +11,7 @@ import { PickList } from './PickList';
 // than a redesign of each form. It renders a PickList, which means the one
 // rule holds everywhere — TYPING FILTERS, IT NEVER SELECTS. That rule is why
 // PickList exists: a native select picks on the first keystroke, and with Auto
-// Save on the Daily Call Review that wrote a Root Cause nobody chose.
+// Save on the Daily Complaint Review Register that wrote a Root Cause nobody chose.
 //
 // A SHORT LIST DOES NOT GET A SEARCH BOX. PickList suppresses it under eight
 // options, so "Yes / No" stays two items you click, not a field you type into

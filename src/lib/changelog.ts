@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.313',
+    date: '2026-09-20',
+    title: 'Daily Complaint Review Register (R/SER/35), and the Review Desk loads the lot',
+    changes: [
+      'RENAMED. \u201cDaily Call Review\u201d is now \u201cDaily Complaint Review Register (R/SER/35)\u201d \u2014 the controlled form\u2019s own name and number \u2014 on the menu, the page, the permissions matrix, My Workload and the handbook. Nothing about WHO can open it changed: the address is the same, so every role keeps it and there is no SQL to run.',
+      'The name is too long for one line in the menu, so a long menu entry now WRAPS instead of being cut off with a \u201c\u2026\u201d. Measured: the name needs 269 pixels and the menu has about 181, so the part that was being hidden was exactly \u201c(R/SER/35)\u201d. Every other entry is short enough to be unaffected.',
+      'TWO TABS REMOVED from the register: DCCR Complaint Grouping and Root Cause Key Word. They are master lists rather than review work, and both are still fully editable under Masters \u2192 All Masters \u2014 nothing is lost, the tab row is just the review\u2019s own stages again.',
+      'THE REVIEW DESK NOW LOADS EVERY CALL IN ONE GO, and so do To be Reviewed, Review 2 Pending and Review 3 Pending. They used to stop at 500 with NO \u201cLoad more\u201d button \u2014 that button was only ever on the Review Register \u2014 so a worklist longer than 500 simply ended, silently. The count on the desk is now exact rather than a \u201c500+\u201d.',
+      'It still protects you from a runaway: past 10,000 rows it stops, puts the \u201c+\u201d back and gives you Load more, so the screen never pretends to have the whole list when it does not. The register itself is about 4,100 calls today.',
+    ],
+  },
+  {
     version: '0.9.312',
     date: '2026-09-20',
     title: 'Product Database 2.0 now says why it is empty, on the screen',

@@ -1,7 +1,7 @@
 {
   "name": "rithi-crm-field-service",
   "private": true,
-  "version": "0.9.312",
+  "version": "0.9.313",
   "type": "module",
   "description": "RITHI CRM - Field Service Module POC (Medical Domain)",
   "scripts": {
@@ -31,8 +31,8 @@
     "check:orders": "node scripts/check-order-columns.mjs",
     "check:reports": "node scripts/check-report-columns.mjs",
     "check:paging": "esbuild scripts/check-paging.ts --bundle --platform=node --format=esm --outfile=node_modules/.cache/check-paging.mjs --log-level=error && node node_modules/.cache/check-paging.mjs",
-    "inventory": "esbuild scripts/module-inventory.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/inventory.mjs --log-level=error && node node_modules/.cache/inventory.mjs",
-    "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs",
+    "inventory": "esbuild scripts/module-inventory.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/inventory.mjs --log-level=error && node node_modules/.cache/inventory.mjs > docs/MODULE_INVENTORY.md",
+    "coverage:reqs": "esbuild scripts/requirement-coverage.ts --bundle --platform=node --format=esm --define:import.meta.env={} --outfile=node_modules/.cache/covreqs.mjs --log-level=error && node node_modules/.cache/covreqs.mjs > docs/REQUIREMENT_COVERAGE.md",
     "validate": "node scripts/validate-run.mjs"
   },
   "dependencies": {

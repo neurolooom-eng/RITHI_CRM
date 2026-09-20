@@ -79,7 +79,7 @@ export const NAV: NavGroup[] = [
       // trailing it: it is where the day's calls are judged, and the Field
       // Failure Register below it is RAISED BY that judgement (0167), so the
       // order on the menu is the order the work happens in.
-      { to: '/daily-review', label: 'Daily Call Review', icon: '📅' },
+      { to: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', icon: '📅' },
       { to: '/failure-report', label: 'Field Failure Register', icon: '🧪' },
       // FROM OVERVIEW (the user, 2026-09-15). The three failure screens read
       // in order: the register of what failed, the analysis of why, and the

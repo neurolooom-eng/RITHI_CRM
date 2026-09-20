@@ -52,7 +52,11 @@ export const MODULES: ModuleDef[] = [
   // the same question at a glance, for one person rather than the company.
   { path: '/workload', label: 'My Workload' },
   { path: '/lookup', label: 'Product & Party Search' },
-  { path: '/daily-review', label: 'Daily Call Review' },
+  // RENAMED to the CONTROLLED FORM'S OWN NAME (the user, 2026-09-20). The
+  // ROUTE is deliberately unchanged: the module key IS the route, so moving
+  // it would take the screen away from every role that holds it and need a
+  // migration to put back. A rename of the LABEL alone needs none.
+  { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)' },
   // WHAT FAILS AND WHY, from every reviewed call — and what is consumed
   // fixing it. Both moved out of Overview into Quality & Analytics (the user,
   // 2026-09-15); the ROUTE is unchanged, so no permission moves with them.
@@ -199,7 +203,7 @@ export const FUNCTIONAL_ACTIONS: ActionDef[] = [
   // people here. It also carries the Reco and Re-open actions on that screen.
   { group: 'Calls', key: 'callreview.mark', label: 'Review a closed call\u2019s report (mark Report Reviewed)' },
   // Deciding a failure goes to manufacturing is not the same act as coding the
-  // call in the Daily Call Review, and the two are held by different people
+  // call in the Daily Complaint Review Register, and the two are held by different people
   // here — so it is its own right rather than riding on review.edit.
   // READING THE REGISTER IS ITS OWN RIGHT (0176). The page key opens the SCREEN;
   // this is what puts rows on it. They were one thing until somebody held
@@ -436,7 +440,7 @@ export const PERM_TREE: PermHeader[] = [
     { path: '/machine-history', label: 'Machine History', actions: [] },
   ] },
   { title: 'Quality & Analytics', pages: [
-    { path: '/daily-review', label: 'Daily Call Review', actions: ['review.edit'] },
+    { path: '/daily-review', label: 'Daily Complaint Review Register (R/SER/35)', actions: ['review.edit'] },
     { path: '/failure-report', label: 'Field Failure Register', actions: ['ffr.view', 'ffr.manage'] },
     // MOVED HERE FROM OVERVIEW WITH THE MENU (the user, 2026-09-15). The
     // header follows the menu because that is where an administrator looks

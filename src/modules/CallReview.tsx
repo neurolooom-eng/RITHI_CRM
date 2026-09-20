@@ -17,7 +17,7 @@ import './dccr.css';
 import './callreview.css';
 
 // ===========================================================================
-// CALL REVIEW — the SECOND review, and not the Daily Call Review.
+// CALL REVIEW — the SECOND review, and not the Daily Complaint Review Register.
 //
 // The DCCR asks what the failure WAS (complaint grouping, root cause, frequent
 // failure). This asks whether the REPORT the engineer filed is fit to stand.

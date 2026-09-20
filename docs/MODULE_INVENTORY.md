@@ -12,11 +12,11 @@ came from, because some are authoritative and one is a floor.
 
 | | |
 | --- | --- |
-| Screens in `MODULES` | **54** |
-| …with a component this script could resolve | 54 |
-| …on the menu | 52 |
+| Screens in `MODULES` | **58** |
+| …with a component this script could resolve | 58 |
+| …on the menu | 56 |
 | …naming a table in their own source | 1 |
-| Redirects (not screens of their own) | 4 |
+| Redirects (not screens of their own) | 5 |
 
 A screen naming **no table** is not a screen that reads nothing — it reads
 through a function in `src/lib`, which this script deliberately does not
@@ -32,13 +32,12 @@ that guessed would be read as a census.
 - **Actions an administrator can grant** (from the permission matrix):
   - `dashboard.view` — View dashboard
 
-### Spare Insights `/spare-insights`
+### My Workload `/workload`
 
-- **Opened by** `mod:/spare-insights`
-- **Source** `src/modules/SpareInsights.tsx`
-- **Actions an administrator can grant** (from the permission matrix):
-  - `consumption.view` — View consumption
-- **Buttons** “This year”
+- **Opened by** `mod:/workload`
+- **Source** `src/modules/Workload.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Buttons** “Open the register ›”
 
 ### Product & Party Search `/lookup`
 
@@ -58,13 +57,29 @@ that guessed would be read as a census.
 
 ## Quality & Analytics
 
-### Daily Call Review `/daily-review`
+### Daily Complaint Review Register (R/SER/35) `/daily-review`
 
 - **Opened by** `mod:/daily-review`
 - **Source** `src/modules/DailyCallReview.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `review.edit` — Complete the daily call review (Review 2 / 3)
 - **Buttons** “Clear”, “Change the filters”, “Cancel”, “All NO”, “Close”
+
+### Product Failure Analysis `/product-failure`
+
+- **Opened by** `mod:/product-failure`
+- **Source** `src/modules/ProductFailureAnalysis.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+- **Also tested in the screen** (not offered under this page in the matrix): `config.manage`
+- **Buttons** “⭳ Download”, “Clear all”, “＋ New chart”, “Save”, “Cancel”
+
+### Spare Insights `/spare-insights`
+
+- **Opened by** `mod:/spare-insights`
+- **Source** `src/modules/SpareInsights.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `consumption.view` — View consumption
+- **Buttons** “This year”
 
 ### Field Failure Register `/failure-report`
 
@@ -184,7 +199,7 @@ that guessed would be read as a census.
 - **Actions an administrator can grant** (from the permission matrix):
   - `masters.view` — View masters
   - `masters.edit` — Edit masters
-- **Buttons** “⭳ Export CSV”
+- **Buttons** “✎ Change engineer”, “⭳ Export CSV”, “Cancel”
 
 ### Product Database `/product-database`
 
@@ -194,6 +209,14 @@ that guessed would be read as a census.
   - `masters.view` — View masters
   - `calls.create` — Create / register calls
 - **Buttons** “+ Field”, “+ Install”, “Clear”, “⭳ Export CSV”
+
+### Product Database 2.0 `/product-database-2`
+
+- **Opened by** `mod:/product-database-2`
+- **Source** `src/modules/ProductDatabase2.tsx`
+- **Actions an administrator can grant** (from the permission matrix):
+  - `masters.view` — View masters
+- **Buttons** “⭳ Export CSV”
 
 ### Product Master (product lines) `/product-master`
 
@@ -233,6 +256,12 @@ that guessed would be read as a census.
 
 ## Knowledge Base
 
+### How RITHI Functions `/knowledge-base/how-it-works`
+
+- **Opened by** `mod:/knowledge-base/how-it-works` · administrator-only screen
+- **Source** `src/modules/HowRithiFunctions.tsx`
+- **Actions an administrator can grant**: none — the screen is opened or it is not.
+
 ### Service Manuals `/service-manuals`
 
 - **Opened by** `mod:/service-manuals`
@@ -259,7 +288,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/CoverRegister.tsx`
 - **Actions an administrator can grant** (from the permission matrix):
   - `cover.edit` — Edit sales / warranties / contracts
-- **Buttons** “Remove”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
+- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
 
 ### Contract Register `/contracts`
 
@@ -267,7 +296,7 @@ that guessed would be read as a census.
 - **Source** `src/modules/CoverRegister.tsx`
 - **Actions an administrator can grant**: none — the screen is opened or it is not.
 - **Also tested in the screen** (not offered under this page in the matrix): `cover.edit`
-- **Buttons** “Remove”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
+- **Buttons** “Remove”, “Apply to rates”, “Clear rates”, “+ Field call”, “Entries”, “By machine”, “+ New entry”, “⭳ Export CSV”, “Delete entry”, “+ Add machine”
 
 ### Ownership Transfer `/ownership-transfer`
 
@@ -314,7 +343,7 @@ that guessed would be read as a census.
 - **Actions an administrator can grant** (from the permission matrix):
   - `rbac.manage` — Manage roles & permissions
 - **Also tested in the screen** (not offered under this page in the matrix): `admin.view`
-- **Buttons** “＋ Add a role”, “Add role”, “Cancel”
+- **Buttons** “＋ Add a role”, “Add role”, “Cancel”, “⭳ Export matrix”
 
 ### Audit Log `/audit`
 
@@ -496,6 +525,7 @@ Paths that resolve to another screen rather than being one.
 
 - `/call-updation` → `/field-calls`
 - `/breakdowns` → `/field-calls`
+- `/dccr-insights` → `/product-failure`
 - `/users` → `/user-master`
 - `*` → `/`
 

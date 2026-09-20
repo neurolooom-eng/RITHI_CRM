@@ -27,7 +27,14 @@
 //                           and that is reported rather than hidden — this
 //                           column is a floor, not a census.
 //
-// Usage: npm run inventory > docs/MODULE_INVENTORY.md
+// Usage: npm run inventory  (the script writes docs/MODULE_INVENTORY.md itself)
+//
+// THE REDIRECT LIVES IN package.json, not in the instruction, because
+// `npm run inventory > docs/MODULE_INVENTORY.md` puts npm's OWN banner
+// ("> rithi-crm-field-service@0.9.312 inventory", and the esbuild command
+// line) at the top of the generated document. It did, on 2026-09-20.
+// `docs:reqs` never had the fault because its redirect was always inside
+// the script; these two now match it.
 // ===========================================================================
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { MODULES, PERM_TREE, ACTIONS, moduleAction } from '../src/lib/rbac';

@@ -108,7 +108,7 @@ export interface Match { how: MatchHow; ucn: string; call_number: string; note: 
 const norm = (v: unknown) => String(v ?? '').trim().toUpperCase();
 
 // A report finds its call by UCN first, then by Call Number — the same two keys
-// (and the same precedence) the Daily Call Review uses in 0048, so a recovered
+// (and the same precedence) the Daily Complaint Review Register uses in 0048, so a recovered
 // visit lands where a live one would have.
 //
 // Deliberately NOT matched on serial or party: a machine has many calls, so

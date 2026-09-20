@@ -110,11 +110,27 @@
   text-align: center;
   flex-shrink: 0;
 }
+/* A LONG NAME WRAPS RATHER THAN BEING CUT OFF, and that is not a preference.
+   The label slot is ~181px (248 sidebar - 20 nav padding - 20 item padding -
+   20 icon - 11 gap); "Daily Complaint Review Register (R/SER/35)" MEASURES
+   269px at this font and weight, so `text-overflow: ellipsis` removed the last
+   ~14 characters -- which is exactly the controlled form's number, the reason
+   the screen was renamed. An ellipsis hides the end of a name silently; a
+   wrapped line shows it.
+   MEASURED IN A BROWSER, not estimated: every other label in the menu is 143px
+   or less (the longest is "Product & Party Search" at 141px), so nothing else
+   wraps and the menu's rhythm is unchanged. `align-items: center` on .nav-item
+   keeps a two-line label centred against its icon. */
 .nav-label {
   flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  /* `white-space: nowrap` is INHERITED from .nav-item and has to be undone
+     here, not merely left unset: without this the label refuses to wrap and
+     simply overflows instead, which is how the first attempt at this silently
+     did nothing (computed style read `nowrap` while the rule below said
+     `anywhere`). Measured in a browser, not reasoned about. */
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 /* count badge next to a module in the sidebar */
 .nav-count {
