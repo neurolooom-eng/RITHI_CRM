@@ -1607,6 +1607,73 @@ export async function listCallRequests(limit = 2000): Promise<Record<string, unk
 // ties whenever two requests share a timestamp — which a bulk import makes
 // certain — and a tie can put the same row on two pages, or neither. `id`
 // breaks it.
+// ---------------------------------------------------------------------------
+// PRODUCT DATABASE 2.0 (0218) — one row per machine, assembled from the five
+// registers. PAGED, because this is the install base: ~20,000 machines, and a
+// capped read here would be the Product & Party Search fault again.
+//
+// ORDERED BY `machine_key`, which the view derives and is unique per row -- so
+// the pages cannot overlap. Ordering by product or party would tie in their
+// thousands and a tie puts a row on two pages or on neither.
+// ---------------------------------------------------------------------------
+export async function listProductDatabaseV2(): Promise<Record<string, unknown>[]> {
+  const c = must();
+  return allRows<Record<string, unknown>>((from, to) =>
+    c.from('product_database_v2').select('*').order('machine_key').range(from, to));
+}
+
+// ---------------------------------------------------------------------------
+// WHY IS PRODUCT DATABASE 2.0 EMPTY — asked of the DATABASE, not guessed at.
+//
+// The view lists a machine only where a register row carries BOTH a model and a
+// serial, because a machine is its model PLUS its serial and a serial-only key
+// merges the eleven machines numbered 219 into one row. So an empty 2.0 does
+// NOT mean "no machines" — it means no register row carries both, and those are
+// very different findings. The screen used to assert the first one.
+//
+// Counted as NULL-or-EMPTY rather than blank-after-trimming, because PostgREST
+// cannot express `btrim`. That makes every "missing" number a LOWER BOUND — a
+// whitespace-only cell is blank to the view and counted as present here — and
+// the inequality runs the safe way: the screen can say "at least N of these
+// carry no model", never more than is true.
+// ---------------------------------------------------------------------------
+import type { RegisterCount } from './dberror';
+export type RegisterGap = RegisterCount & { register: string; table: string };
+
+const PD2_REGISTERS: { register: string; table: string; model: string }[] = [
+  { register: 'Warranty Sale Details', table: 'warranty_sale_details', model: 'product_name' },
+  { register: 'Contract Details', table: 'contract_details', model: 'product_name' },
+  { register: 'Additional Entries', table: 'product_additional_entries', model: 'item_name' },
+];
+
+export async function diagnoseProductDatabaseV2(): Promise<RegisterGap[]> {
+  const c = must();
+  const head = async (table: string, blank?: string): Promise<number | null> => {
+    let q = c.from(table).select('*', { count: 'exact', head: true });
+    if (blank) q = q.or(`${blank}.is.null,${blank}.eq.`);
+    const { count, error } = await q;
+    if (error) throw error;
+    return count ?? null;
+  };
+  return Promise.all(PD2_REGISTERS.map(async (r) => {
+    try {
+      const [rows, noSerial, noModel] = await Promise.all([
+        head(r.table),
+        head(r.table, 'serial_number'),
+        head(r.table, r.model),
+      ]);
+      return { register: r.register, table: r.table, rows, noSerial, noModel };
+    } catch (e) {
+      // A register nobody may count is reported as uncounted, never as zero:
+      // a zero here would read as "this register is empty", which is a claim.
+      return {
+        register: r.register, table: r.table, rows: null, noSerial: null, noModel: null,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  }));
+}
+
 export async function listCallRequestsAsPending(): Promise<Record<string, unknown>[]> {
   const c = must();
   const data = await allRows<Record<string, unknown>>((from, to) =>

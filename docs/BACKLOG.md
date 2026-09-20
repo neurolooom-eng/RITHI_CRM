@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-18 (the Consumption upload files the visit from the file,
+_Last updated: 2026-09-20 (Product Database 2.0 says WHY it is empty on the
+screen itself, and only claims what it measured. Before that: the missing view
+grant; 0148 no longer re-adds a constraint 0152 deletes. Before that: the Consumption upload files the visit from the file,
 so a bulk load no longer stops on row 1 — CLIENT ONLY. Before that: ⚠️ 0217
 restores three rules 0210 dropped from the
 spare line guard — RUN Spare_1.sql; data.view_all for every role but three;
@@ -20,6 +22,225 @@ in the ARCHIVE project and `ProdHistory_05.sql` in the LIVE one — none run yet
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-20 — Product Database 2.0 is empty: diagnose, do not guess
+
+> *"Ran all sql, but still the list is empty"*
+
+**Not guessed at.** Two things done, one certain and one to be measured.
+
+**Certain: the view was missing its GRANT.** 28 of the 30 views these migrations
+create carry `grant select ... to authenticated`; this one did not. The only
+other exception is `calls`, which replaced a TABLE and inherited its privileges.
+Supabase's default privileges usually cover a view created by `postgres` —
+which is exactly why the omission hides — and that is not a rule to rely on for
+the one object a new screen reads. Added, and `check:ui` now refuses a new view
+without one (mutation-tested).
+
+That is very unlikely to be the cause of an EMPTY list, though: a missing grant
+produces a permission error, which the screen reports. It is fixed because it is
+wrong, not because it explains this.
+
+**To be measured: what the registers can actually offer.** 2.0 requires a
+register row to carry a serial **and** a product name, because a machine is its
+model and its serial. `machine_cover` requires only the serial — which is why it
+can show rows 2.0 will not, and why the ones it shows can be two machines merged
+into one. **A register carrying serials with blank product names therefore gives
+an empty 2.0 and a populated `machine_cover`, and neither is broken.**
+
+`supabase/apply/_why_is_product_database_2_empty.sql` answers it with the
+project's own numbers: per register, rows with a serial, rows with a product
+name, and rows with BOTH — rows 4, 8 and 11 are the answer. It also reports
+whether the view exists and whether the grant is in place, so all three
+candidates are separated in one grid. Proved here against fixtures that
+reproduce the suspected cause.
+
+**If rows 4/8/11 come back near zero** while row 16 (the install base) is large,
+the fix is a real design question rather than a bug: fall back to the model in
+`products` by serial, accepting it **only** where exactly ONE machine carries
+that serial, and reporting the ambiguous ones rather than guessing. Not built,
+because it must not rest on an assumption about the data.
+
+**And the screen now asks the same question itself — no SQL to run.** The empty
+banner used to read *"No machine appears in the warranty sale register, the
+contract register or the additional entries yet"*, which is the STRONG claim and
+the one thing an empty list cannot support: it is equally consistent with
+thousands of rows carrying a serial and no model, and the two need opposite
+actions. When the list comes back empty the screen now counts the three
+registers — rows, rows recording no serial, rows recording no model — and prints
+them.
+
+**It may only conclude from an EQUALITY.** The counts are NULL-or-EMPTY, which
+PostgREST can express and `btrim` is not, so each "missing" number is a LOWER
+bound — a whitespace-only cell is blank to the view and counted as present here.
+`noModel === rows` therefore still PROVES no row in that register can be listed,
+while `noModel < rows` proves nothing either way and gets the numbers alone.
+The bound runs the safe way and the verdict never leans on the side it can be
+wrong about. A register that could not be counted is reported as uncounted,
+never as zero — a zero there reads as *"this register is empty"*, which is a
+claim nobody measured.
+
+**The verdict lives in `dberror.ts`, not in the screen** — the `paging.ts`
+reason: `supabase.ts` reads `import.meta.env`, so a decision left beside the
+fetch cannot be tested as behaviour. `emptyRegisterVerdict()` is pure and
+`check:dberror` covers every branch, including the three refusals. Mutation-
+tested: dropping the uncountable guard, `every`→`some`, and removing the serial
+branch are each caught.
+
+**To run:** `product_database_2.sql` again (it now carries the grant), then
+`_why_is_product_database_2_empty.sql` — or simply open the screen, which now
+prints the same three numbers per register.
+
+validate: 94/94 suites, 16/16 checks (the grant). The banner that followed is
+CLIENT ONLY and changes no SQL, so it was proved by `npm run build`, the five
+database-free checks and `check:dberror` — ten new assertions, three mutations
+caught — rather than by a second full run.
+
+---
+
+## 2026-09-20 — ⚠️ performance.sql re-added a constraint 0152 deleted
+
+> *"ERROR: 23514: check constraint `parts_category_check` of relation `parts`
+> is violated by some row"*
+
+**0148 added it; 0152 drops it four files later, deliberately** — a check on
+`parts.category` aborts a bulk import part-written the day the Item Master
+gains a sixth word. The `add` stayed behind, guarded by
+`if not exists (... conname = 'parts_category_check')`.
+
+**After 0152 the constraint's ABSENCE is the correct state**, so every re-run of
+the bundle saw it missing and tried to put it back. On an empty database that
+succeeds and 0152 removes it again — which is why `check:replay`,
+`check:status` and 94 suites all passed for months. On the live project, where
+a part had since been loaded with a category outside the five words, the bundle
+**stopped at 0148, before reaching the file that would have dropped it**.
+
+Reproduced here exactly: built a database from every migration, inserted a part
+with `category = 'Accessory'`, ran `performance.sql`, got the user's error
+verbatim. Removed the `add` from 0148, re-ran on the SAME database — clean, and
+the Accessory part untouched.
+
+**The part row is not touched, and that is deliberate.** That column is the Item
+Master's own word; an unexpected one appears in Spare Insights as its own bar,
+which is how somebody notices it and decides what it should be. Rewriting it
+would destroy the evidence.
+
+**The check.** `check:ui` now refuses any constraint added by one migration and
+dropped by a later one — dead code that still executes on every re-apply and
+cannot fail until it meets real data. It was the only instance in 219
+migrations; mutation-tested by putting the `add` back.
+
+`_status.sql` row 115 already asserted the constraint is ABSENT, and still does.
+
+**To run:** `performance.sql` again (it goes through now), then
+`product_database_2.sql`, then `rbac.sql`.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
+## 2026-09-20 — ⚠️ The Restore clauses were pointing at the wrong bundles
+
+> *"Failed to run sql query: ERROR: 42883: function public.imported_ts(jsonb,
+> unknown) does not exist"*
+
+**Two faults, one of them a week old.**
+
+**1. `product_database_2.sql` did not declare its dependencies.** It reads
+`imported_ts()` (0215, `performance`) and `cover_code()` (0208,
+`data_integrity`) and installs neither, so it died part-way through on a
+function name — which says nothing about what to run. It now opens with the
+`preflight()` guard: *"Apply these first, then re-run this bundle:
+imported_ts() — 0215… (apply bundle: performance)"*. Proved by building a
+database with 0215 deliberately left out.
+
+**2. `_status.sql` row 167 named the wrong file, and had since 2026-09-18.** It
+said `Restore: HandStock_X.sql` for **0215**, which lives in the `performance`
+module and is in no other bundle. So the row read NO however many times that
+file was run. Now `performance.sql`.
+
+**3. Five more rows were wrong, and that one is mine from yesterday.** `sed -i
+"s|Restore: data_integrity.sql|Restore: product_database_2.sql|"` is a GLOBAL
+replace: it rewrote **all five** rows that legitimately named
+`data_integrity.sql` — 132, 139, 142, 145, 160 — not the one intended. The same
+mistake hit `validation.ts` two days earlier. Corrected by row.
+
+**The durable fix.** `check:ui` now refuses a `Restore:` naming a bundle that
+does not CARRY the migration; it only checked the file EXISTED, which is how all
+six got past. Matched on the parenthesised convention `(0215)` against the
+bundle's section header `^-- 0215_….sql`. Two traps found while writing it, each
+of which would have made the check lie: a bare number in prose is not the row's
+migration (row 81: *"notify_spare_dispatched carries 0064"*), and a bare
+`includes` reads a bundle's own preflight comment as proof it carries what it
+merely names. Mutation-tested against both faults — all six rows caught.
+
+**To run, in this order:** `performance.sql`, then `product_database_2.sql`,
+then `rbac.sql`. Nothing about the data changes.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
+## 2026-09-20 — Cover requirements, and Product Database 2.0
+
+> *"Write requirements inline with ISO guidelines for contract, warranty,
+> ownership transfer, then write test cases, then the current module and tell me
+> the gaps."* … *"Do Not disturb the current product Database, create this as
+> Product Database 2.0."*
+
+**`docs/COVER_REQUIREMENTS.md`** — 20 requirements (CW-001…CW-020) across
+identification, warranty, contract, ownership and the assembled record, each
+mapped to the ISO 13485:2016 clause it serves with a status line. The third
+hand-maintained reference after CR and SR; `requirements-doc.ts` folds it into
+`REQUIREMENTS.md`. Test cases CWT-01…CWT-15 (executable) plus OQ-64…OQ-66, and
+URS-068/069/070 → FRS-080/081/082 in the validation package.
+
+**The gaps, ranked by consequence** — and quantifiable on live data with
+`_product_database_2_vs_1.sql`, because this repository can rank them and cannot
+count them:
+
+1. `machine_cover` keys on the **serial alone** and merges machines that share
+   one under different models.
+2. An **ownership transfer changes nothing** about cover anywhere.
+3. Machines recovered into **Additional Entries are invisible** to cover.
+4. A machine **inside warranty reads as its contract** (contract asked first).
+5. A **blank contract type becomes CMC** — a labour contract read as
+   comprehensive.
+6. `products.item_status` is **stored and never recomputed**.
+7. The **Warranty Start Date captured at installation is never read back**.
+8. **Two spellings of the machine key** — generated columns lower/trim, the
+   client and 0218 squash.
+
+1–5 and 7 are closed *for anything reading the new view*. 6 and 8 belong to the
+stored table and are open.
+
+**Product Database 2.0** — `product_database_v2` (0218), a VIEW beside
+`products` and `machine_cover`, both untouched. Warranty decides before
+contract; labour→AMC, comprehensive→CMC, anything else unchanged; a typeless
+contract is flagged, never guessed. `cover_period_end()` reproduces
+`addPeriod()`'s JavaScript month overflow — **26 of 458 start/period pairs
+differ** from a plain Postgres interval, proved against the app.
+
+Screen at `/product-database-2`, `PERM_TREE` entry, and **0219** copies the
+module key onto whoever already holds the Product Database.
+
+### Two things `check:replay` and `check:bundles` caught
+
+- 0218 was filed with the registers it reads and **died twice** — once on
+  `cover_code()` (0208, `data_integrity`), once on `imported_ts()` (0215,
+  `performance`) — because a SQL function body *and* a view are resolved at
+  creation. It has its own bundle, last in `ALL_ORDER`.
+- ⚠️ **A module name containing a DIGIT was invisible to `check:bundles`**: its
+  parser matched `[a-z_]+`, so `product_database_2`'s files fell into the
+  preceding module's chunk and the mirror rule was reported against a module
+  that does not own them. Widened to `[a-z0-9_]+`.
+
+**To run:** `product_database_2.sql`, then `rbac.sql` (0219). Then
+`_status.sql` row **169**.
+
+validate: 94/94 suites, 16/16 checks.
 
 ---
 

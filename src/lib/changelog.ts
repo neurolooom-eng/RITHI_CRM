@@ -12,8 +12,8 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.308',
-    date: '2026-09-18',
+    version: '0.9.313',
+    date: '2026-09-20',
     title: 'Machine History reaches back to 2016',
     changes: [
       'Machine History now shows the years BEFORE this system. The service history from 2016 up to the cut-over lives in a separate database, and the screen reads it alongside the registers \u2014 so a machine with nine years of faults behind it stops looking new.',
@@ -23,6 +23,66 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.312',
+    date: '2026-09-20',
+    title: 'Product Database 2.0 now says why it is empty, on the screen',
+    changes: [
+      'AN EMPTY 2.0 USED TO SAY \u201cNo machine appears in the warranty sale register, the contract register or the additional entries yet\u201d. That was the one thing it could not know. The screen now COUNTS the three registers when it has nothing to show \u2014 rows, how many record no serial, how many record no model \u2014 and prints what it found, so you do not have to run SQL to find out.',
+      'AND IT ONLY CLAIMS WHAT IT MEASURED. It says \u201cevery row records no model\u201d only when every counted row really does; where some rows carry both a model and a serial it says so and points at the probe, and where a register could not be counted at all it says THAT rather than showing a zero \u2014 a zero there would read as \u201cthis register is empty\u201d, which is a different claim.',
+      'WHY A ROW NEEDS BOTH is unchanged and worth repeating: a machine is its model AND its serial, serials repeat across models, and a row with a serial alone cannot be told from the other machines wearing that number.',
+    ],
+  },
+  {
+    version: '0.9.311',
+    date: '2026-09-20',
+    title: 'A file that says WHY Product Database 2.0 is empty',
+    changes: [
+      'IF 2.0 IS EMPTY, RUN _why_is_product_database_2_empty.sql \u2014 it answers with your own numbers instead of a guess. It counts, for each of the three registers, how many rows carry a SERIAL, how many carry a PRODUCT NAME, and how many carry BOTH. Only rows with both can be listed.',
+      'WHY BOTH ARE NEEDED: a machine is its model AND its serial. Serials repeat across models \u2014 there are eleven machines numbered 219 \u2014 so a register row with a serial and no model cannot be identified as a machine, and is left out rather than guessed at. That is also why 2.0 can legitimately show fewer machines than the older cover view, which needs only a serial and merges the ones that share one.',
+      'THE VIEW WAS ALSO MISSING ITS GRANT. 28 of the 30 views in this system explicitly grant read access to the signed-in role and this one did not \u2014 usually invisible, because the database hands it out by default, but not something to rely on. Added, and a check now refuses a new view without one.',
+      'SQL to run: product_database_2.sql again (it now carries the grant). Then _why_is_product_database_2_empty.sql and send us the grid.',
+    ],
+  },
+  {
+    version: '0.9.310',
+    date: '2026-09-20',
+    title: 'performance.sql stopped on a rule that was deleted a year ago',
+    changes: [
+      'IT FAILED WITH \u201ccheck constraint parts_category_check ... is violated by some row\u201d. That rule \u2014 a part\u2019s category must be one of five words \u2014 was REMOVED on purpose back in 0152, because it aborts a bulk import half-written the day the Item Master gains a sixth word. The file that created it never stopped trying to create it.',
+      'It only ever bit on YOUR data. On an empty database it is added and then removed again in the same run, so every test we have passed; on your project a part had since been loaded with a category outside those five words, and the bundle stopped at that line \u2014 before reaching the file that would have dropped it.',
+      'THE PART IS NOT TOUCHED. Its category stays exactly as loaded: that column is the Item Master\u2019s own word, and an unexpected one shows up in Spare Insights as its own bar, which is how somebody notices it and decides what it should be.',
+      'A check now refuses any rule that one migration adds and a later one deletes \u2014 dead code that still runs on every re-apply, and cannot fail until it meets real data.',
+      'Run performance.sql again; it goes through now. Then product_database_2.sql and rbac.sql as before.',
+    ],
+  },
+  {
+    version: '0.9.309',
+    date: '2026-09-20',
+    title: 'The SQL now tells you what to run first, instead of failing on a function name',
+    changes: [
+      'PRODUCT DATABASE 2.0\u2019s SQL FAILED WITH \u201cfunction public.imported_ts(jsonb, unknown) does not exist\u201d. It needs two things other bundles install, and said so only by dying part-way through. It now stops at the top with the list: run performance.sql first, then this.',
+      'AND THE FILE IT TOLD YOU TO RUN FOR THAT WAS WRONG. _status.sql row 167 named HandStock_X.sql, which does not contain that migration at all \u2014 so the row went on reading NO however many times you ran what it named. It says performance.sql now.',
+      'FIVE OTHER ROWS WERE POINTING AT THE WRONG FILE TOO, from a careless edit of ours yesterday: rows 132, 139, 142, 145 and 160 all said Product Database 2.0 when they meant data_integrity.sql. Corrected.',
+      'A check now refuses any \u201cRestore:\u201d line naming a file that does not actually carry the migration \u2014 it only checked the file EXISTED before, which is how all six got past.',
+      'SQL to run, in this order: performance.sql, then product_database_2.sql, then rbac.sql. Nothing about your data changes; these are the same objects, applied in an order that works.',
+    ],
+  },
+  {
+    version: '0.9.308',
+    date: '2026-09-20',
+    title: 'Product Database 2.0, and the cover requirements behind it',
+    changes: [
+      'PRODUCT DATABASE 2.0 \u2014 a new screen beside the one you have, which is untouched. One row per MACHINE (model AND serial), worked out from the warranty sale register, the contract register, the additional entries, the ownership transfer and the installation call. Run both and compare before trusting either.',
+      'EVERY ANSWER SAYS WHERE IT CAME FROM. Party from, Because, and the warranty and contract source columns name the register that decided each value \u2014 a row assembled from five places that cannot show its evidence is one nobody can check.',
+      'STATUS IS WORKED OUT, NOT TYPED. Inside the warranty it is WGP even where a contract also covers it; otherwise a LABOUR contract is AMC and a COMPREHENSIVE one is CMC; neither, and it is OGP. The old Product Database stores whatever the import said and never recomputes it.',
+      'A CONTRACT WITH NO TYPE RECORDED SAYS SO rather than being assumed comprehensive. Each one is a contract row worth correcting \u2014 and the existing machine_cover view quietly calls them all CMC.',
+      'THE WARRANTY STARTS AT THE INSTALLATION: the Warranty Start Date your engineer is asked for, or failing that the date that call was solved. Nothing in the system read that answer back before now.',
+      'MACHINES THAT SHARE A SERIAL STAY SEPARATE. Serials repeat across models \u2014 there are eleven machines numbered 219 \u2014 and the older cover view merges them into one row carrying one machine\u2019s warranty and another\u2019s contract.',
+      'WRITTEN DOWN: 20 cover requirements mapped to the ISO 13485 clauses they serve, covering warranty, contract and ownership transfer, each with its status and a ranked list of the gaps \u2014 docs/COVER_REQUIREMENTS.md, folded into the Requirements document with the rest.',
+      'SQL to run: product_database_2.sql, then rbac.sql (it carries the permission for the new screen). _status.sql row 169 confirms it. _product_database_2_vs_1.sql then counts the disagreements between old and new on your own data.',
     ],
   },
   {

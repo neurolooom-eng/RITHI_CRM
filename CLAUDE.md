@@ -251,6 +251,93 @@ on testing the old shape. **When a migration replaces a definition, move the
   has produced were a migration that had not been run, and `docs/BACKLOG.md`
   claimed the opposite twice — once nearly causing a needless rebuild of the
   live `calls` tables. The backlog is a record, not evidence.
+- **`docs/COVER_REQUIREMENTS.md` IS THE STANDING REFERENCE FOR COVER** — warranty,
+  contract, ownership transfer and the assembled machine record, 20 requirements
+  (CW-001…CW-020) each mapped to the ISO 13485:2016 clause it serves, with a
+  status line and a ranked gap list. The THIRD hand-maintained reference after
+  CR and SR, and `requirements-doc.ts` folds it into `REQUIREMENTS.md` the same
+  way. **Read it before changing anything about cover**, and update a status
+  line in the same change that makes it true.
+- **A VIEW A SCREEN READS MUST BE GRANTED TO `authenticated`, AND THE OMISSION
+  HIDES.** 28 of the 30 views these migrations create carry
+  `grant select ... to authenticated`; `product_database_v2` shipped without
+  one. Supabase's default privileges usually cover a view created by
+  `postgres` — which is exactly why it hides — and "usually" is not a rule to
+  rely on for the one object a new screen reads, nor for a project rebuilt in a
+  different order. `check:ui` refuses it now; `calls` is the only exemption,
+  because it REPLACED a table and inherited that table's privileges.
+- **2.0 CAN LEGITIMATELY LIST FEWER MACHINES THAN `machine_cover`, AND AN EMPTY
+  SCREEN IS NOT PROOF OF A FAULT.** It requires a register row to carry a
+  serial **and** a product name, because a machine is its model and its serial;
+  `machine_cover` requires only the serial, which is why it shows rows 2.0 will
+  not — and why the ones it shows can be two machines merged into one. A
+  register carrying serials with blank product names therefore produces an
+  EMPTY 2.0 and a populated `machine_cover`, and neither is broken.
+  **`supabase/apply/_why_is_product_database_2_empty.sql` answers it with the
+  project's own numbers**: per register, how many rows have a serial, how many
+  have a product name, and how many have BOTH — rows 4, 8 and 11 are the
+  answer. Ask it before changing the view: the alternative fix (fall back to the
+  model in `products` by serial, and only where exactly ONE machine has that
+  serial) is a real option but must not be built on a guess about the data.
+- **PRODUCT DATABASE 2.0 IS A VIEW BESIDE THE OLD ONE, NOT A REPLACEMENT** (the
+  user, 2026-09-20: *"Do Not disturb the current product Database, create this
+  as Product Database 2.0"*). `product_database_v2` (0218) is one row per
+  MACHINE — model and serial — assembled from `warranty_sale_details`,
+  `contract_details`, `product_additional_entries`, `ownership_transfers` and
+  the installation call. `public.products` and `machine_cover` are untouched.
+  **Three places it deliberately disagrees with `machine_cover`**, which is why
+  a second view exists rather than an edit to that one: it keys on PRODUCT +
+  SERIAL where that view keys on the serial ALONE (so that one merges the eleven
+  machines numbered 219 into one row wearing one machine's cover); it reads FIVE
+  registers where that one reads two (Ownership Transfer and Additional Entries
+  are not consulted there at all); and **WARRANTY DECIDES BEFORE CONTRACT**,
+  where that one asks the contract first. A contract with a blank type reads
+  `CONTRACT (TYPE NOT RECORDED)` rather than that view's guess of CMC.
+  **`cover_period_end()` reproduces `addPeriod()`'s JAVASCRIPT MONTH OVERFLOW**:
+  31 January plus one month is 2 March, where Postgres's own interval arithmetic
+  clamps to 27 February — 26 of 458 start/period pairs differ, proved against
+  the application rather than reasoned about. `_status.sql` row 169;
+  `supabase/apply/_product_database_2_vs_1.sql` counts the disagreements on live
+  data, because this repository can rank the gaps by consequence and cannot
+  count them.
+  **IT IS ITS OWN BUNDLE, LAST IN `ALL_ORDER`, AND THAT IS NOT TIDINESS.** It
+  reads `cover_code()` (0208, `data_integrity`) and `imported_ts()` (0215,
+  `performance`), and BOTH a SQL-language function body and a view are resolved
+  AT CREATION — so filed with the registers it reads it died twice, once on each.
+  `check:replay` found both.
+- **A MODULE NAME WITH A DIGIT WAS INVISIBLE TO `check:bundles`.** Its parser
+  matched `^  ([a-z_]+): \{`, so `product_database_2` was not merely unchecked —
+  its files fell into the PRECEDING module's chunk and the mirror rule was
+  reported against a module that does not own them (*"0122_spare_requests_replay_tail.sql
+  must be the LAST file in module spare_requests — it is followed by
+  0218_product_database_v2.sql"*, naming two files that share no module). Widened
+  to `[a-z0-9_]+`. A check that silently absorbs a module into its neighbour is
+  worse than one that refuses it.
+- **A `Restore:` CLAUSE MUST NAME A BUNDLE THAT CARRIES THE MIGRATION, AND
+  "THE FILE EXISTS" WAS THE ONLY THING CHECKED.** Row 167 told somebody to run
+  `HandStock_X.sql` to restore **0215**, which lives in the `performance`
+  module and is in no other bundle — so the row went on reading NO however many
+  times they ran what it named, and `product_database_2.sql` then died on
+  `function public.imported_ts(jsonb, unknown) does not exist`. `check:ui` now
+  matches the row's own migration — the PARENTHESISED convention, `(0215)` —
+  against the bundle's SECTION HEADER (`^-- 0215_….sql`). Two traps found while
+  writing it, both of which would have made the check lie: a bare number in the
+  prose is not the row's migration (row 81 says *"notify_spare_dispatched
+  carries 0064"*), and a bare `includes` reads a bundle's own PREFLIGHT COMMENT
+  — which names what it needs — as proof it carries it.
+- **NEVER `sed` A SHARED STRING ACROSS `_status.sql`.** `sed -i
+  "s|Restore: data_integrity.sql|Restore: product_database_2.sql|"` rewrote
+  **all five** rows that legitimately named `data_integrity.sql`, not the one
+  intended — rows 132, 139, 142, 145 and 160 all began telling people to run a
+  bundle that has nothing to do with them. The same mistake hit `validation.ts`
+  two days earlier, where a global rename of `URS-053` silently renumbered a
+  pre-existing requirement and orphaned three FRS links. **Edit by ROW, splitting
+  on the row opener**, and diff the `Restore:` tally before and after.
+- **A BUNDLE WITH A CROSS-MODULE DEPENDENCY MUST DECLARE IT IN `needs`.** The
+  `preflight()` guard turns a mid-file Postgres error into *"Apply these first,
+  then re-run this bundle: imported_ts() — 0215… (apply bundle: performance)"*.
+  `product_database_2` declares `importedTs` and `coverCode`; proved by building
+  a database with 0215 deliberately left out and running the bundle at it.
 - **A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL.**
   `_why_is_it_empty.sql` and `_why_is_it_empty_2.sql` both shipped with a live
   address on that line, so running either unchanged returned a COMPLETE,
@@ -929,6 +1016,24 @@ on testing the old shape. **When a migration replaces a definition, move the
   the INSERT policy VERBATIM so nobody gains reach; say in the migration what
   the UPDATE does and does not allow, because on a stock or quality record that
   is the whole argument.
+- **A CONSTRAINT ADDED BY ONE MIGRATION AND DROPPED BY A LATER ONE IS DEAD CODE
+  THAT STILL EXECUTES — ON EVERY RE-APPLY.** 0148 added `parts_category_check`;
+  0152 drops it four files later, deliberately (a check there aborts a bulk
+  import part-written). The `add` stayed, guarded by
+  `if not exists (... conname = 'parts_category_check')` — and after 0152 the
+  constraint's ABSENCE is the correct state, so every re-run of
+  `performance.sql` tried to put it back. **On an empty database that succeeds
+  and 0152 removes it again, which is why every check passed for months.** On
+  the live project, where a part had since been loaded with a category outside
+  the five words, the bundle stopped at 0148 with
+  `ERROR: 23514: check constraint "parts_category_check" ... is violated by
+  some row` — BEFORE reaching the file that would have dropped it (reported
+  2026-09-20). `IF NOT EXISTS` guards a NAME, never an INTENTION. The `add` is
+  gone from 0148; 0152 still drops it defensively and `_status.sql` row 115
+  asserts it is absent. `check:ui` refuses the pattern now — it was the only
+  instance in 219 migrations, and the offending part row is LEFT AS IT IS,
+  because that column is the Item Master's own word and an unexpected one is a
+  bar in Spare Insights, not something to rewrite.
 - **`IF NOT EXISTS` GUARDS A NAME, NEVER A DEFINITION** — it makes a migration
   re-runnable, it does NOT make it corrective. `add column if not exists x ...
   generated always as (<new expr>)` is a silent no-op when the column exists:

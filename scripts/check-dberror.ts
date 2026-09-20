@@ -10,7 +10,8 @@
 // right on the case you wrote it for and wrong on everything else, and it is
 // the everything else that reaches a user.
 // ===========================================================================
-import { isMissingTable, isRefused, loadFailure, errText } from '../src/lib/dberror';
+import { isMissingTable, isRefused, loadFailure, errText,
+         emptyRegisterVerdict, type RegisterCount } from '../src/lib/dberror';
 
 let fail = 0;
 const eq = (what: string, got: unknown, want: unknown) => {
@@ -99,6 +100,58 @@ console.log('\n-- what the reader is told --');
   eq('anything else gets the error itself, unaltered',
     loadFailure('column spare_stock_out_lines.id does not exist', opts),
     'Load failed: column spare_stock_out_lines.id does not exist');
+}
+
+// ===========================================================================
+// WHAT AN EMPTY LIST MAY CLAIM. Product Database 2.0 said "No machine appears
+// in the warranty sale register, the contract register or the additional
+// entries yet" over registers holding thousands of rows — it lists a machine
+// only where a row records BOTH a model and a serial, and could say neither
+// which of those was missing nor that anything was there at all.
+//
+// The cases that matter are the ones where the verdict must REFUSE to conclude:
+// a count it could not take is not a zero, and a blank count SHORT of the total
+// proves nothing, because the counts are NULL-or-EMPTY and a whitespace-only
+// cell is blank to the view and present here.
+// ===========================================================================
+console.log('\n-- an empty register-backed list only claims what it measured --');
+{
+  const reg = (rows: number | null, noSerial: number | null, noModel: number | null,
+               error?: string): RegisterCount => ({ rows, noSerial, noModel, ...(error ? { error } : {}) });
+
+  eq('no counts yet', emptyRegisterVerdict(null), 'counting');
+
+  // NOT "registers-empty". A register nobody may count is a register nobody
+  // knows anything about, and a zero there would read as "it is empty".
+  eq('nothing could be counted',
+    emptyRegisterVerdict([reg(null, null, null, 'permission denied'),
+                          reg(null, null, null, 'permission denied'),
+                          reg(null, null, null, 'permission denied')]), 'uncountable');
+  eq('...and one countable register is enough to judge on',
+    emptyRegisterVerdict([reg(null, null, null, 'permission denied'),
+                          reg(4182, 0, 4182), reg(null, null, null, 'nope')]), 'no-model');
+
+  eq('every register is genuinely empty',
+    emptyRegisterVerdict([reg(0, 0, 0), reg(0, 0, 0), reg(0, 0, 0)]), 'registers-empty');
+
+  // The reported case: rows in quantity, every one of them without a model.
+  eq('every row lacks a model',
+    emptyRegisterVerdict([reg(19253, 0, 19253), reg(4182, 0, 4182), reg(0, 0, 0)]), 'no-model');
+  eq('every row lacks a serial',
+    emptyRegisterVerdict([reg(19253, 19253, 0), reg(4182, 4182, 0), reg(0, 0, 0)]), 'no-serial');
+  eq('both wholly blank — the serial is the more fundamental to have lost',
+    emptyRegisterVerdict([reg(19253, 19253, 19253)]), 'no-serial');
+
+  // THE REFUSALS. One row short of the total is not "every row", and the bound
+  // runs the safe way only while the verdict insists on the equality.
+  eq('one register short of every row keeps the claim off the screen',
+    emptyRegisterVerdict([reg(19253, 0, 19253), reg(4182, 0, 4181)]), 'elsewhere');
+  eq('a single row with both recorded is enough to refuse',
+    emptyRegisterVerdict([reg(1, 0, 0)]), 'elsewhere');
+  // An EMPTY register must not veto a verdict the ones with rows support — it
+  // has no rows to disagree with.
+  eq('an empty register neither proves nor blocks',
+    emptyRegisterVerdict([reg(0, 0, 0), reg(7, 0, 7)]), 'no-model');
 }
 
 console.log('\n-- errText reads every shape an error arrives in --');

@@ -7406,6 +7406,122 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     }
     eq('no hand-run probe defaults to a real person\'s email', bad, []);
   }
+  {
+    // WHICH MACHINE — ONE DEFINITION, TWO LANGUAGES. `machineKey()` in
+    // `src/lib/machine.ts` and `public.machine_key()` (0218) must squash the
+    // same way, or Product Database 2.0 groups machines the client would not
+    // and the two disagree about which rows are one machine. Same argument as
+    // `coverCode`/`cover_code`: the SQL is compared with the client here.
+    const sqlKey = readFileSync('supabase/migrations/0218_product_database_v2.sql', 'utf8')
+      .split('create or replace function public.machine_key')[1]?.split('$$')[1] ?? '';
+    eq('the SQL machine key squashes to letters and digits, like machineKey()',
+      (sqlKey.match(/\[\^a-z0-9\]/g) ?? []).length, 2);
+    eq('...and joins the two halves with a pipe', /\|\|\s*'\|'\s*\|\|/.test(sqlKey), true);
+    eq('...and it is MODEL then SERIAL, never the serial alone',
+      sqlKey.indexOf('p_product') < sqlKey.indexOf('p_serial')
+      && sqlKey.includes('p_product') && sqlKey.includes('p_serial'), true);
+    eq('the client key is still the one it is being matched against',
+      /export const machineKey = \(product: unknown, serial: unknown\): string =>/
+        .test(readFileSync('src/lib/machine.ts', 'utf8')), true);
+  }
+  {
+    // A `Restore:` CLAUSE MUST NAME A BUNDLE THAT ACTUALLY CARRIES THE
+    // MIGRATION. Checking only that the FILE EXISTS is what let row 167 tell
+    // somebody to run `HandStock_X.sql` to restore 0215, which lives in the
+    // `performance` module and is in no other bundle — so the row went on
+    // reading NO however many times they ran what it named, and the Product
+    // Database 2.0 bundle then died on `function public.imported_ts(jsonb,
+    // unknown) does not exist`.
+    //
+    // MATCHED ON THE PARENTHESISED CONVENTION ONLY — `(0215)`, which is how a
+    // row names its OWN migration. A bare number in the prose is not one: row
+    // 81 says "notify_spare_dispatched carries 0064", and a rule reading that
+    // as its migration would fail a correct row, which is the one thing a
+    // check here must never do.
+    const statusSql = readFileSync('supabase/apply/_status.sql', 'utf8');
+    const rows = statusSql.split(/\n    \((?=\d+, ')/);
+    const wrong: string[] = [];
+    for (const row of rows) {
+      const head = /^(\d+), '((?:[^']|'')*)', '((?:[^']|'')*)'/.exec(row);
+      if (!head) continue;
+      const restore = /Restore: ([A-Za-z_0-9.]+)/.exec(head[3]);
+      const named = [...head[3].matchAll(/\((0\d{3})[),]/g)].map((m) => m[1]);
+      if (!restore || !named.length) continue;
+      const file = restore[1];
+      const path = existsSync(file) ? file : `supabase/apply/${file}`;
+      if (!existsSync(path)) { wrong.push(`row ${head[1]}: ${file} does not exist`); continue; }
+      const body = readFileSync(path, 'utf8');
+      // ANCHORED TO THE SECTION HEADER a bundle emits per migration
+      // (`-- 0208_cover_code_normalised.sql` at line start), not to any mention
+      // of the name. A bare `includes` reads the bundle's own PREFLIGHT
+      // COMMENT — which names the migrations it needs — as proof it carries
+      // them, and row 160 passed on exactly that.
+      const carries = (n: string) =>
+        new RegExp(`^-- ${n}_[a-z0-9_]+\\.sql\\s*$`, 'm').test(body);
+      if (named.every((n) => !carries(n))) {
+        wrong.push(`row ${head[1]}: ${file} carries none of ${named.join(', ')}`);
+      }
+    }
+    eq('every Restore: names a bundle that CARRIES the migration', wrong, []);
+  }
+  {
+    // A CONSTRAINT ADDED BY ONE MIGRATION AND DROPPED BY A LATER ONE IS DEAD
+    // CODE THAT STILL EXECUTES — and a bundle is re-run WHOLE, so it executes
+    // on EVERY re-apply. 0148 added `parts_category_check`; 0152 drops it four
+    // files later, deliberately, because a check there aborts a bulk import
+    // part-written. The `add` stayed, guarded by `if not exists` — and after
+    // 0152 the constraint's ABSENCE is the correct state, so every re-run tried
+    // to put it back.
+    //
+    // ON AN EMPTY DATABASE THAT SUCCEEDS and 0152 removes it again, which is
+    // why every check here passed for months. On the live project, where a part
+    // had since been loaded with a category outside the five words, the bundle
+    // stopped at 0148 with `check constraint ... is violated by some row` —
+    // BEFORE reaching the file that would have dropped it.
+    const migDir = 'supabase/migrations';
+    const migs = readdirSync(migDir).filter((f) => f.endsWith('.sql')).sort();
+    const added = new Map<string, string[]>();
+    const dropped = new Map<string, string[]>();
+    for (const f of migs) {
+      const body = readFileSync(`${migDir}/${f}`, 'utf8');
+      for (const m of body.matchAll(/add\s+constraint\s+([a-z0-9_]+)/gi)) {
+        added.set(m[1], [...(added.get(m[1]) ?? []), f]);
+      }
+      for (const m of body.matchAll(/drop\s+constraint\s+(?:if\s+exists\s+)?([a-z0-9_]+)/gi)) {
+        dropped.set(m[1], [...(dropped.get(m[1]) ?? []), f]);
+      }
+    }
+    const zombies: string[] = [];
+    for (const [name, addFiles] of added) {
+      const later = (dropped.get(name) ?? []).filter((d) => addFiles.some((a) => d > a));
+      if (later.length) zombies.push(`${name}: added in ${addFiles.join(', ')}, dropped later in ${later.join(', ')}`);
+    }
+    eq('no constraint is added by one migration and dropped by a later one', zombies, []);
+  }
+  {
+    // A VIEW A SCREEN READS MUST BE GRANTED TO `authenticated`. 28 of the 30
+    // views these migrations create carry `grant select ... to authenticated`;
+    // `product_database_v2` shipped without one. Supabase's default privileges
+    // usually cover a view created by `postgres`, which is exactly why the
+    // omission HIDES — and "usually" is not a rule to rely on for the one
+    // object a new screen reads, nor for a project rebuilt in a different
+    // order.
+    //
+    // `calls` is the one legitimate exception: it REPLACED a table and
+    // inherited that table's privileges, so granting again would say something
+    // untrue about where its rights come from.
+    const GRANT_EXEMPT = new Set(['calls']);
+    const migFiles = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql'));
+    const created = new Set<string>();
+    const granted = new Set<string>();
+    for (const f of migFiles) {
+      const body = readFileSync(`supabase/migrations/${f}`, 'utf8');
+      for (const m of body.matchAll(/create\s+(?:or\s+replace\s+)?view\s+public\.([a-z0-9_]+)/gi)) created.add(m[1]);
+      for (const m of body.matchAll(/grant\s+select\s+on\s+public\.([a-z0-9_]+)/gi)) granted.add(m[1]);
+    }
+    const ungranted = [...created].filter((v) => !granted.has(v) && !GRANT_EXEMPT.has(v)).sort();
+    eq('every view a migration creates is granted to authenticated', ungranted, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client
