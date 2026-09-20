@@ -16,58 +16,76 @@
 -- Every error printed is labelled `expect ERROR` — anything else is a failure.
 -- ===========================================================================
 \set ON_ERROR_STOP off
+\set today '(now() at time zone ''Asia/Kolkata'')::date'
 \pset pager off
 
 insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
                                 complaint_reported, standard_complaint, allocated_to, complaint_date)
-values ('VD-1', 'FIELD', 'VDPROD', '1', current_date - 10, 'HOSP', 'x', 'y', 'ENG', current_date - 5)
+values ('VD-1', 'FIELD', 'VDPROD', '1', :today - 10, 'HOSP', 'x', 'y', 'ENG', :today - 5)
 on conflict (ucn) do update set complaint_date = excluded.complaint_date;
 -- A call with NO complaint date: rule 2 has nothing to compare against.
 insert into public.field_calls (ucn, call_type, product_name, serial, reg_date, party_name,
                                 complaint_reported, standard_complaint, allocated_to)
-values ('VD-2', 'FIELD', 'VDPROD', '2', current_date - 10, 'HOSP', 'x', 'y', 'ENG')
+values ('VD-2', 'FIELD', 'VDPROD', '2', :today - 10, 'HOSP', 'x', 'y', 'ENG')
 on conflict (ucn) do nothing;
+
+-- ===========================================================================
+-- "TODAY" HERE IS INDIA'S TODAY, BECAUSE THAT IS THE CLOCK THE GUARD USES.
+--
+-- 0115 computes its threshold as `(now() at time zone 'Asia/Kolkata')::date`
+-- and compares it against the visit read in UTC. This suite used to say
+-- `current_date`, which is the SESSION's date — UTC on a throwaway Postgres —
+-- and the two disagree for five and a half hours of every day, from 18:30 UTC
+-- until midnight UTC, when India has already rolled over.
+--
+-- So "tomorrow is refused" passed by day and FAILED BY NIGHT, on a product
+-- that had not changed. Caught at 20:34 UTC while chasing a failure that
+-- turned out not to belong to the change being made: a database built without
+-- that change failed byte-identically. A test that depends on the hour is
+-- worse than no test, because the first thing it does is send somebody to look
+-- at innocent code.
+-- ===========================================================================
 
 \echo '--- 1. a visit today is fine ---'
 \echo 'expect: INSERT 0 1'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-A1', 'VD-1', (current_date::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-A1', 'VD-1', (:today::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 
 \echo '--- 2. ...and so is one between the complaint and today ---'
 \echo 'expect: INSERT 0 1'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-A2', 'VD-1', ((current_date - 3)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-A2', 'VD-1', ((:today - 3)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 
 \echo '--- 3. TOMORROW is refused ---'
 \echo 'expect ERROR: cannot be dated in the future'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-A3', 'VD-1', ((current_date + 1)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-A3', 'VD-1', ((:today + 1)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 
 \echo '--- 4. BEFORE THE COMPLAINT is refused ---'
 \echo 'expect ERROR: cannot be dated before the complaint'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-A4', 'VD-1', ((current_date - 6)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-A4', 'VD-1', ((:today - 6)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 
 \echo '--- 5. HISTORY STILL LOADS: Bulk Uploads (uid IMP-...) ---'
 \echo 'expect: INSERT 0 1 twice -- a visit before its complaint, and one dated'
 \echo 'in the future. Neither is judged: this is the record of what happened.'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('IMP-VD-1-20200101', 'VD-1', ((current_date - 900)::text || 'T00:00:00Z')::timestamptz, 'Solved');
+values ('IMP-VD-1-20200101', 'VD-1', ((:today - 900)::text || 'T00:00:00Z')::timestamptz, 'Solved');
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('IMP-VD-1-20990101', 'VD-1', ((current_date + 400)::text || 'T00:00:00Z')::timestamptz, 'Solved');
+values ('IMP-VD-1-20990101', 'VD-1', ((:today + 400)::text || 'T00:00:00Z')::timestamptz, 'Solved');
 
 \echo '--- 6. ...and Bulk Report Mapping (its own uid, carrying source_ref) ---'
 \echo 'expect: INSERT 0 1'
 insert into public.reports (uid, ucn, visit_at, call_status, source_ref)
-values ('a7f3-appsheet-ref', 'VD-1', ((current_date - 900)::text || 'T00:00:00Z')::timestamptz, 'Solved', 'a7f3');
+values ('a7f3-appsheet-ref', 'VD-1', ((:today - 900)::text || 'T00:00:00Z')::timestamptz, 'Solved', 'a7f3');
 
 \echo '--- 7. a call with NO complaint date is held to the FUTURE rule only ---'
 \echo 'expect: INSERT 0 1, then ERROR on the future one'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-B1', 'VD-2', ((current_date - 400)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-B1', 'VD-2', ((:today - 400)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 \echo 'expect ERROR: cannot be dated in the future'
 insert into public.reports (uid, ucn, visit_at, call_status)
-values ('WEB-B2', 'VD-2', ((current_date + 1)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
+values ('WEB-B2', 'VD-2', ((:today + 1)::text || 'T00:00:00Z')::timestamptz, 'Unsolved');
 
 \echo '--- 8. a visit with NO date at all is not this trigger''s business ---'
 \echo 'expect: INSERT 0 1 -- the form requires one; a row without is somebody'
@@ -84,7 +102,7 @@ update public.reports set call_status = 'Solved - Report Completed'
 
 \echo '--- 10. but MOVING a form-entered visit into the future is refused ---'
 \echo 'expect ERROR: cannot be dated in the future'
-update public.reports set visit_at = ((current_date + 30)::text || 'T00:00:00Z')::timestamptz
+update public.reports set visit_at = ((:today + 30)::text || 'T00:00:00Z')::timestamptz
  where uid = 'WEB-A1';
 
 \echo '--- 11. what the register actually holds now ---'

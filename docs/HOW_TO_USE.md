@@ -348,15 +348,17 @@ typed into a form that reads it.
   > wearing that number, and is left out rather than guessed at. That is why 2.0
   > can show fewer machines than the older cover view, which needs only a serial
   > and merges the ones that share one.
-  > **The figures are AS OF THE LAST REBUILD**, and the screen says when —
-  > *"Built <date and time>"* beside the title. Working every machine out from
-  > five registers on demand took about **3 seconds per page** and the screen
-  > needs ten pages, so it was timing out and showing nothing; it is worked out
-  > **once** now and read back in milliseconds. After loading a warranty,
-  > contract, additional-entry or ownership-transfer file, press **⟳ Rebuild
-  > from the registers** to bring it up to date. Nobody is locked out of the
-  > screen while it rebuilds, and anyone who may edit masters or cover can do
-  > it.
+  > **It keeps itself up to date.** The five registers tell it when they have
+  > changed and it rebuilds itself within five minutes; the screen says which
+  > it is — *"Live as of …"* or *"A register has changed since … — updating
+  > within 5 minutes"*. **⟳ Rebuild from the registers** is there for when you
+  > want it now rather than soon.
+  > **The cover status is never stale**, whatever the line above says: WGP /
+  > AMC / CMC / OGP depend on today's date and are worked out fresh every time
+  > you look, so a warranty that ran out overnight shows immediately. Working every machine out from five registers on
+  > demand took about **3 seconds per page** and the screen needs ten pages, so
+  > it was timing out and showing nothing; it is worked out **once** now and
+  > read back in milliseconds. Nobody is locked out while it rebuilds.
   > **Click a row for the whole record.** The drawer shows every field, and
   > every reference on it opens the document behind it: the **SA number** goes
   > to the Warranty Register, the **contract number** to the Contract Register,

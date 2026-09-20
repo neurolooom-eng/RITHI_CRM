@@ -99,3 +99,35 @@ select case when (select warranty_start from public.product_database_v2 where se
 \echo '--- so revoking its storage from `authenticated` refuses every reader. ---'
 select case when has_table_privilege('authenticated','public.product_database_v2_mv','select')
              then 'PASS' else 'FAIL revoked — the view cannot read its own storage' end;
+
+-- ===========================================================================
+-- THE COVER STATUS MUST NOT BE STORED (0222).
+--
+-- `item_status`, `item_status_reason`, `warranty_state` and `contract_state`
+-- all read `current_date`. A materialised view evaluates its expressions at
+-- REFRESH time and stores the answer, so materialising them froze every
+-- machine's cover at whenever somebody last pressed Rebuild -- measured at 209
+-- machines of 10,000 wrong after thirty days, ~2% a month, and silently.
+--
+-- The assertion is on the DEFINITION rather than on a value, because a value
+-- read on the same day it was built agrees either way: that is exactly why
+-- this shipped.
+-- ===========================================================================
+\echo '--- the STORED half must not depend on today''s date ---'
+select case when (select count(*) from pg_matviews
+                   where matviewname = 'product_database_v2_mv'
+                     and definition ilike '%current_date%') = 0
+            then 'PASS'
+            else 'FAIL — a stored status freezes at the last rebuild' end;
+
+\echo '--- ...and the status the view publishes is computed from the stored'
+\echo '--- dates, for every row, rather than read back from storage ---'
+select case when count(*) = 0 then 'PASS'
+            else 'FAIL — ' || count(*) || ' rows disagree with a live evaluation' end
+  from public.product_database_v2 v
+ where v.item_status <> case
+         when coalesce(v.warranty_end, '-infinity'::date) >= current_date then 'WGP'
+         when coalesce(v.contract_end, '-infinity'::date) >= current_date
+           then coalesce(public.contract_cover_code(v.contract_type_as_recorded),
+                         'CONTRACT (TYPE NOT RECORDED)')
+         else 'OGP' end;

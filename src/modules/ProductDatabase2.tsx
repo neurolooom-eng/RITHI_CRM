@@ -57,7 +57,7 @@ const ALL_COLUMNS: string[] = [
   'sa_number', 'state', 'city', 'engineer',
   'from_party', 'to_party', 'transfer_date', 'reference_no',
   'in_warranty_register', 'in_contract_register', 'in_additional_entries',
-  'installation_ucn', 'machine_key', 'refreshed_at',
+  'installation_ucn', 'machine_key', 'refreshed_at', 'stale',
 ];
 
 export function ProductDatabase2() {
@@ -73,6 +73,11 @@ export function ProductDatabase2() {
   // number on this screen is as of a moment — and a figure nobody can date
   // is the fault this project has written down more than once.
   const [builtAt, setBuiltAt] = useState<string>('');
+  // WAITING ON A REBUILD, or showing the current picture? A timestamp alone
+  // cannot tell those apart and they read identically while meaning opposite
+  // things. A register marks this the moment it changes (0223) and the
+  // scheduled rebuild clears it.
+  const [waiting, setWaiting] = useState(false);
   const [rebuilding, setRebuilding] = useState(false);
   // The machine whose full record is open. The table shows ten columns of a
   // thirty-three column view; this is the rest of it.
@@ -88,6 +93,7 @@ export function ProductDatabase2() {
       // hold before saying anything about them; nine head requests, and only
       // when there is nothing to show.
       setBuiltAt(String(r[0]?.refreshed_at ?? ''));
+      setWaiting(r[0]?.stale === true);
       setGaps(r.length === 0 ? await diagnoseProductDatabaseV2() : null);
     } catch (e) {
       // The three answers, and the error VERBATIM — the real fault is usually
@@ -139,7 +145,17 @@ export function ProductDatabase2() {
         count={visible.length} onRefresh={() => void load()} refreshing={busy}
         actions={(
           <>
-            {builtAt && <span className="muted" style={{ fontSize: 12.5 }}>Built {formatDayTime(builtAt)}</span>}
+            {builtAt && (
+              // THE COVER STATUS IS NOT WHAT THIS DATES. It is computed on every
+              // read (0222), so a warranty lapsing overnight shows immediately
+              // whatever this says; what is dated here is which MACHINES exist
+              // and what the registers say about them.
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                {waiting
+                  ? `A register has changed since ${formatDayTime(builtAt)} — updating within 5 minutes`
+                  : `Live as of ${formatDayTime(builtAt)}`}
+              </span>
+            )}
             {can('masters.edit') && (
               <button className="btn btn-sm" disabled={rebuilding} onClick={() => void rebuild()}
                 title="Re-derive every machine from the five registers. Readers are not blocked while it runs.">
