@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (⚠️ NEW REPORT Solved Without a Report — RUN reports.sql,
+_Last updated: 2026-09-20 (QUEUED: Product Database 2.0 as the primary product
+list — what it involves and the four decisions it needs. Before that:
+⚠️ NEW REPORT Solved Without a Report — RUN reports.sql,
 _status.sql row 172. Before that: Product Database 2.0: a drawer per machine with its
 references as working links. Before that: ⚠️ 0220 refused EVERY reader including admins —
 0221 repairs it and removes the gate; RE-RUN product_database_2.sql. Before that:
@@ -29,6 +31,76 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## QUEUED — Product Database 2.0 becomes the PRIMARY product list
+
+> *"Once it is Streamlined, i want to move this as the Primary Source for
+> Product List -- Which will be used everywhere -- Calls, Age of the Machine --
+> ideally everywhere."* (the user, 2026-09-20)
+
+**Not started. This is the record of what it involves, so it can be decided
+rather than discovered halfway through.**
+
+### Why it is not a find-and-replace
+
+`public.products` is a TABLE of ~19,229 machines, keyed on
+`serial_key` — **the serial ALONE**. `product_database_v2` is DERIVED from five
+registers and keyed on **product + serial**. That difference is the whole point
+of 2.0 and it is also the whole difficulty: the eleven machines numbered 219 are
+ONE row in `products` and ELEVEN in 2.0. Any screen switched over will start
+returning a different number of rows for the same question, and for the right
+reason.
+
+### What reads the install base today
+
+Eight call sites in `src/lib/supabase.ts`, and they do four different jobs:
+
+| Reader | Used by | What it wants |
+|---|---|---|
+| `sbListProductNames` / `sbListProductSerials` | Machine History, call forms | the PICKER: product first, then its serials |
+| `sbProductBySerial` | call registration | one machine BY SERIAL ALONE — the hard case |
+| `sbSearchProducts` / `sbSearchMachines` | Product & Party Search, call forms | search across party / product / serial |
+| `sbSearchProductParties` | the request cascade | which customers hold a product |
+
+`machine_cover` and `cover.ts` are a fifth path, and Age of the Machine reads
+the warranty start.
+
+### The four decisions, none of which is mine to make
+
+1. **What happens to `products`.** The standing rule is *"Do Not disturb the
+   current product Database"*. Does it stay as the sales/import record with 2.0
+   layered over it, or does it eventually go? Everything else depends on this.
+2. **Serial-only lookups.** Call registration knows a serial before it knows a
+   model. Against 2.0 that can return more than one machine. Options: ask the
+   user to pick the model; accept it only where exactly ONE machine has that
+   serial and report the rest; or keep a serial-only index for this one path.
+3. **A machine 2.0 does not know.** 2.0 lists a machine only where a REGISTER
+   names it. A machine in `products` from a source that never reached the
+   registers would vanish from the pickers. **Measure the overlap before
+   anything moves** — that number decides whether this is a switch or a
+   migration.
+4. **Age of the Machine.** 2.0's warranty start comes from the installation
+   call, falling back to the selling register. `products` has its own. Where
+   they disagree, 2.0 is the better answer AND the number will change on
+   screens people already read.
+
+### The order it should go in
+
+1. **Measure first** (a probe, not a change): how many machines are in
+   `products` and not in 2.0, and the reverse; how many serials are ambiguous
+   without a model. Nothing is designed until those three numbers exist.
+2. Switch **one read** — the Machine History picker is the safest, it already
+   asks product-then-serial, which is 2.0's own key.
+3. Then Product & Party Search, which is a search rather than a decision.
+4. **Call registration LAST**, because that is where a wrong machine becomes a
+   wrong quality record.
+
+### What is already in place
+
+The blockers are gone: 2.0 is fast (3–6 ms a page), it keeps itself current
+(0223), its cover status is computed live rather than frozen (0222), and every
+row links through to the documents behind it. That is what *"once it is
+streamlined"* was waiting on.
 
 ## 2026-09-20 — ⚠️ New report: Solved Without a Report — RUN `reports.sql`
 
