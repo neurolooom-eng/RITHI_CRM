@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-20 (Product Database 2.0 says WHY it is empty on the
+_Last updated: 2026-09-20 (Daily Complaint Review Register (R/SER/35): renamed,
+two master tabs removed, and the Review Desk loads every call instead of stopping
+at 500 with no button. Before that: Product Database 2.0 says WHY it is empty on the
 screen itself, and only claims what it measured. Before that: the missing view
 grant; 0148 no longer re-adds a constraint 0152 deletes. Before that: the Consumption upload files the visit from the file,
 so a bulk load no longer stops on row 1 — CLIENT ONLY. Before that: ⚠️ 0217
@@ -24,6 +26,85 @@ _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 up)_
 
 ---
+
+## 2026-09-20 — Daily Complaint Review Register (R/SER/35)
+
+> *"Rename Daily Call Review to 'Daily Complaint Review Register (R/SER/35)'."*
+> *"Remove these Highlighted Tabs, In Review Desk - Load all Calls in 1 Go, Or
+> at a Minimum Load Recent 1000."*
+
+**The ROUTE is deliberately unchanged.** The module key IS the route
+(`mod:/daily-review`), so renaming the path would take the screen away from
+every role that holds it and need a migration to give it back. A label rename
+needs none — which is why this shipped with no SQL.
+
+**There are two screens whose names differ by one word**, and a global replace
+would have hit both: `Daily Call Review` at `/daily-review` and **`Call
+Review`** at `/call-review`. Every edit was made by exact, asserted-unique
+string, 31 of them, and `Call Review` is untouched.
+
+**Three places were deliberately NOT renamed.** `validation.ts` (URS-058,
+FRS-069 and OQ-52) quotes the literal string `"Daily Call Review"` that used to
+be written into a Field Failure Report's *Raised by* — that is a DATA VALUE and
+a historical record, and OQ-52 tells a tester to search the register for it.
+Renaming it would have falsified a test. The revision history and `BACKLOG.md`
+are records of what happened and are left alone for the same reason.
+`DATABASE_SCHEMA.md` carries the old name in one `comment on column`; correcting
+it needs a migration and a bundle re-run for a comment nobody reads, so it is
+left and recorded here instead.
+
+**A requirement stopped being filed under this screen, correctly.** The grouping
+in `REQUIREMENTS.md` is DERIVED from the label's distinctive words, and
+`Daily Call Review` → *daily · call · review* happened to match **URS-055**,
+whose own text says it is *"other than routine daily coding of the failure"* —
+i.e. explicitly NOT this screen. It governs Call Review and is still filed
+there. The screen keeps its section through URS-058, which DECLARES it by route.
+Measured before the rename, not discovered after.
+
+**The menu could not show the name, so the menu changed.** Measured in Chromium
+at the real font and weight: the name is **269px** and `.nav-label` has about
+**181px**, so `text-overflow: ellipsis` was removing the last ~14 characters —
+exactly `(R/SER/35)`, the reason for the rename. A long label now WRAPS. The
+first attempt at that silently did nothing: `white-space: nowrap` is INHERITED
+from `.nav-item`, so `overflow-wrap: anywhere` alone left the computed style at
+`nowrap` and the text just overflowed. `white-space: normal` is the fix, and the
+label goes from one line to two (15px → 30px). Every other entry measures 143px
+or less, so nothing else wraps.
+
+**Two tabs off the register.** DCCR Complaint Grouping and Root Cause Key Word
+are MASTERS, not review work. Both are still editable on **All Masters**, which
+builds itself from `masterLists.ts` — checked before removing them, so nothing
+is stranded. The now-dead `lists` state, `masterList()`, `MasterListTable` and
+the `listMasterLists()` read on mount went with them.
+
+**The Review Desk was truncating silently, which is the worse half.** It read
+500 rows and `Load more` was wired to the **Review Register tab alone** — so a
+worklist longer than 500 ended with no button and no sign it had ended. The desk
+and its three worklists now page to exhaustion (a LOOP over `range()`, never a
+bigger `limit`: PostgREST caps at 1,000 rows whatever the limit says), with a
+10,000-row ceiling that restores the `+` and the button rather than pretending.
+The register keeps its `Load more`, which is a choice on 4,100 rows rather than
+a truncation.
+
+**`deep` rides a REF, not a parameter.** `load()` is called from six places and
+only one of them is the filter effect; as an argument it was wrong at five, so
+saving a single review on the desk collapsed it back to the first 500 rows. The
+file already had this exact lesson written above `countFilterRef`.
+
+**And two generated documents were being written with npm's banner in them.**
+`npm run inventory > docs/MODULE_INVENTORY.md` puts `> rithi-crm-field-service@…`
+and the esbuild command line at the top of the file. The redirect now lives
+inside the package.json script, as `docs:reqs` always had it.
+
+Client only; **no SQL**. `npm run build`, seven database-free checks, and the
+four generated documents re-run.
+
+**Follow-up the same day, at the user's direction** (numbers drawn on the tab
+bar): the tab order is now **Register · Desk · To be Reviewed · Review 2
+Pending · Review 3 Pending · Export**, and the register tab carries the form's
+full name rather than "Review Register". The screen already defaulted to
+`register`, so the first tab and the default now agree — they did not before.
+The menu entry keeps the full name over two lines, confirmed by the user.
 
 ## 2026-09-20 — Product Database 2.0 is empty: diagnose, do not guess
 

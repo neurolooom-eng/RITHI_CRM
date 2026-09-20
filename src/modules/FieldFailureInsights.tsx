@@ -449,7 +449,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
               + 'a report covering several machines is still one report.' },
           { Item: 'Where the figures come from',
             Value: 'The Field Failure Register as it stands now, including the live Root Cause '
-              + 'and Grouping from the Daily Call Review — a cause corrected later reads corrected here.' },
+              + 'and Grouping from the Daily Complaint Review Register — a cause corrected later reads corrected here.' },
           ...(paretoBlank > 0
             ? [{ Item: `"${BLANK}"`,
                  Value: `${paretoBlank} report(s) do not state this. They are KEPT in the ranking rather `
@@ -764,7 +764,7 @@ export function FieldFailureInsights({ rows: allRows }: { rows: Row[] }) {
 
       <div style={{ height: 12 }} />
 
-      <SectionCard title="Root cause, from the Daily Call Review">
+      <SectionCard title="Root cause, from the Daily Complaint Review Register">
         <div className="muted" style={{ marginBottom: 10 }}>
           Taken from the review as it stands now, not as it stood when the report was raised —
           a cause corrected later should read corrected here.

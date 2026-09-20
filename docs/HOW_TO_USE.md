@@ -167,7 +167,10 @@ against the call it was fitted to.
 
 ## Quality
 
-- **Daily Call Review** `/daily-review` — Review 1 is the vigilance answer taken
+- **Daily Complaint Review Register (R/SER/35)** `/daily-review` — the DCCR,
+  where every solved call is reviewed. **Review 1** is the vigilance answer
+  taken at registration; **Review 2** asks what the failure was; **Review 3**
+  classifies it.
   > **Frequent failure has two rules.** **Rule 1** — this machine failing again
   > (same product and serial) within the window. **Rule 2** — the same complaint
   > on **different serial numbers** of one product within 30 days, which is a
@@ -195,8 +198,9 @@ against the call it was fitted to.
 - **Field Failure Register** `/failure-report` — failures that go back to
   manufacturing, on the controlled form `R-SER-03`, numbered `FFR - 001/26` and
   restarting each year.
-  - **A report raises itself** when the Daily Call Review answers any of Risk to
-    Patient, Warranty Failure or Frequent Failure as *Yes*.
+  - **A report raises itself** when the Daily Complaint Review Register
+    answers any of Risk to Patient, Warranty Failure or Frequent Failure
+    as *Yes*.
   - **Year and Product, both taking several values.** Tick as many as you like;
     the list stays open while you tick, and nothing ticked means everything.
     Year opens on this year; Product opens on all, so it costs nothing until you

@@ -746,7 +746,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 {/* TYPE TO SEARCH, because the master is five hundred entries
                     long and a native dropdown offers no way through it but the
                     scrollbar (user's ask, 2026-09-09). The same PickList the
-                    Daily Call Review uses: typing FILTERS and never selects, so
+                    the Daily Complaint Review Register uses: typing FILTERS and never selects, so
                     a keystroke over the box cannot quietly change the complaint.
                     The row's own value is kept when it is not on the list.
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // TYPE TO SEARCH, THEN PICK. NOTHING IS CHOSEN BY TYPING.
 //
 // A native <select> does type-ahead: press "A" and it SELECTS the first option
-// beginning with A. On the Daily Call Review that is a quality record, and with
+// beginning with A. On the Daily Complaint Review Register that is a quality record, and with
 // Auto Save on it is written the moment the key lands — so a stray keystroke
 // while the box has focus silently commits a Root Cause nobody chose (reported
 // 2026-09-07: "currently if I start typing it is getting selected

@@ -12,7 +12,7 @@ import './picklist.css';
 // and the list STAYS OPEN, because picking three things through a menu that
 // shuts after each one is the interaction everybody complains about. Threading
 // that through PickList would put an `if (multi)` in each of its branches, on
-// the control the Daily Call Review's Auto Save depends on. It borrows the same
+// the control the Daily Complaint Review Register's Auto Save depends on. It borrows the same
 // stylesheet, so the two read as one control on screen.
 //
 // THE STANDING RULE STILL HOLDS: typing FILTERS, it never SELECTS. A native

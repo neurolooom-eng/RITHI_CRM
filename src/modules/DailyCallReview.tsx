@@ -9,14 +9,12 @@ import { PickList } from '../components/ui/PickList';
 import { DataTable, type Column } from '../components/table/DataTable';
 import { csvExport, fmtLongDate, statusBadge, timeAgo } from '../lib/format';
 import {
-  callReview, countCallReviews, listCallReviews, listMasterLists, listMasterValuesForProduct,
+  callReview, countCallReviews, listCallReviews, listMasterValuesForProduct,
   frequentFailure, reportsByCall, spareConsumptionByCall, bulkSetReview2, autoAnswerReview2,
   getDccrAutoSaveDefault, setDccrAutoSaveDefault, type FrequentFailure,
-  reviewPickLists, saveCallReview, supabaseConfigured, type MasterList, type ReviewFilter,
+  reviewPickLists, saveCallReview, supabaseConfigured, type ReviewFilter,
   ffrsForCall,
 } from '../lib/supabase';
-import { fallbackList } from './masterLists';
-import { MasterListTable } from './MasterListTable';
 import { logAudit } from '../lib/audit';
 import {
   CALL_STATE_TONES, curatedProduct, DCCR_EXPORT_COLUMNS, GROUPING_MASTER, REVIEW_STATUSES, REVIEW_STATUS_TONES, ROOT_CAUSE_MASTER,
@@ -32,7 +30,7 @@ import { DocPreview } from '../components/doc/DocPreview';
 import { listProductLines } from '../lib/productLines';
 
 // ===========================================================================
-// DAILY CALL REVIEW — the DCCR (Daily Customer Complaint Review Register).
+// DAILY COMPLAINT REVIEW REGISTER (R/SER/35) — the DCCR.
 //
 // Every FIELD call is reviewed, every day, in three stages:
 //
@@ -47,13 +45,31 @@ import { listProductLines } from '../lib/productLines';
 // DERIVED — the database computes them (0044_daily_call_review.sql); the drawer
 // previews them from the same rules in src/lib/dccr.ts as the answers are given.
 //
-// One screen, four tabs: the register, the two masters it reads (both tagged
-// per product), and the export in the register's own format.
+// One screen: the Review Desk and its three worklists, the register, and the
+// export in the register's own format. The two masters it reads (DCCR
+// Complaint Grouping and Root Cause Key Word, both tagged per product) used to
+// be tabs here and live on All Masters instead.
 // ===========================================================================
 
-type Tab = 'desk' | 'todo' | 'r2' | 'r3' | 'register' | 'grouping' | 'rootcause' | 'export';
+type Tab = 'desk' | 'todo' | 'r2' | 'r3' | 'register' | 'export';
 
+// THE ORDER IS THE USER'S, GIVEN AS NUMBERS ON THE TAB BAR (2026-09-20):
+// the REGISTER first, then the desk and its three worklists, then the export.
+// The register leads because it is the record — the thing the form is — and the
+// worklists behind it are how it gets filled in. It is also what the screen
+// already opened on, so the first tab and the default tab now agree; they did
+// not before, which is its own small lie about where you are.
+//
+// DCCR COMPLAINT GROUPING AND ROOT CAUSE KEY WORD ARE NO LONGER HERE (the user,
+// same day). They are MASTERS, not review work, and remain fully editable on
+// Masters → All Masters, which builds itself from `masterLists.ts` — so nothing
+// is stranded by taking them off this bar.
 const TABS: { key: Tab; label: string; icon: string }[] = [
+  // NAMED IN FULL, like the screen (the user, 2026-09-20). This tab IS the
+  // controlled form, so it carries the form's own name and number rather than
+  // an in-house shorthand for it; `.dccr-tabs` wraps, so the long label costs
+  // the row nothing.
+  { key: 'register', label: 'Daily Complaint Review Register (R/SER/35)', icon: '📋' },
   { key: 'desk', label: 'Review Desk', icon: '🗂️' },
   // TO BE REVIEWED — the work that is FINISHED but not signed off (the user,
   // 2026-09-08). Solved calls still waiting on Review 2 or Review 3, which is
@@ -62,9 +78,6 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'todo', label: 'To be Reviewed', icon: '📋' },
   { key: 'r2', label: 'Review 2 Pending', icon: '②' },
   { key: 'r3', label: 'Review 3 Pending', icon: '③' },
-  { key: 'register', label: 'Review Register', icon: '📋' },
-  { key: 'grouping', label: 'DCCR Complaint Grouping', icon: '🗂️' },
-  { key: 'rootcause', label: 'Root Cause Key Word', icon: '🔍' },
   { key: 'export', label: 'Export', icon: '⭳' },
 ];
 
@@ -75,6 +88,25 @@ const OPT = (arr: string[]) => ['', ...arr];
 // query returns, so a page is the difference between a quarter of a second
 // and a stalled screen.
 const PAGE = 500;
+
+// THE WORKLISTS LOAD IN FULL, NOT A PAGE AT A TIME (the user, 2026-09-20:
+// "In Review Desk - Load all Calls in 1 Go, Or at a Minimum Load Recent 1000").
+//
+// The desk and its three worklists are sat down to and CLEARED, so a page
+// boundary in the middle of one is a call nobody gets to — and, worse, it was
+// SILENT here: `Load more` was wired to the Review Register tab alone, so the
+// desk stopped at 500 with no way forward and no sign that it had stopped.
+//
+// PostgREST caps a response at 1,000 rows however large the limit says, so
+// "load all" is a LOOP over `range()`, never a bigger `limit` — the read is
+// ordered `reg_date desc nulls last, id desc`, a tiebreaker after a column full
+// of ties, or a page boundary would double a row or drop one.
+//
+// THE CEILING IS REAL AND IT SHOWS. Everything the desk can reach is loaded up
+// to MAX_DESK rows; past that the "+" and `Load more` come back rather than the
+// screen quietly pretending it has the lot. 10,000 against a register of ~4,100
+// today, so it is a guard rather than a limit.
+const MAX_DESK = 10000;
 // `field_calls.open_state` — the four it can hold. Cancelled is deliberately
 // not here: the full view the rows come from does not carry `cancelled_at`
 // (see 0111), so offering it would filter the counters and not the rows.
@@ -145,9 +177,6 @@ export function DailyCallReview() {
     live ? null : { tone: 'info', text: 'Connect the database in Settings to run the daily review.' },
   );
 
-  // The database registry describes each master (label, entry name, the Product
-  // column); the built-in definition stands until 0044 has been applied.
-  const [lists, setLists] = useState<Record<string, MasterList>>({});
 
   // ---- filters -------------------------------------------------------------
   // Every one of these is applied by the DATABASE, and the register is read a
@@ -287,19 +316,48 @@ export function DailyCallReview() {
   const countFilterRef = useRef<ReviewFilter>(countFilter);
   countFilterRef.current = countFilter;
 
+  // WHICH TABS LOAD IN FULL — and it rides the SAME ref, for the same reason
+  // written directly above. `load` is called from six places (the filter
+  // effect, Refresh, the 0124 sweep, and three save paths); as a PARAMETER this
+  // was wrong at five of them, so saving one review on the desk collapsed it
+  // back to the first 500 rows. A tab cannot get it wrong if it never passes it.
+  //
+  // `desk` and `register` produce the SAME `filter` — neither adds a stage —
+  // so switching between them does not re-run the effect on `filter` alone;
+  // `deep` is in its dependencies so the desk does not inherit the register's
+  // one page and show it as the whole worklist.
+  const deep = tab === 'desk' || tab === 'todo' || tab === 'r2' || tab === 'r3';
+  const deepRef = useRef<boolean>(deep);
+  deepRef.current = deep;
+
   const load = async (f: ReviewFilter) => {
+    const deep = deepRef.current;
     if (!live) return;
     setBusy(true);
     try {
       const page = (await listCallReviews(f, 0, PAGE)) as ReviewRow[];
-      setRows(page);
-      setMore(page.length === PAGE);
+      // A WORKLIST IS LOADED WHOLE; the Review Register keeps its Load more,
+      // which is an explicit choice on a 4,000-row register rather than a
+      // truncation. `all` starts as the first page either way, so the register
+      // path is exactly what it was.
+      let all = page;
+      if (deep && page.length === PAGE) {
+        while (all.length < MAX_DESK) {
+          const next = (await listCallReviews(f, all.length, PAGE)) as ReviewRow[];
+          all = all.concat(next);
+          if (next.length < PAGE) break;
+        }
+      }
+      setRows(all);
+      // Exhausted means exhausted: no "+", because the count is now exact.
+      // Stopped at the ceiling still means more, and says so.
+      setMore(deep ? all.length >= MAX_DESK : page.length === PAGE);
       setApplied(f);
       setLastSync(new Date().toISOString());
       // A register from before 0047/0048 has no report columns at all. Left
       // alone that reads as "no visit reported yet" on every call, which is
       // indistinguishable from a call nobody has attended — so say what it is.
-      const stale = page.length > 0 && page[0].visit_details === undefined;
+      const stale = all.length > 0 && all[0].visit_details === undefined;
       setStale(stale);
       setMsg(stale
         ? { tone: 'info', text: 'The visits, spares consumed, software version and product age are not in this database yet — run supabase/apply/daily_review.sql, then refresh.' }
@@ -343,7 +401,7 @@ export function DailyCallReview() {
     const t = setTimeout(() => { void load(filter); }, search ? 400 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [live, filter]);
+  }, [live, filter, deep]);
 
   // REVIEW 2 ANSWERS ITSELF THE MORNING AFTER (0124). A call logged today stays
   // pending all day; from 9:15 the next morning its Review 2 is answered No.
@@ -381,9 +439,6 @@ export function DailyCallReview() {
 
   useEffect(() => {
     if (!live) return;
-    void listMasterLists()
-      .then((all) => setLists(Object.fromEntries(all.map((l) => [l.key, l]))))
-      .catch(() => { /* no registry yet — the built-in definitions stand */ });
     void reviewPickLists()
       .then((p) => { setProducts(p.products); setEngineers(p.engineers); })
       .catch(() => { /* the boxes stay empty; the register still reads */ });
@@ -502,7 +557,6 @@ export function DailyCallReview() {
     },
   ];
 
-  const masterList = (key: string): MasterList => lists[key] ?? fallbackList(key);
 
   return (
     <div>
@@ -510,7 +564,7 @@ export function DailyCallReview() {
         onRefresh={() => void load(filter)}
         refreshing={busy || !live}
         syncedAt={lastSync}
-        title="Daily Call Review"
+        title="Daily Complaint Review Register (R/SER/35)"
         subtitle="DCCR — every field call through Review 1, 2 and 3"
         icon="🩺"
         // The count is EXACT — countCallReviews walks every page of the summary
@@ -626,7 +680,7 @@ export function DailyCallReview() {
                 <button className="btn btn-sm" title="Close every group"
                   onClick={() => setExpanded(new Set())}>⌃ Collapse all</button>
                 {/* THE BULK BUTTON BELONGS WHERE THE WORK IS. It shipped on the
-                    Review Register only, and the first question asked was
+                    the register tab only, and the first question asked was
                     "where is it?" — from somebody standing on the Review 2
                     Pending tab, which is the list they were clearing. Same
                     confirmation, same function, same first-year rule; on this
@@ -774,7 +828,7 @@ export function DailyCallReview() {
             </div>
           </div>
 
-          <SectionCard title="Review Register">
+          <SectionCard title="Daily Complaint Review Register (R/SER/35)">
             <DataTable<ReviewRow>
               columns={columns}
               rows={rows}
@@ -860,34 +914,13 @@ export function DailyCallReview() {
         </>
       )}
 
-      {tab === 'grouping' && (
-        <SectionCard title="DCCR Complaint Grouping">
-          <p className="muted" style={{ marginTop: 0 }}>
-            Tagged per product. A <b>T60</b> or <b>T75</b> call is offered ONLY the groupings tagged
-            for that machine — its alarm codes mean nothing on another, and the common list buries
-            them. Every other product is offered ALL of them, because it has no curated list of its
-            own and <b>COMM</b> alone would leave nothing to say.
-          </p>
-          <MasterListTable list={masterList(GROUPING_MASTER)} />
-        </SectionCard>
-      )}
 
-      {tab === 'rootcause' && (
-        <SectionCard title="Root Cause Key Word">
-          <p className="muted" style={{ marginTop: 0 }}>
-            Tagged per product. A <b>T60</b> or <b>T75</b> call is offered ONLY the key words tagged
-            for that machine; every other product is offered ALL of them, because it has no curated
-            list of its own.
-          </p>
-          <MasterListTable list={masterList(ROOT_CAUSE_MASTER)} />
-        </SectionCard>
-      )}
 
       {tab === 'export' && (
         <SectionCard title="Export — DCCR format">
           <p className="muted" style={{ marginTop: 0 }}>
             The register's own columns, in its own order and under its own headings, so the file
-            drops straight into the workbook. It exports <b>every call the Review Register's
+            drops straight into the workbook. It exports <b>every call the register’s
             filters match</b> — not just the pages loaded on screen — so set the date range and
             the filters there first.
           </p>

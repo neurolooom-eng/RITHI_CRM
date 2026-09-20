@@ -28,7 +28,7 @@ import './docpreview.css';
 // error to catch. A permanent way out is the only honest answer.
 //
 // ONE VIEWER, EVERY SCREEN. The report is opened from four places (the top of a
-// closed call, a call's visit history, the Daily Call Review, and the visit
+// closed call, a call's visit history, the Daily Complaint Review Register, and the visit
 // entry form). Four screens each rendering their own frame is how the same
 // document ends up behaving differently depending on where you found it.
 // ===========================================================================

@@ -32,7 +32,7 @@ export function PageHeader({
   // answer, and "3,850+" would be wrong in the other direction.
   countMore?: boolean;
   // MORE ROWS EXIST BEHIND "Load more" — which is not the same question. The
-  // Daily Call Review knows its exact total (it counts every page) and still
+  // The Daily Complaint Review Register knows its exact total (it counts every page) and still
   // has only the first 500 on screen: an exact count AND a Load more button.
   // Defaults to `countMore`, so a screen where the two coincide says it once.
   moreAvailable?: boolean;
