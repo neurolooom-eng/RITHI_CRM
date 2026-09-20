@@ -7493,6 +7493,30 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     }
     eq('no constraint is added by one migration and dropped by a later one', zombies, []);
   }
+  {
+    // A VIEW A SCREEN READS MUST BE GRANTED TO `authenticated`. 28 of the 30
+    // views these migrations create carry `grant select ... to authenticated`;
+    // `product_database_v2` shipped without one. Supabase's default privileges
+    // usually cover a view created by `postgres`, which is exactly why the
+    // omission HIDES — and "usually" is not a rule to rely on for the one
+    // object a new screen reads, nor for a project rebuilt in a different
+    // order.
+    //
+    // `calls` is the one legitimate exception: it REPLACED a table and
+    // inherited that table's privileges, so granting again would say something
+    // untrue about where its rights come from.
+    const GRANT_EXEMPT = new Set(['calls']);
+    const migFiles = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql'));
+    const created = new Set<string>();
+    const granted = new Set<string>();
+    for (const f of migFiles) {
+      const body = readFileSync(`supabase/migrations/${f}`, 'utf8');
+      for (const m of body.matchAll(/create\s+(?:or\s+replace\s+)?view\s+public\.([a-z0-9_]+)/gi)) created.add(m[1]);
+      for (const m of body.matchAll(/grant\s+select\s+on\s+public\.([a-z0-9_]+)/gi)) granted.add(m[1]);
+    }
+    const ungranted = [...created].filter((v) => !granted.has(v) && !GRANT_EXEMPT.has(v)).sort();
+    eq('every view a migration creates is granted to authenticated', ungranted, []);
+  }
   eq('nothing reads user.name — the field is called fullName', phantom, []);
 
   // AND THE COLUMN IS STAMPED RATHER THAN SENT, which is what makes the client

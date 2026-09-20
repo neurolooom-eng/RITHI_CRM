@@ -20,6 +20,51 @@ up)_
 
 ---
 
+## 2026-09-20 — Product Database 2.0 is empty: diagnose, do not guess
+
+> *"Ran all sql, but still the list is empty"*
+
+**Not guessed at.** Two things done, one certain and one to be measured.
+
+**Certain: the view was missing its GRANT.** 28 of the 30 views these migrations
+create carry `grant select ... to authenticated`; this one did not. The only
+other exception is `calls`, which replaced a TABLE and inherited its privileges.
+Supabase's default privileges usually cover a view created by `postgres` —
+which is exactly why the omission hides — and that is not a rule to rely on for
+the one object a new screen reads. Added, and `check:ui` now refuses a new view
+without one (mutation-tested).
+
+That is very unlikely to be the cause of an EMPTY list, though: a missing grant
+produces a permission error, which the screen reports. It is fixed because it is
+wrong, not because it explains this.
+
+**To be measured: what the registers can actually offer.** 2.0 requires a
+register row to carry a serial **and** a product name, because a machine is its
+model and its serial. `machine_cover` requires only the serial — which is why it
+can show rows 2.0 will not, and why the ones it shows can be two machines merged
+into one. **A register carrying serials with blank product names therefore gives
+an empty 2.0 and a populated `machine_cover`, and neither is broken.**
+
+`supabase/apply/_why_is_product_database_2_empty.sql` answers it with the
+project's own numbers: per register, rows with a serial, rows with a product
+name, and rows with BOTH — rows 4, 8 and 11 are the answer. It also reports
+whether the view exists and whether the grant is in place, so all three
+candidates are separated in one grid. Proved here against fixtures that
+reproduce the suspected cause.
+
+**If rows 4/8/11 come back near zero** while row 16 (the install base) is large,
+the fix is a real design question rather than a bug: fall back to the model in
+`products` by serial, accepting it **only** where exactly ONE machine carries
+that serial, and reporting the ambiguous ones rather than guessing. Not built,
+because it must not rest on an assumption about the data.
+
+**To run:** `product_database_2.sql` again (it now carries the grant), then
+`_why_is_product_database_2_empty.sql`.
+
+validate: 94/94 suites, 16/16 checks.
+
+---
+
 ## 2026-09-20 — ⚠️ performance.sql re-added a constraint 0152 deleted
 
 > *"ERROR: 23514: check constraint `parts_category_check` of relation `parts`

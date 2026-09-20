@@ -32742,6 +32742,19 @@ select
 -- error and no warning (0040/0050/0057).
 alter view public.product_database_v2 set (security_invoker = on);
 
+-- THE GRANT. 28 of the 30 views these migrations create carry one and this did
+-- not; the only other exception is `calls`, which replaced a TABLE and inherited
+-- its privileges. Supabase's default privileges usually cover a view created by
+-- `postgres`, which is why the omission can hide -- but "usually" is not a rule
+-- to rely on for the one object a new screen reads, and a project rebuilt in a
+-- different order does not get it.
+--
+-- `security_invoker` is what actually decides the ROWS (set above): this grant
+-- opens the view, row-level security on the five registers underneath still
+-- applies to whoever is reading, so nobody sees a machine they could not
+-- already see through the registers themselves.
+grant select on public.product_database_v2 to authenticated;
+
 comment on view public.product_database_v2 is
   'Product Database 2.0: one row per machine (model + serial) assembled from Warranty Sale Details, Contract Details, Additional Entries, Ownership Transfer and the installation call. Every derived value names the register it came from. Does not replace public.products.';
 

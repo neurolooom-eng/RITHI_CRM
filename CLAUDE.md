@@ -258,6 +258,27 @@ on testing the old shape. **When a migration replaces a definition, move the
   CR and SR, and `requirements-doc.ts` folds it into `REQUIREMENTS.md` the same
   way. **Read it before changing anything about cover**, and update a status
   line in the same change that makes it true.
+- **A VIEW A SCREEN READS MUST BE GRANTED TO `authenticated`, AND THE OMISSION
+  HIDES.** 28 of the 30 views these migrations create carry
+  `grant select ... to authenticated`; `product_database_v2` shipped without
+  one. Supabase's default privileges usually cover a view created by
+  `postgres` — which is exactly why it hides — and "usually" is not a rule to
+  rely on for the one object a new screen reads, nor for a project rebuilt in a
+  different order. `check:ui` refuses it now; `calls` is the only exemption,
+  because it REPLACED a table and inherited that table's privileges.
+- **2.0 CAN LEGITIMATELY LIST FEWER MACHINES THAN `machine_cover`, AND AN EMPTY
+  SCREEN IS NOT PROOF OF A FAULT.** It requires a register row to carry a
+  serial **and** a product name, because a machine is its model and its serial;
+  `machine_cover` requires only the serial, which is why it shows rows 2.0 will
+  not — and why the ones it shows can be two machines merged into one. A
+  register carrying serials with blank product names therefore produces an
+  EMPTY 2.0 and a populated `machine_cover`, and neither is broken.
+  **`supabase/apply/_why_is_product_database_2_empty.sql` answers it with the
+  project's own numbers**: per register, how many rows have a serial, how many
+  have a product name, and how many have BOTH — rows 4, 8 and 11 are the
+  answer. Ask it before changing the view: the alternative fix (fall back to the
+  model in `products` by serial, and only where exactly ONE machine has that
+  serial) is a real option but must not be built on a guess about the data.
 - **PRODUCT DATABASE 2.0 IS A VIEW BESIDE THE OLD ONE, NOT A REPLACEMENT** (the
   user, 2026-09-20: *"Do Not disturb the current product Database, create this
   as Product Database 2.0"*). `product_database_v2` (0218) is one row per
