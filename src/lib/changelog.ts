@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.310',
+    date: '2026-09-20',
+    title: 'performance.sql stopped on a rule that was deleted a year ago',
+    changes: [
+      'IT FAILED WITH \u201ccheck constraint parts_category_check ... is violated by some row\u201d. That rule \u2014 a part\u2019s category must be one of five words \u2014 was REMOVED on purpose back in 0152, because it aborts a bulk import half-written the day the Item Master gains a sixth word. The file that created it never stopped trying to create it.',
+      'It only ever bit on YOUR data. On an empty database it is added and then removed again in the same run, so every test we have passed; on your project a part had since been loaded with a category outside those five words, and the bundle stopped at that line \u2014 before reaching the file that would have dropped it.',
+      'THE PART IS NOT TOUCHED. Its category stays exactly as loaded: that column is the Item Master\u2019s own word, and an unexpected one shows up in Spare Insights as its own bar, which is how somebody notices it and decides what it should be.',
+      'A check now refuses any rule that one migration adds and a later one deletes \u2014 dead code that still runs on every re-apply, and cannot fail until it meets real data.',
+      'Run performance.sql again; it goes through now. Then product_database_2.sql and rbac.sql as before.',
+    ],
+  },
+  {
     version: '0.9.309',
     date: '2026-09-20',
     title: 'The SQL now tells you what to run first, instead of failing on a function name',
