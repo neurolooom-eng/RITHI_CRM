@@ -85,10 +85,61 @@ update public.calls c
      or c.last_visit_at is distinct from r.visit_at);
 
 -- A call whose reports have all gone is Unattended again.
-update public.calls c
-   set last_status = '', last_visit_at = null
- where (coalesce(c.last_status, '') <> '' or c.last_visit_at is not null)
-   and not exists (select 1 from public.reports r where r.ucn = c.ucn);
+--
+-- ONCE, AND NEVER AGAIN ON A RE-APPLY. This is a BARE statement, so every run
+-- of `call_requests.sql` used to execute it against LIVE DATA -- and 0109
+-- (close_call, four months later) made its premise false: from then on a call
+-- could be Solved with no visit ON PURPOSE, and this statement silently
+-- un-solved every one of them.
+--
+-- IT HAPPENED, 2026-09-20. The user ran this bundle to pick up 0164's engineer
+-- timeout and 0125's UCN counter, and 4,222 calls went from Solved to
+-- Unattended in one statement nobody asked for. Reproduced exactly on a copy
+-- before writing this: 4,222 in, 4,222 Unattended out.
+--
+-- A BACKFILL IS A ONE-TIME DATA CORRECTION, NOT PART OF THE SCHEMA, and the
+-- difference only shows when a bundle is re-run -- which is the normal way this
+-- project applies anything. The sentinel makes that explicit rather than
+-- relying on the statement happening to be idempotent, which this one is not:
+-- it is idempotent against the state 0032 shipped into and destructive against
+-- the state 0109 created. Same class as `parts_category_check` (0148/0152) --
+-- dead code that still executes, and only bites against real data.
+--
+-- The re-backfill ABOVE is deliberately left unguarded: it recomputes
+-- `last_status` from `reports`, which is the source of truth, so re-running it
+-- is a no-op on a correct database and a repair on a drifted one.
+-- `app_settings` is created by 0047, in a LATER module -- so on a fresh apply
+-- it does not exist yet and there is nothing to have run before, which is
+-- exactly when the backfill SHOULD run. Absent table means first time.
+--
+-- READ THROUGH `execute`, NOT A PLAIN `if ... and exists(...)`. plpgsql
+-- prepares the whole condition as ONE query and Postgres PARSES it before any
+-- short-circuit can help, so `to_regclass(...) is not null and exists (select
+-- ... from public.app_settings ...)` still fails with "relation does not
+-- exist" on a fresh database. Found by running it, not by reading it.
+do $$
+declare v_done boolean := false;
+begin
+  if to_regclass('public.app_settings') is not null then
+    execute 'select exists (select 1 from public.app_settings where key = $1)'
+       into v_done using 'calls_unattended_backfill_0032';
+  end if;
+
+  if v_done then
+    raise notice '0032: the Unattended backfill has already run; skipping (it would un-solve calls closed without a visit)';
+    return;
+  end if;
+
+  update public.calls c
+     set last_status = '', last_visit_at = null
+   where (coalesce(c.last_status, '') <> '' or c.last_visit_at is not null)
+     and not exists (select 1 from public.reports r where r.ucn = c.ucn);
+
+  if to_regclass('public.app_settings') is not null then
+    execute 'insert into public.app_settings (key, value) values ($1, to_jsonb(now()::text)) on conflict (key) do nothing'
+      using 'calls_unattended_backfill_0032';
+  end if;
+end $$;
 
 -- ---- views -----------------------------------------------------------------
 create view public.call_state as
