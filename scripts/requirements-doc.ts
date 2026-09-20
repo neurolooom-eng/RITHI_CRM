@@ -74,8 +74,11 @@ function readExternal(file: string, prefix: string): Ext[] {
 }
 const CR = readExternal('docs/CALL_REQUEST_REQUIREMENTS.md', 'CR');
 const SR = readExternal('docs/ISO13485_SERVICING.md', 'SR');
+// CW — warranty, contract, ownership transfer and the assembled machine record,
+// mapped to the ISO clauses they serve. The third hand-maintained reference.
+const CW = readExternal('docs/COVER_REQUIREMENTS.md', 'CW');
 
-type Item = { kind: 'URS' | 'CR' | 'SR'; id: string; title: string; text?: string; risk?: string; doc?: string };
+type Item = { kind: 'URS' | 'CR' | 'SR' | 'CW'; id: string; title: string; text?: string; risk?: string; doc?: string };
 const items: { it: Item; mods: string[]; how?: Record<string, string> }[] = [
   ...URS.map((r) => ({
     it: { kind: 'URS' as const, id: r.id, title: r.title, text: r.text, risk: r.risk },
@@ -87,6 +90,10 @@ const items: { it: Item; mods: string[]; how?: Record<string, string> }[] = [
   })),
   ...CR.map((r) => ({ it: { kind: 'CR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title).length ? modulesNamedBy(r.title) : ['/call-requests'] })),
   ...SR.map((r) => ({ it: { kind: 'SR' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
+  // The cover requirements land on whichever screens their own words name; a
+  // requirement about the assembled record names Product Database 2.0, one
+  // about a transfer names Ownership Transfer, and so on.
+  ...CW.map((r) => ({ it: { kind: 'CW' as const, id: r.id, title: r.title, doc: r.doc }, mods: modulesNamedBy(r.title) })),
 ];
 
 // ---- the document ----------------------------------------------------------
@@ -106,6 +113,7 @@ P('| **URS** | `src/lib/validation.ts` | **User requirements** — what the busi
 P('| **FRS** | `src/lib/validation.ts` | **System requirements** — how this system does it. Each names the URS it implements |');
 P('| **CR** | [`docs/CALL_REQUEST_REQUIREMENTS.md`](CALL_REQUEST_REQUIREMENTS.md) | The CALL REQUEST module, in full |');
 P('| **SR** | [`docs/ISO13485_SERVICING.md`](ISO13485_SERVICING.md) | The SERVICING PROCESS against ISO 13485 §7.5.4 — a DRAFT, not approved |');
+P('| **CW** | [`docs/COVER_REQUIREMENTS.md`](COVER_REQUIREMENTS.md) | WARRANTY, CONTRACT, OWNERSHIP TRANSFER and the assembled machine record — a DRAFT |');
 P('| **OQ / PQ** | `src/lib/validation.ts` | The tests that prove each one |');
 P();
 P('## How to read it');
@@ -213,11 +221,11 @@ P();
 P('These name no module in their own words. Most are system-wide, and forcing');
 P('them under a screen would say something the requirement does not.');
 const loose = items.filter((x) => !seen.has(x.it.id));
-for (const kind of ['URS', 'CR', 'SR'] as const) {
+for (const kind of ['URS', 'CR', 'SR', 'CW'] as const) {
   const here = loose.filter((x) => x.it.kind === kind);
   if (!here.length) continue;
   P();
-  P(`## ${kind === 'URS' ? 'User requirements' : kind === 'CR' ? 'Call Request module' : 'Servicing process (ISO 13485)'}`);
+  P(`## ${kind === 'URS' ? 'User requirements' : kind === 'CR' ? 'Call Request module' : kind === 'CW' ? 'Cover — warranty, contract, ownership' : 'Servicing process (ISO 13485)'}`);
   P();
   here.forEach(({ it }) => {
     if (kind === 'URS') {

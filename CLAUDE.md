@@ -251,6 +251,47 @@ on testing the old shape. **When a migration replaces a definition, move the
   has produced were a migration that had not been run, and `docs/BACKLOG.md`
   claimed the opposite twice — once nearly causing a needless rebuild of the
   live `calls` tables. The backlog is a record, not evidence.
+- **`docs/COVER_REQUIREMENTS.md` IS THE STANDING REFERENCE FOR COVER** — warranty,
+  contract, ownership transfer and the assembled machine record, 20 requirements
+  (CW-001…CW-020) each mapped to the ISO 13485:2016 clause it serves, with a
+  status line and a ranked gap list. The THIRD hand-maintained reference after
+  CR and SR, and `requirements-doc.ts` folds it into `REQUIREMENTS.md` the same
+  way. **Read it before changing anything about cover**, and update a status
+  line in the same change that makes it true.
+- **PRODUCT DATABASE 2.0 IS A VIEW BESIDE THE OLD ONE, NOT A REPLACEMENT** (the
+  user, 2026-09-20: *"Do Not disturb the current product Database, create this
+  as Product Database 2.0"*). `product_database_v2` (0218) is one row per
+  MACHINE — model and serial — assembled from `warranty_sale_details`,
+  `contract_details`, `product_additional_entries`, `ownership_transfers` and
+  the installation call. `public.products` and `machine_cover` are untouched.
+  **Three places it deliberately disagrees with `machine_cover`**, which is why
+  a second view exists rather than an edit to that one: it keys on PRODUCT +
+  SERIAL where that view keys on the serial ALONE (so that one merges the eleven
+  machines numbered 219 into one row wearing one machine's cover); it reads FIVE
+  registers where that one reads two (Ownership Transfer and Additional Entries
+  are not consulted there at all); and **WARRANTY DECIDES BEFORE CONTRACT**,
+  where that one asks the contract first. A contract with a blank type reads
+  `CONTRACT (TYPE NOT RECORDED)` rather than that view's guess of CMC.
+  **`cover_period_end()` reproduces `addPeriod()`'s JAVASCRIPT MONTH OVERFLOW**:
+  31 January plus one month is 2 March, where Postgres's own interval arithmetic
+  clamps to 27 February — 26 of 458 start/period pairs differ, proved against
+  the application rather than reasoned about. `_status.sql` row 169;
+  `supabase/apply/_product_database_2_vs_1.sql` counts the disagreements on live
+  data, because this repository can rank the gaps by consequence and cannot
+  count them.
+  **IT IS ITS OWN BUNDLE, LAST IN `ALL_ORDER`, AND THAT IS NOT TIDINESS.** It
+  reads `cover_code()` (0208, `data_integrity`) and `imported_ts()` (0215,
+  `performance`), and BOTH a SQL-language function body and a view are resolved
+  AT CREATION — so filed with the registers it reads it died twice, once on each.
+  `check:replay` found both.
+- **A MODULE NAME WITH A DIGIT WAS INVISIBLE TO `check:bundles`.** Its parser
+  matched `^  ([a-z_]+): \{`, so `product_database_2` was not merely unchecked —
+  its files fell into the PRECEDING module's chunk and the mirror rule was
+  reported against a module that does not own them (*"0122_spare_requests_replay_tail.sql
+  must be the LAST file in module spare_requests — it is followed by
+  0218_product_database_v2.sql"*, naming two files that share no module). Widened
+  to `[a-z0-9_]+`. A check that silently absorbs a module into its neighbour is
+  worse than one that refuses it.
 - **A PROBE'S "CHANGE ME" LINE MUST NOT DEFAULT TO SOMEBODY REAL.**
   `_why_is_it_empty.sql` and `_why_is_it_empty_2.sql` both shipped with a live
   address on that line, so running either unchanged returned a COMPLETE,

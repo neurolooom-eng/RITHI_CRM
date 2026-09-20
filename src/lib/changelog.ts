@@ -12,6 +12,21 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.308',
+    date: '2026-09-20',
+    title: 'Product Database 2.0, and the cover requirements behind it',
+    changes: [
+      'PRODUCT DATABASE 2.0 \u2014 a new screen beside the one you have, which is untouched. One row per MACHINE (model AND serial), worked out from the warranty sale register, the contract register, the additional entries, the ownership transfer and the installation call. Run both and compare before trusting either.',
+      'EVERY ANSWER SAYS WHERE IT CAME FROM. Party from, Because, and the warranty and contract source columns name the register that decided each value \u2014 a row assembled from five places that cannot show its evidence is one nobody can check.',
+      'STATUS IS WORKED OUT, NOT TYPED. Inside the warranty it is WGP even where a contract also covers it; otherwise a LABOUR contract is AMC and a COMPREHENSIVE one is CMC; neither, and it is OGP. The old Product Database stores whatever the import said and never recomputes it.',
+      'A CONTRACT WITH NO TYPE RECORDED SAYS SO rather than being assumed comprehensive. Each one is a contract row worth correcting \u2014 and the existing machine_cover view quietly calls them all CMC.',
+      'THE WARRANTY STARTS AT THE INSTALLATION: the Warranty Start Date your engineer is asked for, or failing that the date that call was solved. Nothing in the system read that answer back before now.',
+      'MACHINES THAT SHARE A SERIAL STAY SEPARATE. Serials repeat across models \u2014 there are eleven machines numbered 219 \u2014 and the older cover view merges them into one row carrying one machine\u2019s warranty and another\u2019s contract.',
+      'WRITTEN DOWN: 20 cover requirements mapped to the ISO 13485 clauses they serve, covering warranty, contract and ownership transfer, each with its status and a ranked list of the gaps \u2014 docs/COVER_REQUIREMENTS.md, folded into the Requirements document with the rest.',
+      'SQL to run: product_database_2.sql, then rbac.sql (it carries the permission for the new screen). _status.sql row 169 confirms it. _product_database_2_vs_1.sql then counts the disagreements between old and new on your own data.',
+    ],
+  },
+  {
     version: '0.9.307',
     date: '2026-09-18',
     title: 'The diagnostic no longer answers about the wrong person',

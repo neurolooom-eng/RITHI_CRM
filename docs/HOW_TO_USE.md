@@ -320,6 +320,25 @@ typed into a form that reads it.
   > **Warranty Status** and **Contract Status** here are the words the FILE
   > used. They are not the Active / About to expire / Inactive the system works
   > out from the dates, and the two can disagree — which is worth seeing.
+- **Product Database 2.0** `/product-database-2` — the same machines, but
+  **worked out** rather than stored. One row per machine (model **and** serial),
+  assembled from the warranty sale register, the contract register, the
+  additional entries, the ownership transfer register and the installation call.
+  > **It does not replace the Product Database**, which is untouched beside it —
+  > run both and compare before trusting either.
+  > **Every answer says where it came from.** *Party from*, *Because*, and the
+  > warranty/contract source columns name the register that decided each value,
+  > so a row can be checked rather than believed.
+  > **Status is derived, not typed.** Inside the warranty it is **WGP**, even
+  > where a contract also covers it. Otherwise a **labour** contract is AMC and
+  > a **comprehensive** one is CMC. Neither, and it is **OGP**.
+  > **A contract with no type recorded says so** — `CONTRACT (TYPE NOT
+  > RECORDED)` — and is never assumed to be comprehensive. Each one is a
+  > contract row worth correcting.
+  > **The warranty starts at the installation**: the *Warranty Start Date* the
+  > engineer is asked for on an installation call, or failing that the date that
+  > call was solved, and only then the selling register.
+
 - **Product Master** `/product-master` — the list of **product lines**, one row
   per product code: type, category, short form, and whether it is still sold.
   Not the machines — those are the Product Database.
