@@ -44,6 +44,7 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) | High |
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first | Medium |
+| 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
 
 ---
 
@@ -524,7 +525,7 @@ project has more than 25 consuming products is not known from here.
 | `queryParties` (:1108) | `party_name` | Party Master's Load more | two branches of one hospital group |
 | `listAllHandstockMovements` (:3249) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
 | `listKpiFieldInst` (:376) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues` (:2498) | `name` | its own internal loop | a master list is *many values per name* |
+| `listAllMasterValues` (:2498) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
 | `unusedSpareEngineers` (:637) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
@@ -550,10 +551,16 @@ and has applied it in five places — `listCallRequests` (`submitted_at + id`),
 recording why: *"a bulk import makes ties certain and a tie puts a row on two
 pages or neither."* These nine were not done.
 
-The worst two are the ones nobody would re-check: `listKpiFieldInst` feeds a
-**file** somebody sends on, and `listAllMasterValues` pages by `name` when a
-master list holds hundreds of values under one name — page boundaries fall
-inside a single list.
+The worst is `listKpiFieldInst`: it feeds a **file** somebody sends on, so a
+doubled or missing row is not noticed on a screen and cannot be.
+
+**One correction to the row above.** `listAllMasterValues` pages by `name` when a
+master list holds hundreds of values under one name, so its page boundaries fall
+*inside* a single list — but it has **no callers**: `grep -rn listAllMasterValues
+src/ scripts/ supabase/` returns only its own definition. It is dead code today
+and nothing is wrong on any screen because of it. It is left in the table because
+the next caller inherits the fault; it is not a live bug, and the eight above it
+are.
 
 **Established by** building the case in Postgres 16.13 and counting. The plan
 Postgres chose for page 1 (a top-N heapsort) orders ties differently from the
@@ -869,3 +876,73 @@ PAGE_SIZE, loaded))` (`HandStock.tsx:171`) re-reads as far as the reader had
 got, so a background sync keeps the register the size it was.
 
 **Established by** reading the three effects and their `load` functions. Certain.
+
+---
+
+## 23 — Correcting somebody's name on User Master silently empties their team
+
+**Where** `src/modules/UserMasterView.tsx` (the `name` cell, editable in the
+table at `:367` and in the drawer), against
+`visible_engineer_names()` and `public.handstock_key()`
+
+**What is wrong.** The reporting tree is built by matching **name strings**:
+`user_directory.reporting_manager` and `.regional_manager` hold a manager's
+*name*, not a key. Nothing cascades a change of that name. The only trigger on
+the table is `sync_profile_from_user_directory`, which pushes the new name
+**out** to `profiles` and touches no other directory row (read from the
+database: `user_directory` carries exactly two triggers, that one and the
+address guard).
+
+**How it fails — measured.** A manager with two engineers, then one edit
+correcting the spelling of the manager's own name, made as an administrator:
+
+```
+--- who the RM can see, before the rename ---
+ RM Ravi
+ Eng A
+ Eng B
+(3 rows)
+
+--- the two engineers still name the OLD spelling ---
+ name  | reporting_manager
+ Eng A | RM Ravi
+ Eng B | RM Ravi
+
+--- who the RM can see now ---
+ Ravi Kumar
+(1 row)
+```
+
+Three to one. The manager keeps themselves and loses both engineers — and with
+them every call, spare request, visit and review those engineers' names scope.
+Nothing errors, nothing is logged as a loss, and the manager's own screens do
+not look broken: they look like a quiet week.
+
+This is the same outcome as the blank-name bug 0212 repaired ("a caller the
+directory cannot name sees no team"), reached by a different route — and 0212's
+fix does not help here, because the name is not blank, it is simply no longer
+the one the children point at.
+
+**A second consequence, in the stock record.** `handstock_movements` keys every
+arm on `handstock_key(r.engineer)` / `handstock_key(c.engineer)` — the engineer
+name **stored on the spare request and the consumption row** — so renaming an
+engineer leaves their whole existing balance under the old key while anything
+raised afterwards opens a second balance under the new one. The Hand Stock
+engineer dropdown is built from the directory, so it offers the new name, which
+holds nothing. One person, two stock positions, neither complete.
+
+**Nothing on the screen says so.** The drawer's help text explains that
+*Reporting Manager* and *Regional Manager* are "names from this directory —
+they build the tree that decides whose calls each manager can see" (`:924-925`),
+which is exactly right and points at the other two fields. The `name` field
+itself — the one that breaks the tree when it changes — carries no warning, and
+the table lets it be edited inline along with everything else.
+
+**Established by** building a directory on a database with all 219 migrations
+applied and calling `visible_engineer_names()` before and after the rename, as
+the RM. The hand-stock half is read from `handstock_movements`' definition, not
+exercised end to end.
+
+**What would make it safe** is a decision, not a patch: cascade the rename in
+the same statement, or key the tree on `id` rather than on the name. Both are
+larger than this document, which is why it is recorded rather than fixed.
