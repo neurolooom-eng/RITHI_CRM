@@ -20,6 +20,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // would be a master entry that does not exist.
 // ===========================================================================
 
+// ===========================================================================
+// ONLY ONE LIST IS OPEN AT A TIME, ACROSS THE WHOLE APPLICATION.
+//
+// The user, 2026-09-21: "In general, the drop-down is not disappearing once
+// selected .. ideally once selected and moved on to the next field it should
+// hide Automatically." Every dropdown in this application is this component
+// (the type-search-and-select rule), so two panels stacked on a phone is the
+// component's own doing -- each instance kept its own `open` and nothing told
+// the others to shut.
+//
+// A REGISTRY RATHER THAN AN EVENT, because the event is exactly what was not
+// arriving: the outside-click handler below listened for `mousedown`, and a
+// phone has no mouse. This closes the others by calling them, which needs no
+// event at all and works the same on every device.
+// ===========================================================================
+const openPickers = new Set<() => void>();
+
 export interface PickListProps {
   value: string;
   options: string[];
@@ -212,11 +229,35 @@ export function PickList({
   // highlighted row: leaving a box alone must never change what it holds.
   useEffect(() => {
     if (!open) return;
-    const away = (e: MouseEvent) => {
+    // POINTERDOWN, NOT MOUSEDOWN. `mousedown` is a MOUSE event: a phone fires
+    // pointer and touch events, and the compatibility mouse events a browser
+    // may synthesise afterwards are late, inconsistent between browsers, and
+    // suppressed outright when the tap is handled elsewhere -- so tapping away
+    // from an open list on a phone often left it open. `pointerdown` covers
+    // mouse, touch and pen from one listener.
+    const away = (e: Event) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) close();
     };
+    document.addEventListener('pointerdown', away);
+    // For anything too old to have pointer events. Both firing is harmless:
+    // closing an already-closed list does nothing.
     document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('mousedown', away);
+    };
+  }, [open]);
+
+  // OPENING ONE CLOSES THE REST. Registered while open and removed on close,
+  // so the set only ever holds lists that are actually showing.
+  useEffect(() => {
+    if (!open) return;
+    const shut = () => { setOpen(false); setQuery(''); setHi(0); };
+    // Everyone else first -- `shut` is not in the set yet, so this cannot
+    // close the list that is opening.
+    openPickers.forEach((other) => other());
+    openPickers.add(shut);
+    return () => { openPickers.delete(shut); };
   }, [open]);
 
   const close = () => { setOpen(false); setQuery(''); setHi(0); };
