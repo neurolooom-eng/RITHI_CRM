@@ -8,8 +8,9 @@ _Last updated: 2026-09-21 (the 144 recovered visits are SOLVED — no repair
 needed; OPEN: 3,600 of 3,744 bulk-loaded visits carry NO call status, which is
 the "Report pending" across the register. Before that: ⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
 RUN data_integrity.sql (the bundle that carries 0225), _status.sql row 60. Take _backup_before_repair.sql first.
-Before that: ⚠️ Drive storage RE-ROUTED to the "Reports" shared
-drive, one folder per kind of document — NEEDS A CallReg REDEPLOY, no SQL.
+Before that: Drive storage RE-ROUTED to the "Reports" shared
+drive, one folder per kind of document — ✅ REDEPLOYED 21-Sep, new /exec baked
+in as DEFAULT_URL_VERSION 11. No SQL.
 Before that: RCA on 4,222 calls Solved with no visit — the
 "Close call" button, 5-15 Sep; plus a proper Excel/CSV export. Before that:
 QUEUED: Product Database 2.0 as the primary product
@@ -143,10 +144,15 @@ with five folders:
 | Call Request → KYC | `KYC` |
 | Call Request → Installation Report | `Additional Reports` |
 
-**NOT LIVE UNTIL THE CallReg WEB APP IS REDEPLOYED.** The script that writes to
-Drive is a separate deployment from the site, and merging this changes nothing
-on its own. Re-deploy the SAME deployment so the `/exec` URL stays the same
-(`apps-script/DEPLOY.md`). **No SQL.**
+**✅ REDEPLOYED 21-Sep-2026.** The new `/exec` is baked into
+`DEFAULT_SHEETS_URL` and `DEFAULT_URL_VERSION` is **11**, so every device's
+stored URL is superseded on next load. That bump is not bookkeeping: the OLD
+deployment still answers, so a phone holding the old address would go on
+writing into the old flat folder silently. **No SQL.**
+
+**Not verified from here, and cannot be**: `script.google.com` is blocked from
+the sandbox's outbound proxy, so the new endpoint was not probed. First upload
+after the deploy is the check.
 
 ### Three decisions worth keeping
 

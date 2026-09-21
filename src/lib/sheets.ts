@@ -20,8 +20,14 @@ const TAB_KEY = 'rithi.sheets.tab';
 // out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
 // on an older version adopt the new default automatically (their stale saved
 // URL is superseded until they explicitly Save a new one in Settings).
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxNS2GI7cp2n4eKAINQLtYW1FrxqTQo0TFYulRl3_dCvMG6iH992RkS5XJOFr8F0ZOs/exec';
-const DEFAULT_URL_VERSION = 10;  // v10: the redeploy carrying `drivefile` (0.9.150)
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyF2zr4Tv8Y2dEDWCMtkaGLobfQtb5bf4y7YN8LkpmnntRF--bzSJUFdby8kTbZ_N8/exec';
+const DEFAULT_URL_VERSION = 11;  // v11: the redeploy re-routing Drive storage
+                                 //      to the "Reports" shared drive (0.9.326)
+// THE BUMP IS THE WHOLE POINT, not bookkeeping. A device that has ever saved a
+// URL in Settings keeps using it, and an engineer's phone holding the OLD /exec
+// would go on writing reports into the OLD flat folder -- silently, because the
+// old deployment still answers. Raising the version supersedes every stored
+// copy on the next load, so nobody has to be told to edit Settings.
 
 export function getSheetsUrl(): string {
   try {

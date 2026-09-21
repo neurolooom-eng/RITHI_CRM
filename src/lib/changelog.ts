@@ -24,6 +24,16 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.326',
+    date: '2026-09-21',
+    title: 'Reports now go to the Reports shared drive',
+    changes: [
+      'THE DRIVE RE-ROUTING IS LIVE. The CallReg script has been redeployed, so a Field report goes to Field Reports, an Installation report to Installation Reports, a PM report to PM Reports, and a Call Request\u2019s KYC and Installation Report to KYC and Additional Reports.',
+      'NOBODY NEEDS TO CHANGE ANYTHING IN SETTINGS. The new address is built into this version and supersedes whatever your device had saved \u2014 otherwise a phone holding the old one would go on filing reports into the old folder without saying so.',
+      'Every report uploaded before today still opens as it did.',
+    ],
+  },
+  {
     version: '0.9.325',
     date: '2026-09-21',
     title: 'The product list says when it could not load',
