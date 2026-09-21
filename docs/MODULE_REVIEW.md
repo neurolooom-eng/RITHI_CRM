@@ -25,11 +25,18 @@ pg_cron) and `check:replay` (23 bundles). So everything below is in the gap thos
 seventeen checks do not cover — which is the gap this project keeps finding
 things in.
 
-**Line numbers are against the merged tree.** Two citations moved when `main`
-landed and have been corrected: `sheets.ts:157-158` → `:164-165`, and
-`CallReporting.tsx:410/:447` → `:414/:451`. Neither finding changed — `main`'s
-edit to `CallReporting.tsx` was Drive-folder routing, several hundred lines from
-the `visit_at` line finding 26 is about. Nothing `main` brought fixes or
+**A line number is a hint; the symbol is the citation.** `main` moved twice while
+this was being written, and both times it edited files quoted here — 18 of 21
+`supabase.ts` citations drifted on the second one alone, because the file gained
+forty lines in the middle. So reads in `supabase.ts` are now cited by **function
+name** with the line as `~:NNN`, which survives a shift; everywhere else, the
+quoted "current" snippet is what identifies the code. If a number is off by a
+few, search the snippet.
+
+Corrected so far, none of which changed a finding: `sheets.ts:157-158` →
+`:164-165`, `CallReporting.tsx:410/:447` → `:414/:451`, and the eighteen
+`supabase.ts` reads re-anchored to their functions. `main`'s edits were
+Drive-folder routing and an index fix on `sbListPartyItems`; neither fixes nor
 invalidates anything recorded here.
 
 | # | Module | What | Severity |
@@ -146,7 +153,7 @@ the card immediately above it counts parties (`:116`).
 
 **How it fails.** The load is `listFieldCalls('', 0, 'FIELD')`, and
 `sheets.ts:164-165` turns a `0` limit into `sb.listCalls(type, 100000)`, which
-**pages** in 1,000-row blocks (`supabase.ts:235-248`). So the value is the entire
+**pages** in 1,000-row blocks (`supabase.ts`, `listCalls()`). So the value is the entire
 register — tens of thousands — under a caption promising 300. A reader who takes
 the caption at its word reads the two biggest numbers on the page as a sample of
 300 and divides accordingly.
@@ -322,10 +329,10 @@ per column.
 
 ## 8 — Seven paged reads page with no `order()`
 
-**Where** `src/lib/supabase.ts` — `distinctColumn` (:773), `sbSearchProducts`
-(:1403), `listDirectoryAsUsers` (:2009), `sbEngineerNames` (:2149),
-`countCallReviews` (:2285), `reviewPickLists` (:2315), `listCallReportReviews`
-(:4618)
+**Where** `src/lib/supabase.ts` — `distinctColumn()` (~:768), `sbSearchProducts()`
+(~:1439), `listDirectoryAsUsers()` (~:2047), `sbEngineerNames()` (~:2188),
+`countCallReviews()` (~:2322), `reviewPickLists()` (~:2353), `listCallReportReviews()`
+(~:4652)
 
 **What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
 WHEN PAGING. Without one, PostgREST may return page 2 overlapping page 1 and a
@@ -384,7 +391,7 @@ So `inView` falls through to `counts.total`: the Calls pane header reads
 as 3,925 calls still to load.
 
 The right number is already computed and already on the screen: `counts.solvedPending`,
-counted in the same sweep for exactly this tab (`supabase.ts:2294-2299`), and used
+counted in the same sweep for exactly this tab (`supabase.ts`, `countCallReviews()`), and used
 correctly on the tab's own badge at `:647`. Only the pane header misses it.
 
 There is a second, narrower version of the same fault: if the reviewer HAS set
@@ -534,15 +541,15 @@ project has more than 25 consuming products is not known from here.
 
 | Read | Order | Paged by | Ties are certain because |
 | --- | --- | --- | --- |
-| `listFeedbackRows` (:3272) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
-| `listConsumptionRows` (:3264) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
-| `listSpareRequestLines` (:2730) | `created_at` | Spare Requests' Load more | every line of one request is written together |
-| `queryAudit` (:2101) | `at` | Audit Log's Load more | a burst of writes shares the second |
-| `queryParties` (:1108) | `party_name` | Party Master's Load more | two branches of one hospital group |
-| `listAllHandstockMovements` (:3249) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
-| `listKpiFieldInst` (:376) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues` (:2498) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
-| `unusedSpareEngineers` (:637) | `ucn` | `allRows` | one call carries several parts |
+| `listFeedbackRows()` (~:3314) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows()` (~:3306) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines()` (~:2770) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit()` (~:2143) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `queryParties()` (~:1107) | `party_name` | Party Master's Load more | two branches of one hospital group |
+| `listAllHandstockMovements()` (~:3284) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listKpiFieldInst()` (~:373) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
+| `listAllMasterValues()` (~:2536) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
+| `unusedSpareEngineers()` (~:630) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
 `created_at` plus 12 later ones, paged exactly as `listFeedbackRows` pages:
@@ -697,7 +704,7 @@ list that is no longer the result of them — the same shape as finding 16, from
 different cause.
 
 **Established by** reading the two effects and `searchCalls`
-(`supabase.ts:255-260`). Certain.
+(`supabase.ts`, `searchCalls()`). Certain.
 
 ---
 
@@ -850,7 +857,7 @@ Workload links to as a finding to act on. Over a partial load it is a floor
 presented as a total.
 
 **Pending Dispatch has a different version of it.** `listPendingDispatch()`
-pages through `allRows` with `cap = 2000` (`supabase.ts:2818`), and `allRows`
+pages through `allRows` with `cap = 2000` (`supabase.ts`, `listPendingDispatch()`), and `allRows`
 stops at its cap **silently** — there is no `more` to track. So a queue longer
 than 2,000 lines is truncated with nothing on the screen saying so, and the
 `🚚 Queue` chip, the KPI tiles and `summarise()`'s totals are all quietly short.
@@ -1051,7 +1058,7 @@ countMore={false}
 ```
 
 **How it fails.** The comment's premise is not true. `listStockOutLines`
-(`supabase.ts:1972-1986`) is `allRows(...)` — paged, in 1,000-row requests, up to
+(`supabase.ts`, `listStockOutLines()`) is `allRows(...)` — paged, in 1,000-row requests, up to
 `cap = 5000` — and `allRows` **stops at its cap silently**: no flag, no error,
 just fewer rows. So once Stores has issued more than 5,000 spare lines, the Stock
 Out register shows 5,000 under a header that promises the number is complete.
