@@ -27,6 +27,15 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 3 | Dashboard | Two KPI cards say "most recent 300" over a number that is the whole register | Medium |
 | 4 | Dashboard | A private date parser, month-first, where the project has one day-first parser | Medium |
 | 5 | Product & Party Search | A machine search stops at 200 rows and says nothing | Medium |
+| 6 | Field Failure Register | The Word report can never carry a signature — the handler was frozen before it loaded | High |
+| 7 | *cross-cutting* | Four workbooks and every register CSV carry the wire value, not the date (**measured**) | High |
+| 8 | *cross-cutting* | Seven paged reads page with no `order()` | Medium |
+| 9 | Daily Complaint Review | "To be Reviewed" counts its list against the whole register | Medium |
+| 10 | Daily Complaint Review | Two deep loads can interleave; the last writer wins and may be the tab you left | Medium |
+| 11 | KPI & Failure Analysis | The product chip narrows one KPI card and not the two beside it | Medium |
+| 12 | KPI & Failure Analysis | Cover tiles bucket by substring, and the two patterns overlap | Low (latent) |
+| 13 | Spare Insights | The date window is a UTC day, the reader's is an IST one | Low |
+| 14 | Spare Insights | "By product" is the top 25 and does not say so | Low |
 
 ---
 
@@ -189,3 +198,305 @@ blind spot CLAUDE.md describes for the 300-row Pending Registrations case.
 
 **Established by** reading the code. The row counts are CLAUDE.md's, not measured
 here.
+
+## 6 — The FFR Word report can never carry a signature
+
+**Where** `src/modules/FieldFailureReport.tsx:157-197` (the `columns` memo) and
+`:199-215` (`doc`)
+
+**What is wrong.** The 📄 Word button's handler is built inside a
+`useMemo(..., [])`. That array is empty, so the render functions are created
+**once, on the first render**, and they close over the `doc` binding of that
+first render — which in turn closes over `mySig` and `user` as they were then.
+
+**How it fails.** `useMySignature()` (`src/lib/signature.ts:22-35`) returns
+`null` and fetches asynchronously. On the first render it is therefore
+**always** `null`, so the captured `doc` computes
+
+```ts
+const signature = signatureBelongsTo(raisedBy, user) ? (mySig?.signature ?? '') : '';
+```
+
+as `''` for ever, for everybody, including the raiser pressing the button on
+their own report. The document prints an empty signature block; the audit row
+records `meta: { signed: false }` every time, so the log agrees with itself and
+nothing looks wrong. `user` is captured the same way, so if the auth context has
+not settled on the first render the `signatureBelongsTo` test is false as well —
+a second, independent reason for the same outcome.
+
+This is not the "print unsigned rather than not at all" rule the file describes;
+that rule is about somebody ELSE printing the report. The raiser's own copy is
+supposed to carry it, and cannot.
+
+**Established by** reading the code. The mechanism is a `useMemo` with `[]` deps
+capturing a `const` from the first render — certain by the language's rules, not
+by React's scheduling. Not exercised in a browser here.
+
+**Worth checking beside it** (not verified in this pass): every other screen that
+memoises columns containing a handler over asynchronously-loaded state has the
+same shape. `Reports.tsx`, `SpareDispatch.tsx` and `DeliveryChallan.tsx` all
+render signature blocks.
+
+---
+
+## 7 — Four workbooks and every register CSV carry the wire value, not the date
+
+**Where**
+`src/modules/UnusedSpareReport.tsx:89`, `src/modules/ProductFailureAnalysis.tsx:208,537`,
+`src/modules/FieldFailureInsights.tsx:265,411`, `src/modules/Objective.tsx:356`,
+and `src/lib/format.tsx:143-158` (`csvExport`)
+
+**What is wrong.** `xlsxCell()` is the helper that turns a value into a real
+Excel date (a serial plus a style) — and `buildXlsx` does **not** apply it.
+`sheetXml`'s `cell()` (`src/lib/xlsx.ts:138-149`) only recognises a value that is
+*already* an `XlsxDate` object, and writes everything else as an inline string.
+So the shaping happens only where the caller does it, and three callers do:
+`ReportBuilder.tsx`, `Reports.tsx`, `SolvedWithoutReport.tsx`. **Four do not.**
+
+**How it fails — measured, not reasoned.** A workbook was built both ways from a
+row exactly as PostgREST sends it for the "Not Consumed Against this Call"
+report, and the bytes read back:
+
+```
+--- raw rows (UnusedSpareReport) ---
+  Dispatched On : <c r="B2" t="inlineStr"><is><t xml:space="preserve">2026-09-18</t></is></c>
+  Qty Sent      : <c r="C2"><v>2</v></c>
+  Serial No     : <c r="D2" t="inlineStr"><is><t xml:space="preserve">0012345</t></is></c>
+--- through xlsxCell (ReportBuilder) ---
+  Dispatched On : <c r="B2" s="2"><v>46283</v></c>
+  Qty Sent      : <c r="C2"><v>2</v></c>
+  Serial No     : <c r="D2" t="inlineStr"><is><t xml:space="preserve">0012345</t></is></c>
+```
+
+`t="inlineStr"` is text. So **Dispatched On**, **Received On** and **Call
+Registered** (`reports.ts:193-199`) arrive in Excel as strings that cannot be
+sorted into order, filtered by month, subtracted or re-formatted — and each of
+those operations returns something wrong rather than refusing, which is the
+whole argument in CLAUDE.md for the fix that went into `ReportBuilder`. This is
+the same user-reported fault ("those Date Fields are not Complaint with the Long
+Date Format of Excel"), in the fourth export screen, still there.
+
+The numbers are fine, and the identifier is fine: `0012345` keeps its leading
+zeros in both. It is only the dates.
+
+**And the CSV side is wider than the workbooks.** `csvExport` writes
+`String(r[c.key])` — no `formatDayTime`, no `xlsxText`, nothing. It is the ⭳
+Export button on **26 registers**. The Field Call Register is the clearest case:
+its columns render `fmtLongSmart(r.regDate)` on screen (`FieldCalls.tsx:235`)
+and export `r.regDate` raw, because `csvExport` takes the key and never the
+`render`. The screen says `18-Sep-2026`; its own export says something else.
+
+**Established by** building the workbook and reading the bytes (the project's own
+method) for the .xlsx half; by reading `csvExport` and one call site for the CSV
+half. What each individual register's raw values look like was NOT enumerated —
+the columns cast `::date` in a view come out as `2026-09-18`, while a bare
+`timestamptz` comes out as `2026-09-18T08:51:02.55+00:00`, and which is which is
+per column.
+
+---
+
+## 8 — Seven paged reads page with no `order()`
+
+**Where** `src/lib/supabase.ts` — `distinctColumn` (:773), `sbSearchProducts`
+(:1403), `listDirectoryAsUsers` (:2009), `sbEngineerNames` (:2149),
+`countCallReviews` (:2285), `reviewPickLists` (:2315), `listCallReportReviews`
+(:4618)
+
+**What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
+WHEN PAGING. Without one, PostgREST may return page 2 overlapping page 1 and a
+row is then dropped or doubled, which is worse than truncation because it looks
+complete."* Every caller of `allRows()` obeys it. These seven are hand-rolled
+`for (let from = 0; …) … .range(from, from + PAGE - 1)` loops that never go
+through `allRows`, and none of them names an order.
+
+**How it fails, per read** — a dropped row is the harmful direction in each:
+
+- `countCallReviews` produces the **exact total** the DCCR header boasts about
+  ("The count is EXACT — countCallReviews walks every page"), and the register is
+  being written to by reviewers while it walks. A row that moves between pages is
+  counted twice or not at all, in the one number on the screen that is presented
+  as beyond doubt.
+- `listCallReportReviews` is keyed by UCN and its own comment says a missed row
+  means "a reviewer whose call sat at position 1001 would see it as un-reviewed
+  and review it twice". Paging fixed the cap; without an order it did not fully
+  fix the symptom.
+- `listDirectoryAsUsers` is the **User Master**, and `access.ts` builds the
+  manager → reports tree from it. A dropped row is an engineer who vanishes from
+  their manager's team — the same outcome as the blank-name bug 0212 repaired,
+  from a different cause.
+- `distinctColumn`, `sbEngineerNames`, `reviewPickLists` each build a `Set`, so a
+  duplicate is harmless and a dropped row silently removes a value from a
+  pick-list — a name or product that "is not in the list" while its rows exist.
+- `sbSearchProducts` is a single ranged request rather than a loop, so the risk
+  is only that "the first 200" is an arbitrary 200 (see finding 5).
+
+**Established by** a script over `src/lib/*.ts` that walks back from each
+`.range(` to the start of its statement and reports the chains with no
+`.order(`, then reading each hit in context (two false positives —
+`listOwnershipTransfers` and `listAdditionalEntries` — were checked and do carry
+an order). Whether Postgres actually reorders rows for these particular queries
+was NOT measured; the claim is that nothing makes it stable, which is what the
+project's own rule says is enough.
+
+**No check covers it.** `check:orders` validates that the column an order NAMES
+exists in the database; it cannot see a read that names no order at all.
+
+---
+
+## 9 — "To be Reviewed" counts its list against the whole register
+
+**Where** `src/modules/DailyCallReview.tsx:466` and `:674-678`
+
+```ts
+const inView = (deskStage || status) ? statusCount(deskStage || status) : counts.total;
+```
+
+**How it fails.** `deskStage` is set only by the **Review 2 Pending** and
+**Review 3 Pending** tabs. On the **To be Reviewed** tab it is `''`, and that tab
+deliberately ignores the Review Status box (`:295` — `todo ? undefined : status`).
+So `inView` falls through to `counts.total`: the Calls pane header reads
+`175+ of 4,100` — the worklist's rows against the whole year's register. It reads
+as 3,925 calls still to load.
+
+The right number is already computed and already on the screen: `counts.solvedPending`,
+counted in the same sweep for exactly this tab (`supabase.ts:2294-2299`), and used
+correctly on the tab's own badge at `:647`. Only the pane header misses it.
+
+There is a second, narrower version of the same fault: if the reviewer HAS set
+the Review Status box and then opens To be Reviewed, `status` is truthy, so
+`inView` becomes that stage's count — a number the tab's rows deliberately do not
+honour.
+
+**Established by** reading the code. Certain, given `deskStage === ''` on that tab.
+
+---
+
+## 10 — Two deep loads can interleave, and the last writer wins
+
+**Where** `src/modules/DailyCallReview.tsx:334-396` (`load`) and `:412-417`
+
+**What is wrong.** `load()` has no cancellation. The filter effect clears its
+**timeout**, but a `load` already running keeps going — and on the desk tabs it
+is a loop of up to twenty sequential requests that calls `setRows(all)` after
+each one, on purpose ("SHOWN AS IT ARRIVES").
+
+**How it fails.** Open **Review 2 Pending** on a register where the worklist runs
+to several pages, then switch to **Review 3 Pending** before it finishes. Both
+loops are now alive and both are writing `rows`. Whichever finishes last owns the
+screen — and that is the one that started first if it has more pages left to
+fetch. The result is Review 2's calls under the Review 3 tab, with Review 3's
+header, count and stage badge around them. Nothing errors.
+
+The same window covers `setApplied(f)` at `:363`, which is what **Load more** and
+the DCCR **export** then page with (`:402`, `:513`) — so an export taken shortly
+after a tab switch can be of the filter the reader left rather than the one they
+are looking at.
+
+**Established by** reading the code — there is no sequence number, no `cancelled`
+flag and no `AbortController` anywhere in the function. Not reproduced in a
+browser; how often it bites depends on how many pages a worklist runs to.
+
+---
+
+## 11 — The product chip narrows one KPI card and not the two beside it
+
+**Where** `src/modules/KpiAnalytics.tsx:136-138` and `:170-172`
+
+```ts
+const fleet     = rates.reduce(…)                       // every product
+const calls12   = rateRows.reduce(…)                    // the chosen product
+const fleetRate = … rates.reduce(…) * 100 / fleet       // every product
+```
+
+**How it fails.** `rateRows` honours the product chip (`:124`); `rates` does not.
+So choosing ORION-G leaves three cards side by side reading **Calls · 12 months
+412 (ORION-G)**, **Machines in the field 19,204 (every product)** and **Failure
+rate 38.2 (every product)**. The middle card's own `sub` says which product it is
+about; the other two do not, and the third is the very statistic the chosen
+product has a different value for — it is in the table immediately below, per
+product, computed correctly.
+
+Four other cards on the same row (`Spares consumed`, `Parts per call`,
+`Out of guarantee`, `Under warranty`) DO follow the chip, through
+`usageFiltered`. So the row is neither consistently filtered nor consistently
+not, which is the part that makes it a bug rather than a choice.
+
+**Established by** reading the code. Certain.
+
+---
+
+## 12 — Cover tiles bucket by substring, and the two patterns overlap
+
+**Where** `src/modules/KpiAnalytics.tsx:118-119`
+
+```ts
+const ogpQty      = byCover.find((c) => /ogp|out of/i.test(c.label))?.qty ?? 0;
+const warrantyQty = byCover.filter((c) => /warr|wgp/i.test(c.label)).reduce(…);
+```
+
+**Why it is latent rather than live.** `spare_usage.cover` is
+`btrim(k.item_status)` (`0101_kpi_views.sql:46`) — the raw stored value, not
+`cover_code()`. 0208 normalised the stored values to WGP / OGP / CMC / AMC and
+stamps them on write, so today the two patterns match one code each and the tiles
+are right.
+
+**Why it is still a bug.** 0208's stated rule is that **an unrecognised value is
+left exactly as it is**, on purpose — "a spelling nobody anticipated stays visible
+as itself, which is how this one was found". The moment such a value exists —
+`OUT OF WARRANTY PERIOD`, say — it matches `/warr/` **and** `/out of/`, so the
+same quantity is added to *Out of guarantee* and to *Under warranty*: the two
+tiles that are supposed to be opposites. That is the exact failure CLAUDE.md
+describes ("a substring rule turns one cover into its opposite"), and the reason
+`cover_code()` matches on the whole squashed string.
+
+The client already has the sanctioned helper — `coverCode()` in `fieldcall.ts`,
+which `check:ui` compares against the SQL word for word. This screen does not
+use it.
+
+**Established by** reading the view definition and 0208 together. The overlap is
+certain; whether an unmapped spelling exists on the live project is not known
+from here.
+
+---
+
+## 13 — The Spare Insights window is a UTC day, the reader's is an IST one
+
+**Where** `supabase/migrations/0148_spare_insights.sql:104-105`, `:137`
+
+```sql
+where sc.created_at >= p_from::timestamptz
+  and sc.created_at <  (p_to + 1)::timestamptz
+```
+
+**How it fails.** `date::timestamptz` resolves at the **database's** time zone.
+If that is UTC (Supabase's default — not verified against this project), then
+"from 1 Jan" means 1 Jan 00:00Z, which is 1 Jan **05:30** in IST: consumption
+booked in the first five and a half hours of the reader's day falls outside their
+own window, and five and a half hours of the day after `to` fall inside it. The
+same applies to `date_trunc('month', sc.created_at)` at `:137`, so a spare booked
+early on the 1st is charted in the previous month.
+
+Small, and in the same family as the export-offset rule CLAUDE.md sets out ("THE
+OFFSET IS THE POINT, not the punctuation") — the difference being that here it
+shifts which rows are counted rather than how one is printed.
+
+**Established by** reading the SQL. The size of the effect depends on the
+database's `TimeZone` setting, which was NOT checked — `show timezone` on the
+live project settles it, and if it is already `Asia/Kolkata` there is nothing
+here.
+
+---
+
+## 14 — "By product" is the top 25 and does not say so
+
+**Where** `supabase/migrations/0148_spare_insights.sql:129`, shown at
+`src/modules/SpareInsights.tsx:179-198`
+
+`by_product` carries `limit 25`. The section beside it, `by_part`, has the same
+limit and the screen says so underneath ("The twenty-five biggest consumers in
+this window"). The product table says nothing, so with more than 25 products
+consuming spares it reads as the whole list, and a product missing from it reads
+as a product that consumed nothing.
+
+**Established by** reading the SQL against the screen. Certain; whether the live
+project has more than 25 consuming products is not known from here.
