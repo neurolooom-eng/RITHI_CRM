@@ -36,6 +36,11 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 12 | KPI & Failure Analysis | Cover tiles bucket by substring, and the two patterns overlap | Low (latent) |
 | 13 | Spare Insights | The date window is a UTC day, the reader's is an IST one | Low |
 | 14 | Spare Insights | "By product" is the top 25 and does not say so | Low |
+| 15 | *cross-cutting* | Nine paged reads order by a column that is not unique — rows doubled and dropped (**measured in Postgres**) | High |
+| 16 | *cross-cutting* | Five auto-refreshers test a filter flag frozen at the first render, so they overwrite a filtered view | Medium |
+| 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped | Medium |
+| 18 | Field Call Register | A search reports its capped 1,000 as the match count; ↻ Refresh claims "Loaded all" over 800 | Medium |
+| 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` | Medium |
 
 ---
 
@@ -500,3 +505,207 @@ as a product that consumed nothing.
 
 **Established by** reading the SQL against the screen. Certain; whether the live
 project has more than 25 consuming products is not known from here.
+
+---
+
+## 15 — Nine paged reads order by a column that is not unique
+
+**Where** `src/lib/supabase.ts` —
+
+| Read | Order | Paged by | Ties are certain because |
+| --- | --- | --- | --- |
+| `listFeedbackRows` (:3272) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows` (:3264) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines` (:2730) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit` (:2101) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `queryParties` (:1108) | `party_name` | Party Master's Load more | two branches of one hospital group |
+| `listAllHandstockMovements` (:3249) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listKpiFieldInst` (:376) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
+| `listAllMasterValues` (:2498) | `name` | its own internal loop | a master list is *many values per name* |
+| `unusedSpareEngineers` (:637) | `ucn` | `allRows` | one call carries several parts |
+
+**How it fails — measured, in Postgres 16.** 24,000 rows sharing one
+`created_at` plus 12 later ones, paged exactly as `listFeedbackRows` pages:
+
+```
+=== ORDER BY created_at DESC, 1000 at a time, four pages ===
+rows fetched      : 4000
+distinct rows     : 3994
+DOUBLED (seen 2x+): 6
+
+=== the same four pages, ORDER BY created_at DESC, id DESC ===
+with the id tiebreaker — rows: 4000, distinct: 4000
+```
+
+Six rows came back twice, so six others never came back at all — and the result
+still looks complete, which is the point. The tiebreaker fixes it exactly.
+
+**Why this is not a theoretical objection.** The project already knows the rule
+and has applied it in five places — `listCallRequests` (`submitted_at + id`),
+`listCallReviews` (`reg_date + id`), `listFfrs` (`ffr_date + id`),
+`listDirectory` (`name + id`), `listMasterItems` (`value + id`) — with CLAUDE.md
+recording why: *"a bulk import makes ties certain and a tie puts a row on two
+pages or neither."* These nine were not done.
+
+The worst two are the ones nobody would re-check: `listKpiFieldInst` feeds a
+**file** somebody sends on, and `listAllMasterValues` pages by `name` when a
+master list holds hundreds of values under one name — page boundaries fall
+inside a single list.
+
+**Established by** building the case in Postgres 16.13 and counting. The plan
+Postgres chose for page 1 (a top-N heapsort) orders ties differently from the
+full sort it chose for later pages; nothing about that is specific to this
+schema. What was NOT measured is how each of the nine behaves on the live
+project's data volumes.
+
+See also finding 8 — the seven reads that name no order at all.
+
+---
+
+## 16 — Five auto-refreshers test a filter flag frozen at the first render
+
+**Where** `src/modules/PartyMaster.tsx:207`, `PartMaster.tsx:100`,
+`AuditLog.tsx:66`, `Reports.tsx:173`, `ProductMaster.tsx:117`
+
+```tsx
+useEffect(() => {
+  …
+  const id = window.setInterval(() => { if (!hasFilter) void refresh(); }, SYNC_TTL_MS);
+  return () => window.clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);                                   // ← the guard is captured here
+```
+
+**How it fails.** `hasFilter` is a plain `const` recomputed on every render. The
+interval callback closes over the **first** render's binding, which is `false`
+(the filter boxes start empty), and the effect never re-registers because its
+deps are `[]`. So the guard is permanently `false` and the 30-minute sync always
+fires — and `refresh()` reads **unfiltered** (`queryParties({}, 0, PAGE)`,
+`queryAudit({}, 0, PAGE)`, `run({})` …).
+
+The result after half an hour on any of these screens: the filter boxes still
+show what was typed, the Load-more pages are gone, and the list underneath is the
+unfiltered first page. It does not look like a refresh — it looks like the filter
+found a lot more than it did. On the **Audit Log** — the screen somebody opens to
+investigate one person or one action — that is the worst place for it.
+
+`ProductMaster.tsx:117-121` is the same bug written out longhand: it computes
+`anyFilter` from `f` *inside* the callback, but `f` is the first render's object.
+
+**One screen does it correctly**, which is what shows the others are wrong:
+`CoverRegister.tsx:650-655` registers the same interval with deps
+`[tab, filtered]`, so the effect is torn down and rebuilt whenever the filter
+changes and its guard sees the current value.
+
+**Established by** reading the five effects and their dependency arrays. Certain
+by JavaScript's closure rules.
+
+---
+
+## 17 — Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped
+
+**Where** `src/modules/CallReview.tsx:256`, `PendingCalls.tsx:267`,
+`SpareRmApproval.tsx:254`
+
+```tsx
+Nothing here. {only === 'pending' ? 'Every solved call has been reviewed.' : …}
+emptyText={busy ? 'Loading…' : 'No pending calls — everything is closed.'}
+<EmptyState … hint={onDb ? 'Every spare has had its first approval.' : …} />
+```
+
+**How it fails — three ways at once**, in rising order of seriousness:
+
+1. **The search counts.** All three test the *filtered* list. Type a search term
+   that matches nothing and the screen announces that every solved call has been
+   reviewed / every call is closed / every spare has been approved. This one is
+   plainly wrong for any reader, in any role.
+2. **The read is capped.** `CallReview` sets `capped` when the read hits its
+   limit and shows a `+` on the count two lines above — then prints the absolute
+   claim anyway.
+3. **The rows are RLS-scoped.** An engineer sees the calls allotted to them. So
+   "everything is closed" is really "nothing is open *that you can see*", and the
+   two are different claims — which is precisely what CLAUDE.md records from
+   2026-09-18, when a Stores Incharge looking at an empty queue could not tell
+   which he was being told.
+
+**`SpareDispatch.tsx:94-103` is the screen that was fixed**, and it is fixed the
+right way — `seesEveryRecord(user, can)` chooses between the strong sentence and
+*"Nothing waiting to go out that you can see. Your role is shown its own and its
+team's spares, not the whole queue."* The helper exists, the comment above it
+explains the incident, and three other screens with the same sentence never got
+it. `seesEveryRecord` has exactly two call sites in the whole application.
+
+**Established by** reading the three empty states and comparing them with the
+fixed one. Certain for the search case; the scope case depends on the reader's
+role, as described.
+
+---
+
+## 18 — A search reports its cap as the answer, and ↻ Refresh claims "Loaded all"
+
+**Where** `src/modules/FieldCalls.tsx:718-727` and `:673-679`
+
+**The search.** `searchCalls(config.callType, srch, 1000)` is a single request
+with `.limit(1000)` — PostgREST's own ceiling. The banner then says
+`${rows.length} matches for your search (server-side)`, and `moreAvailable` is
+deliberately `false` while searching (`:986`), so the header count carries no
+`+` either. A search for a common party across a 20,000-call register reports
+**1000 matches** as a fact, twice over. Nothing in the pair of messages can be
+read as "and possibly more".
+
+**The refresh.** `refresh()` reads `listFieldCalls('', loadLimit, config.tab)`
+with `loadLimit` starting at 800, and announces on the database path:
+
+> Loaded all 800 field calls — search covers the full register.
+
+The second clause is true. The first is not: it is the most recent 800, and
+**Load more** exists on the same screen for that reason. The sheet path, three
+lines below, gets this right — it says "most recent 300; use Load more for
+older".
+
+**And pressing ↻ while a search is active silently drops the search.**
+`refresh()` reads the browse set and writes it into the same cache the table
+renders from; the search effect does not re-run (its deps are `[srch, onDb,
+loadLimit]`, none of which changed). The search boxes keep their terms above a
+list that is no longer the result of them — the same shape as finding 16, from a
+different cause.
+
+**Established by** reading the two effects and `searchCalls`
+(`supabase.ts:255-260`). Certain.
+
+---
+
+## 19 — The Uploaded / Entered-here chips count only the page that is loaded
+
+**Where** `src/modules/CustomerFeedback.tsx:179-189`
+
+```tsx
+All <b>{scoped.length}</b>
+{o} <b>{scoped.filter((r) => originOf(r) === o).length}</b>
+```
+
+**How it fails.** `rows` is one 1,000-row page (`PAGE = 1000`, `:64`) until
+somebody presses Load more, and `more` is tracked right beside these chips and
+passed to the header count — but not to the chips, which print bare numbers.
+Against the ~24,000-row feedback register that is "All 1,000" for a register of
+twenty-four thousand.
+
+The damaging one is the second chip. The rows are ordered `created_at desc`, so
+the first page is the newest; a feedback **entered here** that is older than the
+newest thousand uploaded rows is not on that page, and the chip reads
+**Entered here 0**. That is the exact question the chips were added to answer
+(the user, 2026-09-14: *"Can I segregate the Uploaded ones and the Ones that were
+entered in the new CRM?"*), answered with a confident zero.
+
+`<FacetChips>` takes a `more` prop and `check:ui` **refuses** one that does not
+pass it. These are hand-rolled `<button className="chip">` elements, so the check
+does not see them — not an evasion, but the same effect.
+
+**Beside it, in the same file** (`:94`): the 30-minute auto-sync is
+`setInterval(() => void load(), SYNC_TTL_MS)` with no guard at all, and `load()`
+reads page 1 and calls `setRows(mapped)`. A reader who has pressed Load more five
+times loses four of those pages every half hour, with the count jumping back to
+1,000.
+
+**Established by** reading the code. The 24,092 figure is CLAUDE.md's (from the
+0186 feedback-key incident), not measured here.
