@@ -6,9 +6,15 @@ change, in what order, and how to know it worked** — written so it can be work
 straight into `main` without going back to the session that produced it.
 
 **The patches below are written, not compiled.** Every line number and every
-"current" snippet was read off `a657d7d`, but no patch here has been applied or
+"current" snippet was read off the tree, but no patch here has been applied or
 type-checked. Treat them as precise descriptions of the change, not as diffs to
 paste blind — `npm run build` after each batch is the check that matters.
+
+**Line numbers are against `main` at `1be01d0`** — the review was written on
+`a657d7d` and re-checked after `main` moved 21 commits. One citation shifted in
+the process (`CallReporting.tsx:410` → `:414`); if a line number is off by a few
+when you get there, search for the quoted "current" snippet, which is what
+actually identifies the code.
 
 ---
 
@@ -441,7 +447,7 @@ Pending to Review 3 Pending mid-load. The rows must end as Review 3's.
 
 ## B6 · Finding 26 — a visit dated on the form stored at UTC midnight
 
-`src/modules/CallReporting.tsx:410` and `:447`
+`src/modules/CallReporting.tsx:414` and `:451`
 
 ```ts
 // current — asserts the picked date means UTC midnight

@@ -14,11 +14,23 @@ plausible reading is how wrong answers get shipped.
 **Nothing here is fixed.** This is the record; the repairs are separate changes,
 each with the check or suite that would have caught it.
 
-**Baseline.** On `a657d7d` (`main`, 2026-09-21) `npm run typecheck` passes and
-every database-free check passes: `check:ui`, `check:uploads`, `check:dberror`,
-`check:paging`, `check:picklist`, `check:mapping`, `check:generated`,
-`check:bundles`, `check:safe-updates`. So everything below is in the gap those
-checks do not cover — which is the gap this project keeps finding things in.
+**Baseline.** Every finding was established against `a657d7d` (`main`,
+2026-09-21) and **re-verified after merging `1be01d0`** — the 21 commits `main`
+gained while this was being written. On both, `npm run typecheck` passes and so
+does every check: `check:ui`, `check:uploads`, `check:dberror`, `check:paging`,
+`check:picklist`, `check:mapping`, `check:generated`, `check:bundles`,
+`check:safe-updates`, and the database-backed `check:views`, `check:orders`,
+`check:reports`, `check:upserts`, `check:status` (182 rows, 1 skipped for
+pg_cron) and `check:replay` (23 bundles). So everything below is in the gap those
+seventeen checks do not cover — which is the gap this project keeps finding
+things in.
+
+**Line numbers are against the merged tree.** Two citations moved when `main`
+landed and have been corrected: `sheets.ts:157-158` → `:164-165`, and
+`CallReporting.tsx:410/:447` → `:414/:451`. Neither finding changed — `main`'s
+edit to `CallReporting.tsx` was Drive-folder routing, several hundred lines from
+the `visit_at` line finding 26 is about. Nothing `main` brought fixes or
+invalidates anything recorded here.
 
 | # | Module | What | Severity |
 | --- | --- | --- | --- |
@@ -133,7 +145,7 @@ the card immediately above it counts parties (`:116`).
 ```
 
 **How it fails.** The load is `listFieldCalls('', 0, 'FIELD')`, and
-`sheets.ts:157-158` turns a `0` limit into `sb.listCalls(type, 100000)`, which
+`sheets.ts:164-165` turns a `0` limit into `sb.listCalls(type, 100000)`, which
 **pages** in 1,000-row blocks (`supabase.ts:235-248`). So the value is the entire
 register — tens of thousands — under a caption promising 300. A reader who takes
 the caption at its word reads the two biggest numbers on the page as a sample of
@@ -1064,7 +1076,7 @@ not checked — `select count(*) from spare_stock_out_lines` settles it.
 
 ## 26 — A visit dated on the form is stored at UTC midnight and reads back at 05:30
 
-**Where** `src/modules/CallReporting.tsx:410` (the visit) and `:447` (the
+**Where** `src/modules/CallReporting.tsx:414` (the visit) and `:451` (the
 feedback row)
 
 ```ts
