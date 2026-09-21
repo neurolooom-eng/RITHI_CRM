@@ -41,6 +41,9 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 17 | *cross-cutting* | Three screens tell everybody "everything is done" from a list that is filtered, scoped and capped | Medium |
 | 18 | Field Call Register | A search reports its capped 1,000 as the match count; ↻ Refresh claims "Loaded all" over 800 | Medium |
 | 19 | Customer Feedback | The Uploaded / Entered-here chips count only the loaded page, with no `+` | Medium |
+| 20 | Spare Requests | "Not Approved" reads as **approved** — a refused line reaches the dispatch queue (**measured**) | High |
+| 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register | Medium |
+| 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first | Medium |
 
 ---
 
@@ -709,3 +712,160 @@ times loses four of those pages every half hour, with the count jumping back to
 
 **Established by** reading the code. The 24,092 figure is CLAUDE.md's (from the
 0186 feedback-key incident), not measured here.
+
+---
+
+## 20 — "Not Approved" reads as approved, and the line reaches Stores
+
+**Where** `supabase/migrations/0016_spare_line_approvals.sql:85` (`spare_line_stage`)
+and `src/lib/spareflow.ts:62` (`isApproved`), which carry the **same** test:
+
+```sql
+when rm !~* 'approv|auto' then 'RM Approval'
+```
+```ts
+const isApproved = (v: unknown) => /approv|auto/i.test(s(v));
+```
+
+**What is wrong.** The test asks whether the value *contains* "approv". It is
+reached first by `~* 'reject'`, so an outright `Rejected` is caught — but
+**every other way of saying "no" or "not yet" contains the word "approval"**.
+
+**How it fails — measured, against a database built from every migration.**
+Asking the function itself, with the later stages set to Approved:
+
+```
+Approved          ->  Stores
+Auto-Approved     ->  Stores
+Pending           ->  RM Approval     ← the only one that works
+Rejected          ->  Rejected
+Not Approved      ->  Stores
+NOT APPROVED      ->  Stores
+Approval Pending  ->  Stores
+Awaiting Approval ->  Stores
+Pending Approval  ->  Stores
+For Approval      ->  Stores
+Approval Awaited  ->  Stores
+Disapproved       ->  Stores
+```
+
+**And end to end**, inserting a request and a line the way the **Spare Request
+Lines bulk upload** writes them:
+
+```
+--- the line the RM refused ---
+ row_no | rm_approval  | stage  | status
+      1 | Not Approved | Stores | Stores
+
+--- Stores is offered it ---
+ row_no |          part          | qty | engineer
+      1 | PC-9|Refused by the RM |   2 | Eng Elan
+```
+
+It is in `spare_pending_dispatch`, which is the only thing
+`dispatch_spare_lines()` checks before booking stock out
+(`…where v.line_id = any (p_line_ids)` against that view). So the part the RM
+refused is one click from leaving the building, and the register shows the line
+as cleared.
+
+**How a value like that gets in.** Not from the application — the app writes
+`Approved`, `Auto-Approved`, `Rejected`, `Pending`. It gets in from the
+**importer**: `uploads.ts:726` maps the spreadsheet's "RM Approval" column
+straight through as free text (`TEXT('rm_approval', 'rmapproval', 'rm approval')`),
+and `spare_request_lines` carries **no CHECK constraint at all** on any of the
+three approval columns (asked of the database: `contype='c'` returns nothing).
+The register was loaded from a sheet, and the upload's own note says *"Load the
+same file three times if the approvals arrived separately"* — a file with partly
+filled approval columns is the expected input, not an edge case.
+
+**Even where the line does not reach Stores it is still wrong.** With the cover
+set to OGP the same import stops at Commercial — because *Commercial* is still
+`Pending` — and presents a line the RM refused to the Commercial approver as
+**RM-cleared**. Measured:
+
+```
+ row_no |   rm_approval    |    stage
+      1 | Not Approved     | Commercial
+      2 | Approval Pending | Commercial
+      3 | Pending          | RM Approval
+```
+
+**Why no check catches it.** The client and the database agree exactly — the
+same regex, deliberately mirrored — so `check:replay`, `check:ui` and the suites
+all pass: there is no disagreement to find. This is the failure mode CLAUDE.md
+describes for cover (*"a substring rule turns one cover into its opposite"*), on
+a column where the consequence is stock movement rather than a mis-grouped chart.
+
+**Established by** running `spare_line_stage` against a database built from all
+219 migrations, then inserting through the real tables and reading
+`spare_pending_dispatch`. What was NOT established is whether the live project's
+imported rows actually contain such a value — `select distinct rm_approval,
+count(*) from spare_request_lines group by 1` answers that in one query, and it
+is the first thing to run.
+
+---
+
+## 21 — More chips counting one page as if it were the register
+
+**Where** `src/modules/HandStock.tsx:337, 346-349, 525-527`;
+`src/modules/SpareDispatch.tsx:251`
+
+Same shape as finding 19. Hand Stock loads 1,000 rows a page and tracks `more`
+— it passes it to the header (`countMore={!hits && more}`, `:308`) and then
+prints four bare numbers beneath it:
+
+```tsx
+📊 Stock Level <b>{rows.length}</b>
+In hand <b>{rows.filter((r) => r.on_hand > 0).length}</b>
+⚠️ Short <b>{totals.shortLines}</b>
+Settled <b>{rows.filter((r) => r.on_hand === 0).length}</b>
+```
+
+**⚠️ Short** is the one that matters: it is a count of engineer/spare lines that
+have gone negative — stock taken without a stock out — and it is the number My
+Workload links to as a finding to act on. Over a partial load it is a floor
+presented as a total.
+
+**Pending Dispatch has a different version of it.** `listPendingDispatch()`
+pages through `allRows` with `cap = 2000` (`supabase.ts:2818`), and `allRows`
+stops at its cap **silently** — there is no `more` to track. So a queue longer
+than 2,000 lines is truncated with nothing on the screen saying so, and the
+`🚚 Queue` chip, the KPI tiles and `summarise()`'s totals are all quietly short.
+
+**Spare Requests is the screen that does it right**, in the same group: every
+one of its chips carries `{partial ? '+' : ''}` (`SpareRequests.tsx:919-922`).
+
+**Established by** reading the three screens against each other. The Hand Stock
+case is certain; the Pending Dispatch one depends on the queue exceeding 2,000
+lines, which was not checked against live data.
+
+---
+
+## 22 — The 30-minute auto-sync throws away every page but the first
+
+**Where** `src/modules/SpareRequests.tsx:631`, `SpareConsumption.tsx:246`,
+`CustomerFeedback.tsx:94`
+
+```tsx
+const id = onDb ? window.setInterval(() => void load(), SYNC_TTL_MS) : undefined;
+```
+
+**How it fails.** `load()` on all three reads **page one**
+(`listSpareRequestLines(PAGE, 0)`, `listConsumptionRows(PAGE, 0)`,
+`listFeedbackRows(PAGE, 0)`) and then `setRows(mapped)` — replacing, not
+merging. Every half hour, a reader who has pressed **Load more** five times is
+silently returned to the first 1,000 rows: the table shortens, the count drops,
+and the row they were reading is gone. There is no message, because from
+`load()`'s point of view nothing failed.
+
+It is worse than losing your place. On **Spare Consumption**, `_dbId` is what an
+adjustment writes to, and the comment at `:252-256` records that a line past the
+first page could not be corrected at all until Load more started carrying it —
+so an auto-sync mid-correction puts the screen back into exactly the state that
+bug was fixed out of.
+
+**Hand Stock, in the same group, gets it right**: its `load(want = Math.max(
+PAGE_SIZE, loaded))` (`HandStock.tsx:171`) re-reads as far as the reader had
+got, so a background sync keeps the register the size it was.
+
+**Established by** reading the three effects and their `load` functions. Certain.
