@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.329',
+    version: '0.9.330',
     date: '2026-09-21',
     title: 'Machine History reaches back to 2016',
     changes: [
