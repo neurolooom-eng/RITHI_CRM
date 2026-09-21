@@ -5,6 +5,7 @@ import { DataTable, type Column } from '../components/table/DataTable';
 import { addCallRequestBatch, listCallRequests, sbPartyInfo, supabaseConfigured, type CallRequestItem } from '../lib/supabase';
 import { csvExport, timeAgo, fmtDateTime, fmtLongDate } from '../lib/format';
 import { listPartyItems, uploadToDrive, MAX_UPLOAD_BYTES } from '../lib/sheets';
+import type { DriveFolder } from '../lib/drivefolders';
 import { logAudit } from '../lib/audit';
 import { useAuth } from '../lib/auth';
 import { useTeamEngineers } from '../lib/access';
@@ -359,6 +360,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       list,
       placeholder: productPlaceholder({
         isInstall, isFirstCall: i === 0, party: lockedParty, state: ownedState, count: list.length,
+        masterFailed: productMaster.failed,
       }),
     };
   };
@@ -660,7 +662,12 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     // known yet. From call 2 the customer is fixed, so the list
                     // is what THEY own — a product they have none of is not an
                     // option, and offering it only leads to an empty serial box.
-                    options={withCurrent(productChoices(i).list, it.product)} />
+                    options={withCurrent(productChoices(i).list, it.product)}
+                    // THE LIST IS STILL COMING. Call 1 waits on the product
+                    // master; calls 2..5 wait on this customer's machines.
+                    // Without this the box says "Nothing matches" at a person
+                    // who is simply early.
+                    loading={i === 0 || isInstall ? !productMaster.ready : ownedState === 'loading'} />
                 ))}
                 {field('Serial No *', (
                   // An installation is a machine the party does not own yet, so
@@ -803,6 +810,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 label="Installation Report (if available)"
                 doc={docs.installationReport}
                 prefix={`${f.partyName || 'Request'} - Installation Report`}
+                folder="additional"
                 onBusy={(b) => setUploading((n) => n + (b ? 1 : -1))}
                 onChange={(d) => setDocs((c) => ({ ...c, installationReport: d }))}
               />
@@ -810,6 +818,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                 label="KYC"
                 doc={docs.kyc}
                 prefix={`${f.partyName || 'Request'} - KYC`}
+                folder="kyc"
                 onBusy={(b) => setUploading((n) => n + (b ? 1 : -1))}
                 onChange={(d) => setDocs((c) => ({ ...c, kyc: d }))}
               />
@@ -844,11 +853,15 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
 // → the request stores the resulting link.
 // ---------------------------------------------------------------------------
 function DriveFileField({
-  label, doc, prefix, onChange, onBusy,
+  label, doc, prefix, folder, onChange, onBusy,
 }: {
   label: string;
   doc: Doc;
   prefix: string;
+  // REQUIRED, not optional: these two documents are the whole reason the KYC
+  // and Additional Reports folders exist, and a field added later without one
+  // would silently go back to heaping them in the drive root.
+  folder: DriveFolder;
   onChange: (d: Doc) => void;
   onBusy: (busy: boolean) => void;
 }) {
@@ -859,7 +872,7 @@ function DriveFileField({
     if (!file) return;
     setErr(''); setBusy(true); onBusy(true);
     try {
-      const res = await uploadToDrive(file, prefix);
+      const res = await uploadToDrive(file, prefix, folder);
       if (res.ok && res.url) onChange({ name: file.name, url: res.url });
       else setErr(res.error ?? 'Upload failed.');
     } catch (e) {

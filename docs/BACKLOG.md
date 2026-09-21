@@ -4,7 +4,16 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (RCA on 4,222 calls Solved with no visit — the
+_Last updated: 2026-09-21 (⚠️ A CANCELLED CALL now reads Cancelled, not
+"Report pending" — 0226. RUN call_requests.sql, _status.sql row 173. No
+re-upload needed: open_state is derived. Before that: the 144 recovered visits are SOLVED — no repair
+needed; OPEN: 3,600 of 3,744 bulk-loaded visits carry NO call status, which is
+the "Report pending" across the register. Before that: ⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
+RUN data_integrity.sql (the bundle that carries 0225), _status.sql row 60. Take _backup_before_repair.sql first.
+Before that: Drive storage RE-ROUTED to the "Reports" shared
+drive, one folder per kind of document — ✅ REDEPLOYED 21-Sep, new /exec baked
+in as DEFAULT_URL_VERSION 11. No SQL.
+Before that: RCA on 4,222 calls Solved with no visit — the
 "Close call" button, 5-15 Sep; plus a proper Excel/CSV export. Before that:
 QUEUED: Product Database 2.0 as the primary product
 list — what it involves and the four decisions it needs. Before that:
@@ -31,6 +40,190 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-21 — ⚠️ A cancelled call is not "Report pending" (0226)
+
+> *"How did it become Report Pending?"* → *"Yes fix the Canceled status"*
+
+Measured on the reporting upload: 11,957 rows, every one carrying a status,
+producing **36** Report-pending calls out of 7,006 — and **19 of those 36 have
+`last_status = 'Canceled'`**. `open_state`'s final `ELSE` turned every status
+it did not recognise into *Report pending*.
+
+**The client already knew.** `stateBucket()` has `/cancel/i → 'Cancelled'`
+with its own slate chip. Five screens read `open_state` straight from the
+database, so those disagreed with the register's own colour code.
+
+**NO RE-UPLOAD.** `open_state` is derived from `last_status`; the statuses on
+the rows were always right. The migration recomputes every existing call.
+
+### A trigger, not a new generated expression — and the reason is measured
+
+PostgreSQL before 17 cannot change a generation expression: drop and re-add,
+and dropping the column takes every view reading it. Counted on a built
+database: `calls`, `field_call_review`, `field_call_review_summary`, and
+through `calls` another eight — **eleven views**, each needing
+`security_invoker` re-asserted, which is the rebuild this project has got wrong
+three times. `ALTER COLUMN ... DROP EXPRESSION` (PG13+) converts in place:
+proved inside a transaction, all views and both indexes still there afterwards.
+The value is then STAMPED, so a caller-supplied one is discarded (0113/0114).
+
+### check:replay caught a second-order fault, and it was real
+
+Five migrations build `calls_view_insert`/`calls_view_update` from the LIVE
+column list, filtered on `is_generated = 'NEVER'`. The moment `open_state`
+stops being generated, all five would silently start writing a DERIVED value
+through the view. They exclude it BY NAME now — a no-op before 0226, the thing
+that holds after. **Proved it was mine** by stashing the change: without it the
+bundle replays clean.
+
+**97/97 suites, 17/17 checks.**
+
+---
+
+## 2026-09-21 — The 144 recovered visits: Solved, no repair needed
+
+> *"All these calls should be marked as Solved."*
+
+**Solved (144).** `_why_are_the_144_not_solved.sql`, keyed on the file's own
+UCNs and row ids: 144 of 144 found their call, 144 rows written, 144 carrying
+their status.
+
+**`_solve_the_144.sql` was NOT needed and must not be run.** 40 of the calls
+are decided by a visit that is not from this file — and **0 of those are
+blank**. They are genuine `WEB-` visits an engineer entered later, saying
+*Solved - Report Completed* too. There is nothing for the repair to beat.
+
+That file is now narrowed further: it no longer bumps a row that ALREADY wins.
+The earlier version did, for idempotency, and that was backwards — once a row
+has won, bumping it again writes to a quality record and changes nothing, which
+with 0225 armed is 104 audited amendments to show for nothing. Beating a blank
+is the only reason to write, and after one run there is no blank left, which is
+idempotency by construction. Proved: run 1 bumps 1, run 2 bumps 0, and the
+genuine `WEB-` visit stays the deciding entry.
+
+**Three wrong answers preceded this one, all from asserting before measuring:**
+the file had gone to a call register (it had not — 0 strays); the Close-call
+audit entries had expired on a 7-day retention (retention is 3650, the log is
+unpurged back to 31-Aug, and it holds FOUR closes); and the bundle to run was
+`record_audit.sql` (there is no such file — it is `data_integrity.sql`).
+
+### ⚠️ OPEN, and larger than this file
+
+**3,600 of 3,744 bulk-loaded visits carry NO call status.** A visit with no
+status can only read *Report pending* — 0032's expression, where blank is not
+neutral. That is the *Report pending* seen across the register, and it is a
+question about what the loads carried, not about these 144.
+
+---
+
+## 2026-09-21 — ⚠️ The database-enforced audit trail is back on (0225)
+
+> *"Turn on Audit. Take a back up. Then let's do all fundas."*
+
+0112 switched `record_audit` off on 2026-09-05, on the reasoning that it
+existed for 21 CFR Part 11 and `audit_log` was trail enough. It named the cost
+in its own header, and that is what 2026-09-20 collected:
+
+> `audit_log` is written by the CLIENT: it can be bypassed by a direct API call
+> and it is purged on the retention window. `record_audit` could not be
+> bypassed and was not purged.
+
+A re-applied bundle set 4,222 calls back to Unattended and **nothing in the
+system could say what they had been** — the write did not come through the
+client, so the client's trail never saw it. **0225 re-arms it.**
+
+- **0103's shape, verbatim** — three STATEMENT-level triggers per table, so a
+  bulk load stays ONE attributable event rather than ten thousand rows.
+- `record_audit_fn()` was never removed; 0112 left it unattached on purpose and
+  said re-attaching would be one `create trigger`. It was.
+- **`_status.sql` row 60 moved with it** and now COUNTS all thirty triggers
+  rather than testing that any exist — a partly-armed table audits some writes
+  and not others, which reads as covered. Mutation-tested: dropping one of the
+  thirty makes it read NO.
+- **The validation package records the restoration** the way 0112 recorded the
+  reduction — FRS-021, the ISO control statement, the controls table, and R-14
+  back to Low residual. **The 05-Sep to 21-Sep gap is real and is stated**; it
+  is not recoverable.
+
+**Proved end to end**: armed, ran the 144-call repair, and the trail carried
+the visit's before/after image and the status sync it caused. **96/96 suites
+and 16/16 checks** on a database built from every migration.
+
+### Two files to run BEFORE any repair
+
+- **`_backup_before_repair.sql`** — copies the eight tables a repair can touch
+  into a `backup_before_repair` schema, and REFUSES to overwrite an existing
+  snapshot. It is not a backup of the project; Supabase's own is, and its
+  point-in-time window EXPIRES, which is how the 4,222 became unrecoverable.
+- **`_audit_status.sql`** — what each trail holds and how far back.
+  **It also corrects something I said**: I told the user the Close-call entries
+  had expired on a 7-day retention. That is 0033's figure; 0047 replaced it
+  with `audit_retention_days`, defaulted to 3650. Row 5 says which is in force
+  on the live project, because only the project knows.
+
+---
+
+## 2026-09-21 — ⚠️ Drive storage re-routed — NEEDS A CallReg REDEPLOY
+
+> *"RE-route the File Storage to …/folders/0AEcWDaijkhs_Uk9PVA — Map it to the
+> appropriate folders. Field to Field, Installation to Installation, PM to PM --
+> KYC to Call Request [Installation KYC], Additional Reports to Call Request
+> [Report - Installation]"*
+
+Everything the app uploaded landed in ONE flat folder, so a Field report, an
+Installation KYC and a PM report were indistinguishable the moment they were
+stored. Storage is now the **"Reports" shared drive** (`0AEcWDaijkhs_Uk9PVA`),
+with five folders:
+
+| what | folder |
+|---|---|
+| Field call → service report | `Field Reports` |
+| Installation call → report | `Installation Reports` |
+| PM call → report | `PM Reports` |
+| Call Request → KYC | `KYC` |
+| Call Request → Installation Report | `Additional Reports` |
+
+**✅ REDEPLOYED 21-Sep-2026.** The new `/exec` is baked into
+`DEFAULT_SHEETS_URL` and `DEFAULT_URL_VERSION` is **11**, so every device's
+stored URL is superseded on next load. That bump is not bookkeeping: the OLD
+deployment still answers, so a phone holding the old address would go on
+writing into the old flat folder silently. **No SQL.**
+
+**Not verified from here, and cannot be**: `script.google.com` is blocked from
+the sandbox's outbound proxy, so the new endpoint was not probed. First upload
+after the deploy is the check.
+
+### Three decisions worth keeping
+
+- **Folders are resolved BY NAME, not by a pasted id.** A shared drive's
+  subfolder ids cannot be read from outside the drive — they could not be read
+  from here either, which is the point: an id copied off a screenshot is a guess,
+  and a wrong one does not fail, it files the document somewhere nobody looks.
+  Each id is resolved once and remembered in a script property, and a remembered
+  id that stops resolving is dropped rather than trusted.
+- **Nothing can be refused.** A folder that will not resolve falls back to the
+  drive root, then to the old flat folder. Losing an engineer's signed report is
+  worse than filing it one level up.
+- **The old flat folder is still READ and no longer written.** Every report
+  uploaded before today lives in it and stays in `_isAppDocument()`'s list —
+  drop it and all of them stop opening in the app with no error to explain why.
+
+### The rule lives where it can be tested
+
+`driveFolderForCall()` is in **`src/lib/drivefolders.ts`**, a module that
+imports nothing — the `paging.ts` reason in a second place: `sheets.ts` reaches
+`supabase.ts` and its `import.meta.env`, so nothing defined there can be
+imported by a node script. It is `call_table_for()` (0040) word for word —
+`INSTALL%` as written, then `PM%` with the spaces removed — **proved against
+Postgres** over 14 call types, with the mutation (equality instead of prefix)
+disagreeing on 5 of them, so the comparison is not vacuous.
+
+`check:ui` holds both copies of the folder list word for word, that the legacy
+folder is still in the serve guard, and that every document field on the request
+form names a folder. All five mutations tried were caught.
 
 ---
 

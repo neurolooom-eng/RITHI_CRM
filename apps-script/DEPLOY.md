@@ -44,6 +44,45 @@ Re-deploy the **same** deployment (Deploy → Manage deployments → ✏️ edit
 Version: New version → Deploy) so the URL stays the same. A *new* deployment
 gives a new URL you'd have to re-paste in Settings.
 
+## Where uploaded documents are stored
+
+Everything the app uploads goes into the **"Reports" shared drive**
+(`DRIVE_ROOT_ID` in `CallReg.gs`), and into the folder that matches what the
+document *is*:
+
+| Document | Folder |
+| --- | --- |
+| A Field call's service report | `Field Reports` |
+| An Installation call's report | `Installation Reports` |
+| A PM call's report | `PM Reports` |
+| Request Call Registration → KYC | `KYC` |
+| Request Call Registration → Installation Report | `Additional Reports` |
+
+**The folders are found by NAME, not by a pasted id.** A shared drive's
+subfolder ids cannot be read from outside the drive, so an id copied off a
+screenshot is a guess — and a wrong one does not fail, it files the document
+somewhere nobody thinks to look. Each id is resolved once and remembered in a
+script property (`folder_field`, `folder_kyc`, …); rename or move a folder in
+Drive and the remembered id stops resolving, so it is dropped and looked up
+again by name.
+
+**Rename a folder in Drive and you must rename it in two places** —
+`DRIVE_FOLDERS` in `CallReg.gs` and `DRIVE_FOLDER_NAMES` in
+`src/lib/drivefolders.ts`. `npm run check:ui` compares them word for word,
+because a rename on one side alone silently files documents in the drive root.
+
+**The account this is deployed as must be a member of that shared drive.** It
+is deployed "Execute as: **Me**", so if that account loses access every upload
+falls back to the drive root, and then to the old flat folder — never to an
+error, because losing an engineer's signed report is worse than filing it one
+level up. Delete the `folder_*` script properties after changing the account,
+so the ids are resolved afresh.
+
+**The old flat folder (`REPORT_FOLDER_ID`) is still read and no longer
+written.** Every report uploaded before the re-route lives in it, and it stays
+in `_isAppDocument()`'s list for exactly that reason — drop it and all of them
+stop opening in the app.
+
 ## Showing reports inside the app (`drivefile`)
 
 The app renders a service report in a viewer rather than sending you to Drive.
@@ -53,9 +92,10 @@ forbids link sharing, which is exactly the case it was written for. The person
 reading a report needs **no Google account**.
 
 **It only serves the app's own folders.** `_isAppDocument()` checks the file's
-PARENTS against the reports folder (and the request-documents folder where one
-is set) and refuses anything else, so the action can never become a reader for
-the rest of the Drive account. Do not relax that check.
+PARENTS against the five mapped folders, the shared drive's root, the old flat
+folder and the request-documents folder where one is set — and refuses anything
+else, so the action can never become a reader for the rest of the Drive
+account. Do not relax that check.
 
 **It is an open endpoint, like the rest of this script.** Anyone who can reach
 the `/exec` URL can ask for a file *if they know its id* — which is, in effect,

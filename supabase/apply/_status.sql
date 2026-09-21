@@ -287,9 +287,18 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'handstock_balance'
                    and column_name = 'on_hand_live')),
-    (60, 'audit trail: record_audit is STOPPED', 'no record_audit trigger is left on any table -- audit_log is the trail (0112). The table stays, holding what it recorded while it ran',
-        not exists (select 1 from pg_trigger
-                     where tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d'))),
+    (60, 'audit trail: record_audit is ARMED', 'the database-enforced before/after trail is back on -- 3 statement triggers (i/u/d) on each of the 10 quality tables (0225, reversing 0112). COUNTED, not merely present: a partly-armed table audits some writes and not others, which reads as covered. NO means a change to a quality record is not being photographed by the database, and audit_log alone cannot say what a row was before. Restore: data_integrity.sql',
+        (select count(*) from pg_trigger
+          where tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d')
+            and not tgisinternal) = 30),
+    (173, 'calls: a CANCELLED call reads Cancelled, not Report pending', 'call_open_state() + call_open_state_t on the three call tables (0226). open_state''s final ELSE turned any status it did not recognise into "Report pending", so 19 calls whose status is "Canceled" sat in a queue of work somebody was chasing. TESTED BY VALUE, not by the trigger existing: the function is asked about a real cancelled status, because a trigger that is present and wrong reads as covered. NO means those calls are still mis-stated. Restore: call_requests.sql',
+        (public.call_open_state('Canceled', now()) = 'Cancelled'
+     and public.call_open_state('Cancelled', now()) = 'Cancelled'
+     and public.call_open_state('Solved - Report Pending', now()) = 'Report pending'
+     and public.call_open_state('Solved - Report Completed', now()) = 'Solved'
+     and public.call_open_state('Unsolved', now()) = 'Unsolved'
+     and public.call_open_state('', null) = 'Unattended'
+     and (select count(*) from pg_trigger where tgname = 'call_open_state_t' and not tgisinternal) = 3)),
     (61, 'complaints: the wording gets the register''s own house style', 'suggest_complaint_text + alarm_value_for -- the alarm number in this product''s spelling, and the phrasings already in use (0107)',
         (to_regprocedure('public.suggest_complaint_text(text,text,integer)') is not null
      and to_regprocedure('public.alarm_value_for(text,integer)')             is not null)),
