@@ -10,9 +10,9 @@
 // to the client.
 // ---------------------------------------------------------------------------
 
-import { machineKey } from './machine';
 import { ffrWritable } from './ffr';
 export { machineKey } from './machine';
+import { machineKey } from './machine';
 export { callFamily, callTable, type CallFamily } from './calltype';
 import { byColumnSet, planConsumptionVisits } from './uploads';
 import { callTable } from './calltype';
@@ -1428,12 +1428,53 @@ export async function sbListPartyItems(party: string, product = ''): Promise<Rec
 // serial was typed or spaced, and it matches ONE row rather than "the first 25
 // that contain it" — a serial another 25 serials happen to contain used to come
 // back as not in Product Database at all.
-export async function sbProductBySerial(serial: string): Promise<Record<string, unknown> | null> {
+// THE KEY THE DATABASE STORES, not the one the application matches WITH.
+//
+// `machineKey()` in ./machine SQUASHES -- it strips every non-alphanumeric, so
+// `ORION-G|2410` becomes `oriong|2410` -- and it is right for comparing two
+// hand-typed values. `products.machine_key` is
+// `lower(btrim(item_name)) || '|' || lower(btrim(serial_number))`, which KEEPS
+// the hyphen. Using the squashing one against this column would have matched
+// NOTHING and filled no cover anywhere, which is worse than the bug below.
+// Caught by printing both before shipping it; `check:upserts` proves it
+// against a real database.
+const dbMachineKey = (product: unknown, serial: unknown): string =>
+  `${String(product ?? '').trim().toLowerCase()}|${String(serial ?? '').trim().toLowerCase()}`;
+
+// A MACHINE IS ITS MODEL AND ITS SERIAL, and this read used the serial alone.
+//
+// Reported 2026-09-21: "when I check the product master, the item status is
+// under WGP, but when I register the call it shows as OGP". `serial_key` is
+// `lower(btrim(serial_number))` and is NOT unique -- `machine_key` is
+// `model|serial` and IS. With `.eq('serial_key', ...).limit(1)` this returned
+// AN ARBITRARY ONE of the machines wearing that serial, and Pending
+// Registrations then filled its item status, warranty and contract onto a call
+// for a DIFFERENT machine. The eleven machines numbered 219, in a third place.
+//
+// WITH THE PRODUCT, it reads `machine_key` -- a unique index, one machine,
+// no ambiguity possible.
+//
+// WITHOUT IT, an ambiguous serial returns NULL rather than a guess. That is the
+// project's own rule about a wrong value on a quality record being worse than
+// an absent one: the caller then fills nothing and SAYS SO, which a human can
+// act on, where the wrong cover is invisible and reaches the spare decision.
+export async function sbProductBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
   const key = String(serial ?? '').trim().toLowerCase();
   if (!key) return null;
-  const { data, error } = await must().from('products').select('*').eq('serial_key', key).limit(1).maybeSingle();
+
+  if (String(product ?? '').trim()) {
+    const { data, error } = await must().from('products').select('*')
+      .eq('machine_key', dbMachineKey(product, serial)).limit(1).maybeSingle();
+    if (error) throw new Error(errMsg(error));
+    return data ? productRowToSheet(data) : null;
+  }
+
+  // TWO rows asked for, not one: one is an answer, two is a question, and
+  // `.limit(1)` cannot tell them apart.
+  const { data, error } = await must().from('products').select('*').eq('serial_key', key).limit(2);
   if (error) throw new Error(errMsg(error));
-  return data ? productRowToSheet(data) : null;
+  const rows = data ?? [];
+  return rows.length === 1 ? productRowToSheet(rows[0]) : null;
 }
 
 export async function sbSearchProducts(filters: { q?: string; party?: string; product?: string; serial?: string; exact?: boolean }, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
