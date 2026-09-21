@@ -7635,5 +7635,35 @@ console.log('\n-- a document is filed in the folder it belongs to --');
     /^import /m.test(readFileSync('src/lib/drivefolders.ts', 'utf8')), false);
 }
 
+
+console.log('\n-- a list that FAILED to load does not read as an empty list --');
+{
+  // Reported 2026-09-21 with a screenshot: CALL 1's Product box said
+  // `Nothing matches ""` over an empty list. The master fetch had FAILED, and
+  // `load()` swallows the error and returns [] -- right for rendering, and the
+  // reason the screen stated the opposite fact. An empty list and an
+  // unreachable one are OPPOSITE claims: one says "there is nothing to
+  // choose", the other says "I could not reach the list". Same argument as an
+  // empty register proving what the READER was shown, not what exists.
+  const base = { isInstall: false, isFirstCall: true, party: '', state: 'idle' as const };
+  eq('a failed master fetch says so, on the FIRST call',
+    productPlaceholder({ ...base, count: 0, masterFailed: true }).includes('could not load'), true);
+  eq('...and does not claim there is nothing to pick',
+    productPlaceholder({ ...base, count: 0, masterFailed: true }), '— could not load the product list — check your connection and reopen —');
+  // IT MUST NOT FIRE WHEN THE LIST ARRIVED. A list that loaded and happens to
+  // be short is not a failure, and saying so would be the mirror of the bug.
+  eq('a list that DID load is untouched',
+    productPlaceholder({ ...base, count: 6, masterFailed: true }), PICK_A_PRODUCT);
+  eq('...and so is the ordinary first call', productPlaceholder({ ...base, count: 6 }), PICK_A_PRODUCT);
+  // The flag has to REACH it; an optional field that no caller passes is worse
+  // than none, because the check above passes and the screen never changes.
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('the request form passes the flag', /masterFailed: productMaster\.failed/.test(rq), true);
+  const ms = readFileSync('src/lib/masters.ts', 'utf8');
+  eq('...and useMaster reports it', /return \{ values, ready, failed \}/.test(ms), true);
+  eq('...set only where the fetch was caught', /failedNames\.add\(name\)/.test(ms), true);
+  eq('...and cleared when a later fetch succeeds', /failedNames\.delete\(name\)/.test(ms), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);

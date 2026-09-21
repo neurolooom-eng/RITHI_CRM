@@ -24,6 +24,16 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.325',
+    date: '2026-09-21',
+    title: 'The product list says when it could not load',
+    changes: [
+      'CALL REQUEST \u2014 when the product list cannot be fetched, the box now says so instead of \u201cNothing matches\u201d. Those are opposite facts: one means there is nothing to pick, the other means the list never arrived, and the screen was telling you the wrong one.',
+      'RLS ON PRODUCT DATABASE IS NOT WHAT WAS BLOCKING IT. Measured on all 19,253 machines: an engineer already reads every row \u2014 the rule admits any signed-in user \u2014 and the slowest keystroke costs 7 ms with it on, 3 ms with it off.',
+      'Two files to run if the picker is still empty: _why_is_the_product_list_empty.sql says whether the fault is the database or the screen, and _products_rls_off.sql turns RLS off if you still want that \u2014 it says plainly that doing so lets every signed-in user EDIT the install base.',
+    ],
+  },
+  {
     version: '0.9.324',
     date: '2026-09-21',
     title: 'The audit trail is back on',

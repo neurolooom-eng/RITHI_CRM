@@ -360,6 +360,7 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
       list,
       placeholder: productPlaceholder({
         isInstall, isFirstCall: i === 0, party: lockedParty, state: ownedState, count: list.length,
+        masterFailed: productMaster.failed,
       }),
     };
   };
