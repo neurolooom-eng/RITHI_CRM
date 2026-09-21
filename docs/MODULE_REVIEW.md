@@ -1172,3 +1172,9 @@ nothing warns them or logs it.
 
 The rest are real and worth doing; those three are the ones where the system is
 confidently telling somebody the wrong thing about access or stock.
+
+---
+
+**Fixing these**: `docs/MODULE_REVIEW_HANDOFF.md` is the companion — the same 26
+findings as patches, in the order to apply them, with the five live-project
+queries that come first and the four that need a decision rather than an edit.
