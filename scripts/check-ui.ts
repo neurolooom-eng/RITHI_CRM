@@ -32,7 +32,8 @@ import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callrevi
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { timeAgo, fmtLongDate } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
-import { stateColour } from '../src/lib/callstate';
+import { stateColour, stateBucket } from '../src/lib/callstate';
+import { driveFolderForCall, DRIVE_FOLDER_NAMES } from '../src/lib/drivefolders';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
 import { TESTS } from '../src/lib/validation';
@@ -7543,6 +7544,175 @@ console.log('\n-- Product Failure Analysis: the four things asked for --');
     /if me is not null then/.test(st), true);
   eq('...with a suite behind it',
     existsSync('supabase/tests/dispatched_by_stamped_test.sql'), true);
+}
+
+
+console.log('\n-- a document is filed in the folder it belongs to --');
+{
+  // The user, 2026-09-20: everything landed in ONE flat Drive folder, so a
+  // Field report, an Installation KYC and a PM report were indistinguishable
+  // the moment they were uploaded.
+  const gs = readFileSync('apps-script/CallReg.gs', 'utf8');
+
+  // THE CLIENT'S KEYS AND THE BRIDGE'S NAMES ARE TWO COPIES OF ONE MAPPING.
+  // The client sends a key, the bridge looks a NAME up in Drive — so a rename
+  // on one side alone does not error, it files the document in the drive root
+  // and nothing says so.
+  const m = gs.match(/var DRIVE_FOLDERS = \{([\s\S]*?)\};/);
+  eq('CallReg states the folders in one place', !!m, true);
+  const inGs: Record<string, string> = {};
+  for (const line of (m ? m[1] : '').split('\n')) {
+    const kv = line.match(/^\s*([a-z]+):\s*'([^']+)'/);
+    if (kv) inGs[kv[1]] = kv[2];
+  }
+  eq('...and the client names exactly the same five folders',
+    Object.keys(inGs).sort(), Object.keys(DRIVE_FOLDER_NAMES).sort());
+  eq('...spelled identically on both sides', inGs, { ...DRIVE_FOLDER_NAMES });
+  eq('...which is the mapping that was asked for',
+    [DRIVE_FOLDER_NAMES.field, DRIVE_FOLDER_NAMES.installation, DRIVE_FOLDER_NAMES.pm,
+     DRIVE_FOLDER_NAMES.kyc, DRIVE_FOLDER_NAMES.additional],
+    ['Field Reports', 'Installation Reports', 'PM Reports', 'KYC', 'Additional Reports']);
+
+  // RESOLVED BY NAME, because a shared drive's subfolder ids cannot be read
+  // from outside it — a pasted id is a guess, and a wrong one files the
+  // document somewhere nobody looks rather than failing.
+  eq('the shared drive is the one storage root', /var DRIVE_ROOT_ID = '0AEcWDaijkhs_Uk9PVA'/.test(gs), true);
+  eq('...and the subfolders are found by name under it',
+    /root\.getFoldersByName\(name\)/.test(gs), true);
+
+  // A KEY THAT WILL NOT RESOLVE FALLS BACK, never throws: losing an engineer's
+  // signed report is worse than filing it one level up.
+  eq('an unresolvable folder falls back to the drive root',
+    /return _driveRoot\(\) \|\| _legacyFolder\(\);/.test(gs), true);
+
+  // THE OLD FLAT FOLDER MUST STAY IN THE SERVE GUARD. Every report uploaded
+  // before the re-route lives in it, and dropping it would make all of them
+  // stop opening in the app with no error to explain why.
+  const guard = gs.slice(gs.indexOf('function _isAppDocument'));
+  eq('the serve guard still admits the folder used before the re-route',
+    /want\[_legacyFolder\(\)\.getId\(\)\] = true/.test(guard), true);
+  eq('...and every folder now written to', /for \(var key in DRIVE_FOLDERS\)/.test(guard), true);
+
+  // WHICH FOLDER A VISIT REPORT GOES IN — `call_table_for()` (0040) word for
+  // word. The PREFIX tests are the whole point: a sheet-era 'P M VISIT' and a
+  // bulk-loaded 'PM' must reach the same folder, and an equality test sends
+  // the first one to Field.
+  eq('installation is matched as a PREFIX, as the SQL has it',
+    /startsWith\('INSTALL'\)/.test(readFileSync('src/lib/drivefolders.ts', 'utf8')), true);
+  eq('...and PM with the spaces removed, also as a prefix',
+    /replace\(\/ \/g, ''\)\.startsWith\('PM'\)/.test(readFileSync('src/lib/drivefolders.ts', 'utf8')), true);
+  eq('FIELD files under Field', driveFolderForCall('FIELD'), 'field');
+  eq('INSTALLATION files under Installation', driveFolderForCall('INSTALLATION'), 'installation');
+  eq('PM files under PM', driveFolderForCall('PM'), 'pm');
+  eq('a sheet-era "P M VISIT" is still PM', driveFolderForCall('P M VISIT'), 'pm');
+  eq('...and so is "INSTALLATION CALL"', driveFolderForCall('INSTALLATION CALL'), 'installation');
+  eq('anything else is a Field call', driveFolderForCall('BREAKDOWN'), 'field');
+  eq('...including nothing at all', driveFolderForCall(''), 'field');
+
+  // THE BRIDGE READS THE SAME THING OFF THE UCN, for the legacy `upload`
+  // action which carries no call type: next_ucn builds
+  // <YY><MonthLetter><DD><TypeLetter><nnnn>, so charAt(5) is the type.
+  eq('the bridge reads the type letter off the UCN', /charAt\(5\)/.test(gs), true);
+
+  // THE TWO REQUEST DOCUMENTS ARE THE REASON TWO OF THE FOLDERS EXIST, so the
+  // field REQUIRES a folder — optional, and a field added later silently goes
+  // back to heaping them in the root.
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('the document field demands a folder', /\n  folder: DriveFolder;/.test(rq), true);
+  eq('...and passes it on', /uploadToDrive\(file, prefix, folder\)/.test(rq), true);
+  eq('KYC goes to the KYC folder', /folder="kyc"/.test(rq), true);
+  eq('the Installation Report goes to Additional Reports', /folder="additional"/.test(rq), true);
+  const fields = (rq.match(/<DriveFileField/g) ?? []).length;
+  eq('...and every document field on the form names one',
+    (rq.match(/\n\s+folder="/g) ?? []).length, fields);
+
+  // A VISIT REPORT IS FILED BY THE CALL'S OWN TYPE.
+  const cr = readFileSync('src/modules/CallReporting.tsx', 'utf8');
+  eq('the visit report is filed by call type',
+    /uploadToDrive\([^)]*driveFolderForCall\(callType\)\)/.test(cr), true);
+  // And the key must actually travel.
+  const sh = readFileSync('src/lib/sheets.ts', 'utf8');
+  eq('the folder key is sent with the upload', /action: 'driveupload'[^}]*folder: folder \?\? ''/.test(sh), true);
+  // THE RULE LIVES WHERE IT CAN BE TESTED. `sheets.ts` reaches `supabase.ts`
+  // and its `import.meta.env`, so nothing defined there can be imported by a
+  // node script — the `paging.ts` reason, in a second place.
+  eq('...and the rule itself imports nothing',
+    /^import /m.test(readFileSync('src/lib/drivefolders.ts', 'utf8')), false);
+}
+
+
+console.log('\n-- a list that FAILED to load does not read as an empty list --');
+{
+  // Reported 2026-09-21 with a screenshot: CALL 1's Product box said
+  // `Nothing matches ""` over an empty list. The master fetch had FAILED, and
+  // `load()` swallows the error and returns [] -- right for rendering, and the
+  // reason the screen stated the opposite fact. An empty list and an
+  // unreachable one are OPPOSITE claims: one says "there is nothing to
+  // choose", the other says "I could not reach the list". Same argument as an
+  // empty register proving what the READER was shown, not what exists.
+  const base = { isInstall: false, isFirstCall: true, party: '', state: 'idle' as const };
+  eq('a failed master fetch says so, on the FIRST call',
+    productPlaceholder({ ...base, count: 0, masterFailed: true }).includes('could not load'), true);
+  eq('...and does not claim there is nothing to pick',
+    productPlaceholder({ ...base, count: 0, masterFailed: true }), '— could not load the product list — check your connection and reopen —');
+  // IT MUST NOT FIRE WHEN THE LIST ARRIVED. A list that loaded and happens to
+  // be short is not a failure, and saying so would be the mirror of the bug.
+  eq('a list that DID load is untouched',
+    productPlaceholder({ ...base, count: 6, masterFailed: true }), PICK_A_PRODUCT);
+  eq('...and so is the ordinary first call', productPlaceholder({ ...base, count: 6 }), PICK_A_PRODUCT);
+  // The flag has to REACH it; an optional field that no caller passes is worse
+  // than none, because the check above passes and the screen never changes.
+  const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
+  eq('the request form passes the flag', /masterFailed: productMaster\.failed/.test(rq), true);
+  // AND THE OTHER HALF, which is what the screenshot actually showed. The
+  // master read had not FAILED, it had not FINISHED: `useMaster` reports
+  // `ready`, the form ignored it, and PickList had no notion of "still
+  // loading" -- so an empty-because-loading list rendered as
+  // `Nothing matches ""` at somebody who was simply early.
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  eq('PickList knows the options may still be loading', /\n  loading\?: boolean;/.test(pl), true);
+  eq('...and says so instead of "Nothing matches"',
+    /\{loading && options\.length === 0 && !searching && !failed && \(/.test(pl), true);
+  // ONLY WHILE THE LIST IS EMPTY. Once options arrive, a search matching none
+  // of them really does match none -- saying "loading" there is the same bug
+  // mirrored, which is how the first fix for this class went wrong.
+  eq('...and only while no options have arrived',
+    /!\(loading && options\.length === 0\)/.test(pl), true);
+  eq('SelectPicker passes it through',
+    /loading=\{loading\}/.test(readFileSync('src/components/ui/SelectPicker.tsx', 'utf8')), true);
+  eq('the product field tells it which list it is waiting on',
+    /loading=\{i === 0 \|\| isInstall \? !productMaster\.ready : ownedState === 'loading'\}/.test(rq), true);
+  const ms = readFileSync('src/lib/masters.ts', 'utf8');
+  eq('...and useMaster reports it', /return \{ values, ready, failed \}/.test(ms), true);
+  eq('...set only where the fetch was caught', /failedNames\.add\(name\)/.test(ms), true);
+  eq('...and cleared when a later fetch succeeds', /failedNames\.delete\(name\)/.test(ms), true);
+}
+
+
+console.log('\n-- a cancelled call is Cancelled on BOTH sides --');
+{
+  // The client has known this since the colour code was written; the database
+  // did not, and five screens read `open_state` straight out of it -- so a
+  // call the register would colour slate read "Report pending" and sat in a
+  // queue of work somebody was chasing. 19 of them in one upload.
+  eq('the client calls it Cancelled', stateBucket('Canceled'), 'Cancelled');
+  eq('...whichever way it is spelled', stateBucket('Cancelled'), 'Cancelled');
+  const sql = readFileSync('supabase/migrations/0226_cancelled_is_not_report_pending.sql', 'utf8');
+  eq('and so does the database now', /like '%cancel%'\s+then 'Cancelled'/.test(sql), true);
+  // ORDER IS THE RULE, not decoration: `%cancel%` must be tested before the
+  // others, exactly as stateBucket does, or "Cancelled - Unsolved" splits the
+  // two sides apart again.
+  eq('...tested BEFORE unsolved, as the client tests it',
+    sql.indexOf("like '%cancel%'") < sql.indexOf("like '%unsolved%'"), true);
+  // THE COLUMN IS CONVERTED, NOT DROPPED. Dropping it takes eleven views with
+  // it, each needing security_invoker re-asserted -- the rebuild this project
+  // has got wrong three times.
+  eq('the column is converted in place, not dropped',
+    /alter column open_state drop expression/.test(sql) && !/drop column open_state/.test(sql), true);
+  eq('...and the derived value is STAMPED, not accepted',
+    /new\.open_state := public\.call_open_state/.test(sql), true);
+  eq('...with a suite behind it',
+    existsSync('supabase/tests/call_cancelled_state_test.sql'), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

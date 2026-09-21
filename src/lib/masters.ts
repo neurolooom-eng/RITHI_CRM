@@ -9,6 +9,15 @@ import { listMaster, dataConfigured } from './sheets';
 // ===========================================================================
 
 const cache = new Map<string, string[]>();
+// WHICH LISTS FAILED TO LOAD. `load()` swallows the error and returns [], which
+// is right -- a picker must still render -- and is the reason the Call Request
+// product box told an engineer `Nothing matches ""` when the fetch had failed
+// (reported 2026-09-21, with a screenshot). An empty list and a failed request
+// are OPPOSITE facts and the screen was stating the wrong one: "nothing to
+// choose from" instead of "I could not reach the list". Same argument as an
+// empty register proving what the READER was shown rather than what exists.
+const failedNames = new Set<string>();
+export const masterFailed = (name: string): boolean => failedNames.has(name);
 const inflight = new Map<string, Promise<string[]>>();
 
 // ---------------------------------------------------------------------------
@@ -77,14 +86,14 @@ function load(name: string): Promise<string[]> {
   if (inflight.has(name)) return inflight.get(name)!;
   const p = listMaster(name)
     .then((v) => {
-      cache.set(name, v); inflight.delete(name);
+      cache.set(name, v); inflight.delete(name); failedNames.delete(name);
       // Only a NON-EMPTY answer is stored. An empty one is usually a failed
       // request or a permission the reader has not got, and storing it would
       // serve that emptiness back for a week.
       if (v.length) writeStored(name, v);
       return v;
     })
-    .catch(() => { inflight.delete(name); return [] as string[]; });
+    .catch(() => { inflight.delete(name); failedNames.add(name); return [] as string[]; });
   inflight.set(name, p);
   return p;
 }
@@ -108,7 +117,8 @@ export function clearMasterCache(name?: string) {
  *  does not do is pull thousands of rows nobody is going to look at. */
 export function useMaster(
   name: string, fallback: string[] = [], enabled = true,
-): { values: string[]; ready: boolean } {
+): { values: string[]; ready: boolean; failed: boolean } {
+  const [failed, setFailed] = useState(false);
   const [values, setValues] = useState<string[]>(() => cache.get(name) ?? readStored(name) ?? fallback);
   const [ready, setReady] = useState<boolean>(
     () => cache.has(name) || readStored(name) !== null || !dataConfigured());
@@ -128,11 +138,12 @@ export function useMaster(
     void load(name).then((v) => {
       if (cancelled) return;
       setValues(v.length ? v : fallback);
+      setFailed(masterFailed(name));
       setReady(true);
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, enabled]);
 
-  return { values, ready };
+  return { values, ready, failed };
 }

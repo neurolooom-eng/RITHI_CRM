@@ -12,8 +12,8 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.323',
-    date: '2026-09-20',
+    version: '0.9.328',
+    date: '2026-09-21',
     title: 'Machine History reaches back to 2016',
     changes: [
       'Machine History now shows the years BEFORE this system. The service history from 2016 up to the cut-over lives in a separate database, and the screen reads it alongside the registers \u2014 so a machine with nine years of faults behind it stops looking new.',
@@ -32,9 +32,66 @@ export const CHANGELOG: ChangeEntry[] = [
     changes: [
       'MY FAULT, AND I AM SORRY. Running call_requests.sql set every call that had no visit record back to Unattended \u2014 about 4,222 of them. I told you to run that bundle without spotting that it carries a data-rewriting statement.',
       'WHY: a line at the end of migration 0032 says \u201ca call whose reports have all gone is Unattended again\u201d. It sits outside any function, so it runs EVERY time the bundle is applied. When it was written that was correct. Four months later the \u201cClose call\u201d button made it possible for a call to be Solved with no visit ON PURPOSE \u2014 and nobody went back and updated that line.',
-      'RUN _restore_call_status.sql AND IT PUTS THEM BACK, in one go. Your call imports kept every column the file carried, including its own Call Status, so the statuses are still on the rows and it restores from there. Calls closed with the old button are restored from the audit trail as well. It only touches calls that are blank AND have no visit, so it cannot overwrite anything correct, and running it twice does nothing the second time.',
+      'CORRECTION (21 Sep): _restore_call_status.sql RECOVERED NOTHING, and I should have checked before telling you it would. The call uploads map no call status, so there was none kept on the rows; and the \u201cClose call\u201d entries it was to read from the audit trail had already been purged by the 7-day retention. The restore had nothing to work from.',
       'THE LINE IS GUARDED NOW and cannot do this again \u2014 proved by closing 50 calls, re-running the bundle, and finding all 50 still Solved.',
       'A call with a report in Drive is a separate thing: Drive holds the document, the system holds the VISIT, and only the visit sets a status. Administration \u2192 Bulk Report Mapping turns those documents into visits, which fixes the cause rather than the symptom.',
+    ],
+  },
+  {
+    version: '0.9.327',
+    date: '2026-09-21',
+    title: 'A cancelled call reads Cancelled',
+    changes: [
+      'A CALL WHOSE STATUS IS \u201cCanceled\u201d WAS SHOWING AS \u201cReport pending\u201d \u2014 so it sat in a queue of work somebody was chasing. It now reads Cancelled, in its own colour, everywhere.',
+      'WHY: the register bucketed anything it did not recognise as \u201cReport pending\u201d. The app itself already knew about cancelled calls; the database did not, and five screens read it from the database.',
+      'YOU DO NOT NEED TO RE-UPLOAD ANYTHING. The statuses on your records were always right \u2014 it was the rule reading them that was wrong, and running the SQL recalculates every existing call.',
+      'RUN call_requests.sql, then check _status.sql row 173.',
+    ],
+  },
+  {
+    version: '0.9.326',
+    date: '2026-09-21',
+    title: 'Reports now go to the Reports shared drive',
+    changes: [
+      'THE DRIVE RE-ROUTING IS LIVE. The CallReg script has been redeployed, so a Field report goes to Field Reports, an Installation report to Installation Reports, a PM report to PM Reports, and a Call Request\u2019s KYC and Installation Report to KYC and Additional Reports.',
+      'NOBODY NEEDS TO CHANGE ANYTHING IN SETTINGS. The new address is built into this version and supersedes whatever your device had saved \u2014 otherwise a phone holding the old one would go on filing reports into the old folder without saying so.',
+      'Every report uploaded before today still opens as it did.',
+    ],
+  },
+  {
+    version: '0.9.325',
+    date: '2026-09-21',
+    title: 'The product list says when it could not load',
+    changes: [
+      'CALL REQUEST \u2014 the Product box said \u201cNothing matches\u201d while the list was still loading. It now says \u201cLoading the list\u2026\u201d, and if the list genuinely cannot be fetched it says that instead. Three different situations that all used to read the same way.',
+      'WHY IT TOOK A MOMENT: the product list comes from a view that does the work in the database, and when that is slow the app quietly falls back to fetching the whole register \u2014 about twenty round trips on a phone. The box now tells you it is waiting rather than telling you there is nothing there.',
+      'RLS ON PRODUCT DATABASE IS NOT WHAT WAS BLOCKING IT. Measured on all 19,253 machines: an engineer already reads every row \u2014 the rule admits any signed-in user \u2014 and the slowest keystroke costs 7 ms with it on, 3 ms with it off.',
+      'Two files to run if the picker is still empty: _why_is_the_product_list_empty.sql says whether the fault is the database or the screen, and _products_rls_off.sql turns RLS off if you still want that \u2014 it says plainly that doing so lets every signed-in user EDIT the install base.',
+    ],
+  },
+  {
+    version: '0.9.324',
+    date: '2026-09-21',
+    title: 'The audit trail is back on',
+    changes: [
+      'EVERY CHANGE TO A QUALITY RECORD IS NOW PHOTOGRAPHED BY THE DATABASE \u2014 what the row was, what it became, who did it and when \u2014 on calls, visit reports, spare requests, spare lines, consumption, feedback and call requests.',
+      'WHY IT MATTERS: the other trail is written by the app, so anything that does not go through the app is invisible to it. That is exactly what happened on 20 Sep \u2014 4,222 calls went back to Unattended and nothing could say what they had been. This is the record that answers that question.',
+      'A BULK UPLOAD IS STILL ONE ENTRY, not one per row. The trail says who loaded what, how many rows and when \u2014 it does not fill up with a copy of every row you import.',
+      'Nothing is deleted from it and nothing expires out of it.',
+      'RUN data_integrity.sql, then check _status.sql row 60 \u2014 it counts all thirty triggers, so a half-armed table reads as NO rather than passing.',
+      'Two files to run before any data repair: _backup_before_repair.sql takes a snapshot first, and _audit_status.sql says what the trail is holding and how far back it goes.',
+    ],
+  },
+  {
+    version: '0.9.323',
+    date: '2026-09-21',
+    title: 'Reports are filed in the right Drive folder',
+    changes: [
+      'DOCUMENTS NOW GO TO THE \u201cReports\u201d SHARED DRIVE, into the folder they belong in instead of one flat pile: a Field call\u2019s report to Field Reports, an Installation call\u2019s to Installation Reports, a PM call\u2019s to PM Reports.',
+      'On Request Call Registration, the KYC goes to the KYC folder and the Installation Report to Additional Reports.',
+      'The folder is chosen by what the call IS, not by which screen uploaded it \u2014 so a call registered years ago as \u201cP M VISIT\u201d files with the PM reports, the same way the register itself counts it.',
+      'EVERY REPORT UPLOADED BEFORE THIS STILL OPENS. The old folder is still read; it has simply stopped being written to.',
+      'IT IS NOT LIVE UNTIL THE CallReg WEB APP IS REDEPLOYED \u2014 the script that writes to Drive is a separate deployment from the site.',
     ],
   },
   {

@@ -48,6 +48,10 @@ export interface SelectPickerProps {
   labelForOption?: (value: string) => React.ReactNode;
   /** Shown under the list when a search finds nothing — say where values come from. */
   emptyHint?: string;
+  /** The OPTIONS are still being fetched by whoever owns them. Passed straight
+   *  to PickList, where it stops an empty-because-loading list reading as
+   *  "Nothing matches" — the two are opposite facts. */
+  loading?: boolean;
   /** Type-to-search appears at or above this many options (default 8). */
   searchThreshold?: number;
   id?: string;
@@ -56,7 +60,7 @@ export interface SelectPickerProps {
 
 export function SelectPicker({
   value, onChange, options, placeholder = '— select —', disabled,
-  allowFreeText = false, emptyHint, searchThreshold, onSearch, isDisabled, labelForOption, id, className,
+  allowFreeText = false, emptyHint, loading, searchThreshold, onSearch, isDisabled, labelForOption, id, className,
 }: SelectPickerProps) {
   const norm = options
     .map((o) => (typeof o === 'string'
@@ -79,6 +83,7 @@ export function SelectPicker({
         disabled={disabled}
         emptyLabel={placeholder}
         emptyHint={emptyHint}
+        loading={loading}
         allowFreeText={allowFreeText}
         onSearch={onSearch}
         searchThreshold={searchThreshold}

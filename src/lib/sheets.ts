@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { recordToRow, rowToRecord } from './fieldcall';
+import type { DriveFolder } from './drivefolders';
 import * as sb from './supabase';
 
 const URL_KEY = 'rithi.sheets.url';
@@ -19,8 +20,14 @@ const TAB_KEY = 'rithi.sheets.tab';
 // out-of-the-box. Bump DEFAULT_URL_VERSION whenever the URL changes — clients
 // on an older version adopt the new default automatically (their stale saved
 // URL is superseded until they explicitly Save a new one in Settings).
-const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxNS2GI7cp2n4eKAINQLtYW1FrxqTQo0TFYulRl3_dCvMG6iH992RkS5XJOFr8F0ZOs/exec';
-const DEFAULT_URL_VERSION = 10;  // v10: the redeploy carrying `drivefile` (0.9.150)
+const DEFAULT_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyF2zr4Tv8Y2dEDWCMtkaGLobfQtb5bf4y7YN8LkpmnntRF--bzSJUFdby8kTbZ_N8/exec';
+const DEFAULT_URL_VERSION = 11;  // v11: the redeploy re-routing Drive storage
+                                 //      to the "Reports" shared drive (0.9.326)
+// THE BUMP IS THE WHOLE POINT, not bookkeeping. A device that has ever saved a
+// URL in Settings keeps using it, and an engineer's phone holding the OLD /exec
+// would go on writing reports into the OLD flat folder -- silently, because the
+// old deployment still answers. Raising the version supersedes every stored
+// copy on the next load, so nobody has to be told to edit Settings.
 
 export function getSheetsUrl(): string {
   try {
@@ -509,7 +516,15 @@ export async function uploadManualReport(ucn: string, column: string, file: File
 // is read back over GET (which is CORS-safe).
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: boolean; url?: string; error?: string }> {
+// WHERE THE FILE GOES: `DriveFolder` and the rule that picks one live in
+// `./drivefolders`, which imports nothing — this module reaches `supabase.ts`
+// and its `import.meta.env`, so anything defined here cannot be tested.
+//
+// Omitting the key is a real answer, not an oversight: an upload with no folder
+// lands in the drive root. The Document Library uses that deliberately — a
+// service manual is not a visit report and has no folder of its own yet.
+
+export async function uploadToDrive(file: File, prefix = '', folder?: DriveFolder): Promise<{ ok: boolean; url?: string; error?: string }> {
   const base = getSheetsUrl();
   if (!base) return { ok: false, error: 'No Google Sheet URL configured.' };
   if (file.size > MAX_UPLOAD_BYTES) return { ok: false, error: `${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.` };
@@ -519,7 +534,7 @@ export async function uploadToDrive(file: File, prefix = ''): Promise<{ ok: bool
     await fetch(base, {
       method: 'POST',
       mode: 'no-cors',
-      body: JSON.stringify({ action: 'driveupload', ref, prefix, filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
+      body: JSON.stringify({ action: 'driveupload', ref, prefix, folder: folder ?? '', filename: file.name, mimeType: file.type || 'application/octet-stream', dataBase64 }),
       redirect: 'follow',
     });
   } catch (e) {
