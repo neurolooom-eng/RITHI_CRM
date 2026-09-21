@@ -61,9 +61,17 @@ export type OwnedState = 'idle' | 'loading' | 'ready' | 'failed';
 export const PICK_A_PRODUCT = '— pick a product —';
 
 export function productPlaceholder(
-  opts: { isInstall: boolean; isFirstCall: boolean; party: string; state: OwnedState; count: number },
+  opts: { isInstall: boolean; isFirstCall: boolean; party: string; state: OwnedState; count: number;
+          // OPTIONAL, so every existing caller and check keeps working. True
+          // only when the master list could not be FETCHED -- which is a
+          // different fact from the list being empty, and the one the screen
+          // was getting wrong.
+          masterFailed?: boolean },
 ): string {
   if (opts.isInstall) return '— pick from Product Database —';
+  // A FAILED FETCH IS NOT AN EMPTY LIST. Said before the first-call branch,
+  // because call 1 is exactly where it was rendering as `Nothing matches ""`.
+  if (opts.masterFailed && opts.count === 0) return '— could not load the product list — check your connection and reopen —';
   if (opts.isFirstCall || !opts.party.trim()) return PICK_A_PRODUCT;
   if (opts.state === 'loading') return `— loading ${opts.party}'s machines —`;
   if (opts.state === 'failed') return '— could not load this customer’s machines —';

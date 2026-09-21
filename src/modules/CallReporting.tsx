@@ -5,6 +5,7 @@ import { Drawer } from '../components/ui/ui';
 import { reportsByCall, saveReport, updateCall, addConsumptionRows, addFeedback, sbListPartyItems, handstockForEngineer, supabaseConfigured } from '../lib/supabase';
 import { num, stockOptionLabel, type HandstockBalance } from '../lib/handstock';
 import { MAX_UPLOAD_BYTES, uploadToDrive } from '../lib/sheets';
+import { driveFolderForCall } from '../lib/drivefolders';
 import { useMaster } from '../lib/masters';
 import { logAudit } from '../lib/audit';
 import { consumptionProblem, CONSUMPTION_YES, CONSUMPTION_NONE } from '../lib/fieldcall';
@@ -333,7 +334,10 @@ export function CallReportDrawer({
     if (!file) return;
     if (file.size > MAX_UPLOAD_BYTES) { setErr(`${file.name} is larger than ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB.`); return; }
     setUploading(true); setErr('');
-    const res = await uploadToDrive(file, `${ucn || 'Report'} - Manual Report`);
+    // The call's type picks the folder — Field / Installation / PM each have
+    // their own in the shared drive, so a report is filed by what it is rather
+    // than heaped in with every other document the app has ever stored.
+    const res = await uploadToDrive(file, `${ucn || 'Report'} - Manual Report`, driveFolderForCall(callType));
     setUploading(false);
     if (!res.ok || !res.url) { setErr(res.error ?? 'Upload failed.'); return; }
     setManualLink(res.url);

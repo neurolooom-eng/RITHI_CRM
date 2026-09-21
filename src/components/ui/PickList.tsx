@@ -20,6 +20,23 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // would be a master entry that does not exist.
 // ===========================================================================
 
+// ===========================================================================
+// ONLY ONE LIST IS OPEN AT A TIME, ACROSS THE WHOLE APPLICATION.
+//
+// The user, 2026-09-21: "In general, the drop-down is not disappearing once
+// selected .. ideally once selected and moved on to the next field it should
+// hide Automatically." Every dropdown in this application is this component
+// (the type-search-and-select rule), so two panels stacked on a phone is the
+// component's own doing -- each instance kept its own `open` and nothing told
+// the others to shut.
+//
+// A REGISTRY RATHER THAN AN EVENT, because the event is exactly what was not
+// arriving: the outside-click handler below listened for `mousedown`, and a
+// phone has no mouse. This closes the others by calling them, which needs no
+// event at all and works the same on every device.
+// ===========================================================================
+const openPickers = new Set<() => void>();
+
 export interface PickListProps {
   value: string;
   options: string[];
@@ -29,6 +46,14 @@ export interface PickListProps {
   // Shown under the list when a search matches nothing — the place to say
   // where new values come from.
   emptyHint?: string;
+  // STILL FETCHING THE LIST. Without this an empty-because-loading list is
+  // indistinguishable from an empty-because-nothing-matches one, and the box
+  // states the wrong one: a Call Request's Product picker read
+  // `Nothing matches ""` while the master list was still on its way
+  // (reported 2026-09-21, with a screenshot). `searching` already covers a
+  // REMOTE search this component runs itself; this covers the OPTIONS being
+  // loaded by whoever owns them, which the component cannot see.
+  loading?: boolean;
   // What the CLOSED box reads when nothing is chosen. Defaults to "— select —",
   // but an empty list often means something specific and worth saying: the
   // request form's serial box has four of these ("pick a product first", "every
@@ -90,7 +115,7 @@ export interface PickListProps {
 }
 
 export function PickList({
-  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
+  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint, loading,
   emptyLabel = '— select —', labelFor, searchThreshold = 8, allowFreeText = false,
   isDisabled, onSearch, id, plainValue,
 }: PickListProps) {
@@ -204,11 +229,35 @@ export function PickList({
   // highlighted row: leaving a box alone must never change what it holds.
   useEffect(() => {
     if (!open) return;
-    const away = (e: MouseEvent) => {
+    // POINTERDOWN, NOT MOUSEDOWN. `mousedown` is a MOUSE event: a phone fires
+    // pointer and touch events, and the compatibility mouse events a browser
+    // may synthesise afterwards are late, inconsistent between browsers, and
+    // suppressed outright when the tap is handled elsewhere -- so tapping away
+    // from an open list on a phone often left it open. `pointerdown` covers
+    // mouse, touch and pen from one listener.
+    const away = (e: Event) => {
       if (boxRef.current && !boxRef.current.contains(e.target as Node)) close();
     };
+    document.addEventListener('pointerdown', away);
+    // For anything too old to have pointer events. Both firing is harmless:
+    // closing an already-closed list does nothing.
     document.addEventListener('mousedown', away);
-    return () => document.removeEventListener('mousedown', away);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('mousedown', away);
+    };
+  }, [open]);
+
+  // OPENING ONE CLOSES THE REST. Registered while open and removed on close,
+  // so the set only ever holds lists that are actually showing.
+  useEffect(() => {
+    if (!open) return;
+    const shut = () => { setOpen(false); setQuery(''); setHi(0); };
+    // Everyone else first -- `shut` is not in the set yet, so this cannot
+    // close the list that is opening.
+    openPickers.forEach((other) => other());
+    openPickers.add(shut);
+    return () => { openPickers.delete(shut); };
   }, [open]);
 
   const close = () => { setOpen(false); setQuery(''); setHi(0); };
@@ -309,7 +358,14 @@ export function PickList({
               it does <b>not</b> mean the customer is missing. {failed}
             </div>
           )}
-          {matches.length === 0 && !canTake && !searching && !failed && (
+          {/* LOADING BEATS "nothing matches", and only while the list is
+              actually EMPTY: once options have arrived, a search that matches
+              none of them really does match none of them, and saying "loading"
+              there would be the same bug mirrored. */}
+          {loading && options.length === 0 && !searching && !failed && (
+            <div className="picklist-none">Loading the list…</div>
+          )}
+          {matches.length === 0 && !canTake && !searching && !failed && !(loading && options.length === 0) && (
             <div className="picklist-none">
               Nothing matches “{query}”.{emptyHint ? ` ${emptyHint}` : ''}
             </div>

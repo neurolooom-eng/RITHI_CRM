@@ -66,7 +66,12 @@ begin
     into ins_cols, ins_vals, set_list
     from information_schema.columns
    where table_schema = 'public' and table_name = 'field_calls'
-     and is_generated = 'NEVER' and column_name <> 'id';
+     -- open_state EXCLUDED BY NAME, not only by being generated. 0226 turns
+     -- it into an ordinary column kept by a trigger, so `is_generated`
+     -- stops excluding it and this list would silently start writing a
+     -- DERIVED value through the view. A no-op before 0226; the thing
+     -- that holds after it. check:replay found exactly this.
+     and is_generated = 'NEVER' and column_name not in ('id', 'open_state');
 
   execute format($f$
     create or replace function public.calls_view_insert() returns trigger language plpgsql as $b$
