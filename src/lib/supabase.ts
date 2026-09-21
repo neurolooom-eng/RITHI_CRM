@@ -1142,12 +1142,47 @@ const partyKey = (v: unknown) => String(v ?? '').trim().toLowerCase();
  *  comparison below then throws the extras away. */
 const partyLike = (party: string) => party.trim().replace(/[%_]/g, '_');
 
+// ---------------------------------------------------------------------------
+// A PARTY'S ROWS: EQUALITY FIRST, `ilike` ONLY IF THAT FINDS NOTHING.
+//
+// Reported 2026-09-21: clicking a customer on Product & Party Search came back
+// "canceling statement due to statement timeout". `ilike` CANNOT USE A BTREE,
+// so the read was a SEQUENTIAL SCAN of every machine -- and with `select *`
+// that means reading each row's `extra` payload too. Measured on 19,253
+// machines, the live count:
+//
+//     ilike     65.8 ms cold, 11.5 ms warm   Seq Scan, 18,733 rows discarded
+//     =          0.7 ms cold,  0.5 ms warm   Bitmap Index Scan (party_name_eq)
+//
+// Nothing about the index was missing: `products_party_name_eq` has been there
+// all along and the call-request cascade already reads through it, saying so
+// in its own comment. This read simply never used it.
+//
+// THE `ilike` IS KEPT AS A FALLBACK, not deleted. On this screen the name comes
+// VERBATIM from `products.party_name` -- the reader clicked a search result --
+// so equality cannot miss. It can where the name was typed or came from a form
+// (the call-request form passes one), and a party whose machines silently
+// vanish is worse than a slow screen. So: the fast read first, and the old one
+// only when the fast one finds nothing, which costs a second round trip only in
+// the case that used to be the only case.
+// ---------------------------------------------------------------------------
+// The reader builds its own query and is told WHICH match to use, rather than
+// being handed a matcher: chaining a generic through supabase-js's builder
+// types makes the compiler give up ("Type instantiation is excessively deep").
+async function partyRows<T>(read: (exact: boolean) => Promise<T[]>): Promise<T[]> {
+  const hit = await read(true);
+  return hit.length ? hit : read(false);
+}
+
 export async function sbListPartyProducts(party: string): Promise<string[]> {
   // PAGED: `allRows` throws on the first failing page, so there is no error to
   // unpack here.
-  const data = await allRows<{ item_name: string | null; party_name: string | null }>((a, b) =>
-    must().from('products')
-      .select('item_name,party_name').ilike('party_name', partyLike(party)).order('id').range(a, b), 20000);
+  const data = await partyRows<{ item_name: string | null; party_name: string | null }>((exact) =>
+    allRows((a, b) => {
+      const base = must().from('products').select('item_name,party_name');
+      const q = exact ? base.eq('party_name', party.trim()) : base.ilike('party_name', partyLike(party));
+      return q.order('id').range(a, b);
+    }, 20000));
   const want = partyKey(party);
   return [...new Set(data
     .filter((r) => partyKey(r.party_name) === want)
@@ -1375,11 +1410,13 @@ export async function sbListProductSerials(product: string): Promise<string[]> {
 export async function sbListPartyItems(party: string, product = ''): Promise<Record<string, unknown>[]> {
   // PAGED: a hospital group can hold more than a thousand machines, and the
   // screen that lists "everything they have" is the last place to stop at one.
-  const data = await allRows<Record<string, unknown>>((a, b) => {
-    let q = must().from('products').select('*').ilike('party_name', partyLike(party));
-    if (product) q = q.eq('item_name', product);
-    return q.order('id').range(a, b);
-  }, 20000);
+  const data = await partyRows<Record<string, unknown>>((exact) =>
+    allRows((a, b) => {
+      const base = must().from('products').select('*');
+      let q = exact ? base.eq('party_name', party.trim()) : base.ilike('party_name', partyLike(party));
+      if (product) q = q.eq('item_name', product);
+      return q.order('id').range(a, b);
+    }, 20000));
   const want = partyKey(party);
   return data.filter((r) => partyKey(r.party_name) === want).map(productRowToSheet);
 }
@@ -1430,7 +1467,13 @@ export function callTypeForTab(tab: string): string {
 // ---- call requests (Request Registration) ----------------------------------
 // Party details for autofill (state / city / address).
 export async function sbPartyInfo(party: string): Promise<{ state: string; city: string; address: string } | null> {
-  const { data } = await must().from('parties').select('state,city,address,extra').ilike('party_name', party).limit(1).maybeSingle();
+  // `name_key` IS `lower(btrim(party_name))` with a UNIQUE btree on it, and
+  // `partyKey()` computes exactly that string in JavaScript -- so this is the
+  // same case-insensitive, trimmed match the `ilike` was doing, through an
+  // index instead of a scan. No fallback is needed here because it is not an
+  // approximation of the old behaviour, it IS the old behaviour.
+  const { data } = await must().from('parties').select('state,city,address,extra')
+    .eq('name_key', partyKey(party)).limit(1).maybeSingle();
   if (!data) return null;
   const ex = (data.extra as Record<string, unknown>) ?? {};
   return { state: String(data.state ?? ''), city: String(data.city ?? ''), address: String(data.address ?? ex['Address'] ?? '') };
