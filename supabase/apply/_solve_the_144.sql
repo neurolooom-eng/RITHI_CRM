@@ -1,8 +1,22 @@
 -- ===========================================================================
 -- MAKE THE 144 VISITS FROM Report.csv THE DECIDING ENTRY ON THEIR CALLS.
 --
+-- CHECKED ON 21-Sep-2026 AND NOT NEEDED. The probe came back Solved (144):
+-- every one of those calls already reads Solved. 40 of them are decided by a
+-- visit that is not from this file, and row 7 said 0 of those are blank --
+-- they are genuine WEB- visits an engineer entered later, saying Solved too.
+-- There is nothing for this file to beat. Left here for the situation it was
+-- written for, not as a step in that repair.
+--
 -- Run this ONLY after _why_are_the_144_not_solved.sql shows rows 6 and 7 above
 -- zero -- i.e. a blank-status visit is outranking the one this file wrote.
+--
+-- IT NO LONGER TOUCHES A ROW THAT ALREADY WINS. An earlier version also
+-- bumped those, for idempotency, and that was backwards: once a row has won,
+-- bumping it again is a write to a quality record that changes nothing --
+-- audited, now that 0225 is armed, as 104 amendments to show for nothing.
+-- Beating a blank is the only reason to write, and after the first run there
+-- is no blank left to beat, which is idempotency by construction.
 --
 -- WHAT IT CHANGES: `updated_at` on exactly the 144 rows named below, and
 -- nothing else. That column is WHEN THE VISIT WAS ENTERED, which is what
@@ -64,7 +78,6 @@ target as (
     join public.reports r on r.uid = f.uid
     join winner w on w.ucn = r.ucn
    where coalesce(btrim(w.call_status), '') = ''     -- a blank one is winning
-      or w.uid = f.uid                               -- or this row already wins
 ),
 bumped as (
   update public.reports r

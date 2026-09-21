@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
+_Last updated: 2026-09-21 (the 144 recovered visits are SOLVED — no repair
+needed; OPEN: 3,600 of 3,744 bulk-loaded visits carry NO call status, which is
+the "Report pending" across the register. Before that: ⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
 RUN data_integrity.sql (the bundle that carries 0225), _status.sql row 60. Take _backup_before_repair.sql first.
 Before that: ⚠️ Drive storage RE-ROUTED to the "Reports" shared
 drive, one folder per kind of document — NEEDS A CallReg REDEPLOY, no SQL.
@@ -35,6 +37,42 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-21 — The 144 recovered visits: Solved, no repair needed
+
+> *"All these calls should be marked as Solved."*
+
+**Solved (144).** `_why_are_the_144_not_solved.sql`, keyed on the file's own
+UCNs and row ids: 144 of 144 found their call, 144 rows written, 144 carrying
+their status.
+
+**`_solve_the_144.sql` was NOT needed and must not be run.** 40 of the calls
+are decided by a visit that is not from this file — and **0 of those are
+blank**. They are genuine `WEB-` visits an engineer entered later, saying
+*Solved - Report Completed* too. There is nothing for the repair to beat.
+
+That file is now narrowed further: it no longer bumps a row that ALREADY wins.
+The earlier version did, for idempotency, and that was backwards — once a row
+has won, bumping it again writes to a quality record and changes nothing, which
+with 0225 armed is 104 audited amendments to show for nothing. Beating a blank
+is the only reason to write, and after one run there is no blank left, which is
+idempotency by construction. Proved: run 1 bumps 1, run 2 bumps 0, and the
+genuine `WEB-` visit stays the deciding entry.
+
+**Three wrong answers preceded this one, all from asserting before measuring:**
+the file had gone to a call register (it had not — 0 strays); the Close-call
+audit entries had expired on a 7-day retention (retention is 3650, the log is
+unpurged back to 31-Aug, and it holds FOUR closes); and the bundle to run was
+`record_audit.sql` (there is no such file — it is `data_integrity.sql`).
+
+### ⚠️ OPEN, and larger than this file
+
+**3,600 of 3,744 bulk-loaded visits carry NO call status.** A visit with no
+status can only read *Report pending* — 0032's expression, where blank is not
+neutral. That is the *Report pending* seen across the register, and it is a
+question about what the loads carried, not about these 144.
 
 ---
 
