@@ -287,7 +287,7 @@ with checks(sort_order, bundle, provides, present) as (
         exists (select 1 from information_schema.columns
                  where table_schema = 'public' and table_name = 'handstock_balance'
                    and column_name = 'on_hand_live')),
-    (60, 'audit trail: record_audit is ARMED', 'the database-enforced before/after trail is back on -- 3 statement triggers (i/u/d) on each of the 10 quality tables (0225, reversing 0112). COUNTED, not merely present: a partly-armed table audits some writes and not others, which reads as covered',
+    (60, 'audit trail: record_audit is ARMED', 'the database-enforced before/after trail is back on -- 3 statement triggers (i/u/d) on each of the 10 quality tables (0225, reversing 0112). COUNTED, not merely present: a partly-armed table audits some writes and not others, which reads as covered. NO means a change to a quality record is not being photographed by the database, and audit_log alone cannot say what a row was before. Restore: data_integrity.sql',
         (select count(*) from pg_trigger
           where tgname in ('record_audit_i', 'record_audit_u', 'record_audit_d')
             and not tgisinternal) = 30),

@@ -32,7 +32,7 @@ export const CHANGELOG: ChangeEntry[] = [
       'WHY IT MATTERS: the other trail is written by the app, so anything that does not go through the app is invisible to it. That is exactly what happened on 20 Sep \u2014 4,222 calls went back to Unattended and nothing could say what they had been. This is the record that answers that question.',
       'A BULK UPLOAD IS STILL ONE ENTRY, not one per row. The trail says who loaded what, how many rows and when \u2014 it does not fill up with a copy of every row you import.',
       'Nothing is deleted from it and nothing expires out of it.',
-      'RUN record_audit.sql, then check _status.sql row 60 \u2014 it counts all thirty triggers, so a half-armed table reads as NO rather than passing.',
+      'RUN data_integrity.sql, then check _status.sql row 60 \u2014 it counts all thirty triggers, so a half-armed table reads as NO rather than passing.',
       'Two files to run before any data repair: _backup_before_repair.sql takes a snapshot first, and _audit_status.sql says what the trail is holding and how far back it goes.',
     ],
   },

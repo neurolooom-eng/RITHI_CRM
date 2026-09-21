@@ -5,7 +5,7 @@ section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
 _Last updated: 2026-09-21 (⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
-RUN record_audit.sql, _status.sql row 60. Take _backup_before_repair.sql first.
+RUN data_integrity.sql (the bundle that carries 0225), _status.sql row 60. Take _backup_before_repair.sql first.
 Before that: ⚠️ Drive storage RE-ROUTED to the "Reports" shared
 drive, one folder per kind of document — NEEDS A CallReg REDEPLOY, no SQL.
 Before that: RCA on 4,222 calls Solved with no visit — the
