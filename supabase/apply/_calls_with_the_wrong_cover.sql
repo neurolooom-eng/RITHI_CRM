@@ -59,7 +59,7 @@ select * from (
          (select count(*)::text from paired
            where coalesce(btrim(on_the_call), '') is distinct from coalesce(btrim(on_the_machine), '')
              and serial_is_ambiguous),
-         'THIS bug''s fingerprint. A disagreement on a serial only ONE machine wears is something else -- most likely the cover changing with time, which is correct.'
+         'NOT this bug''s count, and calling it one was my error. It is only a SUBSET to test: ambiguity has to be shown to be ASSOCIATED with disagreement before any of it is attributed to the lookup. _is_it_really_the_serial_bug.sql does that on one denominator.'
   union all
   select 6, '   ...an example (UCN | model | serial | on the call | on the machine)',
          coalesce((select ucn || '  |  ' || product_name || '  |  ' || serial || '  |  '
@@ -78,7 +78,7 @@ select * from (
                              from paired
                             where coalesce(btrim(on_the_call), '') is distinct from coalesce(btrim(on_the_machine), '')
                             group by 1 order by count(*) desc limit 6) x), 'none'),
-         'Reads "what the call says -> what the machine says". WGP -> OGP and OGP -> WGP both appearing is the signature of a lookup picking arbitrarily.'
+         'Reads "what the call says -> what the machine says". AN EARLIER VERSION OF THIS LINE CALLED A SYMMETRIC SPLIT the signature of a lookup picking arbitrarily. THAT WAS WRONG: every pair here is also explained by TIME -- a contract expiring (CMC->OGP), one being bought (OGP->CMC), a warranty running out (WGP->OGP). A disagreement proves nothing on its own. Run _is_it_really_the_serial_bug.sql, which compares the disagreement rate on ambiguous serials against the rate where only one machine wears the serial -- the second is what time alone produces.'
   union all
   select 8, 'REPAIR',
          'Not offered here, deliberately.',
