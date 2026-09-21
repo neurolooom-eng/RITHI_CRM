@@ -216,7 +216,12 @@ export function PendingRegistrations() {
         // among them — a leading-wildcard scan of every machine, which is what
         // timed out, and which missed the serial entirely whenever 25 other
         // serials contained it.
-        const exact = await productBySerial(serial);
+        // THE PRODUCT TOO. A serial alone does not name a machine -- a machine
+        // is its MODEL and its serial -- and this read used to return an
+        // arbitrary one of the machines wearing the serial, filling ITS item
+        // status, warranty and contract onto this call. Reported 2026-09-21:
+        // a machine that is WGP in Product Database registered as OGP.
+        const exact = await productBySerial(serial, g(row, 'PRODUCT', 'Product Name'));
         if (exact) {
           const full = productToCallPrefill(exact);
           PRODMASTER_FILL.forEach((k) => { if (full[k] != null && String(full[k]) !== '') prodFill[k] = full[k]; });
@@ -224,7 +229,14 @@ export function PendingRegistrations() {
         }
       }
       if (serial && !validated) {
-        setMsg({ tone: 'info', text: `Serial ${serial} not found in Product Database — warranty/contract not auto-filled. Verify on the right.` });
+        // NOT FOUND and AMBIGUOUS are different facts and the reader can act
+        // on only one of them: "add the machine" against "say which machine".
+        // The lookup returns null for both, so the second is asked for here
+        // rather than guessed at from the first.
+        const prod = g(row, 'PRODUCT', 'Product Name').trim();
+        setMsg({ tone: 'info', text: prod
+          ? `No machine in Product Database is ${prod} with serial ${serial} — warranty/contract not auto-filled. Check the model and serial on the right.`
+          : `This request names no product, and serial ${serial} is on more than one machine — warranty/contract not auto-filled, because filling the wrong machine's cover is worse than filling none.` });
       } else {
         setMsg(null);
       }

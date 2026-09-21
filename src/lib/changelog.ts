@@ -24,6 +24,18 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.329',
+    date: '2026-09-21',
+    title: 'A call gets ITS machine\u2019s cover, not another one\u2019s',
+    changes: [
+      'REGISTERING A CALL FROM A REQUEST looked the machine up by SERIAL ALONE. Where two machines share a serial number it picked one of them at random and copied ITS item status, warranty and contract onto the call \u2014 which is why a machine showing WGP in Product Database could register as OGP.',
+      'IT NOW MATCHES ON MODEL AND SERIAL TOGETHER, which is what identifies a machine. Same rule as everywhere else in the system.',
+      'AND IT NO LONGER GUESSES: if the request names no product and the serial is on more than one machine, it fills nothing and tells you why \u2014 the wrong machine\u2019s cover is invisible once written, and it decides what spares are chargeable.',
+      'The message now says which it is: \u201cno machine is <model> with serial <n>\u201d (add the machine) or \u201cthat serial is on more than one machine\u201d (say which).',
+      'To see whether calls already registered were affected, run _calls_with_the_wrong_cover.sql \u2014 it separates this fault from cover that simply changed when a warranty ran out.',
+    ],
+  },
+  {
     version: '0.9.328',
     date: '2026-09-21',
     title: 'Opening a customer no longer times out',

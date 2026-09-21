@@ -1394,8 +1394,16 @@ console.log('\n-- one machine, by its serial --');
     /eq\('serial_number'/.test(sb), false);
 
   const pr = readFileSync(`${process.cwd()}/src/modules/PendingRegistrations.tsx`, 'utf8');
-  eq('registering from a request asks for the ONE machine',
-    /await productBySerial\(serial\)/.test(pr), true);
+  // STRENGTHENED 2026-09-21, not relaxed. This asserted `productBySerial(serial)`
+  // literally, which pinned the very shape that was wrong: the serial ALONE
+  // does not name a machine, so the lookup returned an arbitrary one of the
+  // machines wearing it and filled ITS cover onto the call. The intent -- ONE
+  // machine, by equality, never 25 substring matches -- is unchanged and is now
+  // held at the right key.
+  eq('registering from a request asks for the ONE machine, by MODEL and serial',
+    /await productBySerial\(serial, g\(row, 'PRODUCT', 'Product Name'\)\)/.test(pr), true);
+  eq('...and never by the serial alone, which names no machine',
+    /await productBySerial\(serial\)/.test(pr), false);
   // The shape that timed out: read 25 substring matches, then find the exact
   // one here. If it ever comes back, so does the timeout.
   eq('...not 25 substring matches sifted in the browser',
@@ -7745,6 +7753,39 @@ console.log('\n-- a party is read through the index, not scanned for --');
   // the call-request form passes a typed one, and a party whose machines
   // silently vanish is worse than a slow screen.
   eq('the fallback is still reachable', /base\.ilike\('party_name', partyLike\(party\)\)/.test(sb), true);
+}
+
+
+console.log('\n-- a machine is its MODEL and its serial, in the cover lookup too --');
+{
+  // Reported 2026-09-21: "the item status is under WGP, but when I register
+  // the call it shows as OGP". `serial_key` is lower(btrim(serial_number)) and
+  // is NOT unique; `machine_key` is model|serial and IS. The lookup used
+  // `.eq('serial_key', ...).limit(1)` -- an ARBITRARY one of the machines
+  // wearing that serial -- and Pending Registrations filled its item status,
+  // warranty and contract onto a call for a different machine.
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  eq('the lookup takes the product', /sbProductBySerial\(serial: string, product = ''\)/.test(sb), true);
+  eq('...and keys on machine_key when it has one', /\.eq\('machine_key', dbMachineKey\(product, serial\)\)/.test(sb), true);
+  // WITHOUT a product, an ambiguous serial must NOT be guessed at. Asking for
+  // TWO rows is what makes the difference visible: one is an answer, two is a
+  // question, and `.limit(1)` cannot tell them apart.
+  eq('...asks for TWO rows when it has no product', /\.eq\('serial_key', key\)\.limit\(2\)/.test(sb), true);
+  eq('...and returns nothing when the serial is ambiguous',
+    /rows\.length === 1 \? productRowToSheet\(rows\[0\]\) : null/.test(sb), true);
+  // THE KEY MUST BE THE ONE THE DATABASE STORES. `machineKey()` in ./machine
+  // SQUASHES -- ORION-G becomes oriong -- and the column keeps the hyphen, so
+  // using it here would match nothing and fill no cover anywhere, which is
+  // worse than the bug. Verified against real rows before shipping.
+  eq('the key is built the database way, not the squashing way',
+    /const dbMachineKey = [\s\S]{0,160}trim\(\)\.toLowerCase\(\)\}\|\$\{/.test(sb), true);
+  eq('...and does NOT squash', /dbMachineKey[\s\S]{0,200}replace\(/.test(sb), false);
+  // The call site has to PASS it, or the widened signature changes nothing.
+  const pr = readFileSync('src/modules/PendingRegistrations.tsx', 'utf8');
+  eq('Pending Registrations passes the product',
+    /productBySerial\(serial, g\(row, 'PRODUCT', 'Product Name'\)\)/.test(pr), true);
+  eq('...and tells "not found" apart from "ambiguous"',
+    /on more than one machine/.test(pr) && /No machine in Product Database is/.test(pr), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
