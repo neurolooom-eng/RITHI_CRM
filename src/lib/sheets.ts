@@ -250,10 +250,12 @@ export interface ProdFilters {
 // matches and pick the exact one here. That is what timed out on a 21k-row
 // Postgres table; against the sheet it is the only thing available, and the
 // sheet is not where the register lives any more.
-export async function productBySerial(serial: string): Promise<Record<string, unknown> | null> {
+export async function productBySerial(serial: string, product = ''): Promise<Record<string, unknown> | null> {
   const want = String(serial ?? '').trim();
   if (!want) return null;
-  if (sb.supabaseConfigured()) return sb.sbProductBySerial(want);
+  // The PRODUCT is passed through because a serial alone does not name a
+  // machine -- see sbProductBySerial.
+  if (sb.supabaseConfigured()) return sb.sbProductBySerial(want, product);
   const found = await searchProducts({ serial: want }, 25);
   return found.find((p) => String(p['Item Serial Number'] ?? '').trim().toLowerCase() === want.toLowerCase()) ?? null;
 }
