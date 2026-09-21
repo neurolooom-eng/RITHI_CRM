@@ -7715,5 +7715,42 @@ console.log('\n-- a cancelled call is Cancelled on BOTH sides --');
     existsSync('supabase/tests/call_cancelled_state_test.sql'), true);
 }
 
+
+console.log('\n-- a party is read through the index, not scanned for --');
+{
+  // Reported 2026-09-21: clicking a customer on Product & Party Search came
+  // back "canceling statement due to statement timeout". `ilike` CANNOT USE A
+  // BTREE, so the read was a sequential scan of every machine -- with
+  // `select *`, so each row's `extra` payload too. Measured on 19,253
+  // machines: ilike 65.8ms cold / 11.5ms warm (Seq Scan, 18,733 rows
+  // discarded) against 0.7ms / 0.5ms for equality (Bitmap Index Scan).
+  // `products_party_name_eq` was there all along; this read never used it.
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+  eq('the exact match is tried first', /const hit = await read\(true\);/.test(sb), true);
+  eq('...and ilike is the FALLBACK, not the route',
+    /return hit\.length \? hit : read\(false\);/.test(sb), true);
+  // BOTH party reads must go through it. One converted and one left behind is
+  // the "fix went into one of thirteen call sites" fault this project has
+  // already had once, with `allRows`.
+  eq('both party reads use it', (sb.match(/await partyRows</g) ?? []).length, 2);
+  // COUNT THE EXACT MATCHES ONLY. The `%fragment%` reads are SEARCHES -- a
+  // reader typing part of a name -- and an infix ilike is right for those; they
+  // have the trigram index for it. What must never be a scan is looking up a
+  // party whose WHOLE name is already known. Writing this assertion against
+  // every `ilike('party_name'` is what caught that I had converted two of the
+  // three exact reads and left sbPartyInfo behind.
+  const exactIlike = (sb.match(/ilike\('party_name', *(party|partyLike)/g) ?? []).length;
+  eq('every EXACT party read goes through an index', exactIlike,
+    (sb.match(/exact \? base\.eq\('party_name'/g) ?? []).length);
+  eq('...including the parties table, on its unique name_key',
+    /\.eq\('name_key', partyKey\(party\)\)/.test(sb), true);
+  eq('...which no longer scans for the name', /from\('parties'\)[\s\S]{0,120}ilike\('party_name', party\)/.test(sb), false);
+  // The fallback exists for a REASON and deleting it is the tempting
+  // simplification: on this screen the name is verbatim from the register, but
+  // the call-request form passes a typed one, and a party whose machines
+  // silently vanish is worse than a slow screen.
+  eq('the fallback is still reachable', /base\.ilike\('party_name', partyLike\(party\)\)/.test(sb), true);
+}
+
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');
 process.exit(fail ? 1 : 0);
