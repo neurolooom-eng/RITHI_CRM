@@ -9,6 +9,14 @@
 --
 --   A call with a blank visit AND a real one  -> the real one decides. Moving
 --                                                the blank out FIXES it.
+--
+-- AND THAT IS MOST OF THIS, which the numbers only showed once they were put
+-- side by side. 3,600 blanks, one per call. 3,430 of them have a statused
+-- visit on the SAME CALL, SAME DAY -- so at most 170 calls lack one. Yet 2,525
+-- calls are currently DECIDED by their blank visit. For roughly 2,355 calls
+-- the real status IS ON THE RECORD and the blank is simply outranking it,
+-- having been entered later. This is not missing data; it is a duplicate
+-- winning, and moving the duplicate out is the whole repair.
 --   A call whose ONLY visit is the blank one  -> NO VISITS LEFT, and the
 --                                                trigger sets last_status = ''
 --                                                and last_visit_at = null.
@@ -42,11 +50,19 @@ with movable as (
   select r.*
     from public.reports r
    where coalesce(btrim(r.call_status), '') = ''
-     -- ONLY where the call keeps a visit that carries a status. This is what
-     -- makes the move incapable of producing an Unattended call.
+     -- SAME CALL **AND SAME DAY**. Two conditions, and the second is the
+     -- evidence. Measured on the live register: 3,430 of the 3,600 blanks have
+     -- a statused visit on the same call on the same day -- they are the SAME
+     -- VISIT loaded twice, once bare and once with its status, because the two
+     -- files keyed it differently (`IMP-` derived from call+date, against the
+     -- export's own UID). Dropping the day test would also move a blank visit
+     -- that is a genuine LATER visit on a call whose earlier one had a status,
+     -- and the call would then report the older status as its current one.
+     -- Same-day is what makes this a de-duplication rather than a deletion.
      and exists (select 1 from public.reports k
                   where k.ucn = r.ucn and k.id <> r.id
-                    and coalesce(btrim(k.call_status), '') <> '')
+                    and coalesce(btrim(k.call_status), '') <> ''
+                    and k.visit_at::date = r.visit_at::date)
 ),
 saved as (
   insert into public.reports_no_status_backup
@@ -71,15 +87,16 @@ select 'PART 1 -- the calls afterwards' as step, c.open_state, count(*)::text as
  group by c.open_state order by c.open_state;
 
 -- ---- WHAT IS LEFT, and what moving it would cost ---------------------------
-select 'STILL THERE -- blank visits that are the ONLY visit on their call' as step,
+select 'STILL THERE -- blank visits with no same-day statused twin' as step,
        count(*)::text as visits,
        count(distinct ucn)::text as calls,
-       'Moving these makes every one of those calls UNATTENDED. That is PART 2, and it is not run by this file.' as note
+       'Expect ~170. These are NOT duplicates: the call has no statused visit on that day, so moving one makes the call Unattended -- it would say nobody went, and somebody did. That is PART 2, and this file does not run it.' as note
   from public.reports r
  where coalesce(btrim(r.call_status), '') = ''
    and not exists (select 1 from public.reports k
                     where k.ucn = r.ucn and k.id <> r.id
-                      and coalesce(btrim(k.call_status), '') <> '');
+                      and coalesce(btrim(k.call_status), '') <> ''
+                      and k.visit_at::date = r.visit_at::date);
 
 -- ===========================================================================
 -- PART 2 -- THE REST. Read the row above first.
@@ -96,7 +113,8 @@ select 'STILL THERE -- blank visits that are the ONLY visit on their call' as st
 --    where coalesce(btrim(r.call_status), '') = ''
 --      and not exists (select 1 from public.reports k
 --                       where k.ucn = r.ucn and k.id <> r.id
---                         and coalesce(btrim(k.call_status), '') <> '')
+--                         and coalesce(btrim(k.call_status), '') <> ''
+--                         and k.visit_at::date = r.visit_at::date)
 -- ), saved as (
 --   insert into public.reports_no_status_backup
 --   select m.*, now(), 'no call status; this was the call''s only visit -- the call is now Unattended'
