@@ -45,6 +45,8 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 21 | Hand Stock · Pending Dispatch | More chips counting one page as if it were the register | Medium |
 | 22 | Spare Requests · Spare Consumption · Customer Feedback | The 30-minute auto-sync throws away every page but the first | Medium |
 | 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
+| 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) | High |
+| 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
 
 ---
 
@@ -241,10 +243,11 @@ supposed to carry it, and cannot.
 capturing a `const` from the first render — certain by the language's rules, not
 by React's scheduling. Not exercised in a browser here.
 
-**Worth checking beside it** (not verified in this pass): every other screen that
-memoises columns containing a handler over asynchronously-loaded state has the
-same shape. `Reports.tsx`, `SpareDispatch.tsx` and `DeliveryChallan.tsx` all
-render signature blocks.
+**The Delivery Challan does it correctly**, which is what shows this is a bug
+rather than the rule: `DeliveryChallan.tsx:96-97` computes
+`signatureBelongsTo(doc.dispatchedBy, user) ? mine : null` **in the render body**,
+so it recomputes the moment `useMySignature()` resolves. The same two helpers,
+one frozen and one not.
 
 ---
 
@@ -946,3 +949,112 @@ exercised end to end.
 **What would make it safe** is a decision, not a patch: cascade the rename in
 the same statement, or key the tree on `id` rather than on the name. Both are
 larger than this document, which is why it is recorded rather than fixed.
+
+---
+
+## 24 — Unticking every box and saving *grants* the role its code defaults
+
+**Where** `src/modules/RolePermissions.tsx:267-285` (`save`) against
+`src/lib/rbac.ts:395-399` (`permsForRole`)
+
+```ts
+// RolePermissions.save()
+const list = r.key === 'admin' ? […] : [...(perms[r.key] ?? [])];
+await setRolePerms(r.key, list, r.label);        // writes [] for a fully-unticked role
+```
+```ts
+// rbac.ts
+export const permsForRole = (role: string, config: Record<string, string[]>): string[] => {
+  const stored = config[role];
+  if (stored && stored.length) return stored;          // ← [] fails this test
+  return DEFAULT_PERMS[role] ?? DEFAULT_PERMS.engineer; // ← so the CODE defaults apply
+};
+```
+
+**What is wrong.** An empty stored array means *"not configured"*, and the
+fallback is the point — it is how a brand-new role works before anybody tunes
+it. But **Save writes an empty array** for a role whose boxes have all been
+cleared, so the one gesture that means "this role may do nothing" is stored as
+"this role has never been configured", and the role receives its full code
+defaults.
+
+**How it fails — measured**, by calling `permsForRole` the way `can()` does:
+
+```
+zoho_migration       ticked 2 -> holds   2   |   unticked ALL -> holds  69
+technical_support    ticked 2 -> holds   2   |   unticked ALL -> holds  69
+hotline              ticked 2 -> holds   2   |   unticked ALL -> holds  70
+engineer             ticked 2 -> holds   2   |   unticked ALL -> holds  57
+commercial           ticked 2 -> holds   2   |   unticked ALL -> holds  61
+
+what "revoke everything" actually leaves zoho_migration holding, first 8:
+  calls.view, masters.view, consumption.view, reports.view, dashboard.view,
+  feedback.view, audit.view, admin.view
+  …of 69 permissions
+```
+
+**Revoking everything leaves the role with more than leaving two boxes ticked.**
+It is not a small over-grant either: `zoho_migration` ends with 69 permissions
+including `audit.view` and `admin.view`.
+
+**This is the gesture the application asks for by name.** CLAUDE.md's reason for
+`zoho_migration` existing as a separate role is that *"this one ends when the
+migration does and can be revoked in a tick, without touching the support
+login."* Unticking its boxes and pressing Save is what "revoked in a tick" means
+on this screen, and it does the opposite.
+
+**The screen already knows.** Its own export writes, for exactly this state:
+
+> NOT CONFIGURED — showing the Engineer fallback, which is what these users
+> actually get
+
+— `RolePermissions.tsx:157`. The trap is documented in the file that walks into
+it. CLAUDE.md states the other half of the same rule ("leave a role with ZERO
+permissions alone — an empty array means 'not configured' and writing one key
+into it turns the fallback off"); nothing states this direction.
+
+**What a fix has to decide** (again, a decision rather than a patch): either
+store a sentinel that means "deliberately nothing", or refuse the save and tell
+the administrator to disable the role instead. Writing `[]` cannot mean both
+things.
+
+**Established by** running `permsForRole` from `rbac.ts` directly against the
+empty-array case. Certain for the client; the database policies read
+`app_roles.permissions` through `has_perm()`, which was NOT tested here and may
+treat an empty array differently — worth checking before deciding which way to
+fix it.
+
+---
+
+## 25 — An exact count over a read that is paged and capped
+
+**Where** `src/modules/StockOut.tsx:42-45`
+
+```tsx
+count={count}
+// The list loads in one request, not in pages, so this is the whole
+// number rather than a lower bound.
+countMore={false}
+```
+
+**How it fails.** The comment's premise is not true. `listStockOutLines`
+(`supabase.ts:1972-1986`) is `allRows(...)` — paged, in 1,000-row requests, up to
+`cap = 5000` — and `allRows` **stops at its cap silently**: no flag, no error,
+just fewer rows. So once Stores has issued more than 5,000 spare lines, the Stock
+Out register shows 5,000 under a header that promises the number is complete.
+
+The comment is the interesting part: it was written to justify `countMore={false}`
+and it justifies it from a mechanism the function does not use. Reading it is
+how somebody confirms the claim and moves on.
+
+**Indoor Service, in the same group, does it right** —
+`IndoorService.tsx:173-175` also passes `countMore={false}` and says so honestly:
+*"every row is on screen. listIndoorJobs caps at 500 and the register is nowhere
+near that; when it is, this…"* — a claim with its own condition attached.
+
+See also finding 21: `listPendingDispatch` has the same silent `allRows` cap at
+2,000, without even a `more` to track.
+
+**Established by** reading `listStockOutLines` and `allRows`. The mechanism claim
+is certainly wrong; whether the live register has passed 5,000 issued lines was
+not checked — `select count(*) from spare_stock_out_lines` settles it.
