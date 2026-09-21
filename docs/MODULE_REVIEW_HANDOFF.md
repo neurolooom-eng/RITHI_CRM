@@ -11,10 +11,10 @@ type-checked. Treat them as precise descriptions of the change, not as diffs to
 paste blind — `npm run build` after each batch is the check that matters.
 
 **A line number is a hint; the quoted snippet is the citation.** `main` moved
-twice while this was being written, and the second time `supabase.ts` gained
-forty lines in the middle — 18 of 21 citations into it drifted at once. Line
-numbers here are against `main` at `ef4ac1b`, and if one is off by a few when
-you get there, **search for the quoted "current" snippet**, which is what
+three times while this was being written, twice into `supabase.ts`, which gained
+about eighty lines in the middle — most citations into it drifted each time.
+Line numbers here are against `main` at `f246888`, and if one is off by a few
+when you get there, **search for the quoted "current" snippet**, which is what
 actually identifies the code. Reads in `supabase.ts` are cited by function name
 in `MODULE_REVIEW.md` for the same reason.
 

@@ -25,19 +25,20 @@ pg_cron) and `check:replay` (23 bundles). So everything below is in the gap thos
 seventeen checks do not cover — which is the gap this project keeps finding
 things in.
 
-**A line number is a hint; the symbol is the citation.** `main` moved twice while
-this was being written, and both times it edited files quoted here — 18 of 21
-`supabase.ts` citations drifted on the second one alone, because the file gained
-forty lines in the middle. So reads in `supabase.ts` are now cited by **function
-name** with the line as `~:NNN`, which survives a shift; everywhere else, the
-quoted "current" snippet is what identifies the code. If a number is off by a
-few, search the snippet.
+**A line number is a hint; the symbol is the citation.** `main` is moving under
+this document — three times while it was being written, twice into
+`src/lib/supabase.ts`, which gained about eighty lines in the middle across
+those merges. Line numbers into a live file rot that fast. So reads in
+`supabase.ts` are cited by **function name** with the line as `~:NNN`, which
+survives a shift; everywhere else, the quoted "current" snippet identifies the
+code. **If a number is off by a few, search the snippet.**
 
 Corrected so far, none of which changed a finding: `sheets.ts:157-158` →
-`:164-165`, `CallReporting.tsx:410/:447` → `:414/:451`, and the eighteen
-`supabase.ts` reads re-anchored to their functions. `main`'s edits were
-Drive-folder routing and an index fix on `sbListPartyItems`; neither fixes nor
-invalidates anything recorded here.
+`:164-165`, `CallReporting.tsx:410/:447` → `:414/:451`, and the `supabase.ts`
+reads re-anchored to their functions and re-checked on each merge. `main`'s edits
+in that window were Drive-folder routing, an index fix on `sbListPartyItems`, and
+a cover lookup that now keys on product **and** serial rather than the serial
+alone — none of them touches anything recorded here, and none of them fixes it.
 
 | # | Module | What | Severity |
 | --- | --- | --- | --- |
@@ -330,8 +331,8 @@ per column.
 ## 8 — Seven paged reads page with no `order()`
 
 **Where** `src/lib/supabase.ts` — `distinctColumn()` (~:768), `sbSearchProducts()`
-(~:1439), `listDirectoryAsUsers()` (~:2047), `sbEngineerNames()` (~:2188),
-`countCallReviews()` (~:2322), `reviewPickLists()` (~:2353), `listCallReportReviews()`
+(~:1439), `listDirectoryAsUsers()` (~:2088), `sbEngineerNames()` (~:2229),
+`countCallReviews()` (~:2363), `reviewPickLists()` (~:2394), `listCallReportReviews()`
 (~:4652)
 
 **What is wrong.** `paging.ts:19-22` states the rule: *"ORDER IS NOT OPTIONAL
@@ -541,14 +542,14 @@ project has more than 25 consuming products is not known from here.
 
 | Read | Order | Paged by | Ties are certain because |
 | --- | --- | --- | --- |
-| `listFeedbackRows()` (~:3314) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
-| `listConsumptionRows()` (~:3306) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
-| `listSpareRequestLines()` (~:2770) | `created_at` | Spare Requests' Load more | every line of one request is written together |
-| `queryAudit()` (~:2143) | `at` | Audit Log's Load more | a burst of writes shares the second |
+| `listFeedbackRows()` (~:3355) | `created_at` | Customer Feedback's Load more | the 24,092-row import shares one timestamp |
+| `listConsumptionRows()` (~:3347) | `created_at` | Spare Consumption's Load more | the bulk consumption upload does |
+| `listSpareRequestLines()` (~:2811) | `created_at` | Spare Requests' Load more | every line of one request is written together |
+| `queryAudit()` (~:2184) | `at` | Audit Log's Load more | a burst of writes shares the second |
 | `queryParties()` (~:1107) | `party_name` | Party Master's Load more | two branches of one hospital group |
-| `listAllHandstockMovements()` (~:3284) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
+| `listAllHandstockMovements()` (~:3325) | `moved_at` | Hand Stock's Load more | a dispatch moves many parts at once |
 | `listKpiFieldInst()` (~:373) | `Call Registeration Date` | the KPI **export** loop | a date column, by construction |
-| `listAllMasterValues()` (~:2536) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
+| `listAllMasterValues()` (~:2577) | `name` | its own internal loop | a master list is *many values per name* — **but see the note below: nothing calls it today** |
 | `unusedSpareEngineers()` (~:630) | `ucn` | `allRows` | one call carries several parts |
 
 **How it fails — measured, in Postgres 16.** 24,000 rows sharing one
