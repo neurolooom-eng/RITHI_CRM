@@ -24,6 +24,17 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.328',
+    date: '2026-09-21',
+    title: 'Opening a customer no longer times out',
+    changes: [
+      'PRODUCT & PARTY SEARCH \u2014 clicking a customer came back \u201ccanceling statement due to statement timeout\u201d. It was reading every machine in the register to find that one customer\u2019s, instead of going straight to them.',
+      'Measured on all 19,253 machines: 65.8 ms before, 0.7 ms now \u2014 and on a cold database the old way is what ran out of time.',
+      'The same fault was in the lookup that fills a customer\u2019s city and address, and that is fixed too.',
+      'Nothing about what you see changes \u2014 only how it is fetched. Typing part of a name to SEARCH still works exactly as before.',
+    ],
+  },
+  {
     version: '0.9.327',
     date: '2026-09-21',
     title: 'A cancelled call reads Cancelled',
