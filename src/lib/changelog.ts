@@ -24,6 +24,17 @@ export const CHANGELOG: ChangeEntry[] = [
     ],
   },
   {
+    version: '0.9.327',
+    date: '2026-09-21',
+    title: 'A cancelled call reads Cancelled',
+    changes: [
+      'A CALL WHOSE STATUS IS \u201cCanceled\u201d WAS SHOWING AS \u201cReport pending\u201d \u2014 so it sat in a queue of work somebody was chasing. It now reads Cancelled, in its own colour, everywhere.',
+      'WHY: the register bucketed anything it did not recognise as \u201cReport pending\u201d. The app itself already knew about cancelled calls; the database did not, and five screens read it from the database.',
+      'YOU DO NOT NEED TO RE-UPLOAD ANYTHING. The statuses on your records were always right \u2014 it was the rule reading them that was wrong, and running the SQL recalculates every existing call.',
+      'RUN call_requests.sql, then check _status.sql row 173.',
+    ],
+  },
+  {
     version: '0.9.326',
     date: '2026-09-21',
     title: 'Reports now go to the Reports shared drive',

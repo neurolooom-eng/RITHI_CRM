@@ -32,7 +32,7 @@ import { isReviewable, REVIEW_DONE, isUrl, linkLabel } from '../src/lib/callrevi
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { timeAgo, fmtLongDate } from '../src/lib/format';
 import { bulkReview2Block, effectiveAutoSave, curatedProduct, masterValueApplies } from '../src/lib/dccr';
-import { stateColour } from '../src/lib/callstate';
+import { stateColour, stateBucket } from '../src/lib/callstate';
 import { driveFolderForCall, DRIVE_FOLDER_NAMES } from '../src/lib/drivefolders';
 import { KPI_FIELD_INST_COLUMNS, toKpiExportRow } from '../src/lib/kpi';
 import { buildXlsx } from '../src/lib/xlsx';
@@ -7681,6 +7681,33 @@ console.log('\n-- a list that FAILED to load does not read as an empty list --')
   eq('...and useMaster reports it', /return \{ values, ready, failed \}/.test(ms), true);
   eq('...set only where the fetch was caught', /failedNames\.add\(name\)/.test(ms), true);
   eq('...and cleared when a later fetch succeeds', /failedNames\.delete\(name\)/.test(ms), true);
+}
+
+
+console.log('\n-- a cancelled call is Cancelled on BOTH sides --');
+{
+  // The client has known this since the colour code was written; the database
+  // did not, and five screens read `open_state` straight out of it -- so a
+  // call the register would colour slate read "Report pending" and sat in a
+  // queue of work somebody was chasing. 19 of them in one upload.
+  eq('the client calls it Cancelled', stateBucket('Canceled'), 'Cancelled');
+  eq('...whichever way it is spelled', stateBucket('Cancelled'), 'Cancelled');
+  const sql = readFileSync('supabase/migrations/0226_cancelled_is_not_report_pending.sql', 'utf8');
+  eq('and so does the database now', /like '%cancel%'\s+then 'Cancelled'/.test(sql), true);
+  // ORDER IS THE RULE, not decoration: `%cancel%` must be tested before the
+  // others, exactly as stateBucket does, or "Cancelled - Unsolved" splits the
+  // two sides apart again.
+  eq('...tested BEFORE unsolved, as the client tests it',
+    sql.indexOf("like '%cancel%'") < sql.indexOf("like '%unsolved%'"), true);
+  // THE COLUMN IS CONVERTED, NOT DROPPED. Dropping it takes eleven views with
+  // it, each needing security_invoker re-asserted -- the rebuild this project
+  // has got wrong three times.
+  eq('the column is converted in place, not dropped',
+    /alter column open_state drop expression/.test(sql) && !/drop column open_state/.test(sql), true);
+  eq('...and the derived value is STAMPED, not accepted',
+    /new\.open_state := public\.call_open_state/.test(sql), true);
+  eq('...with a suite behind it',
+    existsSync('supabase/tests/call_cancelled_state_test.sql'), true);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

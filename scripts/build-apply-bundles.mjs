@@ -261,6 +261,12 @@ const MODULES = {
       // to — and after rbac in ALL_ORDER, which creates app_roles.
       '0126_call_allot_permission.sql',
       '0127_call_edit_sections.sql',
+      // AFTER 0040 above: it converts `open_state` on the three call tables
+      // 0040 creates, and it must not run before they exist. It is also after
+      // 0032, whose generated expression it replaces -- replayed the other way
+      // round the generated column would be put back and the cancelled branch
+      // lost, which is the "a bundle must carry the LATEST definition" rule.
+      '0226_cancelled_is_not_report_pending.sql',
       // LAST in this module: 0003 and 0053 both define cr_read, so a bundle
       // replayed alone would otherwise restore the per-row version.
       '0164_cr_read_initplan.sql',

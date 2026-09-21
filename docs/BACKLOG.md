@@ -4,7 +4,9 @@ Living backlog for the Field Service module. Newest decisions at the top of each
 section. Shipped items also appear in the in-app **Version History**; this file
 tracks what's **done**, **in progress**, and **queued**.
 
-_Last updated: 2026-09-21 (the 144 recovered visits are SOLVED — no repair
+_Last updated: 2026-09-21 (⚠️ A CANCELLED CALL now reads Cancelled, not
+"Report pending" — 0226. RUN call_requests.sql, _status.sql row 173. No
+re-upload needed: open_state is derived. Before that: the 144 recovered visits are SOLVED — no repair
 needed; OPEN: 3,600 of 3,744 bulk-loaded visits carry NO call status, which is
 the "Report pending" across the register. Before that: ⚠️ AUDIT TRAIL RE-ARMED — 0225 reverses 0112;
 RUN data_integrity.sql (the bundle that carries 0225), _status.sql row 60. Take _backup_before_repair.sql first.
@@ -38,6 +40,46 @@ rows **166** and **167**, bundle `HandStock_X.sql` at the repository ROOT.
 _Previously: 2026-09-06 (bundle replay safety; see the top of In progress) ·
 2026-09-02 (spare reconciliation shipped and applied; live project fully caught
 up)_
+
+---
+
+## 2026-09-21 — ⚠️ A cancelled call is not "Report pending" (0226)
+
+> *"How did it become Report Pending?"* → *"Yes fix the Canceled status"*
+
+Measured on the reporting upload: 11,957 rows, every one carrying a status,
+producing **36** Report-pending calls out of 7,006 — and **19 of those 36 have
+`last_status = 'Canceled'`**. `open_state`'s final `ELSE` turned every status
+it did not recognise into *Report pending*.
+
+**The client already knew.** `stateBucket()` has `/cancel/i → 'Cancelled'`
+with its own slate chip. Five screens read `open_state` straight from the
+database, so those disagreed with the register's own colour code.
+
+**NO RE-UPLOAD.** `open_state` is derived from `last_status`; the statuses on
+the rows were always right. The migration recomputes every existing call.
+
+### A trigger, not a new generated expression — and the reason is measured
+
+PostgreSQL before 17 cannot change a generation expression: drop and re-add,
+and dropping the column takes every view reading it. Counted on a built
+database: `calls`, `field_call_review`, `field_call_review_summary`, and
+through `calls` another eight — **eleven views**, each needing
+`security_invoker` re-asserted, which is the rebuild this project has got wrong
+three times. `ALTER COLUMN ... DROP EXPRESSION` (PG13+) converts in place:
+proved inside a transaction, all views and both indexes still there afterwards.
+The value is then STAMPED, so a caller-supplied one is discarded (0113/0114).
+
+### check:replay caught a second-order fault, and it was real
+
+Five migrations build `calls_view_insert`/`calls_view_update` from the LIVE
+column list, filtered on `is_generated = 'NEVER'`. The moment `open_state`
+stops being generated, all five would silently start writing a DERIVED value
+through the view. They exclude it BY NAME now — a no-op before 0226, the thing
+that holds after. **Proved it was mine** by stashing the change: without it the
+bundle replays clean.
+
+**97/97 suites, 17/17 checks.**
 
 ---
 
