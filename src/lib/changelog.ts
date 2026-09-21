@@ -28,7 +28,8 @@ export const CHANGELOG: ChangeEntry[] = [
     date: '2026-09-21',
     title: 'The product list says when it could not load',
     changes: [
-      'CALL REQUEST \u2014 when the product list cannot be fetched, the box now says so instead of \u201cNothing matches\u201d. Those are opposite facts: one means there is nothing to pick, the other means the list never arrived, and the screen was telling you the wrong one.',
+      'CALL REQUEST \u2014 the Product box said \u201cNothing matches\u201d while the list was still loading. It now says \u201cLoading the list\u2026\u201d, and if the list genuinely cannot be fetched it says that instead. Three different situations that all used to read the same way.',
+      'WHY IT TOOK A MOMENT: the product list comes from a view that does the work in the database, and when that is slow the app quietly falls back to fetching the whole register \u2014 about twenty round trips on a phone. The box now tells you it is waiting rather than telling you there is nothing there.',
       'RLS ON PRODUCT DATABASE IS NOT WHAT WAS BLOCKING IT. Measured on all 19,253 machines: an engineer already reads every row \u2014 the rule admits any signed-in user \u2014 and the slowest keystroke costs 7 ms with it on, 3 ms with it off.',
       'Two files to run if the picker is still empty: _why_is_the_product_list_empty.sql says whether the fault is the database or the screen, and _products_rls_off.sql turns RLS off if you still want that \u2014 it says plainly that doing so lets every signed-in user EDIT the install base.',
     ],

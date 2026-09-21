@@ -662,7 +662,12 @@ function NewRequestForm({ onSaved }: { onSaved: () => void }) {
                     // known yet. From call 2 the customer is fixed, so the list
                     // is what THEY own — a product they have none of is not an
                     // option, and offering it only leads to an empty serial box.
-                    options={withCurrent(productChoices(i).list, it.product)} />
+                    options={withCurrent(productChoices(i).list, it.product)}
+                    // THE LIST IS STILL COMING. Call 1 waits on the product
+                    // master; calls 2..5 wait on this customer's machines.
+                    // Without this the box says "Nothing matches" at a person
+                    // who is simply early.
+                    loading={i === 0 || isInstall ? !productMaster.ready : ownedState === 'loading'} />
                 ))}
                 {field('Serial No *', (
                   // An installation is a machine the party does not own yet, so

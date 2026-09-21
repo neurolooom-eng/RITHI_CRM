@@ -7659,6 +7659,24 @@ console.log('\n-- a list that FAILED to load does not read as an empty list --')
   // than none, because the check above passes and the screen never changes.
   const rq = readFileSync('src/modules/RequestCallRegistration.tsx', 'utf8');
   eq('the request form passes the flag', /masterFailed: productMaster\.failed/.test(rq), true);
+  // AND THE OTHER HALF, which is what the screenshot actually showed. The
+  // master read had not FAILED, it had not FINISHED: `useMaster` reports
+  // `ready`, the form ignored it, and PickList had no notion of "still
+  // loading" -- so an empty-because-loading list rendered as
+  // `Nothing matches ""` at somebody who was simply early.
+  const pl = readFileSync('src/components/ui/PickList.tsx', 'utf8');
+  eq('PickList knows the options may still be loading', /\n  loading\?: boolean;/.test(pl), true);
+  eq('...and says so instead of "Nothing matches"',
+    /\{loading && options\.length === 0 && !searching && !failed && \(/.test(pl), true);
+  // ONLY WHILE THE LIST IS EMPTY. Once options arrive, a search matching none
+  // of them really does match none -- saying "loading" there is the same bug
+  // mirrored, which is how the first fix for this class went wrong.
+  eq('...and only while no options have arrived',
+    /!\(loading && options\.length === 0\)/.test(pl), true);
+  eq('SelectPicker passes it through',
+    /loading=\{loading\}/.test(readFileSync('src/components/ui/SelectPicker.tsx', 'utf8')), true);
+  eq('the product field tells it which list it is waiting on',
+    /loading=\{i === 0 \|\| isInstall \? !productMaster\.ready : ownedState === 'loading'\}/.test(rq), true);
   const ms = readFileSync('src/lib/masters.ts', 'utf8');
   eq('...and useMaster reports it', /return \{ values, ready, failed \}/.test(ms), true);
   eq('...set only where the fetch was caught', /failedNames\.add\(name\)/.test(ms), true);

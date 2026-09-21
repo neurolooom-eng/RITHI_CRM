@@ -29,6 +29,14 @@ export interface PickListProps {
   // Shown under the list when a search matches nothing — the place to say
   // where new values come from.
   emptyHint?: string;
+  // STILL FETCHING THE LIST. Without this an empty-because-loading list is
+  // indistinguishable from an empty-because-nothing-matches one, and the box
+  // states the wrong one: a Call Request's Product picker read
+  // `Nothing matches ""` while the master list was still on its way
+  // (reported 2026-09-21, with a screenshot). `searching` already covers a
+  // REMOTE search this component runs itself; this covers the OPTIONS being
+  // loaded by whoever owns them, which the component cannot see.
+  loading?: boolean;
   // What the CLOSED box reads when nothing is chosen. Defaults to "— select —",
   // but an empty list often means something specific and worth saying: the
   // request form's serial box has four of these ("pick a product first", "every
@@ -90,7 +98,7 @@ export interface PickListProps {
 }
 
 export function PickList({
-  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint,
+  value, options, onPick, disabled, placeholder = 'Type to search…', emptyHint, loading,
   emptyLabel = '— select —', labelFor, searchThreshold = 8, allowFreeText = false,
   isDisabled, onSearch, id, plainValue,
 }: PickListProps) {
@@ -309,7 +317,14 @@ export function PickList({
               it does <b>not</b> mean the customer is missing. {failed}
             </div>
           )}
-          {matches.length === 0 && !canTake && !searching && !failed && (
+          {/* LOADING BEATS "nothing matches", and only while the list is
+              actually EMPTY: once options have arrived, a search that matches
+              none of them really does match none of them, and saying "loading"
+              there would be the same bug mirrored. */}
+          {loading && options.length === 0 && !searching && !failed && (
+            <div className="picklist-none">Loading the list…</div>
+          )}
+          {matches.length === 0 && !canTake && !searching && !failed && !(loading && options.length === 0) && (
             <div className="picklist-none">
               Nothing matches “{query}”.{emptyHint ? ` ${emptyHint}` : ''}
             </div>
