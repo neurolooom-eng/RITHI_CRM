@@ -47,6 +47,7 @@ checks do not cover — which is the gap this project keeps finding things in.
 | 23 | User Master | Correcting somebody's name silently empties their team (**measured**) | High |
 | 24 | Roles & Permissions | Unticking every box and saving **grants** the role its code defaults (**measured**) | High |
 | 25 | Stock Out | An exact count over a read that is paged and capped, under a comment saying it is not paged | Medium |
+| 26 | Call Reporting | A visit dated on the form is stored at UTC midnight and reads back at 05:30 (**measured**) | Medium |
 
 ---
 
@@ -1058,3 +1059,116 @@ See also finding 21: `listPendingDispatch` has the same silent `allRows` cap at
 **Established by** reading `listStockOutLines` and `allRows`. The mechanism claim
 is certainly wrong; whether the live register has passed 5,000 issued lines was
 not checked — `select count(*) from spare_stock_out_lines` settles it.
+
+---
+
+## 26 — A visit dated on the form is stored at UTC midnight and reads back at 05:30
+
+**Where** `src/modules/CallReporting.tsx:410` (the visit) and `:447` (the
+feedback row)
+
+```ts
+visit_at: visitDate ? `${visitDate}T00:00:00Z` : null,
+```
+
+**What is wrong.** `visitDate` comes from an `<input type="date">` — a date with
+no time, picked by somebody in India. Appending `T00:00:00Z` asserts that it
+means **UTC** midnight, which it does not.
+
+**How it fails — measured**, with `TZ=Asia/Kolkata`:
+
+```
+stored              : 2026-09-18T00:00:00Z
+formatDayTime       : 18-Sep-2026 05:30:00     ← a time nobody recorded
+formatDay           : 18-Sep-2026              ← the day is right
+hasClockTime        : true
+excelSerial         : 46283.22916666667
+  -> whole day?     : false
+  -> fraction (hrs) : 5.50
+```
+
+The **day** survives (India is east of UTC, so 00:00Z is still the 18th locally),
+so this is not a wrong date. What it produces is a phantom time: every visit
+entered on the form reads **05:30:00** on the Visit Reports register, in the
+Consumption Report's *Visit Date & Time* column, and in the Customer Feedback
+Report's *Visit Date*. In the .xlsx it is a fractional day, so Excel shows the
+time too and any subtraction between two visits carries it.
+
+**The upload path disagrees with it.** `REPORT_COLS` maps *Visit Date & Time*
+through `toTs` → `toIsoTimestamp(v, 'local')` (`uploads.ts:157`), which reads the
+value as a **wall clock** and produces the right instant — so a visit loaded from
+a file on 18-Sep reads `00:00:00` while the same visit typed into the form reads
+`05:30:00`. One column, two meanings, decided by how the row got in.
+
+**This is the artefact CLAUDE.md already names**, in the other half of the same
+problem: *"a date-only value must be a WHOLE day: going through
+`new Date('2026-09-18')` parses UTC midnight and reads it back locally, giving
+every date in India a 05:30 fraction."* `excelSerial` was fixed to treat a
+date-only string as a whole day — but by the time it sees this value the string
+is no longer date-only, so the fix cannot apply. The writer is what is left.
+
+**Established by** running the stored value through the project's own
+`formatDayTime`, `formatDay` and `excelSerial` under `TZ=Asia/Kolkata`. The
+comparison with the upload path is read from `uploads.ts:157` and
+`dates.ts:109-115`.
+
+---
+
+# What was covered, and what was not
+
+**Covered screen by screen**, reading the module and the `src/lib` helpers behind
+it: Dashboard, My Workload, Product & Party Search, Machine History, Daily
+Complaint Review Register, Product Failure Analysis, Spare Insights, Field
+Failure Register (+ Insights, + Desk), KPI & Failure Analysis, Call Review,
+Request Registration, Pending Registrations, Field Call Register, Pending Calls,
+Visit Reports, Customer Feedback, Spare Requests, RM Approval, Pending Dispatch,
+Stock Out, Spare Consumption, Hand Stock, Material Returns, Stock Transfer,
+Party Master, Product Database, Product Database 2.0, Product Master, User
+Master, Part Master, All Masters, Warranty & Contract Registers, Ownership
+Transfer, How RITHI Functions, Reports (the hub and the builder behind all five),
+Not Consumed Against this Call, Indoor Service, Bulk Uploads, Bulk Report
+Mapping, Roles & Permissions, Audit Log, Objective, Call Reporting, Delivery
+Challan.
+
+**Looked at only in passing** — grepped for the fault patterns this review had
+already established, not read line by line: Admin Config, Software Validation,
+Settings, Version History, User Access, My Profile, Login / Reset / Change
+Password, Data Import, PM Bulk Upload, QMS Documents, Service Manuals, Knowledge
+Base, How To Use, Tracker, Solved Without a Report, Declaration, Report Detail,
+Call Associations, the KPI Export and the three report detail screens. A clean
+pattern-grep is weaker evidence than a read; nothing here should be taken as
+"those are fine".
+
+**Not attempted at all.** Nothing was run in a browser, so every React finding is
+established by reading the code rather than by watching it fail. The Apps Script
+bridge (`apps-script/CallReg.gs`) was not reviewed — `script.google.com` is
+blocked from this sandbox, so it cannot be exercised, and reading it would have
+produced exactly the kind of plausible-but-unverified claim this document tries
+to avoid.
+
+**The live project was not touched.** Everything measured here ran against a
+throwaway Postgres 16 built from all 219 migrations plus `supabase/tests/_stub.sql`.
+Several findings end with a query to run against the real project — they are the
+cheap ones to settle first:
+
+| Finding | The query that settles it |
+| --- | --- |
+| 20 (refused spares) | `select rm_approval, count(*) from spare_request_lines group by 1 order by 2 desc;` |
+| 13 (UTC day window) | `show timezone;` |
+| 25 (Stock Out cap) | `select count(*) from spare_stock_out_lines;` |
+| 12 (cover tiles) | `select distinct item_status from calls;` |
+| 14 (top 25 products) | `select count(distinct product_name) from spare_usage;` |
+
+# If only three were fixed
+
+**20** — a spare line the RM refused sits in the Stores dispatch queue, and only
+an import can put it there, which means it is already there or it is not. The
+query above costs nothing and answers it.
+
+**24** — the way an administrator revokes a role grants it 69 permissions.
+
+**23** — correcting a name on User Master silently empties a manager's team, and
+nothing warns them or logs it.
+
+The rest are real and worth doing; those three are the ones where the system is
+confidently telling somebody the wrong thing about access or stock.
