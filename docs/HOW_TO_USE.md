@@ -85,6 +85,38 @@ restored) or **closed without a visit**; neither deletes anything.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+- **Data Export** `/data-export` — tick the tables you want and download them as
+  one ZIP with a CSV per table. **The export runs as you** — it holds exactly the
+  rows you are entitled to see, which is what makes it safe to have on a menu.
+  The audit trails are deliberately not offered. Row counts beside each table are
+  the database's own **estimates**, so they say "approx." rather than pretending
+  to be exact.
+
+  > ### Scheduling one
+  >
+  > The same screen sets up schedules: name it, tick the tables, choose **every
+  > day** or **one weekday**, pick the time (**IST**). The chosen tables then
+  > arrive by email as one ZIP of CSV files.
+  >
+  > **You choose which tables and when. You cannot choose where it goes.** The
+  > recipients are set once on the server by whoever holds the project keys. A
+  > nightly copy of the whole customer base with an address anybody could edit on
+  > a screen is the one thing this must never be — so there is no recipient box,
+  > on purpose.
+  >
+  > An **audit trail can never be scheduled**. A schedule that is too big to
+  > attach leaves out the largest tables and **names them in the mail** — nothing
+  > is ever trimmed to fit, because a file that looks complete and is not is
+  > worse than one that is missing.
+  >
+  > **Pause** stops a schedule without deleting it; a paused one shows no next
+  > run, because it is not going to happen. "What has been sent" is the record of
+  > every run — readable, and not editable or erasable from any screen.
+  >
+  > **Nothing is sent until the mail side is deployed once.** Steps are in
+  > `supabase/functions/scheduled-export/README.md`. Schedules saved before then
+  > are kept and start sending when it goes live.
+
 - **Bulk Report Mapping** `/report-mapping` — attaches a batch of visit reports to
   their calls.
 

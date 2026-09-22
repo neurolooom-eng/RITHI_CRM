@@ -12,6 +12,22 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.333',
+    date: '2026-09-22',
+    title: 'Schedule an export yourself \u2014 pick the tables, pick the day, pick the time',
+    changes: [
+      'Administration \u2192 Data Export now has a third section. Tick the tables, press "Schedule the ticked tables", give it a name, choose EVERY DAY or ONE WEEKDAY, set the time in IST. As many schedules as you want \u2014 the big registers weekly, the small ones nightly, whatever suits.',
+      'WHAT YOU CHOOSE IS WHICH TABLES AND WHEN. There is no recipient box and that is deliberate, not an omission: the addresses are set once on the server by whoever holds the project keys. A nightly copy of the whole customer base with an address anybody could edit on a screen is the one thing this must never be.',
+      'An audit trail can never be scheduled. The database refuses it, in the same words whether you try it from the screen or from SQL.',
+      'Pause stops a schedule without losing it. A paused one shows no next run, because it is not going to happen.',
+      '"What has been sent" lists every run \u2014 when, which tables, how many rows, and whether it went. You can read it and nobody can edit or erase it, including you: that is the point of a record of what left the building.',
+      'If a schedule is too big to attach, the largest tables are LEFT OUT and NAMED in the mail. Nothing is ever trimmed to fit \u2014 a file that looks complete and is not is worse than one that is missing.',
+      'A missed night is caught up at the next check rather than lost, and nothing is ever sent twice.',
+      'STILL NEEDS THE ONE DEPLOY. Until supabase/functions/scheduled-export is deployed (a Resend key, four secrets, one command \u2014 steps are in that folder\u2019s README), schedules are saved and nothing is sent. They start sending when it goes live.',
+      'The validation package is corrected on a point where it contradicted itself: it said this system had no mail path of any kind. It has had one since September \u2014 the daily digest, built and never deployed \u2014 and the supplier appendix named it. What is true is narrower and is what an assessor needs: nothing has ever been sent, so no off-database archive of the audit trail exists.',
+    ],
+  },
+  {
     version: '0.9.332',
     date: '2026-09-22',
     title: 'Data Export needs ONE file run \u2014 and the scheduled export goes in behind it',

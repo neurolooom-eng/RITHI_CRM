@@ -4,10 +4,10 @@
 (`npm run validate -- "<psql args>"`). Each run REPLACES this file; the
 defect register in `src/lib/validation.ts` is what accumulates.
 
-- **Run at** 2026-09-22T12:00:41.950Z
-- **Took** 85s
-- **Commit** `005029e` on `claude/field-service-module-poc-hslouq`
-- **Version** 0.9.331
+- **Run at** 2026-09-22T12:11:57.915Z
+- **Took** 82s
+- **Commit** `07d53c7` on `claude/field-service-module-poc-hslouq`
+- **Version** 0.9.333
 
 ## Result
 
@@ -41,7 +41,7 @@ stopped working produces a suite that runs clean.
 | `check:generated` | ✅ pass | every generated bundle matches its migrations (78 checked) |
 | `check:mapping` | ✅ pass | all passed |
 | `check:nar003` | ✅ pass | all passed |
-| `check:orders` | ✅ pass |   ✓ 113 order columns across 55 relations |
+| `check:orders` | ✅ pass |   ✓ 116 order columns across 57 relations |
 | `check:paging` | ✅ pass | all passed |
 | `check:picklist` | ✅ pass | all passed |
 | `check:picklist:open` | ✅ pass | all passed |

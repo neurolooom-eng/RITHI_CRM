@@ -7348,7 +7348,10 @@ points at these rows.
   not a defect** — pick it up only if the combined screen proves unwieldy in use.
   If done: keep one write path (the directory row is what grants the role on
   first sign-in), or the two screens will disagree.
-- **Deploy the scheduled export** — the Edge Function + schedule are in the repo
+- **Deploy the scheduled export** — THE SCREEN AND THE DATABASE SIDE ARE LIVE
+  (`Administration → Data Export`, section 3; migration `0228`, bundle
+  `data_export.sql`). Schedules save; nothing is sent until the function is
+  deployed. The Edge Function + schedule are in the repo
   (`supabase/functions/scheduled-export/`, built, not deployable from here).
   Needs a **Resend API key** and the Supabase **CLI**: set the four secrets
   (`RESEND_API_KEY`, `EXPORT_FROM`, `EXPORT_TO`, `EXPORT_SECRET`),

@@ -4179,6 +4179,99 @@ export async function exportableTables(): Promise<ExportableTable[]> {
   })).filter((t: ExportableTable) => t.table_name);
 }
 
+// ---------------------------------------------------------------------------
+// THE SCHEDULES — what to export and when. NEVER WHERE.
+//
+// There is no recipient here and no way to add one: the addresses live in a
+// secret on the Edge Function, set with the Supabase CLI by somebody holding
+// the project keys. The first design of this held the destination in a
+// settings row and was refused as an exfiltration primitive -- correctly, since
+// it made the nightly copy of the whole customer base redirectable by any
+// administrator with nothing on any screen looking different afterwards. See
+// the header of 0228.
+//
+// READS COME FROM THE VIEW, WRITES GO TO THE TABLE. `export_schedule_state`
+// adds `next_run_at`, computed from the same function the job asks, so the
+// screen cannot drift into its own opinion of when something will happen.
+// ---------------------------------------------------------------------------
+export interface ExportSchedule {
+  id: number;
+  label: string;
+  tables: string[];
+  frequency: 'daily' | 'weekly';
+  day_of_week: number | null;
+  hour_ist: number;
+  minute_ist: number;
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: string | null;
+  last_detail: string | null;
+  next_run_at: string | null;
+}
+
+export async function exportSchedules(): Promise<ExportSchedule[]> {
+  const c = must();
+  const { data, error } = await c.from('export_schedule_state')
+    .select('id,label,tables,frequency,day_of_week,hour_ist,minute_ist,enabled,'
+          + 'last_run_at,last_status,last_detail,next_run_at')
+    .order('id', { ascending: true });
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as ExportSchedule[];
+}
+
+/** Insert or update one schedule. `created_by` is not sent: it is stamped by
+ *  the trigger and a caller-supplied value is discarded (the 0113/0114 rule). */
+export async function saveExportSchedule(
+  s: Omit<ExportSchedule, 'id' | 'last_run_at' | 'last_status' | 'last_detail' | 'next_run_at'>
+     & { id?: number },
+): Promise<void> {
+  const c = must();
+  const row = {
+    label: s.label, tables: s.tables, frequency: s.frequency,
+    // A daily schedule carries NO weekday. Sending one would fail the check
+    // constraint, which is the constraint doing its job -- "weekly on no day"
+    // and "daily on a Tuesday" are both incoherent.
+    day_of_week: s.frequency === 'weekly' ? s.day_of_week : null,
+    hour_ist: s.hour_ist, minute_ist: s.minute_ist, enabled: s.enabled,
+  };
+  const { error } = s.id
+    ? await c.from('export_schedules').update(row).eq('id', s.id)
+    : await c.from('export_schedules').insert(row);
+  if (error) throw new Error(errMsg(error));
+}
+
+export async function deleteExportSchedule(id: number): Promise<void> {
+  const c = must();
+  const { error } = await c.from('export_schedules').delete().eq('id', id);
+  if (error) throw new Error(errMsg(error));
+}
+
+// The record of what actually left the building. READ ONLY -- the grants in
+// 0228 give an administrator select and nothing else, so there is deliberately
+// no writer here to match.
+export interface ExportRun {
+  id: number;
+  label: string | null;
+  started_at: string;
+  finished_at: string | null;
+  tables: string[] | null;
+  row_count: number | null;
+  bytes: number | null;
+  recipients: number | null;
+  status: string | null;
+  detail: string | null;
+}
+
+export async function exportRuns(limit = 25): Promise<ExportRun[]> {
+  const c = must();
+  const { data, error } = await c.from('export_runs')
+    .select('id,label,started_at,finished_at,tables,row_count,bytes,recipients,status,detail')
+    .order('started_at', { ascending: false }).order('id', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(errMsg(error));
+  return (data ?? []) as unknown as ExportRun[];
+}
+
 export async function upsertRecoveredReports(
   rows: RecoveredReport[],
   onProgress?: (done: number, total: number) => void,
