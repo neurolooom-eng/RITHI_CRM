@@ -7348,16 +7348,37 @@ points at these rows.
   not a defect** — pick it up only if the combined screen proves unwieldy in use.
   If done: keep one write path (the directory row is what grants the role on
   first sign-in), or the two screens will disagree.
+- **Deploy the scheduled export** — THE SCREEN AND THE DATABASE SIDE ARE LIVE
+  (`Administration → Data Export`, section 3; migration `0228`, bundle
+  `data_export.sql`). Schedules save; nothing is sent until the function is
+  deployed. The Edge Function + schedule are in the repo
+  (`supabase/functions/scheduled-export/`, built, not deployable from here).
+  Needs a **Resend API key** and the Supabase **CLI**: set the four secrets
+  (`RESEND_API_KEY`, `EXPORT_FROM`, `EXPORT_TO`, `EXPORT_SECRET`),
+  `supabase functions deploy scheduled-export --no-verify-jwt`, then run
+  `schedule_scheduled_export.sql`. Steps in that folder's `README.md`.
+  Recipients agreed with the user: **service.almsind@gmail.com**,
+  **devika.m@airliquide.com** — and they go in `EXPORT_TO`, NOT in a table, so
+  they cannot be changed from any screen.
 - **Deploy the daily digest** — the Edge Function + schedule are in the repo
   (`supabase/functions/daily-digest/`, built, not deployable from here). Needs a
   **Resend API key** and the Supabase **CLI** deploy: set the secrets,
   `supabase functions deploy daily-digest --no-verify-jwt`, then run
-  `schedule_daily_digest.sql`. Steps in `daily-digest-DEPLOY.md`.
+  `schedule_daily_digest.sql`. Steps are in that folder's `README.md` — an
+  earlier version of this line named `daily-digest-DEPLOY.md`, which has never
+  existed. Same class of error as a `Restore:` clause naming the wrong file: a
+  name in a deploy note is read by somebody deciding WHAT TO OPEN.
 - **RBAC view-matrix** — the user will send a matrix of role × module × level
   (who can view/create/edit/approve/export what). Translate it into the role
   defaults in `src/lib/rbac.ts` **and** a `set` SQL that writes the same
   permissions into `app_roles` (live roles are populated, so a code change alone
   is not enough — a DB grant is required).
+
+- **Feedback Without a Report** (`/feedback-without-report`, 0229) — shipped
+  v0.9.335. **Needs `supabase/apply/feedback_checks.sql` run on the live
+  project.** Its own bundle: it reads `feedback.entry_at`, which 0190 adds to a
+  table that has existed since 0001, so filed with `reports` it died on a fresh
+  apply — `check:replay` caught it.
 
 ## ✅ Done
 

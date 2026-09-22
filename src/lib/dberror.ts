@@ -75,6 +75,32 @@ export function isMissingTable(e: unknown, ...tables: string[]): boolean {
   return tables.length === 0 || tables.some((t) => new RegExp(`\\b${t}\\b`, 'i').test(m));
 }
 
+/** THE FUNCTION IS NOT THERE — and unlike a bare `does not exist`, this one
+ *  can be said safely, because PostgREST NAMES WHAT IT LOOKED FOR:
+ *
+ *    Could not find the function public.foo without parameters in the
+ *    schema cache                                               (PGRST202)
+ *    function public.foo(jsonb, unknown) does not exist          (42883)
+ *
+ *  `isMissingTable` deliberately answers false for both — a missing function is
+ *  a different migration from a missing table, and sending somebody to the
+ *  register's bundle for it wastes the trip. That was right and it left the
+ *  other half unanswered: a screen whose only read is an RPC got
+ *  `Load failed: Could not find the function public.exportable_tables…` and no
+ *  indication that a file exists which creates it. Reported from use
+ *  (2026-09-22) on the Data Export screen, the day it shipped.
+ *
+ *  THE NAME IS REQUIRED, for the same reason it is on the table test: an error
+ *  about somebody else's function is not this screen's bundle to run. */
+export function isMissingFunction(e: unknown, ...fns: string[]): boolean {
+  const m = errText(e);
+  if (!m) return false;
+  const aboutFunction = /could not find the function\b/i.test(m)
+    || /\bfunction\s+[\w."]+\s*\([^)]*\)\s+does not exist/i.test(m);
+  if (!aboutFunction) return false;
+  return fns.length === 0 || fns.some((f) => new RegExp(`\\b${f}\\b`, 'i').test(m));
+}
+
 /** The database refused the read. Not a missing anything — a permission, and
  *  the fix is a grant rather than a migration. `errMsg()` in `supabase.ts`
  *  already rewrites this one for the reader; this recognises it so a screen
@@ -94,8 +120,12 @@ export function isRefused(e: unknown): boolean {
  *  Verbatim matters on the third: the fault that prompted all this was
  *  readable in the original message (`column … does not exist`) and was hidden
  *  by a hint that overwrote it. */
-export function loadFailure(e: unknown, opts: { tables: string[]; hint: string }): string {
+export function loadFailure(
+  e: unknown,
+  opts: { tables: string[]; functions?: string[]; hint: string },
+): string {
   if (isMissingTable(e, ...opts.tables)) return opts.hint;
+  if (opts.functions?.length && isMissingFunction(e, ...opts.functions)) return opts.hint;
   if (isRefused(e)) return 'Your role does not have permission to read this.';
   return `Load failed: ${errText(e)}`;
 }

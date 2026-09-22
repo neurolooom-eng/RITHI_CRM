@@ -85,6 +85,38 @@ restored) or **closed without a visit**; neither deletes anything.
   heading row even under a letterhead, reads tab-separated files, and lists what
   it kept and what it held back. Unrecognised columns are **kept on the row**
   where the register allows it.
+- **Data Export** `/data-export` — tick the tables you want and download them as
+  one ZIP with a CSV per table. **The export runs as you** — it holds exactly the
+  rows you are entitled to see, which is what makes it safe to have on a menu.
+  The audit trails are deliberately not offered. Row counts beside each table are
+  the database's own **estimates**, so they say "approx." rather than pretending
+  to be exact.
+
+  > ### Scheduling one
+  >
+  > The same screen sets up schedules: name it, tick the tables, choose **every
+  > day** or **one weekday**, pick the time (**IST**). The chosen tables then
+  > arrive by email as one ZIP of CSV files.
+  >
+  > **You choose which tables and when. You cannot choose where it goes.** The
+  > recipients are set once on the server by whoever holds the project keys. A
+  > nightly copy of the whole customer base with an address anybody could edit on
+  > a screen is the one thing this must never be — so there is no recipient box,
+  > on purpose.
+  >
+  > An **audit trail can never be scheduled**. A schedule that is too big to
+  > attach leaves out the largest tables and **names them in the mail** — nothing
+  > is ever trimmed to fit, because a file that looks complete and is not is
+  > worse than one that is missing.
+  >
+  > **Pause** stops a schedule without deleting it; a paused one shows no next
+  > run, because it is not going to happen. "What has been sent" is the record of
+  > every run — readable, and not editable or erasable from any screen.
+  >
+  > **Nothing is sent until the mail side is deployed once.** Steps are in
+  > `supabase/functions/scheduled-export/README.md`. Schedules saved before then
+  > are kept and start sending when it goes live.
+
 - **Bulk Report Mapping** `/report-mapping` — attaches a batch of visit reports to
   their calls.
 
@@ -506,6 +538,15 @@ typed into a form that reads it.
     export.
   > A machine not on the Product Master still has a history, and the screen says
   > so rather than looking empty. Nothing from before the migration is here.
+
+  > **You can also open it from a review.** The Daily Complaint Review Register's
+  > Review Desk has a **🔎 Machine History** button beside *Raise FFR*: it opens
+  > the same thing in a pop-up for the machine on that call, so you do not have
+  > to leave a half-answered review to find out what this machine has already
+  > done. Close it and you are back where you were. A call that does not record
+  > **both** a product and a serial says so rather than guessing — a serial on
+  > its own is not a machine.
+
 - **Objective** `/objective` — the year's objectives with targets, owners and the
   month-by-month actual.
   - **Re-Calculate is explicit**, never on opening the page. Only objectives with
@@ -546,6 +587,25 @@ typed into a form that reads it.
   dropped lines are excluded.
 - **Reports — KPI Export** `/exports/kpi` — the workbook's Field_INST tab in its
   own column order; cancelled calls excluded entirely.
+- **Feedback Without a Report** `/feedback-without-report` — **administrators
+  only.** The customer gave feedback on a visit; the visit was never written up.
+  > Feedback is collected **after** a visit, so its existence is evidence the
+  > work happened. A completed service report is the record of **what was
+  > done**. A call carrying one without the other is a gap you cannot see from
+  > either record on its own, because neither is wrong by itself.
+  >
+  > **It names which of four things is missing**, because each needs a different
+  > fix: the feedback records no UCN · no call carries that UCN · the call has
+  > no visit at all · the call has visits and none reads "Solved - Report
+  > Completed". The last is the commonest, and the **Latest visit status**
+  > column tells you what it reads instead — "Solved - Report Pending" is the
+  > system admitting a known absence, "Unsolved" is a different problem.
+  >
+  > **A trailing space is not a missing report.** The status is matched on its
+  > letters and digits, so `Solved - Report Completed ` (which is what the
+  > exports carry), a lower-case spelling and an en-dash all count. And a call
+  > written up and then **re-visited still has its report** — any completed
+  > visit is enough, not just the latest one.
 
 ## Workshop & activity
 

@@ -27,6 +27,7 @@ import './fieldcalls.css';
 import { Ucn } from '../lib/callstate';
 import { manualReportLink } from '../lib/reports';
 import { DocPreview } from '../components/doc/DocPreview';
+import { MachineHistoryDialog } from '../components/machine/MachineHistoryDialog';
 import { listProductLines } from '../lib/productLines';
 
 // ===========================================================================
@@ -1034,6 +1035,11 @@ function ReviewDrawer({
   const { can: canDo, isAdmin } = useAuth();
   const canFfr = canDo('ffr.manage');
   const [ffrsHere, setFfrsHere] = useState<Record<string, unknown>[]>([]);
+  // MACHINE HISTORY IN A POP-UP (the user, 2026-09-22). Not a permission of
+  // its own: a reviewer who may read this call's machine, complaint and visit
+  // is already reading that machine's record, and the dialog goes through the
+  // same policies as the full screen does.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const [draft, setDraft] = useState<ReviewPatch>({});
   const [groupings, setGroupings] = useState<string[]>([]);
@@ -1273,8 +1279,19 @@ function ReviewDrawer({
           completed. The call and its visit fill the report in; re-typing the
           observation from the screen next door is how the two come to
           disagree about the same failure. */}
-      {canFfr && (
-        <div className="dccr-ffr-bar">
+      <div className="dccr-ffr-bar">
+        {/* WHAT HAS THIS MACHINE ALREADY DONE? The question a reviewer asks
+            before calling a failure a repeat, and it used to mean leaving a
+            half-answered review with Auto Save on, re-picking the model and
+            the serial on another screen, and finding the way back. */}
+        <button
+          className="btn btn-sm"
+          title="Everything ever recorded against this machine"
+          disabled={!String(row.product_name ?? '').trim() || !String(row.serial ?? '').trim()}
+          onClick={() => setHistoryOpen(true)}
+        >🔎 Machine History</button>
+        {canFfr && (
+          <>
           <button
             className="btn btn-sm"
             title="Raise a Field Failure Report for this call"
@@ -1307,8 +1324,16 @@ function ReviewDrawer({
               Already reported: {ffrsHere.map((f) => String(f.ffr_no ?? '')).join(', ')} — raising another is a decision, not a slip.
             </span>
           )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
+
+      <MachineHistoryDialog
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        product={String(row.product_name ?? '')}
+        serial={String(row.serial ?? '')}
+      />
 
       <div className="dccr-callcard">
         <div><span>Call Number</span>{row.call_number || '—'}</div>

@@ -5323,6 +5323,14 @@ console.log('\n-- one machine, across every register --');
 {
   const mh = readFileSync('src/modules/MachineHistory.tsx', 'utf8');
   const lib = readFileSync('src/lib/machineHistory.ts', 'utf8');
+  // THE RENDERING MOVED WHEN THE DAILY COMPLAINT REVIEW REGISTER ASKED FOR THE
+  // SAME THING IN A POP-UP (2026-09-22). It is ONE component now, used by the
+  // screen and by the dialog -- a second copy of a machine's history would
+  // drift, and the drift would be invisible because both would look right.
+  // These assertions follow the code rather than staying on the file they were
+  // written against, which is the whole point of a check.
+  const mv = readFileSync('src/components/machine/MachineHistoryView.tsx', 'utf8');
+  const md = readFileSync('src/components/machine/MachineHistoryDialog.tsx', 'utf8');
 
   // PRODUCT FIRST, THEN SERIAL — never the serial alone. Serials repeat across
   // models, and this project wrote that rule down after an ORION-G 201 request
@@ -5358,13 +5366,46 @@ console.log('\n-- one machine, across every register --');
   eq('an undated row does not pose as the newest',
     /\(b\.on \|\| ''\)\.localeCompare\(a\.on \|\| ''\)/.test(lib), true);
   // A UCN carries its call's colour wherever it appears — the standing rule.
-  eq('a UCN is coloured here too', /<Ucn ucn=\{String\(r\.ucn\)\}/.test(mh), true);
+  eq('a UCN is coloured here too', /<Ucn ucn=\{String\(r\.ucn\)\}/.test(mv), true);
   // The counts are over whole registers read for one machine, not pages, so
   // they are exact and take no "+".
   eq('the counts are exact, so they take no plus', /countMore=\{false\}/.test(mh), true);
   // A machine the Product Master has never heard of is a FINDING, not an error.
   eq('a machine missing from the register says so',
-    /not on the Product Database/.test(mh), true);
+    /not on the Product Database/.test(mv), true);
+
+  // A ROW'S KEY IS ITS OWN, NOT A RECIPE MADE OF ITS FIELDS. Two visits on one
+  // call on one day with the same status and no remark are identical in every
+  // column this table shows, and React drops and duplicates rows that share a
+  // key -- the Spare chip listed three spares and two visits (2026-09-22).
+  // `check:machine` proves the keys are unique; these two hold the wiring, so
+  // a later edit cannot quietly go back to composing one out of the fields.
+  eq('the table keys rows on the event\u2019s own key',
+    /getRowId=\{\(r\) => String\(r\.key\)\}/.test(mv), true);
+  eq('...and no longer composes one out of the row\u2019s fields',
+    /getRowId=\{\(r\) => `\$\{r\.source\}/.test(mv), false);
+  eq('every event goes through withEventKeys', /withEventKeys\(out\.sort\(/.test(lib), true);
+  // The assembly array is Omit<MachineEvent,'key'>, so no register can
+  // hand-write a key and two cannot agree on one by accident.
+  eq('a register cannot hand-write a key', /const out: Omit<MachineEvent, 'key'>\[\] = \[\];/.test(lib), true);
+
+  // THE DIALOG TAKES THE MACHINE AND NEVER ASKS FOR IT. A machine is MODEL +
+  // SERIAL and never the serial alone (eleven machines are numbered 219); the
+  // call carries both, so a picker inside the dialog would only let somebody
+  // look up a DIFFERENT machine while reviewing this one.
+  eq('the dialog refuses a half-named machine rather than guessing',
+    /a machine is its model/.test(md), true);
+  // It reads eleven registers. Mounted eagerly beside every row of a register
+  // that would run on every render for an answer nobody asked for.
+  eq('the dialog fetches only when it is opened', /if \(!open\) return;/.test(md), true);
+  // The user asked for a close button, and the corner ✕ is not it: after
+  // scrolling through forty entries the ✕ is off the top of the dialog.
+  eq('the dialog has a Close button of its own, not only the corner ✕',
+    /onClick=\{onClose\}>Close<\/button>/.test(md), true);
+  // A modal that cannot scroll puts its own Close button off the screen.
+  const modalCss = readFileSync('src/components/ui/ui.css', 'utf8');
+  eq('a modal scrolls rather than growing past the window',
+    /\.modal \{[^}]*max-height/s.test(modalCss) && /\.modal-body \{[^}]*overflow: auto/s.test(modalCss), true);
 }
 
 console.log('\n-- every hand-run SQL file runs where it is actually pasted --');
