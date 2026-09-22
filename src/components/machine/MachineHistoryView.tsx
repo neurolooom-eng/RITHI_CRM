@@ -160,7 +160,13 @@ export function MachineHistoryView({
               columns={columns}
               rows={shown as unknown as Record<string, unknown>[]}
               rowsBeforeScroll={rowsBeforeScroll}
-              getRowId={(r) => `${r.source}-${r.ref}-${r.on}-${r.detail}`}
+              // THE ROW'S OWN KEY, not a recipe made of its fields. Two visits
+              // on one call on one day with the same status and no remark are
+              // identical in every field this table shows, and React drops and
+              // duplicates rows that share a key -- reported from use
+              // (2026-09-22): the Spare chip listed three spares and two
+              // visits. `withEventKeys` numbers each row within its register.
+              getRowId={(r) => String(r.key)}
             />
             <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
               This is what <b>this</b> system holds. Anything from before the migration lives in

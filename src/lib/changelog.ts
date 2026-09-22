@@ -12,6 +12,18 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.337',
+    date: '2026-09-22',
+    title: '\u26a0 Machine History showed the wrong rows when you filtered \u2014 fixed',
+    changes: [
+      'REPORTED AND CONFIRMED: with the Spare chip selected, Machine History listed three spares and TWO VISITS. The count said five and it was five \u2014 two spare rows had been silently replaced by two visit rows. Nothing errored.',
+      'WHY: each row was identified by its register, reference, date and detail put together. Two visits filed against the same call on the same day, with the same status and no remark, are identical in all four \u2014 so they had the same identity, and a browser told to draw a list where two rows claim to be the same row will drop some and duplicate others. That is exactly what you saw.',
+      'Every row now carries an identity of its own, numbered within its register. The filter, the sort and the CSV all show what they say.',
+      'A VISIT ROW NOW SHOWS ITS OWN ID. Those two visits really are duplicates \u2014 two records of one visit \u2014 and until now they looked identical on screen, so a real duplicate was indistinguishable from this bug. The id is what you need to find and remove one of them.',
+      'It affected only what was DRAWN. Nothing was read wrongly and nothing was written.',
+    ],
+  },
+  {
     version: '0.9.336',
     date: '2026-09-22',
     title: 'Machine History without leaving the review',

@@ -5374,6 +5374,21 @@ console.log('\n-- one machine, across every register --');
   eq('a machine missing from the register says so',
     /not on the Product Database/.test(mv), true);
 
+  // A ROW'S KEY IS ITS OWN, NOT A RECIPE MADE OF ITS FIELDS. Two visits on one
+  // call on one day with the same status and no remark are identical in every
+  // column this table shows, and React drops and duplicates rows that share a
+  // key -- the Spare chip listed three spares and two visits (2026-09-22).
+  // `check:machine` proves the keys are unique; these two hold the wiring, so
+  // a later edit cannot quietly go back to composing one out of the fields.
+  eq('the table keys rows on the event\u2019s own key',
+    /getRowId=\{\(r\) => String\(r\.key\)\}/.test(mv), true);
+  eq('...and no longer composes one out of the row\u2019s fields',
+    /getRowId=\{\(r\) => `\$\{r\.source\}/.test(mv), false);
+  eq('every event goes through withEventKeys', /withEventKeys\(out\.sort\(/.test(lib), true);
+  // The assembly array is Omit<MachineEvent,'key'>, so no register can
+  // hand-write a key and two cannot agree on one by accident.
+  eq('a register cannot hand-write a key', /const out: Omit<MachineEvent, 'key'>\[\] = \[\];/.test(lib), true);
+
   // THE DIALOG TAKES THE MACHINE AND NEVER ASKS FOR IT. A machine is MODEL +
   // SERIAL and never the serial alone (eleven machines are numbered 219); the
   // call carries both, so a picker inside the dialog would only let somebody
