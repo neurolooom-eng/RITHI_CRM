@@ -2,7 +2,7 @@
 // mapping. No test runner in this repo, so: `npm run check:mapping`.
 // Exits non-zero on the first mismatch, and prints every case either way.
 
-import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, decideVisit, isCompletedVisit, summariseActions, SOLVED_REPORT_COMPLETED, ALIASES, type CallKey, type ExistingVisit } from '../src/lib/reportMapping';
+import { parseRef, baseName, matchCall, toTimestamp, shapeRow, summarise, fileNamesToResolve, decideVisit, isCompletedVisit, summariseActions, SOLVED_REPORT_COMPLETED, ALIASES, planConversion, namesToLookUp, writesFor, conversionTally, driveLinkForId, type CallKey, type ExistingVisit, type LoadedReport } from '../src/lib/reportMapping';
 import { REPORT_COLS } from '../src/lib/uploads';
 import { loose } from '../src/lib/headers';
 
@@ -181,6 +181,109 @@ console.log('\n-- what to do with each row (the user rule, 2026-09-22) --');
   eq('an attach or a create contributes no reason',
     summariseActions([{ action: 'attach', uid: 'a', why: 'w' }, { action: 'create', uid: D, why: 'w' }]).skipReasons,
     []);
+}
+
+// ===========================================================================
+// CONVERTING THE REFERENCES ALREADY IN THE REGISTER.
+//
+// 7,538 visits hold an AppSheet path or URL in `manual_report` where a Drive
+// link should be. The conversion writes over a column on a LIVE quality record,
+// so the assertions below are mostly about what it must NOT do.
+// ===========================================================================
+console.log('\n-- converting the reports already loaded --');
+{
+  const L = (o: Partial<LoadedReport>): LoadedReport => ({
+    id: 1, uid: 'u', ucn: 'UCN1', manual_report: '', source_ref: '', visit_at: '', ...o,
+  });
+  const ID = 'aBcDeFgHiJkLmNoPqRsTuVwXyZ0123';       // 30 chars: a Drive file id
+
+  const kinds = (rows: LoadedReport[]) => planConversion(rows).map((p) => `${p.ref.kind}:${p.action}`);
+
+  eq('a Drive link is left exactly as it is',
+     kinds([L({ manual_report: 'https://drive.google.com/file/d/x/view' })]), ['drive-link:leave']);
+  eq('a link that is not Drive is left alone too',
+     kinds([L({ manual_report: 'https://example.com/report.pdf' })]), ['other-url:leave']);
+  eq('an AppSheet path is converted',
+     kinds([L({ manual_report: 'Reports_Images/Row 42_Photo.png' })]), ['appsheet-path:convert']);
+  eq('an AppSheet url is converted',
+     kinds([L({ manual_report: 'https://www.appsheet.com/template/gettablefileurl?fileName=a%2Fb.png' })]),
+     ['appsheet-url:convert']);
+
+  // THE QUESTION NOBODY IN THIS REPOSITORY COULD ANSWER BY READING: how many
+  // of the 2,042 AppSheet URLs carry a `fileName` at all. One without it is not
+  // convertible, must not be guessed at, and is COUNTED as its own shape so the
+  // screen reports the number instead of somebody asking for a sample.
+  eq('an AppSheet url with no fileName is not convertible',
+     kinds([L({ manual_report: 'https://www.appsheet.com/template/gettablefileurl?appName=x' })]), ['unknown:leave']);
+
+  // A bare file id is the whole conversion — asking Drive for it would be a
+  // round trip to be told what the value already says.
+  {
+    const p = planConversion([L({ manual_report: ID })]);
+    eq('a bare Drive id converts', p.map((x) => x.action), ['convert']);
+    eq('...without a lookup', namesToLookUp(p), []);
+    eq('...to the id’s own link', writesFor(p, {})[0].manual_report, driveLinkForId(ID));
+  }
+
+  // ---- what is written, and what is not ------------------------------------
+  const PATH = 'Reports_Images/Row 42_Photo.png';
+  const LINK = 'https://drive.google.com/file/d/abc/view';
+
+  eq('a name Drive did not find writes NOTHING — the reference is kept',
+     writesFor(planConversion([L({ manual_report: PATH })]), {}), []);
+
+  eq('one lookup serves every visit holding the same file',
+     namesToLookUp(planConversion([L({ id: 1, manual_report: PATH }), L({ id: 2, manual_report: 'x/Row 42_Photo.png' })])),
+     ['Row 42_Photo.png']);
+
+  eq('the original reference is kept in source_ref',
+     writesFor(planConversion([L({ id: 7, manual_report: PATH })]), { 'Row 42_Photo.png': LINK }),
+     [{ id: 7, manual_report: LINK, source_ref: PATH }]);
+
+  // A row that already records where its link came from has a truer answer
+  // than the column being replaced, and keeps it.
+  eq('an existing source_ref is never overwritten',
+     writesFor(planConversion([L({ id: 7, manual_report: PATH, source_ref: 'the original sheet' })]),
+               { 'Row 42_Photo.png': LINK })[0].source_ref,
+     'the original sheet');
+
+  // THE WRITE IS KEYED ON `id`, NOT `uid`. `reports.uid` is nullable (0002,
+  // 0071 made the index total but not the column), so a visit loaded without
+  // one would be unreachable and silently skipped for ever.
+  eq('a visit with no uid is still reachable',
+     writesFor(planConversion([L({ id: 99, uid: '', manual_report: PATH })]), { 'Row 42_Photo.png': LINK })
+       .map((w) => w.id),
+     [99]);
+
+  // A link map that happens to carry a name must not reach a row the plan left
+  // alone -- the only rows written are the ones the preview showed as converting.
+  eq('a row left alone is never written, whatever Drive returned',
+     writesFor(planConversion([L({ manual_report: 'https://drive.google.com/file/d/x/view' }),
+                               L({ manual_report: 'https://example.com/report.pdf' })]),
+               { 'Row 42_Photo.png': LINK, 'report.pdf': LINK }),
+     []);
+
+  eq('a link identical to what is there writes nothing',
+     writesFor(planConversion([L({ manual_report: ID, source_ref: 'x' })]),
+               {}).length, 1);        // the id DOES change (id -> link)
+  eq('...and a row already holding that very link is left alone',
+     writesFor(planConversion([L({ manual_report: LINK })]), {}), []);
+
+  // ---- the tally the operator reads ---------------------------------------
+  {
+    const t = conversionTally(planConversion([
+      L({ id: 1, manual_report: LINK }),
+      L({ id: 2, manual_report: PATH }),
+      L({ id: 3, manual_report: PATH }),
+      L({ id: 4, manual_report: 'https://www.appsheet.com/template/gettablefileurl?appName=x' }),
+    ]), { 'Row 42_Photo.png': LINK });
+    eq('every row is either converted or left alone', t.convert + t.leave, t.total);
+    eq('the tally counts the conversions', t.convert, 2);
+    eq('...the distinct lookups', t.names, 1);
+    eq('...and how many of them resolved', t.resolved, 2);
+    eq('the shapes are counted, commonest first',
+       t.byKind, [{ kind: 'appsheet-path', n: 2 }, { kind: 'drive-link', n: 1 }, { kind: 'unknown', n: 1 }]);
+  }
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

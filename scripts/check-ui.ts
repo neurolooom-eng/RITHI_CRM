@@ -2718,10 +2718,26 @@ console.log('\n-- the scope test reads rbacRole, never the coarse role --');
     /export function seesEveryRecord\(\s*user:/.test(rb), true);
   eq('...and reads rbacRole', /user\?\.rbacRole/.test(rb), true);
   eq('...and never the coarse one', /user\?\.role\b/.test(rb), false);
-  for (const f of readdirSync('src/modules').filter((x) => x.endsWith('.tsx'))) {
-    const src = code(readFileSync(`src/modules/${f}`, 'utf8'));
-    if (!/seesEveryRecord\(/.test(src)) continue;
-    eq(`${f} passes the user, not user.role`,
+  // EVERY CALL SITE, NOT EVERY MODULE. This read `src/modules` alone, and the
+  // first caller written outside it -- the conversion card under
+  // `src/components/report` -- was simply not covered: the check went on
+  // passing while the rule it enforces had a hole the width of a directory.
+  // Same fault as the module-name parser that absorbed `product_database_2`
+  // into its neighbour.
+  const callSites: string[] = [];
+  const findCallers = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) { findCallers(full); continue; }
+      if (!/\.tsx?$/.test(e.name)) continue;
+      if (full.endsWith('src/lib/rbac.ts')) continue;            // where it is defined
+      if (/seesEveryRecord\(/.test(code(readFileSync(full, 'utf8')))) callSites.push(full);
+    }
+  };
+  findCallers('src');
+  for (const full of callSites) {
+    const src = code(readFileSync(full, 'utf8'));
+    eq(`${full.replace('src/', '')} passes the user, not user.role`,
       /seesEveryRecord\(\s*user\s*,/.test(src) && !/seesEveryRecord\(\s*String\(/.test(src), true);
   }
 }
@@ -8112,6 +8128,71 @@ console.log('\n-- bulk report mapping never overwrites a report that is there --
   // A NEW visit carries the status the rule names, whatever the file said.
   eq('a filed visit is marked completed',
     /call_status: SOLVED_REPORT_COMPLETED/.test(rm), true);
+}
+
+console.log('\n-- converting the references already in the register --');
+{
+  // 7,538 visits hold an AppSheet reference where a Drive link should be. What
+  // the conversion DECIDES is held in check:mapping; these hold the wiring,
+  // and every one of them is about something it must not do to a live record.
+  const cv = readFileSync('src/components/report/ConvertLoadedReports.tsx', 'utf8');
+  const rm = readFileSync('src/modules/ReportMapping.tsx', 'utf8');
+  const sb = code(readFileSync('src/lib/supabase.ts', 'utf8'));
+
+  // TWO COLUMNS AND A STAMP -- ONE FEWER THAN ATTACHING. The obvious tidy-up
+  // here is to reuse `attachReportsToVisits`, which also writes
+  // `call_status: 'Solved - Report Completed'`. That is right when a recovered
+  // report is being ATTACHED to a visit that had none, and wrong here: changing
+  // the FORM of a reference says nothing new about what the engineer did, and a
+  // status written on this path would move which visit decides the call's own
+  // status (0032) on up to 7,538 calls in one pass.
+  eq('converting writes the link, the original and the stamp',
+    /\.update\(\{ manual_report: r\.manual_report, source_ref: r\.source_ref, mapped_at:/.test(sb), true);
+  eq('...and NOT the status', /convertReportLinks[\s\S]{0,600}call_status/.test(sb), false);
+  eq('...nor updated_at', /convertReportLinks[\s\S]{0,600}updated_at:/.test(sb), false);
+  // `reports.uid` is NULLABLE (0002; 0071 made the index total, not the column),
+  // so a visit loaded without one is unreachable by uid and would be skipped in
+  // silence for ever. `id` is the primary key and every row has one.
+  eq('...keyed on the primary key, which every row has', /\.eq\('id', r\.id\)/.test(sb), true);
+
+  // REGISTER-SIZED, SO IT PAGES. 12,254 visits against PostgREST's silent
+  // 1,000-row cap: an unpaged read would report the first thousand as the whole
+  // register and the operator would believe the job was done.
+  eq('the register is read through the pager',
+    /loadedReportRefs[\s\S]{0,400}allRows[\s\S]{0,200}\.from\('reports'\)[\s\S]{0,400}\.range\(from, to\)/.test(sb), true);
+  eq('...in a deterministic order', /loadedReportRefs[\s\S]{0,600}\.order\('id', \{ ascending: true \}\)/.test(sb), true);
+
+  // NOTHING IS WRITTEN UNTIL IT HAS BEEN SEEN. The screen's standing rule, and
+  // the reason this is three buttons rather than one.
+  eq('survey, resolve and convert are three separate steps',
+    /void survey\(\)/.test(cv) && /void resolve\(\)/.test(cv) && /void convert\(\)/.test(cv), true);
+  eq('the convert button is dead until the lookup has run',
+    /disabled=\{!!busy \|\| phase !== 'resolved' \|\| !writes\.length\}/.test(cv), true);
+  // The write list is derived from the SAME function the preview counts, so the
+  // number on the button is the number of rows that will change.
+  eq('the button states what will be written', /⤵ Convert \{writes\.length\}/.test(cv), true);
+  eq('...from writesFor, not from the row count', /const writes = useMemo\(\(\) => writesFor\(pass, links\)/.test(cv), true);
+
+  // ONE FOLDER FIELD. Two copies is how the operator searches their whole Drive
+  // from one card and a folder from the other, with nothing saying why the two
+  // disagreed.
+  eq('the Drive folder is the screen’s state, not the card’s',
+    /<ConvertLoadedReports folderId=\{folderId\} onFolderId=\{setFolderId\} \/>/.test(rm), true);
+
+  // AN EMPTY SURVEY PROVES WHAT THE READER WAS SHOWN, NEVER WHAT EXISTS.
+  // `reports_read` is admin OR can_view_all_calls() OR own-and-team, so
+  // "12,254 visits carry a report" is a claim about the REGISTER that only an
+  // office role's number supports. The helper takes the USER, because
+  // `user.role` collapses four office roles to 'engineer' and reads perfectly
+  // correct while being the wrong answer for four of the six.
+  eq('the survey says whose visits it counted', /seesEveryRecord\(user, can\)/.test(cv), true);
+  // Asked of the CODE, not the file: the comment above says `user.role` in
+  // order to warn about it, and a check that reads its own warning as the fault
+  // is the GST check matching "18%" in its own comment.
+  // BOTH FORMS. `user?.role` is the one that actually gets written -- the
+  // `User` type's index signature makes every shape of it type-check -- and a
+  // pattern matching only `user.role` would have waved the real mistake through.
+  eq('...and does not reach for user.role', /user\s*\??\.role\b/.test(code(cv)), false);
 }
 
 console.log(fail ? `\n${fail} FAILED\n` : '\nall passed\n');

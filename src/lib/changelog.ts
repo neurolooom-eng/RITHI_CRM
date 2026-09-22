@@ -12,7 +12,7 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
-    version: '0.9.348',
+    version: '0.9.349',
     date: '2026-09-22',
     title: 'Machine History reaches back to 2016',
     changes: [
@@ -23,6 +23,21 @@ export const CHANGELOG: ChangeEntry[] = [
       'Each asks WHICH EXPORT THIS IS before it will upload, and writes that on every row. These registers have no key to match on, so loading the same file twice adds the rows again \u2014 the label is the only way to take a batch back out.',
       'The archive can only be ADDED to. Nothing in the application can change or delete a row already in it, and the history database enforces that itself \u2014 those records cannot be rebuilt if they are lost.',
       'Until the archive is connected on the device, Machine History shows the registers only and says so rather than looking like a machine with no past.',
+    ],
+  },
+  {
+    version: '0.9.348',
+    date: '2026-09-22',
+    title: 'The reports already loaded can be turned into Drive links',
+    changes: [
+      'BULK REPORT MAPPING NOW HAS A SECOND JOB, at the top of the screen: the visits ALREADY in the register whose report is an AppSheet reference rather than a link. There are 7,538 of them — 5,496 file paths and 2,042 AppSheet links, out of 12,254 visits with a report — and on those calls “open the report” opens a string.',
+      'Press “Survey the register” and it tells you what is there, counted by shape rather than estimated. That also answers the question nobody could answer by reading the code: how many of those AppSheet links actually carry a file name to look up.',
+      'It runs in PASSES, 500 by default. The Drive lookup goes 60 names at a time, so doing all 7,538 at once would be a couple of hundred round trips with the tab held open. Each pass is independent — stop whenever, come back later, and the remaining count goes down.',
+      'A FILE DRIVE CANNOT FIND, OR FINDS TWICE, KEEPS ITS REFERENCE. An unresolved reference can still be settled by hand; a blanked one has lost the only thing that says which document it was.',
+      'NOTHING ELSE ON THE VISIT IS TOUCHED — not the status, not the visit date, not the engineer, not when it was entered. The reference it replaced goes into Source Ref, unless the row already records where its link came from, in which case that stands.',
+      'RE-IMPORTING THE ORIGINAL SHEET WOULD NOT HAVE DONE THIS, which is why it is a separate tool: those rows carry the engineer’s own columns now, and an import would write the file over them.',
+      'If your role is shown only its own calls and its team’s, the counts say so rather than reading as a statement about the whole register.',
+      'Requirements NAR-003.12 to NAR-003.19 and test case OQ-69 added to the validation package.',
     ],
   },
   {

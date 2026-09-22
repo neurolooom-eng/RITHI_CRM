@@ -342,3 +342,119 @@ export const summariseActions = (d: VisitDecision[]) => {
     skipReasons: [...why.entries()].map(([text, n]) => ({ text, n })).sort((a, b) => b.n - a.n),
   };
 };
+
+// ===========================================================================
+// THE REPORTS THAT ARE ALREADY LOADED.
+//
+// The screen above converts references while a sheet is being imported. That
+// helps nothing for the visits already in the register: a probe on 2026-09-22
+// counted 12,254 of them, and 7,538 carried an AppSheet reference in
+// `manual_report` where a Drive link should be -- 5,496 bare file paths and
+// 2,042 AppSheet URLs. They were loaded through Bulk Uploads' visit registers,
+// which store the cell as it was written and have never resolved anything.
+//
+// So "open the report" on those calls opens a string. The rows are not wrong;
+// they are unfinished, and re-importing the sheet is not the remedy, since the
+// engineer's own columns are on those rows now.
+//
+// THE SAME PARSER, DELIBERATELY. Nothing here re-decides what a reference is:
+// `parseRef` already knows the three shapes and is the thing the preview has
+// been proved against. A second opinion about what an AppSheet path looks like
+// is how the two lists of column aliases drifted.
+//
+// THREE RULES, AND EACH IS A REFUSAL RATHER THAN A CHOICE:
+//   - A file Drive cannot find, or finds twice, LEAVES THE REFERENCE ALONE.
+//     An unconverted reference can still be resolved by hand later; a blanked
+//     one has lost the only thing that says which document it was.
+//   - The ORIGINAL goes into `source_ref` (0071 exists for exactly this), and
+//     an existing `source_ref` is never overwritten -- that row's provenance
+//     was recorded by whatever put it there.
+//   - NOTHING ELSE ON THE ROW IS TOUCHED. Not the status, not `updated_at`,
+//     not the engineer's columns. Converting a reference into a link says
+//     nothing new about the visit, and a status changed here would move which
+//     visit decides the call's own status (0032).
+// ===========================================================================
+
+export interface LoadedReport {
+  /** The primary key. `uid` is nullable on this table, `id` is not — so the
+   *  write is keyed on `id` and every row is reachable. */
+  id: number | string;
+  uid: string;
+  ucn: string;
+  manual_report: string;
+  source_ref: string;
+  visit_at: string;
+}
+
+export type ConvertAction = 'convert' | 'leave';
+
+export interface ConvertRow {
+  row: LoadedReport;
+  ref: ParsedRef;
+  action: ConvertAction;
+  /** The link, where it is known WITHOUT asking Drive (a bare file id). */
+  link: string;
+  why: string;
+}
+
+export function planConversion(rows: LoadedReport[]): ConvertRow[] {
+  return rows.map((row) => {
+    const ref = parseRef(row.manual_report);
+    const leave = (why: string): ConvertRow => ({ row, ref, action: 'leave', link: '', why });
+
+    switch (ref.kind) {
+      case 'drive-link':    return leave('Already a Drive link.');
+      case 'other-url':     return leave('A link, but not to Drive — left as it is.');
+      case 'empty':         return leave('No report on this visit.');
+      // A bare file id needs no lookup at all: `driveLinkForId` is the whole
+      // conversion, and these are free.
+      case 'drive-id':      return { row, ref, action: 'convert', link: ref.url, why: 'A Drive file id — becomes a link.' };
+      case 'appsheet-url':
+      case 'appsheet-path': return { row, ref, action: 'convert', link: '', why: `Looked up in Drive as “${ref.fileName}”.` };
+      default:              return leave(ref.note);
+    }
+  });
+}
+
+/** Every distinct file name this conversion has to find in Drive. */
+export const namesToLookUp = (plan: ConvertRow[]): string[] =>
+  [...new Set(plan.filter((p) => p.action === 'convert' && !p.link && p.ref.fileName).map((p) => p.ref.fileName))];
+
+export interface ConvertWrite { id: number | string; manual_report: string; source_ref: string }
+
+/**
+ * What to write, once Drive has answered. A name Drive did not resolve simply
+ * is not in the list — the row keeps its reference.
+ */
+export function writesFor(plan: ConvertRow[], links: Record<string, string>): ConvertWrite[] {
+  const out: ConvertWrite[] = [];
+  for (const p of plan) {
+    if (p.action !== 'convert') continue;
+    const url = p.link || (p.ref.fileName ? links[p.ref.fileName] ?? '' : '');
+    if (!url) continue;                                   // not found, or ambiguous
+    if (url === p.row.manual_report) continue;            // nothing would change
+    out.push({
+      id: p.row.id,
+      manual_report: url,
+      // The original reference, kept — unless this row already records where
+      // its link came from, in which case that is the truer answer and stands.
+      source_ref: String(p.row.source_ref ?? '').trim() || p.row.manual_report,
+    });
+  }
+  return out;
+}
+
+/** What the operator is shown before anything is written. */
+export const conversionTally = (plan: ConvertRow[], links: Record<string, string> = {}) => {
+  const byKind = new Map<RefKind, number>();
+  for (const p of plan) byKind.set(p.ref.kind, (byKind.get(p.ref.kind) ?? 0) + 1);
+  const convert = plan.filter((p) => p.action === 'convert');
+  return {
+    total: plan.length,
+    convert: convert.length,
+    leave: plan.length - convert.length,
+    resolved: writesFor(plan, links).length,
+    names: namesToLookUp(plan).length,
+    byKind: [...byKind.entries()].map(([kind, n]) => ({ kind, n })).sort((a, b) => b.n - a.n),
+  };
+};
