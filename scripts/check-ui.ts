@@ -5354,7 +5354,30 @@ console.log('\n-- the Warranty Sale asks for what it cannot work out, and no mor
   // whose value they expect to keep, and the next keystroke on the field that
   // drives it would overwrite that silently.
   eq('a derived field is shown and not typeable',
-    /if \(field\.derived\) \{[\s\S]{0,260}readOnly/.test(reg), true);
+    /if \(field\.derived\) \{[\s\S]{0,520}readOnly/.test(reg), true);
+  // EVERY DATE ON THIS REGISTER READS dd-MMM-yyyy, derived or typed. A native
+  // date input renders in the BROWSER'S locale and cannot be told otherwise --
+  // two machines in one office showed `2026-09-12` and `09/11/2026` for the
+  // same field. A register that reads two ways is one people read twice.
+  eq('a typed date reads dd-MMM-yyyy',
+    /if \(field\.type === 'date'\) \{\s*return <LongDateInput/.test(reg), true);
+  eq('...and so does a derived one',
+    /field\.type === 'date'\s*\? <LongDateText/.test(reg), true);
+  eq('...and no date field is left as a raw native input',
+    /type=\{field\.type === 'date' \? 'date'/.test(reg), false);
+  {
+    // NOTHING IS PARSED OUT OF THE TEXT. A box holding "20-Apr-2026" that is
+    // saved as typed puts a formatted string in a date column, which is the
+    // fault this project's date rules exist against -- it is invisible until
+    // something tries to sort or subtract it. The value that leaves the
+    // component is the native date input's own.
+    const ld = readFileSync('src/components/ui/LongDate.tsx', 'utf8');
+    eq('the long date field hands back the date input\u2019s own value',
+      /type="date"[\s\S]{0,240}onChange=\{\(e\) => onChange\(e\.target\.value\)\}/.test(ld), true);
+    eq('...and parses nothing out of what was typed',
+      /parseAnyDate|toIsoDate|parseDateParts/.test(ld), false);
+    eq('the resting box cannot be typed into', /readOnly/.test(ld), true);
+  }
   eq('a new sale starts its warranty today',
     /warranty_start: new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(reg), true);
   // Re-stamping on every save would silently re-date a sale each time somebody

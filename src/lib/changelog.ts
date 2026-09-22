@@ -12,6 +12,17 @@ export interface ChangeEntry {
 
 export const CHANGELOG: ChangeEntry[] = [
   {
+    version: '0.9.341',
+    date: '2026-09-22',
+    title: 'Every date on the Warranty and Contract registers reads dd-MMM-yyyy',
+    changes: [
+      'Sale Entry Date, Invoice Date, Warranty Start, Warranty End, and the contract dates beside them, now read 20-Apr-2026 \u2014 in the form as well as in the table.',
+      'A browser\u2019s own date box renders in the BROWSER\u2019S locale and cannot be told otherwise. That is how two machines in one office showed 2026-09-12 and 09/11/2026 for the same field.',
+      'CLICK ONE AND IT BECOMES THE USUAL DATE PICKER; leave it and it reads the long form again. Nothing is ever read back out of the text \u2014 the value that gets saved is the date picker\u2019s own, so a typed string can never end up in a date column. That fault is invisible until something tries to sort or subtract it.',
+      'Applied to the Contract register as well as the Warranty one. A register that reads two ways depending on the box is one people read twice.',
+    ],
+  },
+  {
     version: '0.9.340',
     date: '2026-09-22',
     title: 'Raise the installation calls from the Warranty Sale Entry',

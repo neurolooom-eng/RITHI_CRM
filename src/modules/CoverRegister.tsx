@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { SelectPicker } from '../components/ui/SelectPicker';
+import { LongDateInput, LongDateText } from '../components/ui/LongDate';
 import { sbSearchParties, sbPartyInfo } from '../lib/supabase';
 import { partyFillForSale, SALE_PARTY_FIELDS, pairProductCodeAndName,
          summarisePinned, machinesNeedingInstallCall, INSTALL_COMPLAINT } from '../lib/coverspec';
@@ -121,8 +122,13 @@ function FieldInput({
   // DRIVES this one would overwrite it without saying so. Shown rather than
   // hidden, because the value is the answer they came for.
   if (field.derived) {
-    return <input className="input" value={value} readOnly disabled
-                  title={`Worked out from ${field.derived} — not typed here`} />;
+    // A DERIVED DATE READS THE SAME WAY AS A TYPED ONE. A register showing
+    // dd-MMM-yyyy in one box and the browser's locale in the next is a register
+    // people read twice.
+    return field.type === 'date'
+      ? <LongDateText value={value} />
+      : <input className="input" value={value} readOnly disabled
+               title={`Worked out from ${field.derived} — not typed here`} />;
   }
   // THE PARTY MASTER, SEARCHED ON THE SERVER. 5,873 customers is a few hundred
   // KB before the field would work at all; the call registers' own customer box
@@ -166,7 +172,14 @@ function FieldInput({
                          options={(field.options ?? []).filter(Boolean)} />;
   }
   if (field.type === 'textarea') return <textarea {...common} rows={2} />;
-  return <input {...common} type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'} placeholder={placeholder} />;
+  // EVERY DATE ON THIS REGISTER READS dd-MMM-yyyy (the user, 2026-09-22). A
+  // native date input renders in the BROWSER'S locale and cannot be told
+  // otherwise; LongDateInput shows the long form at rest and becomes the native
+  // picker while it is being edited, so nothing is ever parsed out of text.
+  if (field.type === 'date') {
+    return <LongDateInput value={value} onChange={onChange} disabled={disabled} />;
+  }
+  return <input {...common} type={field.type === 'number' ? 'number' : 'text'} placeholder={placeholder} />;
 }
 
 // One machine under a header, all its fields, with inheritance made visible.
